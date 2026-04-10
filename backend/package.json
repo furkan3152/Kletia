@@ -1,0 +1,38 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Kletia Core Engine",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "kletia",
+    "web3",
+    "intent",
+    "engine"
+  ],
+  "author": "Kletia CEO",
+  "license": "ISC",
+  "dependencies": {
+    "@coinbase/wallet-sdk": "^3.9.3",
+    "axios": "^1.6.8",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "permissionless": "^0.3.4",
+    "string-similarity": "^4.0.4",
+    "viem": "^2.47.6",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.0.0",
+    "@types/string-similarity": "^4.0.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  }
+}

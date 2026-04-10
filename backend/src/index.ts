@@ -1,4 +1,3 @@
-// backend/src/index.ts
 import express from 'express';
 import cors from 'cors';
 import { parseUserIntent } from './ai/parser.js';
@@ -10,7 +9,8 @@ import { executeKletiaEngine } from './intent/engine.js';
 };
 
 const app = express();
-const PORT = 3000;
+// 🔥 1. KRİTİK DEĞİŞİKLİK: Render'ın portunu dinamik olarak alıyoruz
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -53,7 +53,8 @@ app.post('/api/intent', async (req, res) => {
     }
 });
 
-const server = app.listen(PORT, () => {
+// 🔥 2. KRİTİK DEĞİŞİKLİK: 0.0.0.0 ekledik ki Render uygulamanı dış dünyaya (Frontend'e) açabilsin
+const server = app.listen(PORT as number, "0.0.0.0", () => {
     console.log(`🟢 KLETIA OMNI-ENGINE AKTİF (Port: ${PORT} - Stateful AI Devrede)`);
     console.log(`📡 Emirler bekleniyor...`);
 });

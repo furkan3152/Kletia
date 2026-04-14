@@ -8,16 +8,16 @@ dotenv.config();
 
 const SUPPORTED_TOKENS = Object.keys(TOKENS);
 
-// ✨ KIRILMAZ ŞEMA
+// ✨ ZIRHLI ŞEMA: Sayı da gelse zorla String yapar, sistemi asla çökertmez
 export const IntentSchema = z.object({
-    isComplete: z.boolean().default(true),
-    question: z.string().optional().default(""),
-    action: z.string().default("unknown"),
-    tokenIn: z.string().toUpperCase().optional(),
-    tokenOut: z.string().toUpperCase().optional(),
-    amount: z.string().default("0"), 
-    protocol: z.string().optional(),
-    durationInDays: z.coerce.number().optional().default(0)
+    isComplete: z.coerce.boolean().catch(true),
+    question: z.string().catch(""),
+    action: z.string().catch("unknown"),
+    tokenIn: z.any().transform(v => v == null ? undefined : String(v).toUpperCase()).optional(),
+    tokenOut: z.any().transform(v => v == null ? undefined : String(v).toUpperCase()).optional(),
+    amount: z.any().transform(v => (v == null || v === "") ? "0" : String(v)), 
+    protocol: z.any().transform(v => v == null ? undefined : String(v)).optional(),
+    durationInDays: z.coerce.number().catch(0)
 });
 
 export type ParsedIntent = z.infer<typeof IntentSchema>;
@@ -36,7 +36,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
     const apiKey = process.env.NOUS_API_KEY; 
     if (!apiKey) throw new Error("API Key eksik.");
 
-    // ✨ YENİ NESİL PROMPT: Soru sorma zekası ve Kusursuz Token eşleşmesi bir arada!
+    // ✨ YENİ NESİL PROMPT (Senin orijinal promptun, dokunmadım)
     const systemPrompt = `Sen 20 yıllık bir Web3 Degen ve Kletia'nın Baş Mimarı olan bir Yapay Zekasın.
     Kullanıcının niyetini JSON formatında ayrıştır.
     
@@ -72,7 +72,13 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
             body: JSON.stringify({ model: "gemini-1.5-flash", messages: messages, temperature: 0.0 })
         });
 
-        if (!response.ok) throw new Error("API Rejected.");
+        // HATA YAKALAYICI: API reddederse terminalde göreceğiz
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`🚨 GEMINI API REDDETTİ (HTTP ${response.status}):`, errText);
+            throw new Error(`API Rejected: ${response.status}`);
+        }
+
         const data = await response.json();
         const cleanContent = data.choices[0].message.content.trim().replace(/```json/gi, "").replace(/```/g, "").trim();
         
@@ -102,6 +108,8 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
 
         return IntentSchema.parse(parsedJson);
     } catch (error: any) {
+        // HATA DETAYINI KONSOLA YAZDIR
+        console.error("🚨 KLETIA PARSER ÇÖKTÜ DETAYI:", error.message || error);
         return {
             isComplete: false,
             question: "Sinyali tam alamadım patron. Hangi coin'i, ne kadar miktarla kullanmak istiyorsun?",

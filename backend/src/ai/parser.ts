@@ -67,15 +67,15 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
     ];
 
     try {
-        const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        const response = await fetch("https://inference-api.nousresearch.com/v1/chat/completions", {
             method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "gemini-1.5-flash", messages: messages, temperature: 0.0 })
+            body: JSON.stringify({ model: "Hermes-4-70B", messages: messages, temperature: 0.0 })
         });
 
-        // HATA YAKALAYICI: API reddederse terminalde göreceğiz
+        // HATA YAKALAYICI: Nous API reddederse terminalde net olarak göreceğiz
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`🚨 GEMINI API REDDETTİ (HTTP ${response.status}):`, errText);
+            console.error(`🚨 NOUS API REDDETTİ (HTTP ${response.status}):`, errText);
             throw new Error(`API Rejected: ${response.status}`);
         }
 

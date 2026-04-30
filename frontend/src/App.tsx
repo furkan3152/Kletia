@@ -1,8 +1,8 @@
 // frontend/src/App.tsx
 import { useState, useRef, useEffect } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useSendTransaction, usePublicClient, useAccount, useWriteContract } from 'wagmi';
-import { erc20Abi } from 'viem'; // ✨ DÜZELTME: Kullanılmayan encodeFunctionData silindi.
+import { useSendTransaction, usePublicClient, useAccount } from 'wagmi';
+import { erc20Abi, encodeFunctionData } from 'viem'; // ✨ DÜZELTME: Raw veri için encodeFunctionData eklendi
 import { Send, Bot, User, Loader2, Zap, CheckCircle2, ChevronRight } from 'lucide-react';
 
 type RouteData = { 
@@ -27,8 +27,10 @@ type IntentResponse = {
   data?: PortfolioData; 
   winner?: string; 
   expectedOutput?: string; 
+  targetContract?: string; 
+  calldata?: string;       
   tokenInAddress?: string; 
-  amountInWei?: string; 
+  amountInWei?: string;    
   isNativeIn?: boolean; 
   value?: string; 
   allRoutes?: RouteData[]; 
@@ -45,6 +47,9 @@ type ChatMessage = {
   selectedRouteIndex?: number;
 };
 
+// ✨ KLETIA AGGREGATOR ADRESİMİZ
+const KLETIA_ROUTER_ADDRESS = "0xF97f807C95B02d4c4b221C67B587fD1a99b2A77F".toLowerCase();
+
 export default function App() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -53,7 +58,6 @@ export default function App() {
 
   const { address } = useAccount(); 
   const { sendTransactionAsync } = useSendTransaction();
-  const { writeContractAsync } = useWriteContract(); 
   const publicClient = usePublicClient();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,7 +127,7 @@ export default function App() {
 
       updateMessage(kletiaMsgId, { 
         isLoading: false, 
-        text: `🏆 Rotalar bulundu! En kârlı seçenek: **${data.winner}**`,
+        text: `🏆 Rotalar bulundu! Kletia motoru en kârlı stratejiyi çizdi: **${data.winner}**`,
         intentData: data,
         selectedRouteIndex: 0, 
         terminalLogs: []
@@ -141,9 +145,23 @@ export default function App() {
 
     const data = msg.intentData;
     const activeRoute = data.allRoutes![msg.selectedRouteIndex || 0];
+    
+    // YENİ AKILLI YÖNLENDİRME
+    const isWrapped = data.targetContract?.toLowerCase() === KLETIA_ROUTER_ADDRESS;
+    const targetAddress = isWrapped ? data.targetContract! : activeRoute.router;
+    const txCalldata = isWrapped ? data.calldata! : activeRoute.calldata;
+    const txValue = data.value || "0";
 
     updateMessage(msgId, { isLoading: true });
-    addTerminalLog(msgId, `🚀 [${activeRoute.name}] güvenlik protokolleri başlatılıyor...`);
+    
+    if (isWrapped) {
+        addTerminalLog(msgId, `🛡️ Kletia Smart Router devrede (%0.1 Protokol Komisyonlu).`);
+    } else {
+        addTerminalLog(msgId, `⚡ Fee-Exempt (Ücretsiz) işlem. Doğrudan protokole bağlanılıyor.`);
+    }
+    
+    addTerminalLog(msgId, `🚀 Güvenlik protokolleri başlatılıyor...`);
+    addTerminalLog(msgId, `🔗 Hedef: ${targetAddress.substring(0, 8)}...`);
 
     try {
       const tokensToApprove: { address: string; amount: string }[] = [];
@@ -163,15 +181,25 @@ export default function App() {
               addTerminalLog(msgId, `🔍 İzin kontrol ediliyor: ${token.address.substring(0, 6)}...`);
               const currentAllowance = await publicClient.readContract({
                   address: token.address as `0x${string}`, abi: erc20Abi,
-                  functionName: 'allowance', args: [address, activeRoute.router as `0x${string}`]
+                  functionName: 'allowance', args: [address, targetAddress as `0x${string}`]
               });
 
               if (currentAllowance < BigInt(token.amount)) {
                   addTerminalLog(msgId, `⚠️ İzin eksik. Lütfen MetaMask üzerinden onay verin.`);
-                  const approveHash = await writeContractAsync({
-                      address: token.address as `0x${string}`, abi: erc20Abi,
-                      functionName: 'approve', args: [activeRoute.router as `0x${string}`, BigInt(token.amount)] 
+                  
+                  // ✨ BAŞ MİMAR ÇÖZÜMÜ: Wagmi'nin Decode hatasını aşmak için "Raw Transaction" ile Approve atıyoruz!
+                  const approveData = encodeFunctionData({
+                      abi: erc20Abi,
+                      functionName: 'approve',
+                      args: [targetAddress as `0x${string}`, BigInt(token.amount)]
                   });
+
+                  const approveHash = await sendTransactionAsync({
+                      to: token.address as `0x${string}`,
+                      data: approveData,
+                      value: 0n
+                  });
+
                   addTerminalLog(msgId, `⏳ İzin ağa gönderildi. Onay bekleniyor...`);
                   await publicClient.waitForTransactionReceipt({ hash: approveHash });
                   
@@ -185,19 +213,16 @@ export default function App() {
           addTerminalLog(msgId, `⚡ Native ETH tespit edildi. İzin (Approve) atlandı.`);
       }
 
-      // ✨ WETH BYPASS (Kusursuz, MetaMask Dostu Veri Gönderimi)
       const WETH_CONTRACT = "0x4200000000000000000000000000000000000006".toLowerCase();
-      if (activeRoute.router.toLowerCase() === WETH_CONTRACT) {
+      if (targetAddress.toLowerCase() === WETH_CONTRACT) {
           addTerminalLog(msgId, `⚡ WETH Bypass aktif. Simülasyon atlanıyor...`);
           addTerminalLog(msgId, `⏳ Lütfen işlemi MetaMask'tan onaylayın.`);
-          
-          // ✨ DÜZELTME: Kullanılmayan WETH_ABI silindi!
           
           const msgValue = data.isNativeIn ? BigInt(data.amountInWei || "0") : 0n;
 
           const hash = await sendTransactionAsync({
-              to: activeRoute.router as `0x${string}`,
-              data: activeRoute.calldata as `0x${string}`, 
+              to: targetAddress as `0x${string}`,
+              data: txCalldata as `0x${string}`, 
               value: msgValue
           });
           
@@ -216,10 +241,10 @@ export default function App() {
       if (publicClient) {
           try {
               await publicClient.estimateGas({
-                  account: address, to: activeRoute.router as `0x${string}`,
-                  data: activeRoute.calldata as `0x${string}`, value: BigInt(data.value || "0")
+                  account: address, to: targetAddress as `0x${string}`,
+                  data: txCalldata as `0x${string}`, value: BigInt(txValue)
               });
-              addTerminalLog(msgId, `✅ Simülasyon Başarılı! Kontrat onayladı.`);
+              addTerminalLog(msgId, `✅ Simülasyon Başarılı! Kontrat işlemi onayladı.`);
           } catch (error: unknown) {
               const err = error as { message: string; shortMessage?: string };
               addTerminalLog(msgId, `❌ SİMÜLASYON ÇÖKTÜ: ${err.shortMessage || err.message}\n[İşlem durduruldu]`);
@@ -230,7 +255,7 @@ export default function App() {
 
       addTerminalLog(msgId, `⏳ Lütfen asıl işlemi MetaMask'tan onaylayın.`);
       const hash = await sendTransactionAsync({
-        to: activeRoute.router as `0x${string}`, data: activeRoute.calldata as `0x${string}`, value: BigInt(data.value || "0")
+        to: targetAddress as `0x${string}`, data: txCalldata as `0x${string}`, value: BigInt(txValue)
       });
 
       updateMessage(msgId, { txHash: hash });
@@ -254,7 +279,7 @@ export default function App() {
       <header className="flex justify-between items-center px-6 py-4 border-b border-[#222]">
         <div className="flex items-center gap-2">
           <Zap className="text-kletiaBlue w-6 h-6" />
-          <h1 className="text-xl font-bold text-white tracking-wide">KLETIA</h1>
+          <h1 className="text-xl font-bold text-white tracking-wide">KLETIA OMNI</h1>
         </div>
         <ConnectButton showBalance={false} />
       </header>
@@ -280,7 +305,6 @@ export default function App() {
 
                 {msg.intentData?.action === 'portfolio' && msg.intentData.data && (
                   <div className="mt-4 space-y-4 text-sm w-full sm:w-96">
-                    
                     {msg.intentData.data.wallet && msg.intentData.data.wallet.length > 0 && (
                       <div className="p-4 bg-[#111] rounded-xl border border-[#333]">
                         <h4 className="text-gray-400 font-bold mb-3 border-b border-[#222] pb-2">CÜZDAN (WALLET)</h4>
@@ -350,7 +374,7 @@ export default function App() {
                   <div className="mt-3 p-3 bg-black rounded-lg border border-[#222] font-mono text-[11px] text-green-400/90 leading-relaxed overflow-x-hidden w-full sm:w-[450px]">
                     <div className="text-[#555] mb-2 flex items-center gap-2"><ChevronRight className="w-3 h-3"/> KLETIA X-RAY KONSOLU</div>
                     {msg.terminalLogs.map((log, i) => (
-                      <div key={i} className={`${log.includes('❌') ? 'text-red-400' : log.includes('⚠️') ? 'text-yellow-400' : ''}`}>{log}</div>
+                      <div key={i} className={`${log.includes('❌') ? 'text-red-400' : log.includes('⚠️') ? 'text-yellow-400' : log.includes('🛡️') ? 'text-blue-400' : ''}`}>{log}</div>
                     ))}
                     {msg.txHash && (
                       <a href={`https://basescan.org/tx/${msg.txHash}`} target="_blank" className="text-kletiaBlue hover:underline mt-2 block flex items-center gap-1">

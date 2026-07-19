@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: kletia-backend
+    env: docker
+    rootDir: backend
+    plan: starter
+    disk:
+      name: kletia-wallets
+      mountPath: /app/wallets
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 3001
+
+  - type: web
+    name: kletia-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://kletia-backend.onrender.com

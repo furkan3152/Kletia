@@ -1,0 +1,185 @@
+src/App.tsx:77 => addTerminalLog(_msgId, `🛡️ ARC Forwarder İmza Talebi Oluşturuluyor (Gasless)...`);
+src/App.tsx:82 => if (!nonceData.success) throw new Error("Nonce alınamadı");
+src/App.tsx:113 => addTerminalLog(_msgId, `⏳ MetaMask Signature Requested (Lütfen Confirmyın)...`);
+src/App.tsx:138 => if (!relayData.success) throw new Error(relayData.error || "Relay başarısız");
+src/App.tsx:243 => // ✨ MANTIK BLOKLARI (MOTOR AYNI ŞEKİLDE ÇALIŞIYOR)
+src/App.tsx:258 => addMessage({ id: Date.now().toString(), role: 'kletia', text: '🚨 Lütfen önce sağ üstten cüzdanını bağla dostum.' });
+src/App.tsx:268 => addMessage({ id: kletiaMsgId, role: 'kletia', text: 'Network taranıyor...', isLoading: true });
+src/App.tsx:282 => updateMessage(kletiaMsgId, { isLoading: false, text: `❌ Ajan Errorsı: ${errorData.message || 'Bilinmeyen hata'}` });
+src/App.tsx:289 => let agentText = "🤖 Ajan işlemleri başlatıyor...\n";
+src/App.tsx:290 => updateMessage(kletiaMsgId, { isLoading: true, text: agentText, terminalLogs: ["Ajan moduna geçildi..."] });
+src/App.tsx:316 => addTerminalLog(kletiaMsgId, `🧠 Ajan düşünüyor/cevaplıyor...`);
+src/App.tsx:322 => addTerminalLog(kletiaMsgId, `🛠️ Araç Çalıştı: ${displayStr}`);
+src/App.tsx:328 => addTerminalLog(kletiaMsgId, `✅ Görev sonlandı.`);
+src/App.tsx:348 => updateMessage(kletiaMsgId, { isLoading: false, text: `❌ İşlem Cancel: ${data.message}` });
+src/App.tsx:452 => addTerminalLog(msgId, `🔍 İzin kontrol ediliyor: ${token.address.substring(0, 6)}...`);
+src/App.tsx:459 => addTerminalLog(msgId, `⚠️ İzin eksik. Lütfen MetaMask üzerinden onay verin.`);
+src/App.tsx:469 => addTerminalLog(msgId, `⏳ İzin ağa gönderildi. Onay bekleniyor...`);
+src/App.tsx:476 => addTerminalLog(msgId, `✅ İzin onaylandı. Senkronizasyon (3 sn)...`);
+src/App.tsx:483 => addTerminalLog(msgId, `⚡ Native ETH tespit edildi. İzin (Approve) atlandı.`);
+src/App.tsx:486 => addTerminalLog(msgId, `🔬 İŞLEM SİMÜLASYONU (Dry Run) BAŞLATILIYOR...`);
+src/App.tsx:497 => addTerminalLog(msgId, `✅ Simulation Successful! Kontrat işlemi onayladı.`);
+src/App.tsx:514 => addTerminalLog(msgId, `🚀 İşlem Networkda! Hash: ${hash}\n⏳ Onay bekleniyor...`);
+src/App.tsx:519 => addTerminalLog(msgId, receipt.status === 'success' ? `✅ BAŞARILI! Kletia görevini tamamladı.` : `❌ İŞLEM AĞDA BAŞARISIZ OLDU.`);
+src/App.tsx:521 => addTerminalLog(msgId, `✅ BAŞARILI (Sponsorlu Gasless)! Kletia görevini tamamladı.`);
+src/App.tsx:534 => // ✨ ARAYÜZ (UI) - KUSURSUZ MOBİL UYUM & NEOBRUTALISM MATRIX
+src/App.tsx:539 => {/* ✨ GEOMETRİK KARMAŞA (NeoBrutalism Grid ve Şekiller) */}
+src/App.tsx:541 => {/* Mühendislik Kağıdı Noktaları */}
+src/App.tsx:544 => {/* Mobil Uyumlu Büyük Tipografi */}
+src/App.tsx:566 => {/* Sol Menü (App Hub) */}
+src/App.tsx:631 => {/* ✨ MESAJ BALONU: Ekrandan taşmaması için break-words eklendi */}
+src/App.tsx:666 => {/* ROTA SEÇİCİ VE ONAY BUTONU */}
+src/components/AlloraDashboard.tsx:42 => setError(json.error || 'Veri çekilemedi.');
+src/components/AlloraDashboard.tsx:45 => if (isMounted) setError('Connecttı hatası.');
+src/components/AlloraDashboard.tsx:73 => Canlı Fiyat &gt; AI Tahmini ➔ Otomatik Karar
+src/components/AlloraDashboard.tsx:77 => {/* ZAMAN DİLİMİ SEÇİMİ */}
+src/components/AlloraDashboard.tsx:87 => <option value="5m">5 Dakika (Kısa Vade)</option>
+src/components/AlloraDashboard.tsx:97 => <p className="mt-4 font-bold uppercase tracking-widest animate-pulse">Piyasa Analizi Yapılıyor...</p>
+src/components/AlloraDashboard.tsx:127 => <span className="text-xs font-bold uppercase opacity-70">Anlık Fiyat (Binance)</span>
+src/components/AlloraDashboard.tsx:144 => onClick={() => onActionClick(`Allora'nın yükseliş tahmini üzerine USDC ile ${item.asset} satın al`)}
+src/components/AlloraDashboard.tsx:152 => onClick={() => onActionClick(`Allora'nın düşüş tahmini üzerine elimdeki ${item.asset}'leri USDC'ye çevir`)}
+src/components/AlloraDashboard.tsx:163 => ✋ İşlem Önermiyor
+src/components/AlloraWidget.tsx:35 => setError(json.error || 'Veri çekilemedi.');
+src/components/AlloraWidget.tsx:38 => if (isMounted) setError('Connecttı hatası.');
+src/components/AlloraWidget.tsx:46 => const interval = setInterval(fetchPrediction, 30000); // 30 saniyede bir güncelle
+src/components/AlloraWidget.tsx:69 => Hedef Varlık: <span className="font-bold text-base">{asset}/USD</span>
+src/components/AlloraWidget.tsx:92 => <span>⚡ Güven: %{data.confidence || '92.4'}</span>
+src/components/AlloraWidget.tsx:99 => (Geliştirici Modu: Public Endpoint)
+src/components/ArcLendingDashboard.tsx:104 => <span className="text-xs font-black text-gray-500 uppercase block mb-1">KLET Fiyatı</span>
+src/components/ArcLendingDashboard.tsx:134 => {isConnected ? 'CÜZDAN BAĞLI' : 'BAĞLI DEĞİL'}
+src/components/ArcLendingDashboard.tsx:147 => <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase">Sağlık Skoru</h3>
+src/components/ArcLendingDashboard.tsx:151 => <span className="font-bold text-gray-600 dark:text-gray-400">LTV Oranı (Max %80)</span>
+src/components/ArcLendingDashboard.tsx:165 => <span className="text-xs font-bold text-[#EF4444] uppercase tracking-wide">Likitasyon Riski! Lütfen teminat ekleyin veya borç ödeyin.</span>
+src/components/ArcLendingDashboard.tsx:177 => <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase">Teminatınız</h3>
+src/components/ArcLendingDashboard.tsx:183 => onClick={() => onActionClick('Kletia lending protokolüne elimdeki KLET ile teminat ekle')}
+src/components/ArcLendingDashboard.tsx:186 => Teminat Yönetimi
+src/components/ArcLendingDashboard.tsx:201 => <div className="text-lg font-bold text-gray-500 mt-1">Max Alınabilir: ${maxBorrow}</div>
+src/components/ArcLendingDashboard.tsx:203 => onClick={() => onActionClick('Kletia lending üzerinden USDC borç al')}
+src/components/ArcLendingDashboard.tsx:206 => Borç İşlemleri
+src/components/ArcLendingDashboard.tsx:215 => ⚡ Hızlı Otonom İşlemler
+src/components/ArcLendingDashboard.tsx:219 => { icon: '💰', title: 'Teminat Add', prompt: 'Kletia lending protokolüne 50000 KLET teminat ekle' },
+src/components/ArcLendingDashboard.tsx:220 => { icon: '💸', title: 'Borç Al', prompt: 'Kletia lending üzerinden 10 USDC borç al' },
+src/components/ArcLendingDashboard.tsx:221 => { icon: '💳', title: 'Borç Öde', prompt: 'Kletia lending üzerindeki 10 USDC borcumu kapa' },
+src/components/ArcLendingDashboard.tsx:222 => { icon: '🔓', title: 'Teminat Çek', prompt: 'Kletia lending üzerinden 1000 KLET teminatımı geri çek' }
+src/components/BasenameClaimer.tsx:122 => <span className="text-red-500 font-bold text-sm">İsim en az 3 karakter olmalı</span>
+src/components/BasenameClaimer.tsx:142 => {isCheckingSecurity ? 'Webacy Taraması...' : isPending ? 'Onay Pending...' : isConfirming ? 'Networkda İşleniyor...' : isConfirmed ? 'Kayıt Success!' : totalPriceInWei > 0n ? `Kayıt Ol (${formatEther(totalPriceInWei)} ETH)` : 'Accountlanıyor...'}
+src/components/PortfolioViewer.tsx:21 => <h3 className="text-black font-black uppercase tracking-widest text-xs md:text-sm mb-1 opacity-80 flex items-center gap-1"><Zap className="w-4 h-4"/> Toplam Portföy Değeri</h3>
+src/components/PortfolioViewer.tsx:77 => {showAllWallet ? <><ChevronUp className="w-4 h-4"/> Gizle</> : <><ChevronDown className="w-4 h-4"/> Tümünü Gör (+{data.wallet.length - 4})</>}
+src/components/PortfolioViewer.tsx:83 => {/* 4. LİKİT STAKİNG (LST) */}
+src/components/PortfolioViewer.tsx:108 => <Layers className="w-4 h-4" strokeWidth={3}/> Diğer DeFi Varlıkları
+src/components/PortfolioViewer.tsx:127 => {showAllDefi ? <><ChevronUp className="w-4 h-4"/> Gizle</> : <><ChevronDown className="w-4 h-4"/> Tümünü Gör (+{data.defiTokens.length - 4})</>}
+src/components/PortfolioViewer.tsx:135 => {/* 6. AKTİF DEFI POZİSYONLARI BÖLÜMÜ */}
+src/components/PortfolioViewer.tsx:147 => <div className="flex justify-between py-1"><span className="text-gray-800 dark:text-slate-300 font-bold">Borç:</span><span className="text-red-700 dark:text-red-400 font-black">{data.defiPositions.aave.totalDebtUSD}</span></div>
+src/components/PortfolioViewer.tsx:149 => <span className="text-gray-800 dark:text-slate-300 font-bold">Sağlık (HF):</span>
+src/components/PortfolioViewer.tsx:162 => <div className="flex justify-between py-0.5 pl-2 border-l-2 border-[#1A1A1A] dark:border-purple-300"><span className="text-gray-600 dark:text-slate-400 text-xs">Yatırılan:</span><span className="text-purple-800 dark:text-purple-200 font-black text-xs">{pos.supplied}</span></div>
+src/components/PortfolioViewer.tsx:163 => <div className="flex justify-between py-0.5 pl-2 border-l-2 border-[#1A1A1A] dark:border-purple-300"><span className="text-gray-600 dark:text-slate-400 text-xs">Borç:</span><span className="text-red-600 dark:text-red-400 font-black text-xs">{pos.debt}</span></div>
+src/components/PortfolioViewer.tsx:173 => <div className="flex justify-between py-1"><span className="text-gray-800 dark:text-slate-300 font-bold">Yatırılan USDC:</span><span className="text-teal-700 dark:text-teal-400 font-black">{data.defiPositions.compound.suppliedUSDC}</span></div>
+src/components/PortfolioViewer.tsx:174 => <div className="flex justify-between py-1"><span className="text-gray-800 dark:text-slate-300 font-bold">Alınan Borç:</span><span className="text-red-700 dark:text-red-400 font-black">{data.defiPositions.compound.borrowedUSDC}</span></div>
+src/components/PortfolioViewer.tsx:183 => <div className="flex justify-between py-1"><span className="text-gray-800 dark:text-slate-300 font-bold">Oy Gücü:</span><span className="text-amber-600 dark:text-amber-400 font-black">{data.defiPositions.aerodrome.votingPower}</span></div>
+src/components/PortfolioViewer.tsx:193 => <History className="w-5 h-5"/> Son İşlemler
+src/components/PortfolioViewer.tsx:220 => {showAllTx ? <><ChevronUp className="w-4 h-4"/> Gizle</> : <><ChevronDown className="w-4 h-4"/> Tümünü Gör (+{data.recentTransactions.length - 5})</>}
+src/components/RiskBadge.tsx:43 => <span className="text-xs text-gray-400">Güvenlik Kontrolü...</span>
+src/components/RiskBadge.tsx:58 => let label = "Güvenli";
+src/components/RiskBadge.tsx:65 => label = "Yüksek Riskli";
+src/components/chat/ChatInput.tsx:31 => Kletia Omni-Engine hata yapabilir, lütfen işlemleri onaylarken son kez kontrol edin.
+src/components/layout/AppSidebar.tsx:58 => title="Base Modu Yakında"
+src/components/layout/AppSidebar.tsx:62 => ARC MODE (Base Yakında)
+src/components/layout/AppSidebar.tsx:107 => <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2">Ekosistem & Güvenlik</h3>
+src/components/layout/AppSidebar.tsx:110 => onClick={() => { onWidgetClick('Webacy güvenlik merkezini aç'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:115 => <span>Webacy Güvenlik Merkezi</span>
+src/components/layout/AppSidebar.tsx:121 => onClick={() => { onWidgetClick('Allora yapay zeka merkezini aç'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:132 => onClick={() => { onWidgetClick('Basename kayıt sistemini aç'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:143 => onClick={() => { onWidgetClick('Airdrop simülatörünü aç'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:148 => <span>Airdrop Simülatörü</span>
+src/components/layout/AppSidebar.tsx:154 => onClick={() => { onWidgetClick('x402 ödeme konsolunu aç'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:172 => <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Otonom Araçlar
+src/components/layout/AppSidebar.tsx:176 => onClick={() => { onWidgetClick('Balina takibi (copy-trade) başlat'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:187 => onClick={() => { onWidgetClick('Otomatik getiri avcısı (yield optimizer) başlat'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:192 => <span>Getiri Avcısı</span>
+src/components/layout/AppSidebar.tsx:198 => onClick={() => { onWidgetClick('Zamanlanmış / koşullu emir (limit order) başlat'); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:214 => <span>Oturum Anahtarı</span>
+src/components/layout/AppSidebar.tsx:229 => onClick={() => { onWidgetClick("Kletia Omni-Engine üzerinden 5 USDC'yi KLET ile swap et"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:255 => onClick={() => { onWidgetClick("Kletia staking kontratına 25 USDC kilitle"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:268 => onClick={() => { onWidgetClick("Kletia Omni-Engine üzerinden 0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A adresine 5 USDC toplu transfer yap"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:281 => onClick={() => { onWidgetClick("Kletia Omni-Engine üzerinden 0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A adresine Kira Ödemesi notuyla 10 USDC memo transfer yap"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:294 => onClick={() => { onWidgetClick("Kletia AI Agent'ı sisteme kaydet"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:307 => onClick={() => { onWidgetClick("Kletia havuzuna 100 USDC ve eşdeğer KLET likidite ekle"); if(window.innerWidth < 768) setIsOpen(false); }}
+src/components/layout/AppSidebar.tsx:335 => <MessageSquare className="w-4 h-4" /> GEÇMİŞİ TEMİZLE
+src/components/layout/Sidebar.tsx:40 => <span>Portföy verisi henüz çekilmedi. Sisteme <b>"Portföyümü göster"</b> yazarak güncel durumunu görebilirsin.</span>
+src/components/widgets/AirdropSimulator.tsx:50 => setAgentLogs(["Yapay zeka ajanı başlatılıyor... X402 ödeme protokolü devrede."]);
+src/components/widgets/AirdropSimulator.tsx:57 => prompt: `${inputAddress} cüzdanı için gelişmiş sybil analizi yapmak istiyorum. Lütfen 'http://localhost:3001/api/premium/sybil-report?address=${inputAddress}' adresinden X402 ödemesi yaparak Premium Sybil Analizi verisini al ve sonuçları (aktif günler, cüzdan yaşı, işlem varyansı) bana Türkçe olarak detaylıca açıkla.`
+src/components/widgets/AirdropSimulator.tsx:61 => if (!response.body) throw new Error("Ajan ile bağlantı kurulamadı.");
+src/components/widgets/AirdropSimulator.tsx:88 => setAgentLogs(prev => [...prev, `[SİSTEM]: ${parsedData}`]);
+src/components/widgets/AirdropSimulator.tsx:92 => setAgentLogs(prev => [...prev, `[ARAÇ ÇAĞRISI]: Ajan yetki araçlarını kullanıyor...`]);
+src/components/widgets/AirdropSimulator.tsx:103 => setAgentLogs(prev => [...prev, `[SİSTEM HATASI]: ${e.message}`]);
+src/components/widgets/AirdropSimulator.tsx:111 => alert('Lütfen geçerli bir 0x cüzdan adresi girin.');
+src/components/widgets/AirdropSimulator.tsx:129 => aiRiskLevel = aiScore > 60 ? 'Düşük Risk' : 'Yüksek Risk';
+src/components/widgets/AirdropSimulator.tsx:284 => aiRiskLevel = dustTxCount > 15 ? 'Yüksek Risk (Sybil)' : 'Düşük Risk (Organik)';
+src/components/widgets/AirdropSimulator.tsx:302 => alert("Çoklu API Veri Çekme Errorsı! Kletia Sunucularında ağ problemi yaşanıyor.");
+src/components/widgets/AirdropSimulator.tsx:308 => // Kletia Süper Skor Formülü (%60 AI, %40 Gerçek Onchain Verisi)
+src/components/widgets/AirdropSimulator.tsx:334 => Kletia Süper Skoru: TrustaLabs AI, Nomis, Coinbase SDK ve Blockscout verilerini tek potada eritir.
+src/components/widgets/AirdropSimulator.tsx:345 => placeholder="Analiz edilecek cüzdan adresini (0x...) girin"
+src/components/widgets/AirdropSimulator.tsx:357 => {isScanning ? 'API\'lere Connectılıyor...' : 'Süper Skoru Accountla'}
+src/components/widgets/AirdropSimulator.tsx:367 => <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">Kletia Süper Skor</h3>
+src/components/widgets/AirdropSimulator.tsx:375 => %60 Yapay Zeka (AI) Repütasyonu, %40 Onchain Geçmişi kullanılarak hesaplanmıştır.
+src/components/widgets/AirdropSimulator.tsx:392 => <div className={`text-xl font-black ${result.aiRiskLevel.includes('Düşük') ? 'text-green-500' : 'text-red-500'}`}>
+src/components/widgets/AirdropSimulator.tsx:405 => <p className="text-xs font-bold text-gray-500">Network İçi Ham Veri Analizi</p>
+src/components/widgets/AirdropSimulator.tsx:422 => <p className="text-xs font-bold text-gray-500">Resmi Web3 Kimlik Çözücü</p>
+src/components/widgets/AirdropSimulator.tsx:427 => {hasBasename ? 'Base Name Sahibi' : 'Tanımsız Wallet'}
+src/components/widgets/AirdropSimulator.tsx:429 => <div className="text-sm font-bold text-gray-600 dark:text-slate-400">Net Gas Harcaması: ${result.totalGasSpentUsd.toFixed(2)}</div>
+src/components/widgets/AirdropSimulator.tsx:438 => <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">Onchain Ayak İzi</h4>
+src/components/widgets/AirdropSimulator.tsx:451 => <Clock className="w-4 h-4 text-gray-400" /> {result.accountAgeDays} Gün
+src/components/widgets/AirdropSimulator.tsx:453 => <div className="text-xs font-bold text-gray-500">Wallet Yaşı</div>
+src/components/widgets/AirdropSimulator.tsx:459 => <div className="text-xs font-bold text-gray-500">Toplam İşlem</div>
+src/components/widgets/AirdropSimulator.tsx:474 => {agentStatus === 'running' ? 'Otonom X402 İşlemi Yürütülüyor...' : '🤖 AI Ajanı ile Derin Analiz (X402 Premium)'}
+src/components/widgets/ArcDashboardWidget.tsx:469 => Built on Arc Network - Circle tarafından geliştirilmiş, USDC-native Layer-1
+src/components/widgets/ArcDashboardWidget.tsx:475 => <span className="text-xs font-black text-gray-500 uppercase block mb-1">KLET Fiyatı</span>
+src/components/widgets/ArcDashboardWidget.tsx:488 => AKTİF
+src/components/widgets/ArcDashboardWidget.tsx:509 => {isConnected ? 'CÜZDAN BAĞLI' : 'BAĞLI DEĞİL'}
+src/components/widgets/ArcDashboardWidget.tsx:557 => { icon: '🔒', name: 'Vault AI', desc: 'Akıllı Yatırım', prompt: 'Arc vault kasama hemen 50 USDC aktar, faiz kazanmak istiyorum' },
+src/components/widgets/ArcDashboardWidget.tsx:558 => { icon: '✉️', name: 'Memo Pay', desc: 'Notlu Ödeme', prompt: 'Ahmetin cüzdanı olan 0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A adresine kira ödemesi açıklamasıyla 10 USDC gönder' },
+src/components/widgets/ArcDashboardWidget.tsx:559 => { icon: '💦', name: 'Liquidity', desc: 'Havuz Besleme', prompt: 'Arc ağındaki Swap havuzuna 10 USDC likidite ekle' },
+src/components/widgets/ArcDashboardWidget.tsx:561 => { icon: '💎', name: 'Stake', desc: 'Esnek Kilit', prompt: 'Gelecek için Arc staking kontratına 25 USDC kilitle' },
+src/components/widgets/CopyTradeWidget.tsx:16 => if (!targetWallet) return alert("İzlenecek cüzdan adresini girin.");
+src/components/widgets/CopyTradeWidget.tsx:24 => <label className="block text-sm font-bold mb-1">🎯 Hedef (Balina) Walletı</label>
+src/components/widgets/CopyTradeWidget.tsx:36 => <label className="block text-sm font-bold mb-1">💰 İşlem Başına Maksimum Limit (USDC)</label>
+src/components/widgets/CopyTradeWidget.tsx:55 => <><Square size={18} fill="currentColor"/> İzlemeyi Durdur</>
+src/components/widgets/CopyTradeWidget.tsx:57 => <><Play size={18} fill="currentColor"/> Otomatik Kopyalamayı Başlat</>
+src/components/widgets/WebacyScanner.tsx:46 => Powered by Webacy (DD.xyz). Tarama yapmak istediğiniz akıllı kontrat veya cüzdan adresini girin, anında risk analizini görüntüleyin.
+src/components/widgets/WebacyScanner.tsx:86 => {result.riskLevel} RİSK
+src/components/widgets/WebacyScanner.tsx:89 => {result.isContract ? 'Akıllı Kontrat' : 'Wallet (EOA)'}
+src/components/widgets/WebacyScanner.tsx:115 => ⚠️ UYARI: Kletia Otonom Ajanı ve Kletia Güvenlik Duvarı bu adresle herhangi bir işlem yapmanıza izin vermeyecektir.
+src/components/widgets/WidgetLauncher.tsx:12 => text: `🚀 **${title}** modülü aktif edildi. İlgili arayüz aşağıda hazır:`,
+src/components/widgets/WidgetLauncher.tsx:35 => onClick={() => launchWidget('yield_optimizer', 'Otonom Getiri Avcısı')}
+src/components/widgets/WidgetLauncher.tsx:39 => Getiri Avcısı
+src/components/widgets/WidgetLauncher.tsx:43 => onClick={() => launchWidget('limit_order', 'Zamanlanmış / Koşullu Emir')}
+src/components/widgets/WidgetLauncher.tsx:52 => title="Yakında"
+src/components/widgets/WidgetLauncher.tsx:55 => Oturum Anahtarı
+src/components/widgets/X402ConsoleWidget.tsx:98 => if (!address) return alert("Önce cüzdanını bağla.");
+src/components/widgets/X402ConsoleWidget.tsx:100 => log("🚀 Gateway kontratı deploy ediliyor...");
+src/components/widgets/X402ConsoleWidget.tsx:112 => log(`📤 TX gönderildi: ${txHash.substring(0, 16)}...`);
+src/components/widgets/X402ConsoleWidget.tsx:116 => log(`✅ TX onaylandı! Block: ${receipt.blockNumber}`);
+src/components/widgets/X402ConsoleWidget.tsx:144 => log("⚠️ Kontrat oluşturuldu ama adres event'ten okunamadı.");
+src/components/widgets/X402ConsoleWidget.tsx:148 => log(`❌ Deploy hatası: ${error.message?.substring(0, 100)}`);
+src/components/widgets/X402ConsoleWidget.tsx:157 => return alert("Geçerli bir kontrat adresi girin.");
+src/components/widgets/X402ConsoleWidget.tsx:160 => log(`🔄 Kontrat yükleniyor: ${loadAddress.substring(0, 10)}...`);
+src/components/widgets/X402ConsoleWidget.tsx:188 => log(`✅ Kontrat yüklendi. Owner: ${(owner as string).substring(0, 8)}...`);
+src/components/widgets/X402ConsoleWidget.tsx:191 => log(`❌ Kontrat yüklenemedi: ${e.message?.substring(0, 80)}`);
+src/components/widgets/X402ConsoleWidget.tsx:197 => if (!address || !activeContract) return alert("Wallet bağlı ve kontrat yüklü olmalı.");
+src/components/widgets/X402ConsoleWidget.tsx:198 => if (!walletClient) return alert("Wallet client bağlı değil.");
+src/components/widgets/X402ConsoleWidget.tsx:202 => log("💳 x402 ödeme akışı başlatılıyor...");
+src/components/widgets/X402ConsoleWidget.tsx:234 => log(`📡 İstek: ${endpoint}`);
+src/components/widgets/X402ConsoleWidget.tsx:241 => log("🎉 BAŞARILI! x402 ödemesi gerçekleşti ve veri alındı.");
+src/components/widgets/X402ConsoleWidget.tsx:248 => log(`⚠️ Yanıt ${response.status}: ${errorText.substring(0, 200)}`);
+src/components/widgets/X402ConsoleWidget.tsx:252 => log(`❌ Ödeme hatası: ${e.message?.substring(0, 200)}`);
+src/components/widgets/X402ConsoleWidget.tsx:262 => log("🔍 x402 debug bilgisi alınıyor...");
+src/components/widgets/X402ConsoleWidget.tsx:276 => log(`❌ Debug hatası: ${e.message}`);
+src/components/widgets/X402ConsoleWidget.tsx:283 => log(`💰 Fiyat güncelleniyor: ${newPrice} USDC...`);
+src/components/widgets/X402ConsoleWidget.tsx:298 => log(`✅ Fiyat güncellendi: ${newPrice} USDC`);
+src/components/widgets/X402ConsoleWidget.tsx:301 => log(`❌ Fiyat güncelleme hatası: ${e.message?.substring(0, 100)}`);
+src/components/widgets/X402ConsoleWidget.tsx:308 => log("💸 USDC çekim işlemi başlatılıyor...");
+src/components/widgets/X402ConsoleWidget.tsx:322 => log("✅ USDC başarıyla çekildi!");
+src/components/widgets/X402ConsoleWidget.tsx:325 => log(`❌ Çekim hatası: ${e.message?.substring(0, 100)}`);
+src/components/widgets/X402ConsoleWidget.tsx:342 => log("📋 Gateway URL kopyalandı.");
+src/components/widgets/X402ConsoleWidget.tsx:545 => onClick={() => { setActiveContract(null); setDebugInfo(null); setPayResult(null); log("🗑️ Kontrat sıfırlandı."); }}
+src/main.tsx:32 => projectId: 'YOUR_PROJECT_ID', // WalletConnect ID (Test için boş kalabilir)

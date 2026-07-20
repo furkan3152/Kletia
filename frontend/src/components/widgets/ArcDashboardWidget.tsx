@@ -554,11 +554,11 @@ export const ArcDashboardWidget: React.FC<{
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { icon: '🔒', name: 'Vault AI', desc: 'Smart Investment', prompt: 'Transfer 50 USDC to my Arc vault immediately, I want to earn interest' },
+            { icon: '🔒', name: 'Vault AI', desc: 'Smart Investment', prompt: 'Transfer 50 USDC to my Kletia vault on Arc network immediately, I want to earn interest' },
             { icon: '✉️', name: 'Memo Pay', desc: 'Memo Payment', prompt: 'Send 10 USDC to Ahmet\'s wallet 0xFf... with rent payment description' },
-            { icon: '💦', name: 'Liquidity', desc: 'Pool Funding', prompt: 'Add 10 USDC liquidity to Swap pool on Arc network' },
+            { icon: '💦', name: 'Liquidity', desc: 'Pool Funding', prompt: 'Add 10 USDC liquidity to Kletia Swap pool on Arc network' },
             { icon: '🔄', name: 'Swap', desc: 'USDC/KLETIA', prompt: 'Swap my 5 USDC for Kletia test token' },
-            { icon: '💎', name: 'Stake', desc: 'Flexible Lock', prompt: 'Lock 25 USDC to Arc staking contract for the future' },
+            { icon: '💎', name: 'Stake', desc: 'Flexible Lock', prompt: 'Lock 25 USDC to Kletia staking contract on Arc network for the future' },
             { icon: '🏦', name: 'Lend', desc: 'Lend Assets', prompt: 'Lend 5 USDC to Kletia Lending on Arc network' },
             { icon: '💸', name: 'Borrow', desc: 'Borrow Assets', prompt: 'Borrow 5 USDC from Kletia Lending on Arc network' },
           ].map((f, i) => (

@@ -50,9 +50,9 @@ export async function handleArcSwap(intent: ParsedIntent, userAddress: string) {
         targetContract: ARC_CONTRACTS.Swap,
         calldata,
         value,
-        winner: "Arc Native Swap",
+        winner: "Kletia Swap",
         expectedOutput: expectedOutStr,
-        allRoutes: [{ name: "Arc Omni Swap", router: ARC_CONTRACTS.Swap, calldata, expectedOutput: expectedOutStr, primaryTokenAddress: isUsdcToToken ? null : ARC_CONTRACTS.Token, primaryAmountInWei: isUsdcToToken ? null : amountWei.toString() }],
+        allRoutes: [{ name: "Kletia Swap", router: ARC_CONTRACTS.Swap, calldata, expectedOutput: expectedOutStr, primaryTokenAddress: isUsdcToToken ? null : ARC_CONTRACTS.Token, primaryAmountInWei: isUsdcToToken ? null : amountWei.toString() }],
         isNativeIn: isUsdcToToken,
         tokenInAddress: isUsdcToToken ? null : ARC_CONTRACTS.Token
     };
@@ -70,9 +70,9 @@ export async function handleArcStaking(intent: ParsedIntent, userAddress: string
         targetContract: ARC_CONTRACTS.Staking,
         calldata,
         value: amountWei.toString(),
-        winner: "Arc Native Staking",
+        winner: "Kletia Staking",
         expectedOutput: "Batch Payment Complete",
-        allRoutes: [{ name: "Arc Batch Pay", router: ARC_CONTRACTS.BatchPay, calldata, expectedOutput: "Multi Payment" }],
+        allRoutes: [{ name: "Kletia Staking", router: ARC_CONTRACTS.Staking, calldata, expectedOutput: "Stake KLET" }],
         isNativeIn: true
     };
 }
@@ -93,9 +93,9 @@ export async function handleArcVault(intent: ParsedIntent, userAddress: string, 
         targetContract: ARC_CONTRACTS.Vault,
         calldata,
         value: isWithdraw ? "0" : amountWei.toString(),
-        winner: "Arc Vault",
+        winner: "Kletia Vault",
         expectedOutput: isWithdraw ? "USDC + Yield" : "Vault Deposit",
-        allRoutes: [{ name: "Arc Secured Vault", router: ARC_CONTRACTS.Vault, calldata, expectedOutput: isWithdraw ? "Withdraw from Vault" : "Deposit to Vault" }],
+        allRoutes: [{ name: "Kletia Vault", router: ARC_CONTRACTS.Vault, calldata, expectedOutput: isWithdraw ? "Withdraw from Vault" : "Deposit to Vault" }],
         isNativeIn: !isWithdraw
     };
 }
@@ -121,9 +121,9 @@ export async function handleArcMemo(intent: ParsedIntent, userAddress: string) {
         targetContract: ARC_CONTRACTS.MemoTransfer,
         calldata,
         value: amountWei.toString(),
-        winner: "Arc Memo Transfer",
+        winner: "Kletia Memo Transfer",
         expectedOutput: "Transfer Complete",
-        allRoutes: [{ name: "Arc Memo Transfer", router: ARC_CONTRACTS.MemoTransfer, calldata, expectedOutput: "Message Transfer" }],
+        allRoutes: [{ name: "Kletia Memo Transfer", router: ARC_CONTRACTS.MemoTransfer, calldata, expectedOutput: "Message Transfer" }],
         isNativeIn: true
     };
 }
@@ -148,9 +148,9 @@ export async function handleArcAgentRegistry(intent: ParsedIntent, userAddress: 
         targetContract: ARC_CONTRACTS.AgentRegistry,
         calldata,
         value: "0",
-        winner: "Arc Agent Registry",
+        winner: "Kletia Agent Registry",
         expectedOutput: "Agent Registered",
-        allRoutes: [{ name: "Arc Agent Registry", router: ARC_CONTRACTS.AgentRegistry, calldata, expectedOutput: "AI Registry" }],
+        allRoutes: [{ name: "Kletia Agent Registry", router: ARC_CONTRACTS.AgentRegistry, calldata, expectedOutput: "AI Registry" }],
         isNativeIn: false
     };
 }
@@ -188,10 +188,10 @@ export async function handleArcLiquidity(intent: ParsedIntent, userAddress: stri
         targetContract: ARC_CONTRACTS.Swap,
         calldata,
         value: amountWei.toString(), // usdc amount
-        winner: "Arc Liquidity Pool",
+        winner: "Kletia Liquidity Pool",
         expectedOutput: "Liquidity Provided",
         allRoutes: [{ 
-            name: "Arc Omni Liquidity", 
+            name: "Kletia Liquidity", 
             router: ARC_CONTRACTS.Swap, 
             calldata, 
             expectedOutput: "Pool Liquidity",
@@ -286,10 +286,10 @@ export async function handleArcLendingDeposit(intent: ParsedIntent, userAddress:
         targetContract: ARC_CONTRACTS.Lending,
         calldata,
         value: "0",
-        winner: "Arc Lending",
+        winner: "Kletia Lending",
         expectedOutput: "Collateral Added",
         allRoutes: [{ 
-            name: "Arc Lending", 
+            name: "Kletia Lending", 
             router: ARC_CONTRACTS.Lending, 
             calldata, 
             expectedOutput: "Add Collateral",
@@ -317,9 +317,9 @@ export async function handleArcLendingBorrow(intent: ParsedIntent, userAddress: 
         targetContract: ARC_CONTRACTS.Lending,
         calldata,
         value: "0",
-        winner: "Arc Lending",
+        winner: "Kletia Lending",
         expectedOutput: "USDC Debt",
-        allRoutes: [{ name: "Arc Lending", router: ARC_CONTRACTS.Lending, calldata, expectedOutput: "Borrow USDC" }],
+        allRoutes: [{ name: "Kletia Lending", router: ARC_CONTRACTS.Lending, calldata, expectedOutput: "Borrow USDC" }],
         isNativeIn: false
     };
 }
@@ -339,9 +339,9 @@ export async function handleArcLendingRepay(intent: ParsedIntent, userAddress: s
         targetContract: ARC_CONTRACTS.Lending,
         calldata,
         value: amountWei.toString(), // Native ETH (Native token) value for repaying in some cases if it's native asset
-        winner: "Arc Lending",
+        winner: "Kletia Lending",
         expectedOutput: "Repay USDC Debt",
-        allRoutes: [{ name: "Arc Lending", router: ARC_CONTRACTS.Lending, calldata, expectedOutput: "Repay Debt" }],
+        allRoutes: [{ name: "Kletia Lending", router: ARC_CONTRACTS.Lending, calldata, expectedOutput: "Repay Debt" }],
         isNativeIn: true
     };
 }

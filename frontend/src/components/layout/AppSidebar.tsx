@@ -291,16 +291,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </button>
 
               <button 
-                onClick={() => { onWidgetClick("Register Kletia AI Agent to system"); if(window.innerWidth < 768) setIsOpen(false); }}
-                className={navItemClass(false)}
+                disabled
+                className="w-full flex items-center justify-between px-4 py-3 font-bold border-[3px] bg-gray-200 dark:bg-[#111] text-gray-400 dark:text-gray-600 border-[#1A1A1A] dark:border-[#333] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] cursor-not-allowed opacity-80"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 flex items-center justify-center bg-[#000000] border-[2px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A]">
+                  <div className="w-6 h-6 flex items-center justify-center bg-gray-400 border-[2px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] grayscale opacity-50">
                     <span className="text-xs">🤖</span>
                   </div>
-                  <span>Agent Registry</span>
+                  <span className="line-through decoration-2">Agent Registry</span>
                 </div>
-                <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="text-[9px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-1.5 py-0.5 font-black uppercase tracking-widest rotate-[-3deg] shadow-[2px_2px_0_#1A1A1A]">DEV</span>
               </button>
 
               <button 

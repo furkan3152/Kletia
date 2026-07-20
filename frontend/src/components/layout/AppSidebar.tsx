@@ -315,6 +315,32 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </div>
                 <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
+
+              <button 
+                onClick={() => { onWidgetClick("Lend 5 USDC to Kletia Lending on Arc network"); if(window.innerWidth < 768) setIsOpen(false); }}
+                className={navItemClass(false)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 flex items-center justify-center bg-[#10B981] border-[2px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A]">
+                    <span className="text-xs">🏦</span>
+                  </div>
+                  <span>Lending</span>
+                </div>
+                <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+
+              <button 
+                onClick={() => { onWidgetClick("Borrow 5 USDC from Kletia Lending on Arc network"); if(window.innerWidth < 768) setIsOpen(false); }}
+                className={navItemClass(false)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 flex items-center justify-center bg-[#EF4444] border-[2px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A]">
+                    <span className="text-xs">💸</span>
+                  </div>
+                  <span>Borrowing</span>
+                </div>
+                <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
             </div>
           )}
 

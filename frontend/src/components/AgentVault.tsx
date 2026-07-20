@@ -132,18 +132,6 @@ export function AgentVault({
           >
             ⚡ Find Arbitrage
           </button>
-          <button 
-            onClick={() => onQuickAction('Lend 5 USDC')}
-            className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] dark:bg-[#34D399] dark:hover:bg-[#10B981] text-white dark:text-[#1A1A1A] font-black text-xs md:text-sm border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569] active:translate-y-1 active:shadow-none transition-all"
-          >
-            🏦 Lend 5 USDC
-          </button>
-          <button 
-            onClick={() => onQuickAction('Borrow 5 USDC')}
-            className="px-3 py-1.5 bg-[#EF4444] hover:bg-[#DC2626] dark:bg-[#F87171] dark:hover:bg-[#EF4444] text-white dark:text-[#1A1A1A] font-black text-xs md:text-sm border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569] active:translate-y-1 active:shadow-none transition-all"
-          >
-            💸 Borrow 5 USDC
-          </button>
         </div>
       </div>
     </div>

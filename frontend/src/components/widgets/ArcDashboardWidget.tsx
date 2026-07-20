@@ -559,8 +559,8 @@ export const ArcDashboardWidget: React.FC<{
             { icon: '💦', name: 'Liquidity', desc: 'Pool Funding', prompt: 'Add 10 USDC liquidity to Swap pool on Arc network' },
             { icon: '🔄', name: 'Swap', desc: 'USDC/KLETIA', prompt: 'Swap my 5 USDC for Kletia test token' },
             { icon: '💎', name: 'Stake', desc: 'Flexible Lock', prompt: 'Lock 25 USDC to Arc staking contract for the future' },
-            { icon: '🏦', name: 'Lend', desc: 'Lend Assets', prompt: 'Lend 5 USDC on Arc Lending Protocol' },
-            { icon: '💸', name: 'Borrow', desc: 'Borrow Assets', prompt: 'Borrow 5 USDC from Arc Lending Protocol' },
+            { icon: '🏦', name: 'Lend', desc: 'Lend Assets', prompt: 'Lend 5 USDC to Kletia Lending on Arc network' },
+            { icon: '💸', name: 'Borrow', desc: 'Borrow Assets', prompt: 'Borrow 5 USDC from Kletia Lending on Arc network' },
           ].map((f, i) => (
             <button 
               key={i} 

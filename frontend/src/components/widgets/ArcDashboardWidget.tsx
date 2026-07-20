@@ -12,7 +12,7 @@ const WIDGETS = [
   { id: 'liquidity' as const, icon: '💧', name: 'Liquidity', desc: 'Provide LP', color: 'bg-[#10B981]' },
   { id: 'batch' as const, icon: '📦', name: 'Batch Pay', desc: 'Batch Transfer', color: 'bg-[#F59E0B]' },
   { id: 'memo' as const, icon: '📝', name: 'Memo', desc: 'Memo Transfer', color: 'bg-[#EC4899]' },
-  { id: 'agent' as const, icon: '🤖', name: 'Agent', desc: 'Register Agent', color: 'bg-[#14B8A6]' },
+  { id: 'agent' as const, icon: '🤖', name: 'Agent', desc: 'Register Agent', color: 'bg-[#14B8A6]', disabled: true },
 ];
 
 export const ArcDashboardWidget: React.FC<{ 
@@ -518,14 +518,24 @@ export const ArcDashboardWidget: React.FC<{
         {WIDGETS.map(w => (
           <button 
             key={w.id} 
-            className={`group text-left bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-4 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] active:translate-y-0 active:shadow-[2px_2px_0_#1A1A1A] transition-all flex flex-col justify-between min-h-[140px] ${activeWidget === w.id ? 'bg-[#E2E8F0] dark:bg-[#334155] translate-y-1 shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]' : ''}`}
-            onClick={() => setActiveWidget(activeWidget === w.id ? null : w.id)}
+            disabled={w.disabled}
+            className={`relative group text-left bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-4 flex flex-col justify-between min-h-[140px] ${
+              w.disabled 
+                ? 'opacity-70 cursor-not-allowed grayscale-[0.5] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]'
+                : 'shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] active:translate-y-0 active:shadow-[2px_2px_0_#1A1A1A] transition-all'
+            } ${activeWidget === w.id ? 'bg-[#E2E8F0] dark:bg-[#334155] translate-y-1 shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]' : ''}`}
+            onClick={() => !w.disabled && setActiveWidget(activeWidget === w.id ? null : w.id)}
           >
-            <div className={`w-12 h-12 flex items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] text-2xl ${w.color} group-hover:-translate-y-1 group-hover:shadow-[4px_4px_0_#1A1A1A] transition-transform`}>
+            {w.disabled && (
+              <span className="absolute top-2 right-2 text-[10px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-2 py-0.5 font-black uppercase tracking-widest rotate-[5deg] shadow-[2px_2px_0_#1A1A1A] z-10">
+                GELİŞTİRİLİYOR
+              </span>
+            )}
+            <div className={`w-12 h-12 flex items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] text-2xl ${w.color} ${!w.disabled ? 'group-hover:-translate-y-1 group-hover:shadow-[4px_4px_0_#1A1A1A] transition-transform' : ''}`}>
               {w.icon}
             </div>
             <div className="mt-4">
-              <span className="block text-lg font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">{w.name}</span>
+              <span className={`block text-lg font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight ${w.disabled ? 'line-through decoration-2' : ''}`}>{w.name}</span>
               <span className="block text-xs font-bold text-gray-500 mt-1">{w.desc}</span>
             </div>
           </button>

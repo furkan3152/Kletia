@@ -528,7 +528,7 @@ export const ArcDashboardWidget: React.FC<{
           >
             {w.disabled && (
               <span className="absolute top-2 right-2 text-[10px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-2 py-0.5 font-black uppercase tracking-widest rotate-[5deg] shadow-[2px_2px_0_#1A1A1A] z-10">
-                GELİŞTİRİLİYOR
+                SOON
               </span>
             )}
             <div className={`w-12 h-12 flex items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] text-2xl ${w.color} ${!w.disabled ? 'group-hover:-translate-y-1 group-hover:shadow-[4px_4px_0_#1A1A1A] transition-transform' : ''}`}>

@@ -519,7 +519,9 @@ export default function App() {
              <ArcDashboardWidget onWidgetClick={handleWidgetClick} activeWidget={activeArcWidget} setActiveWidget={setActiveArcWidget} />
            </div>
         ) : activeTab === 'lending' ? (
-           <ArcLendingDashboard isDarkMode={isDarkMode} onActionClick={(prompt) => { setInput(prompt); setActiveTab('chat'); }} />
+           <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar block">
+             <ArcLendingDashboard isDarkMode={isDarkMode} onActionClick={(prompt) => { setInput(prompt); setActiveTab('chat'); }} />
+           </div>
         ) : (
           <>
             {/* ✨ CHAT ALANI */}

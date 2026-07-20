@@ -300,7 +300,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </div>
                   <span className="line-through decoration-2">Agent Registry</span>
                 </div>
-                <span className="text-[9px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-1.5 py-0.5 font-black uppercase tracking-widest rotate-[-3deg] shadow-[2px_2px_0_#1A1A1A]">DEV</span>
+                <span className="text-[9px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-1.5 py-0.5 font-black uppercase tracking-widest rotate-[-3deg] shadow-[2px_2px_0_#1A1A1A]">SOON</span>
               </button>
 
               <button 

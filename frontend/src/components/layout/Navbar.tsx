@@ -68,31 +68,21 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
         {/* Agent Mode Toggle */}
-        <div className="relative group hidden sm:flex items-center">
-          <button
-            onClick={() => {
-              if (!isArcMode) setIsAgentMode(!isAgentMode);
-            }}
-            disabled={isArcMode}
-            className={`flex items-center gap-2 px-3 py-1.5 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] transition-all duration-100 ease-out font-black text-[10px] uppercase tracking-widest
-              ${isArcMode 
-                ? 'bg-gray-300 dark:bg-slate-800 text-gray-500 cursor-not-allowed opacity-50' 
-                : (isAgentMode 
-                  ? 'bg-[#10B981] text-white hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]' 
-                  : 'bg-gray-200 dark:bg-slate-700 text-[#1A1A1A] dark:text-gray-400 hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]')
-              }`}
-          >
-            <Bot className="w-4 h-4" />
-            <span>{isArcMode ? 'BASE AGENT ONLY' : (isAgentMode ? 'BASE AGENT: ON' : 'BASE AGENT: OFF')}</span>
-          </button>
-          
-          {/* Tooltip for Arc mode */}
-          {isArcMode && (
-            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-[#1A1A1A] dark:bg-slate-800 text-white text-[10px] font-bold py-1 px-2 whitespace-nowrap z-50 border-[2px] border-white dark:border-[#4B5563] shadow-[2px_2px_0_#fff] dark:shadow-[2px_2px_0_#475569]">
-              Agent Mode only works on Base network.
-            </div>
-          )}
-        </div>
+        {!isArcMode && (
+          <div className="relative group hidden sm:flex items-center">
+            <button
+              onClick={() => setIsAgentMode(!isAgentMode)}
+              className={`flex items-center gap-2 px-3 py-1.5 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] transition-all duration-100 ease-out font-black text-[10px] uppercase tracking-widest
+                ${isAgentMode 
+                    ? 'bg-[#10B981] text-white hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]' 
+                    : 'bg-gray-200 dark:bg-slate-700 text-[#1A1A1A] dark:text-gray-400 hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]'}
+                `}
+            >
+              <Bot className="w-4 h-4" />
+              <span>{isAgentMode ? 'AGENT: ON' : 'AGENT: OFF'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Fund Wallet / Faucet */}
         {((isAgentMode && agentWallet) || (!isAgentMode && address)) && (

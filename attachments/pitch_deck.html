@@ -175,10 +175,35 @@
             box-shadow: 4px 4px 0px var(--black);
         }
         
+        .live-btn {
+            display: inline-block;
+            background: var(--accent-green);
+            color: var(--black);
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 1.5rem;
+            padding: 15px 30px;
+            border: 4px solid var(--black);
+            box-shadow: 8px 8px 0px var(--black);
+            margin-top: 30px;
+            transition: all 0.2s;
+        }
+
+        .live-btn:hover {
+            transform: translate(-4px, -4px);
+            box-shadow: 12px 12px 0px var(--black);
+        }
+
         .hero-slide {
             background: var(--accent-blue);
             background-image: radial-gradient(var(--black) 2px, transparent 0);
             background-size: 30px 30px;
+        }
+        
+        .logo-img {
+            max-width: 120px;
+            margin-bottom: 20px;
+            display: block;
         }
 
     </style>
@@ -187,35 +212,37 @@
 
     <!-- SLIDE 1: TITLE -->
     <div class="slide hero-slide">
-        <div class="slide-content" style="text-align: center; max-width: 900px; background: var(--accent-yellow);">
+        <div class="slide-content" style="text-align: left; background: var(--accent-yellow);">
             <div class="badge">TEAM ARCHIAL</div>
+            <img src="https://raw.githubusercontent.com/furkan3152/Kletia/main/attachments/logo.png" alt="Kletia Logo" class="logo-img" onerror="this.style.display='none'">
             <div class="tagline">ONE INTENT. KLETIA RESOLVES.</div>
-            <h1>The Ultimate<br>Web3 Omni-Engine</h1>
-            <p style="margin: 0 auto; text-align: center; font-size: 1.5rem;">Aggregating the entire blockchain ecosystem into a single, AI-driven interface. Built natively for the GIWA Ecosystem.</p>
+            <h1>The Raw Engine<br>for Web3 Intent.</h1>
+            <p style="font-size: 1.5rem;">We're not building another wallet. We're building the core aggregator for the GIWA ecosystem. You type it, Kletia executes it.</p>
+            <a href="https://kletiaai.xyz" target="_blank" class="live-btn">🚀 LIVE ON ARC TESTNET: KLETIAAI.XYZ</a>
         </div>
     </div>
 
     <!-- SLIDE 2: THE PROBLEM -->
     <div class="slide" style="background: var(--accent-pink);">
         <div class="slide-content">
-            <h2>01. The Problem</h2>
-            <p style="font-size: 1.6rem; line-height: 1.4;">Web3 is massively fragmented, intimidating, and hostile to new users.</p>
+            <h2>01. The UX is Broken</h2>
+            <p style="font-size: 1.6rem; line-height: 1.4;">Web3 onboarding is a nightmare. It's built for developers, not for humans.</p>
             
             <div class="grid-3">
                 <div class="box relative-box">
                     <div class="step-number" style="background: var(--white);">!</div>
-                    <h3 style="color: var(--accent-pink);">Scary UX</h3>
-                    <p style="font-size: 1.1rem;">Interacting with 0x... addresses and raw hex data leads to fatal user errors and massive onboarding friction.</p>
+                    <h3 style="color: var(--accent-pink);">0x Addresses</h3>
+                    <p style="font-size: 1.1rem;">Users lose funds because they paste the wrong hex string. It's an outdated, hostile interface.</p>
                 </div>
                 <div class="box relative-box">
                     <div class="step-number" style="background: var(--white);">!</div>
-                    <h3 style="color: var(--accent-pink);">Slow Finality</h3>
-                    <p style="font-size: 1.1rem;">Traditional chains are too slow for automated, high-frequency AI agent operations.</p>
+                    <h3 style="color: var(--accent-pink);">Latency</h3>
+                    <p style="font-size: 1.1rem;">Waiting 12 seconds for a block to confirm ruins the flow. AI agents need instant execution to be viable.</p>
                 </div>
                 <div class="box relative-box">
                     <div class="step-number" style="background: var(--white);">!</div>
-                    <h3 style="color: var(--accent-pink);">Trust Issues</h3>
-                    <p style="font-size: 1.1rem;">Delegating tasks to autonomous AI agents requires verifiable, on-chain execution guarantees.</p>
+                    <h3 style="color: var(--accent-pink);">Trust</h3>
+                    <p style="font-size: 1.1rem;">Handing your keys to a generic AI is dangerous. We need verifiable on-chain constraints.</p>
                 </div>
             </div>
         </div>
@@ -224,17 +251,17 @@
     <!-- SLIDE 3: THE SOLUTION -->
     <div class="slide">
         <div class="slide-content">
-            <h2>02. The Kletia Solution</h2>
-            <p style="font-size: 1.5rem;">An <span class="highlight highlight-blue">Intent-Centric Architecture</span> where users don't manage transactions—they simply express their intent.</p>
+            <h2>02. The Kletia Engine</h2>
+            <p style="font-size: 1.5rem;">We dropped the UI fluff and built a hardcore <span class="highlight highlight-blue">Intent-Centric Router</span>.</p>
             
             <div class="grid-2">
                 <div class="box">
-                    <h3>Natural Language to Smart Contract</h3>
-                    <p>Users type what they want (e.g., "Swap 10 USDC for GIWA and stake it"). Kletia’s AI instantly parses the intent, fetches the correct ABIs dynamically via a Vector DB, and routes the transaction securely.</p>
+                    <h3>Natural Language to Code</h3>
+                    <p>Tell Kletia "Swap my USDC to GIWA." Our system pulls the exact ABI from our Vector DB, builds the transaction, and executes it. No clicking through 5 different dApps.</p>
                 </div>
                 <div class="box">
-                    <h3>The "Everything App"</h3>
-                    <p>No more app-switching. Kletia aggregates across testnets (GIWA, Arc) and mainnets (Base, Robinhood). All protocols, all chains, zero friction.</p>
+                    <h3>The Aggregator Layer</h3>
+                    <p>Running live right now. We are expanding across the Arc testnet and GIWA testnet, preparing to aggregate liquidity and execution across the entire network.</p>
                 </div>
             </div>
         </div>
@@ -243,21 +270,24 @@
     <!-- SLIDE 4: WHY GIWA? (CRUCIAL) -->
     <div class="slide" style="background: var(--black);">
         <div class="slide-content" style="background: var(--black); color: var(--white); border-color: var(--white); box-shadow: 15px 15px 0px var(--accent-blue);">
-            <h2 style="background: var(--white); color: var(--black); border-color: var(--white);">03. Why GIWA is Mandatory</h2>
-            <p style="color: #ccc; font-size: 1.4rem;">Kletia is not a generic wrapper. It requires GIWA's deep infrastructure to function securely.</p>
+            <div style="margin-bottom: 20px;">
+                <img src="https://docs.giwa.io/~gitbook/image?url=https%3A%2F%2F3628202266-files.gitbook.io%2F%7E%2Ffiles%2Fv0%2Fb%2Fgitbook-x-prod.appspot.com%2Fo%2Forganizations%252FSalY06GrUWBnSYAQLW9X%252Fsites%252Fsite_cIAQ6%252Flogo%252F4XCfbdBgAR4LtzyASHbp%252Fdark_logo_white.svg%3Falt%3Dmedia%26token%3D1be9a09d-ae07-4c67-a68a-e686374df93b&width=260&dpr=3&quality=100&sign=8c089ca1&sv=2" alt="GIWA Official Logo" style="height: 60px;">
+            </div>
+            <h2 style="background: var(--white); color: var(--black); border-color: var(--white);">03. Why We Need GIWA</h2>
+            <p style="color: #ccc; font-size: 1.4rem;">Kletia isn't just another project. We are hard-locking our architecture to GIWA because it's the only chain that solves our exact bottlenecks.</p>
 
             <div class="grid-3">
                 <div class="box" style="background: var(--black); border-color: var(--accent-yellow); box-shadow: 8px 8px 0px var(--accent-yellow);">
                     <h3 style="color: var(--accent-yellow); border-bottom-color: var(--accent-yellow);">Flashblocks</h3>
-                    <p style="color: #ccc; font-size: 1rem;">Sub-second transaction finality is required for our AI to execute High-Frequency Intents without latency drops.</p>
+                    <p style="color: #ccc; font-size: 1rem;">We need GIWA's sub-second finality. If our AI solver waits for standard blocks, the UX dies. Flashblocks give us HFT-level speed.</p>
                 </div>
                 <div class="box" style="background: var(--black); border-color: var(--accent-pink); box-shadow: 8px 8px 0px var(--accent-pink);">
                     <h3 style="color: var(--accent-pink); border-bottom-color: var(--accent-pink);">UP-ID</h3>
-                    <p style="color: #ccc; font-size: 1rem;">Replaces 0x addresses. Our AI uses UP-ID for secure, human-readable zero-error routing during cross-protocol swaps.</p>
+                    <p style="color: #ccc; font-size: 1rem;">We are ripping out 0x addresses completely. Kletia will use UP-ID natively to route all funds safely using human-readable identities.</p>
                 </div>
                 <div class="box" style="background: var(--black); border-color: var(--accent-green); box-shadow: 8px 8px 0px var(--accent-green);">
                     <h3 style="color: var(--accent-green); border-bottom-color: var(--accent-green);">Dojang</h3>
-                    <p style="color: #ccc; font-size: 1rem;">Verifiable off-chain to on-chain credentials ensure that tasks delegated to Kletia AI are executed with absolute trust.</p>
+                    <p style="color: #ccc; font-size: 1rem;">Our AI needs permissions. Dojang provides the exact verifiable credential layer we need to let the AI act on the user's behalf securely.</p>
                 </div>
             </div>
         </div>
@@ -266,52 +296,32 @@
     <!-- SLIDE 5: ARCHITECTURE -->
     <div class="slide">
         <div class="slide-content">
-            <h2>04. Architecture Flow</h2>
+            <h2>04. How It Works Under The Hood</h2>
             <div style="background: var(--bg); padding: 40px; border: 4px solid var(--black); margin-top: 30px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.2rem; text-align: center;">
-                    <div style="flex: 1; padding: 20px; background: var(--white); border: 3px solid var(--black);">User Input (Intent)</div>
+                    <div style="flex: 1; padding: 20px; background: var(--white); border: 3px solid var(--black);">Intent Trigger</div>
                     <div style="padding: 0 20px; font-size: 2rem;">→</div>
-                    <div style="flex: 1; padding: 20px; background: var(--accent-blue); color: var(--white); border: 3px solid var(--black);">AI Parser & Vector DB (ABI Fetch)</div>
+                    <div style="flex: 1; padding: 20px; background: var(--accent-blue); color: var(--white); border: 3px solid var(--black);">Vector DB ABI Match</div>
                     <div style="padding: 0 20px; font-size: 2rem;">→</div>
-                    <div style="flex: 1; padding: 20px; background: var(--accent-yellow); border: 3px solid var(--black);">GIWA Network (UP-ID + Flashblocks)</div>
+                    <div style="flex: 1; padding: 20px; background: var(--accent-yellow); border: 3px solid var(--black);">GIWA Flashblock Execution</div>
                 </div>
             </div>
-            <p style="margin-top: 30px; font-size: 1.2rem;">Our architecture ensures <strong>Zero Hallucinations</strong> by strictly grounding LLM outputs to hardcoded, verified ABIs indexed securely within our backend.</p>
+            <p style="margin-top: 30px; font-size: 1.2rem;">Zero AI hallucinations. We strictly map user intents to hardcoded, verified ABIs in our database before touching the chain.</p>
         </div>
     </div>
 
-    <!-- SLIDE 6: GASOK ROADMAP -->
+    <!-- SLIDE 6: TEAM -->
     <div class="slide" style="background: var(--accent-yellow);">
-        <div class="slide-content">
-            <h2>05. GASOK Roadmap</h2>
-            <div class="grid-2">
-                <div class="box">
-                    <h3 style="color: var(--accent-blue);">August 2026: The Brain</h3>
-                    <p>Integrate UP-ID resolving. Build the AI Vector DB to index the top 50 GIWA Testnet protocols dynamically.</p>
-                </div>
-                <div class="box">
-                    <h3 style="color: var(--accent-pink);">Sept 2026: The Muscle</h3>
-                    <p>Deploy the Kletia Solver contracts. Implement Flashblock speed optimizations for immediate UI feedback. Full Dojang credential integration.</p>
-                </div>
-                <div class="box" style="grid-column: span 2; background: var(--black); color: var(--white);">
-                    <h3 style="color: var(--accent-green); border-bottom-color: var(--accent-green);">October 2026 (KBW Demoday)</h3>
-                    <p style="color: #ccc;">Mainnet readiness. Kletia stands as the undisputed "Gateway to GIWA" for the next billion users.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- SLIDE 7: TEAM -->
-    <div class="slide">
         <div class="slide-content" style="border-color: var(--accent-blue); box-shadow: 15px 15px 0px var(--accent-blue);">
-            <div class="badge" style="background: var(--accent-yellow);">FOUNDER</div>
-            <h2>06. Team Archial</h2>
-            <p style="font-size: 1.4rem;"><strong>Furkan Akdoğan</strong> — 16-year-old Web3 Prodigy & 10x Developer</p>
+            <div class="badge" style="background: var(--accent-green);">SOLO FOUNDER</div>
+            <h2>05. The Builder</h2>
+            <p style="font-size: 1.4rem;"><strong>Furkan Akdoğan</strong> — 16-Year-Old Developer</p>
             
             <div style="display: flex; gap: 40px; margin-top: 30px; align-items: flex-start;">
                 <div style="flex: 1;">
-                    <p style="font-size: 1.1rem; color: #444;">Starting from local internet cafes without a personal computer, I executed my first $4k crypto trade at age 11. Now, at 16, I leverage AI models to execute at the speed of a full engineering team.</p>
-                    <p style="font-size: 1.1rem; color: #444;">I recently presented the Kletia engine to the Turkish Minister of National Education at the GENÇTEK Tech Summit. I am not building for a quick exit; I am building for absolute Web3 freedom.</p>
+                    <p style="font-size: 1.1rem; color: #111; font-weight: 700;">I don't have VC backing or a Stanford degree. I learned to code in internet cafes because I couldn't afford a PC.</p>
+                    <p style="font-size: 1.1rem; color: #111;">I shipped my first profitable smart contract at age 11. Now, at 16, I use AI models to write code at the speed of a 10-person dev team. I recently pitched the Kletia engine to the Turkish Minister of National Education at the GENÇTEK Tech Summit.</p>
+                    <p style="font-size: 1.1rem; color: #111;">I'm applying to GASOK because I want to build Kletia deep into the GIWA core infrastructure. I'm ready to ship.</p>
                 </div>
                 <div style="width: 300px; height: 300px; background: url('https://raw.githubusercontent.com/furkan3152/Kletia/main/attachments/genctek.jpg') center/cover; border: 4px solid var(--black); box-shadow: 8px 8px 0px var(--black);">
                 </div>

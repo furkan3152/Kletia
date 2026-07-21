@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Archial - Neo-Brutalism Pitch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #F4F4F0;
+            --black: #000000;
+            --accent-yellow: #FFD500;
+            --accent-pink: #FF6B6B;
+            --accent-blue: #4D96FF;
+            --accent-green: #6BCB77;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--black);
+            font-family: 'Space Grotesk', sans-serif;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+            -webkit-print-color-adjust: exact;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            padding: 50px;
+            border: 4px solid var(--black);
+            box-shadow: 12px 12px 0px var(--black);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: left;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 4px solid var(--black);
+        }
+
+        .logo {
+            font-size: 4rem;
+            font-weight: 800;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            display: inline-block;
+            background: var(--accent-yellow);
+            padding: 0 15px;
+            border: 4px solid var(--black);
+            box-shadow: 6px 6px 0px var(--black);
+            transform: rotate(-2deg);
+        }
+
+        .vision {
+            font-size: 1.2rem;
+            font-weight: 600;
+            max-width: 800px;
+            margin-top: 30px;
+            background: var(--black);
+            color: #fff;
+            padding: 15px 20px;
+            border-radius: 4px;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .name {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+        }
+
+        .role {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0 0 20px 0;
+            display: inline-block;
+            background: var(--accent-pink);
+            padding: 5px 15px;
+            border: 3px solid var(--black);
+            box-shadow: 4px 4px 0px var(--black);
+        }
+
+        .tags {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: #fff;
+            padding: 8px 16px;
+            font-weight: 700;
+            font-size: 1rem;
+            border: 3px solid var(--black);
+            box-shadow: 4px 4px 0px var(--black);
+        }
+
+        .tag.turkey { background: var(--accent-blue); color: #fff; }
+        .tag.age { background: var(--accent-green); }
+        .tag.giwa { background: var(--accent-yellow); }
+
+        .summary-box {
+            background: #fff;
+            border: 3px solid var(--black);
+            padding: 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 40px;
+            box-shadow: 6px 6px 0px var(--black);
+        }
+
+        h3 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            border-bottom: 4px solid var(--black);
+            display: inline-block;
+            padding-bottom: 5px;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        li::before {
+            content: '▶';
+            position: absolute;
+            left: 0;
+            color: var(--black);
+            font-weight: 800;
+        }
+
+        .photo-container {
+            width: 100%;
+            margin: 40px 0;
+            border: 4px solid var(--black);
+            box-shadow: 10px 10px 0px var(--accent-blue);
+            background: var(--black);
+            padding: 0;
+        }
+
+        .photo-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-bottom: 4px solid var(--black);
+        }
+
+        .photo-caption {
+            background: var(--accent-yellow);
+            padding: 10px;
+            font-weight: 700;
+            text-align: center;
+            border-top: 4px solid var(--black);
+        }
+
+        .co-founder-box {
+            background: var(--accent-blue);
+            color: #fff;
+            border: 4px solid var(--black);
+            padding: 30px;
+            margin-top: 60px;
+            box-shadow: 8px 8px 0px var(--black);
+        }
+
+        .co-founder-box h3 {
+            color: var(--accent-yellow);
+            border-bottom-color: var(--accent-yellow);
+            margin-top: 0;
+            text-shadow: 2px 2px 0px var(--black);
+        }
+
+        .co-founder-box li::before {
+            color: var(--accent-yellow);
+        }
+        
+        .co-founder-box .role {
+            background: var(--accent-yellow);
+            color: var(--black);
+        }
+
+        @media print {
+            body { background: #fff; }
+            .container { box-shadow: none; border: 2px solid #000; padding: 30px; max-width: 100%; }
+            .logo, .role, .tag, .summary-box, .photo-container, .co-founder-box { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 class="logo">TEAM ARCHIAL</h1>
+        <p class="vision">Building the ultimate Web3 "Everything App" — an Omni-Engine that aggregates the entire blockchain ecosystem into a single, AI-driven interface. Powered by GIWA Flashblocks, UP-ID, and Dojang.</p>
+    </div>
+
+    <div class="profile-info">
+        <h2 class="name">Furkan Akdoğan</h2>
+        <p class="role">Founder & Lead Web3 Developer</p>
+        <div class="tags">
+            <span class="tag turkey">🇹🇷 Turkey</span>
+            <span class="tag age">🎂 Age: 16</span>
+            <span class="tag giwa">⚡ GIWA Native Builder</span>
+        </div>
+
+        <div class="summary-box">
+            A 16-year-old Web3 prodigy with a relentless passion for decentralized systems. Growing up without a personal computer, I taught myself to code and researched Web3 protocols entirely from local internet cafes. At age 11, I made a $4k profit from my first major crypto trade, but my family confiscated the funds. Forced to rebuild everything from absolute scratch, I realized my true drive wasn't money—it was the profound freedom, censorship resistance, and decentralization that Web3 offers. This core ethos catalyzed my full immersion into building crypto infrastructure. Primary focus: <strong>AI, Real World Assets (RWA), and Payment Systems.</strong> Currently studying at Van İpekyolu Science High School, one of Turkey's top-tier institutions.
+        </div>
+
+        <h3>Key Milestones & Experience</h3>
+        <ul>
+            <li><strong>Age 14:</strong> Fully transitioned from a crypto-native user to a Web3 developer, mastering smart contract architecture.</li>
+            <li><strong>Age 15 (TÜBİTAK):</strong> Developed a blockchain-based political governance system for the prestigious TÜBİTAK competition, replacing the traditional parliament with a secure, decentralized architecture.</li>
+            <li><strong>Age 16 (GENÇTEK):</strong> Selected for the Tech Summit initiated by the Ministry of National Education. Presented the first demo of Kletia, which was personally reviewed and praised by the Minister of National Education (Yusuf Tekin) and top general managers.</li>
+        </ul>
+
+        <div class="photo-container">
+            <img src="https://raw.githubusercontent.com/furkan3152/Kletia/main/attachments/genctek.jpg" alt="Furkan Akdoğan presenting Kletia at GENÇTEK Tech Summit">
+            <div class="photo-caption">GENÇTEK Tech Summit - Presenting Kletia to the Minister of National Education</div>
+        </div>
+
+        <h3>Current Focus: Kletia & GIWA</h3>
+        <div class="summary-box" style="background: #fff;">
+            Scaling Kletia across GIWA and Arc testnets with the vision of simplifying blockchain UX for the masses. By participating in the GASOK program, I aim to make Kletia the flagship AI aggregator of the GIWA ecosystem by deeply integrating <strong>Flashblocks, Dojang, and UP-ID</strong>.
+        </div>
+
+        <h3>Core Strengths</h3>
+        <ul>
+            <li><strong>Visionary Architecture:</strong> Designing complex Omni-App structures and Dynamic AI Contract Aggregators.</li>
+            <li><strong>AI-Web3 Synergy:</strong> Merging LLMs with blockchain states to execute zero-hallucination intents.</li>
+            <li><strong>AI-Augmented 10x Execution:</strong> Operating as a solo founder, I heavily leverage advanced AI models (like Gemini and Claude) as engineering co-pilots, allowing me to build, debug, and ship complex architectures at the speed of a full development team.</li>
+            <li><strong>Rapid Prototyping:</strong> Exceptionally fast at shipping MVPs on robust infrastructures like GIWA.</li>
+        </ul>
+    </div>
+
+    <div class="co-founder-box">
+        <h3>🤖 Kletia AI (Co-Founder)</h3>
+        <p class="role">AI Co-Pilot & Autonomous Agent | 🌐 Decentralized</p>
+        <ul>
+            <li>Embedded deeply within the Kletia workflow to assist with smart contract analysis and dynamic ABI parsing.</li>
+            <li>Flawless semantic matching for intent execution using natural language.</li>
+            <li>Designed to interface instantly with GIWA's Dojang verifications and UP-ID queries to secure high-value intents.</li>
+        </ul>
+    </div>
+
+</div>
+
+</body>
+</html>

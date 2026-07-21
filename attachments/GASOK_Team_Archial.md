@@ -23,7 +23,7 @@ A 16-year-old Web3 prodigy with a relentless passion for decentralized systems. 
 * **National Recognition:** At GENÇTEK, I presented the initial demo of **Kletia** (running on the Base network). The project was personally reviewed and praised by the Minister of National Education (Yusuf Tekin) and top general managers.
 
 **🔹 Current Focus: Kletia & GIWA Ecosystem**
-Scaling Kletia across GIWA and Arc testnets with the vision of simplifying blockchain UX for the masses. By participating in the GASOK program, I aim to make Kletia the flagship AI aggregator of the GIWA ecosystem by deeply integrating **Flashblocks, Dojang, and UP-ID**.
+Scaling Kletia as the ultimate "Everything App" across 2 testnets (GIWA, Arc) and 2 mainnets (Base, Robinhood) with the vision of aggregating the entire blockchain into one seamless UX. By participating in the GASOK program, I aim to make Kletia the flagship AI aggregator of the GIWA ecosystem by deeply integrating **Flashblocks, Dojang, and UP-ID**.
 
 **🔹 Core Strengths**
 * **Visionary Architecture:** Designing complex Omni-App structures and Dynamic AI Contract Aggregators.

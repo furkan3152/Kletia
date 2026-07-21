@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kletia Technical Architecture & One-Pager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #000000;
+            --border: #000000;
+            --primary: #FF4911;
+            --accent: #E3E3E3;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border: 4px solid var(--border);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            background: var(--accent);
+            box-shadow: 8px 8px 0px var(--border);
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .logo-container {
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            border: 3px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .logo-container svg {
+            width: 50px;
+            height: 50px;
+            fill: white;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            background: var(--text);
+            color: var(--bg);
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            border-bottom: 3px solid var(--border);
+            display: inline-block;
+            padding-bottom: 0.2rem;
+        }
+
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        ul {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        li {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        li::before {
+            content: "►";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-size: 0.9rem;
+            top: 0.2rem;
+        }
+
+        strong {
+            font-weight: 700;
+            background: rgba(255, 73, 17, 0.1);
+            padding: 0 0.2rem;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .card {
+            border: 3px solid var(--border);
+            padding: 1.5rem;
+            background: var(--bg);
+            box-shadow: 6px 6px 0px var(--border);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .card:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 4px 4px 0px var(--border);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            border-bottom: none;
+            color: var(--primary);
+        }
+
+        hr {
+            border: none;
+            border-top: 4px solid var(--border);
+            margin: 3rem 0;
+        }
+
+        .footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 4px dashed var(--border);
+            text-align: right;
+            font-style: italic;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .header { flex-direction: column; text-align: center; }
+            body { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="logo-container">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 22h20L12 2zm0 3.8l6.4 12.8H5.6L12 5.8zM12 10l-3 6h6l-3-6z"/>
+            </svg>
+        </div>
+        <div>
+            <h1>Kletia Technical Architecture & One-Pager</h1>
+            <p style="margin-bottom: 0;"><strong>Status:</strong> Active Migration to GIWA Testnet</p>
+        </div>
+    </header>
+
+    <section>
+        <h2>01. Executive Summary: The Web3 Omni-Engine</h2>
+        <p><strong>Kletia</strong> is not just an interface; it is an AI-driven "Everything App" (Omni-Engine) designed to eliminate the fragmentation of Web3. By leveraging <strong>Intent-Centric Architecture</strong>, Kletia allows users to input natural language intents. The core engine mathematically parses, routes, and executes these intents across diverse decentralized finance (DeFi) protocols and community-developed modules. Currently operating on EVM-compatible testnets (Arc, Base), Kletia is actively migrating its core settlement layer to the <strong>GIWA Testnet</strong> to exploit its high-throughput, secure, and native identity primitives.</p>
+    </section>
+
+    <section>
+        <h2>02. Core Architecture: The Intent Engine</h2>
+        <p>At the heart of Kletia lies the <strong>Intent Resolver Protocol</strong>. Traditional Web3 requires users to manually authorize transactions, manage slippage, and navigate multiple UIs. Kletia abstracts this away:</p>
+        <ul>
+            <li><strong>Natural Language Parsing (NLP):</strong> A custom LLM integration translates human input (e.g., <em>"Swap my USDC to ETH and lend it on Aave"</em>) into a machine-readable JSON intent payload.</li>
+            <li><strong>Dynamic Routing:</strong> The engine calculates the most gas-efficient and secure route to execute the intent across multiple smart contracts simultaneously.</li>
+            <li><strong>Atomic Execution:</strong> Cross-protocol actions are bundled and executed atomically via the <code>KletiaRouter</code> smart contract, ensuring that if one step fails, the entire transaction reverts, protecting user funds.</li>
+        </ul>
+    </section>
+
+    <section>
+        <h2>03. General DeFi Integration (The Backbone)</h2>
+        <p>Kletia is natively designed to integrate with the foundational pillars of Decentralized Finance. The engine acts as a meta-aggregator for:</p>
+        <div class="card-grid">
+            <div class="card">
+                <h3>Decentralized Exchanges (DEXs)</h3>
+                <p>Native integration with major liquidity pools (e.g., Uniswap v3 models) ensures users always get the best swap rates without leaving the Kletia interface.</p>
+            </div>
+            <div class="card">
+                <h3>Lending & Borrowing</h3>
+                <p>The engine connects directly to money markets. Users can instruct the AI to "supply collateral" or "borrow assets," and Kletia will automatically interact with the underlying lending protocols.</p>
+            </div>
+            <div class="card">
+                <h3>Yield Aggregation</h3>
+                <p>Kletia continuously scans for optimal yield-farming opportunities, allowing users to move liquidity with a single command.</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>04. Community-Driven Extensibility</h2>
+        <p>Kletia is built as an open ecosystem. It is not limited to the protocols integrated by the core team.</p>
+        <ul>
+            <li><strong>Developer Plugins & Widgets:</strong> The platform features a modular architecture where community developers can write and deploy custom "Widgets".</li>
+            <li><strong>Open Registry:</strong> If a new protocol launches on GIWA, the community can instantly create an intent-plugin for it. Kletia's AI automatically learns how to use this new plugin, making Kletia continuously smarter and infinitely scalable based on community contributions.</li>
+        </ul>
+    </section>
+
+    <section>
+        <h2>05. GIWA-Native Infrastructure</h2>
+        <p>To achieve true consumer-scale adoption, Kletia requires infrastructure that standard EVM chains cannot provide. The migration to the <strong>GIWA OP Stack Testnet</strong> unlocks three critical pillars:</p>
+        
+        <div class="card-grid">
+            <div class="card" style="border-color: var(--primary);">
+                <h3>A. Flashblocks (Speed)</h3>
+                <p>AI intents must feel like Web2 API calls—instantaneous. By natively connecting the Kletia execution engine to GIWA's <code>sepolia-rpc-flashblocks</code> endpoint, Kletia transactions receive pre-confirmations in sub-seconds. This eliminates the dreaded "pending transaction" UI.</p>
+            </div>
+            <div class="card" style="border-color: var(--primary);">
+                <h3>B. Dojang (Identity)</h3>
+                <p>Institutional liquidity providers require compliance. Kletia integrates GIWA's <strong>Dojang Registry Contracts</strong>. Before the AI executes high-value DeFi intents, it checks the user's <code>isVerified()</code> status. This provides absolute Sybil resistance and institutional-grade security.</p>
+            </div>
+            <div class="card" style="border-color: var(--primary);">
+                <h3>C. UP-ID (UX)</h3>
+                <p>Web3 adoption is blocked by <code>0x...</code> addresses. Kletia natively integrates the <strong>IUPIDResolver</strong>. Users can simply state, <em>"Send 50 USDT to vitalik.up.id"</em>. Kletia pings the GIWA UP-ID registry, resolves the address on the backend, and routes the funds securely.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr>
+
+    <section>
+        <h2>Conclusion</h2>
+        <p>By combining an AI-driven Intent Engine with comprehensive DeFi aggregation, community extensibility, and the raw technological power of GIWA's Dojang, UP-ID, and Flashblocks, Kletia is uniquely positioned to become the default frontend for the next billion Web3 users.</p>
+    </section>
+
+    <div class="footer">
+        <p>— The Kletia Core Team, 2026</p>
+    </div>
+
+</body>
+</html>

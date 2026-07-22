@@ -72,29 +72,29 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
               <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
+
+            <button 
+              onClick={() => { setActiveTab('arc'); setIsPortfolioOpen(false); if(window.innerWidth < 768) setIsOpen(false); }}
+              className={navItemClass(activeTab === 'arc')}
+            >
+              <div className="flex items-center gap-3">
+                <Layers size={18} className={activeTab === 'arc' ? 'text-white' : 'text-[#2563EB] dark:text-[#60A5FA]'} />
+                <span>Dashboard</span>
+              </div>
+              <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+
+            <button 
+              onClick={() => { setActiveTab('lending'); setIsPortfolioOpen(false); if(window.innerWidth < 768) setIsOpen(false); }}
+              className={navItemClass(activeTab === 'lending')}
+            >
+              <div className="flex items-center gap-3">
+                <Briefcase size={18} className={activeTab === 'lending' ? 'text-white' : 'text-purple-500'} />
+                <span>Lending & Borrow</span>
+              </div>
+              <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
           </div>
-            
-          <div className="space-y-3">
-              <button 
-                onClick={() => { setActiveTab('arc'); setIsPortfolioOpen(false); if(window.innerWidth < 768) setIsOpen(false); }}
-                className={navItemClass(activeTab === 'arc')}
-              >
-                <div className="flex items-center gap-3">
-                  <Layers size={18} className={activeTab === 'arc' ? 'text-white' : 'text-[#2563EB] dark:text-[#60A5FA]'} />
-                  <span>Dashboard</span>
-                </div>
-                <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              <button 
-                onClick={() => { setActiveTab('lending'); setIsPortfolioOpen(false); if(window.innerWidth < 768) setIsOpen(false); }}
-                className={navItemClass(activeTab === 'lending')}
-              >
-                <div className="flex items-center gap-3">
-                  <Briefcase size={18} className={activeTab === 'lending' ? 'text-white' : 'text-purple-500'} />
-                  <span>Lending & Borrow</span>
-                </div>
-                </button>
-            </div>
 
           {/* ARC TOOLS (Only visible in ARC mode) */}
             <div className="space-y-3 pb-8">

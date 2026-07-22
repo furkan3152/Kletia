@@ -23,7 +23,6 @@ process.on('unhandledRejection', (reason, promise) => {
 };
 
 const app = express();
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 app.use(helmet());
@@ -135,7 +134,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const server = httpServer.listen(PORT, '0.0.0.0', async () => {
+const server = httpServer.listen(PORT, async () => {
     console.log(`🟢 KLETIA OMNI-ENGINE AKTİF (Port: ${PORT})`);
     console.log(`🧠 FAZ 2 YÜKLENDİ: Dinamik Hata Çevirmeni, 0x Görüşü ve Akıllı Hafıza Devrede!`);
 });

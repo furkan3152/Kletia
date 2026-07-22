@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "PLACEHOLDER_GENERATE_VIA_WARPCAST_DEV_TOOLS",
+    "payload": "PLACEHOLDER_GENERATE_VIA_WARPCAST_DEV_TOOLS",
+    "signature": "PLACEHOLDER_GENERATE_VIA_WARPCAST_DEV_TOOLS"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Kletia Omni-Engine",
+    "iconUrl": "https://kletia.com/icon.png",
+    "homeUrl": "https://kletia.com",
+    "imageUrl": "https://kletia.com/frame-image.png",
+    "splashImageUrl": "https://kletia.com/splash.png",
+    "splashBackgroundColor": "#0052FF",
+    "description": "Autonomous DeFi route optimizer on Base. Swap, Lend, Stake with AI-powered intent engine.",
+    "webhookUrl": "https://kletia.com/api/webhook"
+  }
+}

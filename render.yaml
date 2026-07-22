@@ -1,8 +1,9 @@
 services:
+  # Arc Testnet Backend
   - type: web
     name: kletia-backend
     env: docker
-    rootDir: backend
+    rootDir: backend/arc_testnet
     plan: starter
     disk:
       name: kletia-wallets
@@ -10,14 +11,15 @@ services:
       sizeGB: 1
     envVars:
       - key: PORT
-        value: 3001
+        value: 3000
 
+  # Arc Testnet Frontend
   - type: web
     name: kletia-frontend
     env: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
+    rootDir: frontend/arc_testnet
+    buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
     envVars:
-      - key: VITE_API_URL
+      - key: VITE_BACKEND_URL
         value: https://kletia-backend.onrender.com

@@ -201,7 +201,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const server = httpServer.listen(PORT, async () => {
+const server = httpServer.listen(PORT, '0.0.0.0', async () => {
     console.log(`🟢 KLETIA OMNI-ENGINE AKTİF (Port: ${PORT})`);
     console.log(`🧠 FAZ 2 YÜKLENDİ: Dinamik Hata Çevirmeni, 0x Görüşü ve Akıllı Hafıza Devrede!`);
 });

@@ -1,29 +1,23 @@
-// backend/src/portfolio/viewer.ts
-// ✨ KLETIA OMNI-PORTFOLIO: Kapsamlı DeFi Portföy Tarayıcısı
-// Base ağındaki tüm varlıkları, DeFi pozisyonlarını, LST'leri, BNS isimlerini ve geçmiş işlemleri tarar.
+
+
 import { formatUnits, erc20Abi, getAddress } from 'viem';
 import { publicClient } from '../config/client.js';
 import { TOKENS } from '../config/constants.js';
 
-// ===================== RESMİ KONTRAT ADRESLERİ =====================
-
-// AAVE V3 Pool (Base Mainnet)
 const AAVE_POOL = getAddress("0xA238Dd80C259a72e81d7e4664a9801593F98d1c5");
-// Aerodrome veAERO (Oylama Kilidi)
+
 const VE_AERO = getAddress("0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4");
-// Moonwell mToken'ları (Compound V2 fork)
+
 const MOONWELL_MUSDC = getAddress("0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22");
 const MOONWELL_MWETH = getAddress("0x628fF693d22751d3691740560FcFec11E03A3a95");
-// Likit Staking Token'ları (LST)
+
 const WSTETH = getAddress("0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452");
 const CBETH  = getAddress("0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22");
 const RETH   = getAddress("0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c");
-// Base Name Service (BNS) ERC-721 (Basenames)
-const BNS_NFT = getAddress("0x03c4738Ee98aE44591e1A4A4F3CaB6641d95DD9a");
-// Compound V3 Comet (USDC Market)
-const COMPOUND_COMET = getAddress("0x9c4ec768c28520B5086047a155f44376213a9f58");
 
-// ===================== ABI TANIMLAMALARI =====================
+const BNS_NFT = getAddress("0x03c4738Ee98aE44591e1A4A4F3CaB6641d95DD9a");
+
+const COMPOUND_COMET = getAddress("0x9c4ec768c28520B5086047a155f44376213a9f58");
 
 const AAVE_ACCOUNT_ABI = [{ "inputs": [{ "internalType": "address", "name": "user", "type": "address" }], "name": "getUserAccountData", "outputs": [{ "internalType": "uint256", "name": "totalCollateralBase", "type": "uint256" }, { "internalType": "uint256", "name": "totalDebtBase", "type": "uint256" }, { "internalType": "uint256", "name": "availableBorrowsBase", "type": "uint256" }, { "internalType": "uint256", "name": "currentLiquidationThreshold", "type": "uint256" }, { "internalType": "uint256", "name": "ltv", "type": "uint256" }, { "internalType": "uint256", "name": "healthFactor", "type": "uint256" }], "stateMutability": "view", "type": "function" }] as const;
 
@@ -34,26 +28,21 @@ const VE_AERO_ABI = [
     { "inputs": [{ "internalType": "uint256", "name": "_tokenId", "type": "uint256" }], "name": "balanceOfNFT", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
 ] as const;
 
-// Compound V3 Comet: borrowBalanceOf ve collateralBalanceOf
 const COMET_ABI = [
     { "inputs": [{ "internalType": "address", "name": "account", "type": "address" }], "name": "borrowBalanceOf", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "account", "type": "address" }, { "internalType": "address", "name": "asset", "type": "address" }], "name": "collateralBalanceOf", "outputs": [{ "internalType": "uint128", "name": "", "type": "uint128" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "account", "type": "address" }], "name": "balanceOf", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
 ] as const;
 
-// Moonwell mToken borç okuma
 const MOONWELL_DEBT_ABI = [
     { "inputs": [{ "internalType": "address", "name": "account", "type": "address" }], "name": "borrowBalanceStored", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "account", "type": "address" }], "name": "balanceOfUnderlying", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
 ] as const;
 
-// BNS (ERC-721) ABI
 const BNS_ABI = [
     { "inputs": [{ "internalType": "address", "name": "owner", "type": "address" }], "name": "balanceOf", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "owner", "type": "address" }, { "internalType": "uint256", "name": "index", "type": "uint256" }], "name": "tokenOfOwnerByIndex", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
 ] as const;
-
-// ===================== YARDIMCI FONKSİYONLAR =====================
 
 const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
 
@@ -79,8 +68,6 @@ async function safeReadContract<T>(params: any, fallback: T): Promise<T> {
     try { return await publicClient.readContract(params) as T; } catch { return fallback; }
 }
 
-// ===================== ANA PORTFÖY FONKSİYONU =====================
-
 export async function getPortfolio(userAddress: string) {
     console.log(`\n══════════════════════════════════════════════`);
     console.log(`💼 [KLETIA OMNI-PORTFOLIO] Deep scan başlatılıyor...`);
@@ -90,9 +77,6 @@ export async function getPortfolio(userAddress: string) {
     const user = userAddress as `0x${string}`;
     const tokenAddressesToPrice = new Set<string>();
 
-    // ═══════════════════════════════════════════
-    // 1. CÜZDAN BAKİYELERİ (Wallet Assets)
-    // ═══════════════════════════════════════════
     console.log(`\n📦 [1/8] Cüzdan tokenleri taranıyor...`);
     const wallet: { symbol: string; name?: string; balance: string; formatted: string; usdValue?: number; usdFormatted?: string; address?: string }[] = [];
 
@@ -102,7 +86,6 @@ export async function getPortfolio(userAddress: string) {
         tokenAddressesToPrice.add(WETH_ADDRESS.toLowerCase());
     }
 
-    // Alchemy ile tüm ERC-20 bakiyeleri
     try {
         const alchemyUrl = `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
         const response = await fetch(alchemyUrl, {
@@ -130,9 +113,6 @@ export async function getPortfolio(userAddress: string) {
     } catch (e) { console.error("Alchemy hata:", e); }
     console.log(`   ✅ ${wallet.length} token bulundu.`);
 
-    // ═══════════════════════════════════════════
-    // 2. LİKİT STAKİNG POZİSYONLARI (LST)
-    // ═══════════════════════════════════════════
     console.log(`\n🥩 [2/8] Likit Staking pozisyonları taranıyor...`);
     const liquidStaking: { protocol: string; symbol: string; balance: string; formatted: string; tokenAddress: string; usdValue?: number; usdFormatted?: string }[] = [];
 
@@ -155,9 +135,6 @@ export async function getPortfolio(userAddress: string) {
     }
     console.log(`   ✅ ${liquidStaking.length} LST pozisyonu bulundu.`);
 
-    // ═══════════════════════════════════════════
-    // 3. BASE NAME SERVİCE (BNS) İSİMLERİ
-    // ═══════════════════════════════════════════
     console.log(`\n🏷️ [3/8] Base Name Service (BNS) isimleri taranıyor...`);
     const baseNames: { tokenId: string; name?: string; index: number }[] = [];
     try {
@@ -179,9 +156,6 @@ export async function getPortfolio(userAddress: string) {
     }
     console.log(`   ✅ ${baseNames.length} Base Name bulundu.`);
 
-    // ═══════════════════════════════════════════
-    // 4. AAVE V3 POZİSYONLARI
-    // ═══════════════════════════════════════════
     console.log(`\n🏦 [4/8] Aave V3 pozisyonları taranıyor...`);
     const defiPositions: any = {};
     try {
@@ -205,9 +179,6 @@ export async function getPortfolio(userAddress: string) {
         }
     } catch {}
 
-    // ═══════════════════════════════════════════
-    // 5. MOONWELL POZİSYONLARI
-    // ═══════════════════════════════════════════
     console.log(`\n🌙 [5/8] Moonwell pozisyonları taranıyor...`);
     try {
         const moonwellMarkets = [
@@ -233,9 +204,6 @@ export async function getPortfolio(userAddress: string) {
         }
     } catch {}
 
-    // ═══════════════════════════════════════════
-    // 6. COMPOUND V3 POZİSYONLARI
-    // ═══════════════════════════════════════════
     console.log(`\n🏛️ [6/8] Compound V3 pozisyonları taranıyor...`);
     try {
         const compBorrow = await safeReadContract<bigint>({ address: COMPOUND_COMET, abi: COMET_ABI, functionName: 'borrowBalanceOf', args: [user] }, 0n);
@@ -251,9 +219,6 @@ export async function getPortfolio(userAddress: string) {
         }
     } catch {}
 
-    // ═══════════════════════════════════════════
-    // 7. AERODROME veAERO KİLİT POZİSYONLARI
-    // ═══════════════════════════════════════════
     console.log(`\n🔒 [7/8] Aerodrome veAERO kilitleri taranıyor...`);
     try {
         const nftBalance = await publicClient.readContract({ address: VE_AERO, abi: VE_AERO_ABI, functionName: 'balanceOf', args: [user] });
@@ -280,9 +245,6 @@ export async function getPortfolio(userAddress: string) {
         }
     } catch {}
 
-    // ═══════════════════════════════════════════
-    // 8. GEÇMİŞ İŞLEM GEÇMİŞİ (Son 20 TX)
-    // ═══════════════════════════════════════════
     console.log(`\n📜 [8/8] Son işlem geçmişi taranıyor...`);
     const recentTransactions: { hash: string; from: string; to: string; value: string; type: string; timestamp?: string }[] = [];
     try {
@@ -307,14 +269,10 @@ export async function getPortfolio(userAddress: string) {
     } catch {}
     console.log(`   ✅ ${recentTransactions.length} işlem bulundu.`);
 
-    // ═══════════════════════════════════════════
-    // FİYATLANDIRMA (DexScreener)
-    // ═══════════════════════════════════════════
     console.log(`\n💰 Fiyatlar getiriliyor...`);
     const priceMap = await fetchPrices(Array.from(tokenAddressesToPrice));
     const ethPrice = priceMap[WETH_ADDRESS.toLowerCase()] || 0;
 
-    // Cüzdan tokenlerine fiyat ekle
     for (const w of wallet) {
         if (w.symbol === "ETH") {
             w.usdValue = parseFloat(w.formatted) * ethPrice;
@@ -325,16 +283,12 @@ export async function getPortfolio(userAddress: string) {
         w.usdFormatted = w.usdValue ? `$${w.usdValue.toFixed(2)}` : "$0.00";
     }
 
-    // LST'lere fiyat ekle
     for (const lst of liquidStaking) {
-        const price = priceMap[lst.tokenAddress.toLowerCase()] || ethPrice; // LST ≈ ETH fiyatı
+        const price = priceMap[lst.tokenAddress.toLowerCase()] || ethPrice; 
         lst.usdValue = parseFloat(lst.formatted) * price;
         lst.usdFormatted = lst.usdValue ? `$${lst.usdValue.toFixed(2)}` : "$0.00";
     }
 
-    // ═══════════════════════════════════════════
-    // KATEGORİZASYON (DeFi tokenleri ayır)
-    // ═══════════════════════════════════════════
     const defiKeywords = /lp|vault|morpho|moonwell|staked|aave|pool|veaero|usdbc|receipt|v3|compound|comet/i;
     const finalWallet: typeof wallet = [];
     const defiTokens: typeof wallet = [];

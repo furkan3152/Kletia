@@ -31,7 +31,7 @@ export function CopyTradeWidget({ initialTarget = "", onClose }: Props) {
             className="w-full p-2 bg-transparent border-2 border-[#1A1A1A] dark:border-[#333] rounded focus:outline-none focus:border-[#60A5FA] dark:focus:border-[#CCA000]"
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-bold mb-1">💰 Max Limit per Transaction (USDC)</label>
           <input 

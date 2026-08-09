@@ -11,7 +11,6 @@ async function main() {
 
   console.log("X402Factory deployed to:", address);
 
-  // Wait for 5 blocks for block explorer to index
   console.log("Waiting for block confirmations...");
   await factory.deploymentTransaction().wait(5);
 

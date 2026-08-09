@@ -1,26 +1,68 @@
-import { parseAbi, encodeFunctionData } from 'viem';
+import {
+    parseAbi,
+    encodeFunctionData,
+    type Address,
+    type Hex,
+} from 'viem';
+import { namehash, normalize } from 'viem/ens';
 import { ParsedIntent } from '../ai/parser.js';
 import { publicClient } from '../config/client.js';
+import { BASE_CONTRACTS } from '../config/networks.js';
 
-export const BASENAMES_REGISTRAR = "0xa7d2607c6BD39Ae9521e514026CBB078405Ab322";
-export const L2_RESOLVER_ADDRESS = "0x426fA03fB86E510d0Dd9F70335Cf102a98b10875";
-
-const registrarAbi = parseAbi([
+export const BASENAME_REGISTRAR_ABI = parseAbi([
     "function registerPrice(string name, uint256 duration) view returns (uint256)",
+    "function rentPrice(string name, uint256 duration) view returns ((uint256 base, uint256 premium) price)",
     "function available(string name) view returns (bool)",
-    "function register((string name, address owner, uint256 duration, address resolver, bytes[] data, bool reverseRecord) request) payable",
+    "function register((string name, address owner, uint256 duration, address resolver, bytes[] data, bool reverseRecord, uint256[] coinTypes, uint256 signatureExpiry, bytes signature) request) payable",
     "function renew(string name, uint256 duration) payable"
 ]);
 
+export const BASENAME_RESOLVER_ABI = parseAbi([
+    "function setAddr(bytes32 node, address a)"
+]);
+
+export function encodeBasenameRegistration(
+    name: string,
+    owner: Address,
+    duration: bigint,
+): Hex {
+    const node = namehash(normalize(`${name}.base.eth`));
+    const addressRecord = encodeFunctionData({
+        abi: BASENAME_RESOLVER_ABI,
+        functionName: "setAddr",
+        args: [node, owner]
+    });
+    return encodeFunctionData({
+        abi: BASENAME_REGISTRAR_ABI,
+        functionName: "register",
+        args: [{
+            name,
+            owner,
+            duration,
+            resolver: BASE_CONTRACTS.basenameL2Resolver,
+
+            data: [addressRecord],
+            reverseRecord: false,
+            coinTypes: [],
+            signatureExpiry: 0n,
+            signature: '0x'
+        }]
+    });
+}
+
 export async function handleBaseName(intent: ParsedIntent, userAddress: string) {
     if (!intent.tokenIn) throw new Error("🚨 Base Name belirtilmedi.");
-    let name = intent.tokenIn.replace(".base.eth", "").toLowerCase();
-    const durationSeconds = BigInt(intent.durationInDays || 365) * 86400n;
+    const name = intent.tokenIn
+        .trim()
+        .toLowerCase()
+        .replace(/\.base\.eth$/, "");
+    const durationDays = intent.durationInDays || 365;
+    const durationSeconds = BigInt(durationDays) * 86400n;
 
     // Müsaitlik kontrolü yap
     const isAvailable = await publicClient.readContract({
-        address: BASENAMES_REGISTRAR,
-        abi: registrarAbi,
+        address: BASE_CONTRACTS.basenameRegistrarController,
+        abi: BASENAME_REGISTRAR_ABI,
         functionName: "available",
         args: [name]
     });
@@ -28,45 +70,46 @@ export async function handleBaseName(intent: ParsedIntent, userAddress: string) 
     if (intent.action === 'basename_register' && !isAvailable) {
         throw new Error(`🚨 Sorry, the name **${name}.base.eth** is already taken by someone else.`);
     }
-    
+
     if (intent.action === 'basename_renew' && isAvailable) {
         throw new Error(`🚨 **${name}.base.eth** ismi henüz alınmamış ki süresini uzatayım! Önce satın alman gerekiyor.`);
     }
 
-    // Fiyatı al (hem register hem renew aynı fiyat tarifesini kullanır)
-    const price = await publicClient.readContract({
-        address: BASENAMES_REGISTRAR,
-        abi: registrarAbi,
-        functionName: "registerPrice",
-        args: [name, durationSeconds]
-    });
+    const price = intent.action === 'basename_register'
+        ? await publicClient.readContract({
+            address: BASE_CONTRACTS.basenameRegistrarController,
+            abi: BASENAME_REGISTRAR_ABI,
+            functionName: "registerPrice",
+            args: [name, durationSeconds]
+        })
+        : (
+            await publicClient.readContract({
+                address: BASE_CONTRACTS.basenameRegistrarController,
+                abi: BASENAME_REGISTRAR_ABI,
+                functionName: "rentPrice",
+                args: [name, durationSeconds]
+            })
+        ).base;
 
     let calldata: `0x${string}`;
     let expectedOutput = "";
 
     if (intent.action === 'basename_register') {
-        calldata = encodeFunctionData({
-            abi: registrarAbi,
-            functionName: "register",
-            args: [{
-                name,
-                owner: userAddress as `0x${string}`,
-                duration: durationSeconds,
-                resolver: L2_RESOLVER_ADDRESS as `0x${string}`,
-                data: [], // Basit kurulum için boş data
-                reverseRecord: false // Şimdilik reverse record kurmuyoruz
-            }]
-        });
+        calldata = encodeBasenameRegistration(
+            name,
+            userAddress as Address,
+            durationSeconds,
+        );
         const valInEth = Number(price) / 1e18;
-        expectedOutput = `✅ ${name}.base.eth ismini ${intent.durationInDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek satın alacaksın.`;
+        expectedOutput = `✅ ${name}.base.eth ismini ${durationDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek satın alacaksın.`;
     } else {
         calldata = encodeFunctionData({
-            abi: registrarAbi,
+            abi: BASENAME_REGISTRAR_ABI,
             functionName: "renew",
             args: [name, durationSeconds]
         });
         const valInEth = Number(price) / 1e18;
-        expectedOutput = `⏳ ${name}.base.eth isminin süresini ${intent.durationInDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek uzatacaksın.`;
+        expectedOutput = `⏳ ${name}.base.eth isminin süresini ${durationDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek uzatacaksın.`;
     }
 
     return {
@@ -74,7 +117,7 @@ export async function handleBaseName(intent: ParsedIntent, userAddress: string) 
         winner: "Base Name Registrar",
         expectedOutput,
         routePath: [intent.action === 'basename_register' ? "Register Base Name" : "Renew Base Name"],
-        targetContract: BASENAMES_REGISTRAR,
+        targetContract: BASE_CONTRACTS.basenameRegistrarController,
         calldata,
         tokenInAddress: "Native ETH",
         amountInWei: price.toString(),
@@ -82,7 +125,7 @@ export async function handleBaseName(intent: ParsedIntent, userAddress: string) 
         value: price.toString(),
         allRoutes: [{
             protocol: 'Base Name Registrar',
-            router: BASENAMES_REGISTRAR,
+            router: BASE_CONTRACTS.basenameRegistrarController,
             calldata: calldata
         }],
         winnerMessage: `🏆 **Kletia BNS Modülü Hazır!**\n✨ **Sonuç:** ${expectedOutput}\n\n> İşlemi senin için hazırladım, aşağıdaki konsoldan imzalayabilirsin.`

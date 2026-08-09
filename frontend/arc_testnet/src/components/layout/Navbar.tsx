@@ -23,12 +23,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   networkMode,
   onNetworkToggle
 }) => {
-  // isArcMode is always true in Arc Testnet
 
   return (
     <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-4 bg-white dark:bg-[#131E32] border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[0_4px_0_#1A1A1A] dark:shadow-[0_4px_0_#475569] z-50 relative">
       <div className="flex items-center gap-3 md:gap-4">
-        {/* Hamburger Menu */}
+        {}
         <button 
           onClick={onMenuClick}
           className="p-1.5 md:p-2.5 bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all duration-100 ease-out"
@@ -36,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Menu className="w-5 h-5 text-[#1A1A1A] dark:text-white" />
         </button>
 
-        {/* Logo */}
+        {}
         <div className="flex items-center justify-center shrink-0 w-9 h-9 md:w-14 md:h-14 bg-transparent border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
            <img src="https://i.ibb.co/0ySyGq7N/logo.png" alt="Kletia" className="w-5 h-5 md:w-8 md:h-8 object-contain" />
         </div>
@@ -49,18 +48,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           </h1>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-3 md:gap-4">
-        {/* Network Switcher (Also indicates Arc mode) */}
+        {}
         {networkMode && onNetworkToggle && (
           <div className="hidden lg:block">
             <NetworkSwitcher networkMode={networkMode} onToggle={onNetworkToggle} />
           </div>
         )}
 
-
-
-        {/* Faucet */}
+        {}
         {address && (
           <button
             onClick={() => window.open('https://faucet.circle.com', '_blank', 'noopener,noreferrer')}
@@ -73,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Address / Wallet Connect */}
+        {}
         <div className="flex gap-2 items-center">
           {isAgentMode && agentWallet ? (
             <div 

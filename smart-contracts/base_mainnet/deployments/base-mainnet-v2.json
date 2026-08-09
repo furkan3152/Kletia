@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "kletia_base_v2_pending_deployment_v1",
+  "network": {
+    "name": "Base Mainnet",
+    "chainId": 8453
+  },
+  "observedAtBlock": "49715719",
+  "releaseState": {
+    "baseSwapExecutionMode": "legacy_v1",
+    "baseTokenDeploymentMode": "launch_v2",
+    "launchFactoryRuntimeEvidenceBlock": "49717053",
+    "x402AttestationRegistryBinding": "supplemental_read_only",
+    "adapterLifecycle": "configure_scheduled",
+    "runtimeEvidence": null,
+    "cutoverReady": false
+  },
+  "governance": {
+    "owners": [
+      "0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A",
+      "0x8c5281055B197443fF01dbBDFBf29fD63946cA1E"
+    ],
+    "threshold": 2,
+    "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+    "safeFallbackHandler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+    "safeProxyRuntimeCodehash": "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c",
+    "governanceSafe": {
+      "address": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+      "deploymentTransaction": "0xe2128549303c6a469d4dcafca38618bb932de0714ec63e8a71966a3471c080fc",
+      "modules": [],
+      "guard": "0x0000000000000000000000000000000000000000"
+    },
+    "guardianSafe": {
+      "address": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+      "deploymentTransaction": "0x0118ebfc878a995e8cdbc156166418420993098e986a7ffc335bbd1cbf9d33df",
+      "modules": [],
+      "guard": "0x0000000000000000000000000000000000000000"
+    },
+    "treasurySafe": {
+      "address": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+      "deploymentTransaction": "0xa2ed079495dd6b3334ca0a5203362a21e4b3e8e1694f27f8fbcf1e95e86dd03e",
+      "modules": [],
+      "guard": "0x0000000000000000000000000000000000000000"
+    },
+    "timelock": {
+      "address": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "deploymentTransaction": "0x4da732b46fe5372c0daf3e18db4e87e29f89bc1cf1e4f5243dbe10c56273c781",
+      "runtimeCodehash": "0x55ecc21176f23ff90b7f884bfd572cecf431538bc89ab5ee5aed3fa59b9dec82",
+      "minDelaySeconds": 172800,
+      "proposer": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+      "canceller": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+      "executor": "0x0000000000000000000000000000000000000000",
+      "admin": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "verifiedExact": true,
+      "explorerUrl": "https://basescan.org/address/0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F#code"
+    }
+  },
+  "contracts": {
+    "uniswapV2CompatibleAdapter": {
+      "address": "0xb21C455ceE9ECb4BD0cf19A88d771065db45592b",
+      "deploymentTransaction": "0x053fbf8f220ec40e5ed533aed98e008d55290b7f44163ea7e1d24d88038e09ae",
+      "runtimeCodehash": "0x0fb7c899f3f97856ee6a83f8e7eb5ede10c341f52e64e92658b35471d3a1dbd7",
+      "router": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+      "factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+      "wrappedNative": "0x4200000000000000000000000000000000000006",
+      "configurationHash": "0xfbaf94530df666febfb537d12153342f741a4786b39a99cafd708e12a4de6d36",
+      "verifiedExact": true,
+      "explorerUrl": "https://basescan.org/address/0xb21C455ceE9ECb4BD0cf19A88d771065db45592b#code"
+    },
+    "intentRouterV2": {
+      "address": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
+      "deploymentTransaction": "0x5272072f057977cb09a909ec134d14c1468ec9aa89d9835098034399fca1cd3d",
+      "runtimeCodehash": "0xe5d9ea317c2b5f3afc1b2c67ecc04719997f38d6c57e5d693936eebae5da1e05",
+      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+      "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+      "wrappedNative": "0x4200000000000000000000000000000000000006",
+      "feeBps": 10,
+      "paused": false,
+      "verifiedExact": true,
+      "explorerUrl": "https://basescan.org/address/0xce874051C9B60ECaD06721611DCEAc36aC0e8529#code"
+    },
+    "launchFactoryV2": {
+      "address": "0x90cc932D97966F6Bdd8426184283FF2ff9d3043b",
+      "deploymentTransaction": "0x20344cbbac5e398e5b8f3537168d942c40b286ef1171521cac31a20cada4e25b",
+      "runtimeCodehash": "0xb65a8f83f65961bdb2980f8530c0566013340f7491226c7a27f27efe60338a52",
+      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+      "pendingTreasury": "0x0000000000000000000000000000000000000000",
+      "deploymentFee": "0",
+      "verifiedExact": true,
+      "explorerUrl": "https://basescan.org/address/0x90cc932D97966F6Bdd8426184283FF2ff9d3043b#code"
+    },
+    "x402AttestationRegistryV1": {
+      "address": "0x4A587b315472Dd452B2FbC42366B16dCC267ae34",
+      "deploymentTransaction": "0x9eac521bf1d3e4a1a4e6934e35057f9f4e56438ebdf6dd45466c14eb4da1ded8",
+      "runtimeCodehash": "0xc84213a5efaeec9822ef03756eccea7271f3c1ad75a0a75ef29f304f7d6d1afb",
+      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+      "verifiedExact": true,
+      "explorerUrl": "https://basescan.org/address/0x4A587b315472Dd452B2FbC42366B16dCC267ae34#code"
+    }
+  },
+  "uniswapCanary": {
+    "adapterConfigured": false,
+    "adapterEnabled": false,
+    "configureOperation": {
+      "operationId": "0x1349520995de6695bde9d984cdd971b47e495a7539dbc5d3ef9d8a87037e0162",
+      "scheduleTransaction": "0x887c369b5b61546a62f691bad3d545b582a0a3cb352331566fb3051fe11ab8c9",
+      "scheduleBlock": "49715448",
+      "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
+      "value": "0",
+      "data": "0xda3254a8000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b0000000000000000000000000000000000000000000000000000000000000000",
+      "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "salt": "0x0e657bb7024594bb25cb2f29abcd372401f5b9a5547b654fd73852a661c3c566",
+      "readyAt": "1786393043",
+      "readyAtIsoUtc": "2026-08-10T20:17:23.000Z",
+      "status": "pending"
+    },
+    "enableOperation": null
+  },
+  "legacyFeeRouterCleanup": {
+    "router": "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",
+    "revokedTarget": "0x71524B4f93c58fcbF659783284E38825f0622859",
+    "transactionHash": "0x0d8974baf0000609294c1d7432b8d07f4c6e7840aec2e07149f769de00cdb369",
+    "receiptBlock": "49715104",
+    "postApprovedState": false
+  },
+  "compiler": {
+    "solidity": "0.8.24",
+    "evmVersion": "cancun",
+    "optimizerEnabled": true,
+    "optimizerRuns": 200,
+    "license": "MIT"
+  }
+}

@@ -1,51 +1,104 @@
 import React, { useEffect, useState } from 'react';
+import { NETWORKS } from '../config/networks';
+import { BACKEND_URL } from '../config/runtime';
 
 interface AlloraWidgetProps {
-  asset?: string;
+  asset?: 'BTC' | 'ETH';
   isDarkMode?: boolean;
 }
 
 interface PredictionData {
+  asset: 'BTC' | 'ETH';
+  timeframe: '5m';
+  currentPrice: string;
   predictedPrice: string;
-  confidence: string;
-  timestamp: string;
+  predictedDeltaPercent: string;
+  direction: 'UP' | 'DOWN' | 'FLAT';
+  fetchedAt: string;
+}
+
+function isPredictionData(value: unknown, expectedAsset: 'BTC' | 'ETH'): value is PredictionData {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const item = value as Record<string, unknown>;
+  return (
+    item.asset === expectedAsset &&
+    item.timeframe === '5m' &&
+    typeof item.currentPrice === 'string' &&
+    Number.isFinite(Number(item.currentPrice)) &&
+    Number(item.currentPrice) > 0 &&
+    typeof item.predictedPrice === 'string' &&
+    Number.isFinite(Number(item.predictedPrice)) &&
+    Number(item.predictedPrice) > 0 &&
+    typeof item.predictedDeltaPercent === 'string' &&
+    Number.isFinite(Number(item.predictedDeltaPercent)) &&
+    (item.direction === 'UP' ||
+      item.direction === 'DOWN' ||
+      item.direction === 'FLAT') &&
+    typeof item.fetchedAt === 'string' &&
+    Number.isFinite(Date.parse(item.fetchedAt))
+  );
 }
 
 export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDarkMode = false }) => {
   const [data, setData] = useState<PredictionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMock, setIsMock] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    
-    const fetchPrediction = async () => {
+    const controller = new AbortController();
+
+    const fetchPrediction = async (resetData = false) => {
+      if (resetData) setData(null);
       setLoading(true);
       setError(null);
       try {
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
-        const res = await fetch(`${BACKEND_URL}/api/allora/prediction?asset=${asset}&timeframe=5m`);
-        const json = await res.json();
-        
-        if (json.success && isMounted) {
-          setData(json.data);
-          setIsMock(json.isMock);
-        } else if (isMounted) {
-          setError(json.error || 'Could not fetch data.');
+        const params = new URLSearchParams({ asset, timeframe: '5m' });
+        const res = await fetch(`${BACKEND_URL}/api/allora/prediction?${params.toString()}`, {
+          headers: {
+            Accept: 'application/json',
+            'X-Kletia-Network': 'base',
+            'X-Kletia-Chain-Id': String(NETWORKS.base.chainId),
+          },
+          signal: controller.signal,
+        });
+        const json: unknown = await res.json();
+        const payload =
+          typeof json === 'object' && json !== null && !Array.isArray(json)
+            ? json as Record<string, unknown>
+            : null;
+
+        if (
+          !res.ok ||
+          payload?.success !== true ||
+          !isPredictionData(payload.data, asset)
+        ) {
+          throw new Error('INVALID_PREDICTION_RESPONSE');
+        }
+
+        if (isMounted) {
+          setData(payload.data);
         }
       } catch (err) {
-        if (isMounted) setError('Connection error.');
+        if (isMounted && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError('Canlı tahmin verisi şu anda kullanılamıyor.');
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchPrediction();
-    
-    const interval = setInterval(fetchPrediction, 30000); // update every 30 seconds
+    void fetchPrediction(true);
+
+    const interval = setInterval(() => {
+      void fetchPrediction();
+    }, 30000); 
     return () => {
       isMounted = false;
+      controller.abort();
       clearInterval(interval);
     };
   }, [asset]);
@@ -82,23 +135,38 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDar
         </div>
       ) : data ? (
         <div className="flex flex-col gap-1 mt-1">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-3xl font-black font-mono">
               ${Number(data.predictedPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
+            <span
+              className={`border-2 px-2 py-1 text-xs font-black ${
+                data.direction === 'UP'
+                  ? 'border-green-500 text-green-500'
+                  : data.direction === 'DOWN'
+                    ? 'border-red-500 text-red-500'
+                    : 'border-gray-500 text-gray-500'
+              }`}
+            >
+              {data.direction}
+            </span>
           </div>
-          
+
+          <div className="text-xs font-bold opacity-75">
+            Spot ${Number(data.currentPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {' · '}
+            Tahmini fark {Number(data.predictedDeltaPercent) > 0 ? '+' : ''}{data.predictedDeltaPercent}%
+          </div>
+
           <div className="flex items-center gap-2 text-xs font-bold mt-2 opacity-70">
-            <span>⚡ Confidence: %{data.confidence || '92.4'}</span>
+            <span>⚡ Live Allora API</span>
             <span>•</span>
-            <span>⏱️ {new Date(data.timestamp || Date.now()).toLocaleTimeString()}</span>
+            <span>⏱️ {new Date(data.fetchedAt).toLocaleTimeString()}</span>
           </div>
-          
-          {isMock && (
-             <div className="mt-2 text-[10px] opacity-50 italic">
-               (Developer Mode: Public Endpoint)
-             </div>
-          )}
+
+          <div className="mt-2 border-t-2 border-dashed border-current pt-2 text-[10px] font-bold uppercase opacity-60">
+            Model gözlemidir; al/sat önerisi değildir.
+          </div>
         </div>
       ) : null}
     </div>

@@ -23,7 +23,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchPredictions = async () => {
       setLoading(true);
       setError(null);
@@ -35,7 +35,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
             body: JSON.stringify({ assets, timeframe })
         });
         const json = await res.json();
-        
+
         if (json.success && isMounted) {
           setData(json.data);
         } else if (isMounted) {
@@ -54,7 +54,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
       isMounted = false;
       clearInterval(interval);
     };
-  }, [timeframe]); // Trigger re-fetch when timeframe changes
+  }, [timeframe]); 
 
   const bgClass = isDarkMode ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-black';
   const cardBg = isDarkMode ? 'bg-gray-800 border-[#CCA000] shadow-[4px_4px_0_#CCA000]' : 'bg-white border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]';
@@ -62,8 +62,8 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
 
   return (
     <div className={`p-8 w-full max-w-7xl mx-auto min-h-[80vh] flex flex-col gap-6 ${bgClass}`}>
-      
-      {/* BAŞLIK & AYARLAR */}
+
+      {}
       <div className="flex flex-col md:flex-row justify-between items-center border-b-4 border-current pb-4">
         <div>
           <h1 className={`text-4xl font-black uppercase tracking-tighter ${headerText}`}>
@@ -73,8 +73,8 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
             Live Price &gt; AI Prediction ➔ Auto Decision
           </p>
         </div>
-        
-        {/* TIMEFRAME SELECTION */}
+
+        {}
         <div className="mt-4 md:mt-0 flex items-center gap-4">
           <label className="font-bold uppercase text-sm">Zaman Dilimi:</label>
           <select 
@@ -90,7 +90,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
         </div>
       </div>
 
-      {/* KARTLAR */}
+      {}
       {loading && data.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1">
           <div className={`w-16 h-16 border-8 border-dashed rounded-full animate-spin ${isDarkMode ? 'border-[#CCA000]' : 'border-blue-600'}`}></div>
@@ -122,7 +122,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({ isDarkMode, on
                     {item.recommendation}
                   </span>
                 </div>
-                
+
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-bold uppercase opacity-70">Live Price (Binance)</span>
                   <span className="text-xl font-bold">${item.currentPrice}</span>

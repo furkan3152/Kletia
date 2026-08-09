@@ -2,150 +2,265 @@ import { Router } from 'express';
 
 const router = Router();
 
-router.get('/prediction', async (req, res) => {
+const ALLORA_PRICE_URL =
+    'https://api.allora.network/v2/allora/consumer/price/ethereum-11155111';
+const BINANCE_PRICE_URL = 'https://api.binance.com/api/v3/ticker/price';
+const PROVIDER_TIMEOUT_MS = 8_000;
+const SUPPORTED_ASSETS = ['BTC', 'ETH'] as const;
+const SUPPORTED_TIMEFRAMES = ['5m', '8h'] as const;
+const FLAT_THRESHOLD_PERCENT = 0.05;
+
+type SupportedAsset = (typeof SUPPORTED_ASSETS)[number];
+type SupportedTimeframe = (typeof SUPPORTED_TIMEFRAMES)[number];
+type Direction = 'UP' | 'DOWN' | 'FLAT';
+
+interface PriceObservation {
+    asset: SupportedAsset;
+    timeframe: SupportedTimeframe;
+    currentPrice: string;
+    predictedPrice: string;
+    predictedDeltaPercent: string;
+    direction: Direction;
+    fetchedAt: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function parseAsset(value: unknown): SupportedAsset | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toUpperCase();
+    return SUPPORTED_ASSETS.includes(normalized as SupportedAsset)
+        ? normalized as SupportedAsset
+        : null;
+}
+
+function parseTimeframe(value: unknown): SupportedTimeframe | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    return SUPPORTED_TIMEFRAMES.includes(normalized as SupportedTimeframe)
+        ? normalized as SupportedTimeframe
+        : null;
+}
+
+async function fetchJson(
+    url: string,
+    init: RequestInit = {},
+): Promise<{ response: Response; data: unknown }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+
     try {
-        const { asset, timeframe } = req.query; // e.g. asset=ETH, timeframe=5m
-        const apiKey = process.env.ALLORA_API_KEY;
-
-        if (!asset) {
-            return res.status(400).json({ success: false, error: "Asset parametresi zorunludur" });
-        }
-
-        const tf = timeframe || '5m'; // Default 5m
-
-        if (!apiKey) {
-            return res.status(500).json({ success: false, error: "Allora API Anahtarı eksik! Lütfen backend'e ALLORA_API_KEY ekleyin." });
-        }
-
-        // Real API Call
-        const response = await fetch(`https://api.allora.network/v2/allora/consumer/price/ethereum-11155111/${asset}/${tf}`, {
-            method: 'GET',
-            headers: {
-                'accept': 'application/json',
-                'x-api-key': apiKey
-            }
+        const response = await fetch(url, {
+            ...init,
+            signal: controller.signal,
         });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.apiResponseMessage || 'Allora API Hatası');
-        }
-        
-        const predictedPrice = data?.data?.inference_data?.network_inference_normalized || data?.inference_data?.network_inference_normalized;
-
-        res.json({
-            success: true,
-            isMock: false,
-            data: {
-                asset,
-                timeframe: tf,
-                predictedPrice: predictedPrice ? parseFloat(predictedPrice).toFixed(2) : "0.00",
-                raw: data
-            }
-        });
-
-    } catch (error: any) {
-        console.error("Allora API Hatası:", error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-
-
-// Binance üzerinden güncel fiyat çekici
-async function getCurrentPrice(symbol: string): Promise<number> {
-    try {
-        const binanceSymbol = symbol === 'BTC' || symbol === 'ETH' ? `${symbol}USDT` : null;
-        if (!binanceSymbol) return 0;
-        
-        const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`);
-        const data = await res.json();
-        if (data && data.price) {
-            return parseFloat(data.price);
-        }
-        return 0;
-    } catch (e) {
-        console.error(`Binance Fiyat Hatası (${symbol}):`, e);
-        return 0;
+        const data: unknown = await response.json();
+        return { response, data };
+    } finally {
+        clearTimeout(timeout);
     }
 }
 
-router.post('/multi-prediction', async (req, res) => {
+function extractAlloraPrice(payload: unknown): number {
+    const root = asRecord(payload);
+    const data = asRecord(root?.data);
+    const inference = asRecord(
+        data?.inference_data ?? root?.inference_data,
+    );
+    const rawPrice = inference?.network_inference_normalized;
+    const price = typeof rawPrice === 'string' || typeof rawPrice === 'number'
+        ? Number(rawPrice)
+        : Number.NaN;
+
+    if (!root || root.status === false || !Number.isFinite(price) || price <= 0) {
+        throw new Error('INVALID_ALLORA_RESPONSE');
+    }
+    return price;
+}
+
+async function getPredictedPrice(
+    asset: SupportedAsset,
+    timeframe: SupportedTimeframe,
+    apiKey: string,
+): Promise<number> {
+    const { response, data } = await fetchJson(
+        `${ALLORA_PRICE_URL}/${asset}/${timeframe}`,
+        {
+            method: 'GET',
+            headers: {
+                accept: 'application/json',
+                'x-api-key': apiKey,
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error('ALLORA_REQUEST_FAILED');
+    }
+    return extractAlloraPrice(data);
+}
+
+async function getCurrentPrice(asset: SupportedAsset): Promise<number> {
+    const expectedSymbol = `${asset}USDT`;
+    const { response, data } = await fetchJson(
+        `${BINANCE_PRICE_URL}?symbol=${expectedSymbol}`,
+        {
+            method: 'GET',
+            headers: { accept: 'application/json' },
+        },
+    );
+    const payload = asRecord(data);
+    const rawPrice = payload?.price;
+    const price = typeof rawPrice === 'string' || typeof rawPrice === 'number'
+        ? Number(rawPrice)
+        : Number.NaN;
+
+    if (
+        !response.ok ||
+        payload?.symbol !== expectedSymbol ||
+        !Number.isFinite(price) ||
+        price <= 0
+    ) {
+        throw new Error('INVALID_BINANCE_RESPONSE');
+    }
+    return price;
+}
+
+async function getObservation(
+    asset: SupportedAsset,
+    timeframe: SupportedTimeframe,
+    apiKey: string,
+): Promise<PriceObservation> {
+    const [currentPrice, predictedPrice] = await Promise.all([
+        getCurrentPrice(asset),
+        getPredictedPrice(asset, timeframe, apiKey),
+    ]);
+    const deltaPercent =
+        ((predictedPrice - currentPrice) / currentPrice) * 100;
+    const direction: Direction =
+        deltaPercent > FLAT_THRESHOLD_PERCENT
+            ? 'UP'
+            : deltaPercent < -FLAT_THRESHOLD_PERCENT
+                ? 'DOWN'
+                : 'FLAT';
+
+    return {
+        asset,
+        timeframe,
+        currentPrice: currentPrice.toFixed(2),
+        predictedPrice: predictedPrice.toFixed(2),
+        predictedDeltaPercent: deltaPercent.toFixed(3),
+        direction,
+        fetchedAt: new Date().toISOString(),
+    };
+}
+
+function logProviderFailure(scope: string, error: unknown) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error(`[Allora] ${scope} provider request failed (${errorName}).`);
+}
+
+router.get('/prediction', async (req, res) => {
+    const asset = parseAsset(req.query.asset);
+    const timeframe = req.query.timeframe === undefined
+        ? '5m'
+        : parseTimeframe(req.query.timeframe);
+    if (!asset) {
+        return res.status(400).json({
+            success: false,
+            error: 'asset must be BTC or ETH.',
+        });
+    }
+    if (!timeframe) {
+        return res.status(400).json({
+            success: false,
+            error: 'timeframe must be 5m or 8h.',
+        });
+    }
+
+    const apiKey = process.env.ALLORA_API_KEY?.trim();
+    if (!apiKey) {
+        return res.status(503).json({
+            success: false,
+            error: 'Live prediction service is unavailable.',
+        });
+    }
+
     try {
-        const { assets, timeframe } = req.body; 
-        const apiKey = process.env.ALLORA_API_KEY;
-
-        if (!assets || !Array.isArray(assets)) {
-            return res.status(400).json({ success: false, error: "assets array parametresi zorunludur" });
-        }
-
-        const tf = timeframe || '5m';
-
-        if (!apiKey) {
-            return res.status(500).json({ success: false, error: "Allora API Anahtarı eksik!" });
-        }
-
-        const promises = assets.map(async (asset) => {
-            try {
-                // 1. Anlık Fiyatı Çek
-                const currentPrice = await getCurrentPrice(asset);
-
-                // 2. Allora Tahminini Çek
-                const response = await fetch(`https://api.allora.network/v2/allora/consumer/price/ethereum-11155111/${asset}/${tf}`, {
-                    method: 'GET',
-                    headers: { 'accept': 'application/json', 'x-api-key': apiKey }
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error('API Hatası');
-                
-                const predictedPriceStr = data?.data?.inference_data?.network_inference_normalized || data?.inference_data?.network_inference_normalized;
-                const predictedPrice = predictedPriceStr ? parseFloat(predictedPriceStr) : 0;
-                
-                // 3. Karşılaştırma Analizi
-                let differencePercent = 0;
-                let recommendation = 'HOLD';
-
-                if (currentPrice > 0 && predictedPrice > 0) {
-                    differencePercent = ((predictedPrice - currentPrice) / currentPrice) * 100;
-                    
-                    if (differencePercent > 0.05) { // Çok ufak dalgalanmaları filtrelemek için %0.05 barajı
-                        recommendation = 'BUY';
-                    } else if (differencePercent < -0.05) {
-                        recommendation = 'SELL';
-                    }
-                }
-
-                return {
-                    asset,
-                    currentPrice: currentPrice > 0 ? currentPrice.toFixed(2) : "0.00",
-                    predictedPrice: predictedPrice > 0 ? predictedPrice.toFixed(2) : "0.00",
-                    differencePercent: differencePercent.toFixed(3),
-                    recommendation
-                };
-            } catch (e) {
-                return { 
-                    asset, 
-                    currentPrice: "0.00", 
-                    predictedPrice: "0.00", 
-                    differencePercent: "0.00",
-                    recommendation: "ERROR" 
-                };
-            }
+        const observation = await getObservation(asset, timeframe, apiKey);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({ success: true, data: observation });
+    } catch (error) {
+        logProviderFailure('single', error);
+        return res.status(502).json({
+            success: false,
+            error: 'Live prediction data is temporarily unavailable.',
         });
-
-        const results = await Promise.all(promises);
-        
-        res.json({
-            success: true,
-            data: results
-        });
-
-    } catch (error: any) {
-        console.error("Allora Multi API Hatası:", error);
-        res.status(500).json({ success: false, error: error.message });
     }
 });
 
+router.post('/multi-prediction', async (req, res) => {
+    const rawAssets = asRecord(req.body)?.assets;
+    if (
+        !Array.isArray(rawAssets) ||
+        rawAssets.length === 0 ||
+        rawAssets.length > SUPPORTED_ASSETS.length
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: 'assets must contain one or two unique BTC/ETH values.',
+        });
+    }
+
+    const assets = rawAssets.map(parseAsset);
+    if (
+        assets.some((asset) => asset === null) ||
+        new Set(assets).size !== assets.length
+    ) {
+        return res.status(400).json({
+            success: false,
+            error: 'assets must contain one or two unique BTC/ETH values.',
+        });
+    }
+
+    const rawTimeframe = asRecord(req.body)?.timeframe;
+    const timeframe = rawTimeframe === undefined
+        ? '5m'
+        : parseTimeframe(rawTimeframe);
+    if (!timeframe) {
+        return res.status(400).json({
+            success: false,
+            error: 'timeframe must be 5m or 8h.',
+        });
+    }
+
+    const apiKey = process.env.ALLORA_API_KEY?.trim();
+    if (!apiKey) {
+        return res.status(503).json({
+            success: false,
+            error: 'Live prediction service is unavailable.',
+        });
+    }
+
+    try {
+        const observations = await Promise.all(
+            (assets as SupportedAsset[]).map((asset) =>
+                getObservation(asset, timeframe, apiKey),
+            ),
+        );
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({ success: true, data: observations });
+    } catch (error) {
+        logProviderFailure('multi', error);
+        return res.status(502).json({
+            success: false,
+            error: 'Live prediction data is temporarily unavailable.',
+        });
+    }
+});
 
 export default router;

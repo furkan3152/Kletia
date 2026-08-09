@@ -1,49 +1,142 @@
-# Kletia Technical Architecture & One-Pager
+# Kletia Technical Architecture — One Pager
 
-## 1. Executive Summary: The Web3 Omni-Engine
-**Kletia** is not just an interface; it is an AI-driven "Everything App" (Omni-Engine) designed to eliminate the fragmentation of Web3. By leveraging **Intent-Centric Architecture**, Kletia allows users to input natural language intents. The core engine mathematically parses, routes, and executes these intents across diverse decentralized finance (DeFi) protocols and community-developed modules. Currently operating on EVM-compatible testnets (Arc, Base), Kletia is actively migrating its core settlement layer to the **GIWA Testnet** to exploit its high-throughput, secure, and native identity primitives.
+## Product model
 
----
+Kletia is an intent-driven aggregator with one canonical application shell and
+two deliberately isolated execution profiles:
 
-## 2. Core Architecture: The Intent Engine
-At the heart of Kletia lies the **Intent Resolver Protocol**. 
-Traditional Web3 requires users to manually authorize transactions, manage slippage, and navigate multiple UIs. Kletia abstracts this away:
-- **Natural Language Parsing (NLP):** A custom LLM integration translates human input (e.g., *"Swap my USDC to ETH and lend it on Aave"*) into a machine-readable JSON intent payload.
-- **Dynamic Routing:** The engine calculates the most gas-efficient and secure route to execute the intent across multiple smart contracts simultaneously.
-- **Atomic Execution:** Cross-protocol actions are bundled and executed atomically via the `KletiaRouter` smart contract, ensuring that if one step fails, the entire transaction reverts, protecting user funds.
+| Profile | Network | Settlement asset | Purpose |
+| --- | --- | --- | --- |
+| `base` | Base Mainnet (`8453`) | ETH for gas; Base assets such as native USDC | Production DeFi aggregation, x402 discovery/payment flows and Base-native experiences |
+| `arc` | Arc Testnet (`5042002`) | Native USDC | Arc-native programmable-money flows, App Kit integrations and testnet experimentation |
 
----
+Changing the profile is not a cosmetic RPC toggle. The wallet chain, intent
+parser context, supported actions, contract registry, native asset metadata,
+widgets, conversation state and response validation all change together. A
+Base response cannot be executed while Arc is active, and vice versa.
 
-## 3. General DeFi Integration (The Backbone)
-Kletia is natively designed to integrate with the foundational pillars of Decentralized Finance. The engine acts as a meta-aggregator for:
-- **Decentralized Exchanges (DEXs) & Swaps:** Native integration with major liquidity pools (e.g., Uniswap v3 models) ensures users always get the best swap rates without leaving the Kletia interface.
-- **Lending & Borrowing Markets:** The engine connects directly to money markets. Users can instruct the AI to "supply collateral" or "borrow assets," and Kletia will automatically interact with the underlying lending protocols, managing health factors programmatically.
-- **Yield Aggregation:** Kletia continuously scans for optimal yield-farming opportunities, allowing users to move liquidity with a single command.
+The canonical runtime is:
 
----
+- frontend: `frontend/base_mainnet`
+- backend: `backend/base_mainnet`
+- deployment definition: `render.yaml`
 
-## 4. Community-Driven Extensibility
-Kletia is built as an open ecosystem. It is not limited to the protocols integrated by the core team. 
-- **Developer Plugins & Widgets:** The platform features a modular architecture where community developers can write and deploy custom "Widgets". 
-- **Open Registry:** If a new protocol launches on GIWA, the community can instantly create an intent-plugin for it. Kletia's AI automatically learns how to use this new plugin, making Kletia continuously smarter and infinitely scalable based on community contributions.
+The older `arc_testnet` application directories are retained only as reference
+copies. Arc remains a first-class profile inside the canonical runtime.
 
----
+## Intent lifecycle
 
-## 5. GIWA-Native Infrastructure 
-To achieve true consumer-scale adoption, Kletia requires infrastructure that standard EVM chains cannot provide. The migration to the **GIWA OP Stack Testnet** unlocks three critical pillars:
+```text
+Natural-language request or widget seed
+             |
+             v
+Deterministic grammar + bounded AI parsing
+             |
+             v
+Network/action policy and canonical registry
+             |
+             v
+Live read-only discovery and route construction
+             |
+             v
+Efficiency ranking + security/simulation evidence
+             |
+             v
+Network-bound response envelope
+             |
+             v
+Explicit wallet approval and user-confirmed execution
+```
 
-### A. Flashblocks (Sub-second Finality)
-AI intents must feel like Web2 API calls—instantaneous. By natively connecting the Kletia execution engine to GIWA's `sepolia-rpc-flashblocks` endpoint, Kletia transactions receive pre-confirmations in sub-seconds. This eliminates the dreaded "pending transaction" UI, creating a flawless user experience.
+User-facing aggregator widgets do not bypass the intent engine. They create
+structured, editable text seeds for the same parser and routing pipeline used
+by the main prompt. The Base x402 seller console is a deliberately separate,
+advanced gateway-owner surface: factory deployment, price updates and
+withdrawals are direct wallet writes because they administer the user's own
+gateway rather than route an aggregator intent. Those writes still require
+Base chain binding, reviewed-factory provenance, live price/owner checks,
+action-bound Webacy approval, exact simulation and a successful receipt.
 
-### B. Dojang (Verifiable On-Chain Identity)
-Institutional liquidity providers and advanced DeFi protocols require compliance. Kletia integrates GIWA's **Dojang Registry Contracts**. Before the Kletia AI executes high-value DeFi intents, it checks the user's `isVerified()` status. This provides absolute Sybil resistance and institutional-grade security while keeping the user's personal data safely off-chain.
+## Base Mainnet aggregation
 
-### C. UP-ID (Upbit Web3 Names)
-Web3 adoption is blocked by `0x...` addresses. Kletia natively integrates the **IUPIDResolver**. Users can simply state, *"Send 50 USDT to vitalik.up.id"*. Kletia pings the GIWA UP-ID registry, resolves the address on the backend, and routes the funds securely.
+Base routes are built from a canonical protocol registry and live, block-bound
+reads. The current engine covers:
 
----
+- swaps across Aerodrome and V2/V3 quote sources, with additional officially
+  sourced candidates kept discovery-only until their calldata and spender
+  semantics have dedicated validators;
+- Aave V3, Moonwell and Compound lending markets;
+- ERC-4626 vault comparisons and direct deposits;
+- direct staking targets;
+- reserve-bearing liquidity-pool discovery from canonical factories;
+- Across bridge quotes;
+- x402 service discovery and payment-aware intents.
 
-## Conclusion
-By combining an AI-driven Intent Engine with comprehensive DeFi aggregation, community extensibility, and the raw technological power of GIWA's Dojang, UP-ID, and Flashblocks, Kletia is uniquely positioned to become the default frontend for the next billion Web3 users.
+The engine does not treat an official contract address as sufficient execution
+authorization. A route becomes executable only when its operation-specific
+target, selector, token flow, payer/receiver, amount, slippage/deadline and
+simulation rules are supported.
 
-*— The Kletia Core Team, 2026*
+Efficiency is action-specific. Swaps can be compared by expected output, price
+impact, gas and simulation evidence. Supply and borrow markets can be compared
+using live rate and availability data. Liquidity-removal positions are not
+pretended to be economically comparable without a trustworthy valuation
+oracle.
+
+## Arc Testnet profile
+
+Arc has its own action set, contract manifest, target allowlist, ABIs, native
+asset rules and response envelope. Arc routes may use the existing deployed Arc
+contracts and official Arc App Kit/integration surfaces; Base protocol targets
+are never inherited into the Arc profile.
+
+The Arc profile remains testnet-only. Testnet balances, quotes and execution
+results must not be presented as Base Mainnet value or production guarantees.
+The existing deployed Arc contracts are not modified by the unified
+application architecture.
+
+## Execution and custody boundaries
+
+Kletia intentionally does **not** force every action through one generic
+router:
+
+- swaps compatible with the existing Fee Router may use the wrapper only when
+  caller, spender and output-recipient semantics remain safe;
+- lending, ERC-4626 vault, staking and classic liquidity actions execute
+  directly from the user's wallet when an intermediary would otherwise become
+  the protocol-recognized owner;
+- Permit2-based or dynamically targeted aggregators remain non-executable until
+  a purpose-built adapter and validator exists;
+- every approval is explicit and scoped to the route's declared spender.
+
+No transaction is considered successful from a hash alone. The client waits
+for a successful receipt, and approval-dependent actions receive a final
+`eth_call` after the approval is confirmed. Protocols with return-code failure
+semantics, such as Moonwell, also require the expected success return value.
+
+## Evidence and failure model
+
+Route responses carry their network, chain ID, request ID, target and discovery
+evidence. Live market and pool reads are pinned to an observed block where the
+provider supports it. Provider errors are not converted into zero balances,
+invented pools, mock rates, APY or impermanent-loss projections.
+
+Security and simulation are shared system capabilities, but they consume the
+active profile's policy and targets. If target validation, bytecode checks,
+market availability or simulation cannot produce the required evidence, the
+affected route fails closed or is explicitly marked unavailable.
+
+## Extension rule
+
+New protocols enter Kletia in stages:
+
+1. add an official-source registry entry;
+2. verify chain ID and runtime bytecode;
+3. implement protocol-specific discovery and normalized route evidence;
+4. bind parser intents and widget seeds to the same action;
+5. add calldata, spender, recipient and state-transition validators;
+6. test unavailable, paused, capped and reverting paths;
+7. only then consider execution allowlisting or a new adapter.
+
+This staged model preserves aggregator breadth without turning address quantity
+into unsafe execution breadth.

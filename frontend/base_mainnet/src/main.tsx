@@ -68,7 +68,6 @@ const config = createConfig({
     [NETWORKS.arc.chainId]: fallback(
       uniqueRpcUrls(
         NETWORKS.arc.rpcUrl,
-        'https:
         'https://rpc.drpc.testnet.arc.network',
         'https://rpc.quicknode.testnet.arc.network',
       ).map((url) => http(url)),

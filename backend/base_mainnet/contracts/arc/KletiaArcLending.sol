@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
@@ -12,49 +12,38 @@ interface IKletiaArcSwap {
     function consultKletPrice() external view returns (uint256);
 }
 
-/**
- * @title KletiaArcLending
- * @notice Native USDC Borrow/Lending protocol using KLET as collateral.
- * @dev "Agent-Driven DeFi" - Features Aave-like Normalized Indexes and Health Factor.
- */
 contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
     IERC20 public immutable kletToken;
     IKletiaArcSwap public swapPool;
 
-    // Constants
     uint256 public constant RAY = 1e27;
     uint256 public constant WAD = 1e18;
     uint256 public constant SECONDS_PER_YEAR = 365 days;
 
-    // Configuration
-    uint256 public constant LTV_BIPS = 7000; // 70% Loan-to-Value
-    uint256 public constant LIQ_THRESHOLD_BIPS = 8000; // 80% Liquidation Threshold
-    uint256 public constant LIQ_PENALTY_BIPS = 500; // 5% bonus to liquidator
+    uint256 public constant LTV_BIPS = 7000; 
+    uint256 public constant LIQ_THRESHOLD_BIPS = 8000; 
+    uint256 public constant LIQ_PENALTY_BIPS = 500; 
     uint256 public constant BIPS_DENOMINATOR = 10000;
 
-    // Interest Rate Model Parameters (in Ray)
-    uint256 public constant OPTIMAL_UTILIZATION = 0.8 * 1e27; // 80%
+    uint256 public constant OPTIMAL_UTILIZATION = 0.8 * 1e27; 
     uint256 public constant BASE_BORROW_RATE = 0;
-    uint256 public constant RATE_SLOPE_1 = 0.04 * 1e27; // 4% at optimal
-    uint256 public constant RATE_SLOPE_2 = 3.00 * 1e27; // 300% max (Aggressive Algorithmic Balancing)
-    uint256 public constant RESERVE_FACTOR = 0.1 * 1e27; // 10%
+    uint256 public constant RATE_SLOPE_1 = 0.04 * 1e27; 
+    uint256 public constant RATE_SLOPE_2 = 3.00 * 1e27; 
+    uint256 public constant RESERVE_FACTOR = 0.1 * 1e27; 
 
-    // State Variables
     uint256 public liquidityIndex = RAY;
     uint256 public borrowIndex = RAY;
-    uint256 public currentLiquidityRate; // Ray
-    uint256 public currentBorrowRate; // Ray
+    uint256 public currentLiquidityRate; 
+    uint256 public currentBorrowRate; 
     uint40 public lastUpdateTimestamp;
 
-    // TWAP Tracker Variables
     uint256 public twapPrice;
     uint256 public lastPriceCumulative;
     uint32 public lastTwapTimestamp;
 
-    // Balances
-    mapping(address => uint256) public collateralBalance; // KLET
-    mapping(address => uint256) public scaledSuppliedUSDC; // Scaled Native USDC
-    mapping(address => uint256) public scaledBorrowedUSDC; // Scaled Native USDC
+    mapping(address => uint256) public collateralBalance; 
+    mapping(address => uint256) public scaledSuppliedUSDC; 
+    mapping(address => uint256) public scaledBorrowedUSDC; 
 
     uint256 public scaledTotalUSDCSupplied;
     uint256 public scaledTotalUSDCBorrowed;
@@ -75,7 +64,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         lastUpdateTimestamp = uint40(block.timestamp);
     }
 
-    // Allow Native USDC supply to the pool
     receive() external payable {
         _updateState();
         _updateTWAP();
@@ -93,20 +81,14 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         _updateRates();
     }
 
-    /**
-     * @notice Supplies Native USDC liquidity to the protocol
-     */
-    function supplyUSDC() external payable nonReentrant updateStateAndRates {
+        function supplyUSDC() external payable nonReentrant updateStateAndRates {
         require(msg.value > 0, "KletiaArcLending: Zero supply");
         uint256 scaledAmount = rayDiv(msg.value, liquidityIndex);
         scaledTotalUSDCSupplied += scaledAmount;
         scaledSuppliedUSDC[_msgSender()] += scaledAmount;
     }
 
-    /**
-     * @notice Withdraw supplied Native USDC
-     */
-    function withdrawUSDC(uint256 amount) external nonReentrant updateStateAndRates {
+        function withdrawUSDC(uint256 amount) external nonReentrant updateStateAndRates {
         require(amount > 0, "KletiaArcLending: Zero withdraw");
         address user = _msgSender();
 
@@ -124,10 +106,7 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         require(success, "KletiaArcLending: Transfer failed");
     }
 
-    /**
-     * @notice Deposit KLET token as collateral
-     */
-    function depositCollateral(uint256 amount) external nonReentrant {
+        function depositCollateral(uint256 amount) external nonReentrant {
         require(amount > 0, "KletiaArcLending: Zero deposit");
         address user = _msgSender();
 
@@ -137,10 +116,7 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         emit CollateralAdded(user, amount);
     }
 
-    /**
-     * @notice Withdraw KLET collateral
-     */
-    function withdrawCollateral(uint256 amount) external nonReentrant updateStateAndRates {
+        function withdrawCollateral(uint256 amount) external nonReentrant updateStateAndRates {
         address user = _msgSender();
         require(amount > 0 && amount <= collateralBalance[user], "KletiaArcLending: Invalid amount");
 
@@ -148,17 +124,13 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
             collateralBalance[user] -= amount;
         }
 
-        // Check if healthy
         require(healthFactor(user) >= WAD, "KletiaArcLending: Health factor too low");
 
         require(kletToken.transfer(user, amount), "KletiaArcLending: Transfer failed");
         emit CollateralRemoved(user, amount);
     }
 
-    /**
-     * @notice Borrow Native USDC against KLET collateral
-     */
-    function borrow(uint256 borrowAmount) external nonReentrant updateStateAndRates {
+        function borrow(uint256 borrowAmount) external nonReentrant updateStateAndRates {
         require(borrowAmount > 0, "KletiaArcLending: Zero borrow");
         address user = _msgSender();
 
@@ -168,7 +140,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         scaledBorrowedUSDC[user] += scaledAmount;
         scaledTotalUSDCBorrowed += scaledAmount;
 
-        // Check LTV
         uint256 maxBorrow = _getMaxBorrow(user);
         uint256 currentDebt = rayMul(scaledBorrowedUSDC[user], borrowIndex);
         require(currentDebt <= maxBorrow, "KletiaArcLending: Exceeds max borrow LTV");
@@ -179,22 +150,19 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         emit USDCBorrowed(user, borrowAmount);
     }
 
-    /**
-     * @notice Repay Native USDC debt
-     */
-    function repay() external payable nonReentrant updateStateAndRates {
+        function repay() external payable nonReentrant updateStateAndRates {
         uint256 repayAmount = msg.value;
         address user = _msgSender();
         require(repayAmount > 0, "KletiaArcLending: Zero repay");
 
         uint256 currentDebt = rayMul(scaledBorrowedUSDC[user], borrowIndex);
-        
+
         if (repayAmount > currentDebt) {
             uint256 excess;
             unchecked { excess = repayAmount - currentDebt; }
             scaledBorrowedUSDC[user] = 0;
             unchecked { scaledTotalUSDCBorrowed -= rayDiv(currentDebt, borrowIndex); }
-            
+
             (bool success, ) = payable(user).call{value: excess}("");
             require(success, "KletiaArcLending: Refund failed");
         } else {
@@ -208,16 +176,13 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         emit USDCRepaid(user, repayAmount);
     }
 
-    /**
-     * @notice Liquidate an unhealthy position.
-     */
-    function liquidate(address target) external payable nonReentrant updateStateAndRates {
+        function liquidate(address target) external payable nonReentrant updateStateAndRates {
         address liquidator = _msgSender();
         require(target != liquidator, "KletiaArcLending: Cannot liquidate self");
         require(healthFactor(target) < WAD, "KletiaArcLending: Position is healthy");
 
         uint256 currentDebt = rayMul(scaledBorrowedUSDC[target], borrowIndex);
-        
+
         uint256 kletPrice = _getKletPrice();
         uint256 kletRequired = (currentDebt * WAD) / kletPrice;
         uint256 kletToSeize = kletRequired + ((kletRequired * LIQ_PENALTY_BIPS) / BIPS_DENOMINATOR);
@@ -251,8 +216,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         emit Liquidated(liquidator, target, debtToRepay, kletToSeize);
     }
 
-    // --- Aave Math & Core ---
-
     function _updateState() internal {
         uint40 currentTimestamp = uint40(block.timestamp);
         if (currentTimestamp == lastUpdateTimestamp) return;
@@ -260,12 +223,10 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         if (scaledTotalUSDCBorrowed > 0) {
             uint256 timeDelta;
             unchecked { timeDelta = currentTimestamp - lastUpdateTimestamp; }
-            
-            // Linear interest for liquidity index
+
             uint256 cumulatedLiquidityInterest = RAY + ((currentLiquidityRate * timeDelta) / SECONDS_PER_YEAR);
             liquidityIndex = rayMul(liquidityIndex, cumulatedLiquidityInterest);
 
-            // Binomial approximation for borrow index
             uint256 ratePerSecond = currentBorrowRate / SECONDS_PER_YEAR;
             uint256 basePowerTwo = rayMul(ratePerSecond, ratePerSecond);
             uint256 secondTerm;
@@ -280,8 +241,8 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
     function _updateTWAP() internal {
         uint256 currentCumulative = 0;
         uint32 blockTimestamp = 0;
-        
-        try swapPool.currentCumulativePrices() returns (uint256 val0, uint256 /*val1*/, uint32 ts) {
+
+        try swapPool.currentCumulativePrices() returns (uint256 val0, uint256 , uint32 ts) {
             currentCumulative = val0;
             blockTimestamp = ts;
         } catch {
@@ -289,22 +250,22 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         }
 
         if (blockTimestamp == lastTwapTimestamp) return;
-        
+
         if (lastTwapTimestamp != 0) {
             uint32 timeElapsed = blockTimestamp - lastTwapTimestamp;
             if (timeElapsed > 0) {
                 twapPrice = (currentCumulative - lastPriceCumulative) / timeElapsed;
             }
         }
-        
+
         lastPriceCumulative = currentCumulative;
         lastTwapTimestamp = blockTimestamp;
     }
 
     function _updateRates() internal {
         uint256 totalDebt = rayMul(scaledTotalUSDCBorrowed, borrowIndex);
-        uint256 totalLiquidity = address(this).balance; // Available liquidity
-        
+        uint256 totalLiquidity = address(this).balance; 
+
         if (totalDebt == 0) {
             currentBorrowRate = BASE_BORROW_RATE;
             currentLiquidityRate = 0;
@@ -335,8 +296,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         currentLiquidityRate = rayMul(rayMul(currentBorrowRate, utilizationRate), RAY - RESERVE_FACTOR);
     }
 
-    // --- Internal View Helpers ---
-
     function _getKletPrice() public view returns (uint256) {
         require(twapPrice > 0, "KletiaArcLending: TWAP not initialized");
         return twapPrice;
@@ -350,12 +309,7 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         return (colValueUSDC * LTV_BIPS) / BIPS_DENOMINATOR;
     }
 
-    /**
-     * @notice Calculate Health Factor for a user
-     * @dev HF = (Collateral Value * Liquidation Threshold) / Total Debt
-     * If HF < 1e18 (WAD), position can be liquidated.
-     */
-    function healthFactor(address user) public view returns (uint256) {
+        function healthFactor(address user) public view returns (uint256) {
         uint256 currentDebt = rayMul(scaledBorrowedUSDC[user], borrowIndex);
         if (currentDebt == 0) return type(uint256).max;
 
@@ -369,8 +323,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
         return (thresholdLimit * WAD) / currentDebt;
     }
 
-    // --- Ray Math Helpers ---
-
     function rayMul(uint256 a, uint256 b) internal pure returns (uint256) {
         return (a * b + (RAY / 2)) / RAY;
     }
@@ -378,8 +330,6 @@ contract KletiaArcLending is ERC2771Context, ReentrancyGuard {
     function rayDiv(uint256 a, uint256 b) internal pure returns (uint256) {
         return (a * RAY + (b / 2)) / b;
     }
-
-    // --- External Views ---
 
     function getSuppliedBalance(address user) external view returns (uint256) {
         return rayMul(scaledSuppliedUSDC[user], liquidityIndex);

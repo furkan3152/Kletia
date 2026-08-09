@@ -18,7 +18,7 @@ export async function handleArcSwap(intent: ParsedIntent, userAddress: string) {
     const amountIn = intent.amount || "0";
     const amountWei = parseEther(amountIn);
     const isUsdcToToken = (intent.tokenIn?.toUpperCase() === 'USDC' || intent.tokenIn === undefined);
-    
+
     let calldata, value;
     if (isUsdcToToken) {
         calldata = encodeFunctionData({ abi: ARC_SWAP_ABI, functionName: 'swapUSDCForToken' });
@@ -80,7 +80,7 @@ export async function handleArcStaking(intent: ParsedIntent, userAddress: string
 export async function handleArcVault(intent: ParsedIntent, userAddress: string, isWithdraw: boolean) {
     const amountIn = intent.amount || "0";
     const amountWei = parseEther(amountIn);
-    
+
     const calldata = encodeFunctionData({ 
         abi: ARC_VAULT_ABI, 
         functionName: isWithdraw ? 'withdraw' : 'deposit'
@@ -103,11 +103,10 @@ export async function handleArcVault(intent: ParsedIntent, userAddress: string, 
 export async function handleArcMemo(intent: ParsedIntent, userAddress: string) {
     const amountIn = intent.amount || "0";
     const amountWei = parseEther(amountIn);
-    
-    // AI Parser sets recipient to 'tokenOut' and memo to 'name'
+
     const to = intent.tokenOut || "0x0000000000000000000000000000000000000000"; 
     const memoText = intent.name || "Kletia Omni-Engine Transfer";
-    
+
     const calldata = encodeFunctionData({ 
         abi: ARC_MEMOTRANSFER_ABI, 
         functionName: 'transferWithMemo',
@@ -128,13 +127,11 @@ export async function handleArcMemo(intent: ParsedIntent, userAddress: string) {
     };
 }
 
-
-
 export async function handleArcAgentRegistry(intent: ParsedIntent, userAddress: string) {
-    // AI Parser sets agent name to 'name' and description to 'tokenIn'
+
     const agentName = intent.name || "Kletia AI Agent";
     const agentDescription = intent.tokenIn || "Omni-Engine Powered Autonomous Agent";
-    
+
     const calldata = encodeFunctionData({
         abi: ARC_AGENTREGISTRY_ABI,
         functionName: 'registerAgent',
@@ -158,8 +155,8 @@ export async function handleArcAgentRegistry(intent: ParsedIntent, userAddress: 
 export async function handleArcLiquidity(intent: ParsedIntent, userAddress: string) {
     const amountIn = intent.amount || "0";
     const amountWei = parseEther(amountIn);
-    
-    let requiredKlet = amountWei; // fallback
+
+    let requiredKlet = amountWei; 
     try {
         const provider = new ethers.JsonRpcProvider(ARC_RPC_URL);
         const swapContract = new ethers.Contract(ARC_CONTRACTS.Swap, ARC_SWAP_ABI, provider);
@@ -171,14 +168,13 @@ export async function handleArcLiquidity(intent: ParsedIntent, userAddress: stri
     } catch (e) {
         console.log("Failed to fetch reserves for liquidity calculation:", e);
     }
-    
-    // 5% slippage on maxTokenAmount to prevent failures
+
     const maxTokenAmount = (requiredKlet * 105n) / 100n;
 
     const calldata = encodeFunctionData({
         abi: ARC_SWAP_ABI,
         functionName: 'addLiquidity',
-        args: [maxTokenAmount] // maxTokenAmount
+        args: [maxTokenAmount] 
     });
 
     return {
@@ -187,7 +183,7 @@ export async function handleArcLiquidity(intent: ParsedIntent, userAddress: stri
         amountInWei: amountWei.toString(),
         targetContract: ARC_CONTRACTS.Swap,
         calldata,
-        value: amountWei.toString(), // usdc amount
+        value: amountWei.toString(), 
         winner: "Kletia Liquidity Pool",
         expectedOutput: "Liquidity Provided",
         allRoutes: [{ 
@@ -196,16 +192,15 @@ export async function handleArcLiquidity(intent: ParsedIntent, userAddress: stri
             calldata, 
             expectedOutput: "Pool Liquidity",
             secondaryTokenAddress: ARC_CONTRACTS.Token,
-            secondaryAmountInWei: maxTokenAmount.toString() // Request approval for maxTokenAmount to cover slippage
+            secondaryAmountInWei: maxTokenAmount.toString() 
         }],
         isNativeIn: true
     };
 }
 
-
 export async function dispatchArcAction(intent: ParsedIntent, userAddress: string) {
     const action = intent.action.toLowerCase();
-    
+
     let result;
     if (action === 'swap' || action === 'arc_swap') result = await handleArcSwap(intent, userAddress);
     else if (action === 'stake' || action === 'arc_stake') result = await handleArcStaking(intent, userAddress);
@@ -223,7 +218,7 @@ export async function dispatchArcAction(intent: ParsedIntent, userAddress: strin
     }
 
     const sim = await arcXRaySimulate(result.targetContract, result.calldata, userAddress, result.value);
-    
+
     if (!sim.success) {
         if (!result.isNativeIn) {
             console.log(`[ARC X-RAY] Revert caught due to ERC20 operation (missing Approve). Skipping simulation. Error: ${sim.error}`);
@@ -244,9 +239,9 @@ export async function dispatchArcAction(intent: ParsedIntent, userAddress: strin
 async function arcXRaySimulate(to: string, data: string, from: string, value: string): Promise<{success: boolean, error?: string, gasEstimate?: string}> {
     const provider = new ethers.JsonRpcProvider(ARC_RPC_URL);
     const tx = { to, data, from, value: value || "0" };
-    
+
     console.log(`[ARC X-RAY] Simulating: ${to} - Value: ${value}`);
-    
+
     let attempts = 0;
     while (attempts < 10) {
         try {
@@ -338,7 +333,7 @@ export async function handleArcLendingRepay(intent: ParsedIntent, userAddress: s
         amountInWei: "0",
         targetContract: ARC_CONTRACTS.Lending,
         calldata,
-        value: amountWei.toString(), // Native ETH (Native token) value for repaying in some cases if it's native asset
+        value: amountWei.toString(), 
         winner: "Kletia Lending",
         expectedOutput: "Repay USDC Debt",
         allRoutes: [{ name: "Kletia Lending", router: ARC_CONTRACTS.Lending, calldata, expectedOutput: "Repay Debt" }],

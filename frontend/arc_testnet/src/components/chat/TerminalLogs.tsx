@@ -8,7 +8,6 @@ interface TerminalLogsProps {
 
 export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
 
-
   if (!msg.terminalLogs || msg.terminalLogs.length === 0) return null;
 
   const explorerUrl = `https://testnet.arcscan.app/tx/${msg.txHash}`;

@@ -1,0 +1,106 @@
+export const KLETIA_LAUNCH_FACTORY_V2_ABI = [
+  {
+    type: 'function',
+    name: 'owner',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'treasury',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'pendingTreasury',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'deploymentFee',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'MAX_DEPLOYMENT_FEE',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'MAX_TOKEN_SUPPLY',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'MAX_NAME_BYTES',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'MAX_SYMBOL_BYTES',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'tokenForSalt',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'creator', type: 'address' },
+      { name: 'userSalt', type: 'bytes32' },
+    ],
+    outputs: [{ name: 'token', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'predictTokenAddress',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'creator', type: 'address' },
+      { name: 'userSalt', type: 'bytes32' },
+      { name: 'name_', type: 'string' },
+      { name: 'symbol_', type: 'string' },
+      { name: 'totalSupply_', type: 'uint256' },
+      { name: 'recipient_', type: 'address' },
+    ],
+    outputs: [{ name: 'predicted', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'deployToken',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'userSalt', type: 'bytes32' },
+      { name: 'name_', type: 'string' },
+      { name: 'symbol_', type: 'string' },
+      { name: 'totalSupply_', type: 'uint256' },
+      { name: 'recipient_', type: 'address' },
+      { name: 'maxDeploymentFee', type: 'uint256' },
+    ],
+    outputs: [{ name: 'token', type: 'address' }],
+  },
+] as const;
+
+export const TIMELOCK_IDENTITY_ABI = [
+  {
+    type: 'function',
+    name: 'getMinDelay',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;

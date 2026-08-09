@@ -1,37 +1,75 @@
-import { encodeFunctionData, parseEther } from 'viem';
+import { encodeFunctionData } from 'viem';
 import { ROUTERS, KLETIA_TOKEN_FACTORY_ABI } from '../config/constants.js';
+import { publicClient } from '../config/client.js';
+import {
+    resolveBaseTokenDeploymentConfig,
+    type BaseTokenDeploymentConfig,
+} from '../config/baseLaunchFactoryV2Environment.js';
+import {
+    buildLaunchFactoryV2TokenPlan,
+    parseStrictTokenSupply,
+    type LaunchFactoryV2PublicClient,
+} from './launchFactoryV2.js';
+
+interface TokenDeploymentDependencies {
+    readonly environment?: Readonly<
+        Record<string, string | undefined>
+    >;
+    readonly config?: BaseTokenDeploymentConfig;
+    readonly client?: LaunchFactoryV2PublicClient;
+}
+
+function formatHumanSupply(value: string): string {
+    const [integer, fraction] = value.split('.');
+    const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/gu, ',');
+    return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+}
 
 export async function handleTokenDeployment(
     userAddress: string,
     name: string | undefined,
     symbol: string | undefined,
-    supplyStr: string | undefined
+    supplyStr: string | undefined,
+    launchId?: string,
+    requestedRecipient?: string,
+    dependencies: TokenDeploymentDependencies = {},
 ) {
+    const config =
+        dependencies.config ||
+        resolveBaseTokenDeploymentConfig(
+            dependencies.environment || process.env,
+        );
+    if (config.mode === 'launch_v2') {
+        return buildLaunchFactoryV2TokenPlan({
+            config,
+            client:
+                dependencies.client ||
+                (publicClient as LaunchFactoryV2PublicClient),
+            userAddress,
+            name,
+            symbol,
+            supply: supplyStr,
+            launchId,
+            requestedRecipient,
+        });
+    }
+
     if (!name || !symbol) {
         throw new Error("Token oluşturmak için bir isim (name) ve sembol (symbol) belirtmelisin. Örn: 'Kletia Coin oluştur sembolü KLT olsun'");
     }
 
-    const supply = supplyStr ? parseFloat(supplyStr) : 1000000; // Varsayılan 1 milyon arz
-    if (isNaN(supply) || supply <= 0) {
-        throw new Error("Geçerli bir arz miktarı belirtmelisin.");
-    }
+    const totalSupplyBigInt = parseStrictTokenSupply(supplyStr);
 
-    // Toplam arzı 18 ondalıklı BigInt'e çeviriyoruz
-    const totalSupplyBigInt = parseEther(supply.toString());
-
-    // Fabrika kontratının createToken fonksiyonu için calldata üretimi
     const factoryCalldata = encodeFunctionData({
         abi: KLETIA_TOKEN_FACTORY_ABI,
         functionName: 'createToken',
         args: [name, symbol, totalSupplyBigInt]
     });
 
-    // Smart Router için sarıyoruz (Target Protocol: Token Factory)
-    // Deploy için ekstra ETH yollamıyoruz (Value = 0)
     return {
         target: ROUTERS.KLETIA_TOKEN_FACTORY,
         calldata: factoryCalldata,
         value: 0n,
-        summary: `Kletia Özel Token Fabrikasında '${name}' (${symbol}) adında ${supply.toLocaleString()} arzlı yeni bir token yaratılacak. Arzın %10'u Hazine'ye kesilecektir.`
+        summary: `Kletia Özel Token Fabrikasında '${name}' (${symbol}) adında ${formatHumanSupply(supplyStr!)} arzlı yeni bir token yaratılacak. Arzın %10'u Hazine'ye kesilecektir.`
     };
 }

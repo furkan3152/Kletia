@@ -5,7 +5,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      'test/KletiaArc.test.ts' // Hardhat test run by `npx hardhat test`
+      'test/KletiaArc.test.ts' 
     ],
   },
 });

@@ -11,15 +11,14 @@ async function main() {
     const wallet = await Wallet.create({ networkId: "base-mainnet" });
     console.log("Wallet created successfully!");
     console.log("Wallet ID:", wallet.getId());
-    
+
     const address = await wallet.getDefaultAddress();
     console.log("Wallet Address:", address.getId());
-    
-    // Save it so we can use it for deployment
+
     const fs = require("fs");
     fs.writeFileSync("cdp_wallet.json", JSON.stringify(wallet.export()));
     console.log("Wallet saved to cdp_wallet.json");
-    
+
   } catch (error) {
     console.error("Failed to create wallet:", error);
   }

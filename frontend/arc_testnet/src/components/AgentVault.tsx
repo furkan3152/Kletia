@@ -14,7 +14,6 @@ export function AgentVault({
   const [balance, setBalance] = useState<{ ETH: string, USDC: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-
   useEffect(() => {
     if (address) {
       setIsLoading(true);
@@ -42,7 +41,7 @@ export function AgentVault({
 
   return (
     <div className="bg-[#FDFDFD] dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 md:p-6 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col gap-4 mb-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
         <div className="shrink-0 w-12 h-12 bg-[#0052FF] dark:bg-[#60A5FA] flex items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
           <Bot className="w-6 h-6 text-white dark:text-[#1A1A1A]" />
@@ -53,7 +52,7 @@ export function AgentVault({
         </div>
       </div>
 
-      {/* Address Area */}
+      {}
       <div className="bg-white dark:bg-[#1A2841] p-3 md:p-4 flex items-center justify-between border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
         <div className="font-mono text-[#0052FF] dark:text-[#60A5FA] font-bold text-xs md:text-sm break-all mr-4">
           {agentWallet}
@@ -78,7 +77,7 @@ export function AgentVault({
         </div>
       </div>
 
-      {/* Balances */}
+      {}
       <div className="flex flex-col sm:flex-row gap-3 md:gap-4 mt-2">
         <div className="flex-1 bg-white dark:bg-[#1A2841] p-3 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] flex items-center gap-3 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
           <Wallet className="w-5 h-5 text-[#0052FF] dark:text-[#60A5FA]" strokeWidth={3} />
@@ -93,7 +92,7 @@ export function AgentVault({
             )}
           </div>
         </div>
-        
+
         <div className="flex-1 bg-white dark:bg-[#1A2841] p-3 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] flex items-center gap-3 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
           <div className="w-5 h-5 rounded-full bg-[#0052FF] dark:bg-[#60A5FA] flex items-center justify-center text-xs font-black text-white dark:text-[#1A1A1A] border-[2px] border-[#1A1A1A] dark:border-[#4B5563]">$</div>
           <div>
@@ -109,7 +108,7 @@ export function AgentVault({
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {}
       <div className="mt-4 border-t-[3px] border-[#1A1A1A] dark:border-[#4B5563] pt-4">
         <div className="text-[10px] text-[#1A1A1A] dark:text-gray-400 mb-2 uppercase tracking-widest font-black">Quick Actions</div>
         <div className="flex flex-wrap gap-2">

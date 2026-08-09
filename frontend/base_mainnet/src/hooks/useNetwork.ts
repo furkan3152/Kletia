@@ -1,29 +1,90 @@
-import { useState, useCallback } from 'react';
-import { NetworkMode, getNetwork } from '../config/networks';
+import { useCallback, useEffect, useState } from 'react';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+
+import {
+  getNetwork,
+  getNetworkByChainId,
+  type NetworkMode,
+} from '../config/networks';
+import { useAppStore } from '../store/useAppStore';
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return 'Network switch was rejected.';
+};
 
 export function useNetwork() {
-  const [networkMode, setNetworkMode] = useState<NetworkMode>(() => {
-    const saved = localStorage.getItem('kletia-network-mode');
-    return (saved === 'arc' ? 'arc' : 'base') as NetworkMode;
-  });
+  const chainId = useChainId();
+  const { isConnected } = useAccount();
+  const { switchChainAsync, isPending } = useSwitchChain();
+  const activeNetwork = useAppStore((state) => state.activeNetwork);
+  const setActiveNetwork = useAppStore((state) => state.setActiveNetwork);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
-  const network = getNetwork(networkMode);
+    useEffect(() => {
+    if (!isConnected) return;
 
-  const switchNetwork = useCallback((mode: NetworkMode) => {
-    setNetworkMode(mode);
-    localStorage.setItem('kletia-network-mode', mode);
-  }, []);
+    const connectedNetwork = getNetworkByChainId(chainId);
+    if (connectedNetwork && connectedNetwork.key !== activeNetwork) {
+      setActiveNetwork(connectedNetwork.key);
+      localStorage.setItem('kletia-network-mode', connectedNetwork.key);
+      setSwitchError(null);
+    }
+  }, [activeNetwork, chainId, isConnected, setActiveNetwork]);
 
-  const toggleNetwork = useCallback(() => {
-    switchNetwork(networkMode === 'base' ? 'arc' : 'base');
-  }, [networkMode, switchNetwork]);
+  const switchNetwork = useCallback(
+    async (mode: NetworkMode): Promise<boolean> => {
+      const targetNetwork = getNetwork(mode);
+      setSwitchError(null);
+
+      if (!isConnected) {
+        setActiveNetwork(mode);
+        localStorage.setItem('kletia-network-mode', mode);
+        return true;
+      }
+
+      if (chainId === targetNetwork.chainId) {
+        setActiveNetwork(mode);
+        localStorage.setItem('kletia-network-mode', mode);
+        return true;
+      }
+
+      try {
+        const switchedChain = await switchChainAsync({
+          chainId: targetNetwork.chainId,
+        });
+
+        if (switchedChain.id !== targetNetwork.chainId) {
+          throw new Error(
+            `Wallet switched to chain ${switchedChain.id} instead of ${targetNetwork.chainId}.`,
+          );
+        }
+
+        setActiveNetwork(mode);
+        localStorage.setItem('kletia-network-mode', mode);
+        return true;
+      } catch (error) {
+        setSwitchError(getErrorMessage(error));
+        return false;
+      }
+    },
+    [chainId, isConnected, setActiveNetwork, switchChainAsync],
+  );
+
+  const toggleNetwork = useCallback(
+    () => switchNetwork(activeNetwork === 'base' ? 'arc' : 'base'),
+    [activeNetwork, switchNetwork],
+  );
 
   return {
-    networkMode,
-    network,
+    networkMode: activeNetwork,
+    network: getNetwork(activeNetwork),
+    chainId,
     switchNetwork,
     toggleNetwork,
-    isArc: networkMode === 'arc',
-    isBase: networkMode === 'base',
+    isSwitching: isPending,
+    switchError,
+    isArc: activeNetwork === 'arc',
+    isBase: activeNetwork === 'base',
   };
 }

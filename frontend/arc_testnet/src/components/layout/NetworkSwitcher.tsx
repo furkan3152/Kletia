@@ -17,11 +17,11 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({ networkMode, o
         title={`Switch to ${isArc ? 'Base' : 'ARC'} network`}
       >
         <div className="flex z-10 w-32 relative">
-          {/* Active Slider */}
+          {}
           <div 
             className={`absolute top-0 left-0 h-full w-1/2 border-[2px] border-[#1A1A1A] transition-transform duration-200 ease-in-out ${isArc ? 'translate-x-full bg-[#8B5CF6]' : 'translate-x-0 bg-[#0052FF]'}`}
           />
-          
+
           <div className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 z-20 text-[10px] font-black uppercase transition-colors ${!isArc ? 'text-white' : 'text-[#1A1A1A] dark:text-gray-400'}`}>
             <span>🔵</span> Base
           </div>

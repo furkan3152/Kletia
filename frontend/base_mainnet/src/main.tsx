@@ -1,45 +1,95 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import {
+  connectorsForWallets,
+  darkTheme,
+  RainbowKitProvider,
+} from '@rainbow-me/rainbowkit';
+import {
+  base as baseWallet,
+  injectedWallet,
+  walletConnectWallet,
+} from '@rainbow-me/rainbowkit/wallets';
+import '@rainbow-me/rainbowkit/styles.css';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fallback, http } from 'viem';
+import { createConfig, WagmiProvider } from 'wagmi';
+
 import App from './App.tsx';
+import {
+  ALLOW_PUBLIC_BASE_RPC_FALLBACK,
+  NETWORKS,
+  OFFICIAL_BASE_PUBLIC_RPC_URL,
+  SUPPORTED_CHAINS,
+} from './config/networks';
 import './index.css';
 
-import '@rainbow-me/rainbowkit/styles.css';
-import { getDefaultConfig, RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+const walletConnectProjectId = import.meta.env
+  .VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
+const hasWalletConnectProjectId =
+  Boolean(walletConnectProjectId) &&
+  !walletConnectProjectId!.toLowerCase().startsWith('your_');
 
-import { http } from 'wagmi';
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Wallets',
+      wallets: [
+        injectedWallet,
+        baseWallet,
+        ...(hasWalletConnectProjectId ? [walletConnectWallet] : []),
+      ],
+    },
+  ],
+  {
+    appName: 'Kletia Omni-Engine',
+    projectId: hasWalletConnectProjectId ? walletConnectProjectId! : '',
+  },
+);
 
-import { base } from 'viem/chains';
-import { hardhat } from 'viem/chains';
+const uniqueRpcUrls = (...urls: Array<string | undefined>) =>
+  [...new Set(urls.filter((url): url is string => Boolean(url)))];
 
-
-
-const config = getDefaultConfig({
-  appName: 'Kletia Omni-Engine',
-  projectId: 'YOUR_PROJECT_ID', // WalletConnect ID (Can be left empty for test)
-  chains: [base, hardhat],
+const config = createConfig({
+  connectors,
+  chains: SUPPORTED_CHAINS,
   transports: {
-    [base.id]: http(),
-    [hardhat.id]: http('http://127.0.0.1:8545'),
+    [NETWORKS.base.chainId]: (() => {
+      const transports = uniqueRpcUrls(
+        NETWORKS.base.rpcUrl,
+        ...(ALLOW_PUBLIC_BASE_RPC_FALLBACK
+          ? [OFFICIAL_BASE_PUBLIC_RPC_URL]
+          : []),
+      ).map((url) => http(url));
+      return transports.length > 1
+        ? fallback(transports)
+        : transports[0];
+    })(),
+    [NETWORKS.arc.chainId]: fallback(
+      uniqueRpcUrls(
+        NETWORKS.arc.rpcUrl,
+        'https:
+        'https://rpc.drpc.testnet.arc.network',
+        'https://rpc.quicknode.testnet.arc.network',
+      ).map((url) => http(url)),
+    ),
   },
   ssr: false,
 });
 
 const queryClient = new QueryClient();
 
-import { OnchainKitProvider } from '@coinbase/onchainkit';
-
-const cdpProjectId = import.meta.env.VITE_CDP_PROJECT_ID;
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({ accentColor: '#0052FF', borderRadius: 'small' })}>
-          <OnchainKitProvider apiKey={cdpProjectId} chain={base}>
-            <App />
-          </OnchainKitProvider>
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: '#0052FF',
+            borderRadius: 'small',
+          })}
+        >
+          <App />
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

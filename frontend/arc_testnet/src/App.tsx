@@ -19,7 +19,6 @@ import { AppSidebar } from './components/layout/AppSidebar';
 import { ChatInput } from './components/chat/ChatInput';
 import { TerminalLogs } from './components/chat/TerminalLogs';
 
-
 import { useAppStore } from './store/useAppStore';
 import './App.css';
 
@@ -69,10 +68,6 @@ export default function App() {
   const executeTx = async (txConfig: { to: string; data: string; value: bigint; gas?: bigint; forceNormalTx?: boolean }, _msgId: string): Promise<string> => {
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
 
-    // ── ARC MODE FALLBACK (Normal Tx) ──
-    // Gasless logic removed, standard transaction will be used via the Base/Paymaster block below.
-
-    // ── NORMAL BASE NETWORK (PAYMASTER OR NATIVE GAS) ──
     if (hasPaymaster && sendCallsAsync) {
       const callId = await sendCallsAsync({
         calls: [{ to: txConfig.to as `0x${string}`, data: txConfig.data as `0x${string}`, value: txConfig.value }],
@@ -90,8 +85,6 @@ export default function App() {
       })) as string;
     }
   };
-
-  
 
   const [isAgentMode, setIsAgentMode] = useState(false);
   const [agentWallet, setAgentWallet] = useState<string | null>(null);
@@ -124,7 +117,7 @@ export default function App() {
 
   const [input, setInput] = useState('');
   const { isDarkMode, messages, addMessage, updateMessage, addTerminalLog, initSocket } = useAppStore();
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,9 +154,6 @@ export default function App() {
     initializeFarcaster();
   }, []);
 
-  // -------------------------------------------------------------------------
-  // ✨ LOGIC BLOCKS (ENGINE WORKS THE SAME)
-  // -------------------------------------------------------------------------
   const handleWidgetClick = (prompt: string) => {
     setInput(prompt);
     setActiveTab('chat');
@@ -197,9 +187,6 @@ export default function App() {
         body: JSON.stringify({ prompt: userText, userAddress: address, msgId: kletiaMsgId, isArcMode: true })
       });
 
-
-
-      // Normal Intent Engine Handling
       const data = await response.json();
 
       if (data.status === 'question') {
@@ -261,24 +248,23 @@ export default function App() {
 
     const data = msg.intentData;
     const activeRoute = data.allRoutes![msg.selectedRouteIndex || 0];
-    
+
     const targetAddress = data.targetContract || activeRoute.router;
     const txCalldata = data.calldata || activeRoute.calldata;
     const txValue = data.value || "0";
 
     updateMessage(msgId, { isLoading: true });
     addTerminalLog(msgId, `🛡️ ARC Engine engaged. Preparing transaction...`);
-    
+
     addTerminalLog(msgId, `🚀 Initializing security protocols...`);
     addTerminalLog(msgId, `🔗 Target: ${targetAddress.substring(0, 8)}...`);
 
-    // --- WEBACY TRANSACTION INTERCEPTION ---
     addTerminalLog(msgId, `🛡️ Running Webacy DD.xyz Risk Scan...`);
     try {
         const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
         const res = await fetch(`${BACKEND_URL}/api/webacy/scan/${targetAddress}`);
         const data = await res.json();
-        
+
         if (data.status === 'success' && data.riskScore > 50) {
             addTerminalLog(msgId, `🚨 WEBACY FIREWALL: Target is High Risk! Score: ${data.riskScore}/100.`);
             if (data.tags && data.tags.length > 0) {
@@ -295,7 +281,6 @@ export default function App() {
     } catch (e) {
         addTerminalLog(msgId, `⚠️ Webacy API connection error.`);
     }
-    // ----------------------------------------
 
     try {
       const tokensToApprove: { address: string; amount: string }[] = [];
@@ -320,7 +305,7 @@ export default function App() {
 
               if (currentAllowance < BigInt(token.amount)) {
                   addTerminalLog(msgId, `⚠️ Missing permission. Please approve via MetaMask.`);
-                  
+
                   const approveData = encodeFunctionData({
                       abi: erc20Abi, functionName: 'approve', args: [targetAddress as `0x${string}`, BigInt(token.amount)]
                   });
@@ -335,7 +320,7 @@ export default function App() {
                   } else {
                     await new Promise(resolve => setTimeout(resolve, 4000));
                   }
-                  
+
                   addTerminalLog(msgId, `✅ Permission approved. Syncing (3 sec)...`);
                   await new Promise(resolve => setTimeout(resolve, 3000));
               } else {
@@ -354,21 +339,20 @@ export default function App() {
                   account: address, to: targetAddress as `0x${string}`,
                   data: txCalldata as `0x${string}`, value: BigInt(txValue)
               });
-              
-              // Add a 20% buffer to estimated gas to prevent out-of-gas issues
+
               estimatedGas = (estimatedGas * 120n) / 100n;
               addTerminalLog(msgId, `✅ Simulation Successful! Contract approved transaction.`);
           } catch (error: unknown) {
               const err = error as { message: string; shortMessage?: string };
               addTerminalLog(msgId, `⚠️ SIMULATION FAILED: ${err.shortMessage || err.message}\n[Continuing with Default Gas Limit]`);
-              estimatedGas = 2000000n; // Fallback to safe gas limit
+              estimatedGas = 2000000n; 
           }
       }
 
       if (!hasPaymaster) {
           addTerminalLog(msgId, `⏳ Please confirm the main transaction in MetaMask.`);
       }
-      
+
       const hash = await executeTx({
         to: targetAddress as `0x${string}`, data: txCalldata as `0x${string}`, value: BigInt(txValue), gas: estimatedGas
       }, msgId);
@@ -393,27 +377,24 @@ export default function App() {
     }
   };
 
-  // -------------------------------------------------------------------------
-  // ✨ UI - FLAWLESS MOBILE SUPPORT & NEOBRUTALISM MATRIX
-  // -------------------------------------------------------------------------
   return (
     <div className="absolute inset-0 flex flex-col bg-[#EFEFEF] dark:bg-[#0B1120] text-[#1A1A1A] dark:text-gray-100 font-sans antialiased overflow-hidden transition-colors duration-300">
-      
-      {/* ✨ GEOMETRIC CHAOS (NeoBrutalism Grid and Shapes) */}
+
+      {}
       <div className="fixed inset-0 z-0 pointer-events-none select-none">
-        {/* Engineering Paper Dots */}
+        {}
         <div className="absolute inset-0 bg-[radial-gradient(#1A1A1A33_2px,transparent_2px)] dark:bg-[radial-gradient(#ffffff15_2px,transparent_2px)] [background-size:30px_30px] opacity-70"></div>
 
-        {/* Mobile Friendly Large Typography */}
+        {}
         <div className="hidden md:block absolute -left-10 top-[15%] text-[180px] font-black text-black/[0.03] dark:text-white/[0.02] -rotate-12 tracking-tighter">KLETIA</div>
         <div className="hidden md:block absolute right-[-20px] bottom-[20%] text-[160px] font-black text-black/[0.03] dark:text-white/[0.02] rotate-12 tracking-widest">KLET</div>
 
-        {/* Brutalist Şekiller (Mobilde hafif gizlenir) */}
+        {}
         <div className="hidden md:block absolute top-[15%] right-[10%] w-24 h-24 bg-[#0052FF] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] rotate-12 opacity-80 dark:opacity-50"></div>
         <div className="hidden md:block absolute bottom-[25%] left-[5%] md:left-[10%] w-24 md:w-40 h-12 md:h-16 bg-[#FFD700] dark:bg-[#CCA000] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] rounded-full shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] -rotate-6 opacity-80 dark:opacity-60"></div>
       </div>
 
-      {/* ✨ HEADER: Dolu, Mobil Uyumlu ve Brutalist */}
+      {}
       <Navbar 
         isAgentMode={isAgentMode}
         setIsAgentMode={setIsAgentMode}
@@ -423,10 +404,10 @@ export default function App() {
         onMenuClick={() => setIsAppSidebarOpen(!isAppSidebarOpen)}
       />
 
-      {/* ✨ ORTA ALAN: SOHBET VE PROMPT VEYA BASENAME */}
+      {}
       <div className="flex flex-1 overflow-hidden z-10 relative min-h-0 min-w-0">
-        
-        {/* Left Menu (App Hub) */}
+
+        {}
         <AppSidebar 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
@@ -436,7 +417,7 @@ export default function App() {
           setIsOpen={setIsAppSidebarOpen}
           onWidgetClick={handleWidgetClick}
         />
-        
+
         <div className="grid grid-rows-[1fr_auto] flex-1 overflow-hidden relative w-full h-full min-h-0 min-w-0">
         {activeTab === 'allora' ? (
            <AlloraDashboard isDarkMode={isDarkMode} onActionClick={(prompt) => { setInput(prompt); setActiveTab('chat'); }} />
@@ -458,18 +439,18 @@ export default function App() {
            </div>
         ) : (
           <>
-            {/* ✨ CHAT ALANI */}
+            {}
             <div className="overflow-y-auto p-3 md:p-6 bg-transparent scroll-smooth min-h-0 custom-scrollbar" id="chat-container" style={{ maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)' }}>
           <div className="max-w-4xl mx-auto relative w-full pr-1 md:pr-0">
-            
-            {/* OTONOM KASA KARTI */}
+
+            {}
             {isAgentMode && isLoadingVault && (
               <div className="flex items-center gap-2 p-4 text-white">
                 <Loader2 className="w-5 h-5 animate-spin text-[#0052FF]" /> Kasa kontrol ediliyor...
               </div>
             )}
-            
-            {/* AGENT WALLET EKRANI */}
+
+            {}
             {isAgentMode && !isLoadingVault && agentWallet && (
               <AgentVault 
                 agentWallet={agentWallet} 
@@ -481,24 +462,23 @@ export default function App() {
               />
             )}
 
-            
             <div className="space-y-6 md:space-y-8">
             {messages.map((msg) => (
               <div key={msg.id} className={`flex gap-3 md:gap-5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                
-                {/* KLETIA AVATAR (Closed Gri, Mobil Uyumlu Boyut) */}
+
+                {}
                 {msg.role === 'kletia' && (
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-white dark:bg-slate-800 border-[3px] border-[#4B5563] dark:border-[#4B5563] shadow-[3px_3px_0_#475569] dark:shadow-[3px_3px_0_#475569] flex items-center justify-center shrink-0">
                     {msg.isLoading && !msg.terminalLogs?.length ? <Loader2 className="w-5 h-5 md:w-6 md:h-6 text-[#0052FF] animate-spin" strokeWidth={4} /> : <Bot className="w-5 h-5 md:w-6 md:h-6 text-gray-600 dark:text-slate-300" strokeWidth={4} />}
                   </div>
                 )}
 
-                {/* ✨ MESSAGE BUBBLE: Added break-words to prevent overflow */}
+                {}
                 <div className={`max-w-[85%] sm:w-auto px-4 py-3 md:px-6 md:py-5 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-sm md:text-lg font-bold break-words
                   ${msg.role === 'user' 
                     ? 'bg-[#0052FF] text-white ml-auto shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]' 
                     : 'bg-white dark:bg-[#131E32] text-[#1A1A1A] dark:text-gray-100 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]'}`}>
-                  
+
                   {msg.role === 'kletia' ? (
                     <div>
                       <div dangerouslySetInnerHTML={{ __html: msg.text.replace('[SHOW_ONRAMP]', '').replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#1A1A1A] dark:text-white font-black border-b-[3px] border-[#0052FF] pb-0.5">$1</strong>') }} />
@@ -526,15 +506,13 @@ export default function App() {
                     <div>{msg.text}</div>
                   )}
 
-
-
-                  {/* ROUTE SELECTOR AND CONFIRM BUTTON */}
+                  {}
                   {msg.intentData && msg.intentData.allRoutes && msg.intentData.action !== 'portfolio' && (
                     <div className="mt-5 md:mt-6 p-4 md:p-5 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
                       <div className="text-xs md:text-sm text-[#1A1A1A] dark:text-white font-black uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 flex items-center gap-2">
                          <Zap className="w-4 h-4 md:w-5 md:h-5" strokeWidth={3}/> Autonomous Route Finder
                       </div>
-                      
+
                       <select 
                         className="w-full bg-[#EFEFEF] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-[#1A1A1A] dark:text-white font-black text-sm md:text-base p-2.5 md:p-3 outline-none focus:bg-[#0052FF] dark:focus:bg-[#0052FF] focus:text-white transition-colors cursor-pointer"
                         value={msg.selectedRouteIndex}
@@ -545,7 +523,7 @@ export default function App() {
                           const isSingleAction = msg.intentData?.actionType?.startsWith('basename_');
                           let prefix = idx === 0 ? '🏆 Most Profitable:' : '🔄 Alternative:';
                           if (isSingleAction) prefix = '🎯 Transaction Detail:';
-                          
+
                           return (
                             <option key={idx} value={idx}>
                               {prefix} {route.name} ({route.expectedOutput || "No Estimate"})
@@ -571,12 +549,12 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* TERMINAL / X-RAY LOGLARI */}
+                  {}
                   <TerminalLogs msg={msg} />
 
                 </div>
 
-                {/* KULLANICI AVATAR */}
+                {}
                 {msg.role === 'user' && (
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0052FF] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] flex items-center justify-center shrink-0">
                     <User className="w-5 h-5 md:w-6 md:h-6 text-white" strokeWidth={4} />
@@ -589,14 +567,13 @@ export default function App() {
           </div>
           </div>
 
-
-        {/* ✨ PROMPT KISMI */}
+        {}
         <ChatInput input={input} setInput={setInput} handleSend={handleSend} />
         </>
         )}
         </div>
 
-        {/* Portfolio Sidebar */}
+        {}
         <Sidebar isPortfolioOpen={isPortfolioOpen} setIsPortfolioOpen={setIsPortfolioOpen} />
 
       </div>

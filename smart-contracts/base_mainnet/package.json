@@ -1,21 +1,28 @@
 {
   "name": "smart-contracts",
   "version": "1.0.0",
-  "description": "",
+  "description": "Kletia intent-native settlement contracts and typed protocol adapters for Base",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:v2": "hardhat test test/KletiaIntentRouterV2.test.js test/v2/**/*.test.js",
+    "evidence:v2:base": "hardhat run scripts/v2/export-runtime-evidence.js --network base",
+    "evidence:v2:base:deployment": "hardhat run scripts/v2/export-deployed-runtime-evidence.js --network base"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Kletia",
+  "license": "MIT",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
-    "dotenv": "^17.4.2",
-    "hardhat": "^2.28.6"
+    "@coinbase/coinbase-sdk": "0.25.0",
+    "@nomicfoundation/hardhat-toolbox": "6.1.2",
+    "dotenv": "17.4.2",
+    "hardhat": "2.28.6"
   },
   "dependencies": {
-    "@coinbase/coinbase-sdk": "^0.25.0",
-    "@openzeppelin/contracts": "^5.6.1"
+    "@openzeppelin/contracts": "5.6.1"
+  },
+  "overrides": {
+    "viem": "2.55.10"
   }
 }

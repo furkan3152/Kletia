@@ -1,4 +1,4 @@
-// backend/src/ai/parser.ts
+
 import { z } from 'zod';
 import * as dotenv from 'dotenv';
 import stringSimilarity from 'string-similarity';
@@ -8,7 +8,6 @@ dotenv.config();
 
 const SUPPORTED_TOKENS = Object.keys(TOKENS);
 
-// ✨ AI'IN KENDİ KENDİNE KONUŞACAĞI ESNEK ŞEMA
 export const IntentSchema = z.object({
     isComplete: z.coerce.boolean().catch(true),
     question: z.string().optional().catch(""),
@@ -31,16 +30,16 @@ export type ParsedIntent = z.infer<typeof IntentSchema>;
 function predictToken(inputToken: string | undefined): string | undefined {
     if (!inputToken) return undefined;
     const cleanInput = inputToken.trim();
-    
+
     // EĞER 0X İLE BAŞLIYORSA DİREKT KABUL ET
     if (cleanInput.startsWith("0x") || cleanInput.startsWith("0X")) return cleanInput; 
 
     const cleanAlpha = cleanInput.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     if (/^\d+$/.test(cleanAlpha)) return undefined; 
-    
+
     const matches = stringSimilarity.findBestMatch(cleanAlpha, SUPPORTED_TOKENS);
     if (matches.bestMatch.rating > 0.4) return matches.bestMatch.target;
-    
+
     // Eşleşmese bile ne girdiyse döndür, bırak hatayı EVM (Engine) versin
     return cleanAlpha; 
 }
@@ -63,9 +62,9 @@ export async function explainKletiaError(userPrompt: string, rawError: string): 
             systemPrompt = `You are Kletia's AI assistant. Speak briefly, smartly, and clearly. Absolutely do not give unnecessary details. Never exceed 1 or 2 sentences.
             Error Reason: "${reason}"
             Guidance/Command (KEE HINT): "${aiHint}"
-            
+
             IMPORTANT RULE: If the Guidance (KEE HINT) contains a tag like [SHOW_ONRAMP], you MUST absolutely append this exact tag to the very end of your response.
-            
+
             Example Response: "It seems your balance is insufficient for this transaction. You can easily fund your wallet from the button below. [SHOW_ONRAMP]"`;
         } catch (e) {}
     }
@@ -91,11 +90,11 @@ export async function explainKletiaError(userPrompt: string, rawError: string): 
         });
         const data = await response.json();
         let finalResponse = data.choices[0].message.content.trim();
-        
+
         if (rawError.includes("[SHOW_ONRAMP]") && !finalResponse.includes("[SHOW_ONRAMP]")) {
             finalResponse += " [SHOW_ONRAMP]";
         }
-        
+
         return finalResponse;
     } catch {
         return "Transaction failed on the network. Please check your wallet balance or network status.";
@@ -120,7 +119,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
                     userPrompt = `${userPrompt} buy`;
                 }
             } else if (lc.includes("borrow") || lc.includes("borç almak")) {
-                // Determine if a protocol was mentioned in earlier messages
+
                 const prevUserMsg = conversationHistory.slice().reverse().find((m: any) => m.role === 'user');
                 let protocolMatch = "";
                 if (prevUserMsg) {
@@ -142,11 +141,10 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
         }
     }
 
-    // ✨ RULE SET TO FREELY EXPRESS HERMES 70B BUT KEEP IT PROFESSIONAL
     const systemPrompt = `You are Kletia's smart, friendly, and capable Web3 AI assistant.
     Your tone should be natural and helpful. You can be friendly ("buddy", "mate"), but never use rude slang (yo, bruh, boss, etc.).
     Analyze the user's typos and broken sentences with your own intelligence. Determine the necessary action and DYNAMICALLY GENERATE THE RESPONSE YOU WILL GIVE TO THE USER ACCORDING TO THE SITUATION.
-    
+
     ACCORDING TO THE RULES BELOW, YOU MUST RESPOND STRICTLY AND ONLY IN JSON FORMAT. DO NOT WRITE ANY EXPLANATION OR EXTRA TEXT OUTSIDE OF JSON! DO NOT CREATE MULTIPLE JSON BLOCKS. RETURN ONLY A SINGLE JSON OBJECT.
     If you need to give a long explanation to the user or show a code/json example, you MUST absolutely write this inside the 'message' field in the JSON (escaped).
 
@@ -306,20 +304,18 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
 
     try {
 
-
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://kletia.com", "X-Title": "Kletia Omni-Engine" },
-            body: JSON.stringify({ model: "openai/gpt-4o-2024-08-06", messages: messages, temperature: 0.3 }) // Temperature hafif artırıldı (daha doğal konuşması için)
+            body: JSON.stringify({ model: "openai/gpt-4o-2024-08-06", messages: messages, temperature: 0.3 }) 
         });
 
         if (!response.ok) throw new Error(`API Rejected: ${response.status}`);
-        
+
         const data = await response.json();
         let cleanContent = data.choices[0].message.content.trim();
-        
-        // Çökme Koruması
+
         cleanContent = cleanContent.replace(/```json/gi, "").replace(/```/g, "").trim();
-        
+
         let parsedJson;
         try {
             // Sadece baştan sona doğru tek bir JSON objesi arıyoruz.
@@ -340,7 +336,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
             console.error("🚨 JSON PARSE HATASI! AI Çıktısı:", cleanContent);
             throw new Error("AI broke the format, could you please try again?");
         }
-        
+
         console.log("🧠 [AI JSON OUTPUT]:", JSON.stringify(parsedJson));
 
         if (parsedJson.action === 'chat' || parsedJson.action === 'greet') {
@@ -358,7 +354,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
                 action: "agent_action",
                 message: parsedJson.message || "I am handling this with my autonomous wallet buddy, please wait.",
                 question: "", amount: "0", durationInDays: 0,
-                tokenIn: userPrompt // Autonomous layer needs raw message, let's squeeze it into tokenIn
+                tokenIn: userPrompt 
             };
         }
 
@@ -389,7 +385,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
 
         if (parsedJson.isComplete) {
             const singleAssetActions = ["withdraw", "borrow", "repay", "stake", "liquid_stake", "liquid_unstake", "lend", "claim", "bridge"];
-            
+
             if (singleAssetActions.includes(parsedJson.action) && !parsedJson.tokenIn && parsedJson.tokenOut) {
                 parsedJson.tokenIn = parsedJson.tokenOut;
                 parsedJson.tokenOut = undefined;
@@ -399,7 +395,7 @@ export async function parseUserIntent(userPrompt: string, conversationHistory: a
                 parsedJson.tokenIn = predictToken(parsedJson.tokenIn);
                 parsedJson.tokenOut = predictToken(parsedJson.tokenOut);
             }
-            
+
             let amtStr = String(parsedJson.amount || "0").toUpperCase();
             if (amtStr === "MAX" || amtStr.includes("TÜM") || amtStr.includes("HEPS") || amtStr.includes("ALL")) {
                 parsedJson.amount = "MAX"; 

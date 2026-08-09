@@ -1,15 +1,12 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config({ path: "../../backend/base_mainnet/.env" }); // Load base backend .env
-require("dotenv").config(); // Load local .env
-
-const CDP_NODE_API_KEY = process.env.CDP_NODE_API_KEY || "";
-const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || "";
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 
 module.exports = {
+  defaultNetwork: "hardhat",
   solidity: {
-    version: "0.8.20",
+
+    version: "0.8.24",
     settings: {
+      evmVersion: "cancun",
       optimizer: {
         enabled: true,
         runs: 200,
@@ -18,21 +15,18 @@ module.exports = {
   },
   networks: {
     base: {
-      url: `https://api.developer.coinbase.com/rpc/v1/base/${CDP_NODE_API_KEY}`,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : []
+
+      url: process.env.BASE_RPC_URL?.trim() || "https://mainnet.base.org",
+      chainId: 8453,
+
+      accounts: []
     }
   },
   etherscan: {
-    apiKey: BASESCAN_API_KEY,
-    customChains: [
-      {
-        network: "base",
-        chainId: 8453,
-        urls: {
-          apiURL: "https://api.basescan.org/api",
-          browserURL: "https://basescan.org"
-        }
-      }
-    ]
+
+    apiKey: process.env.ETHERSCAN_API_KEY || ""
+  },
+  sourcify: {
+    enabled: true
   }
 };

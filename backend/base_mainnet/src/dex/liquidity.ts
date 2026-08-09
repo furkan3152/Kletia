@@ -2,7 +2,16 @@ import { getAddressSafe } from '../intent/utils.js';
 import { buildAddLiquidityRoutes } from './pool_add.js';
 import { buildRemoveLiquidityRoutes } from './pool_remove.js';
 
-export async function getLiquidityRoutes(action: 'add_liquidity' | 'remove_liquidity', tIn: string, tOut: string | undefined, amountStr: string, userAddress: string, requestedProtocol?: string) {
+export async function getLiquidityRoutes(
+    action: 'add_liquidity' | 'remove_liquidity',
+    tIn: string,
+    tOut: string | undefined,
+    amountStr: string,
+    userAddress: string,
+    requestedProtocol?: string,
+    slippageBps = 100,
+    secondaryAmount?: string,
+) {
     if (action !== 'add_liquidity' && action !== 'remove_liquidity') {
         throw new Error(`Desteklenmeyen LP Action: ${action}`);
     }
@@ -18,8 +27,8 @@ export async function getLiquidityRoutes(action: 'add_liquidity' | 'remove_liqui
     const hasNativeETH = isNativeA || isNativeB;
 
     if (action === 'add_liquidity') {
-        return buildAddLiquidityRoutes(tA_Address, tB_Address, amountStr, userAddress, requestedProtocol, tIn, tOut, hasNativeETH, isNativeA, isNativeB);
+        return buildAddLiquidityRoutes(tA_Address, tB_Address, amountStr, userAddress, requestedProtocol, tIn, tOut, hasNativeETH, isNativeA, isNativeB, slippageBps, secondaryAmount);
     } else {
-        return buildRemoveLiquidityRoutes(tA_Address, tB_Address, amountStr, userAddress, requestedProtocol, tIn, tOut, hasNativeETH, isNativeA);
+        return buildRemoveLiquidityRoutes(tA_Address, tB_Address, amountStr, userAddress, requestedProtocol, tIn, tOut, hasNativeETH, isNativeA, slippageBps);
     }
 }

@@ -1,330 +1,801 @@
-import React, { useState } from 'react';
-import { Search, RefreshCw, Fingerprint, Database, Cpu, Wallet, Calendar, Activity, Clock } from 'lucide-react';
-import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
+import React, { useRef, useState } from 'react';
+import {
+  Activity,
+  Calendar,
+  Clock,
+  Cpu,
+  Database,
+  Fingerprint,
+  RefreshCw,
+  Search,
+  Wallet,
+} from 'lucide-react';
+import {
+  createPublicClient,
+  formatUnits,
+  getAddress,
+  http,
+  isAddress,
+  type Address,
+} from 'viem';
+import { NETWORKS } from '../../config/networks';
 
 const publicClient = createPublicClient({
-  chain: base,
-  transport: http()
+  chain: NETWORKS.base.chain,
+  transport: http(NETWORKS.base.rpcUrl),
 });
 
-const BNS_NFT = "0x03c4738Ee98aE44591e1A4A4F3CaB6641d95DD9a";
+const BNS_NFT = getAddress('0x03c4738Ee98aE44591e1A4A4F3CaB6641d95DD9a');
+const BASE_WETH = getAddress('0x4200000000000000000000000000000000000006');
+const BLOCKSCOUT_PAGE_SIZE = 10_000;
+const LIVE_FETCH_TIMEOUT_MS = 15_000;
+
 const BNS_ABI = [
-  { "inputs": [{ "internalType": "address", "name": "owner", "type": "address" }], "name": "balanceOf", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+  {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
-async function fetchPrices(addresses: string[]): Promise<Record<string, number>> {
-  const priceMap: Record<string, number> = {};
-  for (let i = 0; i < addresses.length; i += 30) {
-    const chunk = addresses.slice(i, i + 30).join(',');
+type ProviderRecord = Record<string, unknown>;
+type BasenameStatus = 'owned' | 'not_owned' | 'unavailable';
+type ActivityCompleteness = 'complete' | 'partial_capped';
+
+interface BlockscoutRows {
+  records: ProviderRecord[];
+  completeness: ActivityCompleteness;
+}
+
+interface PriceResult {
+  prices: Record<string, number>;
+  failedChunks: number;
+}
+
+interface AirdropResult {
+  address: Address;
+  fetchedAt: number;
+  nomisScore: number | null;
+  kletiaActivityScore: number;
+  basenameStatus: BasenameStatus;
+  totalVolumeUsd: number;
+  contractsCount: number;
+  totalGasSpentUsd: number;
+  dustTxCount: number;
+  outgoingTxCount: number;
+  activeMonths: number;
+  accountAgeDays: number | null;
+  totalTxs: number;
+  normalTransactionsCapped: boolean;
+  activityCompleteness: ActivityCompleteness;
+  cappedSources: string[];
+  unpricedTokenContracts: number;
+  priceFailedChunks: number;
+  volumeStatus: 'complete' | 'partial';
+}
+
+function isProviderRecord(value: unknown): value is ProviderRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function safeProviderErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (!(error instanceof Error)) return fallback;
+  const sanitized = error.message
+    .replace(/https?:\/\/[^\s"'<>]+/giu, '[redacted-url]')
+    .replace(
+      /\b(?:authorization|signature|api[-_ ]?key)\b\s*[:=]\s*[^\s,;]+/giu,
+      '[redacted-credential]',
+    )
+    .replace(/\b0x[a-f\d]{96,}\b/giu, '[redacted-payload]')
+    .replace(/\b[A-Za-z\d+/_-]{80,}={0,2}\b/gu, '[redacted-payload]')
+    .trim();
+  return sanitized || fallback;
+}
+
+function asFiniteProviderNumber(value: unknown): number | null {
+  if (
+    (typeof value !== 'number' && typeof value !== 'string') ||
+    (typeof value === 'string' && value.trim() === '')
+  ) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeInputAddress(value: string): Address | null {
+  const trimmed = value.trim();
+  if (!isAddress(trimmed, { strict: true })) return null;
+  try {
+    return getAddress(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function asOptionalAddress(value: unknown, field: string): Address | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !isAddress(value, { strict: true })) {
+    throw new Error(`${field} is not a valid EVM address.`);
+  }
+  return getAddress(value);
+}
+
+function asRequiredAddress(value: unknown, field: string): Address {
+  const address = asOptionalAddress(value, field);
+  if (!address) throw new Error(`${field} is missing.`);
+  return address;
+}
+
+function asUnsignedBigInt(value: unknown, field: string): bigint {
+  if (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  ) {
+    return BigInt(value);
+  }
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`${field} is not an unsigned integer.`);
+  }
+  return BigInt(value);
+}
+
+function asTokenDecimals(value: unknown, field: string): number {
+  const decimals = asUnsignedBigInt(value, field);
+  if (decimals > 255n) {
+    throw new Error(`${field} exceeds the ERC-20 uint8 range.`);
+  }
+  return Number(decimals);
+}
+
+function atomicAmountToNumber(
+  value: unknown,
+  decimals: number,
+  field: string,
+): number {
+  const formatted = formatUnits(asUnsignedBigInt(value, field), decimals);
+  const amount = Number(formatted);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error(`${field} cannot be represented safely for display.`);
+  }
+  return amount;
+}
+
+function timestampToMillis(value: unknown, field: string): number {
+  const seconds = asUnsignedBigInt(value, field);
+  const maxDateSeconds = 8_640_000_000_000n;
+  if (seconds === 0n || seconds > maxDateSeconds) {
+    throw new Error(`${field} is outside the supported date range.`);
+  }
+  const milliseconds = Number(seconds) * 1_000;
+  if (
+    !Number.isSafeInteger(milliseconds) ||
+    milliseconds > Date.now() + 5 * 60 * 1_000
+  ) {
+    throw new Error(`${field} is not a valid historical timestamp.`);
+  }
+  return milliseconds;
+}
+
+function safeAdd(total: number, value: number, field: string): number {
+  const next = total + value;
+  if (!Number.isFinite(next) || next < 0) {
+    throw new Error(`${field} exceeds the supported display range.`);
+  }
+  return next;
+}
+
+function safeMultiply(left: number, right: number, field: string): number {
+  const product = left * right;
+  if (!Number.isFinite(product) || product < 0) {
+    throw new Error(`${field} exceeds the supported display range.`);
+  }
+  return product;
+}
+
+async function fetchLiveJson(url: string, source: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(
+    () => controller.abort(),
+    LIVE_FETCH_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`${source} returned HTTP ${response.status}.`);
+    }
+    return await response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`${source} timed out.`, { cause: error });
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function blockscoutList(payload: unknown, source: string): BlockscoutRows {
+  if (
+    isProviderRecord(payload) &&
+    payload.status === '1' &&
+    Array.isArray(payload.result)
+  ) {
+    if (!payload.result.every(isProviderRecord)) {
+      throw new Error(`${source} returned malformed records.`);
+    }
+    return {
+      records: payload.result,
+      completeness:
+        payload.result.length >= BLOCKSCOUT_PAGE_SIZE
+          ? 'partial_capped'
+          : 'complete',
+    };
+  }
+
+  const message = isProviderRecord(payload)
+    ? String(payload.message || payload.result || '')
+    : '';
+  if (
+    isProviderRecord(payload) &&
+    payload.status === '0' &&
+    /no (transactions|records) found/i.test(message)
+  ) {
+    return { records: [], completeness: 'complete' };
+  }
+  throw new Error(`${source} did not return a valid live result.`);
+}
+
+function blockscoutUrl(action: string, address: Address): string {
+  const query = new URLSearchParams({
+    module: 'account',
+    action,
+    address,
+    startblock: '0',
+    endblock: '99999999',
+    page: '1',
+    offset: String(BLOCKSCOUT_PAGE_SIZE),
+    sort: 'asc',
+  });
+  return `https://base.blockscout.com/api?${query.toString()}`;
+}
+
+async function fetchPrices(addresses: Address[]): Promise<PriceResult> {
+  const requestedAddresses = new Set(
+    addresses.map((address) => address.toLowerCase()),
+  );
+  const bestByToken = new Map<
+    string,
+    { readonly priceUsd: number; readonly liquidityUsd: number }
+  >();
+  let failedChunks = 0;
+
+  for (let index = 0; index < addresses.length; index += 30) {
+    const chunk = addresses.slice(index, index + 30).join(',');
     try {
-      const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${chunk}`);
-      const json = await res.json();
-      if (json?.pairs) {
-        for (const pair of json.pairs) {
-          const addr = pair.baseToken.address.toLowerCase();
-          if (!priceMap[addr] && pair.priceUsd) {
-            priceMap[addr] = parseFloat(pair.priceUsd);
+      const payload = await fetchLiveJson(
+        `https://api.dexscreener.com/latest/dex/tokens/${chunk}`,
+        'DexScreener',
+      );
+      if (!isProviderRecord(payload) || !Array.isArray(payload.pairs)) {
+        throw new Error('DexScreener returned an invalid pair list.');
+      }
+
+      for (const value of payload.pairs) {
+        if (!isProviderRecord(value) || value.chainId !== 'base') continue;
+        const baseToken = isProviderRecord(value.baseToken)
+          ? value.baseToken
+          : null;
+        const quoteToken = isProviderRecord(value.quoteToken)
+          ? value.quoteToken
+          : null;
+        const liquidity = isProviderRecord(value.liquidity)
+          ? asFiniteProviderNumber(value.liquidity.usd)
+          : null;
+        if (
+          !baseToken ||
+          !quoteToken ||
+          liquidity === null ||
+          liquidity < 0
+        ) {
+          continue;
+        }
+
+        let baseAddress: Address | null = null;
+        let quoteAddress: Address | null = null;
+        try {
+          baseAddress =
+            typeof baseToken.address === 'string' &&
+            isAddress(baseToken.address, { strict: true })
+              ? getAddress(baseToken.address)
+              : null;
+          quoteAddress =
+            typeof quoteToken.address === 'string' &&
+            isAddress(quoteToken.address, { strict: true })
+              ? getAddress(quoteToken.address)
+              : null;
+        } catch {
+          continue;
+        }
+
+        const basePriceUsd =
+          asFiniteProviderNumber(value.priceUsd) ?? Number.NaN;
+        const basePriceInQuote =
+          asFiniteProviderNumber(value.priceNative) ?? Number.NaN;
+        const candidates: Array<{
+          address: Address | null;
+          priceUsd: number;
+        }> = [
+          { address: baseAddress, priceUsd: basePriceUsd },
+          {
+            address: quoteAddress,
+            priceUsd:
+              basePriceInQuote > 0
+                ? basePriceUsd / basePriceInQuote
+                : Number.NaN,
+          },
+        ];
+
+        for (const candidate of candidates) {
+          if (!candidate.address) continue;
+          const key = candidate.address.toLowerCase();
+          if (
+            !requestedAddresses.has(key) ||
+            !Number.isFinite(candidate.priceUsd) ||
+            candidate.priceUsd <= 0
+          ) {
+            continue;
+          }
+          const current = bestByToken.get(key);
+          if (!current || liquidity > current.liquidityUsd) {
+            bestByToken.set(key, {
+              priceUsd: candidate.priceUsd,
+              liquidityUsd: liquidity,
+            });
           }
         }
       }
-    } catch (e) {
-      console.error('DexScreener fetch error:', e);
+    } catch {
+      failedChunks += 1;
+      console.warn('DexScreener live price chunk unavailable.');
     }
   }
-  return priceMap;
+
+  return {
+    prices: Object.fromEntries(
+      Array.from(bestByToken.entries()).map(([address, value]) => [
+        address,
+        value.priceUsd,
+      ]),
+    ),
+    failedChunks,
+  };
+}
+
+function displayScore(score: number): string {
+  return Number.isInteger(score) ? String(score) : score.toFixed(2);
 }
 
 export const AirdropSimulator: React.FC = () => {
   const [inputAddress, setInputAddress] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [result, setResult] = useState<null | any>(null);
-  const [hasBasename, setHasBasename] = useState(false);
-  
-  // AI Agent States
-  const [agentLogs, setAgentLogs] = useState<string[]>([]);
-  const [agentStatus, setAgentStatus] = useState<'idle' | 'running' | 'done'>('idle');
+  const [result, setResult] = useState<AirdropResult | null>(null);
+  const scanRevision = useRef(0);
 
-  const handleDeepAnalysis = async () => {
-    setAgentStatus('running');
-    setAgentLogs(["Starting AI agent... X402 payment protocol engaged."]);
-    try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${BACKEND_URL}/api/agent/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress: inputAddress,
-          prompt: `${inputAddress} I want to do advanced sybil analysis for wallet. Please fetch Premium Sybil Analysis data by paying x402 to '${BACKEND_URL}/api/premium/sybil-report?address=${inputAddress}' and explain results (active days, wallet age, tx variance) to me in detail.`
-        })
-      });
+  const normalizedInputAddress = normalizeInputAddress(inputAddress);
+  const visibleResult =
+    result &&
+    normalizedInputAddress &&
+    result.address.toLowerCase() === normalizedInputAddress.toLowerCase()
+      ? result
+      : null;
 
-      if (!response.body) throw new Error("Could not connect to agent.");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || "";
-        
-        for (const evt of events) {
-          const lines = evt.split('\n');
-          let eventName = '';
-          let data = '';
-          for (const line of lines) {
-            if (line.startsWith('event: ')) eventName = line.replace('event: ', '').trim();
-            if (line.startsWith('data: ')) data = line.substring(6).trim(); // Remove "data: "
-          }
-          
-          if (data) {
-            try {
-              const parsedData = JSON.parse(data);
-              if (eventName === 'log') {
-                setAgentLogs(prev => [...prev, `[SYSTEM]: ${parsedData}`]);
-              } else if (eventName === 'agent') {
-                setAgentLogs(prev => [...prev, `[KLETIA AI]: ${parsedData}`]);
-              } else if (eventName === 'tools') {
-                setAgentLogs(prev => [...prev, `[TOOL CALL]: Agent is using authorization tools...`]);
-              } else if (eventName === 'error') {
-                setAgentLogs(prev => [...prev, `[HATA]: ${parsedData}`]);
-              }
-            } catch(e) {
-              // ignore
-            }
-          }
-        }
-      }
-    } catch (e: any) {
-      setAgentLogs(prev => [...prev, `[SYSTEM ERROR]: ${e.message}`]);
-    } finally {
-      setAgentStatus('done');
-    }
+  const handleAddressChange = (value: string) => {
+    scanRevision.current += 1;
+    setInputAddress(value);
+    setResult(null);
+    setIsScanning(false);
   };
 
   const handleScan = async () => {
-    if (!inputAddress || !inputAddress.startsWith('0x') || inputAddress.length !== 42) {
-      alert('Please enter a valid 0x wallet address.');
+    const address = normalizeInputAddress(inputAddress);
+    if (!address) {
+      alert('Please enter a valid EVM wallet address.');
       return;
     }
 
+    const revision = scanRevision.current + 1;
+    scanRevision.current = revision;
+    setInputAddress(address);
     setIsScanning(true);
     setResult(null);
 
     try {
-      // 2. AI SYBIL SCORING (Trusta/Nomis Aggregator)
-      let aiScore = 0;
-      let aiRiskLevel = 'Bilinmiyor';
-      let aiSource = 'Nomis AI / Trusta (Fallback)';
+      let nomisScore: number | null = null;
       try {
-        const nomisRes = await fetch(`https://api.nomis.cc/api/v1/base/wallet/${inputAddress}/score`);
-        if (nomisRes.ok) {
-           const nomisData = await nomisRes.json();
-           aiScore = nomisData.data?.score || 0;
-           aiSource = 'Nomis AI Platform';
-           aiRiskLevel = aiScore > 60 ? 'Low Risk' : 'High Risk';
-        } else {
-           throw new Error('API Key Required / Limit Reached');
+        const nomisPayload = await fetchLiveJson(
+          `https://api.nomis.cc/api/v1/base/wallet/${address}/score`,
+          'Nomis',
+        );
+        const nomisData =
+          isProviderRecord(nomisPayload) &&
+          isProviderRecord(nomisPayload.data)
+            ? nomisPayload.data
+            : null;
+        const receivedScore = asFiniteProviderNumber(nomisData?.score);
+        if (
+          receivedScore === null ||
+          receivedScore < 0 ||
+          receivedScore > 100
+        ) {
+          throw new Error('Nomis did not return a score in the 0-100 range.');
         }
-      } catch (e) {
-        // FALLBACK: Kletia Local AI Heuristic
-        aiSource = 'Kletia AI Engine (Local)';
+        nomisScore = receivedScore;
+      } catch {
+        console.warn('Nomis score unavailable.');
       }
 
+      let basenameStatus: BasenameStatus = 'unavailable';
       try {
         const bnsBalance = await publicClient.readContract({
           address: BNS_NFT,
           abi: BNS_ABI,
           functionName: 'balanceOf',
-          args: [inputAddress as `0x${string}`]
+          args: [address],
         });
-        if (bnsBalance > 0n) {
-          setHasBasename(true);
-        } else {
-          setHasBasename(false);
-        }
-      } catch (e) {
-        console.error("BNS fetch failed", e);
+        basenameStatus = bnsBalance > 0n ? 'owned' : 'not_owned';
+      } catch {
+        console.warn('Basename live read unavailable.');
       }
 
-      // 3. BLOCKSCOUT RAW DATA (Promise.all)
-      const baseUrl = `https://base.blockscout.com/api`;
-      const [txRes, internalRes, tokenRes, nftRes, nft1155Res, priceRes] = await Promise.all([
-        fetch(`${baseUrl}?module=account&action=txlist&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
-        fetch(`${baseUrl}?module=account&action=txlistinternal&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
-        fetch(`${baseUrl}?module=account&action=tokentx&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
-        fetch(`${baseUrl}?module=account&action=tokennfttx&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
-        fetch(`${baseUrl}?module=account&action=token1155tx&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
-        fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot')
+      const [
+        txPayload,
+        internalPayload,
+        tokenPayload,
+        nftPayload,
+        nft1155Payload,
+        pricePayload,
+      ] = await Promise.all([
+        fetchLiveJson(
+          blockscoutUrl('txlist', address),
+          'Blockscout normal transactions',
+        ),
+        fetchLiveJson(
+          blockscoutUrl('txlistinternal', address),
+          'Blockscout internal transactions',
+        ),
+        fetchLiveJson(
+          blockscoutUrl('tokentx', address),
+          'Blockscout ERC-20 transfers',
+        ),
+        fetchLiveJson(
+          blockscoutUrl('tokennfttx', address),
+          'Blockscout ERC-721 transfers',
+        ),
+        fetchLiveJson(
+          blockscoutUrl('token1155tx', address),
+          'Blockscout ERC-1155 transfers',
+        ),
+        fetchLiveJson(
+          'https://api.coinbase.com/v2/prices/ETH-USD/spot',
+          'Coinbase ETH/USD',
+        ),
       ]);
 
-      const [txData, internalData, tokenData, nftData, nft1155Data, priceData] = await Promise.all([
-        txRes.json(), internalRes.json(), tokenRes.json(), nftRes.json(), nft1155Res.json(), priceRes.json()
-      ]);
+      const txSource = blockscoutList(
+        txPayload,
+        'Blockscout normal transactions',
+      );
+      const internalSource = blockscoutList(
+        internalPayload,
+        'Blockscout internal transactions',
+      );
+      const tokenSource = blockscoutList(
+        tokenPayload,
+        'Blockscout ERC-20 transfers',
+      );
+      const nftSource = blockscoutList(
+        nftPayload,
+        'Blockscout ERC-721 transfers',
+      );
+      const nft1155Source = blockscoutList(
+        nft1155Payload,
+        'Blockscout ERC-1155 transfers',
+      );
 
-      const ethPrice = parseFloat(priceData.data.amount);
-      const normalTxs = txData.status === "1" ? txData.result : [];
-      const internalTxs = internalData.status === "1" ? internalData.result : [];
-      const tokenTxs = tokenData.status === "1" ? tokenData.result : [];
-      const nftTxs = nftData.status === "1" ? nftData.result : [];
-      const nft1155Txs = nft1155Data.status === "1" ? nft1155Data.result : [];
+      const blockscoutSources: Array<{
+        readonly name: string;
+        readonly source: BlockscoutRows;
+      }> = [
+        { name: 'normal transactions', source: txSource },
+        { name: 'internal transactions', source: internalSource },
+        { name: 'ERC-20 transfers', source: tokenSource },
+        { name: 'ERC-721 transfers', source: nftSource },
+        { name: 'ERC-1155 transfers', source: nft1155Source },
+      ];
+      const cappedSources = blockscoutSources
+        .filter(({ source }) => source.completeness === 'partial_capped')
+        .map(({ name }) => name);
+      const activityCompleteness: ActivityCompleteness =
+        cappedSources.length > 0 ? 'partial_capped' : 'complete';
 
+      const coinbaseData =
+        isProviderRecord(pricePayload) && isProviderRecord(pricePayload.data)
+          ? pricePayload.data
+          : null;
+      const ethPrice = asFiniteProviderNumber(coinbaseData?.amount);
+      if (ethPrice === null || ethPrice <= 0) {
+        throw new Error(
+          'Coinbase did not return a valid live ETH/USD price.',
+        );
+      }
+
+      const lowerAddress = address.toLowerCase();
       const uniqueContracts = new Set<string>();
+      const tokenAddressesToFetch = new Map<string, Address>();
+      const activeMonthsSet = new Set<string>();
       let totalEthVolume = 0;
       let totalTokenVolumeUsd = 0;
       let totalGasSpentEth = 0;
       let dustTxCount = 0;
-      const lowerAddress = inputAddress.toLowerCase();
-      
-      const activeMonthsSet = new Set<string>();
-      let firstTxTimestamp = Date.now();
+      let outgoingTxCount = 0;
+      let firstTxTimestamp: number | null = null;
 
-      for (const tx of normalTxs) {
-        const isFromMe = tx.from.toLowerCase() === lowerAddress;
-        const isToMe = tx.to && tx.to.toLowerCase() === lowerAddress;
-        
-        const timestamp = parseInt(tx.timeStamp) * 1000;
-        if (timestamp < firstTxTimestamp) firstTxTimestamp = timestamp;
-        
+      for (const tx of txSource.records) {
+        const from = asRequiredAddress(tx.from, 'normal transaction from');
+        const to = asOptionalAddress(tx.to, 'normal transaction to');
+        const isFromMe = from.toLowerCase() === lowerAddress;
+        const isToMe = to?.toLowerCase() === lowerAddress;
+        const timestamp = timestampToMillis(
+          tx.timeStamp,
+          'normal transaction timestamp',
+        );
+        firstTxTimestamp =
+          firstTxTimestamp === null
+            ? timestamp
+            : Math.min(firstTxTimestamp, timestamp);
         const date = new Date(timestamp);
-        activeMonthsSet.add(`${date.getFullYear()}-${date.getMonth()}`);
+        activeMonthsSet.add(`${date.getUTCFullYear()}-${date.getUTCMonth()}`);
 
-        // Add to contracts only if we interacted with a smart contract (input !== '0x' or '0x00')
-        if (tx.to && tx.to.toLowerCase() !== lowerAddress && tx.input && tx.input !== '0x' && tx.input !== '0x00') {
-          uniqueContracts.add(tx.to.toLowerCase());
+        const input = typeof tx.input === 'string' ? tx.input : '';
+        const hasContractCalldata =
+          /^0x[0-9a-fA-F]*$/.test(input) &&
+          !/^0x(?:0+)?$/i.test(input);
+        if (
+          to &&
+          to.toLowerCase() !== lowerAddress &&
+          hasContractCalldata
+        ) {
+          uniqueContracts.add(to.toLowerCase());
         }
-        if (tx.contractAddress) {
-          uniqueContracts.add(tx.contractAddress.toLowerCase());
+        const createdContract = asOptionalAddress(
+          tx.contractAddress,
+          'normal transaction contractAddress',
+        );
+        if (createdContract) {
+          uniqueContracts.add(createdContract.toLowerCase());
         }
 
         if (isFromMe || isToMe) {
-          const valEth = Number(tx.value) / 1e18;
-          totalEthVolume += valEth;
+          totalEthVolume = safeAdd(
+            totalEthVolume,
+            atomicAmountToNumber(tx.value, 18, 'normal transaction value'),
+            'ETH transfer volume',
+          );
         }
 
         if (isFromMe) {
-          // Add 1.35x multiplier to roughly estimate L1 Data fee on Base which is missing in txlist API
-          totalGasSpentEth += ((Number(tx.gasUsed) * Number(tx.gasPrice)) / 1e18) * 1.35;
-          const valEth = Number(tx.value) / 1e18;
-          if (valEth > 0 && valEth < 0.001) dustTxCount++;
+          outgoingTxCount += 1;
+          const gasUsed = asUnsignedBigInt(
+            tx.gasUsed,
+            'normal transaction gasUsed',
+          );
+          const gasPrice = asUnsignedBigInt(
+            tx.gasPrice,
+            'normal transaction gasPrice',
+          );
+          totalGasSpentEth = safeAdd(
+            totalGasSpentEth,
+            atomicAmountToNumber(
+              gasUsed * gasPrice,
+              18,
+              'normal transaction execution gas',
+            ),
+            'execution gas total',
+          );
+          const valueEth = atomicAmountToNumber(
+            tx.value,
+            18,
+            'normal transaction value',
+          );
+          if (valueEth > 0 && valueEth < 0.001) dustTxCount += 1;
         }
       }
 
-      for (const tx of internalTxs) {
-        if (tx.from && tx.from.toLowerCase() !== lowerAddress) uniqueContracts.add(tx.from.toLowerCase());
-        if (tx.to && tx.to.toLowerCase() !== lowerAddress) uniqueContracts.add(tx.to.toLowerCase());
-        
-        const isFromMe = tx.from && tx.from.toLowerCase() === lowerAddress;
-        const isToMe = tx.to && tx.to.toLowerCase() === lowerAddress;
-        
+      for (const tx of internalSource.records) {
+        const from = asOptionalAddress(tx.from, 'internal transaction from');
+        const to = asOptionalAddress(tx.to, 'internal transaction to');
+        const isFromMe = from?.toLowerCase() === lowerAddress;
+        const isToMe = to?.toLowerCase() === lowerAddress;
+
         if (isFromMe || isToMe) {
-          totalEthVolume += Number(tx.value) / 1e18;
+          totalEthVolume = safeAdd(
+            totalEthVolume,
+            atomicAmountToNumber(tx.value, 18, 'internal transaction value'),
+            'ETH transfer volume',
+          );
         }
       }
 
-      const tokenAddressesToFetch = new Set<string>();
-      for (const tx of tokenTxs) {
-        if (tx.contractAddress) {
-          uniqueContracts.add(tx.contractAddress.toLowerCase());
-          tokenAddressesToFetch.add(tx.contractAddress.toLowerCase());
+      for (const tx of tokenSource.records) {
+        const tokenAddress = asRequiredAddress(
+          tx.contractAddress,
+          'ERC-20 contractAddress',
+        );
+        const key = tokenAddress.toLowerCase();
+        uniqueContracts.add(key);
+        tokenAddressesToFetch.set(key, tokenAddress);
+      }
+
+      const tokenPriceResult = await fetchPrices(
+        Array.from(tokenAddressesToFetch.values()),
+      );
+      const unpricedTokenContracts = new Set<string>();
+
+      for (const tx of tokenSource.records) {
+        const from = asRequiredAddress(tx.from, 'ERC-20 transfer from');
+        const to = asRequiredAddress(tx.to, 'ERC-20 transfer to');
+        if (
+          from.toLowerCase() !== lowerAddress &&
+          to.toLowerCase() !== lowerAddress
+        ) {
+          continue;
         }
-      }
 
-      // Fetch dynamic prices for all traded tokens
-      const tokenPrices = await fetchPrices(Array.from(tokenAddressesToFetch));
+        const tokenAddress = asRequiredAddress(
+          tx.contractAddress,
+          'ERC-20 contractAddress',
+        );
+        const decimals = asTokenDecimals(
+          tx.tokenDecimal,
+          'ERC-20 tokenDecimal',
+        );
+        const amount = atomicAmountToNumber(
+          tx.value,
+          decimals,
+          'ERC-20 transfer value',
+        );
+        const tokenKey = tokenAddress.toLowerCase();
 
-      for (const tx of tokenTxs) {
-        const isFromMe = tx.from.toLowerCase() === lowerAddress;
-        const isToMe = tx.to && tx.to.toLowerCase() === lowerAddress;
-
-        if (isFromMe || isToMe) {
-          const symbol = tx.tokenSymbol ? tx.tokenSymbol.toUpperCase() : '';
-          const decimals = Number(tx.tokenDecimal || 18);
-          const amountStr = tx.value || "0";
-          const amount = Number(amountStr) / Math.pow(10, decimals);
-
-          if (symbol === 'WETH') {
-            totalEthVolume += amount;
-          } else {
-            const price = tokenPrices[tx.contractAddress.toLowerCase()] || 0;
-            totalTokenVolumeUsd += amount * price;
-          }
+        if (tokenKey === BASE_WETH.toLowerCase()) {
+          totalEthVolume = safeAdd(
+            totalEthVolume,
+            amount,
+            'WETH transfer volume',
+          );
+          continue;
         }
+
+        const price = tokenPriceResult.prices[tokenKey];
+        if (price === undefined) {
+          unpricedTokenContracts.add(tokenKey);
+          continue;
+        }
+        totalTokenVolumeUsd = safeAdd(
+          totalTokenVolumeUsd,
+          safeMultiply(amount, price, 'ERC-20 USD transfer value'),
+          'ERC-20 USD transfer volume',
+        );
       }
 
-      for (const tx of nftTxs) {
-         if (tx.contractAddress) uniqueContracts.add(tx.contractAddress.toLowerCase());
+      for (const tx of nftSource.records) {
+        const contractAddress = asRequiredAddress(
+          tx.contractAddress,
+          'ERC-721 contractAddress',
+        );
+        uniqueContracts.add(contractAddress.toLowerCase());
       }
-      
-      for (const tx of nft1155Txs) {
-         if (tx.contractAddress) uniqueContracts.add(tx.contractAddress.toLowerCase());
-      }
-
-      const totalVolumeUsd = (totalEthVolume * ethPrice) + totalTokenVolumeUsd;
-      const totalGasSpentUsd = totalGasSpentEth * ethPrice;
-      const activeMonths = activeMonthsSet.size || 1;
-      const accountAgeDays = Math.max(1, Math.floor((Date.now() - firstTxTimestamp) / (1000 * 60 * 60 * 24)));
-      const totalTxs = normalTxs.length;
-
-      // Fallback Engine calculations
-      if (aiSource === 'Kletia AI Engine (Local)') {
-        let fallbackScore = 30;
-        if (totalVolumeUsd > 1000) fallbackScore += 15;
-        if (totalVolumeUsd > 10000) fallbackScore += 20;
-        if (uniqueContracts.size > 20) fallbackScore += 10;
-        if (uniqueContracts.size > 100) fallbackScore += 15;
-        if (dustTxCount < 10) fallbackScore += 10;
-        if (activeMonths > 3) fallbackScore += 10;
-        
-        aiScore = fallbackScore > 100 ? 100 : fallbackScore;
-        aiRiskLevel = dustTxCount > 15 ? 'High Risk (Sybil)' : 'Low Risk (Organik)';
+      for (const tx of nft1155Source.records) {
+        const contractAddress = asRequiredAddress(
+          tx.contractAddress,
+          'ERC-1155 contractAddress',
+        );
+        uniqueContracts.add(contractAddress.toLowerCase());
       }
 
+      const totalVolumeUsd = safeAdd(
+        safeMultiply(totalEthVolume, ethPrice, 'ETH USD transfer volume'),
+        totalTokenVolumeUsd,
+        'total USD transfer volume',
+      );
+      const totalGasSpentUsd = safeMultiply(
+        totalGasSpentEth,
+        ethPrice,
+        'execution gas USD total',
+      );
+      const activeMonths = activeMonthsSet.size;
+      const accountAgeDays =
+        firstTxTimestamp === null
+          ? null
+          : Math.max(
+              0,
+              Math.floor(
+                (Date.now() - firstTxTimestamp) / (24 * 60 * 60 * 1_000),
+              ),
+            );
+      const totalTxs = txSource.records.length;
+
+      let kletiaActivityScore = totalTxs > 0 ? 20 : 0;
+      if (totalVolumeUsd > 1_000) kletiaActivityScore += 15;
+      if (totalVolumeUsd > 10_000) kletiaActivityScore += 20;
+      if (uniqueContracts.size > 20) kletiaActivityScore += 10;
+      if (uniqueContracts.size > 100) kletiaActivityScore += 15;
+      if (activeMonths > 3) kletiaActivityScore += 10;
+      if (
+        outgoingTxCount > 0 &&
+        dustTxCount / outgoingTxCount < 0.1
+      ) {
+        kletiaActivityScore += 10;
+      }
+      kletiaActivityScore = Math.min(100, kletiaActivityScore);
+
+      if (scanRevision.current !== revision) return;
       setResult({
-        aiScore,
-        aiSource,
-        aiRiskLevel,
+        address,
+        fetchedAt: Date.now(),
+        nomisScore,
+        kletiaActivityScore,
+        basenameStatus,
         totalVolumeUsd,
         contractsCount: uniqueContracts.size,
         totalGasSpentUsd,
         dustTxCount,
+        outgoingTxCount,
         activeMonths,
         accountAgeDays,
-        totalTxs
+        totalTxs,
+        normalTransactionsCapped:
+          txSource.completeness === 'partial_capped',
+        activityCompleteness,
+        cappedSources,
+        unpricedTokenContracts: unpricedTokenContracts.size,
+        priceFailedChunks: tokenPriceResult.failedChunks,
+        volumeStatus:
+          activityCompleteness === 'partial_capped' ||
+          unpricedTokenContracts.size > 0 ||
+          tokenPriceResult.failedChunks > 0
+            ? 'partial'
+            : 'complete',
       });
-
-    } catch (err) {
-      console.error(err);
-      alert("Multiple API Fetch Error! Network issue on Kletia Servers.");
+    } catch (error) {
+      console.error('Live Base analysis failed.');
+      if (scanRevision.current === revision) {
+        const message = safeProviderErrorMessage(
+          error,
+          'An unknown live provider error occurred.',
+        );
+        alert(`Live Base analysis could not be completed: ${message}`);
+      }
     } finally {
-      setIsScanning(false);
+      if (scanRevision.current === revision) {
+        setIsScanning(false);
+      }
     }
   };
-
-  // Kletia Super Score Formula (60% AI, 40% Real Onchain Data)
-  let superScore = 0;
-  if (result) {
-    const aiWeight = result.aiScore * 0.6;
-    
-    let volScore = result.totalVolumeUsd > 5000 ? 100 : (result.totalVolumeUsd > 1000 ? 70 : 30);
-    let contractScore = result.contractsCount > 100 ? 100 : (result.contractsCount > 30 ? 70 : 30);
-    const dataWeight = ((volScore + contractScore) / 2) * 0.4;
-    
-    superScore = Math.round(aiWeight + dataWeight);
-    if (hasBasename) superScore += 5; // Basename Bonus
-    if (superScore > 100) superScore = 100;
-  }
 
   return (
     <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        
-        {/* HEADER */}
+        {}
         <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 md:p-8 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tighter flex items-center gap-3">
@@ -332,167 +803,246 @@ export const AirdropSimulator: React.FC = () => {
               Multi-API Aggregator
             </h1>
             <p className="text-gray-600 dark:text-slate-400 font-bold mt-2 text-sm md:text-base">
-              Kletia Super Score: Merges TrustaLabs AI, Nomis, Coinbase SDK and Blockscout data.
+              Live Base activity from Blockscout, Base market pairs, the
+              Basename contract and optional raw Nomis reputation.
             </p>
           </div>
         </div>
 
-        {/* SEARCH BAR */}
+        {}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-6 h-6" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Enter wallet address (0x...) to analyze"
               value={inputAddress}
-              onChange={(e) => setInputAddress(e.target.value)}
+              onChange={(event) => handleAddressChange(event.target.value)}
               className="w-full bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-4 pl-12 font-bold text-lg text-[#1A1A1A] dark:text-white placeholder-gray-400 outline-none shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] focus:translate-y-1 focus:shadow-none transition-all"
             />
           </div>
-          <button 
+          <button
             onClick={handleScan}
-            disabled={isScanning || !inputAddress}
+            disabled={isScanning || !normalizedInputAddress}
             className="shrink-0 bg-[#0052FF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 justify-center uppercase"
           >
             {isScanning ? <RefreshCw className="animate-spin" /> : <Search />}
-            {isScanning ? 'API\'lere Connecting...' : 'Calculate Super Score'}
+            {isScanning ? 'Reading Live APIs...' : 'Analyze Live Activity'}
           </button>
         </div>
 
-        {/* RESULTS SECTION */}
-        {result && (
+        {}
+        {visibleResult && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">
-            
-            {/* SUPER SCORE CARD */}
-            <div className="lg:col-span-1 bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] text-center">
-              <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">Kletia Super Score</h3>
-              
-              <div className="relative w-40 h-40 flex items-center justify-center rounded-full border-[8px] border-[#EFEFEF] dark:border-slate-700">
-                <div className={`absolute inset-0 rounded-full border-[8px] ${superScore > 80 ? 'border-green-500' : superScore > 50 ? 'border-orange-500' : 'border-red-500'}`} style={{ clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 ${100 - superScore}%)` }}></div>
-                <div className="text-6xl font-black text-[#1A1A1A] dark:text-white">{superScore}</div>
+            <div className="lg:col-span-3 bg-indigo-100 dark:bg-indigo-950 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
+              <div className="font-black uppercase text-indigo-900 dark:text-indigo-200">
+                Analyzed Base Mainnet Address
               </div>
-              
-              <p className="mt-6 font-bold text-sm text-gray-600 dark:text-slate-300">
-                Calculated using 60% AI Reputation and 40% Onchain History.
+              <div className="font-mono text-xs md:text-sm break-all text-[#1A1A1A] dark:text-white mt-1">
+                {visibleResult.address}
+              </div>
+              <div className="text-xs font-bold mt-2 text-indigo-800 dark:text-indigo-300">
+                Coverage:{' '}
+                {visibleResult.activityCompleteness === 'complete'
+                  ? 'complete for the returned first pages'
+                  : `partial_capped — ${visibleResult.cappedSources.join(', ')} reached the ${BLOCKSCOUT_PAGE_SIZE.toLocaleString()}-row API cap`}
+              </div>
+            </div>
+
+            {}
+            <div className="lg:col-span-1 bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] text-center">
+              <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">
+                Kletia Activity Score
+              </h3>
+              <div className="w-40 h-40 flex flex-col items-center justify-center rounded-full border-[8px] border-indigo-500 bg-indigo-50 dark:bg-indigo-950">
+                <div className="text-6xl font-black text-[#1A1A1A] dark:text-white">
+                  {visibleResult.kletiaActivityScore}
+                </div>
+                <div className="text-xs font-black text-indigo-600 dark:text-indigo-300">
+                  / 100
+                </div>
+              </div>
+              <p className="mt-6 font-bold text-xs text-gray-600 dark:text-slate-300">
+                Live formula: 20 for any normal transaction; +15/+20 for
+                observed priced volume above $1k/$10k; +10/+15 for more than
+                20/100 observed contract addresses; +10 for more than 3 active
+                months; +10 when outgoing dust-transfer ratio is below 10%.
+              </p>
+              <p className="mt-3 text-xs font-black text-[#B45309] dark:text-amber-400">
+                Activity summary only — not airdrop eligibility, identity or
+                risk prediction.
               </p>
             </div>
 
-            {/* API PROVIDERS METRICS */}
+            {}
             <div className="lg:col-span-2 flex flex-col gap-4">
-              
-              {/* Trusta/Nomis AI Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-8 h-8 text-purple-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">{result.aiSource}</h4>
-                    <p className="text-xs font-bold text-gray-500">Sybil / Bot Tespiti Analizi</p>
+                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                      Nomis Reputation
+                    </h4>
+                    <p className="text-xs font-bold text-gray-500">
+                      Raw optional provider score; never blended with Kletia
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className={`text-xl font-black ${result.aiRiskLevel.includes('Low') ? 'text-green-500' : 'text-red-500'}`}>
-                    {result.aiRiskLevel}
+                  <div className="text-xl font-black text-purple-600 dark:text-purple-400">
+                    {visibleResult.nomisScore === null
+                      ? 'Not returned'
+                      : `${displayScore(visibleResult.nomisScore)}/100`}
                   </div>
-                  <div className="text-sm font-bold text-gray-600 dark:text-slate-400">Puan: {result.aiScore}/100</div>
+                  <div className="text-xs font-bold text-gray-600 dark:text-slate-400">
+                    No Kletia risk classification
+                  </div>
                 </div>
               </div>
 
-              {/* Blockscout Data Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Database className="w-8 h-8 text-blue-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">Blockscout API</h4>
-                    <p className="text-xs font-bold text-gray-500">In-Network Raw Data Analysis</p>
+                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                      Blockscout API
+                    </h4>
+                    <p className="text-xs font-bold text-gray-500">
+                      Observed Base rows; internal counterparties excluded from
+                      contract count
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
-                    {result.contractsCount} Kontrat
+                    {visibleResult.contractsCount.toLocaleString()} observed
+                    contract addresses
                   </div>
-                  <div className="text-sm font-bold text-gray-600 dark:text-slate-400">Hacim: ${Math.round(result.totalVolumeUsd).toLocaleString()}</div>
+                  <div className="text-sm font-bold text-gray-600 dark:text-slate-400">
+                    Priced transfer volume: $
+                    {Math.round(
+                      visibleResult.totalVolumeUsd,
+                    ).toLocaleString()}
+                  </div>
+                  {visibleResult.volumeStatus === 'partial' && (
+                    <div className="text-xs font-black text-[#B45309] dark:text-amber-400 mt-1">
+                      Partial value
+                      {visibleResult.unpricedTokenContracts > 0
+                        ? ` — ${visibleResult.unpricedTokenContracts} token contract${visibleResult.unpricedTokenContracts === 1 ? '' : 's'} had no verified Base pair price`
+                        : ''}
+                      {visibleResult.priceFailedChunks > 0
+                        ? ` — ${visibleResult.priceFailedChunks} price request${visibleResult.priceFailedChunks === 1 ? '' : 's'} unavailable`
+                        : ''}
+                      {visibleResult.activityCompleteness === 'partial_capped'
+                        ? ' — one or more transfer sources were capped'
+                        : ''}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Coinbase CDP Card */}
+              {/* BASENAME + GAS */}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Wallet className="w-8 h-8 text-[#0052FF]" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">Coinbase OnchainKit</h4>
-                    <p className="text-xs font-bold text-gray-500">Official Web3 Identity Resolver</p>
+                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                      Basename Contract
+                    </h4>
+                    <p className="text-xs font-bold text-gray-500">
+                      Direct Base Mainnet identity contract read
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
-                    {hasBasename ? 'Base Name Owner' : 'Unknown Wallet'}
+                    {visibleResult.basenameStatus === 'owned'
+                      ? 'Basename token observed'
+                      : visibleResult.basenameStatus === 'not_owned'
+                        ? 'No Basename token observed'
+                        : 'Identity read unavailable'}
                   </div>
-                  <div className="text-sm font-bold text-gray-600 dark:text-slate-400">Net Gas Spent: ${result.totalGasSpentUsd.toFixed(2)}</div>
+                  <div className="text-sm font-bold text-gray-600 dark:text-slate-400">
+                    Execution gas: $
+                    {visibleResult.totalGasSpentUsd.toFixed(2)} (L1 fee
+                    excluded)
+                  </div>
                 </div>
               </div>
 
-              {/* Extra Kriterler Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Activity className="w-8 h-8 text-emerald-500" />
                   <div>
-                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">Onchain Footprint</h4>
-                    <p className="text-xs font-bold text-gray-500">Ek Sybil & Airdrop Kriterleri</p>
+                    <h4 className="font-black text-[#1A1A1A] dark:text-white text-lg uppercase tracking-tight">
+                      Observed Footprint
+                    </h4>
+                    <p className="text-xs font-bold text-gray-500">
+                      Descriptive activity metrics, not Sybil proof
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-4 md:gap-8 text-right">
                   <div>
                     <div className="text-lg font-black text-[#1A1A1A] dark:text-white flex items-center justify-end gap-1">
-                      <Calendar className="w-4 h-4 text-gray-400" /> {result.activeMonths} Ay
+                      <Calendar className="w-4 h-4 text-gray-400" />{' '}
+                      {visibleResult.activeMonths}
                     </div>
-                    <div className="text-xs font-bold text-gray-500">Aktif Aylar</div>
+                    <div className="text-xs font-bold text-gray-500">
+                      Active months
+                    </div>
                   </div>
                   <div>
                     <div className="text-lg font-black text-[#1A1A1A] dark:text-white flex items-center justify-end gap-1">
-                      <Clock className="w-4 h-4 text-gray-400" /> {result.accountAgeDays} Days
+                      <Clock className="w-4 h-4 text-gray-400" />{' '}
+                      {visibleResult.accountAgeDays === null
+                        ? 'N/A'
+                        : visibleResult.accountAgeDays}
                     </div>
-                    <div className="text-xs font-bold text-gray-500">Wallet Age</div>
+                    <div className="text-xs font-bold text-gray-500">
+                      Wallet age days
+                    </div>
                   </div>
                   <div>
                     <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
-                      {result.totalTxs}
+                      {visibleResult.normalTransactionsCapped ? '≥' : ''}
+                      {visibleResult.totalTxs.toLocaleString()}
                     </div>
-                    <div className="text-xs font-bold text-gray-500">Total Transactions</div>
+                    <div className="text-xs font-bold text-gray-500">
+                      Normal tx rows
+                    </div>
                   </div>
                 </div>
               </div>
-
             </div>
 
-            {/* AI AGENT PREMIUM ANALYSIS TRIGGER */}
-            <div className="lg:col-span-3 mt-4 flex flex-col items-center justify-center">
-              <button 
-                onClick={handleDeepAnalysis}
-                disabled={agentStatus === 'running'}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-500 text-white font-black px-8 py-4 border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] active:translate-y-1 active:shadow-none transition-all flex items-center gap-3 uppercase w-full md:w-auto"
-              >
-                {agentStatus === 'running' ? <RefreshCw className="animate-spin w-6 h-6" /> : <Cpu className="w-6 h-6" />}
-                {agentStatus === 'running' ? 'Autonomous X402 Process Running...' : '🤖 Deep Analysis with AI Agent (X402 Premium)'}
-              </button>
-            </div>
-
-            {/* AGENT TERMINAL OUTPUT */}
-            {agentLogs.length > 0 && (
-              <div className="lg:col-span-3 mt-4 bg-black border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] font-mono text-sm">
-                <div className="flex items-center gap-2 mb-4 text-green-500 border-b border-green-900 pb-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="font-bold">Kletia Omni-Engine Otonom Terminal (X402 Aktif)</span>
+            <div className="lg:col-span-3 mt-4 bg-[#FFD700] dark:bg-[#CCA000] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] flex items-start gap-3">
+              <Cpu
+                className="w-7 h-7 shrink-0 text-[#1A1A1A]"
+                strokeWidth={3}
+              />
+              <div>
+                <div className="font-black uppercase text-[#1A1A1A]">
+                  Interpretation Boundary
                 </div>
-                <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {agentLogs.map((log, idx) => (
-                    <div key={idx} className={`${log.startsWith('[HATA]') ? 'text-red-500' : log.startsWith('[KLETIA AI]') ? 'text-cyan-400 font-bold' : log.startsWith('[ARAÇ ÇAĞRISI]') ? 'text-yellow-500' : 'text-green-400'}`}>
-                      <span className="opacity-50 mr-2">{new Date().toLocaleTimeString()}</span>
-                      {log}
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm font-bold text-[#1A1A1A] mt-1">
+                  These are live descriptive observations for{' '}
+                  {visibleResult.address}. Neither score predicts airdrop
+                  eligibility, identity, misconduct or future rewards.
+                  Unavailable prices and provider scores remain unavailable;
+                  no mock value is inserted.
+                </p>
+                <p className="text-xs font-black text-[#1A1A1A] mt-2">
+                  Snapshot:{' '}
+                  {new Date(visibleResult.fetchedAt).toLocaleString()}
+                  {' · '}Outgoing dust rows: {visibleResult.dustTxCount}/
+                  {visibleResult.outgoingTxCount}
+                </p>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>

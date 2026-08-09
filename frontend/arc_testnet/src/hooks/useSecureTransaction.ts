@@ -1,12 +1,6 @@
 import { useWriteContract } from 'wagmi';
 import { useState } from 'react';
 
-/**
- * A secure wrapper around Wagmi's useWriteContract and useSendTransaction.
- * It queries the Webacy API for Threat and Contract Risks before executing the transaction.
- * Complies with DD.xyz Hackathon Requirements (Transaction & Contract Risks API).
- */
-
 export function useSecureWriteContract() {
   const { writeContract: originalWriteContract, writeContractAsync: originalWriteContractAsync, ...rest } = useWriteContract();
   const [isCheckingSecurity, setIsCheckingSecurity] = useState(false);

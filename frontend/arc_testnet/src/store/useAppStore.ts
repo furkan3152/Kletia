@@ -6,7 +6,6 @@ import { io, Socket } from 'socket.io-client';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const socket: Socket = io(BACKEND_URL);
 
-
 interface AppState {
   isDarkMode: boolean;
   toggleTheme: () => void;
@@ -46,10 +45,9 @@ export const useAppStore = create<AppState>()(
       initSocket: () => {
         socket.off('agentLog');
         socket.on('agentLog', (data: { userAddress: string; log: string; msgId?: string }) => {
-           // We will broadcast logs globally for the current session or based on userAddress
+
            const { addTerminalLog, messages } = get();
-           
-           // Eger server tarafindan msgId gelmiyorsa, son mesaji bul:
+
            const targetMsgId = data.msgId || (messages.length > 0 ? messages[messages.length - 1].id : null);
            if (targetMsgId) {
              addTerminalLog(targetMsgId, data.log);

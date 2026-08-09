@@ -1,4 +1,4 @@
-// backend/src/index.ts
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -46,8 +46,8 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 100, // IP başına 100 istek
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
   message: { status: 'error', message: 'Too many requests. Please try again later.' }
 });
 
@@ -56,7 +56,6 @@ app.use('/api/arc', arcRoutes);
 
 const conversationMemory: Record<string, { history: any[], lastAccess: number }> = {};
 
-// ✨ HAFIZA TEMİZLİK GÖREVİ: Her 30 dakikada 1 saatten eski konuşmaları siler (RAM korunması)
 setInterval(() => {
   const ONE_HOUR = 60 * 60 * 1000;
   const now = Date.now();
@@ -67,11 +66,9 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000);
 
-
-
 app.post('/api/intent', validateAddress, sanitizePrompt, async (req, res) => {
     const { prompt, userAddress, msgId } = req.body;
-    
+
     if (!prompt || !userAddress) {
         return res.status(400).json({ status: 'error', message: 'Patron, emir or cüzdan adresi eksik!' });
     }
@@ -87,7 +84,6 @@ app.post('/api/intent', validateAddress, sanitizePrompt, async (req, res) => {
         const history = conversationMemory[userAddress].history;
         const parsedIntent = await parseUserIntent(prompt, history);
 
-        // ✨ HAFIZA OPTİMİZASYONU: Sadece son 3 diyalogu hatırla (RAM şişmesini engeller)
         history.push({ role: 'user', content: prompt });
         history.push({ role: 'assistant', content: parsedIntent.message || 'Anlaşıldı.' });
         if (history.length > 6) conversationMemory[userAddress].history = history.slice(-6);
@@ -99,17 +95,16 @@ app.post('/api/intent', validateAddress, sanitizePrompt, async (req, res) => {
         }
 
         console.log(`🧠 AI Onayı Başarılı: [${parsedIntent.action.toUpperCase()}]`);
-        
+
         conversationMemory[userAddress] = { history: [], lastAccess: Date.now() };
 
         const result = await executeKletiaEngine(parsedIntent, userAddress, prompt, msgId);
-        
-        // ✨ TYPESCRIPT DOSTU RUH AKTARIMI
+
         const finalResponse = {
-            message: result.winnerMessage || parsedIntent.message,
+            message: (result as any).winnerMessage || parsedIntent.message,
             ...result
         };
-        
+
         res.json(finalResponse); 
 
     } catch (error: any) {

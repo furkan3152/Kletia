@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
@@ -43,17 +43,16 @@ contract KletiaArcOTC is ERC2771Context {
     function fillOrder(uint256 _orderId) external payable {
         Order storage order = orders[_orderId];
         require(order.isActive, "Order not active");
-        
+
         if (order.tokenOut == address(0)) {
-            // TokenOut is Native (USDC on Arc Testnet)
+
             require(msg.value >= order.minAmountOut, "Insufficient native value");
             payable(order.maker).transfer(msg.value);
         } else {
-            // TokenOut is ERC20
+
             IERC20(order.tokenOut).transferFrom(_msgSender(), order.maker, order.minAmountOut);
         }
 
-        // Send the locked tokenIn to the taker
         IERC20(order.tokenIn).transfer(_msgSender(), order.amountIn);
         order.isActive = false;
 

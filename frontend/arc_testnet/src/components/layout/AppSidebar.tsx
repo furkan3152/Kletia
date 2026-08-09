@@ -32,7 +32,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Overlay */}
+      {}
       {isOpen && (
         <div 
           className="md:hidden fixed inset-0 bg-black/50 z-40"
@@ -40,19 +40,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         />
       )}
 
-      {/* Sidebar Container */}
+      {}
       <aside className={`fixed md:relative top-0 left-0 h-full md:h-[calc(100%-2rem)] bg-white dark:bg-[#131E32] border-r-[4px] md:border-[4px] border-[#1A1A1A] dark:border-[#4B5563] md:shadow-[8px_8px_0_#1A1A1A] dark:md:shadow-[8px_8px_0_#475569] z-40 flex flex-col transition-all duration-300 ease-in-out pt-20 md:pt-0 md:m-4 md:rounded shrink-0 ${
         isOpen ? 'w-72 translate-x-0 md:mr-0' : 'w-0 -translate-x-full md:-ml-8 opacity-0 overflow-hidden md:m-0 border-none md:border-none shadow-none md:shadow-none'
       }`}>
-        
+
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-8 custom-scrollbar">
-          
-          {/* KLETIA CORE */}
+
+          {}
           <div className="space-y-3">
             <div className="flex items-center justify-between ml-2 mr-4">
               <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase">Command Center</h3>
-              
-              {/* ARC Mode Toggle (Disabled for now) */}
+
+              {}
               <div 
                 title="Base Mode Coming Soon"
                 className={`flex items-center gap-1.5 px-2 py-0.5 border-[2px] rounded-full text-[10px] font-black transition-all cursor-not-allowed bg-[#6D28D9] border-[#1A1A1A] dark:border-[#4B5563] text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]`}
@@ -61,7 +61,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 ARC MODE (Base Coming Soon)
               </div>
             </div>
-            
+
             <button 
               onClick={() => { setActiveTab('chat'); setIsPortfolioOpen(false); if(window.innerWidth < 768) setIsOpen(false); }}
               className={navItemClass(activeTab === 'chat' && !isPortfolioOpen)}
@@ -96,12 +96,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             </button>
           </div>
 
-          {/* ARC TOOLS (Only visible in ARC mode) */}
+          {}
             <div className="space-y-3 pb-8">
               <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2 flex items-center gap-2">
                 <Hexagon size={12} className="text-[#6D28D9] animate-spin-slow" /> KLETIA <span className="text-[10px] lowercase text-gray-400 font-normal">(built on Arc)</span>
               </h3>
-              
+
               <button 
                 onClick={() => { onWidgetClick("Swap 5 USDC to KLET via Kletia Omni-Engine"); if(window.innerWidth < 768) setIsOpen(false); }}
                 className={navItemClass(false)}
@@ -222,7 +222,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
         </div>
 
-        {/* Footer Area of Sidebar */}
+        {}
         <div className="p-4 border-t-[4px] border-[#1A1A1A] dark:border-[#4B5563] bg-white dark:bg-[#1A2841] text-xs font-bold text-center text-[#1A1A1A] dark:text-gray-300 flex flex-col gap-3">
           <div className="flex items-center justify-between">
              <span>THEME</span>

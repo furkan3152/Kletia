@@ -5,7 +5,7 @@ async function main() {
 
   const [deployer] = await hre.ethers.getSigners();
   console.log("👤 Deployer Address:", deployer.address);
-  
+
   const balance = await hre.ethers.provider.getBalance(deployer.address);
   console.log("💰 Deployer Balance:", hre.ethers.formatEther(balance), "ETH");
 
@@ -16,11 +16,10 @@ async function main() {
   const factoryAddress = await factory.getAddress();
 
   console.log("✅ X402Factory deployed to:", factoryAddress);
-  
-  // Wait a few blocks for ArcScan to index
+
   console.log("⏳ Waiting for 5 confirmations to verify contract...");
   await factory.deploymentTransaction().wait(5);
-  
+
   try {
     await hre.run("verify:verify", {
       address: factoryAddress,

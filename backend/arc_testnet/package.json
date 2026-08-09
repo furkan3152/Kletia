@@ -5,7 +5,8 @@
   "description": "Kletia Core Engine",
   "main": "src/index.ts",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "deprecated": "node -e \"throw new Error('Deprecated runtime: use backend/base_mainnet for both Base and Arc')\"",
+    "start": "npm run deprecated",
     "test": "vitest run"
   },
   "keywords": [

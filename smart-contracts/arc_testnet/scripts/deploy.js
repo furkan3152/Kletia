@@ -3,9 +3,8 @@ const hre = require("hardhat");
 async function main() {
   console.log("Starting deployment...");
 
-  // Arc Testnet USDC/Token Address
   const USDC_ADDRESS = "0xAe77D247c26258397653a020995E957Bc88E039A";
-  // Initial price: 0.01 USDC (USDC has 6 decimals, so 10,000)
+
   const INITIAL_PRICE = 10000;
 
   console.log("Deploying X402Gateway...");
@@ -14,11 +13,11 @@ async function main() {
 
   await gateway.waitForDeployment();
   const address = await gateway.getAddress();
-  
+
   console.log(`X402Gateway deployed to: ${address}`);
 
   console.log("Waiting for block confirmations...");
-  // Wait for 5 blocks to ensure Etherscan has indexed the contract
+
   const deploymentReceipt = await gateway.deploymentTransaction().wait(5);
 
   console.log("Verifying contract on ArcScan...");

@@ -1,25 +1,102 @@
 services:
-  # Arc Testnet Backend
+  # Unified Base Mainnet + Arc Testnet backend
   - type: web
     name: kletia-backend
     env: docker
-    rootDir: backend/arc_testnet
+    rootDir: backend/base_mainnet
     plan: starter
-    disk:
-      name: kletia-wallets
-      mountPath: /app/wallets
-      sizeGB: 1
     envVars:
       - key: PORT
         value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://kletia-frontend.onrender.com
+      - key: BASE_RPC_URL
+        sync: false
+      - key: ARC_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: WEBACY_API_KEY
+        sync: false
+      - key: ALLORA_API_KEY
+        sync: false
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: ACROSS_API_KEY
+        sync: false
+      - key: ACROSS_INTEGRATOR_ID
+        sync: false
+      - key: ACROSS_MAX_RELAY_FEE_BPS
+        value: "300"
+      - key: CDP_API_KEY_ID
+        sync: false
+      - key: CDP_API_KEY_SECRET
+        sync: false
+      - key: CDP_API_KEY_NAME
+        sync: false
+      - key: CDP_API_KEY_PRIVATE_KEY
+        sync: false
+      - key: CDP_PAYMASTER_POLICY_ID
+        sync: false
+      - key: PAYMASTER_PROXY_ENABLED
+        value: "false"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: X402_FACTORY_DEPLOYMENT_BLOCK
+        value: "48037476"
+      - key: X402_MAX_PRICE_ATOMIC
+        value: "100000000"
+      - key: X402_DEFAULT_PRICE_USDC
+        value: "0.01"
+      - key: X402_BUYER_MAX_PAYMENT_USDC
+        value: "1"
+      - key: KLETIA_X402_ATTESTATION_REGISTRY_ADDRESS
+        value: "0x4A587b315472Dd452B2FbC42366B16dCC267ae34"
+      - key: KLETIA_V2_TIMELOCK_ADDRESS
+        value: "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F"
+      - key: KLETIA_V2_GUARDIAN_SAFE
+        value: "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc"
+      - key: X402_TREASURY_ADDRESS
+        sync: false
+      # Token deployment is independent from the pending swap-router cutover.
+      # This exact LaunchFactory deployment is live and revalidated at one
+      # pinned Base block for every compiled deploy_token intent.
+      - key: BASE_TOKEN_DEPLOYMENT_MODE
+        value: launch_v2
+      - key: KLETIA_LAUNCH_FACTORY_V2_ADDRESS
+        value: "0x90cc932D97966F6Bdd8426184283FF2ff9d3043b"
+      - key: KLETIA_LAUNCH_FACTORY_V2_EVIDENCE_JSON
+        value: '{"schemaVersion":"kletia_launch_factory_v2_deployment_v1","validationStatus":"validated","chainId":8453,"observedAtBlock":"49717053","factory":"0x90cc932D97966F6Bdd8426184283FF2ff9d3043b","factoryCodehash":"0xb65a8f83f65961bdb2980f8530c0566013340f7491226c7a27f27efe60338a52","ownerTimelock":"0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F","ownerTimelockCodehash":"0x55ecc21176f23ff90b7f884bfd572cecf431538bc89ab5ee5aed3fa59b9dec82","ownerTimelockMinDelay":"172800","treasurySafe":"0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC","treasurySafeCodehash":"0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c","pendingTreasury":"0x0000000000000000000000000000000000000000","factoryFeeCap":"10000000000000000","maxTokenSupply":"1000000000000000000000000000000000000","maxNameBytes":"64","maxSymbolBytes":"16"}'
+      - key: BASE_SWAP_EXECUTION_MODE
+        value: legacy_v1
+      # Pre-staged public address only. Keep legacy_v1 until the Timelock has
+      # configured+enabled the adapter and exact runtime evidence is installed.
+      - key: KLETIA_INTENT_ROUTER_V2_ADDRESS
+        value: "0xce874051C9B60ECaD06721611DCEAc36aC0e8529"
 
-  # Arc Testnet Frontend
+  # Unified Base Mainnet + Arc Testnet frontend
   - type: web
     name: kletia-frontend
     env: static
-    rootDir: frontend/arc_testnet
-    buildCommand: npm install --legacy-peer-deps && npm run build
+    rootDir: frontend/base_mainnet
+    buildCommand: npm ci --legacy-peer-deps && npm run build
     staticPublishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
       - key: VITE_BACKEND_URL
         value: https://kletia-backend.onrender.com
+      - key: VITE_BASE_RPC_URL
+        sync: false
+      - key: VITE_ALLOW_PUBLIC_BASE_RPC_FALLBACK
+        value: "false"
+      - key: VITE_ARC_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: VITE_BASE_SWAP_EXECUTION_MODE
+        value: legacy_v1
+      - key: VITE_BASE_PAYMASTER_ENABLED
+        value: "false"
+      - key: VITE_WALLETCONNECT_PROJECT_ID
+        sync: false

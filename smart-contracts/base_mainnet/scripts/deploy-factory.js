@@ -11,11 +11,10 @@ async function main() {
 
   console.log("X402Factory deployed to:", address);
 
-  // Wait a bit before verifying
   console.log("Waiting for block confirmations...");
   const tx = factory.deploymentTransaction();
   if (tx) {
-      await tx.wait(5); // wait for 5 confirmations
+      await tx.wait(5); 
   }
 
   console.log("Verifying contract on Basescan...");

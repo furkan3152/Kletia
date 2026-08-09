@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { getAddress, isAddress } from 'viem';
+import { NETWORKS } from '../config/networks';
+import { BACKEND_URL } from '../config/runtime';
 
 interface RiskData {
+    address: string;
     riskScore: number;
     riskLevel: string;
     tags: string[];
+    decision: 'approved' | 'blocked';
+    source: 'webacy';
+    network: 'base';
+    chainId: number;
 }
 
 interface RiskBadgeProps {
@@ -14,21 +22,55 @@ interface RiskBadgeProps {
 export const RiskBadge: React.FC<RiskBadgeProps> = ({ address }) => {
     const [riskData, setRiskData] = useState<RiskData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [failed, setFailed] = useState(false);
 
     useEffect(() => {
         const fetchRisk = async () => {
-            if (!address) return;
+            setRiskData(null);
+            setFailed(false);
+            if (!isAddress(address)) {
+                setLoading(false);
+                setFailed(true);
+                return;
+            }
+            setLoading(true);
+            const expectedAddress = getAddress(address);
             try {
-                const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-                const res = await fetch(`${BACKEND_URL}/api/webacy/address/${address}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'success') {
-                        setRiskData(data);
-                    }
+                const res = await fetch(
+                    `${BACKEND_URL}/api/webacy/address/${expectedAddress}?network=base&chainId=${NETWORKS.base.chainId}`,
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Kletia-Network': 'base',
+                            'X-Kletia-Chain-Id': String(NETWORKS.base.chainId),
+                        },
+                    },
+                );
+                const data = await res.json().catch(() => null);
+                if (
+                    !res.ok ||
+                    !data ||
+                    data.status !== 'success' ||
+                    data.network !== 'base' ||
+                    data.chainId !== NETWORKS.base.chainId ||
+                    data.source !== 'webacy' ||
+                    (data.decision !== 'approved' && data.decision !== 'blocked') ||
+                    typeof data.address !== 'string' ||
+                    !isAddress(data.address) ||
+                    getAddress(data.address) !== expectedAddress ||
+                    typeof data.riskScore !== 'number' ||
+                    !Number.isFinite(data.riskScore) ||
+                    data.riskScore < 0 ||
+                    data.riskScore > 100 ||
+                    typeof data.riskLevel !== 'string' ||
+                    !Array.isArray(data.tags) ||
+                    !data.tags.every((tag: unknown) => typeof tag === 'string')
+                ) {
+                    throw new Error('Invalid Webacy Base response.');
                 }
-            } catch (err) {
-                console.error("Error fetching risk data", err);
+                setRiskData(data as RiskData);
+            } catch {
+                setFailed(true);
             } finally {
                 setLoading(false);
             }
@@ -46,8 +88,15 @@ export const RiskBadge: React.FC<RiskBadgeProps> = ({ address }) => {
         );
     }
 
-    if (!riskData) {
-        return null;
+    if (!riskData || failed) {
+        return (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-full">
+                <ShieldAlert className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-medium text-red-500">
+                    Security unavailable
+                </span>
+            </div>
+        );
     }
 
     const { riskScore, riskLevel } = riskData;
@@ -56,14 +105,14 @@ export const RiskBadge: React.FC<RiskBadgeProps> = ({ address }) => {
     let textColor = "text-green-500";
     let borderColor = "border-green-500/20";
     let Icon = ShieldCheck;
-    let label = "Safe";
+    let label = "Provider Low Risk";
 
-    if (riskScore > 50) {
+    if (riskData.decision === 'blocked') {
         bgColor = "bg-red-500/10";
         textColor = "text-red-500";
         borderColor = "border-red-500/20";
         Icon = ShieldAlert;
-        label = "High Risk";
+        label = "Provider Blocked";
     } else if (riskScore > 20) {
         bgColor = "bg-yellow-500/10";
         textColor = "text-yellow-500";

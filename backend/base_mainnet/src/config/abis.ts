@@ -1,15 +1,5 @@
-// backend/src/config/abis.ts
 
-// ==========================================
-// 🛡️ KLETIA OMNI-ÇEVİRMEN (Master ABI Library)
-// GÜVENLİK İLKESİ: Sadece kullanılacak fonksiyonlar eklenmiştir (Verimlilik).
-// ==========================================
 
-// ------------------------------------------
-// 💱 1. DEX (TAKAS) PROTOKOLLERİ
-// ------------------------------------------
-
-// ▶ AERODROME (Velodrome Fork - V2 Tarzı)
 export const AERODROME_ROUTER_ABI = [
     {
         "inputs": [
@@ -56,7 +46,6 @@ export const AERODROME_ROUTER_ABI = [
     }
 ] as const;
 
-// ▶ UNISWAP V3 & PANCAKESWAP V3 (Modern Konsantre Likidite)
 export const UNISWAP_V3_ROUTER_ABI = [
     {
         "inputs": [
@@ -83,7 +72,6 @@ export const UNISWAP_V3_ROUTER_ABI = [
     }
 ] as const;
 
-// SADECE BU KISMI DEĞİŞTİR: Yeni Nesil V2 Quoter (Uniswap ve Pancake için ortak kullanılır)
 export const UNISWAP_V3_QUOTER_ABI = [
     {
         "inputs": [
@@ -112,12 +100,6 @@ export const UNISWAP_V3_QUOTER_ABI = [
     }
 ] as const;
 
-
-// ------------------------------------------
-// 🏦 2. DEFI & LENDING (BORÇ VERME/ALMA)
-// ------------------------------------------
-
-// ▶ AAVE V3 (Lending Standardı)
 export const AAVE_V3_POOL_ABI = [
     {
         "inputs": [
@@ -146,7 +128,6 @@ export const AAVE_V3_POOL_ABI = [
     }
 ] as const;
 
-// ▶ MOONWELL (Compound V2 Fork Tarzı - Base Ağının Gözdesi)
 export const MOONWELL_MTOKEN_ABI = [
     {
         "inputs": [{ "internalType": "uint256", "name": "mintAmount", "type": "uint256" }],
@@ -164,7 +145,6 @@ export const MOONWELL_MTOKEN_ABI = [
     }
 ] as const;
 
-// ▶ MORPHO BLUE (Yeni Nesil P2P Lending)
 export const MORPHO_BLUE_ABI = [
     {
         "inputs": [

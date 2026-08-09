@@ -19,7 +19,7 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDar
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchPrediction = async () => {
       setLoading(true);
       setError(null);
@@ -27,7 +27,7 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDar
         const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
         const res = await fetch(`${BACKEND_URL}/api/allora/prediction?asset=${asset}&timeframe=5m`);
         const json = await res.json();
-        
+
         if (json.success && isMounted) {
           setData(json.data);
           setIsMock(json.isMock);
@@ -42,8 +42,8 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDar
     };
 
     fetchPrediction();
-    
-    const interval = setInterval(fetchPrediction, 30000); // update every 30 seconds
+
+    const interval = setInterval(fetchPrediction, 30000); 
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -87,13 +87,18 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({ asset = 'ETH', isDar
               ${Number(data.predictedPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-2 text-xs font-bold mt-2 opacity-70">
-            <span>⚡ Confidence: %{data.confidence || '92.4'}</span>
+            <span>
+              ⚡ Confidence:{' '}
+              {data.confidence === undefined || data.confidence === null
+                ? 'Provider did not report'
+                : `%${data.confidence}`}
+            </span>
             <span>•</span>
             <span>⏱️ {new Date(data.timestamp || Date.now()).toLocaleTimeString()}</span>
           </div>
-          
+
           {isMock && (
              <div className="mt-2 text-[10px] opacity-50 italic">
                (Developer Mode: Public Endpoint)

@@ -1,11 +1,10 @@
-import { encodeFunctionData, getAddress, parseEther } from 'viem';
-import { ZORA_ERC721_DROP_ABI } from '../config/constants.js';
+import { getAddress } from 'viem';
 
 export async function handleNftMint(
-    userAddress: string,
+    _userAddress: string,
     collectionAddress: string | undefined,
     quantityStr: string | undefined
-) {
+): Promise<never> {
     if (!collectionAddress) {
         throw new Error("Mintlemek istediğin Zora NFT koleksiyonunun adresini belirtmelisin.");
     }
@@ -23,28 +22,10 @@ export async function handleNftMint(
         throw new Error("Mintlenecek NFT adedini geçerli bir sayı olarak girmelisin.");
     }
 
-    // Zora'nın standart mint ödülü (mint fee) genellikle 0.000777 ETH'dir.
-    // Kullanıcının belirttiği adet kadar fee tahsil edilmelidir.
-    const ZORA_MINT_FEE = 0.000777;
-    const totalValue = parseEther((ZORA_MINT_FEE * quantity).toString());
-
-    // Zora mintWithRewards fonksiyonu için calldata üretimi
-    const mintCalldata = encodeFunctionData({
-        abi: ZORA_ERC721_DROP_ABI,
-        functionName: 'mintWithRewards',
-        args: [
-            getAddress(userAddress), // recipient
-            BigInt(quantity),        // quantity
-            "",                      // comment
-            "0x0000000000000000000000000000000000000000" // mintReferral (Kletia referans verilebilir)
-        ]
-    });
-
-    // Smart Router için sarıyoruz (Target Protocol: Koleksiyon Adresi)
-    return {
-        target: targetAddress,
-        calldata: mintCalldata,
-        value: totalValue,
-        summary: `Zora üzerinden ${targetAddress} koleksiyonundan ${quantity} adet NFT mintlenecektir. Zora platform ücreti: ${ZORA_MINT_FEE * quantity} ETH.`
-    };
+    throw Object.assign(
+        new Error(
+            `NFT minting for ${targetAddress} (${quantity} item) is unavailable until the collection's live mint configuration and exact value can be verified.`,
+        ),
+        { code: 'LIVE_MINT_QUOTE_REQUIRED', statusCode: 501 },
+    );
 }

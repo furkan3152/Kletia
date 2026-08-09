@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -36,7 +36,6 @@ contract X402Gateway {
         usdc.safeTransfer(to, balance);
     }
 
-    // Explicit fallback for ExactEvmScheme if used
     function pay(string calldata endpoint) external {
         uint256 amount = pricePerCall;
         require(amount > 0, "Price not set");
@@ -53,7 +52,7 @@ contract X402Factory {
 
     function createGateway(address _usdc, uint256 _initialPrice) external returns (address) {
         X402Gateway newGateway = new X402Gateway(_usdc, _initialPrice, msg.sender);
-        
+
         allGateways.push(newGateway);
         getOwnerGateways[msg.sender].push(newGateway);
 

@@ -52,7 +52,6 @@ export const ArcDashboardWidget: React.FC<{
     functionName: 'usdcReserve',
   });
 
-  // --- Portfolio Data ---
   const { data: lendingCollateral } = useReadContract({
     address: ARC_CONTRACTS.Lending as `0x${string}`,
     abi: ARC_LENDING_ABI,
@@ -67,23 +66,6 @@ export const ArcDashboardWidget: React.FC<{
     args: address ? [address] : undefined,
   });
 
-  /* const { data: lendingSupplied } = useReadContract({
-    address: ARC_CONTRACTS.Lending as `0x${string}`,
-    abi: ARC_LENDING_ABI,
-    functionName: 'getSuppliedBalance',
-    args: address ? [address] : undefined,
-  }); */
-
-  /* const { data: vaultDepositData } = useReadContract({
-    address: ARC_CONTRACTS.Vault as `0x${string}`,
-    abi: ARC_VAULT_ABI,
-    functionName: 'deposits',
-    args: address ? [address] : undefined,
-  }); */
-  
-  // const vaultPrincipal = vaultDepositData ? (vaultDepositData as any)[0] : 0n;
-
-  // --- Form States ---
   const [swapAmount, setSwapAmount] = useState('1');
   const [isUsdcToToken, setIsUsdcToToken] = useState(true);
   const [batchAddresses, setBatchAddresses] = useState('0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A, 0x1234567890123456789012345678901234567890');
@@ -216,7 +198,7 @@ export const ArcDashboardWidget: React.FC<{
             </div>
             <div className="mb-4">
               <InputLabel>{isUsdcToToken ? 'Receive — KLET' : 'Receive — USDC'}</InputLabel>
-              <InputField type="number" disabled value={swapAmount ? (parseFloat(swapAmount) * (isUsdcToToken ? 100 : 0.01)).toFixed(2) : ''} placeholder="0.00" className="bg-gray-200 dark:bg-slate-800" />
+              <InputField type="text" disabled value="" placeholder="Live quote is available in frontend/base_mainnet" className="bg-gray-200 dark:bg-slate-800" />
             </div>
             <ActionButton 
               disabled={isPending || !swapAmount} 
@@ -451,13 +433,13 @@ export const ArcDashboardWidget: React.FC<{
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      
-      {/* Brutalist Hero Banner */}
+
+      {}
       <div className="bg-[#8B5CF6] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
-        {/* Decorative brutalist shapes */}
+        {}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
         <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
-        
+
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
           <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
             KLETIA OMNI-ENGINE
@@ -468,8 +450,8 @@ export const ArcDashboardWidget: React.FC<{
           <p className="text-lg md:text-xl font-bold text-white bg-[#1A1A1A] p-2 inline-block shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] w-max">
             Built on Arc Network - Circle developed by, USDC-native Layer-1
           </p>
-          
-          {/* Brutalist Stats */}
+
+          {}
           <div className="flex flex-wrap gap-4 mt-6">
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">KLET Price</span>
@@ -512,8 +494,8 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       </div>
 
-      {/* Portfolio Overview Removed from Here - Now it's a Widget */}
-      {/* Widget Grid */}
+      {}
+      {}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {WIDGETS.map(w => (
           <button 
@@ -542,7 +524,7 @@ export const ArcDashboardWidget: React.FC<{
         ))}
       </div>
 
-      {/* Active Widget Form Container */}
+      {}
       {activeWidget && (
         <div className="relative mt-8 animate-fade-in-up">
           <button 
@@ -556,7 +538,7 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       )}
 
-      {/* Omni Features */}
+      {}
       <div className="bg-[#F8FAFC] dark:bg-[#111827] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-8 mt-12">
         <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#1A1A1A] flex items-center justify-center shadow-[2px_2px_0_#1A1A1A]">⚡</span> 
@@ -587,7 +569,7 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       </div>
 
-      {/* Quick Links */}
+      {}
       <div className="flex flex-wrap gap-4 mt-8">
         {[
           { name: '🔍 ArcScan Explorer', url: 'https://testnet.arcscan.app', color: 'bg-[#3B82F6]' },

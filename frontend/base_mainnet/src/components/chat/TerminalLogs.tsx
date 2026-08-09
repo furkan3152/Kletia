@@ -1,7 +1,7 @@
 import React from 'react';
 import { Terminal as TerminalIcon } from 'lucide-react';
 import { ChatMessage } from '../../types';
-
+import { getNetwork } from '../../config/networks';
 
 interface TerminalLogsProps {
   msg: ChatMessage;
@@ -9,11 +9,11 @@ interface TerminalLogsProps {
 
 export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
 
-
   if (!msg.terminalLogs || msg.terminalLogs.length === 0) return null;
 
-  const explorerUrl = `https://sepolia.basescan.org/tx/${msg.txHash}`;
-  const explorerName = 'BaseScan';
+  const messageNetwork = getNetwork(msg.network ?? 'base');
+  const explorerUrl = `${messageNetwork.explorer.url}/tx/${msg.txHash}`;
+  const explorerName = messageNetwork.explorer.name;
 
   return (
     <div className="mt-4 md:mt-5 p-3 md:p-4 bg-[#1A1A1A] dark:bg-slate-900 border-[3px] border-gray-500 dark:border-[#4B5563] font-mono text-xs md:text-[13px] text-green-400 leading-relaxed overflow-x-hidden w-full sm:w-80 md:w-[450px] shadow-[3px_3px_0_#475569] dark:shadow-[3px_3px_0_#475569]">

@@ -8,13 +8,12 @@ const webacyClient = process.env.WEBACY_API_KEY
 
 export async function validateAddress(req: Request, res: Response, next: NextFunction) {
     const userAddress = req.body?.userAddress;
-    
-    // Some routes might use req.query instead of req.body, so we check both
+
     const addressToCheck = userAddress || req.query.userAddress;
 
     if (addressToCheck) {
         try {
-            // getAddress validates checksum and format. Will throw if invalid.
+
             const validAddress = getAddress(addressToCheck as string);
             if (req.body) {
                 req.body.userAddress = validAddress;
@@ -23,11 +22,10 @@ export async function validateAddress(req: Request, res: Response, next: NextFun
                 req.query.userAddress = validAddress;
             }
 
-            // Webacy Threat Risk Check
             if (webacyClient) {
                 try {
                     const risk = await webacyClient.threat.addresses.analyze(validAddress);
-                    if (risk.overallRisk > 50) {
+                    if ((risk as any)?.overallRisk > 50) {
                         return res.status(403).json({
                             status: 'error',
                             error: 'HIGH_RISK_ADDRESS',
@@ -52,13 +50,11 @@ export async function validateAddress(req: Request, res: Response, next: NextFun
 export async function sanitizePrompt(req: Request, res: Response, next: NextFunction) {
     if (req.body.prompt) {
         let prompt = req.body.prompt;
-        
-        // Enforce maximum length
+
         if (prompt.length > 500) {
             prompt = prompt.substring(0, 500);
         }
-        
-        // Basic XSS sanitization (remove script tags and similar potentially dangerous content)
+
         prompt = prompt.replace(/<[^>]*>?/gm, '');
 
         // Webacy URL Risk Check
@@ -66,10 +62,10 @@ export async function sanitizePrompt(req: Request, res: Response, next: NextFunc
             // Extract URLs from prompt
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             const urls = prompt.match(urlRegex) || [];
-            
+
             for (const url of urls) {
                 try {
-                    const urlRisk = await webacyClient.threat.urls.check(url);
+                    const urlRisk = await (webacyClient.threat as any).url.check(url);
                     if (urlRisk.is_malicious) {
                          return res.status(403).json({
                             status: 'error',
@@ -82,7 +78,7 @@ export async function sanitizePrompt(req: Request, res: Response, next: NextFunc
                 }
             }
         }
-        
+
         req.body.prompt = prompt;
     }
     next();

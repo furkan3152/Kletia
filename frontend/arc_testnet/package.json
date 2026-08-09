@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "deprecated": "node -e \"throw new Error('Deprecated runtime: use frontend/base_mainnet for both Base and Arc')\"",
+    "dev": "npm run deprecated",
+    "build": "npm run deprecated",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "npm run deprecated"
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.51.2",

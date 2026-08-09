@@ -1,32 +1,107 @@
 import React, { useState } from 'react';
-import { useWriteContract, useAccount, useBalance, useReadContract } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
-import { ARC_CONTRACTS, ARC_SWAP_ABI, ARC_BATCHPAY_ABI, ARC_VAULT_ABI, ARC_MEMOTRANSFER_ABI, ARC_AGENTREGISTRY_ABI, ARC_STAKING_ABI, ARC_LENDING_ABI } from '../../config/arcConfig';
+import { useAccount, useBalance, useChainId, useReadContract } from 'wagmi';
+import { formatEther, isAddress, parseEther } from 'viem';
+import {
+  ARC_CONTRACTS,
+  ARC_SWAP_ABI,
+  ARC_LENDING_ABI,
+} from '../../config/arcConfig';
+import { NETWORKS } from '../../config/networks';
 import { WidgetId } from '../../types';
+import { ArcUnifiedBalanceCard } from '../arc/ArcUnifiedBalanceCard';
 
-const WIDGETS = [
+const ARC_CHAIN_ID = NETWORKS.arc.chainId;
+
+const WIDGETS: Array<{
+  id: Exclude<WidgetId, null>;
+  icon: string;
+  name: string;
+  desc: string;
+  color: string;
+  disabled?: boolean;
+}> = [
   { id: 'swap' as const, icon: '🔄', name: 'Swap', desc: 'USDC / KLET Swap', color: 'bg-[#3B82F6]' },
   { id: 'vault' as const, icon: '🔒', name: 'Vault', desc: 'Time-Locked Vault', color: 'bg-[#8B5CF6]' },
   { id: 'lending' as const, icon: '🏦', name: 'Lending', desc: 'Lend & Borrow', color: 'bg-[#EF4444]' },
-  { id: 'staking' as const, icon: '💎', name: 'Staking', desc: 'Stake KLET', color: 'bg-[#06B6D4]' },
+  { id: 'staking' as const, icon: '💎', name: 'Staking', desc: 'Stake Native USDC', color: 'bg-[#06B6D4]' },
   { id: 'liquidity' as const, icon: '💧', name: 'Liquidity', desc: 'Provide LP', color: 'bg-[#10B981]' },
   { id: 'batch' as const, icon: '📦', name: 'Batch Pay', desc: 'Batch Transfer', color: 'bg-[#F59E0B]' },
   { id: 'memo' as const, icon: '📝', name: 'Memo', desc: 'Memo Transfer', color: 'bg-[#EC4899]' },
-  { id: 'agent' as const, icon: '🤖', name: 'Agent', desc: 'Register Agent', color: 'bg-[#14B8A6]', disabled: true },
 ];
+
+const InputLabel = ({ children }: { children: React.ReactNode }) => (
+  <label className="block text-xs font-black uppercase tracking-wider text-[#1A1A1A] dark:text-white mb-2">
+    {children}
+  </label>
+);
+
+const InputField = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+  <input
+    {...props}
+    className={`w-full p-3 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] focus:outline-none focus:-translate-y-0.5 focus:shadow-[5px_5px_0_#1A1A1A] dark:focus:shadow-[5px_5px_0_#8B5CF6] transition-all font-bold text-[#1A1A1A] dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`}
+  />
+);
+
+const ActionButton = ({
+  onClick,
+  disabled,
+  children,
+  colorClass,
+  className = '',
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  colorClass?: string;
+  className?: string;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={`w-full py-3 px-4 font-black uppercase tracking-widest text-white transition-all duration-200 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] ${disabled ? 'bg-gray-400 dark:bg-slate-600 opacity-80 cursor-not-allowed shadow-[1px_1px_0_#1A1A1A] translate-y-0.5' : `${colorClass || 'bg-[#0052FF]'} hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]`} ${className}`}
+  >
+    {children}
+  </button>
+);
+
+function parsePositiveAmount(
+  value: string,
+  label: string,
+  userDecimals = 6,
+): string {
+  const normalized = value.trim();
+  if (!normalized || !/^\d+(\.\d+)?$/.test(normalized)) {
+    throw new Error(`${label} için geçerli bir miktar girin.`);
+  }
+  const fraction = normalized.split('.')[1] || '';
+  if (fraction.length > userDecimals) {
+    throw new Error(
+      `${label} kullanıcı girişinde en fazla ${userDecimals} ondalık hane olabilir.`,
+    );
+  }
+  const parsed = parseEther(normalized);
+  if (parsed <= 0n) throw new Error(`${label} sıfırdan büyük olmalı.`);
+  return normalized;
+}
 
 export const ArcDashboardWidget: React.FC<{ 
   onWidgetClick: (prompt: string) => void,
   activeWidget?: WidgetId,
   setActiveWidget?: (w: WidgetId) => void,
   minimal?: boolean
-}> = ({ onWidgetClick, activeWidget: propsActiveWidget, setActiveWidget: propsSetActiveWidget, minimal = false }) => {
+}> = ({
+  onWidgetClick,
+  activeWidget: propsActiveWidget,
+  setActiveWidget: propsSetActiveWidget,
+  minimal = false,
+}) => {
   const [localActiveWidget, setLocalActiveWidget] = useState<WidgetId>(null);
   const activeWidget = propsActiveWidget !== undefined ? propsActiveWidget : localActiveWidget;
   const setActiveWidget = propsSetActiveWidget || setLocalActiveWidget;
   const { isConnected, address } = useAccount();
-  const { writeContractAsync, isPending } = useWriteContract();
-  const balance = useBalance({ address });
+  const chainId = useChainId();
+  const isArcConnected = isConnected && chainId === ARC_CHAIN_ID;
+  const balance = useBalance({ address, chainId: ARC_CHAIN_ID });
   const { data: kletRawBalance } = useReadContract({
     address: ARC_CONTRACTS.Token as `0x${string}`,
     abi: [{
@@ -38,120 +113,112 @@ export const ArcDashboardWidget: React.FC<{
     }],
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: Boolean(address) },
   });
 
-  const { data: swapRate } = useReadContract({
+  const { data: swapRate, isError: isSwapInfoError } = useReadContract({
     address: ARC_CONTRACTS.Swap as `0x${string}`,
     abi: ARC_SWAP_ABI,
     functionName: 'consultKletPrice',
+    chainId: ARC_CHAIN_ID,
   });
 
   const { data: usdcReserve } = useReadContract({
     address: ARC_CONTRACTS.Swap as `0x${string}`,
     abi: ARC_SWAP_ABI,
     functionName: 'usdcReserve',
+    chainId: ARC_CHAIN_ID,
   });
 
   // --- Portfolio Data ---
-  const { data: lendingCollateral } = useReadContract({
+  const {
+    data: lendingCollateral,
+    isError: isLendingCollateralError,
+  } = useReadContract({
     address: ARC_CONTRACTS.Lending as `0x${string}`,
     abi: ARC_LENDING_ABI,
     functionName: 'collateralBalance',
     args: address ? [address] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: Boolean(address) },
   });
 
-  const { data: lendingBorrow } = useReadContract({
+  const {
+    data: lendingBorrow,
+    isError: isLendingBorrowError,
+  } = useReadContract({
     address: ARC_CONTRACTS.Lending as `0x${string}`,
     abi: ARC_LENDING_ABI,
     functionName: 'getBorrowedBalance',
     args: address ? [address] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: Boolean(address) },
   });
 
-  /* const { data: lendingSupplied } = useReadContract({
-    address: ARC_CONTRACTS.Lending as `0x${string}`,
-    abi: ARC_LENDING_ABI,
-    functionName: 'getSuppliedBalance',
-    args: address ? [address] : undefined,
-  }); */
-
-  /* const { data: vaultDepositData } = useReadContract({
-    address: ARC_CONTRACTS.Vault as `0x${string}`,
-    abi: ARC_VAULT_ABI,
-    functionName: 'deposits',
-    args: address ? [address] : undefined,
-  }); */
-  
-  // const vaultPrincipal = vaultDepositData ? (vaultDepositData as any)[0] : 0n;
-
   // --- Form States ---
-  const [swapAmount, setSwapAmount] = useState('1');
+  const [swapAmount, setSwapAmount] = useState('');
   const [isUsdcToToken, setIsUsdcToToken] = useState(true);
-  const [batchAddresses, setBatchAddresses] = useState('0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A, 0x1234567890123456789012345678901234567890');
-  const [batchAmount, setBatchAmount] = useState('5');
-  const [vaultAmount, setVaultAmount] = useState('100');
-  const [memoTo, setMemoTo] = useState('0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A');
-  const [memoAmount, setMemoAmount] = useState('10');
-  const [memoText, setMemoText] = useState('Monthly Rent Payment');
-  const [agentName, setAgentName] = useState('Data Analysis Agent');
-  const [agentDesc, setAgentDesc] = useState('Fetches and analyzes market data.');
-  const [agentEndpoint, setAgentEndpoint] = useState('https://agent.kletia.com/data');
-  const [agentSkills, setAgentSkills] = useState('data_analysis, python');
-  const [stakeAmount, setStakeAmount] = useState('100');
-  const [lpUsdcAmount, setLpUsdcAmount] = useState('50');
-  const [lpTokenAmount, setLpTokenAmount] = useState('500');
-  const [txResult, setTxResult] = useState<{ hash?: string, error?: string } | null>(null);
+  const [batchAddresses, setBatchAddresses] = useState('');
+  const [batchAmount, setBatchAmount] = useState('');
+  const [vaultAmount, setVaultAmount] = useState('');
+  const [memoTo, setMemoTo] = useState('');
+  const [memoAmount, setMemoAmount] = useState('');
+  const [memoText, setMemoText] = useState('');
+  const [stakeAmount, setStakeAmount] = useState('');
+  const [lpUsdcAmount, setLpUsdcAmount] = useState('');
+  const [lpTokenAmount, setLpTokenAmount] = useState('');
+  const [intentError, setIntentError] = useState<string | null>(null);
 
-  const handleTx = async (action: () => Promise<string>) => {
-    setTxResult(null);
+  let previewAmount: bigint | undefined;
+  try {
+    previewAmount = swapAmount ? parseEther(swapAmount) : undefined;
+  } catch {
+    previewAmount = undefined;
+  }
+
+  const { data: usdcToKletPreview, isFetching: isUsdcPreviewLoading } = useReadContract({
+    address: ARC_CONTRACTS.Swap as `0x${string}`,
+    abi: ARC_SWAP_ABI,
+    functionName: 'previewSwapUSDCForToken',
+    args: previewAmount ? [previewAmount] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: isUsdcToToken && Boolean(previewAmount) },
+  });
+
+  const { data: kletToUsdcPreview, isFetching: isKletPreviewLoading } = useReadContract({
+    address: ARC_CONTRACTS.Swap as `0x${string}`,
+    abi: ARC_SWAP_ABI,
+    functionName: 'previewSwapTokenForUSDC',
+    args: previewAmount ? [previewAmount] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: !isUsdcToToken && Boolean(previewAmount) },
+  });
+
+  const seedIntent = (buildPrompt: () => string) => {
+    setIntentError(null);
     try {
-      const txHash = await action();
-      setTxResult({ hash: txHash });
-    } catch (err: any) {
-      console.error(err);
-      setTxResult({ error: err.shortMessage || err.message });
+      onWidgetClick(buildPrompt());
+    } catch (err) {
+      setIntentError(
+        err instanceof Error
+          ? err.message
+          : 'Arc Testnet niyeti hazırlanamadı.',
+      );
     }
   };
 
-  const renderTxResult = () => {
-    if (!txResult) return null;
+  const renderIntentError = () => {
+    if (!intentError) return null;
     return (
-      <div className={`mt-4 p-4 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] font-bold shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] ${txResult.hash ? 'bg-[#10B981] text-white' : 'bg-[#EF4444] text-white'}`}>
-        {txResult.hash ? (
-          <div className="flex flex-col gap-2">
-            <div className="text-lg">✅ TRANSACTION SUCCESSFUL</div>
-            <a href={`https://testnet.arcscan.app/tx/${txResult.hash}`} target="_blank" rel="noreferrer" className="underline decoration-2 underline-offset-2 hover:text-[#1A1A1A] transition-colors">
-              🔍 View on ArcScan Explorer
-            </a>
-          </div>
-        ) : (
-          <div>
-            ❌ ERROR: {txResult.error}
-          </div>
-        )}
+      <div
+        role="alert"
+        className="mt-4 border-[3px] border-[#1A1A1A] bg-[#EF4444] p-4 font-bold text-white shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]"
+      >
+        ❌ INPUT ERROR: {intentError}
       </div>
     );
   };
-
-  const InputLabel = ({ children }: { children: React.ReactNode }) => (
-    <label className="block text-xs font-black uppercase tracking-wider text-[#1A1A1A] dark:text-white mb-2">{children}</label>
-  );
-
-  const InputField = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input 
-      {...props} 
-      className={`w-full p-3 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] focus:outline-none focus:-translate-y-0.5 focus:shadow-[5px_5px_0_#1A1A1A] dark:focus:shadow-[5px_5px_0_#8B5CF6] transition-all font-bold text-[#1A1A1A] dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${props.className || ''}`} 
-    />
-  );
-
-  const ActionButton = ({ onClick, disabled, children, colorClass, className = "" }: { onClick: () => void, disabled?: boolean, children: React.ReactNode, colorClass?: string, className?: string }) => (
-    <button 
-      onClick={onClick} 
-      disabled={disabled}
-      className={`w-full py-3 px-4 font-black uppercase tracking-widest text-white transition-all duration-200 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] ${disabled ? 'bg-gray-400 dark:bg-slate-600 opacity-80 cursor-not-allowed shadow-[1px_1px_0_#1A1A1A] translate-y-0.5' : `${colorClass || 'bg-[#0052FF]'} hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]`} ${className}`}
-    >
-      {children}
-    </button>
-  );
 
   const renderForm = () => {
     switch (activeWidget) {
@@ -165,7 +232,19 @@ export const ArcDashboardWidget: React.FC<{
               </div>
               <div className="bg-white border-[3px] border-[#1A1A1A] p-2 shadow-[2px_2px_0_#1A1A1A]">
                 <div className="text-xs font-black text-gray-500 uppercase">Collateral / Borrow</div>
-                <div className="text-sm font-bold">{lendingCollateral ? parseFloat(formatEther(lendingCollateral as bigint)).toFixed(2) : '0'} KLET / {lendingBorrow ? parseFloat(formatEther(lendingBorrow as bigint)).toFixed(2) : '0'} USDC</div>
+                <div className="text-sm font-bold">
+                  {isLendingCollateralError
+                    ? 'Unavailable'
+                    : lendingCollateral === undefined
+                      ? 'Checking…'
+                      : `${Number(formatEther(lendingCollateral as bigint)).toFixed(2)} KLET`}{' '}
+                  /{' '}
+                  {isLendingBorrowError
+                    ? 'Unavailable'
+                    : lendingBorrow === undefined
+                      ? 'Checking…'
+                      : `${Number(formatEther(lendingBorrow as bigint)).toFixed(2)} USDC`}
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,22 +252,28 @@ export const ArcDashboardWidget: React.FC<{
                   <InputLabel>Add Collateral (KLET)</InputLabel>
                   <InputField type="number" value={vaultAmount} onChange={(e) => setVaultAmount(e.target.value)} placeholder="0.00" />
                   <ActionButton 
-                    disabled={isPending || !vaultAmount} 
+                    disabled={!vaultAmount}
                     colorClass="bg-[#10B981] hover:bg-[#059669]"
-                    onClick={() => handleTx(async () => writeContractAsync({ address: ARC_CONTRACTS.Lending as `0x${string}`, abi: ARC_LENDING_ABI, functionName: 'depositCollateral', args: [parseEther(vaultAmount || '0')] }))}
+                    onClick={() => seedIntent(() => {
+                      const amount = parsePositiveAmount(vaultAmount, 'Teminat', 18);
+                      return `Deposit ${amount} KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval`;
+                    })}
                   >
-                    {isPending ? '⏳ Awaiting...' : '🟢 Add Collateral'}
+                    🟢 Prepare Collateral Intent
                   </ActionButton>
                </div>
                <div>
                   <InputLabel>Borrow (USDC)</InputLabel>
                   <InputField type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder="0.00" />
                   <ActionButton 
-                    disabled={isPending || !stakeAmount} 
+                    disabled={!stakeAmount}
                     colorClass="bg-[#EF4444] hover:bg-[#DC2626]"
-                    onClick={() => handleTx(async () => writeContractAsync({ address: ARC_CONTRACTS.Lending as `0x${string}`, abi: ARC_LENDING_ABI, functionName: 'borrow', args: [parseEther(stakeAmount || '0')] }))}
+                    onClick={() => seedIntent(() => {
+                      const amount = parsePositiveAmount(stakeAmount, 'Borç');
+                      return `Borrow ${amount} native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval`;
+                    })}
                   >
-                    {isPending ? '⏳ Awaiting...' : '🔴 Borrow'}
+                    🔴 Prepare Borrow Intent
                   </ActionButton>
                </div>
             </div>
@@ -216,20 +301,44 @@ export const ArcDashboardWidget: React.FC<{
             </div>
             <div className="mb-4">
               <InputLabel>{isUsdcToToken ? 'Receive — KLET' : 'Receive — USDC'}</InputLabel>
-              <InputField type="number" disabled value={swapAmount ? (parseFloat(swapAmount) * (isUsdcToToken ? 100 : 0.01)).toFixed(2) : ''} placeholder="0.00" className="bg-gray-200 dark:bg-slate-800" />
+              <InputField
+                type="text"
+                disabled
+                value={
+                  isUsdcPreviewLoading || isKletPreviewLoading
+                    ? 'On-chain quote loading...'
+                    : isUsdcToToken && usdcToKletPreview !== undefined
+                      ? formatEther(usdcToKletPreview as bigint)
+                      : !isUsdcToToken && kletToUsdcPreview !== undefined
+                        ? formatEther(kletToUsdcPreview as bigint)
+                        : ''
+                }
+                placeholder="Enter an amount for a live quote"
+                className="bg-gray-200 dark:bg-slate-800"
+              />
+            </div>
+            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+              TESTNET NOTICE: The deployed swap entrypoint does not accept a
+              client-side minimum output or deadline. This quote is read live
+              from Arc, while the button only prepares an editable intent. The
+              intent engine must rebuild and simulate the route before wallet
+              approval; re-check the final wallet details before signing.
             </div>
             <ActionButton 
-              disabled={isPending || !swapAmount} 
+              disabled={!swapAmount}
               colorClass="bg-[#3B82F6] hover:bg-[#2563EB]"
-              onClick={() => handleTx(async () => {
-                if (isUsdcToToken) {
-                  return writeContractAsync({ address: ARC_CONTRACTS.Swap as `0x${string}`, abi: ARC_SWAP_ABI, functionName: 'swapUSDCForToken', value: parseEther(swapAmount || '0') });
-                } else {
-                  return writeContractAsync({ address: ARC_CONTRACTS.Swap as `0x${string}`, abi: ARC_SWAP_ABI, functionName: 'swapTokenForUSDC', args: [parseEther(swapAmount || '0')] });
-                }
+              onClick={() => seedIntent(() => {
+                const amount = parsePositiveAmount(
+                  swapAmount,
+                  'Swap',
+                  isUsdcToToken ? 6 : 18,
+                );
+                const tokenIn = isUsdcToToken ? 'native USDC' : 'KLET';
+                const tokenOut = isUsdcToToken ? 'KLET' : 'native USDC';
+                return `Swap ${amount} ${tokenIn} to ${tokenOut} on Arc Testnet using the live on-chain Kletia route; simulate it before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Awaiting Approval...' : '⚡ Swap'}
+              ⚡ Prepare Swap Intent
             </ActionButton>
           </div>
         );
@@ -246,22 +355,22 @@ export const ArcDashboardWidget: React.FC<{
               <InputField type="number" value={vaultAmount} onChange={(e) => setVaultAmount(e.target.value)} placeholder="0.00" />
             </div>
             <ActionButton 
-              disabled={isPending || !vaultAmount} 
+              disabled={!vaultAmount}
               colorClass="bg-[#8B5CF6] hover:bg-[#7C3AED]"
-              onClick={() => handleTx(async () => {
-                return writeContractAsync({ address: ARC_CONTRACTS.Vault as `0x${string}`, abi: ARC_VAULT_ABI, functionName: 'deposit', value: parseEther(vaultAmount || '0') });
+              onClick={() => seedIntent(() => {
+                const amount = parsePositiveAmount(vaultAmount, 'Vault deposit');
+                return `Deposit ${amount} native USDC into the Kletia Vault on Arc Testnet; prepare the time-locked vault route and simulate it before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Awaiting Approval...' : '🔒 Deposit to Vault'}
+              🔒 Prepare Vault Deposit Intent
             </ActionButton>
             <ActionButton 
-              disabled={isPending} 
               colorClass="bg-[#0052FF] hover:bg-[#0040DD] dark:bg-blue-600 dark:hover:bg-blue-500"
-              onClick={() => handleTx(async () => {
-                return writeContractAsync({ address: ARC_CONTRACTS.Vault as `0x${string}`, abi: ARC_VAULT_ABI, functionName: 'withdraw' });
-              })}
+              onClick={() => seedIntent(() =>
+                'Withdraw my full Kletia Vault position, including available principal and interest, on Arc Testnet; simulate it before wallet approval'
+              )}
             >
-              {isPending ? '⏳ Awaiting Approval...' : '🔓 Withdraw (Principal + Interest)'}
+              🔓 Prepare Full Withdrawal Intent
             </ActionButton>
           </div>
         );
@@ -271,42 +380,59 @@ export const ArcDashboardWidget: React.FC<{
           <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
             <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
               <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">💎 KLETIA STAKING <span className="text-sm text-gray-500">(built on Arc)</span></h3>
-              <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">Earn passive income by staking USDC. Flexible Staking (No lock).</p>
+              <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">
+                Stake native USDC. Unstaking starts the contract-defined cooldown before funds can be claimed.
+              </p>
             </div>
             <div className="mb-4">
               <InputLabel>Stake Amount (USDC)</InputLabel>
               <InputField type="number" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} placeholder="0.00" />
             </div>
             <ActionButton 
-              disabled={isPending || !stakeAmount} 
+              disabled={!stakeAmount}
               colorClass="bg-[#06B6D4] hover:bg-[#0891B2]"
-              onClick={() => handleTx(async () => {
-                return writeContractAsync({ address: ARC_CONTRACTS.Staking as `0x${string}`, abi: ARC_STAKING_ABI, functionName: 'stake', value: parseEther(stakeAmount || '0') });
+              onClick={() => seedIntent(() => {
+                const amount = parsePositiveAmount(stakeAmount, 'Stake');
+                return `Stake ${amount} native USDC in Kletia Staking on Arc Testnet; prepare the route and simulate it before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Awaiting Approval...' : '💎 Stake'}
+              💎 Prepare Stake Intent
             </ActionButton>
             <div className="flex gap-4 mt-4">
               <ActionButton 
-                disabled={isPending} 
                 colorClass="bg-[#10B981] hover:bg-[#059669]"
                 className="mt-0"
-                onClick={() => handleTx(async () => {
-                  return writeContractAsync({ address: ARC_CONTRACTS.Staking as `0x${string}`, abi: ARC_STAKING_ABI, functionName: 'claimRewards' });
-                })}
+                onClick={() => seedIntent(() =>
+                  'Claim all available rewards from Kletia Staking on Arc Testnet; simulate it before wallet approval'
+                )}
               >
                 🎁 Claim Rewards
               </ActionButton>
               <ActionButton 
-                disabled={isPending} 
+                disabled={!stakeAmount}
                 colorClass="bg-[#EF4444] hover:bg-[#DC2626]"
                 className="mt-0"
-                onClick={() => handleTx(async () => {
-                  return writeContractAsync({ address: ARC_CONTRACTS.Staking as `0x${string}`, abi: ARC_STAKING_ABI, functionName: 'unstake', args: [parseEther(stakeAmount || '0')] });
+                onClick={() => seedIntent(() => {
+                  const amount = parsePositiveAmount(stakeAmount, 'Unstake');
+                  return `Unstake ${amount} native USDC from Kletia Staking on Arc Testnet and start the contract-defined cooldown; simulate it before wallet approval`;
                 })}
               >
-                🔓 Unstake
+                🔓 Prepare Unstake Intent
               </ActionButton>
+              <ActionButton
+                colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
+                className="mt-0"
+                onClick={() => seedIntent(() =>
+                  'Claim my cooled-down unstaked native USDC from Kletia Staking on Arc Testnet; simulate it before wallet approval'
+                )}
+              >
+                📤 Claim Unstaked
+              </ActionButton>
+            </div>
+            <div className="mt-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+              Claim intents read the connected wallet's live staking state,
+              reject empty positions or active cooldowns, verify reward-pool
+              coverage, and simulate the exact claim before wallet approval.
             </div>
           </div>
         );
@@ -323,17 +449,32 @@ export const ArcDashboardWidget: React.FC<{
               <InputField type="number" value={lpUsdcAmount} onChange={(e) => setLpUsdcAmount(e.target.value)} placeholder="0.00" />
             </div>
             <div className="mb-4">
-              <InputLabel>Token Amount</InputLabel>
+              <InputLabel>Maximum KLET Spend (hard cap)</InputLabel>
               <InputField type="number" value={lpTokenAmount} onChange={(e) => setLpTokenAmount(e.target.value)} placeholder="0.00" />
             </div>
+            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+              The intent engine derives the live KLET requirement from pool
+              reserves and refuses the route if it exceeds this hard cap. The
+              encoded calldata and exact approval are additionally bounded to
+              at most 5% movement from the live ratio.
+            </div>
             <ActionButton 
-              disabled={isPending || !lpUsdcAmount || !lpTokenAmount} 
+              disabled={!lpUsdcAmount || !lpTokenAmount}
               colorClass="bg-[#10B981] hover:bg-[#059669]"
-              onClick={() => handleTx(async () => {
-                return writeContractAsync({ address: ARC_CONTRACTS.Swap as `0x${string}`, abi: ARC_SWAP_ABI, functionName: 'addLiquidity', args: [parseEther(lpTokenAmount || '0')], value: parseEther(lpUsdcAmount || '0') });
+              onClick={() => seedIntent(() => {
+                const nativeAmount = parsePositiveAmount(
+                  lpUsdcAmount,
+                  'USDC liquidity',
+                );
+                const tokenMaximum = parsePositiveAmount(
+                  lpTokenAmount,
+                  'KLET liquidity',
+                  18,
+                );
+                return `Add ${nativeAmount} native USDC liquidity to the KLET/USDC pool on Arc Testnet and spend at most ${tokenMaximum} KLET; calculate and show the live requirement and enforce that hard cap before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Awaiting Approval...' : '💧 Add Liquidity'}
+              💧 Prepare Liquidity Intent
             </ActionButton>
           </div>
         );
@@ -353,17 +494,33 @@ export const ArcDashboardWidget: React.FC<{
               <InputLabel>USDC per Person</InputLabel>
               <InputField type="number" value={batchAmount} onChange={(e) => setBatchAmount(e.target.value)} placeholder="0.00" />
             </div>
+            <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#D1FAE5] p-3 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
+              Supported intent route: atomic_payout through Arc&apos;s official
+              Multicall3From extension. The widget never writes directly to
+              BatchPay.
+            </div>
             <ActionButton 
-              disabled={isPending || !batchAddresses || !batchAmount} 
+              disabled={!batchAddresses || !batchAmount}
               colorClass="bg-[#F59E0B] hover:bg-[#D97706]"
-              onClick={() => handleTx(async () => {
-                const addrs = batchAddresses.split(',').map(a => a.trim() as `0x${string}`);
-                const amounts = addrs.map(() => parseEther(batchAmount || '0'));
-                const total = amounts.reduce((a, b) => a + b, BigInt(0));
-                return writeContractAsync({ address: ARC_CONTRACTS.BatchPay as `0x${string}`, abi: ARC_BATCHPAY_ABI, functionName: 'batchPay', args: [addrs, amounts, 'Kletia Batch'], value: total });
+              onClick={() => seedIntent(() => {
+                const addrs = batchAddresses.split(',').map((entry) => entry.trim()).filter(Boolean);
+                if (addrs.length === 0 || addrs.some((entry) => !isAddress(entry))) {
+                  throw new Error('Tüm batch alıcıları geçerli EVM adresleri olmalı.');
+                }
+                if (new Set(addrs.map((entry) => entry.toLowerCase())).size !== addrs.length) {
+                  throw new Error('Batch listesinde aynı alıcı birden fazla kez bulunamaz.');
+                }
+                if (addrs.length > 25) {
+                  throw new Error('Atomik ödeme en fazla 25 benzersiz alıcı içerebilir.');
+                }
+                const perRecipient = parsePositiveAmount(batchAmount, 'Kişi başı USDC');
+                const payouts = addrs
+                  .map((recipient) => `${perRecipient} native USDC to ${recipient}`)
+                  .join(', ');
+                return `Atomically pay ${payouts} on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Sending...' : '📦 Batch Send'}
+              📦 Prepare Atomic Payout Intent
             </ActionButton>
           </div>
         );
@@ -373,7 +530,10 @@ export const ArcDashboardWidget: React.FC<{
           <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
             <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
               <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">📝 KLETIA MEMO PAY <span className="text-sm text-gray-500">(built on Arc)</span></h3>
-              <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">Send USDC with a permanent on-chain message.</p>
+              <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">
+                Send USDC with a permanent public on-chain message. Never
+                include personal or sensitive information.
+              </p>
             </div>
             <div className="mb-4">
               <InputLabel>Recipient Address</InputLabel>
@@ -385,52 +545,24 @@ export const ArcDashboardWidget: React.FC<{
             </div>
             <div className="mb-4">
               <InputLabel>Your On-chain Memo</InputLabel>
-              <InputField type="text" value={memoText} onChange={(e) => setMemoText(e.target.value)} placeholder="This payment is for rent..." />
+              <InputField type="text" value={memoText} onChange={(e) => setMemoText(e.target.value)} placeholder="PUBLIC-REFERENCE-001" />
             </div>
             <ActionButton 
-              disabled={isPending || !memoTo || !memoAmount || !memoText} 
+              disabled={!memoTo || !memoAmount || !memoText}
               colorClass="bg-[#EC4899] hover:bg-[#DB2777]"
-              onClick={() => handleTx(async () => {
-                return writeContractAsync({ address: ARC_CONTRACTS.MemoTransfer as `0x${string}`, abi: ARC_MEMOTRANSFER_ABI, functionName: 'transferWithMemo', args: [memoTo as `0x${string}`, memoText], value: parseEther(memoAmount || '0') });
+              onClick={() => seedIntent(() => {
+                const recipient = memoTo.trim();
+                if (!isAddress(recipient)) throw new Error('Geçerli bir alıcı adresi girin.');
+                const amount = parsePositiveAmount(memoAmount, 'Memo transfer');
+                const memo = memoText.trim();
+                if (!memo) throw new Error('Memo metni boş olamaz.');
+                if (new TextEncoder().encode(memo).length > 256) {
+                  throw new Error('Memo UTF-8 olarak en fazla 256 byte olabilir.');
+                }
+                return `Send ${amount} native USDC to ${recipient} through Kletia Memo Pay on Arc Testnet with the permanent public on-chain memo ${JSON.stringify(memo)}; simulate it before wallet approval`;
               })}
             >
-              {isPending ? '⏳ Sending...' : '📝 Memo Transfer'}
-            </ActionButton>
-          </div>
-        );
-
-      case 'agent':
-        return (
-          <div className="p-6 bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
-            <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4">
-              <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">🤖 KLETIA AGENT REGISTRY <span className="text-sm text-gray-500">(built on Arc)</span></h3>
-              <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">Register your AI agent on-chain (ERC-8004).</p>
-            </div>
-            <div className="mb-4">
-              <InputLabel>Agent Name</InputLabel>
-              <InputField type="text" value={agentName} onChange={(e) => setAgentName(e.target.value)} placeholder="Alpha Trader AI" />
-            </div>
-            <div className="mb-4">
-              <InputLabel>Description</InputLabel>
-              <InputField type="text" value={agentDesc} onChange={(e) => setAgentDesc(e.target.value)} placeholder="Hunts for arbitrage opportunities" />
-            </div>
-            <div className="mb-4">
-              <InputLabel>Skills (comma separated)</InputLabel>
-              <InputField type="text" value={agentSkills} onChange={(e) => setAgentSkills(e.target.value)} placeholder="defi, arbitrage, analytics" />
-            </div>
-            <div className="mb-4">
-              <InputLabel>Endpoint URL</InputLabel>
-              <InputField type="text" value={agentEndpoint} onChange={(e) => setAgentEndpoint(e.target.value)} placeholder="https://api.myagent.ai" />
-            </div>
-            <ActionButton 
-              disabled={isPending || !agentName || !agentDesc} 
-              colorClass="bg-[#14B8A6] hover:bg-[#0D9488]"
-              onClick={() => handleTx(async () => {
-                const skills = agentSkills.split(',').map(s => s.trim()).filter(Boolean);
-                return writeContractAsync({ address: ARC_CONTRACTS.AgentRegistry as `0x${string}`, abi: ARC_AGENTREGISTRY_ABI, functionName: 'registerAgent', args: [agentName, agentDesc, skills, agentEndpoint || 'https://kletia.app'] });
-              })}
-            >
-              {isPending ? '⏳ Registering...' : '🤖 Register On-Chain'}
+              📝 Prepare Memo Intent
             </ActionButton>
           </div>
         );
@@ -444,20 +576,20 @@ export const ArcDashboardWidget: React.FC<{
     return activeWidget ? (
       <div className="w-full">
         {renderForm()}
-        {renderTxResult()}
+        {renderIntentError()}
       </div>
     ) : null;
   }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      
-      {/* Brutalist Hero Banner */}
+
+      {}
       <div className="bg-[#8B5CF6] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
-        {/* Decorative brutalist shapes */}
+        {}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
         <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
-        
+
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
           <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
             KLETIA OMNI-ENGINE
@@ -466,26 +598,36 @@ export const ArcDashboardWidget: React.FC<{
             DASHBOARD
           </h2>
           <p className="text-lg md:text-xl font-bold text-white bg-[#1A1A1A] p-2 inline-block shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] w-max">
-            Built on Arc Network - Circle developed by, USDC-native Layer-1
+            USDC-native Arc Testnet • Chain ID 5042002
           </p>
-          
-          {/* Brutalist Stats */}
+
+          {}
           <div className="flex flex-wrap gap-4 mt-6">
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">KLET Price</span>
               <span className="text-xl font-black text-[#1A1A1A] flex items-center gap-2">
-                {swapRate && Number(swapRate) > 0 ? `$${(1 / Number(swapRate)).toFixed(3)}` : '—'} <span className="text-xs text-[#10B981] bg-[#D1FAE5] px-2 py-0.5 border-[2px] border-[#10B981]">On-Chain</span>
+                {swapRate && (swapRate as bigint) > 0n
+                  ? `${Number(formatEther(swapRate as bigint)).toLocaleString(undefined, { maximumFractionDigits: 8 })} USDC`
+                  : '—'}{' '}
+                <span className="text-xs text-[#10B981] bg-[#D1FAE5] px-2 py-0.5 border-[2px] border-[#10B981]">On-Chain</span>
               </span>
             </div>
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">Total Liquidity (USDC)</span>
-              <span className="text-xl font-black text-[#1A1A1A]">{usdcReserve ? `$${parseFloat(formatEther(usdcReserve as bigint)).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}` : '—'}</span>
+              <span className="text-xl font-black text-[#1A1A1A]">
+                {usdcReserve === undefined
+                  ? '—'
+                  : `$${Number(formatEther(usdcReserve as bigint)).toLocaleString(undefined, {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 6,
+                    })}`}
+              </span>
             </div>
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">Network Status</span>
-              <span className="text-xl font-black text-[#10B981] flex items-center gap-2">
-                <span className="w-3 h-3 bg-[#10B981] border-[2px] border-[#1A1A1A] rounded-full animate-pulse"></span>
-                ACTIVE
+              <span className={`text-xl font-black flex items-center gap-2 ${isSwapInfoError ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>
+                <span className={`w-3 h-3 border-[2px] border-[#1A1A1A] rounded-full ${isSwapInfoError ? 'bg-[#EF4444]' : 'bg-[#10B981] animate-pulse'}`}></span>
+                {isSwapInfoError ? 'UNAVAILABLE' : swapRate === undefined ? 'CHECKING' : 'ACTIVE'}
               </span>
             </div>
           </div>
@@ -495,25 +637,121 @@ export const ArcDashboardWidget: React.FC<{
           <div className="mb-4">
             <span className="text-xs font-black text-gray-500 uppercase block mb-1">Balance</span>
             <div className="text-4xl font-black text-[#1A1A1A] dark:text-white flex items-end gap-2">
-              {isConnected && balance.data ? parseFloat(formatEther(balance.data.value)).toFixed(4) : '—'} 
+              {isArcConnected && balance.data
+                ? Number(formatEther(balance.data.value)).toFixed(6)
+                : '—'}
               <span className="text-lg text-[#3B82F6] mb-1">USDC</span>
             </div>
             <div className="text-xl font-bold text-gray-600 dark:text-gray-400 mt-2 flex items-center gap-2">
-              {isConnected && kletRawBalance !== undefined ? parseFloat(formatEther(kletRawBalance as bigint)).toFixed(4) : '—'} 
+              {isArcConnected && kletRawBalance !== undefined
+                ? Number(formatEther(kletRawBalance as bigint)).toFixed(6)
+                : '—'}
               <span className="text-sm text-[#8B5CF6] font-black">KLET</span>
             </div>
           </div>
           <div className="pt-4 border-t-[3px] border-[#1A1A1A] dark:border-slate-700 flex items-center gap-2">
-            <div className={`w-4 h-4 border-[2px] border-[#1A1A1A] ${isConnected ? 'bg-[#10B981]' : 'bg-[#EF4444]'}`}></div>
+            <div className={`w-4 h-4 border-[2px] border-[#1A1A1A] ${isArcConnected ? 'bg-[#10B981]' : 'bg-[#EF4444]'}`}></div>
             <span className="font-black text-[#1A1A1A] dark:text-white uppercase text-sm">
-              {isConnected ? 'WALLET CONNECTED' : 'NOT CONNECTED'}
+              {isArcConnected
+                ? 'ARC WALLET CONNECTED'
+                : isConnected
+                  ? 'WRONG NETWORK'
+                  : 'NOT CONNECTED'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Portfolio Overview Removed from Here - Now it's a Widget */}
-      {/* Widget Grid */}
+      <ArcUnifiedBalanceCard />
+
+      <div className="border-[4px] border-[#1A1A1A] bg-[#FACC15] p-5 shadow-[8px_8px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[8px_8px_0_#475569] md:p-7">
+        <div className="mb-5 flex flex-col justify-between gap-3 border-b-[4px] border-[#1A1A1A] pb-4 md:flex-row md:items-end">
+          <div>
+            <div className="mb-2 inline-block border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#1A1A1A]">
+              Powered by official Arc primitives
+            </div>
+            <h3 className="text-2xl font-black uppercase text-[#1A1A1A] md:text-4xl">
+              Arc Money Studio
+            </h3>
+            <p className="mt-1 max-w-3xl text-sm font-bold text-[#1A1A1A]">
+              Bir şablon seç; widget işlemi doğrudan göndermek yerine niyet
+              kutusuna düzenlenebilir bir cümle yerleştirir. Köşeli
+              parantezli alanlar değiştirilmeden hiçbir rota hazırlanmaz.
+            </p>
+          </div>
+          <span className="w-max rotate-1 border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-3 py-2 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A]">
+            Intent First
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {[
+            {
+              icon: '💱',
+              title: 'Stable FX Guard',
+              detail: 'Circle App Kit • live stop limit',
+              prompt:
+                'Swap [AMOUNT] USDC to EURC on Arc Testnet, use [SLIPPAGE]% slippage and do not accept less than [MINIMUM_OUTPUT] EURC',
+            },
+            {
+              icon: '🚀',
+              title: 'Testnet Bridge',
+              detail: 'CCTP • Circle Forwarder • SLOW',
+              prompt:
+                'Bridge [AMOUNT] USDC from Arc Testnet to Base Sepolia for [RECIPIENT_ADDRESS] using SLOW mode',
+            },
+            {
+              icon: '🧾',
+              title: 'Intent Invoice',
+              detail: 'Official Memo • public opaque reference',
+              prompt:
+                'Pay [AMOUNT] USDC on Arc to [RECIPIENT_ADDRESS] with official memo reference [PUBLIC_REFERENCE]',
+            },
+            {
+              icon: '⚛️',
+              title: 'Atomic Treasury',
+              detail: 'Multicall3From • all or nothing',
+              prompt:
+                'Atomically pay [AMOUNT] native USDC to [RECIPIENT_ADDRESS] on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval',
+            },
+            {
+              icon: '✉️',
+              title: 'App Kit Send',
+              detail: 'USDC / EURC • official SDK',
+              prompt:
+                'Send [AMOUNT] EURC on Arc Testnet to [RECIPIENT_ADDRESS] through Circle App Kit',
+            },
+            {
+              icon: '🧠',
+              title: 'Route Proof',
+              detail: 'fee • output • policy evidence',
+              prompt:
+                'Show my Arc portfolio and explain which Arc money routes are available without sending a transaction',
+            },
+          ].map((blueprint) => (
+            <button
+              key={blueprint.title}
+              type="button"
+              onClick={() => onWidgetClick(blueprint.prompt)}
+              className="group flex items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-4 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#1A1A1A]">
+                {blueprint.icon}
+              </span>
+              <span>
+                <span className="block text-sm font-black uppercase">
+                  {blueprint.title}
+                </span>
+                <span className="mt-1 block text-xs font-bold text-gray-600">
+                  {blueprint.detail}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {}
+      {}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {WIDGETS.map(w => (
           <button 
@@ -542,7 +780,7 @@ export const ArcDashboardWidget: React.FC<{
         ))}
       </div>
 
-      {/* Active Widget Form Container */}
+      {}
       {activeWidget && (
         <div className="relative mt-8 animate-fade-in-up">
           <button 
@@ -552,11 +790,11 @@ export const ArcDashboardWidget: React.FC<{
             ✕
           </button>
           {renderForm()}
-          {renderTxResult()}
+          {renderIntentError()}
         </div>
       )}
 
-      {/* Omni Features */}
+      {}
       <div className="bg-[#F8FAFC] dark:bg-[#111827] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-8 mt-12">
         <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#1A1A1A] flex items-center justify-center shadow-[2px_2px_0_#1A1A1A]">⚡</span> 
@@ -564,18 +802,18 @@ export const ArcDashboardWidget: React.FC<{
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { icon: '🔒', name: 'Vault AI', desc: 'Smart Investment', prompt: 'Transfer 50 USDC to my Kletia vault on Arc network immediately, I want to earn interest' },
-            { icon: '✉️', name: 'Memo Pay', desc: 'Memo Payment', prompt: 'Send 10 USDC to Ahmet\'s wallet 0xFf... with rent payment description' },
-            { icon: '💦', name: 'Liquidity', desc: 'Pool Funding', prompt: 'Add 10 USDC liquidity to Kletia Swap pool on Arc network' },
-            { icon: '🔄', name: 'Swap', desc: 'USDC/KLETIA', prompt: 'Swap my 5 USDC for Kletia test token' },
-            { icon: '💎', name: 'Stake', desc: 'Flexible Lock', prompt: 'Lock 25 USDC to Kletia staking contract on Arc network for the future' },
-            { icon: '🏦', name: 'Lend', desc: 'Lend Assets', prompt: 'Lend 5 USDC to Kletia Lending on Arc network' },
-            { icon: '💸', name: 'Borrow', desc: 'Borrow Assets', prompt: 'Borrow 5 USDC from Kletia Lending on Arc network' },
+            { icon: '🔒', name: 'Vault', desc: 'Deposit / Withdraw', widget: 'vault' as const },
+            { icon: '✉️', name: 'Memo Pay', desc: 'On-chain Memo', widget: 'memo' as const },
+            { icon: '💦', name: 'Liquidity', desc: 'USDC / KLET Pool', widget: 'liquidity' as const },
+            { icon: '🔄', name: 'Swap', desc: 'Live On-chain Quote', widget: 'swap' as const },
+            { icon: '💎', name: 'Stake', desc: 'Stake / Cooldown', widget: 'staking' as const },
+            { icon: '🏦', name: 'Lending', desc: 'Collateral / Borrow', widget: 'lending' as const },
+            { icon: '📦', name: 'Batch Pay', desc: 'Multiple Recipients', widget: 'batch' as const },
           ].map((f, i) => (
             <button 
               key={i} 
               className="flex items-center gap-4 bg-white dark:bg-[#1E293B] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all text-left"
-              onClick={() => onWidgetClick(f.prompt)}
+              onClick={() => setActiveWidget(f.widget)}
             >
               <span className="w-10 h-10 flex items-center justify-center bg-[#E2E8F0] dark:bg-[#0F172A] border-[2px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[2px_2px_0_#1A1A1A] text-xl shrink-0">{f.icon}</span>
               <div>
@@ -587,7 +825,7 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       </div>
 
-      {/* Quick Links */}
+      {}
       <div className="flex flex-wrap gap-4 mt-8">
         {[
           { name: '🔍 ArcScan Explorer', url: 'https://testnet.arcscan.app', color: 'bg-[#3B82F6]' },

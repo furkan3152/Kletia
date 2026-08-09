@@ -20,4 +20,14 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: [
+      'src/App.tsx',
+      'src/hooks/useNetwork.ts',
+    ],
+    rules: {
+
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])

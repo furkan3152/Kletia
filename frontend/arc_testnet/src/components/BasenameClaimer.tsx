@@ -47,7 +47,7 @@ export function BasenameClaimer() {
     const { address } = useAccount();
     const [name, setName] = useState('');
     const { data: hash, isPending, isCheckingSecurity, securityError, writeContract, error } = useSecureWriteContract();
-    
+
     const cleanName = name.toLowerCase().replace(/[^a-z0-9-]/g, '').replace('.base.eth', '');
     const duration = 31557600n; // 1 year in seconds
 
@@ -77,7 +77,7 @@ export function BasenameClaimer() {
 
     const handleRegister = async () => {
         if (!cleanName || !address || totalPriceInWei === 0n) return;
-        
+
         writeContract({
             address: "0x4cCb0BB02FCABA27e82a56646E81d8c5bC4119a5",
             abi: REGISTRAR_ABI,
@@ -86,7 +86,7 @@ export function BasenameClaimer() {
                 name: cleanName,
                 owner: address,
                 duration: duration,
-                resolver: "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD", // L2 Resolver
+                resolver: "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD", 
                 data: [],
                 reverseRecord: false
             }],
@@ -100,7 +100,7 @@ export function BasenameClaimer() {
                 <div className="w-20 h-20 bg-[#0052FF] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] rounded-full flex items-center justify-center mb-6 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] -rotate-6">
                     <Tag className="w-10 h-10 text-white" strokeWidth={3} />
                 </div>
-                
+
                 <h2 className="text-3xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tighter mb-2">Claim Your Base Identity</h2>
                 <p className="text-gray-500 dark:text-gray-400 font-bold mb-8 text-sm px-4">Register your unique .base.eth username directly on the blockchain.</p>
 
@@ -116,7 +116,7 @@ export function BasenameClaimer() {
                         .base.eth
                     </div>
                 </div>
-                
+
                 <div className="w-full text-right mb-4 min-h-[24px]">
                     {cleanName.length > 0 && cleanName.length < 3 && (
                         <span className="text-red-500 font-bold text-sm">Name must be at least 3 characters</span>
@@ -149,13 +149,13 @@ export function BasenameClaimer() {
                         <div>{securityError}</div>
                     </div>
                 )}
-                
+
                 {error && !securityError && (
                     <div className="mt-4 text-red-500 font-bold text-sm bg-red-100 border-[2px] border-red-500 p-2 w-full text-left break-words">
                         Error: {(error as any).shortMessage || error.message}
                     </div>
                 )}
-                
+
                 {hash && (
                     <a href={`https://testnet.arcscan.app/tx/${hash}`} target="_blank" className="mt-4 text-[#0052FF] hover:underline font-black text-sm">
                         View Transaction on BaseScan ↗

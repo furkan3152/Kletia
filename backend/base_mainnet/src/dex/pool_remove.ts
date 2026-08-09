@@ -1,130 +1,301 @@
-import { encodeFunctionData, parseUnits, formatUnits, erc20Abi } from 'viem';
+import {
+    encodeFunctionData,
+    erc20Abi,
+    formatUnits,
+    parseUnits,
+    type Address,
+} from 'viem';
 import { publicClient } from '../config/client.js';
-import { ROUTERS, UNI_FACTORY_ABI, AERO_FACTORY_ABI, AERO_ABI, UNIV2_ABI, AERO_FACTORY } from './dex_constants.js';
+import { normalizeBaseProtocolId } from '../config/baseProtocols.js';
+import {
+    AERO_ABI,
+    UNIV2_ABI,
+} from './dex_constants.js';
+import {
+    discoverLiquidityPools,
+    type LiquidityPoolSnapshot,
+} from './liquidityPools.js';
+
+function protocolMatches(
+    pool: LiquidityPoolSnapshot,
+    requestedProtocol?: string,
+): boolean {
+    const requested = normalizeBaseProtocolId(requestedProtocol);
+    return (
+        !requested ||
+        requested === pool.protocolId ||
+        pool.protocolName
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .includes(requested)
+    );
+}
+
+function minimumAfterSlippage(amount: bigint, slippageBps: number): bigint {
+    const minimum =
+        (amount * BigInt(10_000 - slippageBps)) / 10_000n;
+    return amount > 0n && minimum === 0n ? 1n : minimum;
+}
+
+async function buildPoolRemoval(
+    pool: LiquidityPoolSnapshot,
+    tokenA: Address,
+    tokenB: Address,
+    tokenADecimals: number,
+    tokenBDecimals: number,
+    amountStr: string,
+    user: Address,
+    tokenASymbol: string,
+    tokenBSymbol: string,
+    hasNativeETH: boolean,
+    isNativeA: boolean,
+    slippageBps: number,
+) {
+    const [lpDecimals, lpBalance] = await Promise.all([
+        publicClient.readContract({
+            address: pool.pool,
+            abi: erc20Abi,
+            functionName: 'decimals',
+        }),
+        publicClient.readContract({
+            address: pool.pool,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [user],
+        }),
+    ]);
+    if (lpBalance <= 0n) return null;
+
+    const maxRequested = amountStr.trim().toUpperCase() === 'MAX';
+    const amount = maxRequested
+        ? lpBalance
+        : parseUnits(amountStr || '0', lpDecimals);
+    if (amount <= 0n) {
+        throw Object.assign(
+            new Error(
+                'AMOUNT_REQUIRED: LP amount must be positive or explicitly MAX.',
+            ),
+            { code: 'AMOUNT_REQUIRED', statusCode: 400 },
+        );
+    }
+    if (amount > lpBalance) return null;
+
+    const expectedA = (amount * pool.reserveA) / pool.totalSupply;
+    const expectedB = (amount * pool.reserveB) / pool.totalSupply;
+    if (expectedA <= 0n || expectedB <= 0n) return null;
+
+    const amountAMin = minimumAfterSlippage(
+        expectedA,
+        slippageBps,
+    );
+    const amountBMin = minimumAfterSlippage(
+        expectedB,
+        slippageBps,
+    );
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+    let calldata: `0x${string}`;
+
+    if (hasNativeETH) {
+        const erc20Address = isNativeA ? tokenB : tokenA;
+        const amountTokenMin = isNativeA ? amountBMin : amountAMin;
+        const amountEthMin = isNativeA ? amountAMin : amountBMin;
+        calldata =
+            pool.kind === 'aerodrome'
+                ? encodeFunctionData({
+                    abi: AERO_ABI,
+                    functionName: 'removeLiquidityETH',
+                    args: [
+                        erc20Address,
+                        pool.stable,
+                        amount,
+                        amountTokenMin,
+                        amountEthMin,
+                        user,
+                        deadline,
+                    ],
+                })
+                : encodeFunctionData({
+                    abi: UNIV2_ABI,
+                    functionName: 'removeLiquidityETH',
+                    args: [
+                        erc20Address,
+                        amount,
+                        amountTokenMin,
+                        amountEthMin,
+                        user,
+                        deadline,
+                    ],
+                });
+    } else {
+        calldata =
+            pool.kind === 'aerodrome'
+                ? encodeFunctionData({
+                    abi: AERO_ABI,
+                    functionName: 'removeLiquidity',
+                    args: [
+                        tokenA,
+                        tokenB,
+                        pool.stable,
+                        amount,
+                        amountAMin,
+                        amountBMin,
+                        user,
+                        deadline,
+                    ],
+                })
+                : encodeFunctionData({
+                    abi: UNIV2_ABI,
+                    functionName: 'removeLiquidity',
+                    args: [
+                        tokenA,
+                        tokenB,
+                        amount,
+                        amountAMin,
+                        amountBMin,
+                        user,
+                        deadline,
+                    ],
+                });
+    }
+
+    return {
+        name: `${pool.protocolName} (Remove LP)`,
+        protocolId: pool.protocolId,
+        amount,
+        value: '0',
+        expectedOutput:
+            `Estimate ${formatUnits(expectedA, tokenADecimals)} ` +
+            `${tokenASymbol} + ${formatUnits(expectedB, tokenBDecimals)} ` +
+            `${tokenBSymbol} from ${formatUnits(amount, lpDecimals)} LP`,
+        routePath:
+            `[${pool.protocolName}] LP ➝ ` +
+            `${tokenASymbol} + ${tokenBSymbol}`,
+        router: pool.router,
+        calldata,
+        primaryTokenAddress: pool.pool,
+        primaryAmountInWei: amount.toString(),
+        secondaryTokenAddress: undefined,
+        secondaryAmountInWei: undefined,
+        approvals: [{
+            token: pool.pool,
+            spender: pool.router,
+            amount: amount.toString(),
+            symbol: `${tokenASymbol}-${tokenBSymbol} LP`,
+            required: true as const,
+        }],
+        executionMode: 'direct' as const,
+        callerSemantics: 'explicit_recipient' as const,
+        feeRouterCompatible: false as const,
+        poolEvidence: {
+            pool: pool.pool,
+            factory: pool.factory,
+            stable: pool.stable,
+            reserveAAtomic: pool.reserveA.toString(),
+            reserveBAtomic: pool.reserveB.toString(),
+            totalSupplyAtomic: pool.totalSupply.toString(),
+            lpBalanceAtomic: lpBalance.toString(),
+            lpDecimals,
+            amountLpAtomic: amount.toString(),
+            expectedAAtomic: expectedA.toString(),
+            expectedBAtomic: expectedB.toString(),
+            observedAt: pool.observedAt,
+            observedBlock: pool.observedBlock.toString(),
+            discoveryAttemptCount: pool.discoveryAttemptCount,
+            unavailableSourceCount: pool.unavailableSourceCount,
+            absentPoolCount: pool.absentPoolCount,
+            ratioSource: 'factory_bound_pool_reserves' as const,
+            limitation:
+                `Outputs are pro-rata reserve estimates with ${slippageBps} bps minimums; transfer fees, reserve changes and execution gas can change realized amounts.`,
+        },
+    };
+}
 
 export async function buildRemoveLiquidityRoutes(
-    tA_Address: `0x${string}`, 
-    tB_Address: `0x${string}`, 
-    amountStr: string, 
-    userAddress: string, 
-    requestedProtocol: string | undefined, 
-    tIn: string, 
-    tOut: string, 
-    hasNativeETH: boolean, 
-    isNativeA: boolean
+    tokenA: Address,
+    tokenB: Address,
+    amountStr: string,
+    userAddress: string,
+    requestedProtocol: string | undefined,
+    tokenASymbol: string,
+    tokenBSymbol: string,
+    hasNativeETH: boolean,
+    isNativeA: boolean,
+    slippageBps = 100,
 ) {
-    const getPoolUni = async (fac: `0x${string}`) => {
-        try { 
-            let p = await publicClient.readContract({ address: fac, abi: UNI_FACTORY_ABI, functionName: 'getPair', args: [tA_Address, tB_Address] }).catch(()=> null) as string | null;
-            if (!p || p === "0x0000000000000000000000000000000000000000") {
-                p = await publicClient.readContract({ address: fac, abi: UNI_FACTORY_ABI, functionName: 'getPair', args: [tB_Address, tA_Address] }).catch(()=> null) as string | null;
-            }
-            return (p && p !== "0x0000000000000000000000000000000000000000") ? p : null;
-        } catch { return null; }
-    };
-
-    const getPoolAero = async () => {
-        try { 
-            let p = await publicClient.readContract({ address: AERO_FACTORY, abi: AERO_FACTORY_ABI, functionName: 'getPool', args: [tA_Address, tB_Address, false] }).catch(()=> null) as string | null;
-            if (!p || p === "0x0000000000000000000000000000000000000000") {
-                p = await publicClient.readContract({ address: AERO_FACTORY, abi: AERO_FACTORY_ABI, functionName: 'getPool', args: [tB_Address, tA_Address, false] }).catch(()=> null) as string | null;
-            }
-            return (p && p !== "0x0000000000000000000000000000000000000000") ? p : null;
-        } catch { return null; }
-    };
-
-    const getFactoryFromRouter = async (routerAddr: `0x${string}`) => {
-        try {
-            return await publicClient.readContract({
-                address: routerAddr,
-                abi: [{"inputs":[],"name":"factory","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}],
-                functionName: "factory"
-            }) as `0x${string}`;
-        } catch { return null; }
-    };
-
-    const aeroPool = await getPoolAero();
-    
-    const uniFactory = await getFactoryFromRouter(ROUTERS.UNI_V2);
-    const uniPool = uniFactory ? await getPoolUni(uniFactory) : null;
-    
-    const alienFactory = await getFactoryFromRouter(ROUTERS.ALIEN_BASE);
-    const alienPool = alienFactory ? await getPoolUni(alienFactory) : null;
-
-    let rawRemoveRoutes: any[] = [];
-
-    const buildRemove = async (protocolName: string, router: `0x${string}`, poolAddress: string | null, isAero: boolean) => {
-        if (!poolAddress) return null;
-
-        let lpBalance = 0n;
-        try {
-            lpBalance = await publicClient.readContract({ address: poolAddress as `0x${string}`, abi: erc20Abi, functionName: 'balanceOf', args: [userAddress as `0x${string}`] });
-        } catch { return null; }
-        
-        if (lpBalance === 0n) return null;
-
-        const amtToRemove = (amountStr === "0" || amountStr === "MAX") ? lpBalance : parseUnits(amountStr, 18);
-        if (amtToRemove > lpBalance) throw new Error(`❌ Yetersiz LP Bakiyesi. (${protocolName})`);
-
-        let calldata: `0x${string}`;
-        const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20);
-
-        let amountAMin = 0n;
-        let amountBMin = 0n;
-        try {
-            const poolAbi = [
-                { "inputs": [], "name": "getReserves", "outputs": [{ "internalType": "uint112", "name": "reserve0", "type": "uint112" }, { "internalType": "uint112", "name": "reserve1", "type": "uint112" }, { "internalType": "uint32", "name": "blockTimestampLast", "type": "uint32" }], "stateMutability": "view", "type": "function" },
-                { "inputs": [], "name": "totalSupply", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
-            ] as const;
-            const totalSupply = await publicClient.readContract({ address: poolAddress as `0x${string}`, abi: poolAbi, functionName: 'totalSupply' }) as bigint;
-            const reserves = await publicClient.readContract({ address: poolAddress as `0x${string}`, abi: poolAbi, functionName: 'getReserves' }) as [bigint, bigint, number];
-            
-            const reserveA = tA_Address.toLowerCase() < tB_Address.toLowerCase() ? reserves[0] : reserves[1];
-            const reserveB = tA_Address.toLowerCase() < tB_Address.toLowerCase() ? reserves[1] : reserves[0];
-            
-            const expectedA = (amtToRemove * reserveA) / totalSupply;
-            const expectedB = (amtToRemove * reserveB) / totalSupply;
-            
-            amountAMin = (expectedA * 99n) / 100n;
-            amountBMin = (expectedB * 99n) / 100n;
-        } catch (e) {
-            console.log(`⚠️ Havuz rezervleri okunamadı (${protocolName}), işlem iptal ediliyor.`);
-            return null; 
-        }
-
-        if (hasNativeETH) {
-            const erc20Addr = isNativeA ? tB_Address : tA_Address;
-            const amountTokenMin = isNativeA ? amountBMin : amountAMin;
-            const amountETHMin = isNativeA ? amountAMin : amountBMin;
-            
-            if (isAero) calldata = encodeFunctionData({ abi: AERO_ABI, functionName: 'removeLiquidityETH', args: [erc20Addr as `0x${string}`, false, amtToRemove, amountTokenMin, amountETHMin, userAddress as `0x${string}`, deadline] });
-            else calldata = encodeFunctionData({ abi: UNIV2_ABI, functionName: 'removeLiquidityETH', args: [erc20Addr as `0x${string}`, amtToRemove, amountTokenMin, amountETHMin, userAddress as `0x${string}`, deadline] });
-        } else {
-            if (isAero) calldata = encodeFunctionData({ abi: AERO_ABI, functionName: 'removeLiquidity', args: [tA_Address as `0x${string}`, tB_Address as `0x${string}`, false, amtToRemove, amountAMin, amountBMin, userAddress as `0x${string}`, deadline] });
-            else calldata = encodeFunctionData({ abi: UNIV2_ABI, functionName: 'removeLiquidity', args: [tA_Address as `0x${string}`, tB_Address as `0x${string}`, amtToRemove, amountAMin, amountBMin, userAddress as `0x${string}`, deadline] });
-        }
-
-        return {
-            name: `${protocolName} (Remove LP)`, amount: amtToRemove, value: "0",
-            expectedOutput: `Removing ${parseFloat(formatUnits(amtToRemove, 18)).toFixed(5)} LP Tokens ➝ ${tIn} + ${tOut}`,
-            routePath: `[${protocolName}] LP ➝ ${tIn} + ${tOut}`, router: router, calldata: calldata,
-            primaryTokenAddress: poolAddress, primaryAmountInWei: amtToRemove.toString(),
-            secondaryTokenAddress: undefined, secondaryAmountInWei: undefined
-        };
+    const normalizedAmount = amountStr.trim();
+    if (
+        normalizedAmount.toUpperCase() !== 'MAX' &&
+        (
+            !/^(?:\d+\.?\d*|\.\d+)$/.test(normalizedAmount) ||
+            !/[1-9]/.test(normalizedAmount)
+        )
+    ) {
+        throw Object.assign(
+            new Error(
+                'AMOUNT_REQUIRED: LP amount must be a positive decimal or explicitly MAX.',
+            ),
+            { code: 'AMOUNT_REQUIRED', statusCode: 400 },
+        );
+    }
+    const user = userAddress as Address;
+    const [tokenADecimals, tokenBDecimals, discoveredPools] =
+        await Promise.all([
+            publicClient.readContract({
+                address: tokenA,
+                abi: erc20Abi,
+                functionName: 'decimals',
+            }),
+            publicClient.readContract({
+                address: tokenB,
+                abi: erc20Abi,
+                functionName: 'decimals',
+            }),
+            discoverLiquidityPools(tokenA, tokenB),
+        ]);
+    const pools = discoveredPools.filter((pool) =>
+        protocolMatches(pool, requestedProtocol),
+    );
+    if (pools.length === 0) {
+        throw Object.assign(
+            new Error(
+                `${requestedProtocol || 'Verified Base routers'} have no active ` +
+                `${tokenASymbol}-${tokenBSymbol} pool with readable reserves.`,
+            ),
+            { code: 'LIQUIDITY_POOL_UNAVAILABLE', statusCode: 400 },
+        );
     }
 
-    const aeroRoute = await buildRemove("Aerodrome", ROUTERS.AERO_V1, aeroPool, true);
-    const uniRoute = await buildRemove("Uniswap V2", ROUTERS.UNI_V2, uniPool, false);
-    const alienRoute = await buildRemove("Alien Base", ROUTERS.ALIEN_BASE, alienPool, false);
-
-    if (aeroRoute) rawRemoveRoutes.push(aeroRoute);
-    if (uniRoute) rawRemoveRoutes.push(uniRoute);
-    if (alienRoute) rawRemoveRoutes.push(alienRoute);
-
-    if (rawRemoveRoutes.length === 0) {
-        throw new Error(`🚨 INSUFFICIENT_FUNDS: No LP tokens (or zero balance) for ${tIn}-${tOut}.`);
+    const settled = await Promise.allSettled(
+        pools.map((pool) =>
+            buildPoolRemoval(
+                pool,
+                tokenA,
+                tokenB,
+                tokenADecimals,
+                tokenBDecimals,
+                amountStr,
+                user,
+                tokenASymbol,
+                tokenBSymbol,
+                hasNativeETH,
+                isNativeA,
+                slippageBps,
+            )),
+    );
+    const routes = settled.flatMap((result) =>
+        result.status === 'fulfilled' && result.value
+            ? [result.value]
+            : []);
+    if (routes.length === 0) {
+        throw Object.assign(
+            new Error(
+                `INSUFFICIENT_FUNDS: No removable ${tokenASymbol}-${tokenBSymbol} ` +
+                'LP balance was found for the requested amount and protocol.',
+            ),
+            { code: 'INSUFFICIENT_FUNDS', statusCode: 400 },
+        );
     }
-    
-    if (requestedProtocol) return rawRemoveRoutes.filter(r => r.name.toLowerCase().includes(requestedProtocol.toLowerCase().replace(/\s+/g, '')));
-    return rawRemoveRoutes;
+
+    return routes.sort((left, right) =>
+        left.name.localeCompare(right.name));
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
@@ -8,22 +8,17 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/**
- * @title KletiaArcSwap (AMM version)
- * @notice Constant Product AMM (X * Y = K) for Native USDC (gas token) and an ERC20 Token.
- * @dev Mints LP tokens to liquidity providers.
- */
 contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
     using Math for uint256;
 
     function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
         return ERC2771Context._msgSender();
     }
-    
+
     function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
-    
+
     function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
         return ERC2771Context._contextSuffixLength();
     }
@@ -32,14 +27,14 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
 
     uint256 public reserveUSDC;
     uint256 public reserveToken;
-    
+
     uint32 public blockTimestampLast;
-    uint256 public price0CumulativeLast; // USDC per Token cumulative (represented as WAD)
-    uint256 public price1CumulativeLast; // Token per USDC cumulative (represented as WAD)
+    uint256 public price0CumulativeLast; 
+    uint256 public price1CumulativeLast; 
 
     event Swapped(
         address indexed user,
-        address indexed fromToken, // address(0) means Native USDC
+        address indexed fromToken, 
         address indexed toToken,
         uint256 amountIn,
         uint256 amountOut
@@ -53,20 +48,14 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
     }
 
     receive() external payable {
-        // Only accept native USDC via addLiquidity or swap
+
     }
 
-    /**
-     * @notice Returns the Native USDC balance held in this contract.
-     */
-    function usdcReserve() external view returns (uint256) {
+        function usdcReserve() external view returns (uint256) {
         return reserveUSDC;
     }
 
-    /**
-     * @notice Returns the custom token balance held in this contract.
-     */
-    function tokenReserve() external view returns (uint256) {
+        function tokenReserve() external view returns (uint256) {
         return reserveToken;
     }
 
@@ -75,11 +64,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         return (reserveUSDC * 1e18) / reserveToken;
     }
 
-    /**
-     * @notice Fetch the extrapolated TWAP accumulators to the current block.
-     * @dev Required because price0CumulativeLast is only updated on actual trades.
-     */
-    function currentCumulativePrices() public view returns (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) {
+        function currentCumulativePrices() public view returns (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) {
         price0Cumulative = price0CumulativeLast;
         price1Cumulative = price1CumulativeLast;
         blockTimestamp = uint32(block.timestamp % 2**32);
@@ -108,13 +93,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         blockTimestampLast = blockTimestamp;
     }
 
-    /**
-     * @notice Adds liquidity to the pool.
-     * @param maxTokenAmount Maximum amount of tokens to add.
-     * @return tokenAmount Exact amount of tokens added.
-     * @return lpMinted Amount of LP tokens minted.
-     */
-    function addLiquidity(uint256 maxTokenAmount) external payable nonReentrant returns (uint256 tokenAmount, uint256 lpMinted) {
+        function addLiquidity(uint256 maxTokenAmount) external payable nonReentrant returns (uint256 tokenAmount, uint256 lpMinted) {
         uint256 usdcAmount = msg.value;
         require(usdcAmount > 0, "Zero USDC added");
         require(maxTokenAmount > 0, "Zero token added");
@@ -123,7 +102,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
             tokenAmount = maxTokenAmount;
             lpMinted = Math.sqrt(usdcAmount * tokenAmount);
             require(lpMinted > 1000, "Zero LP minted");
-            _mint(address(0xdead), 1000); // Lock minimum liquidity
+            _mint(address(0xdead), 1000); 
             lpMinted -= 1000;
         } else {
             uint256 tokenOptimal = (usdcAmount * reserveToken) / reserveUSDC;
@@ -138,17 +117,13 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         require(token.transferFrom(_msgSender(), address(this), tokenAmount), "Token transfer failed");
 
         _mint(_msgSender(), lpMinted);
-        
+
         _update(address(this).balance, token.balanceOf(address(this)));
 
         emit LiquidityAdded(_msgSender(), usdcAmount, tokenAmount, lpMinted);
     }
 
-    /**
-     * @notice Removes liquidity from the pool.
-     * @param lpAmount Amount of LP tokens to burn.
-     */
-    function removeLiquidity(uint256 lpAmount) external nonReentrant returns (uint256 usdcAmount, uint256 tokenAmount) {
+        function removeLiquidity(uint256 lpAmount) external nonReentrant returns (uint256 usdcAmount, uint256 tokenAmount) {
         require(lpAmount > 0, "Zero LP burned");
         require(balanceOf(_msgSender()) >= lpAmount, "Insufficient LP balance");
 
@@ -167,10 +142,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         emit LiquidityRemoved(_msgSender(), usdcAmount, tokenAmount, lpAmount);
     }
 
-    /**
-     * @notice Swap Native USDC for Token
-     */
-    function swapUSDCForToken() external payable nonReentrant returns (uint256 tokenAmount) {
+        function swapUSDCForToken() external payable nonReentrant returns (uint256 tokenAmount) {
         uint256 usdcAmount = msg.value;
         require(usdcAmount > 0, "Zero USDC input");
 
@@ -187,10 +159,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         emit Swapped(_msgSender(), address(0), address(token), usdcAmount, tokenAmount);
     }
 
-    /**
-     * @notice Swap Token for Native USDC
-     */
-    function swapTokenForUSDC(uint256 tokenAmount) external nonReentrant returns (uint256 usdcAmount) {
+        function swapTokenForUSDC(uint256 tokenAmount) external nonReentrant returns (uint256 usdcAmount) {
         require(tokenAmount > 0, "Zero token input");
 
         uint256 tokenAmountWithFee = tokenAmount * 997;
@@ -199,7 +168,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         usdcAmount = numerator / denominator;
 
         require(usdcAmount > 0, "Zero USDC output");
-        
+
         require(token.transferFrom(_msgSender(), address(this), tokenAmount), "Token transfer failed");
 
         (bool success, ) = payable(_msgSender()).call{value: usdcAmount}("");
@@ -210,10 +179,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         emit Swapped(_msgSender(), address(token), address(0), tokenAmount, usdcAmount);
     }
 
-    /**
-     * @notice Preview the output amount for a Native USDC → Token swap.
-     */
-    function previewSwapUSDCForToken(uint256 usdcAmount) external view returns (uint256 tokenAmount) {
+        function previewSwapUSDCForToken(uint256 usdcAmount) external view returns (uint256 tokenAmount) {
         if (reserveUSDC == 0 || reserveToken == 0) return 0;
         uint256 usdcAmountWithFee = usdcAmount * 997;
         uint256 numerator = usdcAmountWithFee * reserveToken;
@@ -221,10 +187,7 @@ contract KletiaArcSwap is ERC2771Context, ERC20, ReentrancyGuard {
         return numerator / denominator;
     }
 
-    /**
-     * @notice Preview the output amount for a Token → Native USDC swap.
-     */
-    function previewSwapTokenForUSDC(uint256 tokenAmount) external view returns (uint256 usdcAmount) {
+        function previewSwapTokenForUSDC(uint256 tokenAmount) external view returns (uint256 usdcAmount) {
         if (reserveUSDC == 0 || reserveToken == 0) return 0;
         uint256 tokenAmountWithFee = tokenAmount * 997;
         uint256 numerator = tokenAmountWithFee * reserveUSDC;

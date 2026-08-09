@@ -40,7 +40,7 @@ export const AirdropSimulator: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<null | any>(null);
   const [hasBasename, setHasBasename] = useState(false);
-  
+
   // AI Agent States
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
   const [agentStatus, setAgentStatus] = useState<'idle' | 'running' | 'done'>('idle');
@@ -68,11 +68,11 @@ export const AirdropSimulator: React.FC = () => {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split('\n\n');
         buffer = events.pop() || "";
-        
+
         for (const evt of events) {
           const lines = evt.split('\n');
           let eventName = '';
@@ -81,7 +81,7 @@ export const AirdropSimulator: React.FC = () => {
             if (line.startsWith('event: ')) eventName = line.replace('event: ', '').trim();
             if (line.startsWith('data: ')) data = line.substring(6).trim(); // Remove "data: "
           }
-          
+
           if (data) {
             try {
               const parsedData = JSON.parse(data);
@@ -152,7 +152,6 @@ export const AirdropSimulator: React.FC = () => {
         console.error("BNS fetch failed", e);
       }
 
-      // 3. BLOCKSCOUT RAW DATA (Promise.all)
       const baseUrl = `https://base.blockscout.com/api`;
       const [txRes, internalRes, tokenRes, nftRes, nft1155Res, priceRes] = await Promise.all([
         fetch(`${baseUrl}?module=account&action=txlist&address=${inputAddress}&startblock=0&endblock=99999999&page=1&offset=10000&sort=asc`),
@@ -180,21 +179,20 @@ export const AirdropSimulator: React.FC = () => {
       let totalGasSpentEth = 0;
       let dustTxCount = 0;
       const lowerAddress = inputAddress.toLowerCase();
-      
+
       const activeMonthsSet = new Set<string>();
       let firstTxTimestamp = Date.now();
 
       for (const tx of normalTxs) {
         const isFromMe = tx.from.toLowerCase() === lowerAddress;
         const isToMe = tx.to && tx.to.toLowerCase() === lowerAddress;
-        
+
         const timestamp = parseInt(tx.timeStamp) * 1000;
         if (timestamp < firstTxTimestamp) firstTxTimestamp = timestamp;
-        
+
         const date = new Date(timestamp);
         activeMonthsSet.add(`${date.getFullYear()}-${date.getMonth()}`);
 
-        // Add to contracts only if we interacted with a smart contract (input !== '0x' or '0x00')
         if (tx.to && tx.to.toLowerCase() !== lowerAddress && tx.input && tx.input !== '0x' && tx.input !== '0x00') {
           uniqueContracts.add(tx.to.toLowerCase());
         }
@@ -208,7 +206,7 @@ export const AirdropSimulator: React.FC = () => {
         }
 
         if (isFromMe) {
-          // Add 1.35x multiplier to roughly estimate L1 Data fee on Base which is missing in txlist API
+
           totalGasSpentEth += ((Number(tx.gasUsed) * Number(tx.gasPrice)) / 1e18) * 1.35;
           const valEth = Number(tx.value) / 1e18;
           if (valEth > 0 && valEth < 0.001) dustTxCount++;
@@ -218,10 +216,10 @@ export const AirdropSimulator: React.FC = () => {
       for (const tx of internalTxs) {
         if (tx.from && tx.from.toLowerCase() !== lowerAddress) uniqueContracts.add(tx.from.toLowerCase());
         if (tx.to && tx.to.toLowerCase() !== lowerAddress) uniqueContracts.add(tx.to.toLowerCase());
-        
+
         const isFromMe = tx.from && tx.from.toLowerCase() === lowerAddress;
         const isToMe = tx.to && tx.to.toLowerCase() === lowerAddress;
-        
+
         if (isFromMe || isToMe) {
           totalEthVolume += Number(tx.value) / 1e18;
         }
@@ -235,7 +233,6 @@ export const AirdropSimulator: React.FC = () => {
         }
       }
 
-      // Fetch dynamic prices for all traded tokens
       const tokenPrices = await fetchPrices(Array.from(tokenAddressesToFetch));
 
       for (const tx of tokenTxs) {
@@ -260,7 +257,7 @@ export const AirdropSimulator: React.FC = () => {
       for (const tx of nftTxs) {
          if (tx.contractAddress) uniqueContracts.add(tx.contractAddress.toLowerCase());
       }
-      
+
       for (const tx of nft1155Txs) {
          if (tx.contractAddress) uniqueContracts.add(tx.contractAddress.toLowerCase());
       }
@@ -271,7 +268,6 @@ export const AirdropSimulator: React.FC = () => {
       const accountAgeDays = Math.max(1, Math.floor((Date.now() - firstTxTimestamp) / (1000 * 60 * 60 * 24)));
       const totalTxs = normalTxs.length;
 
-      // Fallback Engine calculations
       if (aiSource === 'Kletia AI Engine (Local)') {
         let fallbackScore = 30;
         if (totalVolumeUsd > 1000) fallbackScore += 15;
@@ -280,7 +276,7 @@ export const AirdropSimulator: React.FC = () => {
         if (uniqueContracts.size > 100) fallbackScore += 15;
         if (dustTxCount < 10) fallbackScore += 10;
         if (activeMonths > 3) fallbackScore += 10;
-        
+
         aiScore = fallbackScore > 100 ? 100 : fallbackScore;
         aiRiskLevel = dustTxCount > 15 ? 'High Risk (Sybil)' : 'Low Risk (Organik)';
       }
@@ -306,25 +302,24 @@ export const AirdropSimulator: React.FC = () => {
     }
   };
 
-  // Kletia Super Score Formula (60% AI, 40% Real Onchain Data)
   let superScore = 0;
   if (result) {
     const aiWeight = result.aiScore * 0.6;
-    
+
     let volScore = result.totalVolumeUsd > 5000 ? 100 : (result.totalVolumeUsd > 1000 ? 70 : 30);
     let contractScore = result.contractsCount > 100 ? 100 : (result.contractsCount > 30 ? 70 : 30);
     const dataWeight = ((volScore + contractScore) / 2) * 0.4;
-    
+
     superScore = Math.round(aiWeight + dataWeight);
-    if (hasBasename) superScore += 5; // Basename Bonus
+    if (hasBasename) superScore += 5; 
     if (superScore > 100) superScore = 100;
   }
 
   return (
     <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        
-        {/* HEADER */}
+
+        {}
         <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 md:p-8 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tighter flex items-center gap-3">
@@ -337,7 +332,7 @@ export const AirdropSimulator: React.FC = () => {
           </div>
         </div>
 
-        {/* SEARCH BAR */}
+        {}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-6 h-6" />
@@ -359,28 +354,28 @@ export const AirdropSimulator: React.FC = () => {
           </button>
         </div>
 
-        {/* RESULTS SECTION */}
+        {}
         {result && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">
-            
-            {/* SUPER SCORE CARD */}
+
+            {}
             <div className="lg:col-span-1 bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] text-center">
               <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">Kletia Super Score</h3>
-              
+
               <div className="relative w-40 h-40 flex items-center justify-center rounded-full border-[8px] border-[#EFEFEF] dark:border-slate-700">
                 <div className={`absolute inset-0 rounded-full border-[8px] ${superScore > 80 ? 'border-green-500' : superScore > 50 ? 'border-orange-500' : 'border-red-500'}`} style={{ clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 ${100 - superScore}%)` }}></div>
                 <div className="text-6xl font-black text-[#1A1A1A] dark:text-white">{superScore}</div>
               </div>
-              
+
               <p className="mt-6 font-bold text-sm text-gray-600 dark:text-slate-300">
                 Calculated using 60% AI Reputation and 40% Onchain History.
               </p>
             </div>
 
-            {/* API PROVIDERS METRICS */}
+            {}
             <div className="lg:col-span-2 flex flex-col gap-4">
-              
-              {/* Trusta/Nomis AI Card */}
+
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-8 h-8 text-purple-500" />
@@ -397,7 +392,7 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              {/* Blockscout Data Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Database className="w-8 h-8 text-blue-500" />
@@ -414,7 +409,7 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              {/* Coinbase CDP Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Wallet className="w-8 h-8 text-[#0052FF]" />
@@ -431,7 +426,7 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              {/* Extra Kriterler Card */}
+              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Activity className="w-8 h-8 text-emerald-500" />
@@ -464,7 +459,7 @@ export const AirdropSimulator: React.FC = () => {
 
             </div>
 
-            {/* AI AGENT PREMIUM ANALYSIS TRIGGER */}
+            {}
             <div className="lg:col-span-3 mt-4 flex flex-col items-center justify-center">
               <button 
                 onClick={handleDeepAnalysis}
@@ -476,7 +471,7 @@ export const AirdropSimulator: React.FC = () => {
               </button>
             </div>
 
-            {/* AGENT TERMINAL OUTPUT */}
+            {}
             {agentLogs.length > 0 && (
               <div className="lg:col-span-3 mt-4 bg-black border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] font-mono text-sm">
                 <div className="flex items-center gap-2 mb-4 text-green-500 border-b border-green-900 pb-2">

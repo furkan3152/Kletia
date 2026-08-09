@@ -1,9 +1,8 @@
-// backend/arc_testnet/src/config/client.ts
+
 import { createPublicClient, http, defineChain } from 'viem';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-// Arc Testnet chain definition
 export const arcTestnet = defineChain({
   id: 5042002,
   name: 'Arc Testnet',

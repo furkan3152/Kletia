@@ -48,7 +48,7 @@ export const X402FactoryABI = [
     "stateMutability": "view",
     "type": "function"
   }
-];
+] as const;
 
 export const X402GatewayABI = [
   {
@@ -98,6 +98,13 @@ export const X402GatewayABI = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "usdc",
+    "outputs": [{ "internalType": "contract IERC20", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [{ "internalType": "uint256", "name": "_newPrice", "type": "uint256" }],
     "name": "setPrice",
     "outputs": [],
@@ -111,7 +118,7 @@ export const X402GatewayABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   }
-];
+] as const;
 
-export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Base Mainnet
+export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; 
 export const X402_FACTORY_ADDRESS = "0xD6e7bAc04a9969f75AEA3f17b5b82db1C988DD46";

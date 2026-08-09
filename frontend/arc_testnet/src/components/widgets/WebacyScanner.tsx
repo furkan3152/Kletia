@@ -16,10 +16,10 @@ export function WebacyScanner() {
     setResult(null);
 
     try {
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:3001';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http:
       const res = await fetch(`${BACKEND_URL}/api/webacy/scan/${address.trim()}`);
       const data = await res.json();
-      
+
       if (data.status === 'success') {
         setResult(data);
       } else {
@@ -35,8 +35,8 @@ export function WebacyScanner() {
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-2xl flex flex-col gap-6">
-        
-        {/* Header */}
+
+        {}
         <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
             <Shield className="w-8 h-8 text-[#0052FF]" strokeWidth={3} />
@@ -47,7 +47,7 @@ export function WebacyScanner() {
           </p>
         </div>
 
-        {/* Search Bar */}
+        {}
         <form onSubmit={handleScan} className="flex flex-col md:flex-row gap-3 w-full">
           <input 
             type="text" 
@@ -66,14 +66,14 @@ export function WebacyScanner() {
           </button>
         </form>
 
-        {/* Error */}
+        {}
         {error && (
           <div className="bg-red-100 dark:bg-red-900/30 border-[3px] border-red-500 p-4 text-red-700 dark:text-red-400 font-bold flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 shrink-0" strokeWidth={3} /> {error}
           </div>
         )}
 
-        {/* Results */}
+        {}
         {result && (
           <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col overflow-hidden">
             <div className={`p-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] flex flex-col md:flex-row items-center justify-between gap-4 ${
@@ -97,7 +97,7 @@ export function WebacyScanner() {
 
             <div className="p-6 flex flex-col gap-4">
               <h3 className="font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2">Tespit Edilen Risk Etiketleri</h3>
-              
+
               {result.tags && result.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {result.tags.map((tag: string, idx: number) => (

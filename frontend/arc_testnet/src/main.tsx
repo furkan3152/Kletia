@@ -25,11 +25,9 @@ export const arcTestnet = {
   },
 } as const satisfies Chain;
 
-
-
 const config = getDefaultConfig({
   appName: 'Kletia Omni-Engine',
-  projectId: 'YOUR_PROJECT_ID', // WalletConnect ID (Can be left empty for test)
+  projectId: 'YOUR_PROJECT_ID', 
   chains: [arcTestnet, hardhat],
   transports: {
     [arcTestnet.id]: http(),

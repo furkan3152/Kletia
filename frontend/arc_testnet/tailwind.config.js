@@ -1,4 +1,3 @@
-/** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
   content: [
@@ -8,9 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        kletiaDark: '#0D0D0D', // Derin siyah (Arka plan)
-        kletiaGray: '#212121', // Kullanıcı mesaj balonu
-        kletiaBlue: '#0052FF', // Base ağı / Vurgu rengi
+        kletiaDark: '#0D0D0D', 
+        kletiaGray: '#212121', 
+        kletiaBlue: '#0052FF', 
       }
     },
   },

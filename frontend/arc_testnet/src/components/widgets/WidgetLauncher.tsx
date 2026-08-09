@@ -12,7 +12,7 @@ export function WidgetLauncher() {
       text: `🚀 **${title}** module activated. Relevant UI is ready below:`,
       widgetType: type
     });
-    
+
     setTimeout(() => {
         const chatContainer = document.getElementById('chat-container');
         if (chatContainer) {
@@ -30,7 +30,7 @@ export function WidgetLauncher() {
         <Target size={16} className="text-red-500" />
         Balina Takibi
       </button>
-      
+
       <button 
         onClick={() => launchWidget('yield_optimizer', 'Otonom Yield Hunter')}
         className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1A1A1A] border-2 border-[#1A1A1A] dark:border-[#333] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#60A5FA] font-bold text-sm hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] transition-all"

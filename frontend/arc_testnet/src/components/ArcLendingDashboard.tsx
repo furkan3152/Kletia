@@ -26,7 +26,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
     args: address ? [address] : undefined,
   });
 
-  // Read KLET Price from Swap
   const { data: swapReserves } = useReadContracts({
     contracts: [
       {
@@ -55,7 +54,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
     }
   }, [swapReserves]);
 
-  // Read Collateral
   const { data: collateralBig } = useReadContract({
     address: ARC_CONTRACTS.Lending as `0x${string}`,
     abi: ARC_LENDING_ABI,
@@ -63,7 +61,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
     args: [address || '0x0000000000000000000000000000000000000000'],
   });
 
-  // Read Borrowed
   const { data: borrowedBig } = useReadContract({
     address: ARC_CONTRACTS.Lending as `0x${string}`,
     abi: ARC_LENDING_ABI,
@@ -73,21 +70,21 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
 
   const collateral = collateralBig ? parseFloat(ethers.formatEther(collateralBig as bigint)).toFixed(2) : '0.00';
   const borrowed = borrowedBig ? parseFloat(ethers.formatEther(borrowedBig as bigint)).toFixed(2) : '0.00';
-  
+
   const colUsdValue = parseFloat(collateral) * parseFloat(kletPrice || "0");
-  const maxBorrowUsd = colUsdValue * 0.8; // 80% LTV
+  const maxBorrowUsd = colUsdValue * 0.8; 
   const maxBorrow = maxBorrowUsd.toFixed(2);
-  
+
   const isHealthy = parseFloat(borrowed) === 0 || parseFloat(borrowed) <= maxBorrowUsd;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      
-      {/* Brutalist Hero Banner */}
+
+      {}
       <div className="bg-[#0052FF] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
         <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
-        
+
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
           <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
             KLETIA LENDING PROTOCOL
@@ -98,7 +95,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
           <p className="text-lg md:text-xl font-bold text-white bg-[#1A1A1A] p-2 inline-block shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] w-max">
             Built on Arc - Intent-focused DeFi powered by Kletia Agents
           </p>
-          
+
           <div className="flex flex-wrap gap-4 mt-6">
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">KLET Price</span>
@@ -140,7 +137,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* LTV Health */}
+        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -170,7 +167,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
           </div>
         </div>
 
-        {/* Collateral */}
+        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -190,7 +187,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
           </div>
         </div>
 
-        {/* Borrowing */}
+        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -211,7 +208,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({ onActionC
         </div>
       </div>
 
-      {/* Suggested Actions */}
+      {}
       <div className="mt-12">
         <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest mb-6 border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 inline-block">
           ⚡ Fast Autonomous Operations

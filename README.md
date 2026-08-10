@@ -108,3 +108,7 @@ Base protocol scope, official address sources, and Fee Router allowlist decision
 ## Deploy
 
 `render.yaml` deploys the canonical frontend and backend directories. In production, at least a dedicated Base RPC, `CORS_ORIGINS` containing the frontend URL, and API keys for live services must be defined. A WalletConnect project ID is also required if a QR connection will be offered. If a paymaster is to be used, a contract/method allowlist and spending limits must additionally be configured on the CDP Portal side as a mandatory defense layer.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

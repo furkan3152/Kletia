@@ -1,65 +1,40 @@
 # Kletia Omni-Engine
 
-Kletia, Base Mainnet ve Arc Testnet için tek uygulama kabuğu kullanan,
-ağ-bağlamlı bir Web3 niyet motorudur. Aktif ağ değiştiğinde cüzdan zinciri,
-niyet ayrıştırıcı, işlem hedefleri, widget’lar, varlık adları ve uygulama
-durumu birlikte değişir.
+Kletia is a network-context-aware Web3 intent engine that uses a single application shell for Base Mainnet and Arc Testnet. When the active network changes, the wallet chain, intent parser, transaction targets, widgets, asset names, and application state change along with it.
 
-## Desteklenen ağlar
+## Supported networks
 
-| Profil | Ağ | Gas / native varlık | USDC | Ağ özellikleri |
+| Profile | Network | Gas / native asset | USDC | Network features |
 | --- | --- | --- | --- | --- |
-| `base` | Base Mainnet (`8453`) | ETH | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 decimal) | Base rota motoru, Basename, Allora, Airdrop, x402 ve Webacy. Agent modu imzalı sahiplik eklenene kadar kapalıdır. |
-| `arc` | Arc Testnet (`5042002`) | Native USDC | Native/RPC işlemlerinde 18 decimal; kullanıcı gösteriminde 6 decimal. ERC-20 arayüzü: `0x3600000000000000000000000000000000000000` | Arc swap, vault, staking, lending, liquidity, batch ve memo |
+| `base` | Base Mainnet (`8453`) | ETH | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6 decimals) | Base routing engine, Basename, Allora, Airdrop, x402, and Webacy. Agent mode is disabled until signed ownership is added. |
+| `arc` | Arc Testnet (`5042002`) | Native USDC | 18 decimals for native/RPC transactions; 6 decimals for user display. ERC-20 interface: `0x3600000000000000000000000000000000000000` | Arc swap, vault, staking, lending, liquidity, batch, and memo |
 
-Base’in halka açık RPC’si üretim için rate-limitlidir. Üretimde sunucu tarafındaki
-`BASE_RPC_URL` için özel bir sağlayıcı kullanın. `VITE_BASE_RPC_URL` tarayıcı
-bundle’ına gömüldüğü için gizli CDP Node URL/key içermemeli; yalnız public veya
-domain-kısıtlı bir istemci RPC’si olmalıdır. Arc
-ayarları [Arc bağlantı belgeleri](https://docs.arc.io/arc/references/rpc-endpoints),
-Base ayarları [Base bağlantı belgeleri](https://docs.base.org/base-chain/quickstart/connecting-to-base)
-ile uyumludur.
+Base's public RPC is rate-limited for production. Use a dedicated provider for the server-side `BASE_RPC_URL` in production. Since `VITE_BASE_RPC_URL` is embedded into the browser bundle, it must not contain a secret CDP Node URL/key; it should only be a public or domain-restricted client RPC. Arc settings comply with [Arc connection docs](https://docs.arc.io/arc/references/rpc-endpoints), and Base settings comply with [Base connection docs](https://docs.base.org/base-chain/quickstart/connecting-to-base).
 
-## Canonical uygulama
+## Canonical application
 
 - Frontend: `frontend/base_mainnet`
 - Backend: `backend/base_mainnet`
-- Deploy tanımı: `render.yaml`
+- Deploy definition: `render.yaml`
 
-`arc_testnet` klasörleri eski ayrık uygulamanın referans kopyalarıdır. Birleşik
-uygulamayı çalıştırmak veya deploy etmek için canonical dizinler kullanılmalıdır.
-Yanlışlıkla eski ağı ayağa kaldırmamak için legacy `start`, `dev` ve `preview`
-komutları açık bir deprecation hatasıyla durur. Bu birleşim kontrat kaynaklarını
-ya da deploy edilmiş kontratları değiştirmez.
+The `arc_testnet` folders are reference copies of the old, separated application. The canonical directories must be used to run or deploy the unified application. To prevent accidentally launching the old network, the legacy `start`, `dev`, and `preview` commands will halt with a clear deprecation error. This consolidation does not change contract sources or deployed contracts.
 
-## Güvenlik ve ağ izolasyonu
+## Security and network isolation
 
-- Uygulama modu yalnız cüzdanın gerçek zincir değişimi başarılı olduktan sonra
-  güncellenir.
-- Her niyet isteği `network`, `chainId`, `requestId` ve kullanıcı cüzdanı ile
-  etiketlenir; backend farklı ağ/chain eşleşmesini reddeder.
-- Base ve Arc konuşmaları ayrı store kovalarında tutulur. Persist edilen geçmiş
-  calldata, rota, allowance veya işlem hash’i içermez.
-- Çok adımlı açıklama bağlamı cüzdan adresiyle ortak bir belleğe yazılmaz;
-  tahmin edilemez, kısa ömürlü ve ağ+cüzdana bağlı bir konuşma kimliği kullanır.
-- Arc hedefleri deploy manifest allowlist’i ve canlı RPC bytecode kontrolünden;
-  Base hedefleri aksiyon-bazlı execution allowlist’i ve Webacy politikasından
-  geçer. Güvenlik servisi doğrulama yapamazsa işlem fail-closed durur.
-- Approval ve son işlem gerçek hesap/hedef/calldata/value ile simüle edilir.
-  Approval gerektiren backend rotası başarılı simülasyon gibi sunulmaz; son
-  `eth_call` approval receipt’inden sonra zorunludur. Sabit gas fallback’i
-  kullanılmaz.
-- Transaction hash başarı sayılmaz; receipt alınır ve başarılı status
-  doğrulanır.
-- Canlı sağlayıcı hataları `0`, boş pozisyon veya tahminî fiyatla
-  değiştirilmez; kaynak `partial` ya da `unavailable` olarak gösterilir.
+- The application mode updates only after the wallet's actual chain switch is successful.
+- Every intent request is tagged with `network`, `chainId`, `requestId`, and the user's wallet; the backend rejects mismatched network/chain requests.
+- Base and Arc conversations are kept in separate store buckets. The persisted history does not include calldata, routes, allowances, or transaction hashes.
+- The multi-step clarification context is not written to a shared memory with the wallet address; it uses an unpredictable, short-lived conversation ID tied to the network and wallet.
+- Arc targets must pass the deployment manifest allowlist and live RPC bytecode check; Base targets must pass the action-based execution allowlist and the Webacy policy. If the security service fails validation, the transaction fails closed.
+- Approval and final transactions are simulated with the actual account/target/calldata/value. A backend route requiring approval is not presented as a successful simulation; it is strictly required after the final `eth_call` approval receipt. Fixed gas fallback is not used.
+- A transaction hash is not considered a success; the receipt is fetched and the successful status is verified.
+- Live provider errors are not replaced with `0`, an empty position, or an estimated price; the source is marked as `partial` or `unavailable`.
 
-## Gereksinimler
+## Requirements
 
-- Birleşik geliştirme/frontend build için Node.js 22.13 veya üzeri (`.nvmrc`: 22.13.0).
-  Backend Docker imajı Node 20 üzerinde ayrıca doğrulanır.
+- Node.js 22.13 or higher (`.nvmrc`: 22.13.0) for unified development/frontend build. The backend Docker image is additionally verified on Node 20.
 - npm
-- Base Mainnet ve Arc Testnet destekleyen bir EVM cüzdanı
+- An EVM wallet supporting Base Mainnet and Arc Testnet
 
 ## Backend
 
@@ -70,11 +45,9 @@ npm ci --legacy-peer-deps
 npm run dev
 ```
 
-Üretim çalışma biçimini yerelde doğrulamak için önce `npm run build`, ardından
-`npm start` kullanın. Docker imajı bu derleme adımını build katmanında yapar ve
-final imaja yalnız runtime bağımlılıklarını alır.
+To verify the production behavior locally, use `npm run build` followed by `npm start`. The Docker image performs this compilation step in the build layer and only includes runtime dependencies in the final image.
 
-Asgari ağ ayarları:
+Minimum network settings:
 
 ```dotenv
 PORT=3001
@@ -85,16 +58,9 @@ WEBACY_API_KEY=
 CORS_ORIGINS=http://localhost:5174
 ```
 
-Agent, Allora, CDP/paymaster ve x402 değişkenleri
-`backend/base_mainnet/.env.example` içinde açıklanmıştır. Private key, wallet
-export’u veya gerçek `.env` dosyası Git’e eklenmemelidir.
+Agent, Allora, CDP/paymaster, and x402 variables are explained in `backend/base_mainnet/.env.example`. A private key, wallet export, or actual `.env` file must not be added to Git.
 
-Base bridge rotası canlı Across production API’sini kullanır; bu nedenle
-`ACROSS_API_KEY` ve 2 baytlık `ACROSS_INTEGRATOR_ID` zorunludur. Ücret tavanı
-`ACROSS_MAX_RELAY_FEE_BPS` ile belirlenir. Paymaster proxy her isteğe
-sunucu-kontrollü `CDP_PAYMASTER_POLICY_ID` ekler; CDP Portal contract/method
-allowlist’i, kullanıcı limitleri ve global harcama tavanı olmadan paymaster
-etkinleştirilmemelidir.
+The Base bridge route uses the live Across production API; therefore, `ACROSS_API_KEY` and the 2-byte `ACROSS_INTEGRATOR_ID` are required. The fee ceiling is set by `ACROSS_MAX_RELAY_FEE_BPS`. The paymaster proxy adds a server-controlled `CDP_PAYMASTER_POLICY_ID` to every request; the paymaster must not be enabled without a CDP Portal contract/method allowlist, user limits, and a global spending cap.
 
 ## Frontend
 
@@ -105,7 +71,7 @@ npm ci --legacy-peer-deps
 npm run dev
 ```
 
-Frontend varsayılan olarak `http://localhost:5174` üzerinde çalışır.
+The frontend runs on `http://localhost:5174` by default.
 
 ```dotenv
 VITE_BACKEND_URL=http://127.0.0.1:3001
@@ -115,17 +81,11 @@ VITE_ARC_RPC_URL=https://rpc.testnet.arc.network
 VITE_WALLETCONNECT_PROJECT_ID=
 ```
 
-`VITE_WALLETCONNECT_PROJECT_ID` boşsa injected ve Base Wallet bağlantıları
-çalışmaya devam eder; WalletConnect/QR seçeneği sahte bir proje kimliğiyle
-başlatılmaz.
+If `VITE_WALLETCONNECT_PROJECT_ID` is empty, injected and Base Wallet connections continue to work; the WalletConnect/QR option will not be initialized with a fake project ID.
 
-`VITE_BASE_RPC_URL` production build için zorunludur. Eksik bırakılırsa
-uygulama, rate-limitli genel Base RPC'ye sessizce düşmek yerine başlangıçta
-fail-closed olur. Render ortamında `sync: false` olan bu değişkeni deploy
-öncesinde tanımlayın. Eski bir yerel `.env` kullanıyorsanız Arc değeri de
-`https://rpc.testnet.arc.network` olmalıdır.
+`VITE_BASE_RPC_URL` is required for production builds. If omitted, the application will fail-closed initially rather than silently falling back to the rate-limited public Base RPC. Define this variable, which is set to `sync: false` in the Render environment, before deployment. If using an old local `.env`, the Arc value must also be `https://rpc.testnet.arc.network`.
 
-## Doğrulama
+## Verification
 
 ```bash
 cd backend/base_mainnet
@@ -141,21 +101,10 @@ npm run build
 node --test tests/useTransactionExecutor.test.mjs
 ```
 
-`test:network`, ağ/chain eşleşmesini ve Base–Arc hedef izolasyon sözleşmesini
-kontrol eder. `verify:base-registry`, Base Mainnet üzerinde yalnız salt-okunur
-bytecode, piyasa ve likidite keşfi yapar; işlem göndermez. Canlı zincir
-işlemleri için yalnız test cüzdanı kullanın; mainnet anahtarını Arc testlerinde
-veya istemci tarafında kullanmayın.
+`test:network` checks the network/chain matching and the Base–Arc target isolation contract. `verify:base-registry` only performs read-only bytecode, market, and liquidity discovery on Base Mainnet; it does not send transactions. Use a test wallet strictly for live chain transactions; do not use the mainnet key in Arc tests or on the client side.
 
-Base protokol kapsamı, resmi adres kaynakları ve Fee Router allowlist kararları
-`docs/base-defi-protocol-registry.md` içinde tutulur. Mimari özet için
-`docs/Kletia_Architecture_OnePager.md` belgesine bakın.
+Base protocol scope, official address sources, and Fee Router allowlist decisions are maintained in `docs/base-defi-protocol-registry.md`. See `docs/Kletia_Architecture_OnePager.md` for an architectural overview.
 
 ## Deploy
 
-`render.yaml`, canonical frontend ve backend dizinlerini deploy eder. Üretim
-ortamında en az özel Base RPC, frontend URL’sini içeren `CORS_ORIGINS` ve
-kullanılan canlı servislerin API anahtarları tanımlanmalıdır. QR bağlantısı
-sunulacaksa WalletConnect project ID de gerekir. Paymaster kullanılacaksa CDP
-Portal tarafında contract/method allowlist’i ile harcama limitleri ayrıca
-zorunlu savunma katmanı olarak yapılandırılmalıdır.
+`render.yaml` deploys the canonical frontend and backend directories. In production, at least a dedicated Base RPC, `CORS_ORIGINS` containing the frontend URL, and API keys for live services must be defined. A WalletConnect project ID is also required if a QR connection will be offered. If a paymaster is to be used, a contract/method allowlist and spending limits must additionally be configured on the CDP Portal side as a mandatory defense layer.

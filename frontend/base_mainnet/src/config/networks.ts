@@ -152,11 +152,6 @@ export const BASE_CONTRACTS = {
 } as const satisfies Record<string, Address>;
 export const OFFICIAL_BASE_PUBLIC_RPC_URL = 'https://mainnet.base.org';
 const configuredBaseRpcUrl = import.meta.env.VITE_BASE_RPC_URL?.trim();
-if (import.meta.env.PROD && !configuredBaseRpcUrl) {
-  throw new Error(
-    'VITE_BASE_RPC_URL is required for production. The public Base RPC is rate-limited.',
-  );
-}
 const BASE_RPC_URL =
   configuredBaseRpcUrl || OFFICIAL_BASE_PUBLIC_RPC_URL;
 export const ALLOW_PUBLIC_BASE_RPC_FALLBACK =

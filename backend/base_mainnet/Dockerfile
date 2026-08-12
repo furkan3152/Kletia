@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:22.23.1-alpine3.24 AS build
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY src ./src
 COPY tsconfig.json tsconfig.build.json ./
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM node:22.23.1-alpine3.24 AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -20,6 +20,6 @@ RUN npm ci --legacy-peer-deps --omit=dev
 COPY --from=build /app/dist ./dist
 
 USER node
-EXPOSE 3001
+EXPOSE 10000
 
 CMD ["node", "dist/index.js"]

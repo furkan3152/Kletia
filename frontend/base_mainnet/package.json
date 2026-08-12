@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node scripts/serve-production.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "1.14.1",

@@ -223,7 +223,8 @@ function clearJournal(
   try {
     window.localStorage.removeItem(journalKey(plan, expectedAddress));
   } catch {
-
+    // Storage can be unavailable in hardened/private browser contexts. The
+    // journal is a safety aid; failure to delete it must not crash rendering.
   }
 }
 

@@ -2,16 +2,26 @@ services:
   # Unified Base Mainnet + Arc Testnet backend
   - type: web
     name: kletia-backend
-    env: docker
+    runtime: node
     rootDir: backend/base_mainnet
     plan: starter
+    buildCommand: npm ci --legacy-peer-deps && npm run build
+    startCommand: npm start
+    domains:
+      - api.kletiaai.xyz
+    renderSubdomainPolicy: enabled
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: commit
     envVars:
+      - key: NODE_VERSION
+        value: 22.23.1
       - key: PORT
-        value: 3000
+        value: "10000"
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGINS
-        value: https://kletia-frontend.onrender.com
+        value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com
       - key: BASE_RPC_URL
         sync: false
       - key: ARC_RPC_URL
@@ -41,6 +51,8 @@ services:
       - key: CDP_PAYMASTER_POLICY_ID
         sync: false
       - key: PAYMASTER_PROXY_ENABLED
+        value: "false"
+      - key: ENABLE_X402_DEBUG
         value: "false"
       - key: TRUST_PROXY_HOPS
         value: "1"
@@ -79,17 +91,26 @@ services:
   # Unified Base Mainnet + Arc Testnet frontend
   - type: web
     name: kletia-frontend
-    env: static
+    runtime: node
     rootDir: frontend/base_mainnet
+    plan: starter
     buildCommand: npm ci --legacy-peer-deps && npm run build
-    staticPublishPath: dist
+    startCommand: npm start
+    domains:
+      - kletiaai.xyz
+    renderSubdomainPolicy: enabled
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
-        value: 22.13.0
+        value: 22.23.1
+      - key: PORT
+        value: "10000"
       - key: VITE_BACKEND_URL
-        value: https://kletia-backend.onrender.com
+        value: https://api.kletiaai.xyz
       - key: VITE_BASE_RPC_URL
-        sync: false
+        value: https://mainnet.base.org
       - key: VITE_ALLOW_PUBLIC_BASE_RPC_FALLBACK
         value: "false"
       - key: VITE_ARC_RPC_URL

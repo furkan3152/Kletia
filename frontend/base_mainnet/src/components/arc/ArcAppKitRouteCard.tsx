@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, RefreshCw, Route, Zap } from 'lucide-react';
 import { useAccount, useChainId } from 'wagmi';
 import {
@@ -65,7 +65,7 @@ export function ArcAppKitRouteCard({
     chainId === NETWORKS.arc.chainId &&
     address?.toLowerCase() === expectedAddress.toLowerCase();
 
-  const refreshQuote = async () => {
+  const refreshQuote = useCallback(async () => {
     setError(null);
     setQuote(null);
     if (!connector || !address || !sessionMatches) {
@@ -95,7 +95,7 @@ export function ArcAppKitRouteCard({
     } finally {
       setIsQuoting(false);
     }
-  };
+  }, [address, connector, expiresAt, onLog, plan, sessionMatches]);
 
   useEffect(() => {
     const key = `${plan.traceId}:${expectedAddress.toLowerCase()}`;
@@ -119,6 +119,7 @@ export function ArcAppKitRouteCard({
     disabled,
     expectedAddress,
     plan.traceId,
+    refreshQuote,
     sessionMatches,
   ]);
 

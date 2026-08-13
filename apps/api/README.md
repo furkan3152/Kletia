@@ -5,6 +5,10 @@ Mainnet and Arc Testnet through one HTTP boundary while preserving independent
 chain identity, assets, protocol targets, transaction builders, and runtime
 validation.
 
+The committed `.npmrc` keeps TypeScript and declaration packages available in
+production-mode CI builds. They compile `src` into `dist`; the runtime still
+starts only the emitted `dist/index.js` with `npm start`.
+
 ## Source ownership
 
 - `src/networks/base`: Base DeFi, Basenames, bridging, token launch, paymaster,
@@ -21,7 +25,7 @@ Network-owned transaction construction must never be added to a shared folder.
 ## Commands
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 npm run typecheck
 npm test
 npm run build

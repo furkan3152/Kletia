@@ -7,7 +7,7 @@ interface ChatInputProps {
   setInput: (val: string) => void;
   handleSend: () => void;
   networkMode: NetworkMode;
-  inputRef?: React.Ref<HTMLInputElement>;
+  inputRef?: React.Ref<HTMLTextAreaElement>;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -19,35 +19,54 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const placeholder =
     networkMode === "arc"
-      ? "Arc Testnet: Örn. 10 USDC stake et veya Arc portföyümü göster"
-      : "Base Mainnet: Örn. 10 USDC ile ETH al veya portföyümü göster";
+      ? "Arc Testnet: E.g., stake 10 USDC or show my Arc portfolio"
+      : "Base Mainnet: E.g., buy ETH with 10 USDC or show my portfolio";
 
   return (
-    <div className="p-3 md:p-6 bg-transparent pb-6 md:pb-8 z-20 w-full px-4 md:px-6">
-      <div className="max-w-4xl mx-auto relative flex items-center">
-        <input
+    <div className="z-20 w-full bg-transparent px-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 sm:px-4 md:px-6 md:pb-8 md:pt-4">
+      <div className="relative mx-auto flex max-w-4xl items-end">
+        <label htmlFor="kletia-intent-input" className="sr-only">
+          Describe your intent
+        </label>
+        <textarea
+          id="kletia-intent-input"
           ref={inputRef}
-          type="text"
+          rows={1}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleSend();
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              handleSend();
+            }
           }}
+          enterKeyHint="send"
+          autoComplete="off"
           placeholder={placeholder}
-          className="w-full bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] focus:bg-[#FAFAFA] dark:focus:bg-[#131E32] text-[#1A1A1A] dark:text-white font-black text-sm md:text-lg placeholder-gray-500 dark:placeholder-slate-400 py-3.5 px-4 pr-16 md:py-5 md:px-5 md:pr-20 outline-none shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] transition-colors"
+          className="max-h-32 min-h-14 w-full resize-none overflow-y-auto border-[3px] border-[#1A1A1A] bg-white px-3 py-3 pr-16 text-base font-black leading-6 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] outline-none transition-[background-color,box-shadow,border-color] duration-100 [field-sizing:content] placeholder:text-sm placeholder:font-bold placeholder:text-gray-600 focus:border-[#0052FF] focus:bg-[#FAFAFA] focus:shadow-[3px_3px_0_#0052FF] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:shadow-[3px_3px_0_#475569] dark:placeholder:text-slate-300 dark:focus:bg-[#131E32] md:min-h-16 md:px-5 md:py-4 md:pr-20 md:text-lg md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]"
         />
         <button
+          type="button"
           onClick={handleSend}
           disabled={!input.trim()}
-          className="absolute right-2 md:right-3.5 p-2.5 md:p-3 bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-[#1A1A1A] dark:text-white hover:bg-gray-100 dark:hover:bg-[#1A2841] disabled:bg-gray-200 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] active:translate-y-1 active:shadow-none transition-all"
+          aria-label="Send intent"
+          className="absolute bottom-1.5 right-1.5 flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-white text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:bg-gray-100 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:shadow-none dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[2px_2px_0_#475569] dark:hover:bg-[#1A2841] dark:disabled:bg-slate-800 dark:disabled:text-slate-400 md:bottom-2.5 md:right-3 md:h-12 md:w-12"
         >
-          <Send className="w-5 h-5 md:w-7 md:h-7" strokeWidth={4} />
+          <Send
+            className="h-5 w-5 md:h-6 md:w-6"
+            strokeWidth={4}
+            aria-hidden="true"
+          />
         </button>
       </div>
-      <p className="text-center text-[9px] md:text-[10px] text-gray-500 dark:text-slate-400 mt-2 md:mt-3 font-bold px-4">
+      <p className="mx-auto mt-2 max-w-3xl px-2 text-center text-[11px] font-bold leading-4 text-gray-600 dark:text-slate-300 md:mt-3 md:text-xs">
         {networkMode === "arc"
-          ? "Arc Testnet kullanıyorsunuz: native USDC hem değer hem gas içindir. İmzadan önce hedefi ve tutarı doğrulayın."
-          : "Base Mainnet gerçek varlık kullanır. İmzadan önce hedefi, tutarı ve gas maliyetini doğrulayın."}
+          ? "You are using Arc Testnet: native USDC is used for both value and gas. Verify the recipient and amount before signing."
+          : "Base Mainnet uses real assets. Verify the recipient, amount, and gas cost before signing."}
       </p>
     </div>
   );

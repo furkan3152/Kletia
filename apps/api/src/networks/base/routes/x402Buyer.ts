@@ -214,14 +214,14 @@ function walletFrom(value: unknown): Address {
   if (typeof value !== "string" || !isAddress(value)) {
     throw new BaseX402BuyerRouteError(
       "X402_BUYER_WALLET_INVALID",
-      "wallet geçerli, sıfır olmayan bir EVM adresi olmalıdır.",
+      "wallet must be a valid, non-zero EVM address.",
     );
   }
   const wallet = getAddress(value);
   if (wallet === zeroAddress) {
     throw new BaseX402BuyerRouteError(
       "X402_BUYER_WALLET_INVALID",
-      "wallet geçerli, sıfır olmayan bir EVM adresi olmalıdır.",
+      "wallet must be a valid, non-zero EVM address.",
     );
   }
   return wallet;
@@ -234,7 +234,7 @@ function singleHeader(req: Request, name: string): string | undefined {
     if (value.length !== 1) {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_HEADER_AMBIGUOUS",
-        `${name} başlığı yalnız bir kez gönderilmelidir.`,
+        `The ${name} header must be sent only once.`,
       );
     }
     return value[0];
@@ -268,7 +268,7 @@ function canonicalJson(value: unknown): string {
     if (!Number.isFinite(value)) {
       throw new BaseX402BuyerRouteError(
         "X402_PAYMENT_PAYLOAD_INVALID",
-        "PAYMENT-SIGNATURE sonlu olmayan sayı içeremez.",
+        "PAYMENT-SIGNATURE cannot contain a non-finite number.",
       );
     }
     return JSON.stringify(value);
@@ -285,7 +285,7 @@ function canonicalJson(value: unknown): string {
   }
   throw new BaseX402BuyerRouteError(
     "X402_PAYMENT_PAYLOAD_INVALID",
-    "PAYMENT-SIGNATURE desteklenmeyen bir değer içeriyor.",
+    "PAYMENT-SIGNATURE contains an unsupported value.",
   );
 }
 
@@ -336,7 +336,7 @@ function bindSessionRequestId(
   if (requestId !== session.requestId) {
     throw new BaseX402BuyerRouteError(
       "X402_BUYER_REQUEST_ID_MISMATCH",
-      "X-Request-Id aktif x402 buyer oturumuyla eşleşmiyor.",
+      "X-Request-Id does not match the active x402 buyer session.",
       409,
     );
   }
@@ -358,7 +358,7 @@ function safeSession(rawSessionId: unknown): BaseX402BuyerSession {
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_BUYER_SESSION_NOT_FOUND",
-      "x402 buyer oturumu bulunamadı veya süresi doldu.",
+      "x402 buyer session not found or has expired.",
       404,
     );
   }
@@ -367,7 +367,7 @@ function safeSession(rawSessionId: unknown): BaseX402BuyerSession {
   if (!session) {
     throw new BaseX402BuyerRouteError(
       "X402_BUYER_SESSION_NOT_FOUND",
-      "x402 buyer oturumu bulunamadı veya süresi doldu.",
+      "x402 buyer session not found or has expired.",
       404,
     );
   }
@@ -385,7 +385,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_SIGNATURE_INVALID",
-      "PAYMENT-SIGNATURE geçersiz veya güvenli boyut sınırının dışında.",
+      "PAYMENT-SIGNATURE is invalid or exceeds safe size limits.",
     );
   }
 
@@ -395,27 +395,27 @@ function parsePaymentSignatureHeader(
   } catch {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_SIGNATURE_INVALID",
-      "PAYMENT-SIGNATURE çözümlenemedi.",
+      "PAYMENT-SIGNATURE could not be decoded.",
     );
   }
   if (!parsePaymentPayload(decoded).success) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_PAYLOAD_INVALID",
-      "PAYMENT-SIGNATURE geçerli bir x402 v2 ödeme yükü içermiyor.",
+      "PAYMENT-SIGNATURE does not contain a valid x402 v2 payment payload.",
     );
   }
   const parsed = paymentPayloadSchema.safeParse(decoded);
   if (!parsed.success) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_PAYLOAD_INVALID",
-      "PAYMENT-SIGNATURE yalnız Base USDC EIP-3009 exact yükünü içermelidir.",
+      "PAYMENT-SIGNATURE must contain only the exact Base USDC EIP-3009 payload.",
     );
   }
   const payment = parsed.data;
   if (!exactRequirementMatches(payment.accepted, session.accepted)) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_REQUIREMENT_MISMATCH",
-      "PAYMENT-SIGNATURE aktif oturumdaki exact ödeme gereksinimiyle eşleşmiyor.",
+      "PAYMENT-SIGNATURE does not match the exact payment requirement in the active session.",
       409,
     );
   }
@@ -427,7 +427,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_CHALLENGE_MISMATCH",
-      "PAYMENT-SIGNATURE aktif oturumun PAYMENT-REQUIRED kanıtıyla eşleşmiyor.",
+      "PAYMENT-SIGNATURE does not match the PAYMENT-REQUIRED proof of the active session.",
       409,
     );
   }
@@ -441,7 +441,7 @@ function parsePaymentSignatureHeader(
   } catch {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_AUTHORIZATION_INVALID",
-      "EIP-3009 yetkilendirme adresleri geçersiz.",
+      "EIP-3009 authorization addresses are invalid.",
     );
   }
   if (
@@ -451,7 +451,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_AUTHORIZATION_MISMATCH",
-      "EIP-3009 payer, alıcı veya tutar aktif oturumla eşleşmiyor.",
+      "EIP-3009 payer, payee, or amount does not match the active session.",
       409,
     );
   }
@@ -464,7 +464,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_AUTHORIZATION_INVALID",
-      "EIP-3009 nonce veya geçerlilik aralığı geçersiz.",
+      "EIP-3009 nonce or validity range is invalid.",
     );
   }
   const now = BigInt(Math.floor(Date.now() / 1_000));
@@ -476,7 +476,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_AUTHORIZATION_EXPIRED",
-      "EIP-3009 yetkilendirme süresi aktif challenge sınırları içinde değil.",
+      "EIP-3009 authorization period is not within the active challenge limits.",
     );
   }
   const signature = payment.payload.signature;
@@ -488,7 +488,7 @@ function parsePaymentSignatureHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_SIGNATURE_INVALID",
-      "EIP-3009 imzası geçersiz veya güvenli boyut sınırının dışında.",
+      "EIP-3009 signature is invalid or exceeds safe size limits.",
     );
   }
 
@@ -542,7 +542,7 @@ async function withSignatureDeadline<T>(promise: Promise<T>): Promise<T> {
             reject(
               new BaseX402BuyerRouteError(
                 "X402_SIGNATURE_VERIFICATION_TIMEOUT",
-                "Cüzdan imzası Base üzerinde zamanında doğrulanamadı.",
+                "Wallet signature could not be verified on Base in time.",
                 504,
               ),
             ),
@@ -611,7 +611,7 @@ async function verifyBuyerSignature(
     if (error instanceof BaseX402BuyerRouteError) throw error;
     throw new BaseX402BuyerRouteError(
       "X402_SIGNATURE_VERIFICATION_UNAVAILABLE",
-      "Cüzdan imzası Base üzerinde doğrulanamadı.",
+      "Wallet signature could not be verified on Base.",
       502,
     );
   }
@@ -625,7 +625,7 @@ function paymentResponseHeader(
   if (primary && legacy && primary !== legacy) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_AMBIGUOUS",
-      "Üst servis birbiriyle çelişen ödeme sonuçları döndürdü.",
+      "Upstream service returned conflicting payment results.",
       502,
     );
   }
@@ -638,7 +638,7 @@ function paymentResponseHeader(
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_MISSING",
-      "Ücretli çağrının PAYMENT-RESPONSE sonucu doğrulanamadı.",
+      "Paid call's PAYMENT-RESPONSE result could not be verified.",
       502,
     );
   }
@@ -652,7 +652,7 @@ function validateSettlement(header: string, session: BaseX402BuyerSession) {
   } catch {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_INVALID",
-      "Ücretli çağrının PAYMENT-RESPONSE zarfı geçersiz.",
+      "Paid call's PAYMENT-RESPONSE envelope is invalid.",
       502,
     );
   }
@@ -660,7 +660,7 @@ function validateSettlement(header: string, session: BaseX402BuyerSession) {
   if (!parsed.success) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_INVALID",
-      "Ücretli çağrı doğrulanabilir bir başarılı settlement sonucu döndürmedi.",
+      "Paid call did not return a verifiable successful settlement result.",
       502,
     );
   }
@@ -671,7 +671,7 @@ function validateSettlement(header: string, session: BaseX402BuyerSession) {
   } catch {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_INVALID",
-      "Settlement payer adresi geçersiz.",
+      "Settlement payer address is invalid.",
       502,
     );
   }
@@ -684,7 +684,7 @@ function validateSettlement(header: string, session: BaseX402BuyerSession) {
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAYMENT_RESPONSE_MISMATCH",
-      "Settlement sonucu aktif payer, ağ veya tutarla eşleşmiyor.",
+      "Settlement result does not match active payer, network, or amount.",
       502,
     );
   }
@@ -701,7 +701,7 @@ function safeContentType(upstream: BaseX402BuyerUpstreamResponse): string {
   if (!contentType || contentType.length > 200 || /[\r\n]/u.test(contentType)) {
     throw new BaseX402BuyerRouteError(
       "X402_PAID_CONTENT_TYPE_INVALID",
-      "Ücretli x402 yanıtı güvenli bir JSON Content-Type döndürmedi.",
+      "Paid x402 response did not return a secure JSON Content-Type.",
       502,
     );
   }
@@ -712,7 +712,7 @@ function safeContentType(upstream: BaseX402BuyerUpstreamResponse): string {
   ) {
     throw new BaseX402BuyerRouteError(
       "X402_PAID_CONTENT_TYPE_INVALID",
-      "Ücretli x402 yanıtı yalnız JSON olabilir.",
+      "Paid x402 response must be JSON only.",
       502,
     );
   }
@@ -730,14 +730,14 @@ function validateSafeJsonTree(value: unknown): void {
     if (nodes > MAX_JSON_NODES || current.depth > MAX_JSON_DEPTH) {
       throw new BaseX402BuyerRouteError(
         "X402_PAID_JSON_COMPLEXITY_EXCEEDED",
-        "Ücretli x402 JSON yanıtı güvenli karmaşıklık sınırını aştı.",
+        "Paid x402 JSON response exceeded safe complexity limit.",
         502,
       );
     }
     if (typeof current.value === "string" && current.value.length > 262_144) {
       throw new BaseX402BuyerRouteError(
         "X402_PAID_JSON_COMPLEXITY_EXCEEDED",
-        "Ücretli x402 JSON yanıtı güvenli metin sınırını aştı.",
+        "Paid x402 JSON response exceeded safe string length limit.",
         502,
       );
     }
@@ -754,7 +754,7 @@ function validateSafeJsonTree(value: unknown): void {
         if (key.length > 256) {
           throw new BaseX402BuyerRouteError(
             "X402_PAID_JSON_COMPLEXITY_EXCEEDED",
-            "Ücretli x402 JSON yanıtı güvenli anahtar sınırını aştı.",
+            "Paid x402 JSON response exceeded safe key length limit.",
             502,
           );
         }
@@ -771,7 +771,7 @@ function safePaidJson(upstream: BaseX402BuyerUpstreamResponse): unknown {
   } catch {
     throw new BaseX402BuyerRouteError(
       "X402_PAID_JSON_INVALID",
-      "Ücretli x402 yanıtı geçerli JSON değil.",
+      "Paid x402 response is not valid JSON.",
       502,
     );
   }
@@ -797,7 +797,7 @@ function sendError(
   const code = known ? error.code : "X402_BUYER_INTERNAL_ERROR";
   const message = known
     ? error.message
-    : "x402 buyer isteği güvenli biçimde tamamlanamadı.";
+    : "x402 buyer request could not be completed securely.";
   return res.status(statusCode).json({
     success: false,
     code,
@@ -861,7 +861,7 @@ router.post("/session", async (req, res) => {
     ) {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_SESSION_INPUT_INVALID",
-        "method=GET, url ve maxPayment açık, sınırlı alanlar olmalıdır.",
+        "method=GET, url, and maxPayment must be explicit, limited fields.",
       );
     }
 
@@ -878,21 +878,21 @@ router.post("/session", async (req, res) => {
       }
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_REQUEST_ID_ACTIVE",
-        "Bu requestId için zaten bir x402 buyer oturumu hazırlandı.",
+        "An x402 buyer session is already prepared for this requestId.",
         409,
       );
     }
     if (preparingRequestIds.has(requestId)) {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_REQUEST_ID_ACTIVE",
-        "Bu requestId için x402 buyer oturumu hazırlanıyor.",
+        "An x402 buyer session is being prepared for this requestId.",
         409,
       );
     }
     if (sessions.size + preparingRequestIds.size >= MAX_SESSIONS) {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_SESSION_CAPACITY",
-        "x402 buyer oturum kapasitesi geçici olarak dolu.",
+        "x402 buyer session capacity is temporarily full.",
         503,
       );
     }
@@ -907,7 +907,7 @@ router.post("/session", async (req, res) => {
       if (sessionByRequestId(requestId)) {
         throw new BaseX402BuyerRouteError(
           "X402_BUYER_REQUEST_ID_ACTIVE",
-          "Bu requestId için zaten bir x402 buyer oturumu hazırlandı.",
+          "An x402 buyer session is already prepared for this requestId.",
           409,
         );
       }
@@ -976,7 +976,7 @@ router.get("/session/:sessionId", async (req, res) => {
       if (session.state !== "prepared") {
         throw new BaseX402BuyerRouteError(
           "X402_BUYER_SESSION_ALREADY_USED",
-          "x402 buyer oturumu kullanımda veya daha önce kullanıldı; tekrar ödeme gönderilemez.",
+          "x402 buyer session is in use or was used before; repeat payment not allowed.",
           409,
         );
       }
@@ -985,7 +985,7 @@ router.get("/session/:sessionId", async (req, res) => {
       return res.status(402).json({
         success: false,
         code: "X402_PAYMENT_REQUIRED",
-        message: "Ödeme için kayıtlı x402 challenge onayı gerekiyor.",
+        message: "Registered x402 challenge approval is required for payment.",
         ...sessionIdentity(session),
         evidence: session.evidence,
         expiresAt: new Date(session.expiresAt).toISOString(),
@@ -994,7 +994,7 @@ router.get("/session/:sessionId", async (req, res) => {
     if (session.state !== "prepared") {
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_SESSION_ALREADY_USED",
-        "x402 buyer oturumu kullanımda veya daha önce kullanıldı; tekrar ödeme gönderilemez.",
+        "x402 buyer session is active or has been used before; payment cannot be resent.",
         409,
       );
     }
@@ -1007,7 +1007,7 @@ router.get("/session/:sessionId", async (req, res) => {
       if (!(await verifyBuyerSignature(session, payment))) {
         throw new BaseX402BuyerRouteError(
           "X402_PAYMENT_SIGNATURE_INVALID",
-          "Cüzdan imzası aktif EIP-3009 yetkilendirmesi için geçerli değil.",
+          "Wallet signature is not valid for active EIP-3009 authorization.",
           401,
         );
       }
@@ -1023,7 +1023,7 @@ router.get("/session/:sessionId", async (req, res) => {
       session.state = "rejected";
       throw new BaseX402BuyerRouteError(
         "X402_BUYER_SESSION_EXPIRED",
-        "x402 buyer oturumunun süresi doldu; imza üst servise gönderilmedi.",
+        "x402 buyer session has expired; signature was not forwarded upstream.",
         410,
       );
     }
@@ -1053,7 +1053,7 @@ router.get("/session/:sessionId", async (req, res) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         throw new BaseX402BuyerRouteError(
           "X402_PAID_UPSTREAM_STATUS_INVALID",
-          "Ödeme doğrulandı ancak ücretli servis başarılı bir HTTP durumu döndürmedi.",
+          "Payment verified but the paid service did not return a successful HTTP status.",
           502,
         );
       }

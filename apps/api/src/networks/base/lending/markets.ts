@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   AAVE_V3_BASE,
   BASE_ERC4626_VAULTS,
@@ -27,7 +27,7 @@ import {
   buildYieldRankingEvidence,
   rankLendingRoutes,
   yieldRoutingLimitation,
-} from "../../../intent/efficiencyEngine.js";
+} from "../efficiencyEngine.js";
 
 const SECONDS_PER_YEAR = 31_536_000n;
 const WAD = 10n ** 18n;
@@ -471,31 +471,31 @@ async function readAaveSnapshot(
 ): Promise<LendingMarketSnapshot> {
   const [configuration, reserveData, reserveTokens, reserveCaps, isPaused] =
     await Promise.all([
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_PROVIDER_ABI,
         functionName: "getReserveConfigurationData",
         args: [token],
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_PROVIDER_ABI,
         functionName: "getReserveData",
         args: [token],
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_PROVIDER_ABI,
         functionName: "getReserveTokensAddresses",
         args: [token],
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_PROVIDER_ABI,
         functionName: "getReserveCaps",
         args: [token],
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_PROVIDER_ABI,
         functionName: "getPaused",
@@ -519,14 +519,14 @@ async function readAaveSnapshot(
 
   const [availableLiquidityAtomic, positionAtomic, debtAtomic] =
     await Promise.all([
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: token,
         abi: erc20Abi,
         functionName: "balanceOf",
         args: [aTokenAddress],
       }),
       user
-        ? publicClient.readContract({
+        ? basePublicClient.readContract({
             address: aTokenAddress,
             abi: erc20Abi,
             functionName: "balanceOf",
@@ -534,7 +534,7 @@ async function readAaveSnapshot(
           })
         : Promise.resolve(null),
       user
-        ? publicClient.readContract({
+        ? basePublicClient.readContract({
             address: variableDebtTokenAddress,
             abi: erc20Abi,
             functionName: "balanceOf",
@@ -610,72 +610,72 @@ async function readMoonwellSnapshot(
     positionAtomic,
     debtAtomic,
   ] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: MOONWELL_BASE.comptroller,
       abi: MOONWELL_COMPTROLLER_ABI,
       functionName: "getAllMarkets",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "underlying",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "supplyRatePerTimestamp",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "borrowRatePerTimestamp",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "getCash",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: MOONWELL_BASE.comptroller,
       abi: MOONWELL_COMPTROLLER_ABI,
       functionName: "mintGuardianPaused",
       args: [market],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: MOONWELL_BASE.comptroller,
       abi: MOONWELL_COMPTROLLER_ABI,
       functionName: "borrowGuardianPaused",
       args: [market],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: MOONWELL_BASE.comptroller,
       abi: MOONWELL_COMPTROLLER_ABI,
       functionName: "supplyCaps",
       args: [market],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: MOONWELL_BASE.comptroller,
       abi: MOONWELL_COMPTROLLER_ABI,
       functionName: "borrowCaps",
       args: [market],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "totalSupply",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "totalBorrows",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: MOONWELL_MARKET_ABI,
       functionName: "exchangeRateStored",
     }),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: market,
           abi: MOONWELL_MARKET_ABI,
           functionName: "balanceOfUnderlying",
@@ -683,7 +683,7 @@ async function readMoonwellSnapshot(
         })
       : Promise.resolve(null),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: market,
           abi: MOONWELL_MARKET_ABI,
           functionName: "borrowBalanceCurrent",
@@ -757,22 +757,22 @@ async function readCompoundSnapshot(
 ): Promise<LendingMarketSnapshot> {
   const [baseToken, utilization, supplyPaused, withdrawPaused] =
     await Promise.all([
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: market,
         abi: COMET_ABI,
         functionName: "baseToken",
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: market,
         abi: COMET_ABI,
         functionName: "getUtilization",
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: market,
         abi: COMET_ABI,
         functionName: "isSupplyPaused",
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: market,
         abi: COMET_ABI,
         functionName: "isWithdrawPaused",
@@ -789,26 +789,26 @@ async function readCompoundSnapshot(
     positionAtomic,
     debtAtomic,
   ] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: COMET_ABI,
       functionName: "getSupplyRate",
       args: [utilization],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: market,
       abi: COMET_ABI,
       functionName: "getBorrowRate",
       args: [utilization],
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: token,
       abi: erc20Abi,
       functionName: "balanceOf",
       args: [market],
     }),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: market,
           abi: COMET_ABI,
           functionName: "balanceOf",
@@ -816,7 +816,7 @@ async function readCompoundSnapshot(
         })
       : Promise.resolve(null),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: market,
           abi: COMET_ABI,
           functionName: "borrowBalanceOf",
@@ -863,13 +863,13 @@ async function readErc4626Snapshot(
   user?: Address,
 ): Promise<LendingMarketSnapshot> {
   const [asset, maxDepositAtomic, maxWithdrawAtomic] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: vault,
       abi: ERC4626_ABI,
       functionName: "asset",
     }),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: vault,
           abi: ERC4626_ABI,
           functionName: "maxDeposit",
@@ -877,7 +877,7 @@ async function readErc4626Snapshot(
         })
       : Promise.resolve(null),
     user
-      ? publicClient.readContract({
+      ? basePublicClient.readContract({
           address: vault,
           abi: ERC4626_ABI,
           functionName: "maxWithdraw",
@@ -1280,7 +1280,7 @@ export async function getLendingRoutes(
   const user = userAddress as Address;
   const walletBalance =
     action === "lend" || action === "repay"
-      ? await publicClient.readContract({
+      ? await basePublicClient.readContract({
           address: definition.address,
           abi: erc20Abi,
           functionName: "balanceOf",

@@ -25,12 +25,12 @@ export class RequestIdValidationError extends Error {
 function optionalRequestId(value: unknown): string | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "string") {
-    throw new RequestIdValidationError("requestId metin biçiminde olmalıdır.");
+    throw new RequestIdValidationError("requestId must be a string.");
   }
   const normalized = value.trim();
   if (!REQUEST_ID_PATTERN.test(normalized)) {
     throw new RequestIdValidationError(
-      "requestId UUID v4 veya 32 karakterlik hex kimlik olmalıdır.",
+      "requestId must be a UUID v4 or a 32-character hex identifier.",
     );
   }
   return normalized;
@@ -49,7 +49,7 @@ export function resolveIntentRequestId(
     requestId !== legacyMsgId
   ) {
     throw new RequestIdValidationError(
-      "requestId ve msgId birbiriyle uyuşmuyor.",
+      "requestId and msgId do not match.",
     );
   }
   return requestId || legacyMsgId || fallback();

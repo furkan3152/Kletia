@@ -3,6 +3,7 @@ import {
   formatUnits,
   getAddress,
   isHash,
+  keccak256,
   parseUnits,
   type Address,
   type Hash,
@@ -19,6 +20,8 @@ import {
 } from "./abis.js";
 import {
   ARC_CONTRACTS,
+  ARC_VAULT_EXECUTION_MODE,
+  ARC_VAULT_V2_RUNTIME_CODEHASH,
   NETWORKS,
   arcPublicClient,
 } from "../../config/networks.js";
@@ -44,7 +47,7 @@ function addressParam(value: string | string[]): Address {
   } catch {
     throw new ControlledRouteError(
       "INVALID_ADDRESS",
-      "Geçerli bir EVM adresi gerekli.",
+      "A valid EVM address is required.",
       400,
     );
   }
@@ -55,7 +58,7 @@ function uintParam(value: string | string[], label: string): bigint {
   if (!/^\d+$/.test(scalar)) {
     throw new ControlledRouteError(
       "INVALID_ID",
-      `${label} pozitif bir tam sayı olmalı.`,
+      `${label} must be a positive integer.`,
       400,
     );
   }
@@ -69,7 +72,7 @@ function arcRoute(handler: (req: Request, res: Response) => Promise<unknown>) {
     } catch (error: any) {
       const failure = resolvePublicRouteFailure(error, {
         code: "ARC_RPC_ERROR",
-        message: "Arc RPC sorgusu tamamlanamadı.",
+        message: "Arc RPC query failed to complete.",
         statusCode: 502,
       });
       if (!(error instanceof ControlledRouteError)) {
@@ -209,7 +212,7 @@ router.get(
     } catch {
       throw new ControlledRouteError(
         "INVALID_AMOUNT",
-        "amount pozitif bir sayı olmalı.",
+        "Amount must be a positive number.",
         400,
       );
     }
@@ -237,30 +240,72 @@ router.get(
 router.get(
   "/vault/info",
   arcRoute(async (_req, res) => {
-    const [apyBps, totalDeposited, vaultBalance] = await Promise.all([
+    const observedBlock = await arcPublicClient.getBlockNumber();
+    const [apyBps, totalDeposited, vaultBalance, vaultCode, reserveStatus] = await Promise.all([
       arcPublicClient.readContract({
         address: ARC_CONTRACTS.Vault,
         abi: ARC_VAULT_ABI,
         functionName: "apyBps",
+        blockNumber: observedBlock,
       }),
       arcPublicClient.readContract({
         address: ARC_CONTRACTS.Vault,
         abi: ARC_VAULT_ABI,
         functionName: "totalDeposited",
+        blockNumber: observedBlock,
       }),
-      arcPublicClient.readContract({
+      arcPublicClient.getBalance({
         address: ARC_CONTRACTS.Vault,
-        abi: ARC_VAULT_ABI,
-        functionName: "vaultBalance",
+        blockNumber: observedBlock,
       }),
+      ARC_VAULT_EXECUTION_MODE === "vault_v2"
+        ? arcPublicClient.getCode({
+            address: ARC_CONTRACTS.Vault,
+            blockNumber: observedBlock,
+          })
+        : Promise.resolve(undefined),
+      ARC_VAULT_EXECUTION_MODE === "vault_v2"
+        ? arcPublicClient.readContract({
+            address: ARC_CONTRACTS.Vault,
+            abi: ARC_VAULT_ABI,
+            functionName: "reserveStatus",
+            blockNumber: observedBlock,
+          })
+        : Promise.resolve(null),
     ]);
+    if (
+      ARC_VAULT_EXECUTION_MODE === "vault_v2" &&
+      (!vaultCode ||
+        vaultCode === "0x" ||
+        keccak256(vaultCode).toLowerCase() !==
+          ARC_VAULT_V2_RUNTIME_CODEHASH)
+    ) {
+      throw new ControlledRouteError(
+        "ARC_VAULT_V2_RUNTIME_MISMATCH",
+        "Arc Vault V2 runtime does not match deployment evidence.",
+        503,
+      );
+    }
     res.json({
       success: true,
       contract: ARC_CONTRACTS.Vault,
+      executionMode: ARC_VAULT_EXECUTION_MODE,
+      observedBlock: observedBlock.toString(),
       apyBps: Number(apyBps),
       apyPercent: Number(apyBps) / 100,
       totalDeposited: formatUnits(totalDeposited, 18),
       vaultBalance: formatUnits(vaultBalance, 18),
+      reserveStatus:
+        reserveStatus === null
+          ? null
+          : {
+              balance: formatUnits(reserveStatus[0], 18),
+              principalLiability: formatUnits(reserveStatus[1], 18),
+              interestLiability: formatUnits(reserveStatus[2], 18),
+              required: formatUnits(reserveStatus[3], 18),
+              surplus: formatUnits(reserveStatus[4], 18),
+              fullyCollateralized: reserveStatus[5],
+            },
       ...metadata(),
     });
   }),
@@ -293,9 +338,16 @@ router.get(
     res.json({
       success: true,
       address,
+      contract: ARC_CONTRACTS.Vault,
+      executionMode: ARC_VAULT_EXECUTION_MODE,
       principal: formatUnits(deposit[0], 18),
       principalRaw: deposit[0].toString(),
-      lastAccrualTimestamp: Number(deposit[1]),
+      lastAccrualTimestamp:
+        ARC_VAULT_EXECUTION_MODE === "legacy_v1" ? Number(deposit[1]) : null,
+      indexCheckpoint:
+        ARC_VAULT_EXECUTION_MODE === "vault_v2"
+          ? deposit[1].toString()
+          : null,
       accruedInterest: formatUnits(deposit[2], 18),
       pendingInterest: formatUnits(pendingInterest, 18),
       claimableAmount: formatUnits(claimable, 18),
@@ -659,7 +711,7 @@ router.get(
     if (!isHash(hashParam)) {
       throw new ControlledRouteError(
         "INVALID_TRANSACTION_HASH",
-        "Geçerli bir işlem hash’i gerekli.",
+        "A valid transaction hash is required.",
         400,
       );
     }

@@ -41,17 +41,16 @@ export function AssetClarificationCard({
       <div className="flex items-start justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-2">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.16em]">
-            Güvenli token netleştirmesi
-          </div>
+            Secure token settlement</div>
           {clarification.reference && (
             <div className="mt-1 break-all text-[10px] font-bold">
-              Algılanan ifade: {clarification.reference}
+              Detected expression: {clarification.reference}
             </div>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-1 border-[2px] border-[#1A1A1A] bg-white px-2 py-1 text-[9px] font-black uppercase">
           <Clock3 className="h-3 w-3" />
-          {expired ? "Süresi doldu" : `${remainingSeconds}s`}
+          {expired ? "Expired" : `${remainingSeconds}s`}
         </div>
       </div>
 
@@ -88,7 +87,7 @@ export function AssetClarificationCard({
                 <Check className="h-5 w-5 shrink-0" />
               ) : (
                 <span className="shrink-0 border-[2px] border-[#1A1A1A] bg-[#0052FF] px-2 py-1 text-[9px] font-black uppercase text-white">
-                  Seç
+                  Select
                 </span>
               )}
             </button>
@@ -97,15 +96,13 @@ export function AssetClarificationCard({
       ) : (
         <div className="mt-3 flex gap-2 border-[3px] border-[#1A1A1A] bg-white p-3 text-xs font-bold">
           <AlertTriangle className="h-5 w-5 shrink-0" />
-          Aday bulunamadı. Token sembolünü veya tam kontrat adresini mesaj
-          kutusuna yazın.
+          No candidate found. Enter the token symbol or full contract address in the message box.
         </div>
       )}
 
       {(expired || status === "blocked") && (
         <p className="mt-3 border-t-[2px] border-[#1A1A1A] pt-2 text-[10px] font-black">
-          Bu seçim artık kullanılamaz. Niyeti yeniden yazarak güncel portföy ve
-          güvenlik kanıtı oluşturun.
+          This selection is no longer available. Rewrite the intent to create an updated portfolio and proof of security.
         </p>
       )}
     </div>

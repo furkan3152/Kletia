@@ -15,7 +15,7 @@ const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_CALLDATA_BYTES = 48 * 1024;
 const PROVIDER_TIMEOUT_MS = 12_000;
-const PROVIDER_ERROR_MESSAGE = "Base paymaster sağlayıcısı isteği reddetti.";
+const PROVIDER_ERROR_MESSAGE = "Base paymaster provider rejected the request.";
 
 type JsonRpcId = string | number;
 
@@ -102,7 +102,7 @@ function validateUserOperation(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation nesnesi geçersiz.",
+      "UserOperation object is invalid.",
     );
   }
 
@@ -123,7 +123,7 @@ function validateUserOperation(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation desteklenmeyen alan içeriyor.",
+      "UserOperation contains unsupported fields.",
     );
   }
 
@@ -135,21 +135,21 @@ function validateUserOperation(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation sender adresi geçersiz.",
+      "UserOperation sender address is invalid.",
     );
   }
   if (isAddressEqual(sender, zeroAddress)) {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation sender sıfır adres olamaz.",
+      "UserOperation sender cannot be the zero address.",
     );
   }
   if (!isHexQuantity(value.nonce)) {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation nonce değeri geçersiz.",
+      "UserOperation nonce value is invalid.",
     );
   }
   if (
@@ -159,7 +159,7 @@ function validateUserOperation(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "UserOperation callData değeri geçersiz veya çok büyük.",
+      "UserOperation callData value is invalid or too large.",
     );
   }
 
@@ -172,7 +172,7 @@ function validateUserOperation(
       throw new PaymasterRequestError(
         400,
         -32602,
-        `UserOperation ${field} değeri geçersiz.`,
+        `UserOperation ${field} value is invalid.`,
       );
     }
   }
@@ -188,7 +188,7 @@ function validateUserOperation(
       throw new PaymasterRequestError(
         400,
         -32602,
-        `UserOperation ${field} değeri geçersiz.`,
+        `UserOperation ${field} value is invalid.`,
       );
     }
   }
@@ -203,7 +203,7 @@ function validateContext(
     throw new PaymasterRequestError(
       503,
       -32003,
-      "Base paymaster policy sunucuda yapılandırılmamış.",
+      "Base paymaster policy is not configured on the server.",
       id,
     );
   }
@@ -218,7 +218,7 @@ function validateContext(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Paymaster context nesnesi geçersiz.",
+      "Paymaster context object is invalid.",
       id,
     );
   }
@@ -232,7 +232,7 @@ function validateContext(
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Paymaster context yalnız yapılandırılmış policyId içerebilir.",
+      "Paymaster context can only contain the configured policyId.",
       id,
     );
   }
@@ -241,7 +241,7 @@ function validateContext(
     throw new PaymasterRequestError(
       403,
       -32001,
-      "Paymaster policyId bu servis için yetkili değil.",
+      "Paymaster policyId is not authorized for this service.",
       id,
     );
   }
@@ -262,7 +262,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       413,
       -32600,
-      "Paymaster isteği boyut sınırını aşıyor.",
+      "Paymaster request exceeds size limit.",
     );
   }
 
@@ -278,7 +278,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32600,
-      "JSON-RPC 2.0 sürümü ve geçerli bir id zorunludur.",
+      "JSON-RPC 2.0 version and a valid id are required.",
       id,
     );
   }
@@ -287,7 +287,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       405,
       -32601,
-      "Bu JSON-RPC metodu paymaster proxy üzerinde desteklenmiyor.",
+      "This JSON-RPC method is not supported on the paymaster proxy.",
       id,
     );
   }
@@ -295,7 +295,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Paymaster params dizisi ERC-7677 biçimiyle eşleşmiyor.",
+      "Paymaster params array does not match the ERC-7677 format.",
       id,
     );
   }
@@ -311,7 +311,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Paymaster EntryPoint adresi geçersiz.",
+      "Invalid Paymaster EntryPoint address.",
       id,
     );
   }
@@ -319,7 +319,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Yalnız CDP tarafından desteklenen EntryPoint v0.6 kullanılabilir.",
+      "Only EntryPoint v0.6 supported by CDP is allowed.",
       id,
     );
   }
@@ -327,7 +327,7 @@ export function validatePaymasterRequest(body: unknown): JsonRpcRequest {
     throw new PaymasterRequestError(
       400,
       -32602,
-      "Paymaster yalnız Base Mainnet chainId 8453 için kullanılabilir.",
+      "Paymaster can only be used for Base Mainnet chainId 8453.",
       id,
     );
   }
@@ -348,13 +348,13 @@ function resolvePaymasterUrl(): URL {
   let rawUrl = configuredUrl;
   if (!rawUrl && apiKeyId) {
     if (!/^[A-Za-z0-9_-]{8,256}$/.test(apiKeyId)) {
-      throw new Error("CDP_API_KEY_ID biçimi geçersiz.");
+      throw new Error("Invalid CDP_API_KEY_ID format.");
     }
     rawUrl = `https://api.developer.coinbase.com/rpc/v1/base/${apiKeyId}`;
   }
   if (!rawUrl) {
     throw new Error(
-      "CDP_PAYMASTER_URL veya CDP_API_KEY_ID sunucuda yapılandırılmamış.",
+      "CDP_PAYMASTER_URL or CDP_API_KEY_ID is not configured on the server.",
     );
   }
 
@@ -362,7 +362,7 @@ function resolvePaymasterUrl(): URL {
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new Error("CDP paymaster sağlayıcı URL yapılandırması geçersiz.");
+    throw new Error("Invalid CDP paymaster provider URL configuration.");
   }
   if (
     url.protocol !== "https:" ||
@@ -373,7 +373,7 @@ function resolvePaymasterUrl(): URL {
     url.hash
   ) {
     throw new Error(
-      "CDP paymaster sağlayıcısı güvenilir Base HTTPS uç noktası değil.",
+      "CDP paymaster provider is not a trusted Base HTTPS endpoint.",
     );
   }
 
@@ -387,7 +387,7 @@ function resolvePaymasterUrl(): URL {
     !pathParts[3]
   ) {
     throw new Error(
-      "CDP paymaster URL yolu /rpc/v1/base/<client-api-key> biçiminde olmalı.",
+      "CDP paymaster URL path must be in the format /rpc/v1/base/<client-api-key>.",
     );
   }
   return url;
@@ -399,16 +399,16 @@ function validateProviderResponse(
   method: JsonRpcRequest["method"],
 ): Record<string, unknown> {
   if (!isPlainRecord(value) || value.jsonrpc !== "2.0") {
-    throw new Error("CDP paymaster geçersiz JSON-RPC yanıtı döndürdü.");
+    throw new Error("CDP paymaster returned an invalid JSON-RPC response.");
   }
   if (value.id !== requestId) {
-    throw new Error("CDP paymaster yanıt id değeri istekle eşleşmiyor.");
+    throw new Error("CDP paymaster response id does not match the request.");
   }
   const hasResult = Object.prototype.hasOwnProperty.call(value, "result");
   const hasError = Object.prototype.hasOwnProperty.call(value, "error");
   if (hasResult === hasError) {
     throw new Error(
-      "CDP paymaster yanıtı result/error sözleşmesiyle eşleşmiyor.",
+      "CDP paymaster response does not conform to the result/error contract.",
     );
   }
   if (hasError) {
@@ -419,7 +419,7 @@ function validateProviderResponse(
       value.error.message.length === 0 ||
       value.error.message.length > 1_000
     ) {
-      throw new Error("CDP paymaster geçersiz hata yanıtı döndürdü.");
+      throw new Error("CDP paymaster returned an invalid error response.");
     }
     return {
       jsonrpc: "2.0",
@@ -432,7 +432,7 @@ function validateProviderResponse(
   }
 
   if (!isPlainRecord(value.result)) {
-    throw new Error("CDP paymaster geçersiz result nesnesi döndürdü.");
+    throw new Error("CDP paymaster returned an invalid result object.");
   }
   const allowedResultFields = new Set(
     method === "pm_getPaymasterStubData"
@@ -442,12 +442,12 @@ function validateProviderResponse(
   if (
     Object.keys(value.result).some((field) => !allowedResultFields.has(field))
   ) {
-    throw new Error("CDP paymaster result beklenmeyen alan içeriyor.");
+    throw new Error("CDP paymaster result contains unexpected fields.");
   }
   const paymasterAndData = value.result.paymasterAndData;
   if (!isHexData(paymasterAndData, 8 * 1024) || paymasterAndData.length < 42) {
     throw new Error(
-      "CDP paymaster result geçerli v0.6 paymasterAndData içermiyor.",
+      "CDP paymaster result does not contain valid v0.6 paymasterAndData.",
     );
   }
   try {
@@ -457,7 +457,7 @@ function validateProviderResponse(
     }
   } catch {
     throw new Error(
-      "CDP paymaster result geçerli bir v0.6 paymaster adresi içermiyor.",
+      "CDP paymaster result does not contain a valid v0.6 paymaster address.",
     );
   }
 
@@ -467,7 +467,7 @@ function validateProviderResponse(
       value.result.isFinal !== undefined &&
       typeof value.result.isFinal !== "boolean"
     ) {
-      throw new Error("CDP paymaster isFinal alanı geçersiz.");
+      throw new Error("CDP paymaster isFinal field is invalid.");
     }
     if (value.result.isFinal !== undefined) {
       normalizedResult.isFinal = value.result.isFinal;
@@ -482,7 +482,7 @@ function validateProviderResponse(
           (field) => field !== "name" && field !== "icon",
         )
       ) {
-        throw new Error("CDP paymaster sponsor alanı geçersiz.");
+        throw new Error("CDP paymaster sponsor field is invalid.");
       }
       let icon: string | undefined;
       if (value.result.sponsor.icon !== undefined) {
@@ -490,20 +490,20 @@ function validateProviderResponse(
           typeof value.result.sponsor.icon !== "string" ||
           value.result.sponsor.icon.length > 2_048
         ) {
-          throw new Error("CDP paymaster sponsor icon alanı geçersiz.");
+          throw new Error("CDP paymaster sponsor icon field is invalid.");
         }
         let iconUrl: URL;
         try {
           iconUrl = new URL(value.result.sponsor.icon);
         } catch {
-          throw new Error("CDP paymaster sponsor icon URL alanı geçersiz.");
+          throw new Error("CDP paymaster sponsor icon URL field is invalid.");
         }
         if (
           iconUrl.protocol !== "https:" ||
           iconUrl.username ||
           iconUrl.password
         ) {
-          throw new Error("CDP paymaster sponsor icon güvenli HTTPS değil.");
+          throw new Error("CDP paymaster sponsor icon is not secure HTTPS.");
         }
         icon = iconUrl.toString();
       }
@@ -532,18 +532,18 @@ async function readProviderResponse(
     Number.isFinite(Number(declaredLength)) &&
     Number(declaredLength) > MAX_RESPONSE_BYTES
   ) {
-    throw new Error("CDP paymaster yanıtı boyut sınırını aşıyor.");
+    throw new Error("CDP paymaster response exceeds size limit.");
   }
 
   const raw = await response.text();
   if (Buffer.byteLength(raw, "utf8") > MAX_RESPONSE_BYTES) {
-    throw new Error("CDP paymaster yanıtı boyut sınırını aşıyor.");
+    throw new Error("CDP paymaster response exceeds size limit.");
   }
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error("CDP paymaster JSON olmayan bir yanıt döndürdü.");
+    throw new Error("CDP paymaster returned a non-JSON response.");
   }
   return validateProviderResponse(parsed, requestId, method);
 }
@@ -565,7 +565,7 @@ const sponsorLimiter = rateLimit({
       res,
       429,
       -32005,
-      "Paymaster istek limiti aşıldı. Lütfen daha sonra tekrar deneyin.",
+      "Paymaster request limit exceeded. Please try again later.",
       id,
     );
   },
@@ -599,7 +599,7 @@ router.post("/sponsor", sponsorLimiter, async (req: Request, res: Response) => {
         error.id,
       );
     }
-    return rpcError(res, 400, -32600, "Geçersiz paymaster isteği.", null);
+    return rpcError(res, 400, -32600, "Invalid paymaster request.", null);
   }
 
   let paymasterUrl: URL;
@@ -610,7 +610,7 @@ router.post("/sponsor", sponsorLimiter, async (req: Request, res: Response) => {
       res,
       503,
       -32003,
-      "Base paymaster sağlayıcısı sunucuda kullanıma hazır değil.",
+      "Base paymaster provider is not ready on the server.",
       validatedRequest.id,
     );
   }
@@ -638,7 +638,7 @@ router.post("/sponsor", sponsorLimiter, async (req: Request, res: Response) => {
       res,
       502,
       -32003,
-      "Base paymaster sağlayıcısına güvenli biçimde ulaşılamadı.",
+      "Could not securely reach the base paymaster provider.",
       validatedRequest.id,
     );
   }

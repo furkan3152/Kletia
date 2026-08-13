@@ -1,24 +1,24 @@
 import { parseUnits, formatUnits, erc20Abi, encodeFunctionData } from "viem";
-import { publicClient } from "../config/client.js";
-import { TOKENS } from "../networks/base/contracts.js";
+import { basePublicClient } from "../../config/client.js";
+import { TOKENS } from "./contracts.js";
 import { getAddressSafe } from "./utils.js";
 import {
   checkTokenSecurity,
   xRaySimulate,
   type XRaySimulationResult,
 } from "./security.js";
-import { KletiaErrorTracker } from "../ai/errorEngine.js";
-import type { ParsedIntent } from "../ai/parser.js";
-import { normalizeBaseProtocolId } from "../networks/base/protocols.js";
+import { KletiaErrorTracker } from "../../ai/errorEngine.js";
+import type { ParsedIntent } from "../../ai/parser.js";
+import { normalizeBaseProtocolId } from "./protocols.js";
 
 import {
   getLendingOpportunities,
   getLendingRoutes,
   rankVerifiedLendingRoutes,
-} from "../networks/base/lending/markets.js";
-import { getStakingRoutes } from "../networks/base/staking/lockers.js";
-import { getLiquidityRoutes } from "../networks/base/dex/liquidity.js";
-import { getAcrossBridgeRoutes } from "../networks/base/bridge/across.js";
+} from "./lending/markets.js";
+import { getStakingRoutes } from "./staking/lockers.js";
+import { getLiquidityRoutes } from "./dex/liquidity.js";
+import { getAcrossBridgeRoutes } from "./bridge/across.js";
 import {
   buildSwapRankingEvidence,
   parseSlippageBps,
@@ -30,13 +30,13 @@ import {
   assertBaseProtocolConstraintCompatibility,
   assertProtocolExclusionsLeaveEligibleRoutes,
 } from "./protocolConstraints.js";
-import { collectBaseSwapQuotes } from "../networks/base/intent/swapQuoteCollector.js";
+import { collectBaseSwapQuotes } from "./intent/swapQuoteCollector.js";
 
 function requiredTokenAddress(reference: string, label: string) {
   const address = getAddressSafe(reference);
   if (!address) {
     throw Object.assign(
-      new Error(`${label} doğrulanmış Base token registry kaydı taşımıyor.`),
+      new Error(`${label} does not have a verified Base token registry entry.`),
       { code: "TOKEN_REQUIRED", statusCode: 400 },
     );
   }
@@ -101,8 +101,8 @@ export async function handleSmartSwap(
     let amountInWei = maxRequested ? 0n : parseUnits(intent.amount || "0", 18);
 
     let bal = isWrap
-      ? await publicClient.getBalance({ address: userAddress as `0x${string}` })
-      : await publicClient.readContract({
+      ? await basePublicClient.getBalance({ address: userAddress as `0x${string}` })
+      : await basePublicClient.readContract({
           address: wethAddr,
           abi: erc20Abi,
           functionName: "balanceOf",
@@ -393,7 +393,7 @@ export async function handleLiquidity(
     );
     if (finalRoutes.length === 0)
       throw new Error(
-        `🚨 Sadece "${intent.protocol}" protokolü istendi ancak havuzda rota bulunamadı.`,
+        `🚨 Only the "${intent.protocol}" protocol was requested, but no route was found in the pool.`,
       );
   }
 
@@ -519,7 +519,7 @@ export async function handleDeFiBanking(intent: ParsedIntent, user: string) {
       );
     }
     throw new Error(
-      "İşlem reddedildi. Bakiye or teminat (collateral) eksik olabilir.",
+      "Transaction rejected. Balance or collateral may be insufficient.",
     );
   }
 
@@ -584,7 +584,7 @@ export async function handleYieldCompare(intent: ParsedIntent) {
   );
   assertProtocolExclusionsLeaveEligibleRoutes(
     protocolExclusionResult.evidence,
-    "Yield karşılaştırması",
+    "Yield comparison",
   );
   const opportunities = protocolExclusionResult.routes;
   return {
@@ -673,7 +673,7 @@ export async function handleStaking(intent: ParsedIntent, user: string) {
         `KEE_ERROR|${analyzed.category}|${analyzed.reason}|${analyzed.aiHint}`,
       );
     }
-    throw new Error("Staking işlemi ağ tarafından reddedildi.");
+    throw new Error("Staking transaction was rejected by the network.");
   }
 
   const finalRoutes = verified;
@@ -739,7 +739,7 @@ export async function handleLiquidStaking(intent: ParsedIntent, user: string) {
   if (!lsdToken) {
     throw Object.assign(
       new Error(
-        "Liquid staking acquisition için wstETH, cbETH, rETH, weETH, ezETH veya wrsETH hedefini açıkça belirtmelisin.",
+        "You must explicitly specify a target of wstETH, cbETH, rETH, weETH, ezETH, or wrsETH for liquid staking acquisition.",
       ),
       { code: "LIQUID_STAKING_TOKEN_REQUIRED", statusCode: 400 },
     );
@@ -783,7 +783,7 @@ export async function handleBridge(intent: ParsedIntent, user: string) {
 
   const decimals = isNative
     ? 18
-    : await publicClient.readContract({
+    : await basePublicClient.readContract({
         address: tAddr,
         abi: erc20Abi,
         functionName: "decimals",
@@ -794,8 +794,8 @@ export async function handleBridge(intent: ParsedIntent, user: string) {
     : parseUnits(intent.amount || "0", decimals);
 
   let bal = isNative
-    ? await publicClient.getBalance({ address: user as `0x${string}` })
-    : await publicClient.readContract({
+    ? await basePublicClient.getBalance({ address: user as `0x${string}` })
+    : await basePublicClient.readContract({
         address: tAddr,
         abi: erc20Abi,
         functionName: "balanceOf",

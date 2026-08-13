@@ -69,7 +69,7 @@ const ROUTING_LIMITATION =
 function invalidSlippage(): Error {
   return Object.assign(
     new Error(
-      "Slippage yüzde 0.01 ile 10 arasında ve en fazla iki ondalık basamakla belirtilmelidir.",
+      "Slippage must be between 0.01% and 10% with up to two decimal places.",
     ),
     { code: "INVALID_SLIPPAGE", statusCode: 400 },
   );

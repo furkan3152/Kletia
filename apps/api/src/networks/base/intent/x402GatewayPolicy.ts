@@ -62,7 +62,7 @@ export async function verifyBaseX402Gateway(
     gateway = getAddress(String(gatewayInput || ""));
   } catch {
     throw Object.assign(
-      new Error("gateway geçerli bir Base adresi olmalıdır."),
+      new Error("Gateway must be a valid Base address."),
       {
         code: "INVALID_X402_GATEWAY",
         statusCode: 400,
@@ -102,25 +102,25 @@ export async function verifyBaseX402Gateway(
 
   if (chainId !== 8_453) {
     throw Object.assign(
-      new Error("x402 gateway doğrulaması Base Mainnet gerektirir."),
+      new Error("x402 gateway verification requires Base Mainnet."),
       { code: "BASE_RPC_CHAIN_MISMATCH", statusCode: 503 },
     );
   }
   if (!bytecode || bytecode === "0x" || !registeredByFactory) {
     throw Object.assign(
-      new Error("Gateway doğrulanmış Kletia X402Factory dağıtımı değil."),
+      new Error("Gateway is not a verified Kletia X402Factory deployment."),
       { code: "UNVERIFIED_X402_GATEWAY", statusCode: 400 },
     );
   }
   if (getAddress(usdc) !== BASE_X402_USDC) {
     throw Object.assign(
-      new Error("Gateway yalnızca Base Mainnet USDC kullanmalıdır."),
+      new Error("Gateway must use only Base Mainnet USDC."),
       { code: "INVALID_X402_ASSET", statusCode: 400 },
     );
   }
   if (price <= 0n || price > BASE_X402_MAX_PRICE_ATOMIC) {
     throw Object.assign(
-      new Error("Gateway fiyatı izin verilen güvenli aralığın dışında."),
+      new Error("Gateway price is outside the allowed safe range."),
       { code: "INVALID_X402_PRICE", statusCode: 400 },
     );
   }

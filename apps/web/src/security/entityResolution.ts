@@ -113,6 +113,7 @@ const ARC_ASSET_POLICIES: Readonly<Record<string, AssetRolePolicy>> = {
   unstake: { required: ["tokenIn"], allowed: ["tokenIn"] },
   vault_deposit: { required: ["tokenIn"], allowed: ["tokenIn"] },
   vault_withdraw: { required: ["tokenIn"], allowed: ["tokenIn"] },
+  vault_legacy_withdraw: { required: ["tokenIn"], allowed: ["tokenIn"] },
   lending_deposit: {
     required: ["tokenIn", "collateralToken"],
     allowed: ["tokenIn", "collateralToken"],

@@ -44,13 +44,13 @@ export function resolveStrictRequestNetwork(req: Request): NetworkConfig {
   if (networkInputs.length === 0) {
     throw new NetworkValidationError(
       "NETWORK_REQUIRED",
-      "network alanı zorunludur.",
+      "The network field is required.",
     );
   }
   if (chainIdInputs.length === 0) {
     throw new NetworkValidationError(
       "CHAIN_ID_REQUIRED",
-      "chainId alanı zorunludur.",
+      "The chainId field is required.",
     );
   }
 
@@ -58,14 +58,14 @@ export function resolveStrictRequestNetwork(req: Request): NetworkConfig {
   if (networks.some((network) => network === null)) {
     throw new NetworkValidationError(
       "UNSUPPORTED_NETWORK",
-      "Desteklenmeyen network değeri.",
+      "Unsupported network value.",
     );
   }
   const uniqueNetworks = new Set(networks);
   if (uniqueNetworks.size !== 1) {
     throw new NetworkValidationError(
       "CONFLICTING_NETWORK_CONTEXT",
-      "Body, query ve header network değerleri birbiriyle uyuşmuyor.",
+      "Body, query, and header network values do not match.",
     );
   }
 
@@ -73,14 +73,14 @@ export function resolveStrictRequestNetwork(req: Request): NetworkConfig {
   if (chainIds.some((chainId) => chainId === null)) {
     throw new NetworkValidationError(
       "INVALID_CHAIN_ID",
-      "chainId güvenli bir onluk tam sayı olmalıdır.",
+      "chainId must be a safe decimal integer.",
     );
   }
   const uniqueChainIds = new Set(chainIds);
   if (uniqueChainIds.size !== 1) {
     throw new NetworkValidationError(
       "CONFLICTING_CHAIN_CONTEXT",
-      "Body, query ve header chainId değerleri birbiriyle uyuşmuyor.",
+      "Body, query, and header chainId values do not match.",
     );
   }
 
@@ -98,7 +98,7 @@ export function resolveFixedBaseRequestNetwork(req: Request): NetworkConfig {
   if (config.id !== "base") {
     throw new NetworkValidationError(
       "BASE_ONLY_ROUTE",
-      "Bu servis yalnız Base Mainnet üzerinde kullanılabilir.",
+      "This service is only available on Base Mainnet.",
     );
   }
   return config;
@@ -155,7 +155,7 @@ export function requireBaseNetwork(
     if (config.id !== "base") {
       throw new NetworkValidationError(
         "BASE_ONLY_ROUTE",
-        "Bu servis yalnız Base Mainnet üzerinde kullanılabilir.",
+        "This service is only available on Base Mainnet.",
       );
     }
     req.kletiaNetwork = config;
@@ -178,7 +178,7 @@ export function requireArcNetwork(
     if (config.id !== "arc") {
       throw new NetworkValidationError(
         "ARC_ONLY_ROUTE",
-        "Bu servis yalnız Arc Testnet üzerinde kullanılabilir.",
+        "This service is only available on Arc Testnet.",
       );
     }
     req.kletiaNetwork = config;

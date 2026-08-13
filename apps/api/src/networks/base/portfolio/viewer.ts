@@ -1,5 +1,5 @@
 import { erc20Abi, formatUnits, getAddress } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   AAVE_V3_BASE,
   BASE_STAKING_CONTRACTS,
@@ -191,7 +191,7 @@ function report(
 
 async function readContract<T>(params: any): Promise<ReadResult<T>> {
   try {
-    return { ok: true, value: (await publicClient.readContract(params)) as T };
+    return { ok: true, value: (await basePublicClient.readContract(params)) as T };
   } catch {
     return { ok: false, reason: "rpc_read_failed" };
   }
@@ -429,7 +429,7 @@ export async function getPortfolio(userAddress: string) {
   console.log(`[KLETIA PORTFOLIO][base:8453] Scan started for ${user}`);
 
   try {
-    const ethBalance = await publicClient.getBalance({ address: user });
+    const ethBalance = await basePublicClient.getBalance({ address: user });
     sources.nativeBalance = report(
       "base_rpc",
       "available",

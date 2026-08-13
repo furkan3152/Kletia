@@ -74,12 +74,12 @@ contract KletiaLaunchFactoryV2 is Ownable2Step, ReentrancyGuard {
 
     }
 
-        function deploymentSalt(address creator, bytes32 userSalt) public pure returns (bytes32) {
+    function deploymentSalt(address creator, bytes32 userSalt) public pure returns (bytes32) {
         if (creator == address(0)) revert InvalidAddress();
         return keccak256(abi.encode(_SALT_DOMAIN, creator, userSalt));
     }
 
-        function tokenInitCodeHash(
+    function tokenInitCodeHash(
         string calldata name_,
         string calldata symbol_,
         uint256 totalSupply_,
@@ -95,7 +95,7 @@ contract KletiaLaunchFactoryV2 is Ownable2Step, ReentrancyGuard {
             );
     }
 
-        function predictTokenAddress(
+    function predictTokenAddress(
         address creator,
         bytes32 userSalt,
         string calldata name_,
@@ -121,7 +121,7 @@ contract KletiaLaunchFactoryV2 is Ownable2Step, ReentrancyGuard {
         );
     }
 
-        function deployToken(
+    function deployToken(
         bytes32 userSalt,
         string calldata name_,
         string calldata symbol_,
@@ -271,7 +271,7 @@ contract KletiaLaunchFactoryV2 is Ownable2Step, ReentrancyGuard {
         emit TokenMetadataCommitted(token, name_, symbol_);
     }
 
-        function _isValidMetadata(
+    function _isValidMetadata(
         bytes memory value,
         uint256 maximumLength,
         bool allowInternalAsciiSpace
@@ -371,7 +371,7 @@ contract KletiaLaunchFactoryV2 is Ownable2Step, ReentrancyGuard {
         return value >= 0x80 && value <= 0xbf;
     }
 
-        function _isDisallowedMetadataCodePoint(
+    function _isDisallowedMetadataCodePoint(
         uint32 codePoint
     ) private pure returns (bool) {
         return

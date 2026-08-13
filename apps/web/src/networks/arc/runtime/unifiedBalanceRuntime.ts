@@ -40,7 +40,7 @@ function assertUsdcAmount(
   field: string,
 ): asserts value is string {
   if (typeof value !== "string" || !USDC_AMOUNT.test(value)) {
-    throw new Error(`${field} geçerli bir USDC miktarı değil.`);
+    throw new Error(`${field} is not a valid USDC amount.`);
   }
 }
 
@@ -52,13 +52,13 @@ function assertTimestamp(value: unknown): asserts value is string {
     value.length > 64 ||
     !Number.isFinite(Date.parse(value))
   ) {
-    throw new Error("Gateway bekleyen işlem zamanı geçersiz.");
+    throw new Error("Gateway pending transaction timestamp is invalid.");
   }
 }
 
 function assertTransactionId(value: unknown): asserts value is string {
   if (typeof value !== "string" || !TRANSACTION_ID.test(value)) {
-    throw new Error("Gateway bekleyen işlem kimliği geçersiz.");
+    throw new Error("Gateway pending transaction ID is invalid.");
   }
 }
 
@@ -68,11 +68,11 @@ export async function readArcUnifiedUsdcBalance(
 ): Promise<ArcUnifiedBalanceSnapshot> {
   if (activeChainId !== ARC_CHAIN_ID) {
     throw new Error(
-      "Unified Balance yalnızca aktif Arc Testnet oturumunda sorgulanabilir.",
+      "Unified Balance can only be queried in an active Arc Testnet session.",
     );
   }
   if (!isAddress(account)) {
-    throw new Error("Unified Balance hesabı geçerli bir EVM adresi değil.");
+    throw new Error("Unified Balance account is not a valid EVM address.");
   }
   const expectedAccount = getAddress(account);
   const { AppKit } = await import("@circle-fin/app-kit");
@@ -88,7 +88,7 @@ export async function readArcUnifiedUsdcBalance(
   );
   if (!supportedTestnetChains.has("Arc_Testnet")) {
     throw new Error(
-      "Kurulu Circle App Kit Arc Testnet Gateway desteği sunmuyor.",
+      "Installed Circle App Kit does not support Arc Testnet Gateway.",
     );
   }
 
@@ -101,9 +101,9 @@ export async function readArcUnifiedUsdcBalance(
   });
 
   if (raw.token !== "USDC") {
-    throw new Error("Circle Gateway beklenmeyen bir token döndürdü.");
+    throw new Error("Circle Gateway returned an unexpected token.");
   }
-  assertUsdcAmount(raw.totalConfirmedBalance, "Toplam doğrulanmış bakiye");
+  assertUsdcAmount(raw.totalConfirmedBalance, "Total confirmed balance");
   const totalPendingBalance = raw.totalPendingBalance ?? "0";
   assertUsdcAmount(totalPendingBalance, "Toplam bekleyen bakiye");
 
@@ -112,9 +112,9 @@ export async function readArcUnifiedUsdcBalance(
       !isAddress(entry.depositor) ||
       getAddress(entry.depositor) !== expectedAccount
     ) {
-      throw new Error("Circle Gateway yanıtı aktif hesapla eşleşmiyor.");
+      throw new Error("Circle Gateway response does not match the active account.");
     }
-    assertUsdcAmount(entry.totalConfirmed, "Hesap doğrulanmış bakiyesi");
+    assertUsdcAmount(entry.totalConfirmed, "Account confirmed balance");
     const totalPending = entry.totalPending ?? "0";
     assertUsdcAmount(totalPending, "Hesap bekleyen bakiyesi");
 
@@ -127,14 +127,14 @@ export async function readArcUnifiedUsdcBalance(
       }
       assertUsdcAmount(
         chain.confirmedBalance,
-        `${chainName} doğrulanmış bakiye`,
+        `${chainName} confirmed balance`,
       );
       const pendingBalance = chain.pendingBalance ?? "0";
       assertUsdcAmount(pendingBalance, `${chainName} bekleyen bakiye`);
       const pendingTransactions = (chain.pendingTransactions ?? []).map(
         (transaction): ArcUnifiedBalancePendingTransaction => {
           assertTransactionId(transaction.transactionHash);
-          assertUsdcAmount(transaction.amount, "Bekleyen işlem miktarı");
+          assertUsdcAmount(transaction.amount, "Pending transaction amount");
           assertTimestamp(transaction.blockTimestamp);
           return {
             transactionHash: transaction.transactionHash,
@@ -160,7 +160,7 @@ export async function readArcUnifiedUsdcBalance(
         0n,
       ) !== usdcUnits(totalPending)
     ) {
-      throw new Error("Circle Gateway zincir bakiye toplamları tutarsız.");
+      throw new Error("Circle Gateway chain balance totals are inconsistent.");
     }
 
     return {
@@ -180,7 +180,7 @@ export async function readArcUnifiedUsdcBalance(
       0n,
     ) !== usdcUnits(totalPendingBalance)
   ) {
-    throw new Error("Circle Gateway hesap bakiye toplamları tutarsız.");
+    throw new Error("Circle Gateway account balance totals are inconsistent.");
   }
 
   return {

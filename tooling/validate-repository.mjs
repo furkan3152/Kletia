@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
@@ -7,14 +7,20 @@ const fail = (message) => {
   process.exitCode = 1;
 };
 
-const gitFilesResult = spawnSync("git", ["ls-files", "-z"], {
+const gitFilesResult = spawnSync(
+  "git",
+  ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+  {
   encoding: "utf8",
-});
+  },
+);
 if (gitFilesResult.status !== 0) {
   throw new Error("Unable to read the tracked repository manifest.");
 }
 
-const trackedFiles = gitFilesResult.stdout.split("\0").filter(Boolean);
+const trackedFiles = gitFilesResult.stdout
+  .split("\0")
+  .filter((file) => file && existsSync(file));
 const tracked = new Set(trackedFiles);
 const requiredFiles = [
   "apps/api/package.json",
@@ -25,6 +31,7 @@ const requiredFiles = [
   "apps/api/src/networks/arc/routes.ts",
   "apps/web/src/networks/base/x402/baseX402Buyer.ts",
   "apps/web/src/networks/arc/config.ts",
+  "apps/web/public/kletia-logo.png",
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
   "render.yaml",
@@ -38,6 +45,8 @@ const requiredFiles = [
 ];
 
 const attachmentHashes = {
+  "apps/web/public/kletia-logo.png":
+    "92f2fb8f246c003d9af59a8d56beae66ae2791499a8b3f0427089bf46887b2fd",
   "attachments/GASOK_Team_Archial.md":
     "bd2764f97861dc91e82ef89eacf19cd0bdd93813f76b8bf0813f97afc3941ea5",
   "attachments/Kletia_Arc_Submission.pdf":
@@ -96,6 +105,23 @@ for (const file of trackedFiles) {
   }
 }
 
+const multilingualIntentSources = new Set([
+  "apps/api/src/ai/parser.ts",
+  "apps/api/src/networks/base/intent/x402.ts",
+]);
+for (const file of trackedFiles) {
+  if (
+    !/^(?:apps\/api\/src|apps\/web\/src)\/.+\.(?:ts|tsx)$/u.test(file) ||
+    /(?:^|\/)(?:tests?|__tests__)(?:\/|$)|\.test\.(?:ts|tsx)$/u.test(file) ||
+    multilingualIntentSources.has(file)
+  ) {
+    continue;
+  }
+  if (/[çğıöşüÇĞİÖŞÜ]/u.test(readFileSync(file, "utf8"))) {
+    fail(`non-English application copy is outside an input parser: ${file}`);
+  }
+}
+
 const generatedSegment = /\/(?:artifacts|cache|dist|node_modules)\//u;
 for (const file of trackedFiles) {
   if (generatedSegment.test(`/${file}`)) {
@@ -126,11 +152,51 @@ for (const file of trackedFiles) {
   ) {
     fail(`Base-only contract is stored in the Arc package: ${file}`);
   }
+
+  if (
+    file.startsWith("apps/api/src/networks/arc/") &&
+    /KletiaSmartRouter(?:\.abi)?\.json$/u.test(file)
+  ) {
+    fail(`Base router ABI is stored in the Arc application package: ${file}`);
+  }
+}
+
+for (const file of trackedFiles) {
+  if (!/\.(?:ts|tsx|js|mjs)$/u.test(file)) continue;
+  const content = readFileSync(file, "utf8");
+  const baseOwned =
+    file.startsWith("apps/api/src/networks/base/") ||
+    file.startsWith("apps/web/src/networks/base/");
+  const arcOwned =
+    file.startsWith("apps/api/src/networks/arc/") ||
+    file.startsWith("apps/web/src/networks/arc/");
+  if (baseOwned && /networks\/arc\//u.test(content)) {
+    fail(`Base-owned source imports an Arc-owned module: ${file}`);
+  }
+  if (arcOwned && /networks\/base\//u.test(content)) {
+    fail(`Arc-owned source imports a Base-owned module: ${file}`);
+  }
 }
 
 const renderConfig = readFileSync("render.yaml", "utf8");
 for (const root of ["rootDir: apps/api", "rootDir: apps/web"]) {
   if (!renderConfig.includes(root)) fail(`Render root is missing: ${root}`);
+}
+if (!renderConfig.includes("runtime: static")) {
+  fail("Render frontend must remain a Static Site");
+}
+
+const navbarSource = readFileSync(
+  "apps/web/src/components/layout/Navbar.tsx",
+  "utf8",
+);
+if (
+  !navbarSource.includes('src="/kletia-logo.png"') ||
+  !navbarSource.includes("BASE AGENT") ||
+  !navbarSource.includes("SOON") ||
+  !navbarSource.includes("disabled")
+) {
+  fail("Navbar must keep the local Kletia logo and disabled Base Agent SOON state");
 }
 
 if (!process.exitCode) {

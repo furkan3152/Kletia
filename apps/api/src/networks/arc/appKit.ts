@@ -74,14 +74,14 @@ function positiveDecimal(value: unknown, field: string, decimals = 6): string {
   if (!DECIMAL_INPUT.test(normalized)) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_INVALID_AMOUNT",
-      `${field} pozitif bir ondalık sayı olmalıdır.`,
+      `${field} must be a positive decimal number.`,
     );
   }
   const fraction = normalized.split(".")[1] || "";
   if (fraction.length > decimals) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_AMOUNT_PRECISION",
-      `${field} en fazla ${decimals} ondalık hane taşıyabilir.`,
+      `${field} can have at most ${decimals} decimal places.`,
     );
   }
   try {
@@ -89,7 +89,7 @@ function positiveDecimal(value: unknown, field: string, decimals = 6): string {
   } catch {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_INVALID_AMOUNT",
-      `${field} pozitif ve geçerli bir miktar olmalıdır.`,
+      `${field} must be a positive and valid amount.`,
     );
   }
   return normalized;
@@ -103,7 +103,7 @@ function normalizedToken(value: unknown, field: string): ArcAppKitToken {
   if (!ARC_APP_KIT_TOKENS.includes(token as ArcAppKitToken)) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_TOKEN_UNSUPPORTED",
-      `${field} Arc Testnet App Kit için USDC, EURC veya cirBTC olmalıdır.`,
+      `${field} must be USDC, EURC, or cirBTC for Arc Testnet App Kit.`,
     );
   }
   return token as ArcAppKitToken;
@@ -118,7 +118,7 @@ function recipientAddress(value: unknown): Address {
   } catch {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_RECIPIENT_INVALID",
-      "Geçerli bir EVM alıcı adresi gereklidir.",
+      "A valid EVM recipient address is required.",
     );
   }
 }
@@ -127,7 +127,7 @@ export function arcAppKitTraceId(value: string): string {
   if (!REQUEST_CORRELATION_ID.test(value)) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_TRACE_INVALID",
-      "App Kit trace kimliği geçersiz.",
+      "App Kit trace ID is invalid.",
     );
   }
   return keccak256(toBytes(`kletia:${value}`)).slice(2, 34);
@@ -140,7 +140,7 @@ function slippageBps(value: unknown): number {
   if (!DECIMAL_INPUT.test(rawPercent)) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_SLIPPAGE_INVALID",
-      "Arc stable swap toleransı %0,01 ile %5 arasında olmalıdır.",
+      "Arc stable swap slippage must be between 0.01% and 5%.",
     );
   }
   const canonicalPercent = rawPercent.includes(".")
@@ -150,7 +150,7 @@ function slippageBps(value: unknown): number {
   if (fractionalPart.length > 2) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_SLIPPAGE_PRECISION",
-      "Arc stable swap toleransı 0,01% (1 BPS) adımlarıyla belirtilmelidir; kullanıcı sınırı yukarı yuvarlanmaz.",
+      "Arc stable swap slippage must be specified in 0.01% (1 BPS) increments; user limit is not rounded up.",
     );
   }
   let bps: bigint;
@@ -159,13 +159,13 @@ function slippageBps(value: unknown): number {
   } catch {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_SLIPPAGE_PRECISION",
-      "Arc stable swap toleransı 0,01% (1 BPS) adımlarıyla belirtilmelidir; kullanıcı sınırı yukarı yuvarlanmaz.",
+      "Arc stable swap slippage must be specified in 0.01% (1 BPS) increments; user limit is not rounded up.",
     );
   }
   if (bps <= 0n || bps > 500n) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_SLIPPAGE_INVALID",
-      "Arc stable swap toleransı %0,01 ile %5 arasında olmalıdır.",
+      "Arc stable swap slippage must be between 0.01% and 5%.",
     );
   }
   return Number(bps);
@@ -184,7 +184,7 @@ function destinationChain(value: unknown): ArcAppKitDestination {
   if (!destination) {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_DESTINATION_UNSUPPORTED",
-      "Arc Testnet çıkış köprüsü yalnızca desteklenen testnet hedeflerine hazırlanabilir.",
+      "Arc Testnet exit bridge can only be prepared for supported testnet destinations.",
     );
   }
   return destination;
@@ -194,7 +194,7 @@ function optionalMaximumFee(value: unknown): string | undefined {
   if (value === undefined || value === null || String(value).trim() === "") {
     return undefined;
   }
-  return positiveDecimal(value, "Maksimum bridge ücreti", 6);
+  return positiveDecimal(value, "Maximum bridge fee", 6);
 }
 
 function optionalMinimumOutput(
@@ -204,7 +204,7 @@ function optionalMinimumOutput(
   if (value === undefined || value === null || String(value).trim() === "") {
     return undefined;
   }
-  return positiveDecimal(value, "Minimum alınacak miktar", decimals);
+  return positiveDecimal(value, "Minimum amount to receive", decimals);
 }
 
 export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
@@ -219,13 +219,13 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
     const tokenOut = normalizedToken(intent.tokenOut, "tokenOut");
     const amount = positiveDecimal(
       intent.amount,
-      "App Kit miktarı",
+      "App Kit amount",
       tokenDecimals(tokenIn),
     );
     if (tokenIn === tokenOut) {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_IDENTICAL_TOKENS",
-        "Stable swap giriş ve çıkış tokenları farklı olmalıdır.",
+        "Stable swap input and output tokens must be different.",
       );
     }
     executionPlan = {
@@ -243,18 +243,18 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
       ),
       traceId: correlationId,
     };
-    expectedOutput = `${amount} ${tokenIn} için canlı App Kit ${tokenOut} tahmini`;
+    expectedOutput = `${amount} live App Kit ${tokenOut} estimate for ${tokenIn}.`;
   } else if (action === "appkit_send") {
     const token = normalizedToken(intent.tokenIn || "USDC", "tokenIn");
     if (token === "cirBTC") {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_SEND_TOKEN_UNSUPPORTED",
-        "cirBTC için doğrulanmış Arc Testnet kontrat adresi yayımlanmadan Send rotası hazırlanmaz.",
+        "Send route cannot be prepared for cirBTC until a verified Arc Testnet contract address is published.",
       );
     }
     const amount = positiveDecimal(
       intent.amount,
-      "App Kit miktarı",
+      "App Kit amount",
       tokenDecimals(token),
     );
     const recipient = recipientAddress(intent.recipient || intent.tokenOut);
@@ -274,10 +274,10 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
     if (token !== "USDC") {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_BRIDGE_TOKEN_UNSUPPORTED",
-        "Circle App Kit bridge rotası yalnızca USDC destekler.",
+        "Circle App Kit bridge route supports only USDC.",
       );
     }
-    const amount = positiveDecimal(intent.amount, "App Kit miktarı", 6);
+    const amount = positiveDecimal(intent.amount, "App Kit amount", 6);
     const recipient = recipientAddress(intent.recipient);
     const maxFee = optionalMaximumFee(intent.maxFee);
     const rawSpeed = String(intent.transferSpeed || "SLOW")
@@ -286,14 +286,14 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
     if (rawSpeed !== "FAST" && rawSpeed !== "SLOW") {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_TRANSFER_SPEED_INVALID",
-        "Bridge hızı açıkça FAST veya SLOW olmalıdır.",
+        "Bridge speed must be explicitly FAST or SLOW.",
       );
     }
     const requestedSpeed = rawSpeed;
     if (requestedSpeed === "FAST" && !maxFee) {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_MAX_FEE_REQUIRED",
-        "FAST bridge için kullanıcı tarafından belirtilmiş maksimum USDC ücreti gereklidir.",
+        "Maximum USDC fee specified by user is required for FAST bridge.",
       );
     }
     if (
@@ -303,13 +303,13 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
     ) {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_MAX_FEE_TOO_HIGH",
-        "FAST bridge maksimum ücreti gönderilecek USDC miktarından küçük olmalıdır.",
+        "FAST bridge maximum fee must be less than the USDC amount to be sent.",
       );
     }
     if (requestedSpeed === "SLOW" && maxFee) {
       throw new ArcAppKitPlanError(
         "ARC_APP_KIT_SLOW_MAX_FEE_FORBIDDEN",
-        "SLOW bridge için FAST burn ücret tavanı gönderilmez; maxFee alanını kaldırın veya FAST seçin.",
+        "FAST burn fee cap must not be sent for SLOW bridge; remove maxFee field or select FAST.",
       );
     }
     executionPlan = {
@@ -344,8 +344,8 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
     executionPlan,
     winner: "Circle App Kit",
     winnerMessage:
-      `Circle App Kit planı hazır: ${expectedOutput}. ` +
-      "İmzadan önce resmî SDK üzerinden canlı ücret ve çıktı tahmini alınacaktır.",
+      `Circle App Kit plan is ready: ${expectedOutput}.` +
+      "Live fee and output estimation will be obtained via official SDK before signing.",
     expectedOutput,
     routeProof: {
       environment: "testnet" as const,
@@ -431,7 +431,7 @@ export function isArcAppKitExecutionPlan(
     if (plan.operation === "swap") {
       const tokenIn = normalizedToken(plan.tokenIn, "tokenIn");
       const tokenOut = normalizedToken(plan.tokenOut, "tokenOut");
-      positiveDecimal(plan.amount, "App Kit miktarı", tokenDecimals(tokenIn));
+      positiveDecimal(plan.amount, "App Kit amount", tokenDecimals(tokenIn));
       if (
         tokenIn === tokenOut ||
         !Number.isSafeInteger(plan.slippageBps) ||
@@ -446,7 +446,7 @@ export function isArcAppKitExecutionPlan(
     if (plan.operation === "send") {
       const token = normalizedToken(plan.token, "token");
       if (token === "cirBTC") return false;
-      positiveDecimal(plan.amount, "App Kit miktarı", tokenDecimals(token));
+      positiveDecimal(plan.amount, "App Kit amount", tokenDecimals(token));
       recipientAddress(plan.recipient);
       return true;
     }
@@ -458,7 +458,7 @@ export function isArcAppKitExecutionPlan(
       ) {
         return false;
       }
-      positiveDecimal(plan.amount, "App Kit miktarı", 6);
+      positiveDecimal(plan.amount, "App Kit amount", 6);
       recipientAddress(plan.recipient);
       destinationChain(plan.destinationChain);
       const maxFee = optionalMaximumFee(plan.maxFee);

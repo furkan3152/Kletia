@@ -31,6 +31,8 @@ export const ARC_VAULT_ABI = parseAbi([
   "function deposits(address user) view returns (uint256 principal,uint256 lastAccrualTimestamp,uint256 accruedInterest)",
   "function pendingInterest(address user) view returns (uint256)",
   "function claimableAmount(address user) view returns (uint256)",
+  "function requiredReserve() view returns (uint256)",
+  "function reserveStatus() view returns (uint256 balance,uint256 principalLiability,uint256 interestLiability,uint256 required,uint256 surplus,bool fullyCollateralized)",
   "function deposit() payable",
   "function withdraw()",
 ]);

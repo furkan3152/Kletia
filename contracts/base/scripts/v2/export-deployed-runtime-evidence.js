@@ -6,7 +6,6 @@ if (
   deployment?.network?.chainId !== 8453 ||
   !deployment?.contracts?.intentRouterV2?.address ||
   !deployment?.contracts?.uniswapV2CompatibleAdapter?.address ||
-  !deployment?.governance?.timelock?.address ||
   !deployment?.governance?.governanceSafe?.address ||
   !deployment?.governance?.guardianSafe?.address ||
   !deployment?.governance?.treasurySafe?.address
@@ -16,8 +15,16 @@ if (
 
 process.env.KLETIA_V2_ROUTER_ADDRESS =
   deployment.contracts.intentRouterV2.address;
-process.env.KLETIA_V2_TIMELOCK_ADDRESS =
-  deployment.governance.timelock.address;
+if (deployment.governance.mode === "direct_2_of_2_safe") {
+  process.env.KLETIA_V2_GOVERNANCE_MODE = "direct_safe";
+} else {
+  if (!deployment?.governance?.timelock?.address) {
+    throw new Error("KLETIA_V2_TIMELOCK_MANIFEST_INVALID");
+  }
+  process.env.KLETIA_V2_GOVERNANCE_MODE = "timelock";
+  process.env.KLETIA_V2_TIMELOCK_ADDRESS =
+    deployment.governance.timelock.address;
+}
 process.env.KLETIA_V2_GOVERNANCE_SAFE =
   deployment.governance.governanceSafe.address;
 process.env.KLETIA_V2_GUARDIAN_SAFE =

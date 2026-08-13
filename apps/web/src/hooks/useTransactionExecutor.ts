@@ -164,11 +164,11 @@ export function assertRequiredAtomicApprovalPath(
   }
   if (stage === "simulation") {
     throw new Error(
-      "Base atomic paket simülasyonu kullanılamadığı için Kletia Intent Router V2 işlemi durduruldu. Sıralı approval fallback kullanılmadı.",
+      "Kletia Intent Router V2 transaction halted due to unavailable Base atomic package simulation. Sequential approval fallback was not used.",
     );
   }
   throw new Error(
-    "Kletia Intent Router V2, eksik token izni ile swap işlemini tek bir Base atomic paketinde yürütmelidir. Cüzdan atomic capability doğrulamadığı için hiçbir approval gönderilmedi.",
+    "Kletia Intent Router V2 must execute the swap with missing token approval in a single Base atomic package. No approvals were sent because the wallet did not verify atomic capability.",
   );
 }
 
@@ -182,7 +182,7 @@ export function assertIntentV2TransactionPlanBoundary(
       plan.atomicRequired === true
     ) {
       throw new Error(
-        "Typed Base V2 yetkileri yalnız Kletia Intent Router V2 işleminde kullanılabilir.",
+        "Typed Base V2 authorities can only be used in Kletia Intent Router V2 transactions.",
       );
     }
     return;
@@ -205,7 +205,7 @@ export function assertIntentV2TransactionPlanBoundary(
     plan.atomicRequired !== positiveApprovals.length > 0
   ) {
     throw new Error(
-      "Kletia Intent Router V2 işlem planı Base swap, typed yetki ve atomic approval politikasına bağlı değil.",
+      "Kletia Intent Router V2 transaction plan does not comply with Base swap, typed authority, and atomic approval policies.",
     );
   }
 
@@ -232,7 +232,7 @@ export function assertIntentV2TransactionPlanBoundary(
       .size !== suppliedTargets.length
   ) {
     throw new Error(
-      "Kletia Intent Router V2 iç yetki hedefleri kanonik sırayla eşleşmiyor.",
+      "Kletia Intent Router V2 internal authority targets do not match in canonical order.",
     );
   }
 
@@ -245,7 +245,7 @@ export function assertIntentV2TransactionPlanBoundary(
   ].map((value) => getAddress(value).toLowerCase());
   if (new Set(systemIdentities).size !== systemIdentities.length) {
     throw new Error(
-      "Kletia Intent Router V2 sistem kimlikleri birbirinden ayrık değil.",
+      "Kletia Intent Router V2 system identities are not distinct.",
     );
   }
 }
@@ -257,7 +257,7 @@ export function assertLaunchFactoryV2TransactionPlanBoundary(
   if (!isLaunchFactoryV2) {
     if (plan.launchFactoryV2Authority !== undefined) {
       throw new Error(
-        "Launch Factory V2 yetkisi yalnız deploy_token işleminde kullanılabilir.",
+        "Launch Factory V2 authority can only be used in deploy_token transactions.",
       );
     }
     return;
@@ -287,7 +287,7 @@ export function assertLaunchFactoryV2TransactionPlanBoundary(
     plan.intentV2Authorities !== undefined
   ) {
     throw new Error(
-      "Kletia Launch Factory V2 işlem planı exact Base factory, CREATE2 adresi ve sıfır-approval politikasına bağlı değil.",
+      "Kletia Launch Factory V2 transaction plan is not bound to the exact Base factory, CREATE2 address, and zero-approval policy.",
     );
   }
 }
@@ -299,7 +299,7 @@ export function assertLaunchFactoryV2SimulationReturn(
   if (!authority) return;
   if (!returnData || !/^0x[\da-fA-F]{64}$/.test(returnData)) {
     throw new Error(
-      "Launch Factory V2 simülasyonu beklenen token adresini döndürmedi.",
+      "Launch Factory V2 simulation did not return the expected token address.",
     );
   }
   const [returnedAddress] = decodeAbiParameters(
@@ -308,7 +308,7 @@ export function assertLaunchFactoryV2SimulationReturn(
   );
   if (getAddress(returnedAddress) !== getAddress(authority.predictedAddress)) {
     throw new Error(
-      "Launch Factory V2 simülasyon çıktısı kanıtlanan CREATE2 adresiyle eşleşmiyor.",
+      "Launch Factory V2 simulation output does not match the proven CREATE2 address.",
     );
   }
 }
@@ -324,20 +324,20 @@ export function assertTransactionReturnData(
     !/^0x[0-9a-fA-F]{64}$/.test(data)
   ) {
     throw new Error(
-      "Protokol simülasyonu gerekli uint256 durum kodunu döndürmedi.",
+      "Protocol simulation did not return the required uint256 status code.",
     );
   }
   const [returnCode] = decodeAbiParameters([{ type: "uint256" }], data);
   if (returnCode !== 0n) {
     throw new Error(
-      `Protokol simülasyonu başarısız durum kodu döndürdü: ${returnCode}.`,
+      `Protocol simulation returned failure status code: ${returnCode}.`,
     );
   }
 }
 
 function assertSuccessfulReceipt(receipt: TransactionReceipt, label: string) {
   if (receipt.status !== "success") {
-    throw new Error(`${label} zincirde başarısız oldu.`);
+    throw new Error(`${label} failed on-chain.`);
   }
 }
 
@@ -358,7 +358,7 @@ export function useTransactionExecutor() {
         action !== undefined &&
         !/^[a-z][a-z0-9_]{0,63}$/.test(normalizedAction || "")
       ) {
-        throw new Error("Güvenlik taraması için geçerli bir action gerekli.");
+        throw new Error("A valid action is required for the security scan.");
       }
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 12_000);
@@ -385,7 +385,7 @@ export function useTransactionExecutor() {
         if (!response.ok || result?.status !== "success") {
           throw new Error(
             result?.message ||
-              "Güvenlik servisi işlemi doğrulayamadı. Güvenlik kontrolü olmadan işlem gönderilmedi.",
+              "Security service failed to verify the transaction. Transaction was not sent without security check.",
           );
         }
 
@@ -400,7 +400,7 @@ export function useTransactionExecutor() {
           result.isContract !== true
         ) {
           throw new Error(
-            "Güvenlik servisi farklı bir ağ veya hedef için yanıt döndürdü.",
+            "Security service returned a response for a different network or target.",
           );
         }
         if (
@@ -415,14 +415,14 @@ export function useTransactionExecutor() {
                 : "network_action_allowlist"))
         ) {
           throw new Error(
-            "Güvenlik servisi hedefi işlem action alanına bağlamadı.",
+            "Security service did not bind the target to the transaction action field.",
           );
         }
 
         if (result.decision !== "approved" || result.approved === false) {
           throw new Error(
             result?.message ||
-              "Güvenlik politikası bu adres için işlemi durdurdu.",
+              "Security policy blocked the transaction for this address.",
           );
         }
 
@@ -435,7 +435,7 @@ export function useTransactionExecutor() {
             ? ` (${result.tags.join(", ")})`
             : "";
           throw new Error(
-            `Güvenlik kontrolü bu adresi yüksek riskli olarak işaretledi${tags}.`,
+            `Security check flagged this address as high risk${tags}.`,
           );
         }
         if (
@@ -445,7 +445,7 @@ export function useTransactionExecutor() {
             result.bytecodeVerified !== true)
         ) {
           throw new Error(
-            "Arc manifest veya RPC bytecode kanıtı eksik; işlem gönderilmedi.",
+            "Arc manifest or RPC bytecode proof is missing; transaction was not sent.",
           );
         }
 
@@ -453,7 +453,7 @@ export function useTransactionExecutor() {
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           throw new Error(
-            "Güvenlik servisi zaman aşımına uğradı. Kontrol tamamlanmadan işlem gönderilmedi.",
+            "Security service timed out. Transaction was not sent before verification completed.",
             { cause: error },
           );
         }
@@ -473,20 +473,20 @@ export function useTransactionExecutor() {
       const expectedNetwork = getNetwork(plan.network);
       if (expectedNetwork.chainId !== plan.chainId) {
         throw new Error(
-          "İşlem planındaki ağ adı ile chain ID birbiriyle eşleşmiyor.",
+          "Network name and chain ID in the transaction plan do not match.",
         );
       }
       const normalizedAction = plan.action?.trim().toLowerCase();
       if (!/^[a-z][a-z0-9_]{0,63}$/.test(normalizedAction || "")) {
         throw new Error(
-          "İşlem planı geçerli ve doğrulanabilir bir action taşımıyor.",
+          "Transaction plan does not contain a valid and verifiable action.",
         );
       }
       assertIntentV2TransactionPlanBoundary(plan);
       assertLaunchFactoryV2TransactionPlanBoundary(plan);
 
       if (!isConnected || !address || !publicClient) {
-        throw new Error("İşlem göndermek için cüzdanınızı bağlayın.");
+        throw new Error("Connect your wallet to send the transaction.");
       }
 
       const executionAddress = getAddress(address);
@@ -500,12 +500,12 @@ export function useTransactionExecutor() {
           publicClient.chain?.id !== plan.chainId
         ) {
           throw new Error(
-            `Cüzdan hesabı veya ağı işlem sırasında değişti. Beklenen chain ID: ${plan.chainId}.`,
+            `Wallet account or network changed during the operation. Expected chain ID: ${plan.chainId}.`,
           );
         }
         if (plan.expiresAt && Date.now() > plan.expiresAt) {
           throw new Error(
-            "Bu işlem rotasının süresi doldu. Lütfen niyeti yeniden oluşturun.",
+            "This transaction route has expired. Please recreate the intent.",
           );
         }
         if (
@@ -513,7 +513,7 @@ export function useTransactionExecutor() {
           getAddress(plan.userAddress) !== executionAddress
         ) {
           throw new Error(
-            "İşlem planı şu anda bağlı olan cüzdan için oluşturulmamış.",
+            "Transaction plan was not created for the currently connected wallet.",
           );
         }
       };
@@ -525,19 +525,19 @@ export function useTransactionExecutor() {
         });
         if (accountCode && accountCode !== "0x") {
           throw new Error(
-            "Bu Arc extension rotası original-sender semantiği nedeniyle yalnızca doğrudan EOA cüzdanla yürütülebilir.",
+            "This Arc extension route can only be executed with a direct EOA wallet due to original-sender semantics.",
           );
         }
       }
 
       if (!isAddress(plan.to) || !/^0x[0-9a-fA-F]*$/.test(plan.data)) {
-        throw new Error("Backend geçersiz hedef adres veya calldata döndürdü.");
+        throw new Error("Backend returned an invalid target address or calldata.");
       }
 
       const bytecode = await publicClient.getCode({ address: plan.to });
       if ((!bytecode || bytecode === "0x") && plan.data !== "0x") {
         throw new Error(
-          "Calldata içeren işlem hedefi geçerli bir akıllı sözleşme değil.",
+          "The transaction target with calldata is not a valid smart contract.",
         );
       }
       if (
@@ -548,14 +548,14 @@ export function useTransactionExecutor() {
             plan.launchFactoryV2Authority.runtimeCodehash.toLowerCase())
       ) {
         throw new Error(
-          "Launch Factory V2 canlı bytecode hash değeri niyet kanıtıyla eşleşmiyor.",
+          "Launch Factory V2 live bytecode hash does not match the intent proof.",
         );
       }
 
-      onLog(`🛡️ ${plan.network.toUpperCase()} güvenlik kontrolü başlatıldı.`);
+      onLog(`🛡️ ${plan.network.toUpperCase()} security check initiated.`);
       await scanAddress(plan.to, plan.network, normalizedAction);
       assertExecutionContext();
-      onLog("✅ Hedef adres güvenlik kontrolünden geçti.");
+      onLog("✅ Target address passed the security check.");
 
       const policyTargets = [
         ...new Set(
@@ -569,13 +569,13 @@ export function useTransactionExecutor() {
         await scanAddress(getAddress(policyTarget), plan.network);
       }
       if (policyTargets.length > 0) {
-        onLog(`✅ ${policyTargets.length} iç politika hedefi ayrıca tarandı.`);
+        onLog(`✅ ${policyTargets.length} internal policy target also scanned.`);
       }
 
       const approvalRequirements = new Map<string, TransactionApproval>();
       for (const approval of plan.approvals || []) {
         if (approval.amount < 0n) {
-          throw new Error("Token approval miktarı negatif olamaz.");
+          throw new Error("Token approval amount cannot be negative.");
         }
         if (approval.amount === 0n) continue;
 
@@ -586,7 +586,7 @@ export function useTransactionExecutor() {
         };
         if (normalizedApproval.spender !== getAddress(plan.to)) {
           throw new Error(
-            "Token allowance hedefi ana işlem hedefiyle eşleşmiyor.",
+            "Token allowance target does not match the main transaction target.",
           );
         }
 
@@ -631,7 +631,7 @@ export function useTransactionExecutor() {
         });
 
         onLog(
-          `🔬 ${approval.symbol || "Token"} approval simülasyonu çalıştırılıyor.`,
+          `🔬 Running ${approval.symbol || "Token"} approval simulation.`,
         );
         const approvalSimulation = await publicClient.simulateContract({
           account: executionAddress,
@@ -642,7 +642,7 @@ export function useTransactionExecutor() {
         });
         if (approvalSimulation.result !== true) {
           throw new Error(
-            `${approval.symbol || "Token"} approval simülasyonu başarı döndürmedi.`,
+            `${approval.symbol || "Token"} approval simulation did not return success.`,
           );
         }
         const approvalGas = await publicClient.estimateGas({
@@ -688,7 +688,7 @@ export function useTransactionExecutor() {
       if (missingApprovals.length > 0 && useAtomicCalls) {
         assertExecutionContext();
         onLog(
-          `🔬 ${atomicCalls.length} çağrılık Base atomic paket birlikte simüle ediliyor.`,
+          `🔬 Simulating ${atomicCalls.length} call together with Base atomic package.`,
         );
         try {
           const atomicSimulation = await publicClient.simulateCalls({
@@ -697,7 +697,7 @@ export function useTransactionExecutor() {
           });
           if (atomicSimulation.results.length !== atomicCalls.length) {
             throw new Error(
-              "Atomic paket simülasyonu tüm çağrılar için sonuç döndürmedi.",
+              "Atomic batch simulation did not return results for all calls.",
             );
           }
 
@@ -707,10 +707,10 @@ export function useTransactionExecutor() {
           if (failedCallIndex !== -1) {
             const failedResult = atomicSimulation.results[failedCallIndex];
             throw new Error(
-              `Atomic paket simülasyonunda ${failedCallIndex + 1}. çağrı başarısız oldu: ${
+              `Call ${failedCallIndex + 1} failed during atomic package simulation: ${
                 failedResult?.status === "failure"
                   ? failedResult.error.message
-                  : "bilinmeyen simülasyon hatası"
+                  : "unknown simulation error"
               }`,
             );
           }
@@ -718,7 +718,7 @@ export function useTransactionExecutor() {
             atomicSimulation.results[atomicCalls.length - 1];
           if (!actionSimulation || actionSimulation.status !== "success") {
             throw new Error(
-              "Atomic paket ana işlem için doğrulanmış dönüş verisi üretmedi.",
+              "Atomic batch did not produce verified return data for the main transaction.",
             );
           }
           assertTransactionReturnData(
@@ -730,7 +730,7 @@ export function useTransactionExecutor() {
             0n,
           );
           onLog(
-            `✅ Atomic paket simülasyonu başarılı. Toplam tahmini gas: ${gasEstimate.toString()}.`,
+            `✅ Atomic package simulation successful. Total estimated gas: ${gasEstimate.toString()}.`,
           );
         } catch (error) {
           const errorText = [
@@ -762,7 +762,7 @@ export function useTransactionExecutor() {
           );
           useAtomicCalls = false;
           onLog(
-            "ℹ️ RPC atomic paket simülasyonunu desteklemiyor; güvenli sıralı fallback kullanılacak.",
+            "ℹ️ RPC does not support atomic batch simulation; safe sequential fallback will be used.",
           );
         }
       }
@@ -771,7 +771,7 @@ export function useTransactionExecutor() {
         if (missingApprovals.length > 0 && plan.beforeSubmit) {
           assertExecutionContext();
           onLog(
-            "🔁 Değişebilir alıcı kimliği approval imzasından önce yeniden doğrulanıyor.",
+            "🔁 Mutable recipient identity is re-verified before approval signature.",
           );
           await plan.beforeSubmit();
           assertExecutionContext();
@@ -787,7 +787,7 @@ export function useTransactionExecutor() {
           });
 
           onLog(
-            `⏳ ${approval.symbol || "Token"} approval gönderildi: ${approvalHash}`,
+            `⏳ ${approval.symbol || "Token"} approval sent: ${approvalHash}`,
           );
           const approvalReceipt = await publicClient.waitForTransactionReceipt({
             hash: approvalHash,
@@ -795,13 +795,13 @@ export function useTransactionExecutor() {
           });
           assertSuccessfulReceipt(approvalReceipt, "Token approval");
           assertExecutionContext();
-          onLog("✅ Token approval zincirde doğrulandı.");
+          onLog("✅ Token approval verified on-chain.");
         }
       }
 
       if (!useAtomicCalls || missingApprovals.length === 0) {
         assertExecutionContext();
-        onLog("🔬 İmzalanacak son işlem eth_call ile simüle ediliyor.");
+        onLog("🔬 Simulating the final transaction to be signed with eth_call.");
         const actionSimulation = await publicClient.call({
           account: executionAddress,
           ...actionCall,
@@ -820,17 +820,17 @@ export function useTransactionExecutor() {
         });
         assertExecutionContext();
         onLog(
-          `✅ Simülasyon başarılı. Tahmini gas: ${gasEstimate.toString()}.`,
+          `✅ Simulation successful. Estimated gas: ${gasEstimate.toString()}.`,
         );
       }
       if (gasEstimate === undefined) {
-        throw new Error("İşlem için doğrulanmış gas tahmini oluşturulamadı.");
+        throw new Error("Verified gas estimate could not be generated for the transaction.");
       }
 
       if (plan.beforeSubmit) {
         assertExecutionContext();
         onLog(
-          "🔁 Değişebilir alıcı kimliği ana işlem imzasından hemen önce yeniden doğrulanıyor.",
+          "🔁 Mutable recipient identity is re-verified immediately before the main transaction signature.",
         );
         await plan.beforeSubmit();
         assertExecutionContext();
@@ -840,8 +840,8 @@ export function useTransactionExecutor() {
       if (useAtomicCalls) {
         onLog(
           canUsePaymaster
-            ? "⚡ Base atomic desteği ve bağımsız paymaster desteği doğrulandı; paket sponsorlu gönderiliyor."
-            : "⚡ Base atomic desteği doğrulandı; paket tek onayla all-or-nothing gönderiliyor.",
+            ? "⚡ Base atomic support and independent paymaster support verified; batch is sent as sponsored."
+            : "⚡ Base atomic support verified; batch is sent as all-or-nothing with a single approval.",
         );
         assertExecutionContext();
         const callResult = await sendCallsAsync({
@@ -870,7 +870,7 @@ export function useTransactionExecutor() {
           throwOnFailure: true,
         });
         if (callsStatus.status !== "success") {
-          throw new Error("Base atomic çağrı paketi başarılı duruma ulaşmadı.");
+          throw new Error("Base atomic call batch did not reach a successful state.");
         }
         const transactionHashes = [
           ...new Set(
@@ -883,7 +883,7 @@ export function useTransactionExecutor() {
         ];
         if (transactionHashes.length !== 1) {
           throw new Error(
-            "Base atomic çağrı paketi tek bir doğrulanabilir transaction hash döndürmedi.",
+            "Base atomic call batch did not return a single verifiable transaction hash.",
           );
         }
         hash = transactionHashes[0];
@@ -898,13 +898,13 @@ export function useTransactionExecutor() {
         });
       }
 
-      onLog(`⏳ İşlem zincire gönderildi: ${hash}`);
+      onLog(`⏳ Transaction sent to chain: ${hash}`);
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
         confirmations: 1,
       });
-      assertSuccessfulReceipt(receipt, "Ana işlem");
-      onLog("✅ İşlem receipt durumu zincirde başarılı olarak doğrulandı.");
+      assertSuccessfulReceipt(receipt, "Main transaction");
+      onLog("✅ Transaction receipt status successfully confirmed on-chain.");
       if (plan.launchFactoryV2Authority) {
         const launchAuthority = plan.launchFactoryV2Authority;
         const createdCode = await publicClient.getCode({
@@ -912,7 +912,7 @@ export function useTransactionExecutor() {
         });
         if (!createdCode || createdCode === "0x") {
           throw new Error(
-            "Launch receipt başarılı olsa da kanıtlanan CREATE2 adresinde token bytecode bulunamadı.",
+            "Launch receipt succeeded but no token bytecode found at the proven CREATE2 address.",
           );
         }
         const [
@@ -957,11 +957,11 @@ export function useTransactionExecutor() {
           deployedSymbol !== launchAuthority.symbol
         ) {
           throw new Error(
-            "Deploy edilen token metadata veya full-supply recipient post-state kanıtıyla eşleşmiyor.",
+            "Deployed token metadata or full-supply recipient post-state proof does not match.",
           );
         }
         onLog(
-          `✅ Fixed-supply token ve tam recipient bakiyesi CREATE2 adresinde doğrulandı: ${launchAuthority.predictedAddress}`,
+          `✅ Fixed-supply token and full recipient balance verified at CREATE2 address: ${launchAuthority.predictedAddress}`,
         );
       }
 

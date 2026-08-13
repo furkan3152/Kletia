@@ -18,6 +18,7 @@ import {
 } from "../config/launchFactoryV2Environment.js";
 import {
   KLETIA_LAUNCH_FACTORY_V2_ABI,
+  SAFE_IDENTITY_ABI,
   TIMELOCK_IDENTITY_ABI,
 } from "./launchFactoryV2Abi.js";
 
@@ -56,7 +57,8 @@ export interface LaunchFactoryV2Evidence {
   readonly predictedAddress: Address;
   readonly observedAtBlock: string;
   readonly factoryCodehash: Hex;
-  readonly ownerTimelock: Address;
+  readonly ownerAuthority: Address;
+  readonly ownerAuthorityKind: "timelock" | "safe_2_of_2";
   readonly treasurySafe: Address;
   readonly pendingTreasury: typeof ZERO_ADDRESS;
   readonly factoryFeeCap: string;
@@ -267,14 +269,14 @@ export async function validateLaunchFactoryV2Runtime(
       maxTokenSupplyResult,
       maxNameBytesResult,
       maxSymbolBytesResult,
-      ownerTimelockMinDelayResult,
+      ownerPolicyResult,
     ] = await Promise.all([
       client.getCode({
         address: config.factory,
         blockNumber: observedAtBlock,
       }),
       client.getCode({
-        address: config.deployment.ownerTimelock,
+        address: config.deployment.ownerAuthority,
         blockNumber: observedAtBlock,
       }),
       client.getCode({
@@ -289,12 +291,27 @@ export async function validateLaunchFactoryV2Runtime(
       readFactory("MAX_TOKEN_SUPPLY"),
       readFactory("MAX_NAME_BYTES"),
       readFactory("MAX_SYMBOL_BYTES"),
-      client.readContract({
-        address: config.deployment.ownerTimelock,
-        abi: TIMELOCK_IDENTITY_ABI,
-        functionName: "getMinDelay",
-        blockNumber: observedAtBlock,
-      }),
+      config.deployment.ownerAuthorityKind === "timelock"
+        ? client.readContract({
+            address: config.deployment.ownerAuthority,
+            abi: TIMELOCK_IDENTITY_ABI,
+            functionName: "getMinDelay",
+            blockNumber: observedAtBlock,
+          })
+        : Promise.all([
+            client.readContract({
+              address: config.deployment.ownerAuthority,
+              abi: SAFE_IDENTITY_ABI,
+              functionName: "getThreshold",
+              blockNumber: observedAtBlock,
+            }),
+            client.readContract({
+              address: config.deployment.ownerAuthority,
+              abi: SAFE_IDENTITY_ABI,
+              functionName: "getOwners",
+              blockNumber: observedAtBlock,
+            }),
+          ]),
     ]);
 
     const factoryCode = checkedRuntimeCode(factoryCodeResult);
@@ -308,21 +325,26 @@ export async function validateLaunchFactoryV2Runtime(
     const maxTokenSupply = checkedRuntimeUint(maxTokenSupplyResult);
     const maxNameBytes = checkedRuntimeUint(maxNameBytesResult);
     const maxSymbolBytes = checkedRuntimeUint(maxSymbolBytesResult);
-    const ownerTimelockMinDelay = checkedRuntimeUint(
-      ownerTimelockMinDelayResult,
-    );
+    const ownerPolicyValid =
+      config.deployment.ownerAuthorityKind === "timelock"
+        ? checkedRuntimeUint(ownerPolicyResult) ===
+          config.deployment.ownerTimelockMinDelay
+        : Array.isArray(ownerPolicyResult) &&
+          checkedRuntimeUint(ownerPolicyResult[0]) >= 2n &&
+          Array.isArray(ownerPolicyResult[1]) &&
+          ownerPolicyResult[1].length >= 2;
 
     if (
       !sameHex(keccak256(factoryCode), config.deployment.factoryCodehash) ||
-      !sameHex(keccak256(ownerCode), config.deployment.ownerTimelockCodehash) ||
+      !sameHex(keccak256(ownerCode), config.deployment.ownerAuthorityCodehash) ||
       !sameHex(
         keccak256(treasuryCode),
         config.deployment.treasurySafeCodehash,
       ) ||
-      !sameAddress(owner, config.deployment.ownerTimelock) ||
+      !sameAddress(owner, config.deployment.ownerAuthority) ||
       !sameAddress(treasury, config.deployment.treasurySafe) ||
       !sameAddress(pendingTreasury, ZERO_ADDRESS) ||
-      ownerTimelockMinDelay !== config.deployment.ownerTimelockMinDelay ||
+      !ownerPolicyValid ||
       factoryFeeCap !== config.deployment.factoryFeeCap ||
       maxTokenSupply !== config.deployment.maxTokenSupply ||
       maxNameBytes !== config.deployment.maxNameBytes ||
@@ -498,7 +520,8 @@ export async function buildLaunchFactoryV2TokenPlan(input: {
     predictedAddress,
     observedAtBlock: runtime.observedAtBlock.toString(),
     factoryCodehash: input.config.deployment.factoryCodehash,
-    ownerTimelock: input.config.deployment.ownerTimelock,
+    ownerAuthority: input.config.deployment.ownerAuthority,
+    ownerAuthorityKind: input.config.deployment.ownerAuthorityKind,
     treasurySafe: input.config.deployment.treasurySafe,
     pendingTreasury: ZERO_ADDRESS,
     factoryFeeCap: runtime.factoryFeeCap.toString(),
@@ -536,7 +559,7 @@ export async function buildLaunchFactoryV2TokenPlan(input: {
     predictedTokenAddress: predictedAddress,
     quoteExpiresAt,
     summary:
-      `'${name}' (${symbol}) tokenı sabit ${totalSupply.toString()} atomik arzla ` +
-      `tamamen aktif cüzdana dağıtılacak. Tahmini adres: ${predictedAddress}.`,
+      `'${name}' (${symbol}) token will be distributed with a fixed ${totalSupply.toString()} atomic supply ` +
+      `entirely to the active wallet. Estimated address: ${predictedAddress}.`,
   };
 }

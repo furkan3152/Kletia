@@ -128,7 +128,7 @@ export class IntentParserError extends Error {
   readonly statusCode = 502;
 
   constructor(
-    message = "Niyet ayrıştırma servisi şu anda doğrulanmış bir yanıt üretemedi.",
+    message = "Intent parsing service currently cannot produce a verified response.",
   ) {
     super(message);
     this.name = "IntentParserError";
@@ -151,6 +151,7 @@ const ARC_ACTION_ALIASES: Record<string, string> = {
   arc_claim_unstaked: "claim_unstaked",
   arc_vault_deposit: "vault_deposit",
   arc_vault_withdraw: "vault_withdraw",
+  arc_vault_legacy_withdraw: "vault_legacy_withdraw",
   arc_lending_deposit: "lending_deposit",
   arc_lending_withdraw: "lending_withdraw",
   arc_lending_borrow: "lending_borrow",
@@ -320,7 +321,7 @@ function hasExplicitTransactionNegation(prompt: string): boolean {
       `(?:do\\s+everything|anything)\\s+except\\s+${englishAction}|` +
       `under\\s+no\\s+circumstances\\b[^,;:.!?\\n]{0,100}\\b${englishAction}|` +
       `(?:cancel|stop|skip)\\s+(?:(?:the|this|that)\\s+)?${englishAction}|` +
-      `[iı]\\s+changed\\s+my\\s+mind\\s+about\\s+${englishAction}` +
+      `[iı]\s+changed\s+my\s+mind\s+about\s+${englishAction}` +
       `)\\b`,
     "iu",
   );
@@ -711,6 +712,7 @@ const LLM_EXECUTABLE_ACTIONS = new Set([
   "basename_renew",
   "vault_deposit",
   "vault_withdraw",
+  "vault_legacy_withdraw",
   "lending_deposit",
   "lending_withdraw",
   "lending_borrow",
@@ -757,6 +759,8 @@ function hasPromptBoundAction(action: string, text: string): boolean {
       /(?:\bvault\b[^,;:.!?\n]{0,48}\b(?:deposit|yatır)|\b(?:deposit|yatır)\b[^,;:.!?\n]{0,48}\bvault\b)/iu,
     vault_withdraw:
       /(?:\bvault\b[^,;:.!?\n]{0,48}\b(?:withdraw|redeem|çek)|\b(?:withdraw|redeem|çek)\b[^,;:.!?\n]{0,48}\bvault\b)/iu,
+    vault_legacy_withdraw:
+      /^(?=[\s\S]*(?:\blegacy\b|\beski\b))(?=[\s\S]*\bvault\b)(?=[\s\S]*(?:\b(?:withdraw|redeem)\b|çek))[\s\S]*$/iu,
     lending_deposit:
       /(?:\b(?:lending|collateral)\b[^,;:.!?\n]{0,48}\b(?:deposit|supply|add)|\bteminat\b[^,;:.!?\n]{0,32}\b(?:ekle|yatır))/iu,
     lending_withdraw:
@@ -864,7 +868,7 @@ function hasPromptBoundAsset(
       }
       return new RegExp(
         `(?:to|into|for|->|buy|receive|get|al|satın\\s+al|` +
-          `çıktı|cikti|hedef)[^,;:.!?\\n]{0,24}${escaped}`,
+          `output|cikti|target)[^,;:.!?\n]{0,24}${escaped}`,
         "iu",
       ).test(text);
     }
@@ -1223,7 +1227,7 @@ function baseExecutionConstraintFailure(text: string): string | null {
   if (hasExplicitMaxGasConstraint(text)) {
     const maxGas = explicitMaxGas(text);
     if (maxGas === null || Number(maxGas) <= 0) {
-      return "Maksimum gas sınırı güvenli biçimde ayrıştırılamadı; pozitif bir ondalık değerle yeniden belirtmelisin.";
+      return "Maximum gas limit could not be safely parsed; you must specify it again with a positive decimal value.";
     }
   }
   if (hasExplicitMaxPriceImpactConstraint(text)) {
@@ -1233,7 +1237,7 @@ function baseExecutionConstraintFailure(text: string): string | null {
       maxPriceImpactBps < 1 ||
       maxPriceImpactBps > 5_000
     ) {
-      return "Maksimum fiyat etkisi 1-5000 bps arasında açık bir limit olmalıdır; hiçbir rota hazırlanmadı.";
+      return "Maximum price impact must be an explicit limit between 1-5000 bps; no route was prepared.";
     }
   }
   return null;
@@ -1406,7 +1410,7 @@ function enforcePromptBoundIntent(
       : hasPromptBoundAction(intent.action, bindingText))
   ) {
     return promptBindingFailure(
-      "İşlem veya araç türü kullanıcı mesajındaki açık eylemle doğrulanamadı; ne yapılacağını açıkça yeniden belirtmelisin.",
+      "Transaction or tool type could not be verified with the explicit action in the user message; you must clearly restate what to do.",
     );
   }
 
@@ -1418,32 +1422,32 @@ function enforcePromptBoundIntent(
       : hasPromptBoundPrimaryAmount(intent, bindingText, network))
   ) {
     return promptBindingFailure(
-      "İşlem miktarı kullanıcı mesajındaki giriş varlığı ve açık miktarla doğrulanamadı; miktarı token ile birlikte yeniden belirtmelisin.",
+      "Transaction amount could not be verified with the input asset and explicit amount in the user message; you must restate the amount along with the token.",
     );
   }
 
   const assetFields = [
-    ["giriş varlığı", "tokenIn", intent.tokenIn],
-    ["çıkış varlığı", "tokenOut", intent.tokenOut],
-    ["teminat varlığı", "collateralToken", intent.collateralToken],
-    ["borç varlığı", "borrowToken", intent.borrowToken],
+    ["input asset", "tokenIn", intent.tokenIn],
+    ["output asset", "tokenOut", intent.tokenOut],
+    ["collateral asset", "collateralToken", intent.collateralToken],
+    ["debt asset", "borrowToken", intent.borrowToken],
   ] as const;
   for (const [label, role, value] of assetFields) {
     if (
       value !== undefined &&
       !(
-        label === "giriş varlığı" &&
+        label === "input asset" &&
         (intent.action === "basename_register" ||
           intent.action === "basename_renew" ||
           intent.action === "open_widget" ||
           intent.action === "mint_nft" ||
           intent.action === "liquid_stake")
       ) &&
-      !(label === "çıkış varlığı" && intent.action === "memo_send") &&
+      !(label === "output asset" && intent.action === "memo_send") &&
       !hasPromptBoundAsset(value, bindingText, network, role, intent)
     ) {
       return promptBindingFailure(
-        `${label} kullanıcı mesajında açıkça doğrulanamadı.`,
+        `${label} could not be explicitly confirmed in the user message.`,
       );
     }
   }
@@ -1479,7 +1483,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "Alıcı veya kontrat adresi güncel kullanıcı mesajında doğrulanamadı; adresi açıkça yeniden yazmalısın.",
+      "Recipient or contract address could not be verified in the current user message; you must explicitly rewrite the address.",
     );
   }
 
@@ -1491,7 +1495,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "Atomik ödemedeki her alıcı ve miktar kullanıcı metninde birlikte bulunmalıdır.",
+      "Each recipient and amount in the atomic payment must appear together in the user text.",
     );
   }
 
@@ -1505,7 +1509,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "İkinci likidite miktarı çıkış varlığıyla birlikte kullanıcı mesajında doğrulanamadı.",
+      "Secondary liquidity amount could not be verified together with the output asset in the user message.",
     );
   }
   if (
@@ -1518,7 +1522,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "Minimum çıktı kullanıcı mesajındaki açık limit ve çıkış varlığıyla doğrulanamadı.",
+      "Minimum output could not be verified with the explicit limit and output asset in the user message.",
     );
   }
   if (
@@ -1526,7 +1530,7 @@ function enforcePromptBoundIntent(
     !hasPromptBoundFee(intent.maxFee, bindingText)
   ) {
     return promptBindingFailure(
-      "Maksimum ücret kullanıcı mesajındaki açık ücret tavanıyla doğrulanamadı.",
+      "Maximum fee could not be verified with the explicit fee cap in the user message.",
     );
   }
 
@@ -1542,7 +1546,7 @@ function enforcePromptBoundIntent(
       intentSlippage !== "1")
   ) {
     return promptBindingFailure(
-      "Slippage değeri kullanıcı mesajındaki açık yüzdeyle birebir eşleşmelidir.",
+      "Slippage value must exactly match the explicit percentage in the user message.",
     );
   }
   if (intent.action === "swap" || intent.action === "stable_swap") {
@@ -1557,7 +1561,7 @@ function enforcePromptBoundIntent(
       !hasPromptBoundDestination(intent.destinationChain, bindingText, network)
     ) {
       return promptBindingFailure(
-        "Hedef ağ kullanıcı mesajında açıkça doğrulanamadı.",
+        "Destination network could not be explicitly verified in the user message.",
       );
     }
   }
@@ -1572,7 +1576,7 @@ function enforcePromptBoundIntent(
       providedReferences.some((value) => !references.has(value))
     ) {
       return promptBindingFailure(
-        "Memo/referans kullanıcı mesajındaki açık değerle birebir eşleşmelidir.",
+        "Memo/reference must exactly match the explicit value in the user message.",
       );
     }
   }
@@ -1584,7 +1588,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "x402 maksimum USDC ödeme tavanı kullanıcı mesajındaki değerle birebir eşleşmelidir.",
+      "x402 maximum USDC payment cap must exactly match the value in the user message.",
     );
   }
   if (
@@ -1592,7 +1596,7 @@ function enforcePromptBoundIntent(
     !hasPromptBoundUrl(intent.url, bindingText)
   ) {
     return promptBindingFailure(
-      "x402 URL kullanıcı mesajındaki tam HTTPS URL ile birebir eşleşmelidir.",
+      "x402 URL must exactly match the full HTTPS URL in the user message.",
     );
   }
   if (intent.action === "x402_request") {
@@ -1605,7 +1609,7 @@ function enforcePromptBoundIntent(
     const expectedMethod = explicitMethod || "GET";
     if (method !== expectedMethod) {
       return promptBindingFailure(
-        "x402 HTTP yöntemi kullanıcı mesajındaki GET/POST yöntemiyle birebir eşleşmelidir.",
+        "x402 HTTP method must exactly match the GET/POST method in the user message.",
       );
     }
     if (
@@ -1614,12 +1618,12 @@ function enforcePromptBoundIntent(
         !hasPromptBoundJsonObject(intent.requestBody, bindingText))
     ) {
       return promptBindingFailure(
-        "x402 POST JSON gövdesi kullanıcı mesajındaki nesneyle birebir eşleşmelidir.",
+        "x402 POST JSON body must exactly match the object in the user message.",
       );
     }
     if (method !== "POST" && intent.requestBody !== undefined) {
       return promptBindingFailure(
-        "GET x402 isteğine kullanıcı tarafından yetkilendirilmemiş bir JSON gövdesi eklenemez.",
+        "A JSON body unauthorized by the user cannot be added to a GET x402 request.",
       );
     }
     grounded = { ...grounded, method: expectedMethod };
@@ -1637,7 +1641,7 @@ function enforcePromptBoundIntent(
     !hasPromptBoundBasename(intent.tokenIn, bindingText)
   ) {
     return promptBindingFailure(
-      "Base Name kullanıcı mesajında açıkça doğrulanamadı.",
+      "Base Name could not be explicitly verified in the user message.",
     );
   }
 
@@ -1653,7 +1657,7 @@ function enforcePromptBoundIntent(
         .toUpperCase() !== identity.symbol
     ) {
       return promptBindingFailure(
-        "Token adı ve sembolü kullanıcı mesajındaki deploy kimliğiyle birebir eşleşmelidir.",
+        "Token name and symbol must exactly match the deploy identity in the user message.",
       );
     }
     if (
@@ -1661,7 +1665,7 @@ function enforcePromptBoundIntent(
       (explicitLaunchId === null || intent.launchId !== explicitLaunchId)
     ) {
       return promptBindingFailure(
-        "Token launch kimliği kullanıcı mesajındaki açık değerle birebir eşleşmelidir.",
+        "Token launch ID must exactly match the explicit value in the user message.",
       );
     }
     grounded = {
@@ -1689,7 +1693,7 @@ function enforcePromptBoundIntent(
       suppliedDuration !== expectedDuration
     ) {
       return promptBindingFailure(
-        "Base Name süresi kullanıcı mesajındaki gün/ay/yıl değeriyle birebir eşleşmelidir.",
+        "Base Name duration must exactly match the day/month/year value in the user message.",
       );
     }
     grounded = { ...grounded, durationInDays: expectedDuration };
@@ -1702,7 +1706,7 @@ function enforcePromptBoundIntent(
       (expectedDuration === undefined || suppliedDuration !== expectedDuration)
     ) {
       return promptBindingFailure(
-        "Stake süresi kullanıcı mesajındaki açık süreyle birebir eşleşmelidir.",
+        "Stake duration must exactly match the explicit duration in the user message.",
       );
     }
     grounded = {
@@ -1715,7 +1719,7 @@ function enforcePromptBoundIntent(
     (promptDuration === undefined || suppliedDuration !== promptDuration)
   ) {
     return promptBindingFailure(
-      "İşlem süresi kullanıcı mesajındaki açık süreyle doğrulanamadı.",
+      "Transaction duration could not be verified against the explicit duration in the user message.",
     );
   }
 
@@ -1726,12 +1730,12 @@ function enforcePromptBoundIntent(
       String(intent.transferSpeed).toUpperCase() !== speed
     ) {
       return promptBindingFailure(
-        "App Kit transfer hızı kullanıcı mesajındaki FAST/SLOW seçimiyle birebir eşleşmelidir.",
+        "App Kit transfer speed must exactly match the FAST/SLOW choice in the user message.",
       );
     }
     if (speed === "FAST" && intent.maxFee === undefined) {
       return promptBindingFailure(
-        "FAST App Kit transferi için kullanıcı tarafından açık bir maksimum ücret tavanı gerekir.",
+        "An explicit maximum fee cap is required from the user for FAST App Kit transfers.",
       );
     }
     grounded = { ...grounded, transferSpeed: speed };
@@ -1740,7 +1744,7 @@ function enforcePromptBoundIntent(
   if (intent.timeHorizonDays !== undefined) {
     if (promptDuration !== intent.timeHorizonDays) {
       return promptBindingFailure(
-        "Zaman ufku kullanıcı mesajındaki açık süreyle birebir eşleşmelidir.",
+        "Time horizon must exactly match the explicit duration in the user message.",
       );
     }
   }
@@ -1752,7 +1756,7 @@ function enforcePromptBoundIntent(
     promptMaxGas !== intentMaxGas
   ) {
     return promptBindingFailure(
-      "Maksimum gas değeri kullanıcı mesajındaki açık gas tavanıyla birebir eşleşmelidir.",
+      "Maximum gas value must exactly match the explicit gas cap in the user message.",
     );
   }
   if (promptMaxGas !== null) {
@@ -1763,7 +1767,7 @@ function enforcePromptBoundIntent(
   const intentMaxPriceImpactBps = intent.maxPriceImpactBps ?? null;
   if (promptMaxPriceImpactBps !== intentMaxPriceImpactBps) {
     return promptBindingFailure(
-      "Maksimum fiyat etkisi kullanıcı mesajındaki açık limit ile doğrulanamadı.",
+      "Maximum price impact could not be verified against the explicit limit in the user message.",
     );
   }
   if (promptMaxPriceImpactBps !== null) {
@@ -1783,7 +1787,7 @@ function enforcePromptBoundIntent(
       )
     ) {
       return promptBindingFailure(
-        "Hariç tutulan protokollerin her biri kullanıcı mesajında açıkça belirtilmelidir.",
+        "Each excluded protocol must be explicitly specified in the user message.",
       );
     }
     grounded = {
@@ -1797,7 +1801,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "Hariç tutulan protokollerin her biri kullanıcı mesajında açıkça belirtilmelidir.",
+      "Each excluded protocol must be explicitly specified in the user message.",
     );
   }
   if (
@@ -1807,7 +1811,7 @@ function enforcePromptBoundIntent(
     )
   ) {
     return promptBindingFailure(
-      "Çok adımlı rota yetkisi kullanıcı mesajında açıkça verilmelidir.",
+      "Multi-step route authorization must be explicitly granted in the user message.",
     );
   }
 
@@ -2221,6 +2225,42 @@ function parseRawDeterministicBaseIntent(
   if (!prompt || prompt.length > 2_000) return null;
   const lower = prompt.toLocaleLowerCase("tr-TR");
   if (/\barc(?:\s+testnet)?\b/i.test(lower)) return null;
+
+  const x402UrlMatch = /https:\/\/[^\s<>"']+/iu.exec(prompt);
+  const x402Methods = [
+    ...new Set(
+      Array.from(prompt.matchAll(/\b(GET|POST)\b/giu), (match) =>
+        match[1].toUpperCase(),
+      ),
+    ),
+  ];
+  const x402CapMatch =
+    /(?:pay\s+at\s+most|max(?:imum)?(?:\s+payment)?|cap(?:ped)?(?:\s+at)?|limit(?:ed)?(?:\s+to)?|en\s+fazla)\s*(\d+(?:[.,]\d+)?)\s*USDC\b/iu.exec(
+      prompt,
+    );
+  if (
+    /\bx402\b/iu.test(prompt) &&
+    x402UrlMatch &&
+    x402Methods.length === 1 &&
+    x402CapMatch
+  ) {
+    const url = x402UrlMatch[0].replace(/[),.;!?]+$/u, "");
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+    return deterministicIntent({
+      action: "x402_request",
+      url,
+      method: x402Methods[0] as "GET" | "POST",
+      maxPayment: x402CapMatch[1].replace(",", "."),
+      amount: "0",
+      message: "Preparing a capped Base x402 request for wallet approval.",
+    });
+  }
+
   const basenameIntent = parseDeterministicBasenameIntent(prompt);
   if (basenameIntent) return basenameIntent;
   const tokens = locateBaseTokens(prompt).filter(
@@ -2547,6 +2587,19 @@ export function parseDeterministicArcIntent(
     });
   }
 
+  if (
+    /^Withdraw my full legacy Kletia Vault position for migration on Arc Testnet; preserve every other depositor's principal and simulate it before wallet approval$/i.test(
+      prompt,
+    )
+  ) {
+    return deterministicIntent({
+      action: "vault_legacy_withdraw",
+      tokenIn: "USDC",
+      amount: "0",
+      message: "Preparing the legacy Arc vault migration withdrawal.",
+    });
+  }
+
   match = new RegExp(
     `^Stake ${ARC_WIDGET_AMOUNT} native USDC in Kletia Staking on Arc Testnet; prepare the route and simulate it before wallet approval$`,
     "i",
@@ -2792,7 +2845,8 @@ Arc action semantics:
 - stake / unstake: stake native USDC or request an unstake amount.
 - claim_rewards: claim all currently available Kletia Staking rewards. This action has no user-entered amount; do not add token fields.
 - claim_unstaked: claim the full cooled-down unstake request. This action has no user-entered amount; do not add token fields.
-- vault_deposit / vault_withdraw: deposit native USDC or withdraw the full vault position.
+- vault_deposit / vault_withdraw: deposit native USDC into or withdraw the full position from the active vault.
+- vault_legacy_withdraw: only during the Vault V2 migration, withdraw the caller's full legacy vault position. Require the user to explicitly say legacy or old vault.
 - lending_deposit / lending_withdraw: deposit or withdraw KLET collateral; tokenIn may be USDC to withdraw supplied USDC.
 - lending_borrow / lending_repay: borrow or repay native USDC.
 - memo_send: recipient is a full EVM address or explicitly written .base/.base.eth name, name is the memo, and amount is native USDC.
@@ -2840,21 +2894,21 @@ Base action semantics:
 Examples:
 User: "buy AERO with 10 USDC"
 {"isComplete":true,"action":"swap","tokenIn":"USDC","tokenOut":"AERO","amount":"10","slippage":"1","message":"Preparing the best Base swap route."}
-User: "USDC için en iyi getiriyi Aave Moonwell Compound arasında karşılaştır"
+User: "Compare best yield for USDC among Aave Moonwell Compound"
 {"isComplete":true,"action":"yield_compare","tokenIn":"USDC","amount":"0","objective":"best_rate","riskTolerance":"balanced","message":"Comparing live Base lending rates and liquidity."}
-User: "Compound'da 25 USDC lend et"
+User: "Lend 25 USDC on Compound"
 {"isComplete":true,"action":"lend","tokenIn":"USDC","amount":"25","protocol":"compound-v3","objective":"best_rate","riskTolerance":"balanced","message":"Preparing the verified Compound V3 route."}
-User: "100 WELL stake et"
+User: "Stake 100 WELL"
 {"isComplete":true,"action":"stake","tokenIn":"WELL","amount":"100","protocol":"moonwell-safety-module","riskTolerance":"balanced","message":"Preparing direct stkWELL staking."}
-User: "bridge 100 USDC to arbitrum"
+User: "Bridge 100 USDC to arbitrum"
 {"isComplete":true,"action":"bridge","tokenIn":"USDC","amount":"100","destinationChain":"arbitrum","message":"Preparing the bridge route."}
-User: "buy kopil.base.eth for 2 years"
+User: "Buy kopil.base.eth for 2 years"
 {"isComplete":true,"action":"basename_register","tokenIn":"kopil","durationInDays":730,"amount":"0","message":"Preparing the Base Name registration."}
-User: "create Kletia Coin with symbol KLT and 10000 supply"
+User: "Create Kletia Coin with symbol KLT and 10000 supply"
 {"isComplete":true,"action":"deploy_token","name":"Kletia Coin","symbol":"KLT","amount":"10000","message":"Preparing the token deployment."}
 User: "Open the official Base MCP agent handoff"
 {"isComplete":true,"action":"agent_action","amount":"0","message":"Opening the non-custodial Base MCP handoff."}
-User: "Base'te 0.05 USDC altında cüzdan risk raporu servisi bul"
+User: "Find wallet risk report service under 0.05 USDC on Base"
 {"isComplete":true,"action":"x402_discover","serviceQuery":"wallet risk report","maxPayment":"0.05","curatedOnly":true,"amount":"0","message":"Searching CDP Bazaar for capped Base x402 services."}
 User: "Call https://example.com/api/report with x402 and pay at most 0.1 USDC"
 {"isComplete":true,"action":"x402_request","url":"https://example.com/api/report","method":"GET","maxPayment":"0.1","amount":"0","message":"Preparing a Base MCP x402 approval plan."}`;
@@ -2942,7 +2996,7 @@ export async function parseUserIntent(
       isComplete: false,
       action: "chat",
       message:
-        "Açık bir olumsuz işlem talebi algılandı; hiçbir işlem rotası hazırlanmadı.",
+        "An explicit negative transaction request was detected; no transaction route was prepared.",
       question: "",
       amount: "0",
       durationInDays: 0,
@@ -2953,7 +3007,7 @@ export async function parseUserIntent(
       isComplete: false,
       action: "chat",
       message:
-        "Bilgilendirme veya varsayım sorusu algılandı; açık bir yürütme talebi olmadığı için hiçbir işlem rotası hazırlanmadı.",
+        "An informational or hypothetical question was detected; no transaction route was prepared due to lack of an explicit execution request.",
       question: "",
       amount: "0",
       durationInDays: 0,
@@ -2969,7 +3023,7 @@ export async function parseUserIntent(
       isComplete: false,
       action: "chat",
       message:
-        "Arc şablonundaki köşeli parantezli miktar, limit, alıcı ve referans alanlarını gerçek değerlerle değiştirmelisin; hiçbir rota hazırlanmadı.",
+        "You must replace the bracketed amount, limit, recipient, and reference fields in the Arc template with actual values; no route was prepared.",
       question: "",
       amount: "0",
       durationInDays: 0,
@@ -2983,7 +3037,7 @@ export async function parseUserIntent(
     const requestedActions = conflictingBaseActions(bindingText);
     if (requestedActions.length > 1) {
       return promptBindingFailure(
-        "Birden fazla finansal eylem aynı mesajda güvenli biçimde tek niyete indirgenemez; işlemleri ayrı ayrı veya açık bir onaylı plan olarak göndermelisin.",
+        "Multiple financial actions cannot be safely reduced to a single intent in one message; you must send transactions separately or as a clear, approved plan.",
       );
     }
     const deterministic = parseDeterministicBaseIntent(userPrompt);
@@ -2996,7 +3050,7 @@ export async function parseUserIntent(
   }
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new IntentParserError("Niyet ayrıştırma servisi yapılandırılmamış.");
+    throw new IntentParserError("Intent parsing service is not configured.");
   }
   const networkConfig = NETWORKS[network];
 
@@ -3008,8 +3062,8 @@ export async function parseUserIntent(
       if (
         lc.includes("extend duration") ||
         lc.includes("which name's duration") ||
-        lc.includes("süresini uzatmak") ||
-        lc.includes("hangi ismin süresini")
+        lc.includes("extend duration") ||
+        lc.includes("which name's duration")
       ) {
         if (
           userPrompt.toLowerCase().includes(".base.eth") ||
@@ -3021,8 +3075,8 @@ export async function parseUserIntent(
         lc.includes("want to interact") ||
         lc.includes("want to buy") ||
         lc.includes("which name to buy") ||
-        lc.includes("işlem yapmak istediğini") ||
-        lc.includes("satın almak istediğini") ||
+        lc.includes("that you want to transact with") ||
+        lc.includes("that you want to buy") ||
         lc.includes("hangi ismi almak")
       ) {
         if (
@@ -3031,7 +3085,7 @@ export async function parseUserIntent(
         ) {
           userPrompt = `${userPrompt} buy`;
         }
-      } else if (lc.includes("borrow") || lc.includes("borç almak")) {
+      } else if (lc.includes("borrow") || lc.includes("borrow")) {
         const prevUserMsg = conversationHistory
           .slice()
           .reverse()
@@ -3045,8 +3099,8 @@ export async function parseUserIntent(
         userPrompt = `${userPrompt}${protocolMatch} borrow`;
       } else if (
         lc.includes("lend") ||
-        lc.includes("borç vermek") ||
-        lc.includes("borç ver")
+        lc.includes("lend") ||
+        lc.includes("lend")
       ) {
         const prevUserMsg = conversationHistory
           .slice()
@@ -3257,7 +3311,7 @@ export async function parseUserIntent(
     ) {
       parsedJson.isComplete = false;
       parsedJson.question =
-        "Bu Arc işlemi MAX miktarını güvenli biçimde çözümlemiyor; açık ve pozitif bir miktar belirtmelisin.";
+        "This Arc transaction does not safely resolve MAX amount; you must specify a clear and positive amount.";
       parsedJson.message = parsedJson.question;
     }
 
@@ -3268,7 +3322,7 @@ export async function parseUserIntent(
     ) {
       parsedJson.isComplete = false;
       parsedJson.question =
-        "İşlem miktarı değiştirilmeden kullanılabilecek pozitif bir ondalık sayı olmalıdır; örneğin 1.5.";
+        "The transaction amount must be a positive decimal number usable without modification; for example, 1.5.";
       parsedJson.message = parsedJson.question;
     }
 
@@ -3276,20 +3330,20 @@ export async function parseUserIntent(
       const missingField =
         parsedJson.action === "stable_swap" &&
         (!parsedJson.tokenIn || !parsedJson.tokenOut)
-          ? "Stable swap için giriş ve çıkış tokenlarını belirtmelisin."
+          ? "You must specify input and output tokens for stable swap."
           : parsedJson.action === "appkit_send" && !parsedJson.recipient
-            ? "App Kit transferi için alıcı adresini belirtmelisin."
+            ? "You must specify the recipient address for App Kit transfer."
             : parsedJson.action === "appkit_bridge" &&
                 (!parsedJson.recipient || !parsedJson.destinationChain)
-              ? "Bridge için testnet hedef ağı ve alıcı adresini belirtmelisin."
+              ? "You must specify the testnet target network and recipient address for bridge."
               : parsedJson.action === "official_memo_send" &&
                   (!parsedJson.recipient ||
                     !(parsedJson.memo || parsedJson.name))
-                ? "Resmî memo ödemesi için alıcı ve kişisel veri içermeyen, herkese açık kısa bir referans belirtmelisin."
+                ? "For official memo payment, you must specify a recipient and a short, public reference without personal data."
                 : parsedJson.action === "atomic_payout" &&
                     (!Array.isArray(parsedJson.transfers) ||
                       parsedJson.transfers.length === 0)
-                  ? "Atomik ödeme için en az bir alıcı ve miktar belirtmelisin."
+                  ? "For atomic payout, you must specify at least one recipient and amount."
                   : "";
       if (missingField) {
         parsedJson.isComplete = false;
@@ -3302,14 +3356,14 @@ export async function parseUserIntent(
       const missingField =
         parsedJson.action === "x402_discover" &&
         (!parsedJson.serviceQuery || !parsedJson.maxPayment)
-          ? "x402 servis keşfi için neye ihtiyacın olduğunu ve tek istek için maksimum USDC ödemeni belirtmelisin."
+          ? "For x402 service discovery, you must specify what you need and your maximum USDC payment per request."
           : parsedJson.action === "x402_request" &&
               (!parsedJson.url || !parsedJson.method || !parsedJson.maxPayment)
-            ? "x402 isteği için tam HTTPS URL, GET veya POST metodu ve maksimum USDC ödemesini belirtmelisin."
+            ? "For x402 requests, you must specify a full HTTPS URL, GET or POST method, and the maximum USDC payment."
             : parsedJson.action === "x402_request" &&
                 String(parsedJson.method).toUpperCase() === "POST" &&
                 !parsedJson.requestBody
-              ? "POST x402 isteği için gönderilecek JSON nesnesini belirtmelisin."
+              ? "For POST x402 requests, you must specify the JSON object to be sent."
               : "";
       if (missingField) {
         parsedJson.isComplete = false;

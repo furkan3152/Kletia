@@ -73,7 +73,7 @@ const MULTICALL3_FROM_ABI = [
 
 const selector = (calldata: string): string => {
   if (!/^0x[0-9a-fA-F]{8,}$/.test(calldata)) {
-    throw new Error("Arc extension calldata selector içermiyor.");
+    throw new Error("Arc extension calldata does not contain a selector.");
   }
   return calldata.slice(0, 10).toLowerCase();
 };
@@ -99,7 +99,7 @@ function assertEvidence(
     BigInt(evidence.totalAtomic) <= 0n ||
     BigInt(evidence.totalAtomic) > BigInt(MAX_TOTAL_ATOMIC)
   ) {
-    throw new Error("Arc extension politika kanıtı geçersiz.");
+    throw new Error("Arc extension policy evidence is invalid.");
   }
   return evidence;
 }
@@ -138,7 +138,7 @@ function assertNestedEvidence(
         call.allowFailure !== false,
     )
   ) {
-    throw new Error("Arc extension iç çağrı kanıtı geçersiz.");
+    throw new Error("Arc extension internal call evidence is invalid.");
   }
 }
 
@@ -153,7 +153,7 @@ export function validateArcOfficialRoute(
   if (!isOfficialMemo && !isAtomicPayout) {
     if (route.policyEvidence) {
       throw new Error(
-        "Normal rotada beklenmeyen Arc extension politika kanıtı bulundu.",
+        "Unexpected Arc extension policy evidence found on a normal route.",
       );
     }
     return { requireEoa: false, policyTargets: [] };
@@ -162,7 +162,7 @@ export function validateArcOfficialRoute(
   const user = getAddress(expectedUserAddress);
   const evidence = assertEvidence(route.policyEvidence, user);
   if (route.value !== "0" || (route.approvals || []).length !== 0) {
-    throw new Error("Arc extension rotası value veya approval taşıyamaz.");
+    throw new Error("Arc extension route cannot carry value or approvals.");
   }
 
   if (isOfficialMemo) {
@@ -172,7 +172,7 @@ export function validateArcOfficialRoute(
       evidence.atomicity !== "SINGLE_CALL" ||
       !evidence.memo
     ) {
-      throw new Error("Resmî Arc Memo rotası geçersiz.");
+      throw new Error("Official Arc Memo route is invalid.");
     }
     const decoded = decodeFunctionData({
       abi: MEMO_ABI,
@@ -183,14 +183,14 @@ export function validateArcOfficialRoute(
       !isAddressEqual(target, ARC_OFFICIAL_ADDRESSES.usdc) ||
       selector(innerData) !== TRANSFER_SELECTOR.toLowerCase()
     ) {
-      throw new Error("Resmî Memo yalnızca Arc USDC transferi sarabilir.");
+      throw new Error("Official Memo can only wrap Arc USDC transfers.");
     }
     const transfer = decodeFunctionData({
       abi: erc20Abi,
       data: innerData,
     });
     if (transfer.functionName !== "transfer") {
-      throw new Error("Resmî Memo iç çağrısı transfer değil.");
+      throw new Error("Official Memo inner call is not a transfer.");
     }
     const [recipient, amount] = transfer.args;
     if (
@@ -199,7 +199,7 @@ export function validateArcOfficialRoute(
       (route.primaryAmountInWei !== undefined &&
         amount.toString() !== route.primaryAmountInWei)
     ) {
-      throw new Error("Resmî Memo alıcı veya miktar kanıtı eşleşmiyor.");
+      throw new Error("Official Memo recipient or amount proof does not match.");
     }
     const reference = hexToString(memoData);
     if (
@@ -214,7 +214,7 @@ export function validateArcOfficialRoute(
       evidence.memo.piiProtection !== "FORMAT_ONLY_USER_MUST_EXCLUDE_PII" ||
       evidence.memo.maxBytes !== 64
     ) {
-      throw new Error("Resmî Memo reference kanıtı eşleşmiyor.");
+      throw new Error("Official Memo reference proof does not match.");
     }
     assertNestedEvidence(evidence, 1);
     return {
@@ -232,7 +232,7 @@ export function validateArcOfficialRoute(
     evidence.atomicity !== "ALL_OR_NOTHING" ||
     evidence.memo !== undefined
   ) {
-    throw new Error("Resmî Arc atomik payout rotası geçersiz.");
+    throw new Error("Official Arc atomic payout route is invalid.");
   }
   const decoded = decodeFunctionData({
     abi: MULTICALL3_FROM_ABI,
@@ -240,7 +240,7 @@ export function validateArcOfficialRoute(
   });
   const calls = decoded.args[0];
   if (calls.length < 1 || calls.length > 25) {
-    throw new Error("Atomik payout çağrı sayısı güvenli sınır dışında.");
+    throw new Error("Atomic payout call count is outside the safe limit.");
   }
   const recipients = new Set<string>();
   let total = 0n;
@@ -250,14 +250,14 @@ export function validateArcOfficialRoute(
       call.allowFailure !== false ||
       selector(call.callData) !== TRANSFER_SELECTOR.toLowerCase()
     ) {
-      throw new Error("Atomik payout iç çağrısı allowlist dışında.");
+      throw new Error("Atomic payout inner call is outside the allowlist.");
     }
     const transfer = decodeFunctionData({
       abi: erc20Abi,
       data: call.callData,
     });
     if (transfer.functionName !== "transfer") {
-      throw new Error("Atomik payout iç çağrısı transfer değil.");
+      throw new Error("Atomic payout inner call is not a transfer.");
     }
     const [recipient, amount] = transfer.args;
     const recipientKey = recipient.toLowerCase();
@@ -266,7 +266,7 @@ export function validateArcOfficialRoute(
       recipients.has(recipientKey) ||
       amount <= 0n
     ) {
-      throw new Error("Atomik payout alıcı veya miktar politikası geçersiz.");
+      throw new Error("Atomic payout recipient or amount policy is invalid.");
     }
     recipients.add(recipientKey);
     total += amount;
@@ -275,7 +275,7 @@ export function validateArcOfficialRoute(
     total.toString() !== evidence.totalAtomic ||
     total > BigInt(MAX_TOTAL_ATOMIC)
   ) {
-    throw new Error("Atomik payout toplamı politika kanıtıyla eşleşmiyor.");
+    throw new Error("Atomic payout total does not match the policy proof.");
   }
   assertNestedEvidence(evidence, calls.length);
   return {

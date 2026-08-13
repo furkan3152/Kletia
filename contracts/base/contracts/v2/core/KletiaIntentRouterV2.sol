@@ -208,7 +208,7 @@ contract KletiaIntentRouterV2 is
         return _hashTypedDataV4(_hashSwapIntentStruct(intent));
     }
 
-        function hashBridgeIntent(BridgeIntent calldata intent) external view returns (bytes32) {
+    function hashBridgeIntent(BridgeIntent calldata intent) external view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(BRIDGE_INTENT_TYPEHASH, intent)));
     }
 

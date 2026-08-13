@@ -9,7 +9,18 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "verify:x402-factory": "node scripts/verification/x402-factory.js",
+    "verify:x402-factory:submit": "node scripts/verification/x402-factory.js --submit",
+    "verify:x402-gateways:blockscout": "node scripts/verification/x402-gateways-blockscout.js",
+    "verify:v2:blockscout": "node scripts/verification/base-v2-blockscout.js",
+    "canary:v2:status": "KLETIA_V2_CANARY_ACTION=status hardhat run scripts/v2/advance-uniswap-canary.js --network base",
+    "canary:v2:prepare-configure-execution": "KLETIA_V2_CANARY_ACTION=prepare-configure-execution hardhat run scripts/v2/advance-uniswap-canary.js --network base",
+    "canary:v2:execute-configure": "KLETIA_V2_CANARY_ACTION=execute-configure hardhat run scripts/v2/advance-uniswap-canary.js --network base",
+    "canary:v2:prepare-enable": "KLETIA_V2_CANARY_ACTION=prepare-enable hardhat run scripts/v2/advance-uniswap-canary.js --network base",
+    "canary:v2:prepare-enable-execution": "KLETIA_V2_CANARY_ACTION=prepare-enable-execution hardhat run scripts/v2/advance-uniswap-canary.js --network base",
+    "canary:v2:execute-enable": "KLETIA_V2_CANARY_ACTION=execute-enable hardhat run scripts/v2/advance-uniswap-canary.js --network base",
     "evidence:v2:base": "hardhat run scripts/v2/export-runtime-evidence.js --network base",
+    "deploy:v2:direct-safe": "hardhat run scripts/v2/deploy-direct-safe-v2.js --network base",
     "evidence:v2:base:deployment": "hardhat run scripts/v2/export-deployed-runtime-evidence.js --network base"
   },
   "keywords": [],
@@ -20,7 +31,8 @@
     "@nomicfoundation/hardhat-verify": "^2.1.3",
     "dotenv": "17.4.2",
     "ethers": "^6.17.0",
-    "hardhat": "2.28.6"
+    "hardhat": "2.28.6",
+    "solc": "0.8.20"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1"

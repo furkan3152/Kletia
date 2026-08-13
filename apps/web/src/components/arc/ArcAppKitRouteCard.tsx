@@ -30,7 +30,7 @@ const quoteLifetimeMs = 60_000;
 const errorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
-    : "Circle App Kit isteği tamamlanamadı.";
+    : "Circle App Kit request could not be completed.";
 
 export function ArcAppKitRouteCard({
   plan,
@@ -69,25 +69,25 @@ export function ArcAppKitRouteCard({
     setError(null);
     setQuote(null);
     if (!connector || !address || !sessionMatches) {
-      setError("Canlı App Kit tahmini için aynı Arc cüzdan oturumu gerekli.");
+      setError("The same Arc wallet session is required for live App Kit quoting.");
       return;
     }
     if (Date.now() >= expiresAt) {
-      setError("Niyet planının süresi doldu; cümleyi yeniden gönderin.");
+      setError("Intent plan expired; please resend the sentence.");
       return;
     }
     setIsQuoting(true);
     try {
       assertArcAppKitPlan(plan);
-      onLog("Circle App Kit canlı tahmini isteniyor; işlem imzası istenmedi.");
+      onLog("Requesting live Circle App Kit quote; no transaction signature required.");
       const nextQuote = await quoteArcAppKitPlan(connector, address, plan);
       setQuote(nextQuote);
       setQuoteObservedAt(Date.now());
-      onLog("Circle App Kit ücret ve çıktı tahmini alındı.");
+      onLog("Circle App Kit fee and output quote received.");
     } catch (quoteError) {
       const message = errorMessage(quoteError);
       setError(message);
-      onLog(`Circle App Kit tahmini alınamadı: ${message}`);
+      onLog(`Circle App Kit estimation failed: ${message}`);
     } finally {
       setIsQuoting(false);
     }
@@ -121,7 +121,7 @@ export function ArcAppKitRouteCard({
   const execute = async () => {
     setError(null);
     if (!connector || !address || !sessionMatches) {
-      setError("İşlem farklı bir ağ veya cüzdan oturumunda yürütülemez.");
+      setError("Transaction cannot be executed on a different network or wallet session.");
       return;
     }
     const isRecovery =
@@ -130,7 +130,7 @@ export function ArcAppKitRouteCard({
       !isRecovery &&
       (!quote || Date.now() - quoteObservedAt > quoteLifetimeMs)
     ) {
-      setError("Canlı tahmin eskidi. Önce tahmini yenileyin.");
+      setError("Live quote expired. Please refresh the quote first.");
       return;
     }
     if (
@@ -140,27 +140,27 @@ export function ArcAppKitRouteCard({
         quote.expectedAddress.toLowerCase() !== address.toLowerCase())
     ) {
       setError(
-        "Canlı tahmin bu niyet/cüzdan oturumuna bağlı değil. Tahmini yenileyin.",
+        "Live quote is not linked to this intent/wallet session. Please refresh the quote.",
       );
       return;
     }
     if (!isRecovery && Date.now() >= expiresAt) {
-      setError("Niyet planının süresi doldu; cümleyi yeniden gönderin.");
+      setError("Intent plan has expired; please resend the sentence.");
       return;
     }
     setIsExecuting(true);
     try {
       if (beforeExecute) {
         onLog(
-          "Değişebilir alıcı kimliği App Kit yürütmesinden hemen önce yeniden doğrulanıyor.",
+          "Mutable recipient identity is being re-verified immediately before App Kit execution.",
         );
         await beforeExecute();
-        onLog("Alıcı kimliği güncel resolver kanıtıyla eşleşiyor.");
+        onLog("Recipient identity matches the current resolver proof.");
       }
       onLog(
         isRecovery
-          ? "Tamamlanan bridge adımları korunarak resmî SDK retry akışı başlatılıyor."
-          : "Kullanıcı onayı için resmî Circle App Kit yürütmesi başlatılıyor.",
+          ? "Official SDK retry flow is starting, preserving completed bridge steps."
+          : "Official Circle App Kit execution is starting for user approval.",
       );
       const result = isRecovery
         ? await retryArcAppKitBridge(connector, address, plan)
@@ -184,7 +184,7 @@ export function ArcAppKitRouteCard({
     } catch (executionError) {
       const message = errorMessage(executionError);
       setError(message);
-      onLog(`Circle App Kit yürütmesi durdu: ${message}`);
+      onLog(`Circle App Kit execution stopped: ${message}`);
     } finally {
       setIsExecuting(false);
     }
@@ -220,8 +220,7 @@ export function ArcAppKitRouteCard({
       {isQuoting ? (
         <div className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EDE9FE] p-3 text-sm font-black text-[#1A1A1A]">
           <Loader2 className="h-5 w-5 animate-spin" />
-          Resmî SDK tahmini alınıyor…
-        </div>
+          Fetching official SDK estimate…</div>
       ) : quote ? (
         <div className="space-y-2 border-[3px] border-[#1A1A1A] bg-[#D1FAE5] p-3 text-sm font-bold text-[#1A1A1A]">
           <div className="font-black">{quote.headline}</div>
@@ -230,14 +229,14 @@ export function ArcAppKitRouteCard({
           )}
           <div className="text-xs">
             {quote.fees.length > 0
-              ? quote.fees.map((fee) => <div key={fee}>Ücret: {fee}</div>)
-              : "SDK sağlayıcı ücret kalemi döndürmedi."}
+              ? quote.fees.map((fee) => <div key={fee}>Fee: {fee}</div>)
+              : "SDK provider did not return any fee items."}
           </div>
           <div className="border-t-[2px] border-[#1A1A1A] pt-2 text-[10px] leading-relaxed">
             {quote.feeDisclosure}
           </div>
           <div className="text-[10px] uppercase text-gray-600">
-            Tahmin zamanı: {new Date(quote.observedAt).toLocaleTimeString()}
+            Estimation time: {new Date(quote.observedAt).toLocaleTimeString()}
           </div>
         </div>
       ) : null}
@@ -262,12 +261,12 @@ export function ArcAppKitRouteCard({
         >
           {statusMessage ||
             (effectiveStatus === "success"
-              ? "Circle App Kit işlemi tamamlandı."
+              ? "Circle App Kit operation completed."
               : effectiveStatus === "pending"
-                ? "Kaynak işlem gönderildi; aynı niyeti yeniden göndermeyin."
+                ? "Source transaction sent; do not resend the same intent."
                 : effectiveStatus === "recoverable"
-                  ? "Bridge kaldığı yerden güvenli biçimde devam ettirilebilir."
-                  : "Yeniden gönderim güvenlik için engellendi.")}
+                  ? "Bridge can safely resume from where it left off."
+                  : "Resubmission blocked for security reasons.")}
         </div>
       )}
 
@@ -316,25 +315,20 @@ export function ArcAppKitRouteCard({
           <Zap className="h-5 w-5" />
         )}
         {isExecuting
-          ? "App Kit Çalışıyor"
+          ? "App Kit Running"
           : effectiveStatus === "success"
-            ? "Tamamlandı"
+            ? "Completed"
             : effectiveStatus === "pending"
-              ? "Kaynak Gönderildi — Bekleniyor"
+              ? "Source Sent — Pending"
               : effectiveStatus === "recoverable"
-                ? "Kaldığı Yerden Devam Et"
+                ? "Resume From Where Left Off"
                 : effectiveStatus === "blocked"
-                  ? "Yeniden Gönderme — İncele"
-                  : "Tahmini Onayla ve Yürüt"}
+                  ? "Resubmit — Review"
+                  : "Confirm Quote and Execute"}
       </button>
 
       <p className="text-[10px] font-bold leading-relaxed text-gray-500">
-        Circle App Kit hata telemetrisi kapalıdır. Bu rota Circle SDK tarafından
-        hazırlanıp gönderilir; Kletia plan/hesap/ağ/sonuç sınırlarını doğrular
-        fakat standart Kletia işlem simülatörünün içinden geçmez. Bridge
-        yalnızca Arc Testnet’ten izinli testnet hedeflerine gider; Base Mainnet
-        bu rota havuzuna dahil edilmez.
-      </p>
+        Circle App Kit error telemetry is disabled. This route is prepared and sent by the Circle SDK; Kletia validates plan/account/network/result limits but does not pass through the standard Kletia transaction simulator. The bridge only connects from Arc Testnet to authorized testnet targets; Base Mainnet is not included in this route pool.</p>
     </div>
   );
 }

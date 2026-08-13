@@ -3,6 +3,7 @@ import { useAccount, useBalance, useChainId, useReadContract } from "wagmi";
 import { formatEther, isAddress, parseEther } from "viem";
 import {
   ARC_CONTRACTS,
+  ARC_VAULT_EXECUTION_MODE,
   ARC_SWAP_ABI,
   ARC_LENDING_ABI,
 } from "../../networks/arc/config";
@@ -18,7 +19,6 @@ const WIDGETS: Array<{
   name: string;
   desc: string;
   color: string;
-  disabled?: boolean;
 }> = [
   {
     id: "swap" as const,
@@ -113,16 +113,16 @@ function parsePositiveAmount(
 ): string {
   const normalized = value.trim();
   if (!normalized || !/^\d+(\.\d+)?$/.test(normalized)) {
-    throw new Error(`${label} için geçerli bir miktar girin.`);
+    throw new Error(`Enter a valid amount for ${label}.`);
   }
   const fraction = normalized.split(".")[1] || "";
   if (fraction.length > userDecimals) {
     throw new Error(
-      `${label} kullanıcı girişinde en fazla ${userDecimals} ondalık hane olabilir.`,
+      `${label} user input can have up to ${userDecimals} decimal places.`,
     );
   }
   const parsed = parseEther(normalized);
-  if (parsed <= 0n) throw new Error(`${label} sıfırdan büyük olmalı.`);
+  if (parsed <= 0n) throw new Error(`${label} must be greater than zero.`);
   return normalized;
 }
 
@@ -246,7 +246,7 @@ export const ArcDashboardWidget: React.FC<{
       setIntentError(
         err instanceof Error
           ? err.message
-          : "Arc Testnet niyeti hazırlanamadı.",
+          : "Arc Testnet intent could not be prepared.",
       );
     }
   };
@@ -336,7 +336,7 @@ export const ArcDashboardWidget: React.FC<{
                   colorClass="bg-[#EF4444] hover:bg-[#DC2626]"
                   onClick={() =>
                     seedIntent(() => {
-                      const amount = parsePositiveAmount(stakeAmount, "Borç");
+                      const amount = parsePositiveAmount(stakeAmount, "Borrow");
                       return `Borrow ${amount} native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval`;
                     })
                   }
@@ -474,6 +474,19 @@ export const ArcDashboardWidget: React.FC<{
             >
               🔓 Prepare Full Withdrawal Intent
             </ActionButton>
+            {ARC_VAULT_EXECUTION_MODE === "vault_v2" && (
+              <ActionButton
+                colorClass="bg-[#F59E0B] hover:bg-[#D97706]"
+                onClick={() =>
+                  seedIntent(
+                    () =>
+                      "Withdraw my full legacy Kletia Vault position for migration on Arc Testnet; preserve every other depositor's principal and simulate it before wallet approval",
+                  )
+                }
+              >
+                ↗ Prepare Legacy Migration Withdrawal
+              </ActionButton>
+            )}
           </div>
         );
 
@@ -667,7 +680,7 @@ export const ArcDashboardWidget: React.FC<{
                     addrs.some((entry) => !isAddress(entry))
                   ) {
                     throw new Error(
-                      "Tüm batch alıcıları geçerli EVM adresleri olmalı.",
+                      "All batch recipients must be valid EVM addresses.",
                     );
                   }
                   if (
@@ -675,17 +688,17 @@ export const ArcDashboardWidget: React.FC<{
                     addrs.length
                   ) {
                     throw new Error(
-                      "Batch listesinde aynı alıcı birden fazla kez bulunamaz.",
+                      "The same recipient cannot appear more than once in the batch list.",
                     );
                   }
                   if (addrs.length > 25) {
                     throw new Error(
-                      "Atomik ödeme en fazla 25 benzersiz alıcı içerebilir.",
+                      "Atomic payment can include up to 25 unique recipients.",
                     );
                   }
                   const perRecipient = parsePositiveAmount(
                     batchAmount,
-                    "Kişi başı USDC",
+                    "USDC per recipient",
                   );
                   const payouts = addrs
                     .map(
@@ -749,13 +762,13 @@ export const ArcDashboardWidget: React.FC<{
                 seedIntent(() => {
                   const recipient = memoTo.trim();
                   if (!isAddress(recipient))
-                    throw new Error("Geçerli bir alıcı adresi girin.");
+                    throw new Error("Enter a valid recipient address.");
                   const amount = parsePositiveAmount(
                     memoAmount,
                     "Memo transfer",
                   );
                   const memo = memoText.trim();
-                  if (!memo) throw new Error("Memo metni boş olamaz.");
+                  if (!memo) throw new Error("Memo text cannot be empty.");
                   if (new TextEncoder().encode(memo).length > 256) {
                     throw new Error(
                       "Memo UTF-8 olarak en fazla 256 byte olabilir.",
@@ -786,9 +799,7 @@ export const ArcDashboardWidget: React.FC<{
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      {}
       <div className="bg-[#8B5CF6] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
-        {}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
         <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
 
@@ -803,7 +814,6 @@ export const ArcDashboardWidget: React.FC<{
             USDC-native Arc Testnet • Chain ID 5042002
           </p>
 
-          {}
           <div className="flex flex-wrap gap-4 mt-6">
             <div className="bg-white border-[3px] border-[#1A1A1A] p-4 shadow-[4px_4px_0_#1A1A1A] min-w-[140px]">
               <span className="text-xs font-black text-gray-500 uppercase block mb-1">
@@ -898,10 +908,7 @@ export const ArcDashboardWidget: React.FC<{
               Arc Money Studio
             </h3>
             <p className="mt-1 max-w-3xl text-sm font-bold text-[#1A1A1A]">
-              Bir şablon seç; widget işlemi doğrudan göndermek yerine niyet
-              kutusuna düzenlenebilir bir cümle yerleştirir. Köşeli parantezli
-              alanlar değiştirilmeden hiçbir rota hazırlanmaz.
-            </p>
+              Select a template; the widget inserts an editable sentence into the intent box instead of sending the transaction directly. No route is prepared without modifying the bracketed fields.</p>
           </div>
           <span className="w-max rotate-1 border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-3 py-2 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A]">
             Intent First
@@ -956,7 +963,7 @@ export const ArcDashboardWidget: React.FC<{
               key={blueprint.title}
               type="button"
               onClick={() => onWidgetClick(blueprint.prompt)}
-              className="group flex items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-4 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-all hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A]"
+              className="group flex min-h-20 items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-3 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none sm:p-4"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#1A1A1A]">
                 {blueprint.icon}
@@ -974,36 +981,24 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       </div>
 
-      {}
-      {}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-5 lg:grid-cols-4">
         {WIDGETS.map((w) => (
           <button
             key={w.id}
-            disabled={w.disabled}
-            className={`relative group text-left bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-4 flex flex-col justify-between min-h-[140px] ${
-              w.disabled
-                ? "opacity-70 cursor-not-allowed grayscale-[0.5] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]"
-                : "shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] active:translate-y-0 active:shadow-[2px_2px_0_#1A1A1A] transition-all"
-            } ${activeWidget === w.id ? "bg-[#E2E8F0] dark:bg-[#334155] translate-y-1 shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]" : ""}`}
+            type="button"
+            className={`group relative flex min-h-[116px] flex-col justify-between border-[4px] border-[#1A1A1A] bg-white p-3 text-left shadow-[5px_5px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1E293B] dark:shadow-[5px_5px_0_#475569] sm:min-h-[132px] sm:p-4 ${activeWidget === w.id ? "translate-y-0.5 bg-[#E2E8F0] shadow-[2px_2px_0_#1A1A1A] dark:bg-[#334155] dark:shadow-[2px_2px_0_#475569]" : ""}`}
             onClick={() =>
-              !w.disabled &&
               setActiveWidget(activeWidget === w.id ? null : w.id)
             }
           >
-            {w.disabled && (
-              <span className="absolute top-2 right-2 text-[10px] bg-[#FACC15] text-[#1A1A1A] border-[2px] border-[#1A1A1A] px-2 py-0.5 font-black uppercase tracking-widest rotate-[5deg] shadow-[2px_2px_0_#1A1A1A] z-10">
-                SOON
-              </span>
-            )}
             <div
-              className={`w-12 h-12 flex items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] text-2xl ${w.color} ${!w.disabled ? "group-hover:-translate-y-1 group-hover:shadow-[4px_4px_0_#1A1A1A] transition-transform" : ""}`}
+              className={`flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] text-xl shadow-[3px_3px_0_#1A1A1A] transition-transform duration-100 group-hover:-translate-y-0.5 dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:h-12 sm:w-12 sm:text-2xl ${w.color}`}
             >
               {w.icon}
             </div>
             <div className="mt-4">
               <span
-                className={`block text-lg font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight ${w.disabled ? "line-through decoration-2" : ""}`}
+                className="block text-base font-black uppercase tracking-tight text-[#1A1A1A] dark:text-white sm:text-lg"
               >
                 {w.name}
               </span>
@@ -1015,7 +1010,6 @@ export const ArcDashboardWidget: React.FC<{
         ))}
       </div>
 
-      {}
       {activeWidget && (
         <div className="relative mt-8 animate-fade-in-up">
           <button
@@ -1029,7 +1023,6 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       )}
 
-      {}
       <div className="bg-[#F8FAFC] dark:bg-[#111827] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-8 mt-12">
         <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight mb-6 flex items-center gap-3">
           <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#1A1A1A] flex items-center justify-center shadow-[2px_2px_0_#1A1A1A]">
@@ -1103,7 +1096,6 @@ export const ArcDashboardWidget: React.FC<{
         </div>
       </div>
 
-      {}
       <div className="flex flex-wrap gap-4 mt-8">
         {[
           {

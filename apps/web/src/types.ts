@@ -35,7 +35,8 @@ export type BaseLaunchFactoryV2Evidence = {
   predictedAddress: string;
   observedAtBlock: string;
   factoryCodehash: string;
-  ownerTimelock: string;
+  ownerAuthority: string;
+  ownerAuthorityKind: "timelock" | "safe_2_of_2";
   treasurySafe: string;
   pendingTreasury: string;
   factoryFeeCap: string;
@@ -598,9 +599,18 @@ export type ArcPortfolioData = {
     address?: string;
   }[];
   vault: {
+    executionMode: "legacy_v1" | "vault_v2";
+    address: string;
     principal: string;
     accruedInterest: string;
     pendingInterest: string;
+  };
+  legacyVault?: {
+    address: string;
+    principal: string;
+    accruedInterest: string;
+    pendingInterest: string;
+    migrationRequired: true;
   };
   staking: {
     stakedAmount: string;
@@ -614,6 +624,7 @@ export type ArcPortfolioData = {
     suppliedUSDC: string;
     healthFactor: string;
   };
+  observedAtBlock: string;
 };
 
 export type PortfolioData = BasePortfolioData | ArcPortfolioData;
@@ -1481,10 +1492,25 @@ export const isArcPortfolioData = (value: unknown): value is ArcPortfolioData =>
     hasStringFields(asset, ["symbol", "name", "balance", "formatted"]),
   ) &&
   hasStringFields(value.vault, [
+    "executionMode",
+    "address",
     "principal",
     "accruedInterest",
     "pendingInterest",
   ]) &&
+  (value.vault.executionMode === "legacy_v1" ||
+    value.vault.executionMode === "vault_v2") &&
+  isCanonicalAddress(value.vault.address) &&
+  (value.legacyVault === undefined ||
+    (isObjectRecord(value.legacyVault) &&
+      value.legacyVault.migrationRequired === true &&
+      hasStringFields(value.legacyVault, [
+        "address",
+        "principal",
+        "accruedInterest",
+        "pendingInterest",
+      ]) &&
+      isCanonicalAddress(value.legacyVault.address))) &&
   hasStringFields(value.staking, [
     "stakedAmount",
     "pendingUnstake",
@@ -1496,7 +1522,9 @@ export const isArcPortfolioData = (value: unknown): value is ArcPortfolioData =>
     "borrowedUSDC",
     "suppliedUSDC",
     "healthFactor",
-  ]);
+  ]) &&
+  typeof value.observedAtBlock === "string" &&
+  UNSIGNED_INTEGER.test(value.observedAtBlock);
 
 export type EntityAssetField =
   "tokenIn" | "tokenOut" | "collateralToken" | "borrowToken";

@@ -94,8 +94,8 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
           Base identity intent
         </h2>
         <p className="mb-8 px-4 text-sm font-bold text-gray-500 dark:text-gray-400">
-          Widget yalnızca düzenlenebilir niyet metni üretir. Fiyat, hedef,
-          güvenlik ve simülasyon ana Kletia niyet hattında yeniden doğrulanır.
+          The widget only generates editable intent text. Price, target,
+          security, and simulation are re-verified on the main Kletia intent pipeline.
         </p>
 
         <div className="relative mb-2 w-full">
@@ -165,8 +165,8 @@ export function BasenameClaimer({ onActionClick }: BasenameClaimerProps) {
         </div>
 
         <div className="mt-5 w-full border-[2px] border-[#1A1A1A] bg-blue-50 p-3 text-left text-xs font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-slate-900 dark:text-gray-300">
-          Canonical target: Base ENSIP-19 Upgradeable Registrar Controller. Bu
-          önizleme işlem teklifi değildir.
+          Canonical target: Base ENSIP-19 Upgradeable Registrar Controller. This
+          preview is not a transaction proposal.
         </div>
       </div>
     </div>

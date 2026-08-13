@@ -118,7 +118,7 @@ function assertArcAsset(
   if (!asset || !allowed.includes(asset)) {
     throw new ArcPlanError(
       "ARC_INTENT_ASSET_MISMATCH",
-      `${action} for ${field} can only be ${allowed.join(" veya ")}; user intent was not silently converted to a different asset.`,
+      `${action} for ${field} can only be ${allowed.join(" or ")}; user intent was not silently converted to a different asset.`,
     );
   }
   return asset;

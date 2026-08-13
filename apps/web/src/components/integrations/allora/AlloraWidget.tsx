@@ -134,7 +134,7 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({
         <span
           className={`text-xs px-2 py-1 rounded-full font-bold uppercase tracking-wider ${isDarkMode ? "bg-[#CCA000] text-black" : "bg-[#1A1A1A] text-white"}`}
         >
-          5m Tahmini
+          5m Prediction
         </span>
       </div>
 
@@ -185,14 +185,17 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({
               minimumFractionDigits: 2,
             })}
             {" · "}
-            Tahmini fark {Number(data.predictedDeltaPercent) > 0 ? "+" : ""}
+            Predicted change{" "}
+            {Number(data.predictedDeltaPercent) > 0 ? "+" : ""}
             {data.predictedDeltaPercent}%
           </div>
 
           <div className="flex items-center gap-2 text-xs font-bold mt-2 opacity-70">
             <span>⚡ Live Allora API</span>
             <span>•</span>
-            <span>⏱️ {new Date(data.fetchedAt).toLocaleTimeString()}</span>
+            <span>
+              ⏱️ {new Date(data.fetchedAt).toLocaleTimeString("en-US")}
+            </span>
           </div>
 
           <div className="mt-2 border-t-2 border-dashed border-current pt-2 text-[10px] font-bold uppercase opacity-60">

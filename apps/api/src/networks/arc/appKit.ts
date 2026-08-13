@@ -330,7 +330,7 @@ export function buildArcAppKitPlan(intent: ParsedIntent, requestId: string) {
   } else {
     throw new ArcAppKitPlanError(
       "ARC_APP_KIT_ACTION_UNSUPPORTED",
-      `Circle App Kit action "${action}" desteklenmiyor.`,
+      `Circle App Kit action "${action}" is not supported.`,
     );
   }
 

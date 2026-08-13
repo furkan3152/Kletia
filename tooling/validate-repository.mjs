@@ -109,6 +109,8 @@ const multilingualIntentSources = new Set([
   "apps/api/src/ai/parser.ts",
   "apps/api/src/networks/base/intent/x402.ts",
 ]);
+const turkishApplicationCopy =
+  /\b(?:aktif pozisyonlar|ana para|bakiye|bekleyen|bilinmeyen|blok|desteklenmiyor|dilim|durdu|edilen|faiz|girdi|hedef|hesap|incelendi|izin verilmeyen|orta vade|pozisyonu|risk etiketleri|saat|sorgu|tahakkuk|tahmin|tahmini|teminat|tespit edilen|toplam|veya|zaman)\b/iu;
 for (const file of trackedFiles) {
   if (
     !/^(?:apps\/api\/src|apps\/web\/src)\/.+\.(?:ts|tsx)$/u.test(file) ||
@@ -117,8 +119,16 @@ for (const file of trackedFiles) {
   ) {
     continue;
   }
-  if (/[çğıöşüÇĞİÖŞÜ]/u.test(readFileSync(file, "utf8"))) {
+  const content = readFileSync(file, "utf8");
+  if (/[çğıöşüÇĞİÖŞÜ]/u.test(content) || turkishApplicationCopy.test(content)) {
     fail(`non-English application copy is outside an input parser: ${file}`);
+  }
+}
+
+for (const file of trackedFiles) {
+  if (!file.startsWith("apps/web/src/") || !/\.tsx?$/u.test(file)) continue;
+  if (readFileSync(file, "utf8").includes("__KLETIA_EXPR_")) {
+    fail(`unresolved JSX expression marker remains in application source: ${file}`);
   }
 }
 
@@ -184,6 +194,26 @@ for (const root of ["rootDir: apps/api", "rootDir: apps/web"]) {
 }
 if (!renderConfig.includes("runtime: static")) {
   fail("Render frontend must remain a Static Site");
+}
+const renderRequiredFragments = [
+  "branch: main",
+  "plan: free",
+  "region: frankfurt",
+  "buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build",
+  "startCommand: npm start",
+  "staticPublishPath: ./dist",
+  "healthCheckPath: /health",
+  "autoDeployTrigger: checksPass",
+  "value: https://api.kletiaai.xyz",
+  "value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com",
+];
+for (const fragment of renderRequiredFragments) {
+  if (!renderConfig.includes(fragment)) {
+    fail(`Render release boundary is missing: ${fragment}`);
+  }
+}
+if ((renderConfig.match(/branch: main/gu) ?? []).length !== 2) {
+  fail("both Render services must deploy from main");
 }
 
 const navbarSource = readFileSync(

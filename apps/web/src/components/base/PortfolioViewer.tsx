@@ -27,7 +27,7 @@ const observedAtLabel = (observedAt?: string): string => {
   if (!observedAt) return "Observation time unavailable";
   const timestamp = Date.parse(observedAt);
   return Number.isFinite(timestamp)
-    ? new Date(timestamp).toLocaleString("tr-TR")
+    ? new Date(timestamp).toLocaleString("en-US")
     : "Observation time unavailable";
 };
 
@@ -306,7 +306,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
       {data.defiPositions && Object.keys(data.defiPositions).length > 0 && (
         <div className="grid grid-cols-1 gap-4 mt-6">
           <div className="flex items-center gap-2 text-[#1A1A1A] dark:text-white font-black text-lg uppercase tracking-wider mt-2 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2">
-            <Landmark className="w-5 h-5" /> Aktif Pozisyonlar
+            <Landmark className="w-5 h-5" /> Active Positions
           </div>
 
           {data.defiPositions.aave && (
@@ -316,7 +316,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
               </h4>
               <div className="flex justify-between py-1">
                 <span className="text-gray-800 dark:text-slate-300 font-bold">
-                  Teminat:
+                  Collateral:
                 </span>
                 <span className="text-green-700 dark:text-green-400 font-black">
                   {data.defiPositions.aave.suppliedCollateralUSD}

@@ -16,6 +16,7 @@ import {
 } from "../../networks/base/config/launchFactoryV2Environment.js";
 import {
   KLETIA_LAUNCH_FACTORY_V2_ABI,
+  SAFE_IDENTITY_ABI,
   TIMELOCK_IDENTITY_ABI,
 } from "../../networks/base/creator/launchFactoryV2Abi.js";
 
@@ -76,7 +77,10 @@ async function main() {
     contracts.launchFactoryV2,
     "contracts.launchFactoryV2",
   );
-  const timelockManifest = record(governance.timelock, "governance.timelock");
+  const directSafeMode = governance.mode === "direct_2_of_2_safe";
+  const ownerManifest = directSafeMode
+    ? record(governance.governanceSafe, "governance.governanceSafe")
+    : record(governance.timelock, "governance.timelock");
   const treasuryManifest = record(
     governance.treasurySafe,
     "governance.treasurySafe",
@@ -84,21 +88,23 @@ async function main() {
   if (
     network.chainId !== BASE_MAINNET_CHAIN_ID ||
     factoryManifest.verifiedExact !== true ||
-    timelockManifest.verifiedExact !== true
+    (!directSafeMode && ownerManifest.verifiedExact !== true)
   ) {
     throw new Error("MANIFEST_NOT_VERIFIED_FOR_BASE_MAINNET");
   }
 
   const factory = address(factoryManifest.address, "factory");
-  const ownerTimelock = address(timelockManifest.address, "timelock");
+  const ownerAuthority = address(ownerManifest.address, "ownerAuthority");
   const treasurySafe = address(treasuryManifest.address, "treasurySafe");
   const factoryCodehash = bytes32(
     factoryManifest.runtimeCodehash,
     "factoryCodehash",
   );
-  const ownerTimelockCodehash = bytes32(
-    timelockManifest.runtimeCodehash,
-    "ownerTimelockCodehash",
+  const ownerAuthorityCodehash = bytes32(
+    directSafeMode
+      ? governance.safeProxyRuntimeCodehash
+      : ownerManifest.runtimeCodehash,
+    "ownerAuthorityCodehash",
   );
   const treasurySafeCodehash = bytes32(
     governance.safeProxyRuntimeCodehash,
@@ -107,7 +113,7 @@ async function main() {
   if (
     !sameAddress(
       address(factoryManifest.owner, "factory.owner"),
-      ownerTimelock,
+      ownerAuthority,
     ) ||
     !sameAddress(
       address(factoryManifest.treasury, "factory.treasury"),
@@ -149,12 +155,12 @@ async function main() {
     maxTokenSupplyResult,
     maxNameBytesResult,
     maxSymbolBytesResult,
-    minDelayResult,
+    ownerPolicyResult,
   ] = await Promise.all([
     client.getChainId(),
     client.getCode({ address: factory, blockNumber: observedAtBlock }),
     client.getCode({
-      address: ownerTimelock,
+      address: ownerAuthority,
       blockNumber: observedAtBlock,
     }),
     client.getCode({
@@ -170,9 +176,9 @@ async function main() {
     readFactory("MAX_NAME_BYTES"),
     readFactory("MAX_SYMBOL_BYTES"),
     client.readContract({
-      address: ownerTimelock,
-      abi: TIMELOCK_IDENTITY_ABI,
-      functionName: "getMinDelay",
+      address: ownerAuthority,
+      abi: directSafeMode ? SAFE_IDENTITY_ABI : TIMELOCK_IDENTITY_ABI,
+      functionName: directSafeMode ? "getThreshold" : "getMinDelay",
       blockNumber: observedAtBlock,
     }),
   ]);
@@ -181,7 +187,7 @@ async function main() {
     checkedCode(factoryCodeResult, "factory"),
   );
   const liveOwnerCodehash = keccak256(
-    checkedCode(ownerCodeResult, "ownerTimelock"),
+    checkedCode(ownerCodeResult, "ownerAuthority"),
   );
   const liveTreasuryCodehash = keccak256(
     checkedCode(treasuryCodeResult, "treasurySafe"),
@@ -197,16 +203,18 @@ async function main() {
   const maxTokenSupply = maxTokenSupplyResult as bigint;
   const maxNameBytes = maxNameBytesResult as bigint;
   const maxSymbolBytes = maxSymbolBytesResult as bigint;
-  const ownerTimelockMinDelay = minDelayResult as bigint;
+  const ownerPolicyValue = ownerPolicyResult as bigint;
   if (
     chainId !== BASE_MAINNET_CHAIN_ID ||
     liveFactoryCodehash.toLowerCase() !== factoryCodehash.toLowerCase() ||
-    liveOwnerCodehash.toLowerCase() !== ownerTimelockCodehash.toLowerCase() ||
+    liveOwnerCodehash.toLowerCase() !== ownerAuthorityCodehash.toLowerCase() ||
     liveTreasuryCodehash.toLowerCase() !== treasurySafeCodehash.toLowerCase() ||
-    !sameAddress(owner, ownerTimelock) ||
+    !sameAddress(owner, ownerAuthority) ||
     !sameAddress(treasury, treasurySafe) ||
     pendingTreasury.toLowerCase() !== ZERO_ADDRESS ||
-    ownerTimelockMinDelay < BigInt(String(timelockManifest.minDelaySeconds)) ||
+    (directSafeMode
+      ? ownerPolicyValue < 2n
+      : ownerPolicyValue < BigInt(String(ownerManifest.minDelaySeconds))) ||
     deploymentFee > factoryFeeCap
   ) {
     throw new Error("LIVE_LAUNCH_FACTORY_IDENTITY_MISMATCH");
@@ -214,15 +222,25 @@ async function main() {
 
   console.log(
     JSON.stringify({
-      schemaVersion: "kletia_launch_factory_v2_deployment_v1",
+      schemaVersion: directSafeMode
+        ? "kletia_launch_factory_v2_direct_safe_deployment_v2"
+        : "kletia_launch_factory_v2_deployment_v1",
       validationStatus: "validated",
       chainId: BASE_MAINNET_CHAIN_ID,
       observedAtBlock: observedAtBlock.toString(),
       factory,
       factoryCodehash,
-      ownerTimelock,
-      ownerTimelockCodehash,
-      ownerTimelockMinDelay: ownerTimelockMinDelay.toString(),
+      ...(directSafeMode
+        ? {
+            ownerAuthority,
+            ownerAuthorityCodehash,
+            ownerAuthorityKind: "safe_2_of_2",
+          }
+        : {
+            ownerTimelock: ownerAuthority,
+            ownerTimelockCodehash: ownerAuthorityCodehash,
+            ownerTimelockMinDelay: ownerPolicyValue.toString(),
+          }),
       treasurySafe,
       treasurySafeCodehash,
       pendingTreasury: ZERO_ADDRESS,

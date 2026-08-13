@@ -24,11 +24,11 @@ const formattedUsd = (
 };
 
 const observedAtLabel = (observedAt?: string): string => {
-  if (!observedAt) return "Gözlem zamanı kullanılamıyor";
+  if (!observedAt) return "Observation time unavailable";
   const timestamp = Date.parse(observedAt);
   return Number.isFinite(timestamp)
     ? new Date(timestamp).toLocaleString("tr-TR")
-    : "Gözlem zamanı kullanılamıyor";
+    : "Observation time unavailable";
 };
 
 export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
@@ -57,24 +57,23 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
     typeof data.summary?.totalNetWorthUSD === "string" &&
     data.summary.totalNetWorthUSD.length > 0
       ? data.summary.totalNetWorthUSD
-      : "Değerleme kullanılamıyor";
+      : "Valuation unavailable";
 
   return (
     <div className="w-full space-y-5 md:space-y-6 text-sm md:text-base">
-      {}
       <div className="bg-[#FFD700] p-5 md:p-6 border-[3px] border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] flex flex-col items-center justify-center text-center">
         <h3 className="text-black font-black uppercase tracking-widest text-xs md:text-sm mb-1 opacity-80 flex items-center gap-1">
-          <Zap className="w-4 h-4" /> Doğrulanmış Fiyatlı Varlıklar
+          <Zap className="w-4 h-4" /> Verified Priced Assets
         </h3>
         <div className="text-3xl md:text-5xl font-black text-[#1A1A1A] tracking-tighter">
           {totalValue}
         </div>
         <p className="mt-2 text-xs font-bold text-black/70">
           {valuationStatus === "complete"
-            ? "Bu sonuç, taranan ve fiyatı bulunan varlıkların doğrulanmış toplamıdır."
+            ? "This result is the verified total of scanned assets with available prices."
             : valuationStatus === "partial"
-              ? "Kısmi değerleme: fiyatı bulunamayan varlıklar toplamın dışındadır."
-              : "USD fiyat kaynağı doğrulanamadığı için sıfır değer varsayılmadı."}
+              ? "Partial valuation: assets without prices are excluded from the total."
+              : "Zero value was not assumed because the USD price source could not be verified."}
         </p>
 
         {data.summary && (
@@ -109,12 +108,12 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
           ) : (
             <AlertTriangle className="w-4 h-4" />
           )}
-          Tarama Bütünlüğü:{" "}
+          Scan Integrity:{" "}
           {scanStatus === "complete"
             ? "Tam"
             : scanStatus === "partial"
-              ? "Kısmi"
-              : "Kullanılamıyor"}
+              ? "Partial"
+              : "Unavailable"}
         </div>
         <p className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-300">
           {observedAtLabel(integrity?.observedAt)}
@@ -146,7 +145,6 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
       )}
 
       <div className="grid grid-cols-1 gap-5">
-        {/* 3. CÜZDAN VARLIKLARI */}
         {data.wallet && data.wallet.length > 0 && (
           <div className="p-4 md:p-5 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
             <h4 className="text-[#1A1A1A] dark:text-white font-black mb-3 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 uppercase flex items-center gap-2">
@@ -177,7 +175,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
                     </span>
                   ) : (
                     <span className="text-amber-700 dark:text-amber-300 text-[10px] md:text-xs font-bold">
-                      USD fiyatı kullanılamıyor
+                      USD price is unavailable
                     </span>
                   )}
                 </div>
@@ -232,8 +230,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
                     </span>
                   ) : (
                     <span className="text-amber-700 dark:text-amber-300 text-[10px] md:text-xs font-bold">
-                      USD fiyatı kullanılamıyor
-                    </span>
+                      USD price is unavailable.</span>
                   )}
                 </div>
               </div>
@@ -272,8 +269,7 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
                     </span>
                   ) : (
                     <span className="text-amber-700 dark:text-amber-300 text-[10px] md:text-xs font-bold">
-                      USD fiyatı kullanılamıyor
-                    </span>
+                      USD price is unavailable.</span>
                   )}
                 </div>
               </div>
@@ -302,19 +298,17 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
       {!hasVisiblePortfolioData && (
         <div className="p-4 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] font-bold text-center text-slate-700 dark:text-slate-300">
           {scanStatus === "complete"
-            ? "Tamamlanan taramada görüntülenecek varlık veya pozisyon bulunmadı."
-            : "Tarama tamamlanamadı. Boş sonuç, sıfır bakiye olarak yorumlanmadı."}
+            ? "No assets or positions to display in the completed scan."
+            : "Scan incomplete. Empty result was not interpreted as zero balance."}
         </div>
       )}
 
-      {}
       {data.defiPositions && Object.keys(data.defiPositions).length > 0 && (
         <div className="grid grid-cols-1 gap-4 mt-6">
           <div className="flex items-center gap-2 text-[#1A1A1A] dark:text-white font-black text-lg uppercase tracking-wider mt-2 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2">
             <Landmark className="w-5 h-5" /> Aktif Pozisyonlar
           </div>
 
-          {}
           {data.defiPositions.aave && (
             <div className="p-4 bg-[#EFEFFF] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-[#0052FF] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#0052FF]">
               <h4 className="text-[#0052FF] font-black mb-3 border-b-[2px] border-[#1A1A1A] dark:border-[#0052FF]/30 pb-2 uppercase text-sm">
@@ -349,7 +343,6 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
             </div>
           )}
 
-          {}
           {data.defiPositions.moonwell &&
             Object.keys(data.defiPositions.moonwell).length > 0 && (
               <div className="p-4 bg-purple-50 dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-purple-600 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#9333ea]">
@@ -384,7 +377,6 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
               </div>
             )}
 
-          {}
           {data.defiPositions.compound &&
             Object.keys(data.defiPositions.compound).length > 0 && (
               <div className="p-4 bg-[#F8FAFC] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-teal-600 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#0d9488]">
@@ -419,7 +411,6 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
               </div>
             )}
 
-          {}
           {data.defiPositions.aerodrome && (
             <div className="p-4 bg-[#FFFbeb] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-amber-500 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#f59e0b]">
               <h4 className="text-amber-600 dark:text-amber-400 font-black mb-3 border-b-[2px] border-[#1A1A1A] dark:border-amber-500/30 pb-2 uppercase text-sm">
@@ -446,7 +437,6 @@ export default function PortfolioViewer({ data }: { data: BasePortfolioData }) {
         </div>
       )}
 
-      {}
       {data.recentTransactions && data.recentTransactions.length > 0 && (
         <div className="mt-8 pt-4 border-t-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
           <h4 className="text-[#1A1A1A] dark:text-white font-black mb-4 uppercase flex items-center gap-2">

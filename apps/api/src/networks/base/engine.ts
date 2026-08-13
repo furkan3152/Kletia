@@ -6,17 +6,17 @@ import {
   parseAbi,
   type Address,
 } from "viem";
-import type { ParsedIntent } from "../ai/parser.js";
-import { publicClient } from "../config/client.js";
-import { getPortfolio } from "../networks/base/portfolio/viewer.js";
-import { handleBaseName } from "../networks/base/intent/basename.js";
-import { handleTokenDeployment } from "../networks/base/creator/token.js";
-import { handleNftMint } from "../networks/base/creator/nft.js";
+import type { ParsedIntent } from "../../ai/parser.js";
+import { basePublicClient } from "../../config/client.js";
+import { getPortfolio } from "./portfolio/viewer.js";
+import { handleBaseName } from "./intent/basename.js";
+import { handleTokenDeployment } from "./creator/token.js";
+import { handleNftMint } from "./creator/nft.js";
 
 import {
   applyKletiaFee,
   feePolicyActionForIntent,
-} from "../networks/base/intent/feeManager.js";
+} from "./intent/feeManager.js";
 import { xRaySimulate } from "./security.js";
 import {
   handleSmartSwap,
@@ -28,19 +28,19 @@ import {
   handleYieldCompare,
 } from "./handlers.js";
 
-import KletiaSmartRouterABI from "../networks/arc/KletiaSmartRouter.abi.json" with { type: "json" };
+import KletiaSmartRouterABI from "./KletiaSmartRouter.abi.json" with { type: "json" };
 import {
   assertBaseX402PaymentPromptBinding,
   buildBaseMcpX402Plan,
   discoverBaseX402Services,
   type BaseX402ChallengeEvidence,
-} from "../networks/base/intent/x402.js";
+} from "./intent/x402.js";
 import { buildSwapRankingEvidence, rankSwapRoutes } from "./routingPolicy.js";
-import { resolveConfiguredBaseSwapExecution } from "../networks/base/config/intentRouterV2Environment.js";
-import { executeBaseIntentV2Swap } from "../networks/base/intent/routerV2Integration.js";
-import { agentLogRoom, emitAgentLog } from "../observability/agentLog.js";
+import { resolveConfiguredBaseSwapExecution } from "./config/intentRouterV2Environment.js";
+import { executeBaseIntentV2Swap } from "./intent/routerV2Integration.js";
+import { agentLogRoom, emitAgentLog } from "../../observability/agentLog.js";
 
-export { agentLogRoom, emitAgentLog } from "../observability/agentLog.js";
+export { agentLogRoom, emitAgentLog } from "../../observability/agentLog.js";
 
 const KLETIA_ROUTER_ADDRESS = getAddress(
   "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",
@@ -78,7 +78,7 @@ function assertExplicitPositiveAmount(action: string, amount: unknown) {
   if (!isMax && !isPositiveDecimal) {
     throw Object.assign(
       new Error(
-        "İşlem için pozitif bir miktar veya açıkça MAX belirtilmelidir.",
+        "A positive amount or explicit MAX must be specified for the transaction.",
       ),
       { code: "AMOUNT_REQUIRED", statusCode: 400 },
     );
@@ -226,9 +226,9 @@ export async function executeKletiaEngine(
         status: "question",
         action: "agent_action",
         message:
-          "Resmî Base MCP handoff paneli hazır. OAuth ve get_wallets doğrulamasını desteklenen ajan istemcinde tamamla; Kletia hiçbir cüzdanı sahiplenmez veya işlemi kendisi yürütmez.",
+          "The official Base MCP handoff panel is ready. Complete OAuth and get_wallets verification in your supported agent client; Kletia does not own any wallets or execute transactions itself.",
         winnerMessage:
-          "Base MCP handoff hazır; bağlantı, cüzdan seçimi ve her işlem onayı resmî istemcide kalır.",
+          "Base MCP handoff is ready; connection, wallet selection, and each transaction approval remain in the official client.",
       };
     }
 
@@ -241,7 +241,7 @@ export async function executeKletiaEngine(
         status: "success",
         action: "open_widget",
         widgetTarget: intent.tokenIn,
-        winnerMessage: intent.message || "İlgili modülü açıyorum...",
+        winnerMessage: intent.message || "Opening the relevant module...",
       };
     }
 
@@ -320,7 +320,7 @@ export async function executeKletiaEngine(
     emitAgentLog(
       userAddress,
       msgId,
-      `🛡️ Kletia Engine başlatıldı. Action: ${action}`,
+      `🛡️ Kletia Engine started. Action: ${action}`,
     );
 
     let result: any;
@@ -376,12 +376,12 @@ export async function executeKletiaEngine(
               ? simulationError.shortMessage
               : "Reverted";
           throw new Error(
-            `Ağ Kuralları İhlali: Bu işlem ağ tarafından reddediliyor. Detay: ${simulationDetail}`,
+            `Network Rule Violation: This transaction is rejected by the network. Details: ${simulationDetail}`,
           );
         }
         break;
       case "deploy_token":
-        emitAgentLog(userAddress, msgId, `🛠️ Token fabrikası hazırlanıyor...`);
+        emitAgentLog(userAddress, msgId, `🛠️ Preparing the token factory...`);
         const tokenResult = await handleTokenDeployment(
           userAddress,
           workingIntent.name,
@@ -427,13 +427,13 @@ export async function executeKletiaEngine(
         );
         throw new Error("Unreachable NFT mint state.");
       default:
-        throw new Error(`Desteklenmeyen İşlem: ${intent.action}`);
+        throw new Error(`Unsupported Operation: ${intent.action}`);
     }
 
     emitAgentLog(
       userAddress,
       msgId,
-      `✅ Motor işlemi tamamladı. X-Ray onayı bekleniyor...`,
+      `✅ Engine operation completed. Awaiting X-Ray approval...`,
     );
     result.actionType = action;
 
@@ -445,7 +445,7 @@ export async function executeKletiaEngine(
       const isNative = feeData.isNative;
       const decimals = isNative
         ? 18
-        : await publicClient.readContract({
+        : await basePublicClient.readContract({
             address: feeData.tokenAddress as `0x${string}`,
             abi: erc20Abi,
             functionName: "decimals",
@@ -487,7 +487,7 @@ export async function executeKletiaEngine(
       const targetChecks = await Promise.all(
         uniqueTargets.map(async (target) => {
           try {
-            const approved = await publicClient.readContract({
+            const approved = await basePublicClient.readContract({
               address: KLETIA_ROUTER_ADDRESS,
               abi: KLETIA_ROUTER_GUARD_ABI,
               functionName: "approvedTargets",

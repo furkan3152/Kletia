@@ -30,23 +30,23 @@ const CONTROLLED_X402_GATEWAY_ERRORS: Readonly<
   Record<string, { message: string; statusCode: number }>
 > = {
   BASE_RPC_CHAIN_MISMATCH: {
-    message: "Base RPC beklenen Base Mainnet zinciriyle eşleşmiyor.",
+    message: "Base RPC does not match the expected Base Mainnet chain.",
     statusCode: 503,
   },
   INVALID_X402_ASSET: {
-    message: "x402 gateway Base USDC ödeme politikasını geçemedi.",
+    message: "x402 gateway failed Base USDC payment policy.",
     statusCode: 400,
   },
   INVALID_X402_GATEWAY: {
-    message: "x402 gateway adresi geçersiz.",
+    message: "x402 gateway address is invalid.",
     statusCode: 400,
   },
   INVALID_X402_PRICE: {
-    message: "x402 gateway fiyatı güvenli sınırlar içinde değil.",
+    message: "x402 gateway price is not within safe limits.",
     statusCode: 400,
   },
   UNVERIFIED_X402_GATEWAY: {
-    message: "x402 gateway Base Mainnet üzerinde doğrulanamadı.",
+    message: "x402 gateway could not be verified on Base Mainnet.",
     statusCode: 400,
   },
 };
@@ -89,7 +89,7 @@ function checkedAddress(raw: string | string[]): Address {
   } catch {
     throw new ControlledRouteError(
       "INVALID_ADDRESS",
-      "Geçerli bir EVM adresi gerekli.",
+      "A valid EVM address is required.",
       400,
     );
   }
@@ -100,7 +100,7 @@ function checkedAction(raw: unknown): string | undefined {
   if (typeof raw !== "string") {
     throw new ControlledRouteError(
       "INVALID_ACTION",
-      "Tek bir geçerli action değeri gerekli.",
+      "A single valid action value is required.",
       400,
     );
   }
@@ -108,7 +108,7 @@ function checkedAction(raw: unknown): string | undefined {
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(action)) {
     throw new ControlledRouteError(
       "INVALID_ACTION",
-      "Geçerli bir action değeri gerekli.",
+      "A valid action value is required.",
       400,
     );
   }
@@ -166,7 +166,7 @@ async function scanArcTarget(address: Address, action?: string) {
   if (chainId !== NETWORKS.arc.chainId) {
     throw new ControlledRouteError(
       "ARC_RPC_CHAIN_MISMATCH",
-      "Arc RPC beklenen Arc Testnet zinciriyle eşleşmiyor.",
+      "Arc RPC does not match the expected Arc Testnet chain.",
       503,
     );
   }
@@ -200,7 +200,7 @@ async function scanBaseAddress(address: Address) {
   if (!webacyClient) {
     throw new ControlledRouteError(
       "WEBACY_UNAVAILABLE",
-      "Base risk doğrulaması şu anda kullanılamıyor.",
+      "Base risk verification is currently unavailable.",
       503,
     );
   }
@@ -212,7 +212,7 @@ async function scanBaseAddress(address: Address) {
   if (chainId !== NETWORKS.base.chainId) {
     throw new ControlledRouteError(
       "BASE_RPC_CHAIN_MISMATCH",
-      "Base RPC beklenen Base Mainnet zinciriyle eşleşmiyor.",
+      "Base RPC does not match the expected Base Mainnet chain.",
       503,
     );
   }
@@ -265,7 +265,7 @@ async function scanBaseAddress(address: Address) {
   if (reportedScore === null) {
     throw new ControlledRouteError(
       "WEBACY_INVALID_RESPONSE",
-      "Webacy doğrulanabilir bir risk puanı döndürmedi.",
+      "Webacy did not return a verifiable risk score.",
       502,
     );
   }
@@ -303,7 +303,7 @@ async function handleScan(req: Request, res: Response) {
     ) {
       throw new ControlledRouteError(
         "ACTION_TARGET_NOT_ALLOWED",
-        "İşlem hedefi belirtilen action için bu ağda izinli değil.",
+        "Transaction target is not allowed on this network for the specified action.",
         400,
       );
     }

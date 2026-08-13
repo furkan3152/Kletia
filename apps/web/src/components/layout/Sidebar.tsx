@@ -1,5 +1,5 @@
 import React from "react";
-import { Zap, User } from "lucide-react";
+import { User, X, Zap } from "lucide-react";
 import { useAccount } from "wagmi";
 import { AlloraWidget } from "../integrations/allora/AlloraWidget";
 import { useAppStore } from "../../store/useAppStore";
@@ -21,22 +21,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { networkMode, network } = useNetwork();
   const { address } = useAccount();
 
+  React.useEffect(() => {
+    if (!isPortfolioOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsPortfolioOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isPortfolioOpen, setIsPortfolioOpen]);
+
   if (!isPortfolioOpen) return null;
 
   return (
-    <div className="absolute lg:relative right-0 top-0 h-full w-full sm:w-80 md:w-96 border-l-[3px] border-[#1A1A1A] dark:border-[#4B5563] bg-[#FDFDFD] dark:bg-[#0B1121] overflow-y-auto flex flex-col shadow-[[-4px_0_0_#1A1A1A]] dark:shadow-[[-4px_0_0_#475569]] shrink-0 z-30">
-      <div className="sticky top-0 p-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] flex justify-between items-center bg-[#FFD700] dark:bg-[#60A5FA] text-[#1A1A1A] z-10">
-        <h2 className="font-black text-lg uppercase tracking-wider flex items-center gap-2">
-          <Zap className="w-5 h-5" /> {network.shortName.toUpperCase()} PORTFÖY
+    <aside
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${network.shortName} portfolio`}
+      className="fixed inset-0 z-[60] flex h-[100dvh] w-full shrink-0 flex-col overflow-x-hidden overflow-y-auto border-l-[3px] border-[#1A1A1A] bg-[#FDFDFD] shadow-[-4px_0_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0B1121] dark:shadow-[-4px_0_0_#475569] sm:left-auto sm:w-96 lg:relative lg:h-full"
+    >
+      <div className="sticky top-0 z-10 flex min-h-16 items-center justify-between border-b-[3px] border-[#1A1A1A] bg-[#FFD700] px-3 py-3 text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#60A5FA] sm:p-4">
+        <h2 className="flex min-w-0 items-center gap-2 text-base font-black uppercase tracking-wider sm:text-lg">
+          <Zap className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span className="truncate">
+            {network.shortName.toUpperCase()} PORTFOLIO
+          </span>
         </h2>
         <button
+          type="button"
           onClick={() => setIsPortfolioOpen(false)}
-          className="font-black text-xl border-[3px] border-[#1A1A1A] px-2 hover:bg-[#1A1A1A] hover:text-[#FFD700] dark:hover:text-[#60A5FA] transition-colors shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
+          aria-label="Close portfolio"
+          className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-white text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] transition-colors duration-100 hover:bg-[#1A1A1A] hover:text-[#FFD700] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:shadow-[2px_2px_0_#475569] dark:hover:text-[#60A5FA]"
         >
-          X
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
-      <div className="p-4 bg-[#FDFDFD] dark:bg-[#0B1121] flex-1 flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4 bg-[#FDFDFD] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:bg-[#0B1121] sm:p-4">
         {networkMode === "base" && (
           <AlloraWidget isDarkMode={isDarkMode} asset="ETH" />
         )}
@@ -64,8 +84,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (latestPortfolio) {
             return (
               <div className="p-5 mt-4 border-[3px] border-[#1A1A1A] bg-[#FEE2E2] dark:bg-red-950/30 dark:border-red-500 dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#EF4444] text-center font-bold">
-                Portföy yanıtı aktif ağın doğrulanmış veri şemasıyla eşleşmedi.
-                Güvenlik için gösterilmedi; lütfen yeniden taratın.
+                Portfolio response did not match the verified data schema of the active network.
+                Not displayed for security; please rescan.
               </div>
             );
           }
@@ -73,13 +93,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-5 mt-4 border-[3px] border-[#1A1A1A] bg-white dark:bg-[#131E32] dark:border-[#4B5563] dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] text-center font-bold flex flex-col items-center gap-3">
               <User className="w-8 h-8 opacity-50" />
               <span>
-                Bu cüzdan için {network.shortName} portföyü henüz taranmadı.
-                Sohbete{" "}
+                For this wallet {network.shortName} the portfolio has not been scanned yet.
+                To chat{" "}
                 <b>
                   "
                   {networkMode === "arc"
-                    ? "Arc portföyümü göster"
-                    : "Portföyümü göster"}
+                    ? "Show my Arc portfolio"
+                    : "Show my portfolio"}
                   "
                 </b>{" "}
                 yazabilirsiniz.
@@ -88,6 +108,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })()}
       </div>
-    </div>
+    </aside>
   );
 };

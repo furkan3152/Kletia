@@ -5,7 +5,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   PANCAKE_SMART_ROUTER_ABI,
   ROUTERS,
@@ -149,7 +149,7 @@ export async function getV3Routes(
 
     for (const fee of DIRECT_FEE_TIERS) {
       tasks.push(async () => {
-        const result = await publicClient.readContract({
+        const result = await basePublicClient.readContract({
           address: quoterAddr,
           abi: V3_QUOTER_V2_ABI,
           functionName: "quoteExactInputSingle",
@@ -186,7 +186,7 @@ export async function getV3Routes(
           [tokenInAddr, firstFee, hub, secondFee, tokenOutAddr],
         );
         tasks.push(async () => {
-          const result = await publicClient.readContract({
+          const result = await basePublicClient.readContract({
             address: quoterAddr,
             abi: V3_QUOTER_V2_ABI,
             functionName: "quoteExactInput",

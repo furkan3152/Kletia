@@ -184,7 +184,8 @@ const LAUNCH_V2_EVIDENCE_KEYS = new Set([
   "predictedAddress",
   "observedAtBlock",
   "factoryCodehash",
-  "ownerTimelock",
+  "ownerAuthority",
+  "ownerAuthorityKind",
   "treasurySafe",
   "pendingTreasury",
   "factoryFeeCap",
@@ -289,7 +290,7 @@ function checkedEntityResolution(
   ) {
     throw new IntentResponseError(
       "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-      "Varlık çözümleme kanıtı istek, ağ, cüzdan veya action ile eşleşmiyor.",
+      "Entity resolution evidence does not match the request, network, wallet, or action.",
     );
   }
   let evidenceUser: Address;
@@ -298,13 +299,13 @@ function checkedEntityResolution(
   } catch {
     throw new IntentResponseError(
       "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-      "Varlık çözümleme kanıtındaki cüzdan geçersiz.",
+      "The wallet in the entity resolution evidence is invalid.",
     );
   }
   if (!sameAddress(evidenceUser, expected.userAddress)) {
     throw new IntentResponseError(
       "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-      "Varlık çözümleme kanıtı aktif cüzdana bağlı değil.",
+      "Entity resolution evidence is not linked to the active wallet.",
     );
   }
   if (
@@ -317,7 +318,7 @@ function checkedEntityResolution(
   ) {
     throw new IntentResponseError(
       "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-      "Varlık çözümleme kanıtının koleksiyon sınırları geçersiz.",
+      "Entity resolution evidence collection boundaries are invalid.",
     );
   }
   const roles = new Set<string>();
@@ -379,7 +380,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Varlık çözümleme kanıtındaki asset kaydı geçersiz.",
+        "The asset record in the entity resolution evidence is invalid.",
       );
     }
     if (asset.address !== undefined) {
@@ -388,14 +389,14 @@ function checkedEntityResolution(
       } catch {
         throw new IntentResponseError(
           "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-          "Varlık çözümleme kanıtındaki token adresi geçersiz.",
+          "The token address in the entity resolution evidence is invalid.",
         );
       }
     }
     if (asset.representation === "native" && asset.address !== undefined) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Native varlık kanıtı ERC-20 adresi taşıyamaz.",
+        "Native asset evidence cannot carry an ERC-20 address.",
       );
     }
     if (
@@ -408,7 +409,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Manifest doğrulama kanıtının revizyonu veya birincil kaynağı eksik.",
+        "Manifest verification evidence is missing revision or primary source.",
       );
     }
     if (
@@ -419,7 +420,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Registry inceleme kanıtının manifest revizyonu eksik.",
+        "Registry review evidence is missing manifest revision.",
       );
     }
     if (
@@ -428,7 +429,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Dinamik token kanıtı beklenen risk sağlayıcısına bağlı değil.",
+        "Dynamic token evidence is not linked to the expected risk provider.",
       );
     }
     roles.add(asset.role);
@@ -448,7 +449,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Alıcı çözümleme kanıtı geçersiz.",
+        "Recipient resolution evidence is invalid.",
       );
     }
     if (
@@ -460,7 +461,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Basename çözümleme kanıtı resolver veya blok bağı taşımıyor.",
+        "Basename resolution evidence lacks resolver or block dependency.",
       );
     }
     try {
@@ -468,7 +469,7 @@ function checkedEntityResolution(
     } catch {
       throw new IntentResponseError(
         "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-        "Alıcı çözümleme kanıtındaki adres geçersiz.",
+        "The address in the recipient resolution evidence is invalid.",
       );
     }
     if (
@@ -477,7 +478,7 @@ function checkedEntityResolution(
     ) {
       throw new IntentResponseError(
         "BASENAME_RESOLUTION_EXPIRED",
-        "Basename çözümleme kanıtının süresi doldu; alıcı yeniden çözümlenmelidir.",
+        "Basename resolution evidence has expired; recipient must be re-resolved.",
       );
     }
   }
@@ -488,7 +489,7 @@ function checkedEntityResolution(
   ) {
     throw new IntentResponseError(
       "INVALID_ENTITY_RESOLUTION_EVIDENCE",
-      "Varlık çözümleme uyarıları geçersiz.",
+      "Entity resolution warnings are invalid.",
     );
   }
   return value;
@@ -520,7 +521,7 @@ function assertV2EntityResolutionBinding(
     if (!asset) {
       throw new IntentResponseError(
         "ENTITY_ROUTE_BINDING_MISSING",
-        `Base V2 rotasında ${role} çözümleme kanıtı eksik.`,
+        `Missing ${role} resolution proof on Base V2 route.`,
       );
     }
     const native = asset.representation === "native";
@@ -528,7 +529,7 @@ function assertV2EntityResolutionBinding(
       if (!sameAddress(expectedAddress, NATIVE_TOKEN_SENTINEL)) {
         throw new IntentResponseError(
           "ENTITY_ROUTE_BINDING_MISMATCH",
-          `Base V2 ${role} native kimliği rota tokenıyla eşleşmiyor.`,
+          `Base V2 ${role} native ID does not match the route token.`,
         );
       }
       return;
@@ -539,7 +540,7 @@ function assertV2EntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_ROUTE_BINDING_MISMATCH",
-        `Base V2 ${role} adresi rota tokenıyla eşleşmiyor.`,
+        `Base V2 ${role} address does not match the route token.`,
       );
     }
   };
@@ -560,7 +561,7 @@ function assertArcExternalEntityResolutionBinding(
     if (!isRecord(rawResult.executionPlan) || !tokenIn) {
       throw new IntentResponseError(
         "ENTITY_EXTERNAL_BINDING_MISSING",
-        "App Kit yürütme planının varlık çözümleme kanıtı eksik.",
+        "App Kit execution plan is missing entity resolution evidence.",
       );
     }
     const plan = rawResult.executionPlan;
@@ -575,7 +576,7 @@ function assertArcExternalEntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_EXTERNAL_BINDING_MISMATCH",
-        "App Kit tokenı veya atomik hassasiyeti çözümleme kanıtıyla eşleşmiyor.",
+        "App Kit token or atomic precision does not match resolution evidence.",
       );
     }
     if (plan.tokenOut !== undefined) {
@@ -587,7 +588,7 @@ function assertArcExternalEntityResolutionBinding(
       ) {
         throw new IntentResponseError(
           "ENTITY_EXTERNAL_BINDING_MISMATCH",
-          "App Kit çıkış tokenı çözümleme kanıtıyla eşleşmiyor.",
+          "App Kit output token does not match resolution evidence.",
         );
       }
     }
@@ -605,7 +606,7 @@ function assertArcExternalEntityResolutionBinding(
       ) {
         throw new IntentResponseError(
           "ENTITY_RECIPIENT_BINDING_MISMATCH",
-          "App Kit alıcısı çözümleme kanıtıyla eşleşmiyor.",
+          "App Kit recipient does not match the resolution evidence.",
         );
       }
     }
@@ -628,7 +629,7 @@ function assertArcExternalEntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_OFFICIAL_ASSET_BINDING_MISMATCH",
-        "Resmî Arc USDC planının adresi veya 6 ondalık hassasiyeti çözümleme kanıtıyla eşleşmiyor.",
+        "Official Arc USDC plan address or 6-decimal precision does not match the resolution evidence.",
       );
     }
     assertOfficialRecipientBindings(entityResolution, rawResult, action);
@@ -649,7 +650,7 @@ function decodedErc20TransferRecipient(calldata: Hex): Address {
   } catch {
     throw new IntentResponseError(
       "ENTITY_OFFICIAL_CALLDATA_INVALID",
-      "Resmî Arc ödeme calldata içindeki USDC transferi çözümlenemedi.",
+      "USDC transfer in Official Arc payment calldata could not be resolved.",
     );
   }
 }
@@ -670,7 +671,7 @@ function assertOfficialRecipientBindings(
   } catch {
     throw new IntentResponseError(
       "ENTITY_OFFICIAL_CALLDATA_INVALID",
-      "Resmî Arc ödeme planı yürütme politikasını geçemedi.",
+      "Official Arc payment plan failed execution policy validation.",
     );
   }
   const recipients = entityResolution.recipients as UnknownRecord[];
@@ -695,7 +696,7 @@ function assertOfficialRecipientBindings(
     } catch {
       throw new IntentResponseError(
         "ENTITY_OFFICIAL_CALLDATA_INVALID",
-        "Resmî Arc Memo calldata yapısı çözümlenemedi.",
+        "Official Arc Memo calldata structure could not be resolved.",
       );
     }
     const actualRecipient = decodedErc20TransferRecipient(transferCalldata);
@@ -713,7 +714,7 @@ function assertOfficialRecipientBindings(
     ) {
       throw new IntentResponseError(
         "ENTITY_RECIPIENT_BINDING_MISMATCH",
-        "Resmî Arc Memo alıcısı çözümleme kanıtıyla eşleşmiyor.",
+        "Official Arc Memo recipient does not match the resolution evidence.",
       );
     }
     return;
@@ -736,13 +737,13 @@ function assertOfficialRecipientBindings(
   } catch {
     throw new IntentResponseError(
       "ENTITY_OFFICIAL_CALLDATA_INVALID",
-      "Atomik Arc ödeme calldata yapısı çözümlenemedi.",
+      "Atomic Arc payment calldata structure could not be resolved.",
     );
   }
   if (calls.length !== recipients.length) {
     throw new IntentResponseError(
       "ENTITY_RECIPIENT_BINDING_MISMATCH",
-      "Atomik Arc ödeme alıcı sayısı çözümleme kanıtıyla eşleşmiyor.",
+      "Atomic Arc payment recipient count does not match the resolution evidence.",
     );
   }
   calls.forEach((call, index) => {
@@ -762,7 +763,7 @@ function assertOfficialRecipientBindings(
     ) {
       throw new IntentResponseError(
         "ENTITY_RECIPIENT_BINDING_MISMATCH",
-        "Atomik Arc ödeme alıcısı çözümleme kanıtıyla eşleşmiyor.",
+        "Atomic Arc payment recipient does not match the resolution evidence.",
       );
     }
   });
@@ -801,7 +802,7 @@ function assertGenericEntityResolutionBinding(
   if (inputConsumingActions.has(action) && !tokenIn) {
     throw new IntentResponseError(
       "ENTITY_ROUTE_BINDING_MISSING",
-      "Yürütme rotasının tokenIn çözümleme kanıtı eksik.",
+      "Execution route is missing tokenIn resolution evidence.",
     );
   }
   if (tokenIn && rawResult.isNativeIn === true) {
@@ -811,7 +812,7 @@ function assertGenericEntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_NATIVE_BINDING_MISMATCH",
-        "Native-value rota ERC-20 tokenIn kanıtıyla eşleşmiyor.",
+        "Native-value route does not match ERC-20 tokenIn evidence.",
       );
     }
     const nativeValue = decimalValue(
@@ -821,7 +822,7 @@ function assertGenericEntityResolutionBinding(
     if (BigInt(nativeValue) <= 0n) {
       throw new IntentResponseError(
         "ENTITY_NATIVE_BINDING_MISMATCH",
-        "Native-value rota pozitif ve kanıtlanmış bir değer taşımıyor.",
+        "Native-value route does not carry a positive and proven value.",
       );
     }
   }
@@ -841,7 +842,7 @@ function assertGenericEntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_ROUTE_BINDING_MISMATCH",
-        "Yürütme tokenIn adresi çözümlenmiş giriş varlığıyla eşleşmiyor.",
+        "Execution tokenIn address does not match resolved input entity.",
       );
     }
   }
@@ -866,7 +867,7 @@ function assertGenericEntityResolutionBinding(
     if (!directAddressMatches && !approvalMatches) {
       throw new IntentResponseError(
         "ENTITY_ROUTE_BINDING_MISSING",
-        "ERC-20 tokenIn kimliği rota adresi veya approval ile bağlanmadı.",
+        "ERC-20 tokenIn identity is not bound to route address or approval.",
       );
     }
   }
@@ -884,7 +885,7 @@ function assertGenericEntityResolutionBinding(
     ) {
       throw new IntentResponseError(
         "ENTITY_ROUTE_BINDING_MISMATCH",
-        "Yürütme tokenOut adresi çözümlenmiş çıkış varlığıyla eşleşmiyor.",
+        "Execution tokenOut address does not match resolved output entity.",
       );
     }
   }
@@ -905,7 +906,7 @@ function assertGenericEntityResolutionBinding(
     if (!allowedApprovalTokens.has(approvalToken)) {
       throw new IntentResponseError(
         "ENTITY_APPROVAL_BINDING_MISMATCH",
-        "Approval tokenı çözümleme kanıtındaki hiçbir işlem varlığıyla eşleşmiyor.",
+        "Approval token does not match any transaction entity in the resolution evidence.",
       );
     }
   }
@@ -922,7 +923,7 @@ function sameHex(left: string, right: string): boolean {
 function v2ResponseError(): never {
   throw new IntentResponseError(
     "INVALID_BASE_INTENT_V2_RESPONSE",
-    "Base Intent Router V2 yanıtı etkin dağıtım kanıtıyla güvenli biçimde eşleştirilemedi.",
+    "Base Intent Router V2 response could not be securely matched with active deployment evidence.",
   );
 }
 
@@ -974,7 +975,7 @@ function hasOnlyKeys(
 function launchV2ResponseError(): never {
   throw new IntentResponseError(
     "INVALID_BASE_LAUNCH_FACTORY_V2_RESPONSE",
-    "Base Launch Factory V2 yanıtı etkin dağıtım kanıtı ve calldata ile güvenli biçimde eşleştirilemedi.",
+    "Base Launch Factory V2 response could not be securely matched with active deployment evidence and calldata.",
   );
 }
 
@@ -1053,7 +1054,12 @@ function checkedLaunchV2Evidence(
   const factory = checkedLaunchAddress(value.factory);
   const recipient = checkedLaunchAddress(value.recipient);
   const predictedAddress = checkedLaunchAddress(value.predictedAddress);
-  const ownerTimelock = checkedLaunchAddress(value.ownerTimelock);
+  const ownerAuthority = checkedLaunchAddress(value.ownerAuthority);
+  const ownerAuthorityKind =
+    value.ownerAuthorityKind === "timelock" ||
+    value.ownerAuthorityKind === "safe_2_of_2"
+      ? value.ownerAuthorityKind
+      : launchV2ResponseError();
   const treasurySafe = checkedLaunchAddress(value.treasurySafe);
   const pendingTreasury = checkedLaunchAddressAllowZero(value.pendingTreasury);
   const userSalt = checkedLaunchBytes32(value.userSalt);
@@ -1081,7 +1087,8 @@ function checkedLaunchV2Evidence(
   if (
     !sameAddress(factory, config.factory) ||
     !sameAddress(recipient, userAddress) ||
-    !sameAddress(ownerTimelock, config.deployment.ownerTimelock) ||
+    !sameAddress(ownerAuthority, config.deployment.ownerAuthority) ||
+    ownerAuthorityKind !== config.deployment.ownerAuthorityKind ||
     !sameAddress(treasurySafe, config.deployment.treasurySafe) ||
     !sameAddress(pendingTreasury, ZERO_ADDRESS) ||
     !sameHex(factoryCodehash, config.deployment.factoryCodehash) ||
@@ -1129,7 +1136,8 @@ function checkedLaunchV2Evidence(
       predictedAddress,
       observedAtBlock: observedAtBlock.encoded,
       factoryCodehash,
-      ownerTimelock,
+      ownerAuthority,
+      ownerAuthorityKind,
       treasurySafe,
       pendingTreasury: ZERO_ADDRESS,
       factoryFeeCap: factoryFeeCap.encoded,
@@ -1378,7 +1386,7 @@ function decimalValue(value: unknown, fieldName: string): string {
   if (typeof value === "string" && /^\d+$/.test(value)) return value;
   throw new IntentResponseError(
     "INVALID_TRANSACTION_VALUE",
-    `${fieldName} negatif olmayan bir tam sayı olmalıdır.`,
+    `${fieldName} must be a non-negative integer.`,
   );
 }
 
@@ -1386,7 +1394,7 @@ function checkedCalldata(value: unknown, fieldName: string): Hex {
   if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2}){4,}$/.test(value)) {
     throw new IntentResponseError(
       "INVALID_TRANSACTION_CALLDATA",
-      `${fieldName} geçerli ve en az 4 baytlık EVM calldata olmalıdır.`,
+      `${fieldName} must be valid EVM calldata of at least 4 bytes.`,
     );
   }
   return value as Hex;
@@ -1405,7 +1413,7 @@ function checkedQuoteExpiry(
   ) {
     throw new IntentResponseError(
       "INVALID_QUOTE_EXPIRY",
-      `${fieldName} gelecekteki bir milisaniye zaman damgası olmalıdır.`,
+      `${fieldName} must be a future millisecond timestamp.`,
     );
   }
   return Math.min(value, fallback);
@@ -1422,14 +1430,14 @@ function checkedAddress(
   } catch {
     throw new IntentResponseError(
       "INVALID_TRANSACTION_TARGET",
-      "İşlem hedefi geçerli bir EVM adresi değil.",
+      "Transaction target is not a valid EVM address.",
     );
   }
 
   if (!isNetworkTargetAllowed(network, normalized, action)) {
     throw new IntentResponseError(
       "TARGET_NOT_ALLOWED",
-      `${network} ağı için izin verilmeyen işlem hedefi: ${normalized}`,
+      `Disallowed transaction target for ${network} network: ${normalized}`,
     );
   }
   return normalized;
@@ -1454,7 +1462,7 @@ function checkedApprovals(
     ) {
       throw new IntentResponseError(
         "INVALID_ROUTE_APPROVAL",
-        `route.approvals[${index}] geçerli bir approval nesnesi değil.`,
+        `route.approvals[${index}] is not a valid approval object.`,
       );
     }
     const record = approval as Record<string, unknown>;
@@ -1466,13 +1474,13 @@ function checkedApprovals(
     } catch {
       throw new IntentResponseError(
         "INVALID_ROUTE_APPROVAL",
-        `route.approvals[${index}] geçerli token/spender taşımıyor.`,
+        `route.approvals[${index}] does not contain a valid token/spender.`,
       );
     }
     if (approvalSpender !== spender) {
       throw new IntentResponseError(
         "APPROVAL_SPENDER_MISMATCH",
-        "Approval spender işlem rotasının hedefiyle eşleşmelidir.",
+        "Approval spender must match the transaction route target.",
       );
     }
     const amount = decimalValue(
@@ -1482,7 +1490,7 @@ function checkedApprovals(
     if (amount === "0") {
       throw new IntentResponseError(
         "INVALID_ROUTE_APPROVAL",
-        "Sıfır miktarlı approval işlem planına eklenemez.",
+        "Approval with zero amount cannot be added to the transaction plan.",
       );
     }
     return {
@@ -2762,7 +2770,7 @@ function checkedPolicyTargets(
   if (!Array.isArray(value) || value.length > 20) {
     throw new IntentResponseError(
       "INVALID_POLICY_TARGETS",
-      "Rota iç politika hedefleri geçerli bir dizi olmalıdır.",
+      "Route internal policy targets must be a valid array.",
     );
   }
   return [
@@ -2774,13 +2782,13 @@ function checkedPolicyTargets(
         } catch {
           throw new IntentResponseError(
             "INVALID_POLICY_TARGETS",
-            "Rota iç politika hedeflerinden biri geçerli bir EVM adresi değil.",
+            "One of the route internal policy targets is not a valid EVM address.",
           );
         }
         if (!isNetworkPolicyTargetAllowed(network, checked)) {
           throw new IntentResponseError(
             "POLICY_TARGET_NOT_ALLOWED",
-            `${network} ağı için izin verilmeyen iç politika hedefi: ${checked}`,
+            `Disallowed internal policy target for ${network} network: ${checked}`,
           );
         }
         return [checked.toLowerCase(), checked] as const;
@@ -2817,7 +2825,7 @@ function normalizeRoute(
   if (!rawRouter || !rawCalldata) {
     throw new IntentResponseError(
       "INVALID_ROUTE",
-      "Her işlem rotası kendi router ve calldata alanlarını açıkça taşımalıdır.",
+      "Each transaction route must explicitly include its own router and calldata fields.",
     );
   }
   const router = checkedAddress(
@@ -2852,7 +2860,7 @@ function normalizeRoute(
         : (() => {
             throw new IntentResponseError(
               "INVALID_EXECUTION_MODE",
-              "Base rota executionMode değeri tanınmıyor.",
+              "Base route executionMode value is unrecognized.",
             );
           })();
   if (
@@ -2861,7 +2869,7 @@ function normalizeRoute(
   ) {
     throw new IntentResponseError(
       "FEE_ROUTER_CALLER_SEMANTICS_MISMATCH",
-      "Doğrudan kullanıcı pozisyonu rotası Kletia Fee Router üzerinden yürütülemez.",
+      "Direct user position route cannot be executed through Kletia Fee Router.",
     );
   }
   const simulationReturnPolicy =
@@ -2872,7 +2880,7 @@ function normalizeRoute(
         : (() => {
             throw new IntentResponseError(
               "INVALID_SIMULATION_RETURN_POLICY",
-              "Rota tanınmayan bir protokol dönüş-verisi politikası taşıyor.",
+              "Route carries an unrecognized protocol return-data policy.",
             );
           })();
 
@@ -2931,7 +2939,7 @@ export function createIntentResultEnvelope(
   } catch {
     throw new IntentResponseError(
       "INVALID_USER_ADDRESS",
-      "Yanıt zarfındaki kullanıcı adresi geçerli değil.",
+      "User address in the response envelope is invalid.",
     );
   }
 
@@ -2962,7 +2970,7 @@ export function createIntentResultEnvelope(
     ) {
       throw new IntentResponseError(
         "INVALID_EXTERNAL_EXECUTION_PLAN",
-        "Circle App Kit planı yalnızca doğrulanmış Arc Testnet bağlamında kullanılabilir.",
+        "Circle App Kit plan can only be used in a verified Arc Testnet context.",
       );
     }
     return {
@@ -3053,7 +3061,7 @@ export function createIntentResultEnvelope(
   if (!action.trim()) {
     throw new IntentResponseError(
       "INVALID_TRANSACTION_ACTION",
-      "İşlem yanıtı ağ-hedef politikasına bağlanan bir action taşımalıdır.",
+      "Transaction response must carry an action bound to the network-target policy.",
     );
   }
 
@@ -3133,7 +3141,7 @@ export function createVerifiedIntentResultEnvelope(
   if (!isRecord(trustedEntityResolution)) {
     throw new IntentResponseError(
       "ENTITY_RESOLUTION_REQUIRED",
-      "Üretim yürütme zarfı merkezî varlık çözümleme kanıtı olmadan oluşturulamaz.",
+      "Production execution envelope cannot be created without central entity resolution proof.",
     );
   }
   return createIntentResultEnvelope(

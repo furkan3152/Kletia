@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { normalizeBaseProtocolId } from "../protocols.js";
 import { AERO_ABI, UNIV2_ABI } from "./constants.js";
 import {
@@ -32,14 +32,14 @@ async function readAssetBalance(
   const [decimals, balance] = await Promise.all([
     isNative
       ? Promise.resolve(18)
-      : publicClient.readContract({
+      : basePublicClient.readContract({
           address,
           abi: erc20Abi,
           functionName: "decimals",
         }),
     isNative
-      ? publicClient.getBalance({ address: user })
-      : publicClient.readContract({
+      ? basePublicClient.getBalance({ address: user })
+      : basePublicClient.readContract({
           address,
           abi: erc20Abi,
           functionName: "balanceOf",

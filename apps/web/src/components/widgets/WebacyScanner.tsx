@@ -66,7 +66,7 @@ export function WebacyScanner() {
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAddress(address.trim())) {
-      setError("Geçerli bir EVM adresi girin.");
+      setError("Enter a valid EVM address.");
       setResult(null);
       return;
     }
@@ -104,7 +104,6 @@ export function WebacyScanner() {
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-2xl flex flex-col gap-6">
-        {}
         <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-2">
             <Shield className="w-8 h-8 text-[#0052FF]" strokeWidth={3} />
@@ -118,7 +117,6 @@ export function WebacyScanner() {
           </p>
         </div>
 
-        {}
         <form
           onSubmit={handleScan}
           className="flex flex-col md:flex-row gap-3 w-full"
@@ -144,7 +142,6 @@ export function WebacyScanner() {
           </button>
         </form>
 
-        {}
         {error && (
           <div className="bg-red-100 dark:bg-red-900/30 border-[3px] border-red-500 p-4 text-red-700 dark:text-red-400 font-bold flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 shrink-0" strokeWidth={3} />{" "}
@@ -152,7 +149,6 @@ export function WebacyScanner() {
           </div>
         )}
 
-        {}
         {result && (
           <div className="bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col overflow-hidden">
             <div
@@ -204,8 +200,7 @@ export function WebacyScanner() {
                 </div>
               ) : (
                 <div className="text-gray-500 dark:text-gray-400 font-bold italic">
-                  Provider risk etiketi bildirmedi; bu, adresin risksiz olduğuna
-                  dair garanti değildir.
+                  Provider did not report a risk tag; this does not guarantee the address is risk-free.
                 </div>
               )}
 

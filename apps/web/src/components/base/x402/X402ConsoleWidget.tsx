@@ -12,7 +12,6 @@ import {
   Cpu,
   AlertTriangle,
   Zap,
-  Info,
   Shield,
 } from "lucide-react";
 import {
@@ -59,14 +58,6 @@ interface ContractData {
   price: string;
   collected: string;
   label: string;
-}
-
-interface X402DebugInfo {
-  status: number;
-  payTo: string;
-  price: string;
-  network: string;
-  error?: string;
 }
 
 interface VerifiedPaymentEvidence {
@@ -341,7 +332,6 @@ export const X402ConsoleWidget: React.FC = () => {
   const [newPrice, setNewPrice] = useState("0.01");
   const [loadAddress, setLoadAddress] = useState("");
   const [statusLog, setStatusLog] = useState<string[]>([]);
-  const [debugInfo, setDebugInfo] = useState<X402DebugInfo | null>(null);
   const [payResult, setPayResult] = useState<X402PayResult | null>(null);
   const [policy, setPolicy] = useState<X402Policy | null>(null);
   const [policyError, setPolicyError] = useState<string | null>(null);
@@ -998,47 +988,6 @@ export const X402ConsoleWidget: React.FC = () => {
     }
   };
 
-  // ── Debug x402 Response ────────────────────────────────────────────────
-  const handleDebug = async () => {
-    if (!activeContract) return;
-    log("🔍 Fetching x402 debug info...");
-
-    try {
-      const res = await requestWithTimeout(
-        `${BACKEND_URL}/api/premium/debug-x402?gateway=${activeContract.address}`,
-        {
-          headers: {
-            Accept: "application/json",
-            "X-Kletia-Network": "base",
-            "X-Kletia-Chain-Id": String(BASE_CHAIN_ID),
-          },
-        },
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.success) {
-        throw new Error(
-          data?.error || `Debug endpoint returned HTTP ${res.status}.`,
-        );
-      }
-      const requirement = Array.isArray(data.decoded_payment_required?.accepts)
-        ? data.decoded_payment_required.accepts[0]
-        : null;
-      setDebugInfo({
-        status: data.x402_status,
-        payTo: requirement?.payTo || data.payTo_used || "Missing",
-        price: requirement?.amount || "Missing",
-        network: requirement?.network || "Missing",
-        error: data.decoded_payment_required?.error,
-      });
-      log(
-        `✅ Debug declaration read: HTTP ${data.x402_status}, payTo=${String(requirement?.payTo || data.payTo_used).substring(0, 10)}...`,
-      );
-    } catch (error) {
-      const message = errorMessage(error, "Unknown debug error.");
-      log(`❌ Debug error: ${message}`);
-    }
-  };
-
   // ── Set Price ──────────────────────────────────────────────────────────
   const handleSetPrice = async () => {
     if (!address || !activeContract) return alert("Wallet ve kontrat gerekli.");
@@ -1139,10 +1088,10 @@ export const X402ConsoleWidget: React.FC = () => {
 
   // ── Refresh on-chain data ──────────────────────────────────────────────
   const handleRefresh = async () => {
-    log("🔄 Refreshing on-chain price, balance and x402 declaration...");
+    log("🔄 Refreshing on-chain gateway price and balance...");
     try {
-      await Promise.all([refetchPrice(), refetchBalance(), handleDebug()]);
-      log("✅ Live Base reads and x402 declaration refresh completed.");
+      await Promise.all([refetchPrice(), refetchBalance()]);
+      log("✅ Live Base gateway reads refreshed.");
     } catch (error) {
       log(`❌ Refresh failed: ${errorMessage(error, "unknown error")}`);
     }
@@ -1160,7 +1109,6 @@ export const X402ConsoleWidget: React.FC = () => {
   return (
     <div className="w-full p-0 pb-8 flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        {}
         <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569]">
           <h1 className="text-3xl font-black text-[#1A1A1A] dark:text-white uppercase flex items-center gap-3">
             <Cpu className="text-[#0052FF]" />
@@ -1214,7 +1162,6 @@ export const X402ConsoleWidget: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {}
           <div className="space-y-6">
             <div className="bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
               <div className="space-y-4">
@@ -1263,7 +1210,6 @@ export const X402ConsoleWidget: React.FC = () => {
               </div>
             </div>
 
-            {}
             <div className="bg-gray-100 dark:bg-[#131E32] border-[3px] border-dashed border-gray-300 dark:border-[#4B5563] p-6 rounded-xl">
               <h3 className="font-black text-gray-400 uppercase tracking-widest mb-4">
                 FLOW
@@ -1309,7 +1255,6 @@ export const X402ConsoleWidget: React.FC = () => {
             </div>
           </div>
 
-          {}
           <div className="space-y-6">
             {!activeContract ? (
               <div className="bg-white dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] flex flex-col items-center justify-center text-center min-h-[300px]">
@@ -1350,7 +1295,6 @@ export const X402ConsoleWidget: React.FC = () => {
                   signing.
                 </div>
 
-                {}
                 <div className="bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 mb-6">
                   <h3 className="font-black text-lg mb-4 text-[#1A1A1A] dark:text-white flex items-center justify-between">
                     ACTIVE x402 CONTRACT
@@ -1396,7 +1340,6 @@ export const X402ConsoleWidget: React.FC = () => {
                     ))}
                   </div>
 
-                  {}
                   <div className="flex gap-2 mt-4">
                     <button
                       onClick={copyGatewayUrl}
@@ -1421,9 +1364,11 @@ export const X402ConsoleWidget: React.FC = () => {
                   </div>
                 </div>
 
-                {}
                 <div className="space-y-4">
-                  {}
+                  <p className="border-[3px] border-[#1A1A1A] bg-amber-100 p-3 text-xs font-black uppercase text-amber-950">
+                    Real Base Mainnet payment. Your wallet will review an x402
+                    USDC authorization before anything is submitted.
+                  </p>
                   <button
                     onClick={handleTestPay}
                     disabled={
@@ -1441,13 +1386,12 @@ export const X402ConsoleWidget: React.FC = () => {
                       <DollarSign size={16} />
                     )}
                     {isTestingPay
-                      ? "Verifying x402..."
+                      ? "Submitting real x402 payment..."
                       : chainId !== BASE_CHAIN_ID
                         ? "Switch Wallet to Base"
-                        : `Test Pay ${displayedContractPrice} USDC`}
+                        : `Pay ${displayedContractPrice} USDC on Base`}
                   </button>
 
-                  {}
                   <div className="flex gap-2">
                     <input
                       type="number"
@@ -1468,15 +1412,6 @@ export const X402ConsoleWidget: React.FC = () => {
                     </button>
                   </div>
 
-                  {}
-                  <button
-                    onClick={handleDebug}
-                    className="w-full bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-600 font-bold p-2 border-[2px] border-gray-300 dark:border-[#4B5563] uppercase text-sm flex justify-center items-center gap-2 transition-colors"
-                  >
-                    <Info size={14} /> Debug x402 Response
-                  </button>
-
-                  {}
                   <button
                     disabled={isTestingPay || isCheckingSecurity}
                     onClick={handleWithdraw}
@@ -1485,11 +1420,9 @@ export const X402ConsoleWidget: React.FC = () => {
                     <ArrowDownToLine size={18} /> Withdraw Gateway USDC
                   </button>
 
-                  {}
                   <button
                     onClick={() => {
                       setActiveContract(null);
-                      setDebugInfo(null);
                       setPayResult(null);
                       log("🗑️ Contract reset.");
                     }}
@@ -1504,45 +1437,6 @@ export const X402ConsoleWidget: React.FC = () => {
           </div>
         </div>
 
-        {}
-        {debugInfo && (
-          <div className="bg-gray-900 border-[3px] border-[#0052FF] p-4 shadow-[4px_4px_0_#0052FF]">
-            <h3 className="font-black text-[#0052FF] uppercase mb-3 flex items-center gap-2">
-              <Shield size={16} /> x402 Debug Info
-            </h3>
-            <div className="grid grid-cols-2 gap-2 font-mono text-xs text-gray-300">
-              <div>
-                Status:{" "}
-                <span
-                  className={
-                    debugInfo.status === 402
-                      ? "text-yellow-400"
-                      : "text-red-400"
-                  }
-                >
-                  {debugInfo.status}
-                </span>
-              </div>
-              <div>
-                Network:{" "}
-                <span className="text-blue-400">{debugInfo.network}</span>
-              </div>
-              <div className="col-span-2">
-                PayTo: <span className="text-white">{debugInfo.payTo}</span>
-              </div>
-              <div className="col-span-2">
-                Price: <span className="text-green-400">{debugInfo.price}</span>
-              </div>
-              {debugInfo.error && (
-                <div className="col-span-2 text-red-400">
-                  Error: {debugInfo.error}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {}
         {payResult && (
           <div
             className={`border-[3px] p-4 shadow-[4px_4px_0] ${payResult.error ? "bg-red-50 dark:bg-red-900/20 border-red-500 shadow-red-500" : "bg-green-50 dark:bg-green-900/20 border-green-500 shadow-green-500"}`}
@@ -1563,7 +1457,6 @@ export const X402ConsoleWidget: React.FC = () => {
           </div>
         )}
 
-        {}
         <div className="bg-gray-900 border-[3px] border-gray-700 p-4">
           <h3 className="font-black text-gray-500 uppercase tracking-widest mb-2 text-xs">
             Console Log
@@ -1581,7 +1474,6 @@ export const X402ConsoleWidget: React.FC = () => {
           </div>
         </div>
 
-        {}
         <div className="pt-6 border-t-[4px] border-[#1A1A1A] dark:border-[#4B5563]">
           <h2 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase mb-4 flex items-center gap-2">
             <Wallet size={20} /> My x402 Contracts

@@ -101,7 +101,7 @@ contract KletiaX402ServiceAttestationRegistryV1 is Ownable2Step {
         emit GuardianUpdated(address(0), initialGuardian);
     }
 
-        function attestationKey(ServiceClaim calldata claim) public view returns (bytes32) {
+    function attestationKey(ServiceClaim calldata claim) public view returns (bytes32) {
         _validateClaim(claim);
         return
             keccak256(
@@ -116,7 +116,7 @@ contract KletiaX402ServiceAttestationRegistryV1 is Ownable2Step {
             );
     }
 
-        function attestAsPublisher(
+    function attestAsPublisher(
         bytes32 serviceId,
         bytes32 manifestDigest,
         address payTo,
@@ -133,7 +133,7 @@ contract KletiaX402ServiceAttestationRegistryV1 is Ownable2Step {
         key = _record(claim, AttestationKind.Publisher, expiresAt);
     }
 
-        function attestAsCurator(
+    function attestAsCurator(
         ServiceClaim calldata claim,
         uint48 expiresAt
     ) external returns (bytes32 key) {
@@ -142,7 +142,7 @@ contract KletiaX402ServiceAttestationRegistryV1 is Ownable2Step {
         key = _record(claim, AttestationKind.Curator, expiresAt);
     }
 
-        function revoke(bytes32 key) external {
+    function revoke(bytes32 key) external {
         Attestation storage record = _attestations[key][msg.sender];
         if (record.kind == AttestationKind.None) {
             revert AttestationNotFound(key, msg.sender);
@@ -170,11 +170,11 @@ contract KletiaX402ServiceAttestationRegistryV1 is Ownable2Step {
         return _status(_attestations[key][attester], attester);
     }
 
-        function setCurator(address curator, bool allowed) external onlyOwner {
+    function setCurator(address curator, bool allowed) external onlyOwner {
         _setCurator(curator, allowed);
     }
 
-        function disableCurator(
+    function disableCurator(
         address curator
     ) external onlyGuardianOrOwner {
         _setCurator(curator, false);

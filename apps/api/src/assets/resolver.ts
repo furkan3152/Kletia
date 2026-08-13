@@ -21,11 +21,11 @@ import {
   basePublicClient,
   type NetworkId,
 } from "../config/networks.js";
-import { checkTokenSecurity } from "../intent/security.js";
+import { checkTokenSecurity } from "../networks/base/security.js";
 import {
   resolveBasenameEvidence,
   type BasenameResolutionEvidence,
-} from "../intent/utils.js";
+} from "../networks/base/utils.js";
 import {
   ASSET_CATALOG,
   ASSET_CATALOG_REVISION,
@@ -260,6 +260,7 @@ const ARC_ACTION_ASSETS: Readonly<
   unstake: { tokenIn: ["USDC"] },
   vault_deposit: { tokenIn: ["USDC"] },
   vault_withdraw: { tokenIn: ["USDC"] },
+  vault_legacy_withdraw: { tokenIn: ["USDC"] },
   lending_deposit: {
     tokenIn: ["KLET"],
     collateralToken: ["KLET"],
@@ -285,6 +286,7 @@ const FIXED_ARC_FIELDS: Readonly<
   unstake: { tokenIn: "USDC" },
   vault_deposit: { tokenIn: "USDC" },
   vault_withdraw: { tokenIn: "USDC" },
+  vault_legacy_withdraw: { tokenIn: "USDC" },
   lending_deposit: { tokenIn: "KLET", collateralToken: "KLET" },
   lending_borrow: {
     tokenIn: "USDC",
@@ -380,7 +382,7 @@ function assetFieldPolicy(
   if (NON_ASSET_ACTIONS[network].has(action)) return null;
   throw new EntityResolutionError(
     "ENTITY_POLICY_ACTION_UNSUPPORTED",
-    `${NETWORKS[network].displayName} ${action} işlemi merkezi varlık politikasıyla kapsanmıyor.`,
+    `${NETWORKS[network].displayName} ${action} operation is not covered by the centralized asset policy.`,
   );
 }
 
@@ -470,7 +472,7 @@ function assertActionCompatibility(
     if (!allowed || !allowed.includes(symbol)) {
       throw new EntityResolutionError(
         "ASSET_ACTION_UNSUPPORTED",
-        `${asset.symbol} tanındı ancak Arc ${action} işlemindeki ${role} rolünde desteklenmiyor.`,
+        `${asset.symbol} recognized but not supported in Arc ${action} operation as ${role} role.`,
       );
     }
     return;
@@ -479,7 +481,7 @@ function assertActionCompatibility(
   if (!("network" in asset) && !BASE_DYNAMIC_ASSET_ACTIONS.has(action)) {
     throw new EntityResolutionError(
       "DYNAMIC_ASSET_ACTION_UNSUPPORTED",
-      `${asset.symbol} kontratı doğrulandı ancak dinamik tokenlar Base ${action} işleminde desteklenmiyor.`,
+      `${asset.symbol} contract verified, but dynamic tokens are not supported in Base ${action} operation.`,
     );
   }
 
@@ -489,19 +491,19 @@ function assertActionCompatibility(
   ) {
     throw new EntityResolutionError(
       "ASSET_MARKET_UNSUPPORTED",
-      `${asset.symbol} tanındı ancak doğrulanmış Base lending/vault kayıtlarında bu varlık için uygun market yok.`,
+      `${asset.symbol} recognized, but no suitable market exists for this asset in verified Base lending/vault records.`,
     );
   }
   if (action === "stake" && !BASE_STAKING_ASSETS.has(symbol)) {
     throw new EntityResolutionError(
       "ASSET_STAKING_UNSUPPORTED",
-      `${asset.symbol} tanındı ancak Base staking yalnız AERO, WELL veya SEAM için hazırlanabilir.`,
+      `${asset.symbol} recognized, but Base staking can only be prepared for AERO, WELL, or SEAM.`,
     );
   }
   if (action === "liquid_stake" && role === "tokenIn" && symbol !== "ETH") {
     throw new EntityResolutionError(
       "LST_INPUT_UNSUPPORTED",
-      "Base liquid staking alım rotasının giriş varlığı native ETH olmalıdır.",
+      "The input asset for the Base liquid staking purchase route must be native ETH.",
     );
   }
   if (
@@ -511,7 +513,7 @@ function assertActionCompatibility(
   ) {
     throw new EntityResolutionError(
       "LST_OUTPUT_UNSUPPORTED",
-      `${asset.symbol} doğrulanmış Base LST/LRT alım hedefi değil.`,
+      `${asset.symbol} is not a verified Base LST/LRT purchase target.`,
     );
   }
   if (
@@ -521,19 +523,19 @@ function assertActionCompatibility(
   ) {
     throw new EntityResolutionError(
       "LST_ASSET_UNSUPPORTED",
-      `${asset.symbol} doğrulanmış Base LST/LRT çıkış setinde bulunmuyor.`,
+      `${asset.symbol} is not included in the verified Base LST/LRT exit set.`,
     );
   }
   if (action === "liquid_unstake" && role === "tokenOut" && symbol !== "ETH") {
     throw new EntityResolutionError(
       "LST_EXIT_OUTPUT_UNSUPPORTED",
-      "Base LST/LRT çıkış rotasının hedefi native ETH olmalıdır.",
+      "The target of the Base LST/LRT exit route must be native ETH.",
     );
   }
   if (action === "bridge" && !["ETH", "WETH", "USDC"].includes(symbol)) {
     throw new EntityResolutionError(
       "BRIDGE_ASSET_UNSUPPORTED",
-      "Across Base rotaları yalnız ETH, WETH veya USDC için doğrulanmıştır.",
+      "Across Base routes are only validated for ETH, WETH, or USDC.",
     );
   }
 }
@@ -572,7 +574,7 @@ function resolveProtocol(
     if (!accepted.has(folded)) {
       throw new EntityResolutionError(
         "PROTOCOL_ACTION_UNSUPPORTED",
-        `${protocol} protokolü Arc ${action} yürütme hattıyla eşleşmiyor.`,
+        `${protocol} protocol does not match Arc ${action} execution pipeline.`,
       );
     }
     return {
@@ -587,7 +589,7 @@ function resolveProtocol(
   if (!policy || !canonical || !policy.has(canonical)) {
     throw new EntityResolutionError(
       "PROTOCOL_ACTION_UNSUPPORTED",
-      `${protocol} protokolü tanındı ancak Base ${action} özelliğinde doğrulanmış yürütme kaydı yok.`,
+      `${protocol} protocol recognized but no verified execution record in Base ${action} feature.`,
     );
   }
   return {
@@ -608,7 +610,7 @@ function boundedMetadata(
   if (typeof value !== "string") {
     throw new EntityResolutionError(
       "ERC20_METADATA_INVALID",
-      `Token ${field} verisi standart string biçiminde değil.`,
+      `Token ${field} data is not in standard string format.`,
     );
   }
   let normalized: string;
@@ -617,13 +619,13 @@ function boundedMetadata(
   } catch {
     throw new EntityResolutionError(
       "ERC20_METADATA_UNSAFE",
-      `Token ${field} verisi görünmez veya kontrol karakteri içeriyor.`,
+      `Token ${field} data contains invisible or control characters.`,
     );
   }
   if (normalized.length > maxLength) {
     throw new EntityResolutionError(
       "ERC20_METADATA_TOO_LONG",
-      `Token ${field} verisi güvenli görüntüleme sınırını aşıyor.`,
+      `Token ${field} data exceeds secure display limit.`,
     );
   }
   return normalized;
@@ -640,13 +642,13 @@ async function verifyBaseErc20(
   } catch {
     throw new EntityResolutionError(
       "INVALID_TOKEN_ADDRESS",
-      "Token kontrat adresi geçerli bir EVM adresi değil.",
+      "Token contract address is not a valid EVM address.",
     );
   }
   if (address === zeroAddress) {
     throw new EntityResolutionError(
       "ZERO_TOKEN_ADDRESS",
-      "Sıfır adres token kontratı olarak kullanılamaz.",
+      "Zero address cannot be used as a token contract.",
     );
   }
 
@@ -658,7 +660,7 @@ async function verifyBaseErc20(
   if (!bytecode || bytecode === "0x") {
     throw new EntityResolutionError(
       "TOKEN_CODE_MISSING",
-      "Girilen adres bu Base bloğunda kontrat bytecode taşımıyor.",
+      "The entered address does not contain contract bytecode on this Base block.",
     );
   }
 
@@ -704,20 +706,20 @@ async function verifyBaseErc20(
   } catch {
     throw new EntityResolutionError(
       "ERC20_INTERFACE_UNVERIFIED",
-      "Adresin standart ERC-20 metadata, bakiye ve arz arayüzü aynı blokta doğrulanamadı.",
+      "The address's standard ERC-20 metadata, balance, and supply interface could not be verified at the same block.",
     );
   }
 
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
     throw new EntityResolutionError(
       "ERC20_DECIMALS_UNSAFE",
-      "Token decimals değeri güvenli 0-36 aralığında değil.",
+      "Token decimals value is not within the safe range of 0-36.",
     );
   }
   if (totalSupply <= 0n) {
     throw new EntityResolutionError(
       "ERC20_SUPPLY_INVALID",
-      "Token toplam arzı pozitif değil.",
+      "Token total supply is not positive.",
     );
   }
 
@@ -759,7 +761,7 @@ async function withinDeadline<T>(
   if (remaining <= 0) {
     throw new EntityResolutionError(
       code,
-      "Onchain token doğrulama süresi güvenli istek bütçesini aştı.",
+      "Onchain token verification time exceeded the safe request budget.",
       503,
     );
   }
@@ -773,7 +775,7 @@ async function withinDeadline<T>(
             reject(
               new EntityResolutionError(
                 code,
-                "Onchain token doğrulama süresi güvenli istek bütçesini aştı.",
+                "Onchain token verification time exceeded the safe request budget.",
                 503,
               ),
             ),
@@ -1013,8 +1015,8 @@ function requiredAssetQuestion(
     code: "ASSET_REQUIRED",
     field: role,
     question:
-      `${role} varlığı eksik. ${NETWORKS[network].displayName} üzerinde ` +
-      "kullanmak istediğin tokenın adını, sembolünü veya kontrat adresini yazmalısın.",
+      `${role} presence missing on ${NETWORKS[network].displayName}.` +
+      "You must enter the name, symbol, or contract address of the token you want to use.",
     options: [],
   };
 }
@@ -1030,17 +1032,17 @@ function evidenceFromCatalog(
   const warnings: string[] = [];
   if (asset.trustTier === "elevated") {
     warnings.push(
-      "Bu varlık yükseltilmiş piyasa/likidite riski taşır; rota simülasyonu güvenlik garantisi değildir.",
+      "This asset carries elevated market/liquidity risk; route simulation is not a security guarantee.",
     );
   }
   if (asset.verification === "registry_reviewed") {
     warnings.push(
-      "Bu token Kletia yürütme kayıtlarında incelendi; ancak adres için varlık-özel birincil yayıncı kaynağı manifestte bağlı değil.",
+      "This token was reviewed in Kletia execution records; however, the asset-specific primary publisher source is not linked in the manifest for the address.",
     );
   }
   if (asset.network === "arc" && asset.symbol === "USDC") {
     warnings.push(
-      "Arc USDC atomik hassasiyeti yürütme rayına göre ayrılır: Kletia native-value 18, ERC-20/App Kit 6.",
+      "Arc USDC atomic precision differs by execution lane: Kletia native-value 18, ERC-20/App Kit 6.",
     );
   }
   return {
@@ -1083,7 +1085,7 @@ async function evidenceFromDynamicAddress(
   if ((await securityCheck(asset.address)) !== true) {
     throw new EntityResolutionError(
       "TOKEN_SECURITY_REJECTED",
-      "Dinamik token bağımsız güvenlik kontrolünü geçemedi.",
+      "Dynamic token independent security check failed.",
     );
   }
   return {
@@ -1117,7 +1119,7 @@ async function evidenceFromDynamicAddress(
       executionDecimals: asset.decimals,
     },
     warnings: [
-      "Bu kontrat Kletia canonical token registry’sinde değil. Kimlik, ERC-20 arayüzü, cüzdan bakiyesi ve risk sağlayıcısı doğrulandı; davranışsal/proxy riskleri yine de değişebilir.",
+      "This contract is not in the Kletia canonical token registry. Identity, ERC-20 interface, wallet balance, and risk provider verified; behavioral/proxy risks may still vary.",
     ],
   };
 }
@@ -1145,7 +1147,7 @@ async function resolveRecipient(
     if (address === zeroAddress) {
       throw new EntityResolutionError(
         "RECIPIENT_ZERO_ADDRESS",
-        "Alıcı sıfır adres olamaz.",
+        "Recipient cannot be the zero address.",
       );
     }
     return {
@@ -1161,14 +1163,14 @@ async function resolveRecipient(
   if (!/^[^\s.]+\.base(?:\.eth)?$/iu.test(raw)) {
     throw new EntityResolutionError(
       "RECIPIENT_UNRESOLVED",
-      "Alıcı tam EVM adresi veya çözümlenebilir bir .base.eth adı olmalıdır.",
+      "Recipient must be a full EVM address or a resolvable .base.eth name.",
     );
   }
   const result = await basenameResolver(raw);
   if (!result) {
     throw new EntityResolutionError(
       "BASENAME_UNRESOLVED",
-      `${raw} için doğrulanmış Basename adres kaydı bulunamadı.`,
+      `No verified Basename address record found for ${raw}.`,
     );
   }
   return {
@@ -1184,7 +1186,7 @@ async function resolveRecipient(
     crossNetworkIdentity: network !== "base",
     warning:
       network !== "base"
-        ? "Basename Base üzerinde çözümlendi; Arc işlemi aynı EVM adresine gidecektir. Ağ ve 0x alıcıyı imzadan önce doğrulayın."
+        ? "Basename resolved on Base; Arc transaction will go to the same EVM address. Verify network and 0x recipient before signing."
         : undefined,
   };
 }
@@ -1211,7 +1213,7 @@ export async function resolveIntentEntities(
   } catch {
     throw new EntityResolutionError(
       "INVALID_RESOLUTION_WALLET",
-      "Varlık çözümleme cüzdanı geçerli değil.",
+      "Asset resolution wallet is invalid.",
     );
   }
 
@@ -1273,7 +1275,7 @@ export async function resolveIntentEntities(
             if (!policy.allowed.includes(field)) {
               throw new EntityResolutionError(
                 "ENTITY_ROLE_ACTION_UNSUPPORTED",
-                `${field} alanı ${NETWORKS[network].displayName} ${action} yürütme şemasında kullanılmıyor; sessizce yok sayılamaz.`,
+                `The ${field} field is not used in the ${NETWORKS[network].displayName} ${action} execution plan; it cannot be silently ignored.`,
               );
             }
             return true;
@@ -1303,7 +1305,7 @@ export async function resolveIntentEntities(
     if (/^0x/iu.test(reference) && !isAddress(reference)) {
       throw new EntityResolutionError(
         "INVALID_TOKEN_ADDRESS",
-        "0x ile başlayan token referansı tam ve geçerli bir EVM kontrat adresi olmalıdır.",
+        "Token reference starting with 0x must be a full and valid EVM contract address.",
       );
     }
 
@@ -1348,7 +1350,7 @@ export async function resolveIntentEntities(
           code: "ASSET_REFERENCE_AMBIGUOUS",
           field: role,
           reference,
-          question: `${reference} birden fazla canonical varlıkla eşleşiyor; hangisini kastettin?`,
+          question: `${reference} matches multiple canonical entities; which one did you mean?`,
           options: catalogOptions(
             originalPrompt,
             role,
@@ -1362,7 +1364,7 @@ export async function resolveIntentEntities(
       if (network !== "base") {
         throw new EntityResolutionError(
           "ARC_ASSET_ADDRESS_UNLISTED",
-          "Arc token kontrat adresi resmî/Kletia manifestindeki USDC, EURC veya KLET kimliğiyle eşleşmiyor.",
+          "Arc token contract address does not match USDC, EURC, or KLET identity in the official/Kletia manifest.",
         );
       }
       const verified = await withinDeadline(
@@ -1405,8 +1407,8 @@ export async function resolveIntentEntities(
             reference,
             question:
               candidates.length === 1
-                ? `${candidates[0].name} (${candidates[0].symbol}) kontratını mı kastettin? Adresi doğrulamadan işlem hazırlanmayacak.`
-                : `${reference} cüzdanında birden fazla tokenla eşleşiyor; kontrat adresine göre seçmelisin.`,
+                ? `Did you mean the ${candidates[0].name} (${candidates[0].symbol}) contract? The transaction will not be prepared without address verification.`
+                : `${reference} matches multiple tokens in the wallet; you must select by contract address.`,
             options: portfolioOptions(originalPrompt, role, candidates),
           },
         };
@@ -1426,10 +1428,10 @@ export async function resolveIntentEntities(
         reference,
         question:
           suggestions.length === 1
-            ? `${suggestions[0].asset.name} (${suggestions[0].asset.symbol}) tokenını mı kastettin?`
+            ? `Did you mean the ${suggestions[0].asset.name} (${suggestions[0].asset.symbol}) token?`
             : suggestions.length > 1
-              ? `${reference} kesin olarak anlaşılamadı; aşağıdaki varlıklardan birini mi kastettin?`
-              : `${reference} ${NETWORKS[network].displayName} üzerinde güvenli biçimde çözümlenemedi. Sembolü veya tam kontrat adresini yazmalısın.`,
+              ? `${reference} could not be definitively identified; did you mean one of the following entities?`
+              : `${reference} could not be securely resolved on ${NETWORKS[network].displayName}. You must enter the symbol or full contract address.`,
         options: catalogOptions(originalPrompt, role, suggestions),
       },
     };
@@ -1442,13 +1444,13 @@ export async function resolveIntentEntities(
   if (workingIntent.recipient && !recipientAction) {
     throw new EntityResolutionError(
       "ENTITY_RECIPIENT_ACTION_UNSUPPORTED",
-      `recipient alanı ${NETWORKS[network].displayName} ${action} yürütme şemasında kullanılmıyor; sessizce yok sayılamaz.`,
+      `The recipient field is not used in the ${NETWORKS[network].displayName} ${action} execution schema; it cannot be silently ignored.`,
     );
   }
   if (workingIntent.transfers !== undefined && action !== "atomic_payout") {
     throw new EntityResolutionError(
       "ENTITY_TRANSFERS_ACTION_UNSUPPORTED",
-      `transfers alanı ${NETWORKS[network].displayName} ${action} yürütme şemasında kullanılmıyor; sessizce yok sayılamaz.`,
+      `The transfers field is not used in the ${NETWORKS[network].displayName} ${action} execution schema; it cannot be silently ignored.`,
     );
   }
 
@@ -1462,7 +1464,7 @@ export async function resolveIntentEntities(
           code: "RECIPIENT_REQUIRED",
           field: "recipient",
           question:
-            "Alıcı tam EVM adresi veya .base.eth adı olarak belirtilmelidir.",
+            "Recipient must be specified as a full EVM address or .base.eth name.",
           options: [],
         },
       };
@@ -1483,7 +1485,7 @@ export async function resolveIntentEntities(
     if (!workingIntent.transfers?.length) {
       throw new EntityResolutionError(
         "ATOMIC_PAYOUT_RECIPIENTS_REQUIRED",
-        "Atomik ödeme için en az bir adres+miktar çifti gereklidir.",
+        "At least one address+amount pair is required for atomic payout.",
       );
     }
     const resolvedTransfers = [];
@@ -1493,7 +1495,7 @@ export async function resolveIntentEntities(
       if (!isAddress(rawRecipient)) {
         throw new EntityResolutionError(
           "ATOMIC_PAYOUT_ADDRESS_REQUIRED",
-          "Atomik toplu ödemede her alıcı tam EVM adresi olmalıdır; Basename toplu ödeme için desteklenmez.",
+          "Each recipient in atomic batch payout must be a full EVM address; Basename is not supported for batch payouts.",
         );
       }
       const recipient = await resolveRecipient(
@@ -1506,7 +1508,7 @@ export async function resolveIntentEntities(
       if (uniqueRecipients.has(recipientKey)) {
         throw new EntityResolutionError(
           "ATOMIC_PAYOUT_DUPLICATE_RECIPIENT",
-          "Atomik ödemede aynı çözümlenmiş alıcı birden fazla kez kullanılamaz.",
+          "The same resolved recipient cannot be used multiple times in atomic payout.",
         );
       }
       uniqueRecipients.add(recipientKey);

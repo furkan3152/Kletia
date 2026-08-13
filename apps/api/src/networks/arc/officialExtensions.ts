@@ -180,14 +180,14 @@ function normalizeAddress(
   } catch {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_ADDRESS",
-      `${field} geçerli bir EVM adresi olmalıdır.`,
+      `${field} must be a valid EVM address.`,
     );
   }
 
   if (isAddressEqual(normalized, zeroAddress)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_ZERO_ADDRESS",
-      `${field} sıfır adres olamaz.`,
+      `${field} cannot be the zero address.`,
     );
   }
 
@@ -198,7 +198,7 @@ function requireDistinctUserAndRecipient(user: Address, recipient: Address) {
   if (isAddressEqual(user, recipient)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_SELF_PAYMENT",
-      "Gönderen ve alıcı aynı adres olamaz.",
+      "Sender and recipient cannot be the same address.",
     );
   }
 }
@@ -208,7 +208,7 @@ function parseUsdcAmount(amount: string): bigint {
   if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(normalized)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_USDC_AMOUNT",
-      "USDC miktarı pozitif olmalı ve en fazla 6 ondalık basamak içermelidir.",
+      "USDC amount must be positive and contain at most 6 decimal places.",
     );
   }
 
@@ -216,16 +216,16 @@ function parseUsdcAmount(amount: string): bigint {
   if (atomic <= 0n) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_USDC_AMOUNT",
-      "USDC miktarı sıfırdan büyük olmalıdır.",
+      "USDC amount must be greater than zero.",
     );
   }
   if (atomic > ARC_OFFICIAL_MAX_USDC_TOTAL) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_TOTAL_LIMIT",
-      `Tek plan toplamı ${formatUnits(
+      `Single plan total cannot exceed ${formatUnits(
         ARC_OFFICIAL_MAX_USDC_TOTAL,
         ARC_USDC_DECIMALS,
-      )} USDC sınırını aşamaz.`,
+      )} USDC limit.`,
     );
   }
 
@@ -236,7 +236,7 @@ function calldataSelector(data: Hex): Hex {
   if (!/^0x[0-9a-fA-F]{8,}$/.test(data)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_CALLDATA",
-      "İşlem calldata selector içermelidir.",
+      "Transaction calldata must include a selector.",
     );
   }
   return data.slice(0, 10).toLowerCase() as Hex;
@@ -246,7 +246,7 @@ function assertSelector(data: Hex, expected: Hex, context: string) {
   if (calldataSelector(data) !== expected.toLowerCase()) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_SELECTOR_NOT_ALLOWED",
-      `${context} selector allowlist dışında.`,
+      `${context} is outside the selector allowlist.`,
     );
   }
 }
@@ -259,7 +259,7 @@ function validateOpaqueReference(reference: string): string {
   ) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_UNSAFE_REFERENCE",
-      'Reference 1-64 bayt arasında, harfle başlayan ve yalnızca harf, rakam, ".", "_", ":" veya "-" içeren herkese açık bir kimlik olmalıdır. Kişisel veri koymayın.',
+      "Reference must be a public identifier between 1-64 bytes, starting with a letter and containing only letters, digits, \".\", \"_\", \":\", or \"-\". Do not include personal data.",
     );
   }
   return reference;
@@ -269,7 +269,7 @@ function validateRequestId(requestId: string): string {
   if (typeof requestId !== "string" || !REQUEST_ID_PATTERN.test(requestId)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_REQUEST_ID",
-      "requestId 1-128 karakter arasında kontrollü bir kimlik olmalıdır.",
+      "requestId must be a controlled identifier between 1-128 characters.",
     );
   }
   return requestId;
@@ -350,7 +350,7 @@ export function buildOfficialMemoPaymentPlan(
     expectedOutput: `${formatUnits(
       amountAtomic,
       ARC_USDC_DECIMALS,
-    )} USDC gönderimi; zincir üstü opaque reference: ${reference}`,
+    )} USDC transfer; on-chain opaque reference: ${reference}`,
     amountInWei: amountAtomic.toString(),
     policyEvidence: {
       network: "arc-testnet",
@@ -395,13 +395,13 @@ export function buildAtomicUsdcPayoutPlan(
   if (!Array.isArray(input.payouts) || input.payouts.length === 0) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_PAYOUTS_REQUIRED",
-      "En az bir USDC alıcısı gereklidir.",
+      "At least one USDC recipient is required.",
     );
   }
   if (input.payouts.length > ARC_ATOMIC_PAYOUT_MAX_RECIPIENTS) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_TOO_MANY_RECIPIENTS",
-      `Bir atomik planda en fazla ${ARC_ATOMIC_PAYOUT_MAX_RECIPIENTS} alıcı olabilir.`,
+      `An atomic plan can have at most ${ARC_ATOMIC_PAYOUT_MAX_RECIPIENTS} recipients.`,
     );
   }
 
@@ -414,7 +414,7 @@ export function buildAtomicUsdcPayoutPlan(
     if (seenRecipients.has(recipientKey)) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_DUPLICATE_RECIPIENT",
-        `Aynı alıcı atomik ödeme planında yalnızca bir kez yer alabilir: ${recipient}`,
+        `The same recipient can appear only once in an atomic payment plan: ${recipient}`,
       );
     }
     seenRecipients.add(recipientKey);
@@ -423,10 +423,10 @@ export function buildAtomicUsdcPayoutPlan(
     if (totalAtomic > ARC_OFFICIAL_MAX_USDC_TOTAL - amountAtomic) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_TOTAL_LIMIT",
-        `Atomik ödeme toplamı ${formatUnits(
+        `The total atomic payment cannot exceed ${formatUnits(
           ARC_OFFICIAL_MAX_USDC_TOTAL,
           ARC_USDC_DECIMALS,
-        )} USDC sınırını aşamaz.`,
+        )} USDC.`,
       );
     }
     totalAtomic += amountAtomic;
@@ -461,10 +461,10 @@ export function buildAtomicUsdcPayoutPlan(
     name: "Arc Official Atomic USDC Payout",
     router: ARC_OFFICIAL_ADDRESSES.MULTICALL3_FROM,
     calldata,
-    expectedOutput: `${calls.length} alıcıya toplam ${formatUnits(
+    expectedOutput: `Total ${formatUnits(
       totalAtomic,
       ARC_USDC_DECIMALS,
-    )} USDC; tamamı başarılı veya tamamı geri alınır`,
+    )} USDC to ${calls.length} recipients; all succeed or all revert`,
     amountInWei: totalAtomic.toString(),
     policyEvidence: {
       network: "arc-testnet",
@@ -510,25 +510,25 @@ export function assertOfficialArcCallPlan(
   ) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_POLICY_EVIDENCE_MISMATCH",
-      "Resmi Arc planının sabit politika kanıtı geçersiz.",
+      "Official Arc plan's fixed policy evidence is invalid.",
     );
   }
   if (plan.value !== "0") {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_NONZERO_VALUE",
-      "Resmi Arc extension planı native value taşıyamaz.",
+      "Official Arc extension plan cannot carry native value.",
     );
   }
   if (!isAddressEqual(plan.tokenInAddress, ARC_OFFICIAL_ADDRESSES.USDC)) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_ASSET_NOT_ALLOWED",
-      "Resmi Arc extension planında yalnızca resmi USDC kullanılabilir.",
+      "Only official USDC is allowed in the official Arc extension plan.",
     );
   }
   if (plan.approvals.length !== 0) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_APPROVAL_NOT_ALLOWED",
-      "Transfer tabanlı resmi Arc planı approval üretmemelidir.",
+      "Transfer-based official Arc plans must not generate approvals.",
     );
   }
 
@@ -539,7 +539,7 @@ export function assertOfficialArcCallPlan(
     ) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_ROUTER_NOT_ALLOWED",
-        "Memo planı yalnızca resmi Arc Memo kontratını hedefleyebilir.",
+        "Memo plans can only target the official Arc Memo contract.",
       );
     }
     assertSelector(plan.calldata, OFFICIAL_MEMO_SELECTOR, "Arc Memo");
@@ -552,7 +552,7 @@ export function assertOfficialArcCallPlan(
     if (!isAddressEqual(target, ARC_OFFICIAL_ADDRESSES.USDC)) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_NESTED_TARGET_NOT_ALLOWED",
-        "Memo iç çağrısı yalnızca resmi Arc USDC kontratını hedefleyebilir.",
+        "Memo internal calls can only target the official Arc USDC contract.",
       );
     }
     assertSelector(innerCalldata, ERC20_TRANSFER_SELECTOR, "Memo USDC");
@@ -563,7 +563,7 @@ export function assertOfficialArcCallPlan(
     if (transfer.functionName !== "transfer") {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_SELECTOR_NOT_ALLOWED",
-        "Memo iç çağrısı yalnızca USDC transfer olabilir.",
+        "Memo internal calls can only be USDC transfers.",
       );
     }
     const [recipient, amountAtomic] = transfer.args;
@@ -572,7 +572,7 @@ export function assertOfficialArcCallPlan(
     if (!memoEvidence) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_MEMO_EVIDENCE_MISMATCH",
-        "Memo politika kanıtı eksik.",
+        "Memo policy evidence is missing.",
       );
     }
     const safeReference = validateOpaqueReference(memoEvidence.reference);
@@ -603,7 +603,7 @@ export function assertOfficialArcCallPlan(
     ) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_MEMO_EVIDENCE_MISMATCH",
-        "Memo calldata ile politika kanıtı eşleşmiyor.",
+        "Memo calldata does not match the policy evidence.",
       );
     }
     if (
@@ -612,7 +612,7 @@ export function assertOfficialArcCallPlan(
     ) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_TOTAL_MISMATCH",
-        "Memo transfer miktarı plan toplamıyla eşleşmiyor.",
+        "Memo transfer amount does not match the plan total.",
       );
     }
     return;
@@ -630,7 +630,7 @@ export function assertOfficialArcCallPlan(
   ) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_ROUTER_NOT_ALLOWED",
-      "Atomik payout yalnızca resmi Arc Multicall3From kontratını hedefleyebilir.",
+      "Atomic payout can only target the official Arc Multicall3From contract.",
     );
   }
   assertSelector(
@@ -652,7 +652,7 @@ export function assertOfficialArcCallPlan(
   ) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_INVALID_CALL_COUNT",
-      "Atomik payout iç çağrı sayısı politika dışında.",
+      "Atomic payout internal call count is outside the policy limits.",
     );
   }
 
@@ -662,13 +662,13 @@ export function assertOfficialArcCallPlan(
     if (!isAddressEqual(call.target, ARC_OFFICIAL_ADDRESSES.USDC)) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_NESTED_TARGET_NOT_ALLOWED",
-        "Atomik payout iç çağrıları yalnızca resmi Arc USDC kontratını hedefleyebilir.",
+        "Atomic payout internal calls can only target the official Arc USDC contract.",
       );
     }
     if (call.allowFailure) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_PARTIAL_FAILURE_NOT_ALLOWED",
-        "Atomik payout iç çağrıları allowFailure=false olmalıdır.",
+        "Atomic payout internal calls must have allowFailure set to false.",
       );
     }
     assertSelector(
@@ -684,7 +684,7 @@ export function assertOfficialArcCallPlan(
     if (transfer.functionName !== "transfer") {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_SELECTOR_NOT_ALLOWED",
-        "Atomik payout yalnızca USDC transfer çağrıları içerebilir.",
+        "Atomic payout can only contain USDC transfer calls.",
       );
     }
     const [recipient, amountAtomic] = transfer.args;
@@ -693,7 +693,7 @@ export function assertOfficialArcCallPlan(
     if (decodedRecipients.has(recipientKey)) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_DUPLICATE_RECIPIENT",
-        "Decode edilen atomik planda duplicate alıcı bulundu.",
+        "Duplicate recipient found in decoded atomic plan.",
       );
     }
     decodedRecipients.add(recipientKey);
@@ -701,13 +701,13 @@ export function assertOfficialArcCallPlan(
     if (amountAtomic <= 0n) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_INVALID_USDC_AMOUNT",
-        "Decode edilen USDC transfer miktarı pozitif olmalıdır.",
+        "Decoded USDC transfer amount must be positive.",
       );
     }
     if (decodedTotal > ARC_OFFICIAL_MAX_USDC_TOTAL - amountAtomic) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_TOTAL_LIMIT",
-        "Decode edilen atomik ödeme güvenli toplam sınırını aşıyor.",
+        "Decoded atomic payout exceeds the safe total limit.",
       );
     }
     decodedTotal += amountAtomic;
@@ -722,7 +722,7 @@ export function assertOfficialArcCallPlan(
     ) {
       throw new ArcOfficialPlanError(
         "ARC_OFFICIAL_POLICY_EVIDENCE_MISMATCH",
-        "Atomik payout iç çağrısı politika kanıtıyla eşleşmiyor.",
+        "Atomic payout internal call does not match the policy evidence.",
       );
     }
   }
@@ -734,7 +734,7 @@ export function assertOfficialArcCallPlan(
   ) {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_TOTAL_MISMATCH",
-      "Atomik payout calldata, plan toplamı veya politika kanıtıyla eşleşmiyor.",
+      "Atomic payout calldata does not match the plan total or policy evidence.",
     );
   }
 }

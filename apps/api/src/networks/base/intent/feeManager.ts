@@ -1,6 +1,6 @@
 import { parseUnits, formatUnits, erc20Abi } from "viem";
-import { publicClient } from "../../../config/client.js";
-import { getAddressSafe } from "../../../intent/utils.js";
+import { basePublicClient } from "../../../config/client.js";
+import { getAddressSafe } from "../utils.js";
 
 export function feePolicyActionForIntent(
   action: string,
@@ -58,7 +58,7 @@ export async function applyKletiaFee(
 
   const decimals = isNative
     ? 18
-    : await publicClient.readContract({
+    : await basePublicClient.readContract({
         address: tokenAddr,
         abi: erc20Abi,
         functionName: "decimals",
@@ -67,8 +67,8 @@ export async function applyKletiaFee(
   let amountWei = 0n;
   if (amountStr.toUpperCase() === "MAX") {
     const balance = isNative
-      ? await publicClient.getBalance({ address: userAddress as `0x${string}` })
-      : await publicClient.readContract({
+      ? await basePublicClient.getBalance({ address: userAddress as `0x${string}` })
+      : await basePublicClient.readContract({
           address: tokenAddr,
           abi: erc20Abi,
           functionName: "balanceOf",
@@ -87,7 +87,7 @@ export async function applyKletiaFee(
   if (amountWei <= 0n) {
     throw Object.assign(
       new Error(
-        "Ücret ve gas sonrasında kullanılabilir pozitif bakiye kalmadı.",
+        "No positive balance available after fees and gas.",
       ),
       { code: "INSUFFICIENT_FUNDS", statusCode: 400 },
     );

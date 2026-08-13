@@ -232,33 +232,6 @@ const PREMIUM_DESCRIPTIONS: Readonly<Record<PremiumPath, string>> = {
     "Deterministic Base wallet-activity heuristic sourced from Blockscout.",
 };
 
-async function fetchLiveResponse(
-  url: string,
-  source: string,
-  init?: RequestInit,
-  acceptedStatuses: ReadonlySet<number> = new Set(),
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), LIVE_FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-    if (!response.ok && !acceptedStatuses.has(response.status)) {
-      throw new Error(`${source} returned HTTP ${response.status}.`);
-    }
-    return response;
-  } catch (error: any) {
-    if (error?.name === "AbortError") {
-      throw new Error(`${source} timed out.`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function fetchLiveJson(url: string, source: string): Promise<any> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LIVE_FETCH_TIMEOUT_MS);
@@ -421,14 +394,14 @@ const dynamicX402Middleware = async (
     return res.status(503).json({
       status: "unavailable",
       code: "X402_FACILITATOR_NOT_CONFIGURED",
-      message: "x402 facilitator kimlik bilgileri yapılandırılmamış.",
+      message: "x402 facilitator credentials are not configured.",
     });
   }
   if (req.query.price !== undefined) {
     return res.status(400).json({
       status: "error",
       code: "CLIENT_PRICE_FORBIDDEN",
-      message: "x402 fiyatı istemci tarafından belirlenemez.",
+      message: "x402 price cannot be set by the client.",
     });
   }
 
@@ -480,87 +453,10 @@ const dynamicX402Middleware = async (
       message:
         statusCode === 400 && SAFE_X402_GATEWAY_VALIDATION_CODES.has(code)
           ? error.message
-          : "Gateway Base Mainnet üzerinde doğrulanamadı.",
+          : "Gateway could not be verified on Base Mainnet.",
     });
   }
 };
-
-router.get("/debug-x402", async (req, res) => {
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.ENABLE_X402_DEBUG !== "true"
-  ) {
-    return res.status(404).json({
-      success: false,
-      code: "NOT_FOUND",
-      error: "Resource not found.",
-    });
-  }
-  try {
-    if (!readOfficialCdpX402Credentials()) {
-      return res.status(503).json({
-        success: false,
-        code: "X402_FACILITATOR_NOT_CONFIGURED",
-        error: "Official CDP x402 facilitator credentials are unavailable.",
-      });
-    }
-    const resolved = await verifiedGatewayPayment(req.query.gateway);
-    const query = new URLSearchParams({ gateway: resolved.payTo });
-    const targetUrl =
-      `http://127.0.0.1:${process.env.PORT || 3001}` +
-      `/api/premium${GATEWAY_DEMO_PATH}?${query.toString()}`;
-
-    const response = await fetchLiveResponse(
-      targetUrl,
-      "Local x402 debug",
-      {
-        headers: {
-          Accept: "application/json",
-          "X-Kletia-Network": "base",
-          "X-Kletia-Chain-Id": "8453",
-        },
-      },
-      new Set([402]),
-    );
-
-    const headersObj: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headersObj[key] = value;
-    });
-
-    const paymentRequiredRaw = response.headers.get("PAYMENT-REQUIRED");
-    let decoded = null;
-    if (paymentRequiredRaw) {
-      try {
-        decoded = JSON.parse(
-          Buffer.from(paymentRequiredRaw, "base64").toString("utf8"),
-        );
-      } catch (e) {
-        decoded = { parseError: String(e) };
-      }
-    }
-
-    res.status(200).json({
-      success: response.status === 402,
-      message: "x402 Debug Engine Active",
-      x402_status: response.status,
-      x402_headers: headersObj,
-      payTo_used: resolved.payTo,
-      decoded_payment_required: decoded,
-    });
-  } catch (err: any) {
-    const statusCode = Number(err?.statusCode) || 502;
-    const code = typeof err?.code === "string" ? err.code : "X402_DEBUG_FAILED";
-    res.status(statusCode).json({
-      success: false,
-      code,
-      error:
-        statusCode === 400 && SAFE_X402_GATEWAY_VALIDATION_CODES.has(code)
-          ? err.message
-          : "x402 gateway debug could not be completed.",
-    });
-  }
-});
 
 router.get("/x402-config", (req, res) => {
   res.json({
@@ -811,14 +707,14 @@ router.use((req, res, next) => {
     return res.status(503).json({
       status: "unavailable",
       code: "X402_FACILITATOR_NOT_CONFIGURED",
-      message: "x402 facilitator kimlik bilgileri yapılandırılmamış.",
+      message: "x402 facilitator credentials are not configured.",
     });
   }
   if (req.query.price !== undefined) {
     return res.status(400).json({
       status: "error",
       code: "CLIENT_PRICE_FORBIDDEN",
-      message: "x402 fiyatı istemci tarafından belirlenemez.",
+      message: "x402 price cannot be set by the client.",
     });
   }
 

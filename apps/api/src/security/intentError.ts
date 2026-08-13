@@ -25,120 +25,120 @@ const CONTROLLED_CODE_ERRORS: Readonly<
 > = {
   ACROSS_CONFIGURATION_REQUIRED: {
     message:
-      "Across production API anahtarı ve Kletia integrator kimliği sunucuda yapılandırılmamış; güvenli bridge rotası hazırlanmadı.",
+      "Across production API key and Kletia integrator ID are not configured on the server; secure bridge route not prepared.",
     statusCode: 503,
   },
   ACROSS_CONFIGURATION_INVALID: {
     message:
-      "Across sunucu yapılandırması geçersiz; bridge rotası hazırlanmadı.",
+      "Across server configuration is invalid; bridge route not prepared.",
     statusCode: 503,
   },
   ACROSS_FEE_LIMIT_EXCEEDED: {
-    message: "Across canlı relay ücreti Kletia güvenlik üst sınırını aşıyor.",
+    message: "Across live relay fee exceeds Kletia security limit.",
     statusCode: 400,
   },
   ACROSS_QUOTE_EXPIRED: {
     message:
-      "Across teklifi imzalanmadan önce süresi doldu; yeni rota istenmelidir.",
+      "Across quote expired before signing; a new route must be requested.",
     statusCode: 400,
   },
   AMOUNT_REQUIRED: {
-    message: "İşlem için pozitif bir miktar veya açıkça MAX belirtilmelidir.",
+    message: "A positive amount or explicit MAX must be specified for the transaction.",
     statusCode: 400,
   },
   ALLORA_ASSET_UNSUPPORTED: {
     message:
-      "Allora gözlemleri yalnızca desteklenen varlıklar için kullanılabilir.",
+      "Allora observations are only available for supported assets.",
     statusCode: 400,
   },
   ALLORA_UNAVAILABLE: {
-    message: "Canlı tahmin servisi şu anda kullanılamıyor.",
+    message: "Live prediction service is currently unavailable.",
     statusCode: 503,
   },
   ALLORA_PROVIDER_ERROR: {
-    message: "Canlı tahmin verisi geçici olarak kullanılamıyor.",
+    message: "Live prediction data is temporarily unavailable.",
     statusCode: 502,
   },
   BASE_RPC_CHAIN_MISMATCH: {
-    message: "Base RPC beklenen Base Mainnet zinciriyle eşleşmiyor.",
+    message: "Base RPC does not match the expected Base Mainnet chain.",
     statusCode: 503,
   },
   FEE_ROUTER_ROUTE_REQUIRED: {
     message:
-      "Kletia ücret yönlendiricisi için açık bir yürütme rotası gerekli.",
+      "An explicit execution route is required for the Kletia fee router.",
     statusCode: 400,
   },
   FEE_ROUTER_UNAVAILABLE: {
     message:
-      "Hiçbir rota Kletia ücret yönlendiricisi allowlist ve simülasyon denetimini geçemedi.",
+      "No route passed the Kletia fee router allowlist and simulation check.",
     statusCode: 400,
   },
   INSUFFICIENT_FUNDS: {
-    message: "Bu işlem için kullanılabilir bakiye yetersiz. [SHOW_ONRAMP]",
+    message: "Insufficient available balance for this transaction. [SHOW_ONRAMP]",
     statusCode: 400,
   },
   INVALID_BASE_LENDING_ROUTE: {
-    message: "Base lending rotası güvenlik sözleşmesiyle eşleşmiyor.",
+    message: "Base lending route does not match the security contract.",
     statusCode: 500,
   },
   INVALID_PROTOCOL_RETURN_DATA: {
-    message: "Protokol simülasyonu doğrulanabilir bir dönüş verisi üretmedi.",
+    message: "Protocol simulation did not produce verifiable return data.",
     statusCode: 400,
   },
   INVALID_ROUTE_QUOTE: {
-    message: "Rota teklifi güvenli sıralama sözleşmesiyle eşleşmiyor.",
+    message: "Route quote does not match the secure ordering contract.",
     statusCode: 500,
   },
   INVALID_SLIPPAGE: {
-    message: "Slippage sınırı geçersiz.",
+    message: "Slippage limit is invalid.",
     statusCode: 400,
   },
   INVALID_X402_ASSET: {
-    message: "x402 ödeme varlığı Base USDC politikasıyla eşleşmiyor.",
+    message: "x402 payment asset does not match Base USDC policy.",
     statusCode: 400,
   },
   INVALID_X402_GATEWAY: {
-    message: "x402 gateway adresi geçersiz.",
+    message: "x402 gateway address is invalid.",
     statusCode: 400,
   },
   INVALID_X402_PRICE: {
-    message: "x402 ödeme fiyatı güvenli sınırlar içinde değil.",
+    message: "x402 payment price is not within safe limits.",
     statusCode: 400,
   },
   LIQUID_STAKING_TOKEN_REQUIRED: {
-    message: "Desteklenen bir liquid staking varlığı belirtilmelidir.",
+    message: "A supported liquid staking asset must be specified.",
     statusCode: 400,
   },
   PROTOCOL_RETURN_CODE_NONZERO: {
-    message: "Protokol simülasyonu başarısız bir dönüş kodu üretti.",
+    message: "Protocol simulation returned a failure code.",
     statusCode: 400,
   },
   TOKEN_DEPLOYMENT_SIMULATION_FAILED: {
-    message: "Token oluşturma işlemi canlı Base simülasyonunu geçemedi.",
+    message: "Token creation failed live Base simulation.",
     statusCode: 400,
   },
   TOKEN_REQUIRED: {
-    message: "İşlem için desteklenen bir token belirtilmelidir.",
+    message: "A supported token must be specified for the transaction.",
     statusCode: 400,
   },
   TOKEN_SECURITY_UNAVAILABLE: {
-    message: "Token güvenlik doğrulaması şu anda kullanılamıyor.",
+    message: "Token security verification is currently unavailable.",
     statusCode: 503,
   },
   TOKEN_SECURITY_RISK: {
-    message: "Token yüksek risk sinyali nedeniyle güvenli biçimde engellendi.",
+    message: "Token was securely blocked due to a high-risk signal.",
     statusCode: 400,
   },
   UNVERIFIED_X402_GATEWAY: {
-    message: "x402 gateway Base Mainnet üzerinde doğrulanamadı.",
+    message: "x402 gateway could not be verified on Base Mainnet.",
     statusCode: 400,
   },
   UNSUPPORTED_ACTION: {
-    message: "Bu işlem seçilen ağda desteklenmiyor.",
+    message: "This action is not supported on the selected network.",
     statusCode: 400,
   },
   WETH_SIMULATION_FAILED: {
-    message: "WETH işlemi canlı Base simülasyonunu geçemedi.",
+    message: "WETH transaction failed live Base simulation.",
     statusCode: 400,
   },
 };
@@ -146,36 +146,36 @@ const CONTROLLED_CODE_ERRORS: Readonly<
 const KEE_ERRORS: Readonly<Record<string, ControlledErrorDefinition>> = {
   RATE_LIMIT: {
     message:
-      "Geçici RPC istek sınırına ulaşıldı; kısa süre sonra yeniden dene.",
+      "Temporary RPC request limit reached; please try again shortly.",
     statusCode: 503,
   },
   SLIPPAGE: {
     message:
-      "İşlem slippage veya yetersiz likidite nedeniyle simülasyonu geçemedi.",
+      "Transaction failed simulation due to slippage or insufficient liquidity.",
     statusCode: 400,
   },
   ALLOWANCE: {
-    message: "İşlem için gerekli token izni yetersiz.",
+    message: "Insufficient token allowance for the transaction.",
     statusCode: 400,
   },
   WHITELIST: {
-    message: "Hedef protokol Kletia güvenlik allowlist politikasını geçemedi.",
+    message: "Target protocol failed Kletia security allowlist policy.",
     statusCode: 400,
   },
   INSUFFICIENT_FUNDS: {
-    message: "Bu işlem için kullanılabilir bakiye yetersiz. [SHOW_ONRAMP]",
+    message: "Insufficient available balance for this transaction. [SHOW_ONRAMP]",
     statusCode: 400,
   },
   NETWORK: {
-    message: "Base ağına geçici olarak ulaşılamıyor; lütfen yeniden dene.",
+    message: "Base network is temporarily unreachable; please try again.",
     statusCode: 503,
   },
   INVALID_ADDRESS: {
-    message: "İşlemdeki cüzdan veya kontrat adresi geçersiz.",
+    message: "Invalid wallet or contract address in the transaction.",
     statusCode: 400,
   },
   UNKNOWN_REVERT: {
-    message: "İşlem zincir simülasyonu sırasında güvenli biçimde reddedildi.",
+    message: "Transaction was safely rejected during chain simulation.",
     statusCode: 400,
   },
 };
@@ -240,12 +240,12 @@ export function resolveIntentPublicError(
     network === "arc"
       ? {
           code: "ARC_ENGINE_ERROR",
-          message: "Arc işlem planı güvenli biçimde hazırlanamadı.",
+          message: "Arc transaction plan could not be safely prepared.",
           statusCode: 502,
         }
       : {
           code: "ENGINE_ERROR",
-          message: "Base işlem planı güvenli biçimde hazırlanamadı.",
+          message: "Base transaction plan could not be safely prepared.",
           statusCode: 502,
         };
 

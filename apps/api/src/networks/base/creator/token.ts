@@ -1,6 +1,6 @@
 import { encodeFunctionData } from "viem";
 import { ROUTERS, KLETIA_TOKEN_FACTORY_ABI } from "../contracts.js";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   resolveBaseTokenDeploymentConfig,
   type BaseTokenDeploymentConfig,
@@ -39,7 +39,7 @@ export async function handleTokenDeployment(
     return buildLaunchFactoryV2TokenPlan({
       config,
       client:
-        dependencies.client || (publicClient as LaunchFactoryV2PublicClient),
+        dependencies.client || (basePublicClient as LaunchFactoryV2PublicClient),
       userAddress,
       name,
       symbol,
@@ -51,7 +51,7 @@ export async function handleTokenDeployment(
 
   if (!name || !symbol) {
     throw new Error(
-      "Token oluşturmak için bir isim (name) ve sembol (symbol) belirtmelisin. Örn: 'Kletia Coin oluştur sembolü KLT olsun'",
+      "You must specify a name and symbol to create a token. E.g., 'Create Kletia Coin with symbol KLT'.",
     );
   }
 
@@ -67,6 +67,6 @@ export async function handleTokenDeployment(
     target: ROUTERS.KLETIA_TOKEN_FACTORY,
     calldata: factoryCalldata,
     value: 0n,
-    summary: `Kletia Özel Token Fabrikasında '${name}' (${symbol}) adında ${formatHumanSupply(supplyStr!)} arzlı yeni bir token yaratılacak. Arzın %10'u Hazine'ye kesilecektir.`,
+    summary: `A new token named '${name}' (${symbol}) with a supply of ${formatHumanSupply(supplyStr!)} will be created in the Kletia Private Token Factory. 10% of the supply will be allocated to the Treasury.`,
   };
 }

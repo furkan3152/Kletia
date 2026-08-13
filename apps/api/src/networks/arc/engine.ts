@@ -25,7 +25,7 @@ async function prepareOfficialArcPlan(
   if (!isAddressEqual(plan.policyEvidence.executionAccount, user)) {
     throw new ArcPlanError(
       "ARC_OFFICIAL_EXTENSION_ACCOUNT_MISMATCH",
-      "Resmî Arc extension planı aktif yürütme hesabına bağlı değil.",
+      "Official Arc extension plan is not linked to the active execution account.",
     );
   }
   const [userCode, targetCode] = await Promise.all([
@@ -35,13 +35,13 @@ async function prepareOfficialArcPlan(
   if (userCode && userCode !== "0x") {
     throw new ArcPlanError(
       "ARC_OFFICIAL_EXTENSION_EOA_REQUIRED",
-      "Arc Memo ve Multicall3From original-sender semantiği için doğrudan EOA cüzdan gerekir.",
+      "Direct EOA wallet is required for Arc Memo and Multicall3From original-sender semantics.",
     );
   }
   if (!targetCode || targetCode === "0x") {
     throw new ArcPlanError(
       "ARC_OFFICIAL_EXTENSION_CODE_MISSING",
-      "Resmî Arc extension adresinde bytecode doğrulanamadı.",
+      "Bytecode verification failed for official Arc extension address.",
       502,
     );
   }
@@ -68,7 +68,7 @@ async function prepareOfficialArcPlan(
     action,
     actionType: action,
     winner: plan.name,
-    winnerMessage: `${plan.expectedOutput}. Resmî Arc extension çağrısı canlı RPC üzerinde simüle edildi.`,
+    winnerMessage: `${plan.expectedOutput}. Official Arc extension call simulated on live RPC.`,
     simulation: {
       status: "simulated" as const,
       finalTransactionSimulated: true,

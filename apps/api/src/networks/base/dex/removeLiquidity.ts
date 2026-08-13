@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { normalizeBaseProtocolId } from "../protocols.js";
 import { AERO_ABI, UNIV2_ABI } from "./constants.js";
 import {
@@ -48,12 +48,12 @@ async function buildPoolRemoval(
   slippageBps: number,
 ) {
   const [lpDecimals, lpBalance] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: pool.pool,
       abi: erc20Abi,
       functionName: "decimals",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: pool.pool,
       abi: erc20Abi,
       functionName: "balanceOf",
@@ -227,12 +227,12 @@ export async function buildRemoveLiquidityRoutes(
   }
   const user = userAddress as Address;
   const [tokenADecimals, tokenBDecimals, discoveredPools] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: tokenA,
       abi: erc20Abi,
       functionName: "decimals",
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: tokenB,
       abi: erc20Abi,
       functionName: "decimals",

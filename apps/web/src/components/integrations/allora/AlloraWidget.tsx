@@ -96,7 +96,7 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({
           isMounted &&
           !(err instanceof DOMException && err.name === "AbortError")
         ) {
-          setError("Canlı tahmin verisi şu anda kullanılamıyor.");
+          setError("Live prediction data is currently unavailable.");
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -196,7 +196,7 @@ export const AlloraWidget: React.FC<AlloraWidgetProps> = ({
           </div>
 
           <div className="mt-2 border-t-2 border-dashed border-current pt-2 text-[10px] font-bold uppercase opacity-60">
-            Model gözlemidir; al/sat önerisi değildir.
+            This is a model observation; not a buy/sell recommendation.
           </div>
         </div>
       ) : null}

@@ -27,6 +27,51 @@ export const ARC_NATIVE_USDC_ADDRESS = getAddress(
   "0x3600000000000000000000000000000000000000",
 );
 
+export const ARC_LEGACY_VAULT_ADDRESS = getAddress(
+  "0xe2810DB53998f8A51bBf5Bf94c21208b174da174",
+);
+export type ArcVaultExecutionMode = "legacy_v1" | "vault_v2";
+const configuredArcVaultMode =
+  process.env.ARC_VAULT_EXECUTION_MODE?.trim() || "legacy_v1";
+if (
+  configuredArcVaultMode !== "legacy_v1" &&
+  configuredArcVaultMode !== "vault_v2"
+) {
+  throw new Error(
+    "ARC_VAULT_EXECUTION_MODE must be exactly legacy_v1 or vault_v2.",
+  );
+}
+export const ARC_VAULT_EXECUTION_MODE =
+  configuredArcVaultMode as ArcVaultExecutionMode;
+const configuredArcVaultV2Address =
+  process.env.ARC_VAULT_V2_ADDRESS?.trim();
+const configuredArcVaultV2RuntimeCodehash =
+  process.env.ARC_VAULT_V2_RUNTIME_CODEHASH?.trim().toLowerCase();
+if (
+  ARC_VAULT_EXECUTION_MODE === "vault_v2" &&
+  (!configuredArcVaultV2Address ||
+    !configuredArcVaultV2RuntimeCodehash ||
+    !/^0x[0-9a-f]{64}$/.test(configuredArcVaultV2RuntimeCodehash))
+) {
+  throw new Error(
+    "ARC_VAULT_V2_ADDRESS and ARC_VAULT_V2_RUNTIME_CODEHASH are required for vault_v2.",
+  );
+}
+if (
+  ARC_VAULT_EXECUTION_MODE === "vault_v2" &&
+  getAddress(configuredArcVaultV2Address!) === ARC_LEGACY_VAULT_ADDRESS
+) {
+  throw new Error("ARC_VAULT_V2_ADDRESS cannot be the legacy Vault address.");
+}
+export const ARC_VAULT_V2_RUNTIME_CODEHASH =
+  ARC_VAULT_EXECUTION_MODE === "vault_v2"
+    ? configuredArcVaultV2RuntimeCodehash!
+    : null;
+const activeArcVaultAddress =
+  ARC_VAULT_EXECUTION_MODE === "vault_v2"
+    ? getAddress(configuredArcVaultV2Address!)
+    : ARC_LEGACY_VAULT_ADDRESS;
+
 export interface NativeAssetConfig {
   readonly name: string;
   readonly symbol: string;
@@ -51,11 +96,10 @@ export const ARC_CONTRACTS = {
   Lending: getAddress("0x2748a478Ec0f6D90FfdE89b27721f469126835F7"),
   Token: getAddress("0xAe77D247c26258397653a020995E957Bc88E039A"),
   BatchPay: getAddress("0x09B6d2987EcAF021533A2727d2967696595Fa6dd"),
-  Vault: getAddress("0xe2810DB53998f8A51bBf5Bf94c21208b174da174"),
+  Vault: activeArcVaultAddress,
   MemoTransfer: getAddress("0x1633f12f31195B34feE6eDC250e1D543DAB72698"),
   AgentRegistry: getAddress("0xDEb07309c1689fEeCa44ac70939ce0297d511596"),
   Staking: getAddress("0xB85a7F6335D0544b4951e5f07Bcd326722b2BC07"),
-  OTC: getAddress("0xf4c1F168491F22222145cff88414fE489BF8c39d"),
 } as const;
 
 const cdpNodeKey = process.env.CDP_NODE_API_KEY;
@@ -113,6 +157,7 @@ const ARC_ACTIONS = [
   "claim_unstaked",
   "vault_deposit",
   "vault_withdraw",
+  "vault_legacy_withdraw",
   "lending_deposit",
   "lending_withdraw",
   "lending_borrow",
@@ -234,13 +279,13 @@ export function resolveNetworkRequest(
   if (!network) {
     throw new NetworkValidationError(
       "NETWORK_REQUIRED",
-      "network alanı zorunludur. Desteklenen değerler: base, arc.",
+      "The network field is required. Supported values: base, arc.",
     );
   }
   if (chainId === null) {
     throw new NetworkValidationError(
       "CHAIN_ID_REQUIRED",
-      "chainId alanı zorunludur.",
+      "The chainId field is required.",
     );
   }
 
@@ -248,7 +293,7 @@ export function resolveNetworkRequest(
   if (chainId !== config.chainId) {
     throw new NetworkValidationError(
       "NETWORK_CHAIN_MISMATCH",
-      `${network} ağı chainId ${config.chainId} gerektirir; ${chainId} kabul edilmedi.`,
+      `The ${network} network requires chainId ${config.chainId}; ${chainId} was not accepted.`,
     );
   }
   return config;
@@ -348,6 +393,7 @@ const ARC_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
   claim_unstaked: targetSet(ARC_CONTRACTS.Staking),
   vault_deposit: targetSet(ARC_CONTRACTS.Vault),
   vault_withdraw: targetSet(ARC_CONTRACTS.Vault),
+  vault_legacy_withdraw: targetSet(ARC_LEGACY_VAULT_ADDRESS),
   lending_deposit: targetSet(ARC_CONTRACTS.Lending),
   lending_withdraw: targetSet(ARC_CONTRACTS.Lending),
   lending_borrow: targetSet(ARC_CONTRACTS.Lending),
@@ -361,6 +407,9 @@ const ARC_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
 const ARC_STATIC_TARGETS = new Set(
   [
     ...Object.values(ARC_CONTRACTS),
+    ...(ARC_VAULT_EXECUTION_MODE === "vault_v2"
+      ? [ARC_LEGACY_VAULT_ADDRESS]
+      : []),
     ARC_NATIVE_USDC_ADDRESS,
     ARC_OFFICIAL_MEMO,
     ARC_OFFICIAL_MULTICALL3_FROM,

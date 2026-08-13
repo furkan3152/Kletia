@@ -366,7 +366,59 @@ async function validateGovernanceTopology({
   guardianSafe,
   treasurySafe,
   blockTag,
+  governanceMode = "timelock",
 }) {
+  if (governanceMode === "direct_safe") {
+    const topology = [
+      routerAddress,
+      governanceSafe,
+      guardianSafe,
+      treasurySafe,
+    ];
+    if (
+      new Set(topology.map((address) => address.toLowerCase())).size !==
+      topology.length
+    ) {
+      fail("router and direct Safe governance addresses must be distinct");
+    }
+    await Promise.all([
+      validateSafeShape(provider, governanceSafe, blockTag, "governance Safe"),
+      validateSafeShape(provider, guardianSafe, blockTag, "guardian Safe"),
+      validateSafeShape(provider, treasurySafe, blockTag, "treasury Safe"),
+    ]);
+    const [
+      owner,
+      pendingOwner,
+      guardian,
+      treasury,
+      pendingTreasury,
+      maxFeeBps,
+      maxIntentTtl,
+    ] = await Promise.all([
+      router.owner({ blockTag }),
+      router.pendingOwner({ blockTag }),
+      router.guardian({ blockTag }),
+      router.treasury({ blockTag }),
+      router.pendingTreasury({ blockTag }),
+      router.MAX_FEE_BPS({ blockTag }),
+      router.MAX_INTENT_TTL({ blockTag }),
+    ]);
+    if (
+      !sameAddress(owner, governanceSafe) ||
+      !sameAddress(pendingOwner, hre.ethers.ZeroAddress) ||
+      !sameAddress(guardian, guardianSafe) ||
+      !sameAddress(treasury, treasurySafe) ||
+      !sameAddress(pendingTreasury, hre.ethers.ZeroAddress) ||
+      maxFeeBps !== 100n ||
+      maxIntentTtl !== 3600n
+    ) {
+      fail("router direct Safe governance topology mismatch");
+    }
+    return;
+  }
+  if (governanceMode !== "timelock") {
+    fail("unsupported KLETIA_V2_GOVERNANCE_MODE");
+  }
   const topology = [
     routerAddress,
     timelockAddress,
@@ -821,10 +873,15 @@ async function main() {
   const expectedFeeBps = checkedExpectedFeeBps(
     process.env.KLETIA_V2_EXPECTED_FEE_BPS,
   );
-  const timelockAddress = checkedAddress(
-    process.env.KLETIA_V2_TIMELOCK_ADDRESS,
-    "KLETIA_V2_TIMELOCK_ADDRESS",
-  );
+  const governanceMode =
+    process.env.KLETIA_V2_GOVERNANCE_MODE?.trim() || "timelock";
+  const timelockAddress =
+    governanceMode === "direct_safe"
+      ? undefined
+      : checkedAddress(
+          process.env.KLETIA_V2_TIMELOCK_ADDRESS,
+          "KLETIA_V2_TIMELOCK_ADDRESS",
+        );
   const governanceSafe = checkedAddress(
     process.env.KLETIA_V2_GOVERNANCE_SAFE,
     "KLETIA_V2_GOVERNANCE_SAFE",
@@ -856,6 +913,7 @@ async function main() {
     guardianSafe,
     treasurySafe,
     blockTag,
+    governanceMode,
   });
   const [
     wrappedNativeValue,

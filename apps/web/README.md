@@ -10,8 +10,11 @@ npm ci --legacy-peer-deps
 npm run dev
 npm run lint
 npm run build
-npm start
 ```
+
+Render publishes `dist` as a Static Site, so the production service has no
+start command. `npm start` is retained only for an intentional local or
+self-hosted Node preview of an already-built bundle.
 
 Configuration is documented in [`.env.example`](.env.example). Browser-facing
 `VITE_*` values are public and must never contain private keys or server API

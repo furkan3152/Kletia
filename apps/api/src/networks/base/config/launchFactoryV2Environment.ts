@@ -15,7 +15,7 @@ export const ZERO_ADDRESS =
 
 const BYTES32_PATTERN = /^0x[0-9a-fA-F]{64}$/u;
 const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)$/u;
-const EVIDENCE_KEYS = new Set([
+const TIMELOCK_EVIDENCE_KEYS = new Set([
   "schemaVersion",
   "validationStatus",
   "chainId",
@@ -33,19 +33,40 @@ const EVIDENCE_KEYS = new Set([
   "maxNameBytes",
   "maxSymbolBytes",
 ]);
+const DIRECT_SAFE_EVIDENCE_KEYS = new Set([
+  "schemaVersion",
+  "validationStatus",
+  "chainId",
+  "observedAtBlock",
+  "factory",
+  "factoryCodehash",
+  "ownerAuthority",
+  "ownerAuthorityCodehash",
+  "ownerAuthorityKind",
+  "treasurySafe",
+  "treasurySafeCodehash",
+  "pendingTreasury",
+  "factoryFeeCap",
+  "maxTokenSupply",
+  "maxNameBytes",
+  "maxSymbolBytes",
+]);
 
 export type BaseTokenDeploymentMode = "legacy_v1" | "launch_v2";
 
 export interface BaseLaunchFactoryV2DeploymentEvidence {
-  readonly schemaVersion: "kletia_launch_factory_v2_deployment_v1";
+  readonly schemaVersion:
+    | "kletia_launch_factory_v2_deployment_v1"
+    | "kletia_launch_factory_v2_direct_safe_deployment_v2";
   readonly validationStatus: "validated";
   readonly chainId: 8453;
   readonly observedAtBlock: bigint;
   readonly factory: Address;
   readonly factoryCodehash: Hex;
-  readonly ownerTimelock: Address;
-  readonly ownerTimelockCodehash: Hex;
-  readonly ownerTimelockMinDelay: bigint;
+  readonly ownerAuthority: Address;
+  readonly ownerAuthorityCodehash: Hex;
+  readonly ownerAuthorityKind: "timelock" | "safe_2_of_2";
+  readonly ownerTimelockMinDelay?: bigint;
   readonly treasurySafe: Address;
   readonly treasurySafeCodehash: Hex;
   readonly pendingTreasury: typeof ZERO_ADDRESS;
@@ -75,34 +96,34 @@ type Environment = Readonly<Record<string, string | undefined>>;
 const PUBLIC_ERRORS = {
   BASE_TOKEN_DEPLOYMENT_MODE_REQUIRED: {
     message:
-      "Base token deployment modu production ortamında açıkça yapılandırılmalıdır.",
+      "Base token deployment mode must be explicitly configured in the production environment.",
     statusCode: 503,
   },
   BASE_TOKEN_DEPLOYMENT_MODE_INVALID: {
-    message: "Base token deployment modu legacy_v1 veya launch_v2 olmalıdır.",
+    message: "Base token deployment mode must be either legacy_v1 or launch_v2.",
     statusCode: 500,
   },
   BASE_LAUNCH_FACTORY_V2_CONFIG_INVALID: {
-    message: "Base Launch Factory V2 dağıtım kanıtı eksik veya doğrulanamadı.",
+    message: "Base Launch Factory V2 deployment proof is missing or could not be verified.",
     statusCode: 503,
   },
   BASE_LAUNCH_FACTORY_V2_RUNTIME_INVALID: {
     message:
-      "Base Launch Factory V2 canlı zincir kimliği güvenli biçimde doğrulanamadı.",
+      "Base Launch Factory V2 live chain ID could not be securely verified.",
     statusCode: 503,
   },
   TOKEN_LAUNCH_INPUT_INVALID: {
     message:
-      "Token adı, sembolü, arzı veya launch kimliği güvenli biçimde doğrulanamadı.",
+      "Token name, symbol, supply, or launch ID could not be securely verified.",
     statusCode: 400,
   },
   TOKEN_LAUNCH_SALT_ALREADY_USED: {
     message:
-      "Bu cüzdan için seçilen token launch kimliği daha önce kullanılmış.",
+      "The selected token launch ID for this wallet has already been used.",
     statusCode: 409,
   },
   TOKEN_DEPLOYMENT_SIMULATION_FAILED: {
-    message: "Token oluşturma işlemi canlı Base simülasyonunu geçemedi.",
+    message: "Token creation failed to pass the live Base simulation.",
     statusCode: 400,
   },
 } as const;
@@ -172,10 +193,20 @@ export function parseBaseLaunchFactoryV2DeploymentEvidence(
   }
   const record = parsed as Record<string, unknown>;
   const keys = Object.keys(record);
+  const isTimelockEvidence =
+    record.schemaVersion === "kletia_launch_factory_v2_deployment_v1";
+  const schemaVersion = isTimelockEvidence
+    ? "kletia_launch_factory_v2_deployment_v1"
+    : "kletia_launch_factory_v2_direct_safe_deployment_v2";
+  const expectedKeys = isTimelockEvidence
+    ? TIMELOCK_EVIDENCE_KEYS
+    : DIRECT_SAFE_EVIDENCE_KEYS;
   if (
-    keys.length !== EVIDENCE_KEYS.size ||
-    keys.some((key) => !EVIDENCE_KEYS.has(key)) ||
-    record.schemaVersion !== "kletia_launch_factory_v2_deployment_v1" ||
+    keys.length !== expectedKeys.size ||
+    keys.some((key) => !expectedKeys.has(key)) ||
+    (!isTimelockEvidence &&
+      record.schemaVersion !==
+        "kletia_launch_factory_v2_direct_safe_deployment_v2") ||
     record.validationStatus !== "validated" ||
     record.chainId !== BASE_MAINNET_CHAIN_ID
   ) {
@@ -188,15 +219,29 @@ export function parseBaseLaunchFactoryV2DeploymentEvidence(
   }
 
   const evidence: BaseLaunchFactoryV2DeploymentEvidence = {
-    schemaVersion: "kletia_launch_factory_v2_deployment_v1",
+    schemaVersion,
     validationStatus: "validated",
     chainId: BASE_MAINNET_CHAIN_ID,
     observedAtBlock: checkedDecimal(record.observedAtBlock, false),
     factory: checkedAddress(record.factory),
     factoryCodehash: checkedBytes32(record.factoryCodehash),
-    ownerTimelock: checkedAddress(record.ownerTimelock),
-    ownerTimelockCodehash: checkedBytes32(record.ownerTimelockCodehash),
-    ownerTimelockMinDelay: checkedDecimal(record.ownerTimelockMinDelay, false),
+    ownerAuthority: checkedAddress(
+      isTimelockEvidence ? record.ownerTimelock : record.ownerAuthority,
+    ),
+    ownerAuthorityCodehash: checkedBytes32(
+      isTimelockEvidence
+        ? record.ownerTimelockCodehash
+        : record.ownerAuthorityCodehash,
+    ),
+    ownerAuthorityKind: isTimelockEvidence ? "timelock" : "safe_2_of_2",
+    ...(isTimelockEvidence
+      ? {
+          ownerTimelockMinDelay: checkedDecimal(
+            record.ownerTimelockMinDelay,
+            false,
+          ),
+        }
+      : {}),
     treasurySafe: checkedAddress(record.treasurySafe),
     treasurySafeCodehash: checkedBytes32(record.treasurySafeCodehash),
     pendingTreasury: ZERO_ADDRESS,
@@ -206,15 +251,18 @@ export function parseBaseLaunchFactoryV2DeploymentEvidence(
     maxSymbolBytes: checkedDecimal(record.maxSymbolBytes, false),
   };
   if (
-    evidence.ownerTimelockMinDelay < 172_800n ||
+    (evidence.ownerAuthorityKind === "timelock" &&
+      (evidence.ownerTimelockMinDelay ?? 0n) < 172_800n) ||
+    (evidence.ownerAuthorityKind === "safe_2_of_2" &&
+      record.ownerAuthorityKind !== "safe_2_of_2") ||
     evidence.factoryFeeCap !== 10_000_000_000_000_000n ||
     evidence.maxTokenSupply !==
       1_000_000_000_000_000_000_000_000_000_000_000_000n ||
     evidence.maxNameBytes !== 64n ||
     evidence.maxSymbolBytes !== 16n ||
-    evidence.ownerTimelock.toLowerCase() ===
+    evidence.ownerAuthority.toLowerCase() ===
       evidence.treasurySafe.toLowerCase() ||
-    evidence.factory.toLowerCase() === evidence.ownerTimelock.toLowerCase() ||
+    evidence.factory.toLowerCase() === evidence.ownerAuthority.toLowerCase() ||
     evidence.factory.toLowerCase() === evidence.treasurySafe.toLowerCase()
   ) {
     configError();

@@ -101,50 +101,50 @@ type PublicErrorDefinition = {
 const PUBLIC_ERRORS = {
   BASE_SWAP_EXECUTION_MODE_INVALID: {
     message:
-      "Base swap yürütme modu açıkça legacy_v1 veya intent_v2 olarak yapılandırılmalıdır.",
+      "Base swap execution mode must be explicitly configured as legacy_v1 or intent_v2.",
     statusCode: 500,
   },
   BASE_INTENT_V2_CONFIG_INVALID: {
-    message: "Base V2 işlem yapılandırması eksik veya doğrulanamadı.",
+    message: "Base V2 transaction configuration is missing or could not be verified.",
     statusCode: 503,
   },
   BASE_INTENT_V2_ROUTE_UNSUPPORTED: {
     message:
-      "Bu rota etkin Base V2 typed-adapter yürütme politikası tarafından desteklenmiyor.",
+      "This route is not supported by the active Base V2 typed-adapter execution policy.",
     statusCode: 400,
   },
   BASE_INTENT_V2_ROUTE_INVALID: {
     message:
-      "Base V2 rotası imzalanabilir alanlarla güvenli biçimde eşleştirilemedi.",
+      "Base V2 route could not be safely matched with signable fields.",
     statusCode: 400,
   },
   BASE_INTENT_V2_TIME_INVALID: {
-    message: "Base V2 niyet zaman aralığı geçersiz veya bir saati aşıyor.",
+    message: "Base V2 intent time range is invalid or exceeds one hour.",
     statusCode: 400,
   },
   BASE_INTENT_V2_FEE_INVALID: {
     message:
-      "Base V2 ücret sınırı doğrulanmış router politikasıyla eşleşmiyor.",
+      "Base V2 fee limit does not match the verified router policy.",
     statusCode: 400,
   },
   BASE_INTENT_V2_NO_ELIGIBLE_ROUTE: {
     message:
-      "Canlı tekliflerden hiçbiri etkin Base V2 typed-adapter politikasıyla eşleşmedi.",
+      "None of the live quotes matched the active Base V2 typed-adapter policy.",
     statusCode: 400,
   },
   BASE_INTENT_V2_NONCE_UNAVAILABLE: {
     message:
-      "Base V2 niyeti için kullanılmamış bir nonce güvenli biçimde ayrılamadı.",
+      "An unused nonce could not be safely extracted for the Base V2 intent.",
     statusCode: 503,
   },
   BASE_INTENT_V2_CONSTRAINT_UNSUPPORTED: {
     message:
-      "İstenen işlem sınırı Base V2 tarafından zincir üzerinde doğrulanabilir biçimde uygulanamıyor.",
+      "The requested transaction constraint cannot be enforced on-chain verifiably by Base V2.",
     statusCode: 400,
   },
   BASE_INTENT_V2_SIMULATION_FAILED: {
     message:
-      "Hiçbir Base V2 rotası canlı router simülasyonu veya approval-sonrası doğrulama politikasını geçemedi.",
+      "No Base V2 route passed live router simulation or post-approval verification policy.",
     statusCode: 400,
   },
 } as const satisfies Readonly<Record<string, PublicErrorDefinition>>;

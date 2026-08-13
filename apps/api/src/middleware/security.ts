@@ -126,7 +126,7 @@ export async function validateAddress(
       res,
       400,
       "AMBIGUOUS_ADDRESS",
-      "userAddress tek bir EVM adresi olmalıdır.",
+      "userAddress must be a single EVM address.",
     );
   }
   if (bodyAddress !== undefined && queryAddress !== undefined) {
@@ -139,7 +139,7 @@ export async function validateAddress(
           res,
           400,
           "CONFLICTING_ADDRESS",
-          "Body ve query userAddress değerleri birbiriyle uyuşmuyor.",
+          "Body and query userAddress values do not match.",
         );
       }
     } catch {
@@ -148,7 +148,7 @@ export async function validateAddress(
         res,
         400,
         "INVALID_ADDRESS",
-        "Geçersiz cüzdan adresi formatı. Lütfen doğru bir EVM adresi girin.",
+        "Invalid wallet address format. Please enter a valid EVM address.",
       );
     }
   }
@@ -164,7 +164,7 @@ export async function validateAddress(
       res,
       400,
       "INVALID_ADDRESS",
-      "Geçersiz cüzdan adresi formatı. Lütfen doğru bir EVM adresi girin.",
+      "Invalid wallet address format. Please enter a valid EVM address.",
     );
   }
 
@@ -251,7 +251,7 @@ export async function sanitizePrompt(
       res,
       400,
       "INVALID_PROMPT",
-      "prompt boş olmayan bir metin olmalıdır.",
+      "prompt must be a non-empty text.",
     );
   }
   if (rawPrompt.length > 500) {
@@ -269,7 +269,7 @@ export async function sanitizePrompt(
       res,
       400,
       "HTML_NOT_ALLOWED",
-      "prompt içinde HTML etiketleri kullanılamaz.",
+      "HTML tags are not allowed in the prompt.",
     );
   }
 
@@ -280,7 +280,7 @@ export async function sanitizePrompt(
       res,
       400,
       "SENSITIVE_DATA_NOT_ALLOWED",
-      "Private key, seed phrase veya API kimlik bilgisi niyet mesajına eklenemez.",
+      "Private key, seed phrase, or API credentials cannot be included in the prompt message.",
     );
   }
 
@@ -293,7 +293,7 @@ export async function sanitizePrompt(
       res,
       400,
       "TOO_MANY_URLS",
-      "Bir prompt içinde en fazla 3 URL doğrulanabilir.",
+      "A maximum of 3 URLs can be verified in a single prompt.",
     );
   }
 

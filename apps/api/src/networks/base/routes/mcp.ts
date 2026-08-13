@@ -34,7 +34,7 @@ function scalarQuery(
     if (options.required) {
       throw new BaseMcpRouteError(
         `BASE_MCP_${field.toUpperCase()}_REQUIRED`,
-        `${field} sorgu alanı zorunludur.`,
+        `The ${field} query field is required.`,
       );
     }
     return undefined;
@@ -42,7 +42,7 @@ function scalarQuery(
   if (typeof value !== "string") {
     throw new BaseMcpRouteError(
       `BASE_MCP_${field.toUpperCase()}_INVALID`,
-      `${field} tek bir metin değeri olmalıdır.`,
+      `${field} must be a single text value.`,
     );
   }
   return value.trim();
@@ -53,7 +53,7 @@ function explicitWallet(value: unknown): string {
   if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) {
     throw new BaseMcpRouteError(
       "BASE_MCP_WALLET_INVALID",
-      "wallet geçerli bir EVM adresi olmalıdır.",
+      "wallet must be a valid EVM address.",
     );
   }
   try {
@@ -61,7 +61,7 @@ function explicitWallet(value: unknown): string {
   } catch {
     throw new BaseMcpRouteError(
       "BASE_MCP_WALLET_INVALID",
-      "wallet geçerli bir EVM adresi olmalıdır.",
+      "wallet must be a valid EVM address.",
     );
   }
 }
@@ -71,7 +71,7 @@ function bodyCuratedOnly(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   throw new BaseMcpRouteError(
     "BASE_MCP_CURATED_ONLY_INVALID",
-    "curatedOnly yalnızca JSON boolean olabilir.",
+    "curatedOnly can only be a JSON boolean.",
   );
 }
 
@@ -81,7 +81,7 @@ function requestBody(value: unknown): Record<string, unknown> | undefined {
   if (Buffer.byteLength(raw, "utf8") > MAX_GET_BODY_BYTES) {
     throw new BaseMcpRouteError(
       "BASE_MCP_BODY_TOO_LARGE",
-      `body ${MAX_GET_BODY_BYTES} baytı aşamaz.`,
+      `The body cannot exceed ${MAX_GET_BODY_BYTES} bytes.`,
     );
   }
   try {
@@ -97,7 +97,7 @@ function requestBody(value: unknown): Record<string, unknown> | undefined {
   } catch {
     throw new BaseMcpRouteError(
       "BASE_MCP_BODY_INVALID",
-      "body URL-kodlanmış geçerli bir JSON nesnesi olmalıdır.",
+      "body must be a URL-encoded valid JSON object.",
     );
   }
 }
@@ -138,7 +138,7 @@ function routeError(res: Response, error: unknown) {
     code: known ? error.code : "BASE_MCP_UPSTREAM_UNAVAILABLE",
     message: known
       ? error.message
-      : "Base MCP hazırlık servisi şu anda doğrulanmış bir yanıt üretemedi.",
+      : "Base MCP preparation service currently could not produce a verified response.",
     network: "base",
     chainId: NETWORKS.base.chainId,
   });
@@ -192,7 +192,7 @@ router.get("/x402/discover", (_req, res) => {
     success: false,
     code: "BASE_MCP_DISCOVERY_POST_REQUIRED",
     message:
-      "x402 keşif sorguları URL kayıtlarına sızmaması için POST JSON ile gönderilmelidir.",
+      "x402 discovery queries must be sent via POST JSON to prevent leaking into URL logs.",
     network: "base",
     chainId: NETWORKS.base.chainId,
   });
@@ -207,7 +207,7 @@ router.post("/x402/discover", async (req, res) => {
     ) {
       throw new BaseMcpRouteError(
         "BASE_MCP_DISCOVERY_BODY_INVALID",
-        "x402 keşif isteği bir JSON nesnesi olmalıdır.",
+        "x402 discovery request must be a JSON object.",
       );
     }
     const wallet = explicitWallet(req.body.wallet);

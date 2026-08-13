@@ -108,7 +108,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
           isMounted &&
           !(err instanceof DOMException && err.name === "AbortError")
         ) {
-          setError("Canlı tahmin verisi şu anda kullanılamıyor.");
+          setError("Live prediction data is currently unavailable.");
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -138,7 +138,6 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
     <div
       className={`p-8 w-full max-w-7xl mx-auto min-h-[80vh] flex flex-col gap-6 ${bgClass}`}
     >
-      {}
       <div className="flex flex-col md:flex-row justify-between items-center border-b-4 border-current pb-4">
         <div>
           <h1
@@ -146,7 +145,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
           >
             Allora{" "}
             <span className={isDarkMode ? "text-gray-100" : "text-gray-900"}>
-              Fiyat Gözlemi
+              Price Observation
             </span>
           </h1>
           <p className="font-bold opacity-80 uppercase mt-2 tracking-widest text-sm">
@@ -154,7 +153,6 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
           </p>
         </div>
 
-        {}
         <div className="mt-4 md:mt-0 flex items-center gap-4">
           <label className="font-bold uppercase text-sm">Zaman Dilimi:</label>
           <select
@@ -172,7 +170,6 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
         </div>
       </div>
 
-      {}
       {loading && data.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1">
           <div
@@ -242,9 +239,9 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
                 </div>
 
                 <div className="mt-auto pt-4 border-t-2 border-dashed border-gray-500 text-xs font-bold uppercase tracking-wide opacity-70">
-                  Model gözlemidir; al/sat önerisi değildir.
+                  This is a model observation; not a buy/sell recommendation.
                   <span className="block mt-1 normal-case">
-                    Güncellendi: {new Date(item.fetchedAt).toLocaleTimeString()}
+                    Updated: __KLETIA_EXPR_N__{new Date(item.fetchedAt).toLocaleTimeString()}
                   </span>
                 </div>
               </div>

@@ -165,7 +165,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 p-4 md:p-8 animate-fade-in pb-20">
-      {}
       <div className="bg-[#0052FF] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] p-6 md:p-10 flex flex-col lg:flex-row gap-8 justify-between relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white border-[4px] border-[#1A1A1A] rotate-12 opacity-20 pointer-events-none"></div>
         <div className="absolute right-40 -bottom-10 w-24 h-24 rounded-full bg-[#10B981] border-[4px] border-[#1A1A1A] pointer-events-none"></div>
@@ -253,7 +252,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -308,7 +306,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
           </div>
         </div>
 
-        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -341,7 +338,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
           </div>
         </div>
 
-        {}
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
             <div className="p-2 border-[3px] border-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] bg-white dark:bg-[#1A2841]">
@@ -372,7 +368,6 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
         </div>
       </div>
 
-      {}
       <div className="mt-12">
         <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest mb-6 border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 inline-block">
           ⚡ Prepare Lending Operations

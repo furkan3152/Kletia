@@ -1,7 +1,7 @@
 import { parseAbi, encodeFunctionData, type Address, type Hex } from "viem";
 import { namehash, normalize } from "viem/ens";
 import { ParsedIntent } from "../../../ai/parser.js";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { BASE_CONTRACTS } from "../../../config/networks.js";
 
 export const BASENAME_REGISTRAR_ABI = parseAbi([
@@ -60,7 +60,7 @@ export async function handleBaseName(
   const durationSeconds = BigInt(durationDays) * 86400n;
 
   // Confirm live availability before constructing registration calldata.
-  const isAvailable = await publicClient.readContract({
+  const isAvailable = await basePublicClient.readContract({
     address: BASE_CONTRACTS.basenameRegistrarController,
     abi: BASENAME_REGISTRAR_ABI,
     functionName: "available",
@@ -75,20 +75,20 @@ export async function handleBaseName(
 
   if (intent.action === "basename_renew" && isAvailable) {
     throw new Error(
-      `🚨 **${name}.base.eth** ismi henüz alınmamış ki süresini uzatayım! Önce satın alman gerekiyor.`,
+      `🚨 The name **${name}.base.eth** is not yet registered, so I can't extend its duration! You need to purchase it first.`,
     );
   }
 
   const price =
     intent.action === "basename_register"
-      ? await publicClient.readContract({
+      ? await basePublicClient.readContract({
           address: BASE_CONTRACTS.basenameRegistrarController,
           abi: BASENAME_REGISTRAR_ABI,
           functionName: "registerPrice",
           args: [name, durationSeconds],
         })
       : (
-          await publicClient.readContract({
+          await basePublicClient.readContract({
             address: BASE_CONTRACTS.basenameRegistrarController,
             abi: BASENAME_REGISTRAR_ABI,
             functionName: "rentPrice",
@@ -106,7 +106,7 @@ export async function handleBaseName(
       durationSeconds,
     );
     const valInEth = Number(price) / 1e18;
-    expectedOutput = `✅ ${name}.base.eth ismini ${durationDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek satın alacaksın.`;
+    expectedOutput = `✅ You will purchase the ${name}.base.eth name for ${durationDays} days by paying ${valInEth.toFixed(4)} ETH.`;
   } else {
     calldata = encodeFunctionData({
       abi: BASENAME_REGISTRAR_ABI,
@@ -114,7 +114,7 @@ export async function handleBaseName(
       args: [name, durationSeconds],
     });
     const valInEth = Number(price) / 1e18;
-    expectedOutput = `⏳ ${name}.base.eth isminin süresini ${durationDays} günlüğüne ${valInEth.toFixed(4)} ETH ödeyerek uzatacaksın.`;
+    expectedOutput = `⏳ You will extend the ${name}.base.eth name for ${durationDays} days by paying ${valInEth.toFixed(4)} ETH.`;
   }
 
   return {
@@ -139,6 +139,9 @@ export async function handleBaseName(
         calldata: calldata,
       },
     ],
-    winnerMessage: `🏆 **Kletia BNS Modülü Hazır!**\n✨ **Sonuç:** ${expectedOutput}\n\n> İşlemi senin için hazırladım, aşağıdaki konsoldan imzalayabilirsin.`,
+    winnerMessage: `🏆 **Kletia BNS Module Ready!**
+✨ **Result:** ${expectedOutput}
+
+> I have prepared the transaction for you; you can sign it from the console below.`,
   };
 }

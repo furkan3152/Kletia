@@ -12,12 +12,12 @@ import { NETWORKS } from "../../../config/networks";
 import { BACKEND_URL } from "../../../config/runtime";
 
 const REGISTRY_ADDRESS = getAddress(
-  "0x4A587b315472Dd452B2FbC42366B16dCC267ae34",
+  "0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889",
 );
 const REGISTRY_CODEHASH =
-  "0xc84213a5efaeec9822ef03756eccea7271f3c1ad75a0a75ef29f304f7d6d1afb";
-const TIMELOCK_ADDRESS = getAddress(
-  "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+  "0xc186d25e78cd9fa8752a79aa7fbe33337201b6c36b7c49aace6b470583750041";
+const OWNER_AUTHORITY_ADDRESS = getAddress(
+  "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
 );
 const GUARDIAN_SAFE_ADDRESS = getAddress(
   "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
@@ -49,7 +49,7 @@ const validateStatus = (value: unknown): RegistryStatus => {
     !isRecord(value.data.registry) ||
     !sameAddress(value.data.registry.address, REGISTRY_ADDRESS) ||
     value.data.registry.runtimeCodehash !== REGISTRY_CODEHASH ||
-    !sameAddress(value.data.registry.owner, TIMELOCK_ADDRESS) ||
+    !sameAddress(value.data.registry.owner, OWNER_AUTHORITY_ADDRESS) ||
     !sameAddress(value.data.registry.guardian, GUARDIAN_SAFE_ADDRESS) ||
     typeof value.data.registry.observedAtBlock !== "string" ||
     !/^[1-9]\d*$/u.test(value.data.registry.observedAtBlock) ||

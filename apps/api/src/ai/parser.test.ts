@@ -67,3 +67,20 @@ describe("multilingual intent input with English output", () => {
     });
   });
 });
+
+describe("deterministic Base token deployment identity", () => {
+  it("keeps the token name separate from natural-language scaffolding", () => {
+    const intent = parseDeterministicBaseIntent(
+      "Deploy a token named Test Kletia with symbol TKL and supply 1000",
+    );
+
+    expect(intent).toMatchObject({
+      isComplete: true,
+      action: "deploy_token",
+      name: "Test Kletia",
+      symbol: "TKL",
+      amount: "1000",
+      message: "Preparing the verified Base token deployment.",
+    });
+  });
+});

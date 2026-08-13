@@ -1147,9 +1147,9 @@ function explicitDeployTokenIdentity(
   text: string,
 ): { name: string; symbol: string } | null {
   const patterns = [
-    /\b(?:create|deploy|launch)\s+(.{1,64}?)\s+(?:with\s+)?symbol\s+([a-zA-Z][a-zA-Z0-9]{0,9})(?=$|[\s,;.])/iu,
     /\b(?:create|deploy|launch)\s+(?:a\s+)?token\s+(?:named\s+)?(.{1,64}?)\s+(?:with\s+)?(?:ticker|symbol)\s+([a-zA-Z][a-zA-Z0-9]{0,9})(?=$|[\s,;.])/iu,
     /\b(?:create|deploy|launch)\s+(?:a\s+)?(?:token\s+(?:named\s+)?)?(.{1,64}?)\s*\(\s*([a-zA-Z][a-zA-Z0-9]{0,9})\s*\)/iu,
+    /\b(?:create|deploy|launch)\s+(.{1,64}?)\s+(?:with\s+)?symbol\s+([a-zA-Z][a-zA-Z0-9]{0,9})(?=$|[\s,;.])/iu,
     /\b(.{1,64}?)\s+adlı\s+token(?:i)?\s+([a-zA-Z][a-zA-Z0-9]{0,9})\s+sembol(?:ü|u)/iu,
   ];
   for (const pattern of patterns) {
@@ -1162,6 +1162,14 @@ function explicitDeployTokenIdentity(
     }
   }
   return null;
+}
+
+function explicitDeployTokenSupply(text: string): string | null {
+  const match =
+    /\bsupply\s+(?:of\s+)?(\d+(?:[.,]\d+)?)\b|\b(\d+(?:[.,]\d+)?)\s+(?:token\s+)?supply\b/iu.exec(
+      text,
+    );
+  return normalizePromptDecimal(match?.[1] || match?.[2]);
 }
 
 function explicitTokenLaunchId(text: string): string | null {
@@ -2225,6 +2233,24 @@ function parseRawDeterministicBaseIntent(
   if (!prompt || prompt.length > 2_000) return null;
   const lower = prompt.toLocaleLowerCase("tr-TR");
   if (/\barc(?:\s+testnet)?\b/i.test(lower)) return null;
+
+  const deployIdentity = explicitDeployTokenIdentity(prompt);
+  const deploySupply = explicitDeployTokenSupply(prompt);
+  if (
+    deployIdentity &&
+    deploySupply &&
+    hasPromptBoundBaseAction("deploy_token", prompt)
+  ) {
+    const launchId = explicitTokenLaunchId(prompt);
+    return deterministicIntent({
+      action: "deploy_token",
+      name: deployIdentity.name,
+      symbol: deployIdentity.symbol,
+      amount: deploySupply,
+      ...(launchId === null ? {} : { launchId }),
+      message: "Preparing the verified Base token deployment.",
+    });
+  }
 
   const x402UrlMatch = /https:\/\/[^\s<>"']+/iu.exec(prompt);
   const x402Methods = [

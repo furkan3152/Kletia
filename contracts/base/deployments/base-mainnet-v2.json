@@ -1,18 +1,22 @@
 {
-  "schemaVersion": "kletia_base_v2_pending_deployment_v1",
+  "schemaVersion": "kletia_base_v2_direct_safe_deployment_v1",
   "network": {
     "name": "Base Mainnet",
     "chainId": 8453
   },
-  "observedAtBlock": "49931549",
+  "observedAtBlock": "49936366",
   "releaseState": {
-    "baseSwapExecutionMode": "legacy_v1",
+    "baseSwapExecutionMode": "intent_v2",
     "baseTokenDeploymentMode": "launch_v2",
-    "launchFactoryRuntimeEvidenceBlock": "49717053",
+    "launchFactoryRuntimeEvidenceBlock": "49936548",
     "x402AttestationRegistryBinding": "supplemental_read_only",
-    "adapterLifecycle": "configured_enable_scheduled_waiting",
-    "runtimeEvidence": null,
-    "cutoverReady": false
+    "adapterLifecycle": "configured_enabled",
+    "runtimeEvidence": {
+      "schemaVersion": "kletia_base_intent_v2_deployment_v1",
+      "validationStatus": "validated",
+      "observedAtBlock": "49936501"
+    },
+    "cutoverReady": true
   },
   "governance": {
     "owners": [
@@ -41,18 +45,8 @@
       "modules": [],
       "guard": "0x0000000000000000000000000000000000000000"
     },
-    "timelock": {
-      "address": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
-      "deploymentTransaction": "0x4da732b46fe5372c0daf3e18db4e87e29f89bc1cf1e4f5243dbe10c56273c781",
-      "runtimeCodehash": "0x55ecc21176f23ff90b7f884bfd572cecf431538bc89ab5ee5aed3fa59b9dec82",
-      "minDelaySeconds": 172800,
-      "proposer": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
-      "canceller": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
-      "executor": "0x0000000000000000000000000000000000000000",
-      "admin": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
-      "verifiedExact": true,
-      "explorerUrl": "https://basescan.org/address/0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F#code"
-    }
+    "timelock": null,
+    "mode": "direct_2_of_2_safe"
   },
   "contracts": {
     "uniswapV2CompatibleAdapter": {
@@ -67,37 +61,46 @@
       "explorerUrl": "https://basescan.org/address/0xb21C455ceE9ECb4BD0cf19A88d771065db45592b#code"
     },
     "intentRouterV2": {
-      "address": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
-      "deploymentTransaction": "0x5272072f057977cb09a909ec134d14c1468ec9aa89d9835098034399fca1cd3d",
-      "runtimeCodehash": "0xe5d9ea317c2b5f3afc1b2c67ecc04719997f38d6c57e5d693936eebae5da1e05",
-      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "address": "0xf9BaA05c71c2078A43f6831Eca88220b42932413",
+      "deploymentTransaction": "0xf69ca039f8b8033c87567bb159e0e0c8e0a1b285c5d4e7bcecfc26c45b46fbb6",
+      "deploymentBlock": "49936328",
+      "runtimeCodehash": "0x9341d0e8f68d7de4273a47b6f495f4b99335fa9d851bafa3204a91dc3ae2fb52",
+      "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
       "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
       "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
       "wrappedNative": "0x4200000000000000000000000000000000000006",
       "feeBps": 10,
       "paused": false,
       "verifiedExact": true,
-      "explorerUrl": "https://basescan.org/address/0xce874051C9B60ECaD06721611DCEAc36aC0e8529#code"
+      "explorerUrl": "https://base.blockscout.com/address/0xf9BaA05c71c2078A43f6831Eca88220b42932413?tab=contract",
+      "sourceLicense": "MIT",
+      "baseScanUrl": "https://basescan.org/address/0xf9BaA05c71c2078A43f6831Eca88220b42932413#code"
     },
     "launchFactoryV2": {
-      "address": "0x90cc932D97966F6Bdd8426184283FF2ff9d3043b",
-      "deploymentTransaction": "0x20344cbbac5e398e5b8f3537168d942c40b286ef1171521cac31a20cada4e25b",
-      "runtimeCodehash": "0xb65a8f83f65961bdb2980f8530c0566013340f7491226c7a27f27efe60338a52",
-      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "address": "0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043",
+      "deploymentTransaction": "0x1120c5976aac64e4379b558a2d4faa0f978d9b29c2593e48104e19144db6c5ea",
+      "deploymentBlock": "49936329",
+      "runtimeCodehash": "0xa28d7ef44ecff154d4b24a2f362868bf29e8a9ca7f172d8b0e3cad2b5fc80e81",
+      "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
       "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
       "pendingTreasury": "0x0000000000000000000000000000000000000000",
       "deploymentFee": "0",
       "verifiedExact": true,
-      "explorerUrl": "https://basescan.org/address/0x90cc932D97966F6Bdd8426184283FF2ff9d3043b#code"
+      "explorerUrl": "https://base.blockscout.com/address/0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043?tab=contract",
+      "sourceLicense": "MIT",
+      "baseScanUrl": "https://basescan.org/address/0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043#code"
     },
     "x402AttestationRegistryV1": {
-      "address": "0x4A587b315472Dd452B2FbC42366B16dCC267ae34",
-      "deploymentTransaction": "0x9eac521bf1d3e4a1a4e6934e35057f9f4e56438ebdf6dd45466c14eb4da1ded8",
-      "runtimeCodehash": "0xc84213a5efaeec9822ef03756eccea7271f3c1ad75a0a75ef29f304f7d6d1afb",
-      "owner": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+      "address": "0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889",
+      "deploymentTransaction": "0x86391daf12b2d6257ab316567914085d5c5bfa9291f362a774040f9b51e1d908",
+      "deploymentBlock": "49936330",
+      "runtimeCodehash": "0xc186d25e78cd9fa8752a79aa7fbe33337201b6c36b7c49aace6b470583750041",
+      "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
       "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
       "verifiedExact": true,
-      "explorerUrl": "https://basescan.org/address/0x4A587b315472Dd452B2FbC42366B16dCC267ae34#code"
+      "explorerUrl": "https://base.blockscout.com/address/0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889?tab=contract",
+      "sourceLicense": "MIT",
+      "baseScanUrl": "https://basescan.org/address/0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889#code"
     }
   },
   "supportingContracts": {
@@ -140,40 +143,6 @@
       "verificationCommand": "npm run verify:x402-gateways:blockscout"
     }
   },
-  "uniswapCanary": {
-    "adapterConfigured": true,
-    "adapterEnabled": false,
-    "configureOperation": {
-      "operationId": "0x1349520995de6695bde9d984cdd971b47e495a7539dbc5d3ef9d8a87037e0162",
-      "scheduleTransaction": "0x887c369b5b61546a62f691bad3d545b582a0a3cb352331566fb3051fe11ab8c9",
-      "scheduleBlock": "49715448",
-      "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
-      "value": "0",
-      "data": "0xda3254a8000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b0000000000000000000000000000000000000000000000000000000000000000",
-      "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "salt": "0x0e657bb7024594bb25cb2f29abcd372401f5b9a5547b654fd73852a661c3c566",
-      "readyAt": "1786393043",
-      "readyAtIsoUtc": "2026-08-10T20:17:23.000Z",
-      "status": "done",
-      "executeTransaction": "0x34bb43c00e4339c5b0a6827fb2935e2fda3b9ba5f5e1d0eff4c8056b78e825bf",
-      "executeBlock": "49931434"
-    },
-    "enableOperation": {
-      "operationId": "0x92a7ba56e9b639af070a358ad065c52170a1859dcc9a89536df7c689aefdf7b8",
-      "scheduleTransaction": "0x28db7950846d0c2ff0da759cb257efaaaeb1491ea176780b6af6b358c7bd72b4",
-      "scheduleBlock": "49931549",
-      "safeTransactionHash": "0xfc4f0b8cc416caadf7991ed10ccfda44a9fcbceab882ce0c47d2767851325430",
-      "safeNonce": "1",
-      "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
-      "value": "0",
-      "data": "0xb417143d000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b",
-      "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "salt": "0xfdbfe14fac896cc234c1ef89d948585324cc2c307335a4fae5530445acf21b58",
-      "readyAt": "1786825245",
-      "readyAtIsoUtc": "2026-08-15T20:20:45.000Z",
-      "status": "waiting"
-    }
-  },
   "legacyFeeRouterCleanup": {
     "router": "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",
     "revokedTarget": "0x71524B4f93c58fcbF659783284E38825f0622859",
@@ -187,5 +156,137 @@
     "optimizerEnabled": true,
     "optimizerRuns": 200,
     "license": "MIT"
-  }
+  },
+  "directSafeConfiguration": {
+    "adapter": "0xb21C455ceE9ECb4BD0cf19A88d771065db45592b",
+    "enabled": true,
+    "safeExecutionTransaction": "0x6aa3e933241cd5594c9c35f8a9520bbf3266a3fddbf9c9a69a68bbd7c5e16725",
+    "safeExecutionBlock": "49936331"
+  },
+  "supersededDeployments": [
+    {
+      "governance": {
+        "owners": [
+          "0xFf3a3CFC42D27E85DbA9Ea85f0bFEC34bd632f9A",
+          "0x8c5281055B197443fF01dbBDFBf29fD63946cA1E"
+        ],
+        "threshold": 2,
+        "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+        "safeFallbackHandler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+        "safeProxyRuntimeCodehash": "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c",
+        "governanceSafe": {
+          "address": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "deploymentTransaction": "0xe2128549303c6a469d4dcafca38618bb932de0714ec63e8a71966a3471c080fc",
+          "modules": [],
+          "guard": "0x0000000000000000000000000000000000000000"
+        },
+        "guardianSafe": {
+          "address": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+          "deploymentTransaction": "0x0118ebfc878a995e8cdbc156166418420993098e986a7ffc335bbd1cbf9d33df",
+          "modules": [],
+          "guard": "0x0000000000000000000000000000000000000000"
+        },
+        "treasurySafe": {
+          "address": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+          "deploymentTransaction": "0xa2ed079495dd6b3334ca0a5203362a21e4b3e8e1694f27f8fbcf1e95e86dd03e",
+          "modules": [],
+          "guard": "0x0000000000000000000000000000000000000000"
+        },
+        "timelock": {
+          "address": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+          "deploymentTransaction": "0x4da732b46fe5372c0daf3e18db4e87e29f89bc1cf1e4f5243dbe10c56273c781",
+          "runtimeCodehash": "0x55ecc21176f23ff90b7f884bfd572cecf431538bc89ab5ee5aed3fa59b9dec82",
+          "minDelaySeconds": 172800,
+          "proposer": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "canceller": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "executor": "0x0000000000000000000000000000000000000000",
+          "admin": "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F",
+          "verifiedExact": true,
+          "explorerUrl": "https://basescan.org/address/0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F#code"
+        }
+      },
+      "contracts": {
+        "uniswapV2CompatibleAdapter": {
+          "address": "0xb21C455ceE9ECb4BD0cf19A88d771065db45592b",
+          "deploymentTransaction": "0x053fbf8f220ec40e5ed533aed98e008d55290b7f44163ea7e1d24d88038e09ae",
+          "runtimeCodehash": "0x0fb7c899f3f97856ee6a83f8e7eb5ede10c341f52e64e92658b35471d3a1dbd7",
+          "router": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+          "factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
+          "wrappedNative": "0x4200000000000000000000000000000000000006",
+          "configurationHash": "0xfbaf94530df666febfb537d12153342f741a4786b39a99cafd708e12a4de6d36",
+          "verifiedExact": true,
+          "explorerUrl": "https://basescan.org/address/0xb21C455ceE9ECb4BD0cf19A88d771065db45592b#code"
+        },
+        "intentRouterV2": {
+          "address": "0xf9BaA05c71c2078A43f6831Eca88220b42932413",
+          "deploymentTransaction": "0xf69ca039f8b8033c87567bb159e0e0c8e0a1b285c5d4e7bcecfc26c45b46fbb6",
+          "deploymentBlock": "49936328",
+          "runtimeCodehash": "0x9341d0e8f68d7de4273a47b6f495f4b99335fa9d851bafa3204a91dc3ae2fb52",
+          "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+          "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+          "wrappedNative": "0x4200000000000000000000000000000000000006",
+          "feeBps": 10,
+          "paused": false,
+          "verifiedExact": false
+        },
+        "launchFactoryV2": {
+          "address": "0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043",
+          "deploymentTransaction": "0x1120c5976aac64e4379b558a2d4faa0f978d9b29c2593e48104e19144db6c5ea",
+          "deploymentBlock": "49936329",
+          "runtimeCodehash": "0xa28d7ef44ecff154d4b24a2f362868bf29e8a9ca7f172d8b0e3cad2b5fc80e81",
+          "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "treasury": "0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC",
+          "pendingTreasury": "0x0000000000000000000000000000000000000000",
+          "deploymentFee": "0",
+          "verifiedExact": false
+        },
+        "x402AttestationRegistryV1": {
+          "address": "0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889",
+          "deploymentTransaction": "0x86391daf12b2d6257ab316567914085d5c5bfa9291f362a774040f9b51e1d908",
+          "deploymentBlock": "49936330",
+          "runtimeCodehash": "0xc186d25e78cd9fa8752a79aa7fbe33337201b6c36b7c49aace6b470583750041",
+          "owner": "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D",
+          "guardian": "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc",
+          "verifiedExact": false
+        }
+      },
+      "uniswapCanary": {
+        "adapterConfigured": true,
+        "adapterEnabled": false,
+        "configureOperation": {
+          "operationId": "0x1349520995de6695bde9d984cdd971b47e495a7539dbc5d3ef9d8a87037e0162",
+          "scheduleTransaction": "0x887c369b5b61546a62f691bad3d545b582a0a3cb352331566fb3051fe11ab8c9",
+          "scheduleBlock": "49715448",
+          "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
+          "value": "0",
+          "data": "0xda3254a8000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b0000000000000000000000000000000000000000000000000000000000000000",
+          "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "salt": "0x0e657bb7024594bb25cb2f29abcd372401f5b9a5547b654fd73852a661c3c566",
+          "readyAt": "1786393043",
+          "readyAtIsoUtc": "2026-08-10T20:17:23.000Z",
+          "status": "done",
+          "executeTransaction": "0x34bb43c00e4339c5b0a6827fb2935e2fda3b9ba5f5e1d0eff4c8056b78e825bf",
+          "executeBlock": "49931434"
+        },
+        "enableOperation": {
+          "operationId": "0x92a7ba56e9b639af070a358ad065c52170a1859dcc9a89536df7c689aefdf7b8",
+          "scheduleTransaction": "0x28db7950846d0c2ff0da759cb257efaaaeb1491ea176780b6af6b358c7bd72b4",
+          "scheduleBlock": "49931549",
+          "safeTransactionHash": "0xfc4f0b8cc416caadf7991ed10ccfda44a9fcbceab882ce0c47d2767851325430",
+          "safeNonce": "1",
+          "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
+          "value": "0",
+          "data": "0xb417143d000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b",
+          "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "salt": "0xfdbfe14fac896cc234c1ef89d948585324cc2c307335a4fae5530445acf21b58",
+          "readyAt": "1786825245",
+          "readyAtIsoUtc": "2026-08-15T20:20:45.000Z",
+          "status": "waiting"
+        }
+      },
+      "supersededAtBlock": "49936366",
+      "reason": "Replaced by direct 2-of-2 Governance Safe authority at the user's request."
+    }
+  ]
 }

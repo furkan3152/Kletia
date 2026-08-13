@@ -154,7 +154,16 @@ async function executeSafeCall({ safe, wallets, submitter, to, data }) {
   });
   const receipt = await transaction.wait();
   if (!receipt || receipt.status !== 1) fail("Governance Safe execution failed.");
-  if ((await safe.nonce()) !== safeNonce + 1n) {
+  let observedNonce = await safe.nonce();
+  for (
+    let attempt = 0;
+    observedNonce !== safeNonce + 1n && attempt < 10;
+    attempt += 1
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    observedNonce = await safe.nonce({ blockTag: "latest" });
+  }
+  if (observedNonce !== safeNonce + 1n) {
     fail("Governance Safe nonce did not advance exactly once.");
   }
   return { hash: transaction.hash, blockNumber: String(receipt.blockNumber) };

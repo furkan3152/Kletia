@@ -50,27 +50,25 @@ requires a byte-for-byte runtime match before submitting an unverified child
 to Blockscout with the MIT license. It needs no private key and is safe to
 rerun; already verified children are only checked.
 
-## Intent Router V2 canary
+## Active Intent Router V2 release
 
-The deployed Uniswap V2 adapter is intentionally unavailable to application
-traffic until both delayed operations and runtime evidence are complete. The
-operational sequence is:
+The active Base Mainnet release uses the existing two-of-two Governance Safe
+directly; the superseded Timelock deployment remains only in the deployment
+manifest's history. The reviewed Uniswap V2 adapter is configured and enabled,
+and the application runs in `intent_v2` mode with fail-closed runtime evidence.
+The reproducible operator sequence is:
 
 ```bash
-npm run canary:v2:status
-# If the operator uses a connected wallet instead of BASE_PRIVATE_KEY:
-npm run canary:v2:prepare-configure-execution
-npm run canary:v2:execute-configure
-npm run canary:v2:prepare-enable
-# Submit the emitted transaction to the Governance Safe and collect 2 signatures.
-# After the on-chain minimum delay:
-npm run canary:v2:prepare-enable-execution
-npm run canary:v2:execute-enable
+npm run deploy:v2:direct-safe
+npm run verify:v2:blockscout
 npm run evidence:v2:base:deployment
 ```
 
-`execute-*` needs a gas-paying Base signer. The `prepare-*-execution` variants
-emit the same exact transaction for an external connected wallet and never
-read a private key. `prepare-enable` does not possess or bypass Governance Safe
-authority. Keep both application release modes at `legacy_v1` until the final
-evidence exporter succeeds.
+Deployment requires the two existing Safe owner keys only for the bounded
+operator run; they must stay in ignored package-local environment files and be
+removed immediately afterward. The script validates both owners, threshold,
+chain, role accounts, existing adapter, WETH and gas balance before its first
+broadcast. It deploys the three contracts and submits one exact Safe call to
+configure and enable the adapter. Verification and evidence export are
+read-only. Active public identities are recorded in
+`deployments/base-mainnet-v2.json`; do not copy addresses from chat logs.

@@ -21,7 +21,7 @@ import {
 } from "../../networks/base/creator/launchFactoryV2Abi.js";
 
 const MANIFEST_URL = new URL(
-  "../../../../contracts/base/deployments/base-mainnet-v2.json",
+  "../../../../../contracts/base/deployments/base-mainnet-v2.json",
   import.meta.url,
 );
 const RUNTIME_CODE_PATTERN = /^0x(?:[0-9a-fA-F]{2})+$/u;

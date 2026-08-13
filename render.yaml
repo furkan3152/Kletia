@@ -73,30 +73,30 @@ services:
       - key: X402_BUYER_MAX_PAYMENT_USDC
         value: "1"
       - key: KLETIA_X402_ATTESTATION_REGISTRY_ADDRESS
-        value: "0x4A587b315472Dd452B2FbC42366B16dCC267ae34"
+        value: "0xE69DE5A5E92F4a52b15C651C1C1fc0fE36143889"
       - key: KLETIA_X402_ATTESTATION_OWNER_ADDRESS
-        value: "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F"
-      - key: KLETIA_V2_TIMELOCK_ADDRESS
-        value: "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F"
+        value: "0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D"
       - key: KLETIA_V2_GUARDIAN_SAFE
         value: "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc"
       - key: X402_TREASURY_ADDRESS
         sync: false
-      # Token deployment is independent from the pending swap-router cutover.
-      # This exact LaunchFactory deployment is live and revalidated at one
+      # Token deployment is independent from swap routing. This exact
+      # LaunchFactory deployment is live and revalidated at one
       # pinned Base block for every compiled deploy_token intent.
       - key: BASE_TOKEN_DEPLOYMENT_MODE
         value: launch_v2
       - key: KLETIA_LAUNCH_FACTORY_V2_ADDRESS
-        value: "0x90cc932D97966F6Bdd8426184283FF2ff9d3043b"
+        value: "0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043"
       - key: KLETIA_LAUNCH_FACTORY_V2_EVIDENCE_JSON
-        value: '{"schemaVersion":"kletia_launch_factory_v2_deployment_v1","validationStatus":"validated","chainId":8453,"observedAtBlock":"49717053","factory":"0x90cc932D97966F6Bdd8426184283FF2ff9d3043b","factoryCodehash":"0xb65a8f83f65961bdb2980f8530c0566013340f7491226c7a27f27efe60338a52","ownerTimelock":"0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F","ownerTimelockCodehash":"0x55ecc21176f23ff90b7f884bfd572cecf431538bc89ab5ee5aed3fa59b9dec82","ownerTimelockMinDelay":"172800","treasurySafe":"0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC","treasurySafeCodehash":"0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c","pendingTreasury":"0x0000000000000000000000000000000000000000","factoryFeeCap":"10000000000000000","maxTokenSupply":"1000000000000000000000000000000000000","maxNameBytes":"64","maxSymbolBytes":"16"}'
+        value: '{"schemaVersion":"kletia_launch_factory_v2_direct_safe_deployment_v2","validationStatus":"validated","chainId":8453,"observedAtBlock":"49936548","factory":"0x1D62Ac5e19af7688EbC57f262bbB9959dd78e043","factoryCodehash":"0xa28d7ef44ecff154d4b24a2f362868bf29e8a9ca7f172d8b0e3cad2b5fc80e81","ownerAuthority":"0x84f19Fdfd8C50C6349BFe86Cd90BE131387ab47D","ownerAuthorityCodehash":"0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c","ownerAuthorityKind":"safe_2_of_2","treasurySafe":"0x64261D1AC0133FB1BB2153e1dCa7B081cd9d05fC","treasurySafeCodehash":"0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c","pendingTreasury":"0x0000000000000000000000000000000000000000","factoryFeeCap":"10000000000000000","maxTokenSupply":"1000000000000000000000000000000000000","maxNameBytes":"64","maxSymbolBytes":"16"}'
       - key: BASE_SWAP_EXECUTION_MODE
-        value: legacy_v1
-      # Pre-staged public address only. Keep legacy_v1 until the Timelock has
-      # configured+enabled the adapter and exact runtime evidence is installed.
+        value: intent_v2
+      # Verified direct-Safe router; runtime validation is fail-closed and
+      # never falls back to the legacy execution path.
       - key: KLETIA_INTENT_ROUTER_V2_ADDRESS
-        value: "0xce874051C9B60ECaD06721611DCEAc36aC0e8529"
+        value: "0xf9BaA05c71c2078A43f6831Eca88220b42932413"
+      - key: KLETIA_INTENT_ROUTER_V2_EVIDENCE_JSON
+        value: '{"schemaVersion":"kletia_base_intent_v2_deployment_v1","validationStatus":"validated","chainId":8453,"observedAtBlock":"49936501","router":"0xf9BaA05c71c2078A43f6831Eca88220b42932413","routerCodehash":"0x9341d0e8f68d7de4273a47b6f495f4b99335fa9d851bafa3204a91dc3ae2fb52","wrappedNative":"0x4200000000000000000000000000000000000006","wrappedNativeCodehash":"0x8a3a1f6a9f9dce633117adee5b458245835a8645a8c8726a26382a4622508b1c","feeBps":10,"adapters":[{"kind":"uniswap_v2_compatible","reviewStatus":"reviewed","protocolId":"uniswap","enabled":true,"adapter":"0xb21C455ceE9ECb4BD0cf19A88d771065db45592b","target":"0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24","spender":"0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24","factory":"0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6","adapterCodehash":"0x0fb7c899f3f97856ee6a83f8e7eb5ede10c341f52e64e92658b35471d3a1dbd7","targetCodehash":"0xec2a9bc649a4a1f23eee18c570628b28c03c665cdd7ebbdb3c46a6c4007959c1","spenderCodehash":"0xec2a9bc649a4a1f23eee18c570628b28c03c665cdd7ebbdb3c46a6c4007959c1","factoryCodehash":"0xbab145d02e7005f0d84c6c1639d39b799b0ea16df99ebbdaf5a14d9da820b4e0","adapterConfigurationHash":"0xfbaf94530df666febfb537d12153342f741a4786b39a99cafd708e12a4de6d36","adapterConfigHash":"0x56c6c7092dc5af58ddc28ad856ae4cd369b41960ff6d5f5d3a73fa34a6f3c6ad"}]}'
 
   # Unified Base Mainnet + Arc Testnet frontend
   - type: web
@@ -152,7 +152,7 @@ services:
       - key: VITE_ARC_VAULT_V2_ADDRESS
         value: "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d"
       - key: VITE_BASE_SWAP_EXECUTION_MODE
-        value: legacy_v1
+        value: intent_v2
       - key: VITE_BASE_PAYMASTER_ENABLED
         value: "false"
       - key: VITE_WALLETCONNECT_PROJECT_ID

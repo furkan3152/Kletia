@@ -130,8 +130,9 @@ Frontend build-time values:
 - `VITE_WALLETCONNECT_PROJECT_ID`: restrict it to `kletiaai.xyz` and
   `www.kletiaai.xyz` in the provider dashboard.
 - `VITE_BASE_SWAP_EXECUTION_MODE` must match backend
-  `BASE_SWAP_EXECUTION_MODE`. Both remain `legacy_v1` until an intentional,
-  evidence-backed V2 cutover.
+  `BASE_SWAP_EXECUTION_MODE`. The active release sets both to `intent_v2` and
+  pins the direct-Safe Router V2 address plus its validated single-line runtime
+  evidence in the backend. Never deploy a mixed pair or omit the evidence.
 
 Never copy `.env` files or private keys to a static-site `VITE_*` variable.
 Render secrets belong only in the backend service's Environment page.

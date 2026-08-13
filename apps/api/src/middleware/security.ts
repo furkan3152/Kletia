@@ -8,12 +8,12 @@ import {
   preflightExplicitBaseX402GetPrompt,
 } from "../networks/base/intent/x402.js";
 
-const webacyClient = process.env.WEBACY_API_KEY
-  ? new WebacyClient({
-      apiKey: process.env.WEBACY_API_KEY,
-      defaultChain: Chain.BASE,
-    })
-  : null;
+function getWebacyClient(): WebacyClient | null {
+  const apiKey = process.env.WEBACY_API_KEY?.trim();
+  return apiKey
+    ? new WebacyClient({ apiKey, defaultChain: Chain.BASE })
+    : null;
+}
 
 // This denylist is deliberately local and deterministic. Webacy adds broader
 // reputation evidence when configured, but an optional provider credential
@@ -190,6 +190,7 @@ export async function validateAddress(
       );
     }
 
+    const webacyClient = getWebacyClient();
     if (!webacyClient) {
       // Route policy, target allowlists, response identity binding and
       // pre-sign simulation remain mandatory downstream. The Webacy widget
@@ -260,7 +261,7 @@ export async function sanitizePrompt(
       res,
       400,
       "PROMPT_TOO_LONG",
-      "prompt en fazla 500 karakter olabilir.",
+      "prompt must not exceed 500 characters.",
     );
   }
   if (/<[^>]*>/u.test(rawPrompt)) {
@@ -298,6 +299,7 @@ export async function sanitizePrompt(
   }
 
   if (urls.length > 0) {
+    const webacyClient = getWebacyClient();
     try {
       const verdicts = webacyClient
         ? await withTimeout(

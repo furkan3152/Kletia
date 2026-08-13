@@ -151,7 +151,8 @@ function assertSupportedSwapConstraints(
     intent.maxGas !== undefined ||
     intent.maxPriceImpactBps !== undefined ||
     intent.maxFee !== undefined ||
-    intent.riskTolerance !== undefined ||
+    (intent.riskTolerance !== undefined &&
+      intent.riskTolerance !== "balanced") ||
     intent.timeHorizonDays !== undefined ||
     (intent.objective !== undefined &&
       intent.objective !== "best_output" &&

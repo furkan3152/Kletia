@@ -65,11 +65,13 @@ module.exports = {
     },
   },
   etherscan: {
-    apiKey: {
-      base: process.env.BASESCAN_API_KEY || "",
-    },
+    // A single key opts hardhat-verify into Etherscan API V2. The old
+    // network-key map routes Base verification through the retired V1 API.
+    apiKey: process.env.BASESCAN_API_KEY || "",
   },
   sourcify: {
-    enabled: true,
+    // Sourcify API V1 is in a scheduled brownout. Blockscout standard-input
+    // verification remains the second independent exact-source publication.
+    enabled: false,
   },
 };

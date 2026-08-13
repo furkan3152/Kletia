@@ -3,14 +3,13 @@
 Kletia is deployed as two Render services from one repository. These are not
 separate Base and Arc applications:
 
-- `frontend/base_mainnet` is the canonical unified Base Mainnet + Arc Testnet
+- `apps/web` is the canonical unified Base Mainnet + Arc Testnet
   React interface. The current Render deployment uses a Node Web Service and
   serves its production `dist` directory with `scripts/serve-production.mjs`.
-- `backend/base_mainnet` is the canonical unified Base Mainnet + Arc Testnet
+- `apps/api` is the canonical unified Base Mainnet + Arc Testnet
   omni-engine.
-- `frontend/arc_testnet` and `backend/arc_testnet` are deprecated standalone
-  packages and must not be selected for the public deployment.
-- `smart-contracts/*` are source/deployment workspaces, not Render services.
+- `contracts/base` and `contracts/arc` are source/deployment workspaces, not
+  Render services.
 
 If the frontend and backend services already exist in Render, do not create a
 second Blueprint or duplicate services. Update those two existing services in
@@ -26,10 +25,10 @@ environment boundaries, and frontend SPA rewrite.
 
 Do not select a JavaScript entry file when using the Blueprint:
 
-- Backend runtime: Node, root directory `backend/base_mainnet`. Build command is
+- Backend runtime: Node, root directory `apps/api`. Build command is
   `npm ci --legacy-peer-deps && npm run build`; start command is `npm start`
   (`dist/index.js`).
-- Frontend runtime: Node Web Service, root directory `frontend/base_mainnet`.
+- Frontend runtime: Node Web Service, root directory `apps/web`.
   Build command is `npm ci --legacy-peer-deps && npm run build`; start command
   is `npm start` (`scripts/serve-production.mjs`).
 
@@ -37,7 +36,7 @@ Do not select a JavaScript entry file when using the Blueprint:
 
 Backend Web Service:
 
-- Root Directory: `backend/base_mainnet`
+- Root Directory: `apps/api`
 - Runtime: Node
 - Build Command: `npm ci --legacy-peer-deps && npm run build`
 - Start Command: `npm start`
@@ -49,7 +48,7 @@ container deployment but is not used by this Blueprint.
 
 Frontend Web Service (the current deployment type):
 
-- Root Directory: `frontend/base_mainnet`
+- Root Directory: `apps/web`
 - Build Command: `npm ci --legacy-peer-deps && npm run build`
 - Start Command: `npm start`
 - Start file: `scripts/serve-production.mjs`

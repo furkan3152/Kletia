@@ -1,0 +1,63 @@
+{
+  "name": "@kletia/api",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "description": "Unified Kletia intent API for Base Mainnet and Arc Testnet",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "verify:base-registry": "tsx src/scripts/base/verifyProtocolRegistry.ts",
+    "evidence:launch-factory-v2": "tsx src/scripts/base/exportLaunchFactoryV2Evidence.ts",
+    "plan:fee-router-cleanup": "tsx src/scripts/base/planFeeRouterCleanup.ts",
+    "fund:arc-reserves": "tsx src/scripts/arc/fundThirtyDayReserves.ts",
+    "release:preflight": "npm run typecheck && npm run test && npm run verify:base-registry",
+    "typecheck": "tsc -p tsconfig.api.json"
+  },
+  "keywords": [
+    "kletia",
+    "web3",
+    "intent",
+    "engine"
+  ],
+  "author": "Kletia",
+  "license": "MIT",
+  "dependencies": {
+    "@coinbase/cdp-sdk": "1.54.0",
+    "@scure/bip39": "1.6.0",
+    "@webacy-xyz/sdk": "^1.8.0",
+    "@x402/core": "2.20.0",
+    "@x402/evm": "2.20.0",
+    "@x402/express": "2.20.0",
+    "@x402/extensions": "2.20.0",
+    "@x402/svm": "2.20.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "viem": "^2.55.10",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.0",
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "axios": "1.18.1",
+    "form-data": "4.0.6"
+  }
+}

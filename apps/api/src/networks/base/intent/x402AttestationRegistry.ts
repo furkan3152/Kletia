@@ -22,6 +22,18 @@ export const BASE_X402_ATTESTATION_REGISTRY_ENV =
 export const BASE_X402_ATTESTATION_OWNER_ENV = "KLETIA_V2_TIMELOCK_ADDRESS";
 export const BASE_X402_ATTESTATION_GUARDIAN_ENV = "KLETIA_V2_GUARDIAN_SAFE";
 
+// These are public, immutable deployment identities, not secrets. Keeping the
+// verified production tuple in code prevents manually-created Render services
+// from silently disabling read-only attestation checks when an optional env
+// mirror is omitted. Every request still verifies chain id, runtime codehash,
+// owner, guardian, schema and horizon against live Base state.
+export const BASE_X402_ATTESTATION_REGISTRY_ADDRESS =
+  "0x4A587b315472Dd452B2FbC42366B16dCC267ae34" as Address;
+export const BASE_X402_ATTESTATION_OWNER_ADDRESS =
+  "0x1B0D1720a9b67Bac0a72E671A69f2772C0BaA47F" as Address;
+export const BASE_X402_ATTESTATION_GUARDIAN_ADDRESS =
+  "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc" as Address;
+
 export const BASE_X402_ATTESTATION_REGISTRY_RUNTIME_CODEHASH =
   "0xc84213a5efaeec9822ef03756eccea7271f3c1ad75a0a75ef29f304f7d6d1afb" as Hex;
 export const BASE_X402_ATTESTATION_SCHEMA =
@@ -264,13 +276,18 @@ function sameHex(left: Hex, right: Hex): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 
-function resolveRegistryConfig(environment: Environment): RegistryConfig {
-  const registryValue = environment[BASE_X402_ATTESTATION_REGISTRY_ENV]?.trim();
-  const ownerValue = environment[BASE_X402_ATTESTATION_OWNER_ENV]?.trim();
-  const guardianValue = environment[BASE_X402_ATTESTATION_GUARDIAN_ENV]?.trim();
-  if (!registryValue || !ownerValue || !guardianValue) {
-    return unavailable("X402_ATTESTATION_REGISTRY_NOT_CONFIGURED");
-  }
+export function resolveBaseX402AttestationRegistryConfig(
+  environment: Environment,
+): RegistryConfig {
+  const registryValue =
+    environment[BASE_X402_ATTESTATION_REGISTRY_ENV]?.trim() ||
+    BASE_X402_ATTESTATION_REGISTRY_ADDRESS;
+  const ownerValue =
+    environment[BASE_X402_ATTESTATION_OWNER_ENV]?.trim() ||
+    BASE_X402_ATTESTATION_OWNER_ADDRESS;
+  const guardianValue =
+    environment[BASE_X402_ATTESTATION_GUARDIAN_ENV]?.trim() ||
+    BASE_X402_ATTESTATION_GUARDIAN_ADDRESS;
   return {
     registry: checkedAddress(registryValue, unavailable),
     expectedOwner: checkedAddress(ownerValue, unavailable),
@@ -282,7 +299,7 @@ async function verifyDeployment(
   client: BaseX402AttestationPublicClient,
   environment: Environment,
 ): Promise<VerifiedDeployment> {
-  const config = resolveRegistryConfig(environment);
+  const config = resolveBaseX402AttestationRegistryConfig(environment);
   let chainId: number;
   let blockNumber: bigint;
   try {

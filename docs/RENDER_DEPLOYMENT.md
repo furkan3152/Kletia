@@ -4,8 +4,8 @@ Kletia is deployed as two Render services from one repository. These are not
 separate Base and Arc applications:
 
 - `apps/web` is the canonical unified Base Mainnet + Arc Testnet
-  React interface. The current Render deployment uses a Node Web Service and
-  serves its production `dist` directory with `scripts/serve-production.mjs`.
+  React interface. The current Render deployment is a Static Site that
+  publishes Vite's production `dist` directory.
 - `apps/api` is the canonical unified Base Mainnet + Arc Testnet
   omni-engine.
 - `contracts/base` and `contracts/arc` are source/deployment workspaces, not
@@ -28,9 +28,9 @@ Do not select a JavaScript entry file when using the Blueprint:
 - Backend runtime: Node, root directory `apps/api`. Build command is
   `npm ci --include=dev --legacy-peer-deps && npm run build`; start command is `npm start`
   (`dist/index.js`).
-- Frontend runtime: Node Web Service, root directory `apps/web`.
-  Build command is `npm ci --include=dev --legacy-peer-deps && npm run build`; start command
-  is `npm start` (`scripts/serve-production.mjs`).
+- Frontend runtime: Static Site, root directory `apps/web`. Build command is
+  `npm ci --include=dev --legacy-peer-deps && npm run build`; publish directory
+  is `dist`. A Static Site has no start command.
 
 ## Manual service creation (only if Blueprint is not used)
 
@@ -46,16 +46,19 @@ The generated backend entrypoint is `dist/index.js`; never select
 `src/index.ts` in production. The Dockerfile remains available for a deliberate
 container deployment but is not used by this Blueprint.
 
-Frontend Web Service (the current deployment type):
+Frontend Static Site (the current deployment type):
 
 - Root Directory: `apps/web`
 - Build Command: `npm ci --include=dev --legacy-peer-deps && npm run build`
-- Start Command: `npm start`
-- Start file: `scripts/serve-production.mjs`
-- Health Check Path: `/health`
+- Publish Directory: `dist`
+- Start Command: none; this field does not exist for a Static Site
+- Redirect/Rewrite: source `/*`, destination `/index.html`, action `Rewrite`
 
-The production server serves immutable hashed assets and rewrites unknown HTML
-routes to `dist/index.html`, so refreshing a client-side route remains valid.
+Never enter `npm start` in the Publish Directory field. Render resolves the
+publish directory relative to `apps/web`, so it must be exactly `dist`. The SPA
+rewrite keeps refreshes of client-side routes valid. The optional
+`scripts/serve-production.mjs` entrypoint is retained only for a deliberate
+Node Web Service deployment and is not used by the Static Site.
 
 ## Domains and DNS
 
@@ -122,7 +125,8 @@ Before opening the site publicly:
 1. Backend `/health` returns 200 without RPC work.
 2. Backend `/api/health/base` reports chain `8453` and status `ready`.
 3. Backend `/api/health/arc` reports chain `5042002` and status `ready`.
-4. `https://kletiaai.xyz` loads with no localhost requests in DevTools.
+4. `https://kletiaai.xyz` loads with no localhost requests in DevTools; its
+   root response and a nested-path refresh both return the frontend.
 5. Switching Base -> Arc changes wallet network and clears stale executable
    intents; switching Arc -> Base does the same.
 6. Test one read-only intent per network before any value-bearing intent.

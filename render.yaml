@@ -94,23 +94,44 @@ services:
   # Unified Base Mainnet + Arc Testnet frontend
   - type: web
     name: kletia-frontend
-    runtime: node
+    runtime: static
     rootDir: apps/web
-    plan: starter
     # Vite, TypeScript and React types are build-time devDependencies.
     buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
-    startCommand: npm start
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin-allow-popups
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=(self)
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
     domains:
       - kletiaai.xyz
     renderSubdomainPolicy: enabled
-    healthCheckPath: /health
-    maxShutdownDelaySeconds: 30
     autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 22.23.1
-      - key: PORT
-        value: "10000"
       - key: VITE_BACKEND_URL
         value: https://api.kletiaai.xyz
       - key: VITE_BASE_RPC_URL

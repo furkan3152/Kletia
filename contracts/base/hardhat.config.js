@@ -31,6 +31,31 @@ module.exports = {
         },
       },
     ],
+    overrides: {
+      // The live X402Factory deployment was compiled with this exact profile.
+      // Keep the override pinned so local metadata and BaseScan verification
+      // remain reproducible even though the rest of the package uses 0.8.24.
+      "contracts/x402/X402Factory.sol": {
+        version: "0.8.20",
+        settings: {
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+      "contracts/x402/X402Gateway.sol": {
+        version: "0.8.20",
+        settings: {
+          evmVersion: "paris",
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+    },
   },
   networks: {
     base: {

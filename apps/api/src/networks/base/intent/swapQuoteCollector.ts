@@ -1,7 +1,7 @@
 import { erc20Abi, parseUnits, type Address, type Hex } from "viem";
 
 import type { ParsedIntent } from "../../../ai/parser.js";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { getAerodromeRoutes } from "../dex/aerodrome.js";
 import { getUniswapAndV2Routes } from "../dex/standardAmm.js";
 import { getV3Routes } from "../dex/v3Amm.js";
@@ -11,15 +11,15 @@ import {
   summarizeQuoteCoverage,
   type SwapQuoteCoverage,
   type SwapQuoteSource,
-} from "../../../intent/routingPolicy.js";
+} from "../routingPolicy.js";
 import {
   applyBaseProtocolExclusions,
   assertBaseProtocolConstraintCompatibility,
   assertProtocolExclusionsLeaveEligibleRoutes,
   type ProtocolExclusionEvidence,
-} from "../../../intent/protocolConstraints.js";
-import { checkTokenSecurity } from "../../../intent/security.js";
-import { getAddressSafe } from "../../../intent/utils.js";
+} from "../protocolConstraints.js";
+import { checkTokenSecurity } from "../security.js";
+import { getAddressSafe } from "../utils.js";
 
 export const BASE_SWAP_QUOTE_COLLECTION_POLICY =
   "kletia_base_swap_quote_collection_v1" as const;
@@ -180,14 +180,14 @@ export async function collectBaseSwapQuotes(
   const isNativeOut = normalizedTokenOutSymbol === "ETH";
   const decimalsIn = isNativeIn
     ? 18
-    : await publicClient.readContract({
+    : await basePublicClient.readContract({
         address: tokenInAddress,
         abi: erc20Abi,
         functionName: "decimals",
       });
   const decimalsOut = isNativeOut
     ? 18
-    : await publicClient.readContract({
+    : await basePublicClient.readContract({
         address: tokenOutAddress,
         abi: erc20Abi,
         functionName: "decimals",
@@ -197,10 +197,10 @@ export async function collectBaseSwapQuotes(
   const maxRequested = requestedAmount.toUpperCase() === "MAX";
   let amountInWei = maxRequested ? 0n : parseUnits(requestedAmount, decimalsIn);
   const balance = isNativeIn
-    ? await publicClient.getBalance({
+    ? await basePublicClient.getBalance({
         address: userAddress as Address,
       })
-    : await publicClient.readContract({
+    : await basePublicClient.readContract({
         address: tokenInAddress,
         abi: erc20Abi,
         functionName: "balanceOf",

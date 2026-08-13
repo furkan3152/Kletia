@@ -1,5 +1,5 @@
 import { encodeFunctionData, formatUnits } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { TOKENS, ROUTERS, UNI_V2_ROUTER_ABI } from "../contracts.js";
 
 export interface StandardAmmProtocolDiagnostics {
@@ -62,7 +62,7 @@ export async function getUniswapAndV2Routes(
         while (nextPath < pathsToTry.length) {
           const path = pathsToTry[nextPath++];
           try {
-            const amounts = (await publicClient.readContract({
+            const amounts = (await basePublicClient.readContract({
               address: routerAddr,
               abi: UNI_V2_ROUTER_ABI,
               functionName: "getAmountsOut",

@@ -12,23 +12,30 @@ runs.
 
 ## Canonical Base Mainnet deployment record
 
-The current non-secret deployment and Timelock operation record is stored in
+The current non-secret deployment and governance record is stored in
 `deployments/base-mainnet-v2.json`. That file is the repository handoff source;
 do not copy addresses, salts or timestamps from chat transcripts or external
 agent reports.
 
-The recorded Uniswap canary is presently in the `configure_scheduled` state.
-Until both `configureAdapter(adapter, false)` and the separately delayed
-`enableAdapter(adapter)` operation have executed, keep the backend and frontend
-release modes at `legacy_v1` and keep runtime evidence unset. After enablement,
-the manifest-bound exporter can be run with:
+The original V2 deployment used a 48-hour Timelock and is retained in the
+manifest only as historical evidence. The active release policy uses the
+existing two-of-two Governance Safe directly as owner, with separate two-of-two
+Guardian and Treasury Safes. There is no delay contract in the active topology.
+Deploy and configure the replacement in one fail-closed operation with:
 
 ```bash
+npm run deploy:v2:direct-safe
+npm run verify:v2:blockscout
 npm run evidence:v2:base:deployment
 ```
 
-The exporter still validates every live invariant; the manifest never makes a
-pending or drifted deployment executable by itself.
+The deployment command validates the chain, exact Safe owner set and threshold,
+all role accounts, adapter and WETH code, and the full gas balance before it
+sends its first transaction. It deploys the three non-upgradeable contracts,
+then submits one Safe transaction signed by both owners to configure and enable
+the reviewed Uniswap V2 adapter. A failed precondition creates no partial
+deployment. The exporter still validates every live invariant; the manifest
+never makes a pending or drifted deployment executable by itself.
 
 This pending swap state does not quarantine the two independent deployments.
 `KletiaLaunchFactoryV2` is connected through the explicit `launch_v2` token
@@ -41,15 +48,15 @@ the pending intent router execution authority or changes Arc Testnet behavior.
 
 | Role | Production account | Capability |
 |---|---|---|
-| Owner | OpenZeppelin `TimelockController`, minimum delay `172800` seconds | Adapter enable/configure, unpause, fee/treasury/governance changes and paused rescue |
-| Proposer/canceller | Governance Safe | Schedule or cancel Timelock operations |
-| Executor | Open execution role (`address(0)`) | Execute an already mature operation; cannot schedule one |
+| Owner | Two-of-two Governance Safe | Adapter enable/configure, unpause, fee/treasury/governance changes and paused rescue |
 | Guardian | Separate security Safe | Pause the router and disable adapters only |
 | Treasury | Separate treasury Safe | Receive transparent protocol fees; no governance authority |
 
-Deploy `TimelockController` with the Governance Safe as proposer,
-`address(0)` as executor and no external admin. The Timelock remains its own
-administrator. Never use a production EOA as router, factory or registry owner.
+Never use a production EOA as router, factory or registry owner. The direct
+Governance Safe must keep a threshold of at least two and must not share the
+Guardian or Treasury address. Removing the delay intentionally trades scheduled
+review time for immediate two-party execution; the exporter records that policy
+explicitly rather than pretending the Safe is a Timelock.
 The Guardian and Treasury must not be the router, an adapter, a protocol target,
 a factory, WETH or a traded token.
 
@@ -132,20 +139,19 @@ authorize Pancake V3, Aerodrome, Slipstream or a generic V3 router.
    audit may be commissioned separately, but this runbook does not invent one
    as a deployment prerequisite or claim that internal tests prove “zero
    vulnerabilities”.
-6. Exercise Timelock delay, guardian pause/disable, nonce invalidation, exact
+6. Exercise Governance Safe execution, guardian pause/disable, nonce invalidation, exact
    approvals, ERC-1271, treasury acceptance and emergency procedures against a
    pinned local fork of the deployed Base Mainnet topology. Do not deploy this
    release to Base Sepolia.
-7. Deploy production Safes and the 48-hour Timelock. Record their policies and
-   signer threshold outside this repository.
-8. Deploy adapters, then the router with the Timelock as initial owner. Use a
+7. Deploy production Safes and record their policies and signer threshold.
+8. Deploy adapters, then the router with the Governance Safe as initial owner. Use a
    bounded initial fee (the current application policy is 10 bps); the contract
    hard cap is 100 bps.
-9. Verify exact source for every Kletia deployment before scheduling any
-   adapter configuration.
-10. Schedule `configureAdapter(adapter, false)` through the Timelock. After
-   independent bytecode/evidence review, schedule `enableAdapter(adapter)`.
-11. Export the live runtime evidence only after the enable transaction is
+9. Verify exact source for every Kletia deployment and recheck the compiled
+   runtime outside constructor immutable fields.
+10. Submit `configureAdapter(adapter, true)` through the two-of-two Governance
+    Safe after both signers review the exact target and calldata.
+11. Export the live runtime evidence only after the Safe transaction is
     confirmed.
 12. Activate a small Uniswap V2 canary. Observe successful and reverted
     executions, fee accounting, nonce use and security scans before expanding.
@@ -166,7 +172,7 @@ npx hardhat verify --network base <ADAPTER_ADDRESS> \
   0x4200000000000000000000000000000000000006
 
 npx hardhat verify --network base <ROUTER_ADDRESS> \
-  <TIMELOCK_ADDRESS> <GUARDIAN_SAFE> \
+  <GOVERNANCE_SAFE> <GUARDIAN_SAFE> \
   0x4200000000000000000000000000000000000006 \
   <TREASURY_SAFE> <INITIAL_FEE_BPS>
 ```
@@ -183,7 +189,7 @@ The exporter is read-only and requires no signer:
 
 ```bash
 export KLETIA_V2_ROUTER_ADDRESS=<ROUTER_ADDRESS>
-export KLETIA_V2_TIMELOCK_ADDRESS=<TIMELOCK_ADDRESS>
+export KLETIA_V2_GOVERNANCE_MODE=direct_safe
 export KLETIA_V2_GOVERNANCE_SAFE=<GOVERNANCE_SAFE>
 export KLETIA_V2_GUARDIAN_SAFE=<GUARDIAN_SAFE>
 export KLETIA_V2_TREASURY_SAFE=<TREASURY_SAFE>
@@ -197,12 +203,12 @@ npm run evidence:v2:base
 
 It refuses the wrong chain, missing code, paused router, disabled adapter,
 identity drift, Router02 factory/WETH drift, noncanonical Base WETH, any
-codehash mismatch, a Timelock shorter than 48 hours, an EOA/one-signer role,
+codehash mismatch, an EOA/one-signer role,
 an active pending router-owner transfer, a live fee different from the required
 decimal `KLETIA_V2_EXPECTED_FEE_BPS` policy, or
 governance/guardian/treasury capability overlap. Safe module/guard policy
-and the complete Timelock role event history still require an independent
-release review; read-only interface checks cannot prove their absence. Store
+still require an independent release review; read-only interface checks cannot
+prove their absence. Store
 the exporter's single-line JSON output as the server-only
 `KLETIA_INTENT_ROUTER_V2_EVIDENCE_JSON`.
 
@@ -235,7 +241,7 @@ marker-stripped response cannot silently downgrade into a direct swap.
 2. The backend remains fail-closed. Do not conceal the incident by automatically
    changing execution mode.
 3. Publish the affected adapter, block and transaction range.
-4. Governance schedules the corrective action through the 48-hour Timelock.
+4. Both Governance Safe owners review and sign the corrective action.
 5. Re-run fork tests, exact-source/codehash review and runtime evidence export
    before unpausing or re-enabling.
 

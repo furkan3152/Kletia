@@ -8,7 +8,10 @@
   },
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "reserves:status": "KLETIA_RESERVE_ACTION=status node scripts/reconcile-reserves.js",
+    "reconcile:reserves": "KLETIA_RESERVE_ACTION=fund node scripts/reconcile-reserves.js",
+    "deploy:vault-v2": "hardhat run scripts/deploy-vault-v2.js"
   },
   "keywords": [],
   "author": "Kletia",

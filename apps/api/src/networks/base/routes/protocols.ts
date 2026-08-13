@@ -19,7 +19,7 @@ function requiredBodyString(
   if (typeof value !== "string" || !value.trim()) {
     throw new BaseX402IntentError(
       `X402_DISCOVERY_${field.toUpperCase()}_INVALID`,
-      `${field} boş olmayan tek bir metin değeri olmalıdır.`,
+      `${field} must be a single non-empty text value.`,
     );
   }
   return value.trim();
@@ -30,7 +30,7 @@ function bodyCuratedOnly(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   throw new BaseX402IntentError(
     "X402_DISCOVERY_CURATED_ONLY_INVALID",
-    "curatedOnly yalnızca JSON boolean olabilir.",
+    "curatedOnly must be a JSON boolean.",
   );
 }
 
@@ -45,7 +45,7 @@ router.get("/x402/services", (_req, res) => {
     success: false,
     code: "X402_DISCOVERY_POST_REQUIRED",
     message:
-      "x402 keşif sorguları URL kayıtlarına sızmaması için POST JSON ile gönderilmelidir.",
+      "x402 discovery queries must be sent via POST JSON to avoid leaking in URL logs.",
     network: "base",
     chainId: NETWORKS.base.chainId,
   });
@@ -126,7 +126,7 @@ router.post("/x402/services", async (req, res) => {
     ) {
       throw new BaseX402IntentError(
         "X402_DISCOVERY_BODY_INVALID",
-        "x402 keşif isteği bir JSON nesnesi olmalıdır.",
+        "x402 discovery request must be a JSON object.",
       );
     }
     const result = await discoverBaseX402Services({
@@ -147,7 +147,7 @@ router.post("/x402/services", async (req, res) => {
       code: known ? error.code : "X402_BAZAAR_UNAVAILABLE",
       message: known
         ? error.message
-        : "CDP Bazaar servis araması şu anda kullanılamıyor.",
+        : "CDP Bazaar service search is currently unavailable.",
       network: "base",
       chainId: NETWORKS.base.chainId,
     });

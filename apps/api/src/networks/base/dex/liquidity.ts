@@ -1,4 +1,4 @@
-import { getAddressSafe } from "../../../intent/utils.js";
+import { getAddressSafe } from "../utils.js";
 import { buildAddLiquidityRoutes } from "./addLiquidity.js";
 import { buildRemoveLiquidityRoutes } from "./removeLiquidity.js";
 
@@ -17,14 +17,14 @@ export async function getLiquidityRoutes(
   }
   if (!tOut)
     throw new Error(
-      "🚨 Havuz işlemleri (LP) için 2 adet token belirtilmelidir. Örn: 'Add 100 USDC and WETH to pool'",
+      "🚨 Two tokens must be specified for pool operations (LP). E.g., 'Add 100 USDC and WETH to pool'.",
     );
 
   const tA_Address = getAddressSafe(tIn === "ETH" ? "WETH" : tIn);
   const tB_Address = getAddressSafe(tOut === "ETH" ? "WETH" : tOut);
 
   if (!tA_Address || !tB_Address)
-    throw new Error(`Geçersiz token çifti: ${tIn}-${tOut}`);
+    throw new Error(`Invalid token pair: ${tIn}-${tOut}`);
 
   const isNativeA = tIn.toUpperCase() === "ETH";
   const isNativeB = tOut.toUpperCase() === "ETH";

@@ -8,7 +8,7 @@ import {
   type EntityClarification,
   type IntentEntityResolutionEvidence,
 } from "./assets/resolver.js";
-import { executeKletiaEngine } from "./intent/engine.js";
+import { executeKletiaEngine } from "./networks/base/engine.js";
 import { executeArcEngine } from "./networks/arc/engine.js";
 import { createVerifiedIntentResultEnvelope } from "./intent/responseEnvelope.js";
 import {
@@ -32,7 +32,7 @@ import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { pathToFileURL } from "url";
 import { getAddress, zeroAddress } from "viem";
-import { resolveBasenameEvidence } from "./intent/utils.js";
+import { resolveBasenameEvidence } from "./networks/base/utils.js";
 import {
   NETWORKS,
   NETWORK_CLIENTS,
@@ -45,6 +45,7 @@ import {
   requireFixedBaseNetwork,
   requireIntentNetwork,
 } from "./middleware/network.js";
+import "./config/productionEnvironment.js";
 
 (BigInt.prototype as any).toJSON = function () {
   return this.toString();
@@ -152,7 +153,7 @@ const onrampLimiter = rateLimit({
   message: {
     success: false,
     code: "ONRAMP_RATE_LIMITED",
-    message: "Onramp istek limiti aşıldı. Lütfen daha sonra tekrar deneyin.",
+    message: "Onramp request limit exceeded. Please try again later.",
   },
 });
 
@@ -336,7 +337,7 @@ app.post(
         success: false,
         code: "INVALID_BASENAME",
         message:
-          "Yeniden doğrulanacak alıcı geçerli bir .base veya .base.eth adı olmalıdır.",
+          "Recipient to be revalidated must be a valid .base or .base.eth name.",
         network: network.id,
         chainId: network.chainId,
         requestId,
@@ -356,7 +357,7 @@ app.post(
         success: false,
         code: "INVALID_REVALIDATION_ADDRESS",
         message:
-          "Beklenen alıcı ve aktif cüzdan geçerli, sıfır olmayan EVM adresleri olmalıdır.",
+          "Expected recipient and active wallet must be valid, non-zero EVM addresses.",
         network: network.id,
         chainId: network.chainId,
         requestId,
@@ -381,7 +382,7 @@ app.post(
           success: false,
           code: "BASENAME_UNRESOLVED",
           message:
-            "Basename imzadan hemen önce yeniden çözümlenemedi; işlem planı kullanılmadı.",
+            "Basename could not be re-resolved immediately before signing; transaction plan was not used.",
           network: network.id,
           chainId: network.chainId,
           requestId,
@@ -393,7 +394,7 @@ app.post(
           success: false,
           code: "BASENAME_RECORD_CHANGED",
           message:
-            "Basename adres kaydı plan oluşturulduktan sonra değişti; yeni niyet oluşturulmalıdır.",
+            "Basename address record changed after plan creation; a new intent must be created.",
           network: network.id,
           chainId: network.chainId,
           requestId,
@@ -425,7 +426,7 @@ app.post(
         success: false,
         code: "BASENAME_REVALIDATION_UNAVAILABLE",
         message:
-          "Basename yeniden doğrulaması tamamlanamadı; işlem gönderilmedi.",
+          "Basename revalidation could not be completed; transaction was not sent.",
         network: network.id,
         chainId: network.chainId,
         requestId,
@@ -489,7 +490,7 @@ app.post(
         return res.status(400).json({
           success: false,
           code: "INVALID_ONRAMP_REQUEST",
-          message: "Onramp isteği desteklenmeyen alan içeriyor.",
+          message: "Onramp request contains unsupported fields.",
           network: "base",
           chainId: NETWORKS.base.chainId,
         });
@@ -498,7 +499,7 @@ app.post(
         return res.status(400).json({
           success: false,
           code: "INVALID_ADDRESS",
-          message: "address alanı zorunludur.",
+          message: "The address field is required.",
           network: "base",
           chainId: NETWORKS.base.chainId,
         });
@@ -514,7 +515,7 @@ app.post(
         return res.status(503).json({
           success: false,
           code: "ONRAMP_NOT_CONFIGURED",
-          message: "Coinbase onramp sunucu kimlik bilgileri yapılandırılmamış.",
+          message: "Coinbase onramp server credentials are not configured.",
           network: "base",
           chainId: NETWORKS.base.chainId,
         });
@@ -586,7 +587,7 @@ app.post(
         return res.status(502).json({
           success: false,
           code: "ONRAMP_PROVIDER_REJECTED",
-          message: "Coinbase onramp oturumu oluşturulamadı.",
+          message: "Failed to create Coinbase onramp session.",
           network: "base",
           chainId: NETWORKS.base.chainId,
         });
@@ -624,10 +625,10 @@ app.post(
           ? "ONRAMP_PROVIDER_TIMEOUT"
           : "ONRAMP_TOKEN_ERROR";
       const message = invalidAddress
-        ? "Geçersiz cüzdan adresi."
+        ? "Invalid wallet address."
         : timedOut
-          ? "Coinbase onramp zaman aşımına uğradı."
-          : "Coinbase onramp oturumu güvenli biçimde doğrulanamadı.";
+          ? "Coinbase onramp timed out."
+          : "Coinbase onramp session could not be securely verified.";
       return res.status(statusCode).json({
         success: false,
         code,
@@ -659,8 +660,8 @@ app.post(
       return res.status(400).json({
         success: false,
         code: "INVALID_INTENT_REQUEST",
-        error: "prompt ve userAddress alanları zorunludur.",
-        message: "prompt ve userAddress alanları zorunludur.",
+        error: "The prompt and userAddress fields are required.",
+        message: "The prompt and userAddress fields are required.",
         ...responseMetadata,
       });
     }
@@ -674,8 +675,8 @@ app.post(
       return res.status(400).json({
         success: false,
         code: "INVALID_CONVERSATION_ID",
-        error: "conversationId geçersiz.",
-        message: "conversationId geçersiz.",
+        error: "Invalid conversationId.",
+        message: "Invalid conversationId.",
         ...responseMetadata,
       });
     }
@@ -696,14 +697,15 @@ app.post(
       return res.status(400).json({
         success: false,
         code: "INVALID_CLARIFICATION_SELECTION",
-        error: "Token seçimi geçersiz.",
-        message: "Token seçimi geçersiz.",
+        error: "Invalid token selection.",
+        message: "Invalid token selection.",
         ...responseMetadata,
       });
     }
 
     console.log(
-      `\n📡 [YENİ EMİR][${network.id}:${network.chainId}][${requestId}] ` +
+      `
+📡 [NEW ORDER][${network.id}:${network.chainId}][${requestId}] ` +
         `promptLength=${String(prompt).length} wallet=${userAddress.substring(0, 6)}…`,
     );
 
@@ -731,9 +733,9 @@ app.post(
           success: false,
           code: "CONVERSATION_CONTEXT_INVALID",
           error:
-            "Konuşma bağlamı bulunamadı, süresi doldu veya cüzdan/ağ ile eşleşmedi.",
+            "Conversation context not found, expired, or does not match wallet/network.",
           message:
-            "Konuşma bağlamı bulunamadı, süresi doldu veya cüzdan/ağ ile eşleşmedi.",
+            "Conversation context not found, expired, or does not match wallet/network.",
           ...responseMetadata,
         });
       }
@@ -749,8 +751,8 @@ app.post(
           return res.status(409).json({
             success: false,
             code: "CLARIFICATION_CONTEXT_INVALID",
-            error: "Token seçim bağlamı geçersiz.",
-            message: "Token seçim bağlamı geçersiz.",
+            error: "Token selection context is invalid.",
+            message: "Token selection context is invalid.",
             ...responseMetadata,
           });
         }
@@ -763,9 +765,9 @@ app.post(
           return res.status(409).json({
             success: false,
             code: "CLARIFICATION_OPTION_INVALID",
-            error: "Seçilen token bu bekleyen niyetin adayları arasında değil.",
+            error: "Selected token is not among the candidates for the pending intent.",
             message:
-              "Seçilen token bu bekleyen niyetin adayları arasında değil.",
+              "Selected token is not among the candidates for the pending intent.",
             ...responseMetadata,
           });
         }
@@ -786,8 +788,8 @@ app.post(
           return res.status(409).json({
             success: false,
             code: "CLARIFICATION_CONTEXT_REQUIRED",
-            error: "Token seçimi için geçerli ve bekleyen bir niyet gerekli.",
-            message: "Token seçimi için geçerli ve bekleyen bir niyet gerekli.",
+            error: "A valid and pending intent is required for token selection.",
+            message: "A valid and pending intent is required for token selection.",
             ...responseMetadata,
           });
         }
@@ -797,7 +799,7 @@ app.post(
       history.push({ role: "user", content: prompt });
       history.push({
         role: "assistant",
-        content: parsedIntent.message || "Anlaşıldı.",
+        content: parsedIntent.message || "Understood.",
       });
       console.log(
         `[PARSED INTENT][${network.id}:${network.chainId}][${requestId}] ` +

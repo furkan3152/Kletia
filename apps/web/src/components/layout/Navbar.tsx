@@ -7,7 +7,6 @@ import { getNetwork, type NetworkMode } from "../../config/networks";
 import { useNetwork } from "../../hooks/useNetwork";
 
 interface NavbarProps {
-  onBaseMcpHandoff: () => void;
   address?: string;
   handleFundClick: (wallet: string, e: React.MouseEvent) => void;
   onMenuClick: () => void;
@@ -18,7 +17,6 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  onBaseMcpHandoff,
   address,
   handleFundClick,
   onMenuClick,
@@ -47,29 +45,35 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
   return (
-    <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-4 bg-white dark:bg-[#131E32] border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[0_4px_0_#1A1A1A] dark:shadow-[0_4px_0_#475569] z-50 relative">
-      <div className="flex items-center gap-3 md:gap-4">
-        {}
-        <button
-          onClick={onMenuClick}
-          className="p-1.5 md:p-2.5 bg-white dark:bg-[#1A2841] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all duration-100 ease-out"
-        >
-          <Menu className="w-5 h-5 text-[#1A1A1A] dark:text-white" />
-        </button>
+    <header className="relative z-50 shrink-0 border-b-[4px] border-[#1A1A1A] bg-white px-3 py-3 shadow-[0_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:shadow-[0_4px_0_#475569] sm:px-4 md:px-6 md:py-4">
+      <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open Kletia navigation"
+            className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569]"
+          >
+            <Menu
+              className="h-5 w-5 text-[#1A1A1A] dark:text-white"
+              aria-hidden="true"
+            />
+          </button>
 
-        {}
-        <div className="flex items-center justify-center shrink-0 w-9 h-9 md:w-14 md:h-14 bg-transparent border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-transparent shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] md:h-14 md:w-14">
           <img
-            src="https://i.ibb.co/0ySyGq7N/logo.png"
+            src="/kletia-logo.png"
             alt="Kletia"
-            className="w-5 h-5 md:w-8 md:h-8 object-contain"
+            width="32"
+            height="32"
+            className="h-6 w-6 object-contain md:h-8 md:w-8"
           />
         </div>
-        <div className="flex flex-col">
-          <h1 className="text-xl md:text-3xl font-black text-[#1A1A1A] dark:text-white tracking-tighter uppercase leading-none flex items-center gap-1 md:gap-2">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-1 text-lg font-black uppercase leading-none tracking-tighter text-[#1A1A1A] dark:text-white sm:text-xl md:gap-2 md:text-3xl">
             KLETIA
             <span
-              className="text-[10px] md:text-xs font-bold tracking-normal text-white px-2 py-0.5 border-[2px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
+              className="border-[2px] border-[#1A1A1A] px-1.5 py-0.5 text-[9px] font-bold tracking-normal text-white shadow-[2px_2px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569] sm:px-2 sm:text-[10px] md:text-xs"
               style={{ backgroundColor: activeNetwork.color }}
             >
               {activeNetwork.badge}
@@ -78,9 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 md:gap-4">
-        {}
-        <div className="hidden lg:block">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 md:gap-4">
+        <div className="hidden xl:block">
           <NetworkSwitcher
             networkMode={effectiveNetworkMode}
             onToggle={toggleNetwork}
@@ -89,24 +92,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
         </div>
 
-        {}
         {baseMcpHandoffEnabled && (
-          <div className="relative group hidden sm:flex items-center">
+          <div className="relative hidden items-center xl:flex">
             <button
-              onClick={onBaseMcpHandoff}
-              title="Open the official Base MCP handoff guide. This does not claim an OAuth connection."
-              className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-all duration-100 ease-out hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] dark:border-[#4B5563]"
+              type="button"
+              disabled
+              aria-disabled="true"
+              title="Base Agent Mode is in development."
+              className="flex min-h-11 cursor-not-allowed items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#1A1A1A] opacity-75 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563]"
             >
               <Bot className="w-4 h-4" />
-              <span>BASE MCP AGENT</span>
+              <span>BASE AGENT</span>
+              <span className="border-2 border-[#1A1A1A] bg-[#FFD700] px-1.5 py-0.5 text-[8px] leading-none">
+                SOON
+              </span>
             </button>
           </div>
         )}
-        {}
         {Boolean(address) && (
           <button
+            type="button"
             onClick={handleFunding}
-            className="hidden md:flex items-center justify-center gap-2 px-3 py-1.5 bg-[#FFD700] hover:bg-[#FACC15] dark:bg-[#60A5FA] dark:hover:bg-[#3B82F6] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-[#1A1A1A] font-black shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all duration-100 ease-out cursor-pointer"
+            className="hidden min-h-11 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD700] px-3 py-2 font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#FACC15] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#60A5FA] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#3B82F6] xl:flex"
           >
             <CreditCard className="w-4 h-4" />
             <span className="text-xs">
@@ -115,8 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {}
-        <div className="flex gap-2 items-center">
+        <div className="flex min-w-0 items-center">
           <ConnectButton.Custom>
             {({
               account,
@@ -137,6 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               return (
                 <div
+                  className="min-w-0"
                   {...(!ready && {
                     "aria-hidden": true,
                     style: {
@@ -152,9 +159,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           onClick={openConnectModal}
                           type="button"
-                          className="px-4 py-1.5 bg-[#0052FF] text-white font-black uppercase tracking-wider text-xs md:text-sm border-[3px] border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
+                          className="min-h-11 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none sm:px-4 sm:text-xs md:text-sm"
                         >
-                          Connect Wallet
+                          <span className="sm:hidden">Connect</span>
+                          <span className="hidden sm:inline">Connect Wallet</span>
                         </button>
                       );
                     }
@@ -164,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           onClick={openChainModal}
                           type="button"
-                          className="px-4 py-1.5 bg-[#EF4444] text-white font-black uppercase tracking-wider text-xs md:text-sm border-[3px] border-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
+                          className="min-h-11 border-[3px] border-[#1A1A1A] bg-[#EF4444] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none sm:px-4 sm:text-xs md:text-sm"
                         >
                           Wrong Network
                         </button>
@@ -176,10 +184,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <button
                           onClick={openAccountModal}
                           type="button"
-                          className="flex items-center gap-2 px-3 md:px-4 py-1.5 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] bg-white dark:bg-[#1A2841] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] hover:-translate-y-1 hover:shadow-[5px_5px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
+                          className="flex min-h-11 max-w-[7.5rem] items-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-2.5 py-2 shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] sm:max-w-[10rem] sm:px-3 md:px-4"
                         >
                           <span className="w-2 h-2 rounded-full bg-[#10B981] border-[1px] border-[#1A1A1A]"></span>
-                          <span className="font-mono text-xs md:text-sm font-black text-[#1A1A1A] dark:text-white">
+                          <span className="truncate font-mono text-[11px] font-black text-[#1A1A1A] dark:text-white sm:text-xs md:text-sm">
                             {account.displayName}
                           </span>
                         </button>
@@ -190,6 +198,49 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             }}
           </ConnectButton.Custom>
+        </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 border-t-[3px] border-[#1A1A1A] pt-3 dark:border-[#4B5563] xl:hidden">
+        <NetworkSwitcher
+          networkMode={effectiveNetworkMode}
+          onToggle={toggleNetwork}
+          isSwitching={networkIsSwitching}
+          error={networkError}
+          showStatusBadge={false}
+        />
+        <div className="flex items-center gap-2">
+          {baseMcpHandoffEnabled && (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label="Base Agent Mode is in development"
+              title="Base Agent Mode is in development."
+            className="flex h-11 min-w-11 cursor-not-allowed items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] px-3 text-[10px] font-black uppercase text-[#1A1A1A] opacity-75 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563]"
+          >
+              <Bot className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Base Agent</span>
+              <span className="border-2 border-[#1A1A1A] bg-[#FFD700] px-1 py-0.5 text-[8px] leading-none">
+                SOON
+              </span>
+            </button>
+          )}
+          {Boolean(address) && (
+            <button
+              type="button"
+              onClick={handleFunding}
+              aria-label={activeNetwork.funding.label}
+              title={activeNetwork.funding.label}
+              className="flex h-11 min-w-11 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD700] px-3 text-[10px] font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#60A5FA] dark:shadow-[3px_3px_0_#475569]"
+            >
+              <CreditCard className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">
+                {activeNetwork.funding.label}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </header>

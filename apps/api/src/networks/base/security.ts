@@ -1,6 +1,6 @@
-import { publicClient } from "../config/client.js";
+import { basePublicClient } from "../../config/client.js";
 import { decodeAbiParameters, erc20Abi, getAddress, type Hex } from "viem";
-import { BASE_TOKEN_REGISTRY } from "../networks/base/protocols.js";
+import { BASE_TOKEN_REGISTRY } from "./protocols.js";
 
 const SECURITY_PROVIDER_TIMEOUT_MS = 8_000;
 export type TokenSecurityPolicy = "registered" | "dynamic_execution";
@@ -143,7 +143,7 @@ export async function checkTokenSecurity(
       security.fake_token?.value === 1;
     if (hasHardRisk) {
       throw securityRisk(
-        "Token güvenlik sağlayıcısı işlemi durduran yüksek risk sinyali bildirdi.",
+        "Token security provider reported a high-risk signal that halted the operation.",
       );
     }
     if (policy === "dynamic_execution") {
@@ -172,7 +172,7 @@ export async function checkTokenSecurity(
   } catch (e: any) {
     if (e?.code === "TOKEN_SECURITY_RISK") throw e;
     throw Object.assign(
-      new Error("Token güvenliği doğrulanamadı; rota fail-closed durduruldu."),
+      new Error("Token security could not be verified; route fail-closed halted."),
       { code: "TOKEN_SECURITY_UNAVAILABLE", statusCode: 503 },
     );
   }
@@ -188,7 +188,7 @@ export async function xRaySimulate(
   returnPolicy?: SimulationReturnPolicy,
 ): Promise<XRaySimulationResult> {
   try {
-    const callResult = await publicClient.call({
+    const callResult = await basePublicClient.call({
       account: user as `0x${string}`,
       to: router,
       data,
@@ -209,13 +209,13 @@ export async function xRaySimulate(
             throw new Error("Approval amount must be positive.");
           }
           const [balance, allowance] = await Promise.all([
-            publicClient.readContract({
+            basePublicClient.readContract({
               address: safeAddr,
               abi: erc20Abi,
               functionName: "balanceOf",
               args: [user as `0x${string}`],
             }),
-            publicClient.readContract({
+            basePublicClient.readContract({
               address: safeAddr,
               abi: erc20Abi,
               functionName: "allowance",

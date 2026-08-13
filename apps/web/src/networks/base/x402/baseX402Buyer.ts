@@ -106,7 +106,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const requiredAddress = (value: unknown, label: string): Address => {
   if (typeof value !== "string" || !isAddress(value)) {
-    throw new Error(`x402 ${label} alanı geçerli bir EVM adresi değil.`);
+    throw new Error(`x402 ${label} field is not a valid EVM address.`);
   }
   return getAddress(value);
 };
@@ -130,7 +130,7 @@ export function assertBaseX402PaymentRequirement(
     requirement.maxTimeoutSeconds > MAX_PAYMENT_TIMEOUT_SECONDS
   ) {
     throw new Error(
-      "x402 ödeme gereksinimi ekranda doğrulanan Base/USDC/tutar/alıcı politikasıyla eşleşmiyor.",
+      "x402 payment requirement does not match the validated Base/USDC/amount/recipient policy on screen.",
     );
   }
 
@@ -142,7 +142,7 @@ export function assertBaseX402PaymentRequirement(
     (extra.assetTransferMethod !== undefined &&
       extra.assetTransferMethod !== "eip3009")
   ) {
-    throw new Error("x402 Base USDC EIP-3009 alanı onaylı değil.");
+    throw new Error("x402 Base USDC EIP-3009 field is not approved.");
   }
   return requirement;
 }
@@ -176,7 +176,7 @@ function validateExactAuthorization(
     BigInt(String(message.value)) !== expectedAmount
   ) {
     throw new Error(
-      "Cüzdanın imzalaması istenen EIP-3009 yetkilendirmesi doğrulanmış x402 planından farklı.",
+      "The EIP-3009 authorization requested for wallet signature differs from the validated x402 plan.",
     );
   }
 
@@ -197,7 +197,7 @@ function validateExactAuthorization(
     !/^0x[0-9a-fA-F]{64}$/u.test(nonce)
   ) {
     throw new Error(
-      "x402 EIP-3009 nonce veya yetkilendirme zaman aralığı geçersiz.",
+      "x402 EIP-3009 nonce or authorization time range is invalid.",
     );
   }
 
@@ -256,7 +256,7 @@ export async function createBaseX402PaymentAuthorization(input: {
     paymentRequirementsSelector: (version, requirements) => {
       if (version !== X402_PROTOCOL_VERSION || requirements.length !== 1) {
         throw new Error(
-          "x402 sunucusu tek ve doğrulanabilir bir v2 ödeme seçeneği sunmadı.",
+          "x402 server did not provide a single verifiable v2 payment option.",
         );
       }
       return assertBaseX402PaymentRequirement(requirements[0], input.evidence);
@@ -274,7 +274,7 @@ export async function createBaseX402PaymentAuthorization(input: {
   ) {
     throw new Error(
       paymentRequired.error ||
-        "x402 challenge kaynağı doğrulanan URL ile eşleşmiyor.",
+        "x402 challenge source does not match the verified URL.",
     );
   }
   assertBaseX402PaymentRequirement(paymentRequired.accepts[0], input.evidence);
@@ -286,7 +286,7 @@ export async function createBaseX402PaymentAuthorization(input: {
     !("accepted" in payload) ||
     !payload.accepted
   ) {
-    throw new Error("x402 istemcisi geçerli bir v2 ödeme payloadı üretmedi.");
+    throw new Error("x402 client did not produce a valid v2 payment payload.");
   }
   assertBaseX402PaymentRequirement(payload.accepted, input.evidence);
   const encoded = httpClient.encodePaymentSignatureHeader(payload);
@@ -296,10 +296,10 @@ export async function createBaseX402PaymentAuthorization(input: {
     paymentSignature.length < 32 ||
     paymentSignature.length > 32_768
   ) {
-    throw new Error("x402 ödeme imzası güvenli boyut sınırında üretilemedi.");
+    throw new Error("x402 payment signature could not be generated within secure size limits.");
   }
   if (!authorizationNonce) {
-    throw new Error("x402 EIP-3009 authorization nonce üretilemedi.");
+    throw new Error("x402 EIP-3009 authorization nonce could not be generated.");
   }
 
   return {
@@ -325,7 +325,7 @@ export async function verifyBaseX402PaymentResult(input: {
   );
   if (processed.recovered) {
     throw new Error(
-      "x402 kanalı ikinci bir imza istedi; otomatik yeniden ödeme kapalıdır.",
+      "x402 channel requested a second signature; automatic retry payment is disabled.",
     );
   }
   const rawSettlement =
@@ -333,7 +333,7 @@ export async function verifyBaseX402PaymentResult(input: {
     input.getPaidHeader("X-PAYMENT-RESPONSE");
   if (!rawSettlement) {
     throw new Error(
-      "Ücretli yanıt x402 settlement kanıtı içermiyor; veri kabul edilmedi.",
+      "Paid response does not contain x402 settlement proof; data rejected.",
     );
   }
   const settlement = decodePaymentResponseHeader(rawSettlement);
@@ -351,7 +351,7 @@ export async function verifyBaseX402PaymentResult(input: {
     throw new Error(
       settlement.errorMessage ||
         settlement.errorReason ||
-        "x402 settlement ağ, ödeyen, tutar veya işlem kanıtı doğrulanamadı.",
+        "x402 settlement network, payer, amount, or transaction proof could not be verified.",
     );
   }
   return {
@@ -374,7 +374,7 @@ export function assertBaseX402SettlementReceipt(input: {
     getAddress(input.receipt.to) !== BASE_USDC
   ) {
     throw new Error(
-      "x402 settlement işlemi Base USDC üzerinde başarılı olarak doğrulanamadı.",
+      "x402 settlement transaction was not successfully verified on Base USDC.",
     );
   }
   const expectedPayTo = getAddress(input.evidence.payTo);
@@ -417,7 +417,7 @@ export function assertBaseX402SettlementReceipt(input: {
   });
   if (!exactTransfer || !exactAuthorizationUsed) {
     throw new Error(
-      "Base makbuzu, bu imzanın nonce değerini ve gösterilen alıcıya giden tam USDC tutarını birlikte kanıtlamıyor.",
+      "Base receipt does not jointly prove this signature's nonce and the exact USDC amount sent to the indicated recipient.",
     );
   }
 }

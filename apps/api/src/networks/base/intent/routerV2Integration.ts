@@ -8,7 +8,7 @@ import {
 } from "viem";
 
 import type { ParsedIntent } from "../../../ai/parser.js";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { normalizeBaseProtocolId } from "../protocols.js";
 import {
   BASE_MAINNET_CHAIN_ID,
@@ -33,16 +33,16 @@ import {
 import {
   assertBaseProtocolConstraintCompatibility,
   isBaseProtocolExcluded,
-} from "../../../intent/protocolConstraints.js";
+} from "../protocolConstraints.js";
 import {
   SWAP_QUOTE_SOURCES,
   parseSlippageBps,
-} from "../../../intent/routingPolicy.js";
+} from "../routingPolicy.js";
 import {
   xRaySimulate,
   type XRaySimulationResult,
-} from "../../../intent/security.js";
-import { getAddressSafe } from "../../../intent/utils.js";
+} from "../security.js";
+import { getAddressSafe } from "../utils.js";
 
 const V2_INTENT_TTL_SECONDS = 5n * 60n;
 const MAX_NONCE_ATTEMPTS = 8;
@@ -481,11 +481,11 @@ export async function selectUnusedBaseIntentV2Nonce(
 function createDefaultDependencies(): BaseIntentV2SwapIntegrationDependencies {
   return {
     validateRuntime: (config) =>
-      validateBaseIntentV2Runtime(config, publicClient),
+      validateBaseIntentV2Runtime(config, basePublicClient),
     collectQuotes: (intent, userAddress) =>
       collectBaseSwapQuotes(intent, userAddress, "intent_router_v2"),
     blockTimestamp: async (blockNumber) => {
-      const block = await publicClient.getBlock({
+      const block = await basePublicClient.getBlock({
         blockNumber,
       });
       return block.timestamp;
@@ -495,7 +495,7 @@ function createDefaultDependencies(): BaseIntentV2SwapIntegrationDependencies {
         router,
         owner,
         async (checkedRouter, checkedOwner, nonce) =>
-          publicClient.readContract({
+          basePublicClient.readContract({
             address: checkedRouter,
             abi: KLETIA_INTENT_ROUTER_V2_ABI,
             functionName: "isNonceUsed",
@@ -503,7 +503,7 @@ function createDefaultDependencies(): BaseIntentV2SwapIntegrationDependencies {
           }),
       ),
     tokenDecimals: async (token) =>
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: token,
         abi: erc20Abi,
         functionName: "decimals",

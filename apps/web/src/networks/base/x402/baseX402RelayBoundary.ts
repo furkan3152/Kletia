@@ -41,7 +41,7 @@ export function parseBaseX402BuyerSession(
   displayedEvidence: BaseX402ChallengeEvidence,
 ): BaseX402BuyerSession {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("x402 relay oturumu geçersiz bir yanıt döndürdü.");
+    throw new Error("x402 relay session returned an invalid response.");
   }
   const data = value as Record<string, unknown>;
   const expiresAt =
@@ -67,7 +67,7 @@ export function parseBaseX402BuyerSession(
     !isBaseX402ChallengeEvidence(data.evidence, plan, expectedUserAddress)
   ) {
     throw new Error(
-      "x402 relay oturumu aktif plan, cüzdan veya Base ağıyla eşleşmiyor.",
+      "x402 relay session active plan does not match wallet or Base network.",
     );
   }
   const evidence = data.evidence as BaseX402ChallengeEvidence;
@@ -82,7 +82,7 @@ export function parseBaseX402BuyerSession(
     evidence.maxTimeoutSeconds !== displayedEvidence.maxTimeoutSeconds
   ) {
     throw new Error(
-      "Canlı x402 challenge ekranda gösterilen fiyat veya alıcıdan değişti; yeni plan onayı gerekli.",
+      "Live x402 challenge price or recipient changed from displayed; new plan approval required.",
     );
   }
   return {
@@ -100,7 +100,7 @@ export function parseBaseX402PaidEnvelope(
   expectedUserAddress: Address,
 ): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Ücretli kaynak güvenli JSON zarfı döndürmedi.");
+    throw new Error("Paid resource did not return a secure JSON envelope.");
   }
   const envelope = value as Record<string, unknown>;
   if (
@@ -119,7 +119,7 @@ export function parseBaseX402PaidEnvelope(
     !("data" in envelope)
   ) {
     throw new Error(
-      "Ücretli kaynak sonucu aktif x402 oturumu veya başarılı upstream yanıtıyla eşleşmiyor.",
+      "Paid resource result does not match active x402 session or successful upstream response.",
     );
   }
   return envelope.data;
@@ -132,7 +132,7 @@ export function parseBaseX402BuyerStatus(
   expectedUserAddress: Address,
 ): BaseX402BuyerStatus {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("x402 ödeme durumu geçersiz bir yanıt döndürdü.");
+    throw new Error("x402 payment status returned an invalid response.");
   }
   const status = value as Record<string, unknown>;
   const paymentStates = new Set([
@@ -157,7 +157,7 @@ export function parseBaseX402BuyerStatus(
     typeof status.retryable !== "boolean" ||
     (status.retryable && status.paymentState !== "prepared")
   ) {
-    throw new Error("x402 ödeme durumu aktif oturum kimliğiyle eşleşmiyor.");
+    throw new Error("x402 payment status does not match the active session ID.");
   }
 
   let settlement: BaseX402BuyerStatus["settlement"];
@@ -168,7 +168,7 @@ export function parseBaseX402BuyerStatus(
       typeof status.settlement !== "object" ||
       Array.isArray(status.settlement)
     ) {
-      throw new Error("x402 settlement durumu geçersiz.");
+      throw new Error("x402 settlement status is invalid.");
     }
     const raw = status.settlement as Record<string, unknown>;
     if (
@@ -181,7 +181,7 @@ export function parseBaseX402BuyerStatus(
       !/^0x[0-9a-fA-F]{64}$/u.test(raw.transaction) ||
       /^0x0{64}$/iu.test(raw.transaction)
     ) {
-      throw new Error("x402 settlement kanıtı aktif oturumla eşleşmiyor.");
+      throw new Error("x402 settlement proof does not match the active session.");
     }
     settlement = {
       payer: getAddress(raw.payer),
@@ -190,7 +190,7 @@ export function parseBaseX402BuyerStatus(
       network: "eip155:8453",
     };
   } else if (status.paymentState === "settled") {
-    throw new Error("Settled x402 durumu işlem kanıtı içermiyor.");
+    throw new Error("Settled x402 status lacks transaction proof.");
   }
 
   return {

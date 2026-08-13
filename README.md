@@ -105,12 +105,19 @@ npm --prefix contracts/arc run compile
 Contract deployment credentials remain in ignored, package-local `.env` files.
 Application services do not need deployer private keys.
 
+Operational and migration runbooks:
+
+- [Base V2 router release and verification](contracts/base/contracts/v2/DEPLOYMENT.md)
+- [Arc Vault V2 migration](contracts/arc/VAULT_V2_MIGRATION.md)
+- [Base contract workspace and X402Factory exact verification](contracts/base/README.md)
+
 ## Deployment
 
-[`render.yaml`](render.yaml) defines two Node Web Services:
+[`render.yaml`](render.yaml) defines the two production services that make up
+the unified application:
 
-- `apps/api` for `api.kletiaai.xyz`
-- `apps/web` for `kletiaai.xyz`
+- a Node Web Service from `apps/api` for `api.kletiaai.xyz`
+- a Static Site from `apps/web` for `kletiaai.xyz`
 
 The exact dashboard settings, environment boundaries, DNS steps, and release
 checks are in [Render Deployment](docs/RENDER_DEPLOYMENT.md).

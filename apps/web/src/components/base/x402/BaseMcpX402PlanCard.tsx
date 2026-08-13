@@ -209,7 +209,7 @@ export function BaseMcpX402PlanCard({
         publicClient?.chain?.id !== BASE_CHAIN_ID
       ) {
         throw new Error(
-          "x402 onayı sırasında bağlı cüzdan veya ağ değişti; ödeme durduruldu.",
+          "Connected wallet or network changed during x402 approval; payment stopped.",
         );
       }
     },
@@ -236,26 +236,26 @@ export function BaseMcpX402PlanCard({
         !isAddress(expectedUserAddress)
       ) {
         throw new Error(
-          "Base cüzdanını bağla ve canlı x402 challenge doğrulamasını yenile.",
+          "Connect Base wallet and refresh live x402 challenge verification.",
         );
       }
       const expectedAccount = getAddress(expectedUserAddress);
       if (getAddress(address) !== expectedAccount) {
         throw new Error(
-          "Aktif cüzdan, bu x402 planındaki cüzdanla eşleşmiyor.",
+          "Active wallet does not match the wallet in this x402 plan.",
         );
       }
       if (
         !isBaseX402ChallengeEvidence(challengeEvidence, plan, expectedAccount)
       ) {
         throw new Error(
-          "x402 challenge kanıtı eskimiş veya planla eşleşmiyor.",
+          "x402 challenge evidence is outdated or does not match the plan.",
         );
       }
       assertWalletContext(expectedAccount);
 
       setPaymentState("preparing");
-      setPaymentMessage("Canlı 402 challenge yeniden doğrulanıyor…");
+      setPaymentMessage("Refreshing live 402 challenge verification...");
       const startingUsdcBalance = await publicClient.readContract({
         address: BASE_USDC,
         abi: ERC20_BALANCE_ABI,
@@ -265,7 +265,7 @@ export function BaseMcpX402PlanCard({
       assertWalletContext(expectedAccount);
       if (startingUsdcBalance < BigInt(challengeEvidence.amountAtomic)) {
         throw new Error(
-          `Bağlı cüzdanda ${challengeEvidence.amount} USDC x402 ödemesi için yeterli Base USDC yok.`,
+          `Insufficient Base USDC in the connected wallet for ${challengeEvidence.amount} USDC x402 payment.`,
         );
       }
       const commonHeaders = {
@@ -304,7 +304,7 @@ export function BaseMcpX402PlanCard({
           throw new Error(
             typeof sessionPayload?.message === "string"
               ? sessionPayload.message
-              : `x402 relay hazırlığı HTTP ${sessionResponse.status} ile durdu.`,
+              : `x402 relay preparation stopped with HTTP ${sessionResponse.status}.`,
           );
         }
         session = parseBaseX402BuyerSession(
@@ -326,26 +326,26 @@ export function BaseMcpX402PlanCard({
       assertWalletContext(expectedAccount);
       if (usdcBalance < BigInt(session.evidence.amountAtomic)) {
         throw new Error(
-          `Bağlı cüzdanda ${session.evidence.amount} USDC x402 ödemesi için yeterli Base USDC yok.`,
+          `Insufficient Base USDC in the connected wallet for ${session.evidence.amount} USDC x402 payment.`,
         );
       }
 
       const relayUrl = new URL(session.relayPath, BACKEND_URL);
       if (relayUrl.origin !== BACKEND_URL) {
-        throw new Error("x402 relay adresi Kletia backend sınırının dışında.");
+        throw new Error("x402 relay address is outside the Kletia backend boundary.");
       }
       const unpaidResponse = await requestWithTimeout(relayUrl, {
         headers: commonHeaders,
       });
       if (unpaidResponse.status !== 402) {
         throw new Error(
-          `x402 relay beklenen ödeme challenge'ı yerine HTTP ${unpaidResponse.status} döndürdü.`,
+          `x402 relay expected payment challenge but returned HTTP ${unpaidResponse.status}.`,
         );
       }
 
       setPaymentState("awaiting_signature");
       setPaymentMessage(
-        `${session.evidence.amount} USDC için cüzdan onayı bekleniyor…`,
+        `${session.evidence.amount} Waiting for wallet confirmation for USDC…`,
       );
       const buyer = await import("../../../networks/base/x402/baseX402Buyer");
       const paymentContext = await buyer.createBaseX402PaymentAuthorization({
@@ -364,7 +364,7 @@ export function BaseMcpX402PlanCard({
 
       setPaymentState("submitting");
       setPaymentMessage(
-        "İmzalı x402 isteği yalnızca doğrulanan kaynağa gönderiliyor…",
+        "Signed x402 request is sent only to the verified source...",
       );
       signedPayloadForwarded = true;
       const paidResponse = await requestWithTimeout(
@@ -386,7 +386,7 @@ export function BaseMcpX402PlanCard({
       });
       setTransactionHash(settlement.transaction);
       setPaymentState("verifying");
-      setPaymentMessage("Base makbuzu ve tam USDC transferi doğrulanıyor…");
+      setPaymentMessage("Verifying Base receipt and full USDC transfer...");
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: settlement.transaction,
         confirmations: 1,
@@ -411,26 +411,26 @@ export function BaseMcpX402PlanCard({
       setPaidData(data);
       setPaymentState("success");
       setPaymentMessage(
-        `${session.evidence.amount} USDC settlement ve ücretli yanıt doğrulandı.`,
+        `${session.evidence.amount} USDC settlement and fee response confirmed.`,
       );
     } catch (error) {
       if (isWalletRejection(error)) {
         setPaymentState("cancelled");
         setPaymentMessage(
-          "Cüzdan onayı kullanıcı tarafından iptal edildi; ödeme yapılmadı.",
+          "Wallet approval was cancelled by the user; payment not made.",
         );
       } else if (settlementVerified) {
         setPaymentState("paid_response_invalid");
         setPaymentMessage(
-          `USDC ödemesi Base makbuzuyla kesinleşti ancak dış kaynağın yanıtı güvenli biçimde doğrulanamadı. Tekrar ödeme yapma. ${safeErrorMessage(
+          `USDC payment finalized with Base receipt, but external source response could not be securely verified. Do not retry payment. ${safeErrorMessage(
             error,
-            "Ücretli kaynak yanıtı geçersiz.",
+            "Paid resource response is invalid.",
           )}`,
         );
       } else if (signedPayloadForwarded) {
         setPaymentState("indeterminate");
         setPaymentMessage(
-          `İmza kaynağa gönderildikten sonra kesin sonuç doğrulanamadı; otomatik tekrar kapalı. ${safeErrorMessage(
+          `Final result could not be verified after signature sent to source; auto retry disabled. ${safeErrorMessage(
             error,
             "Settlement sonucu belirsiz.",
           )}`,
@@ -438,7 +438,7 @@ export function BaseMcpX402PlanCard({
       } else {
         setPaymentState("failed");
         setPaymentMessage(
-          safeErrorMessage(error, "x402 onayı ödeme gönderilmeden durduruldu."),
+          safeErrorMessage(error, "x402 confirmation was stopped before payment was sent."),
         );
       }
     } finally {
@@ -458,7 +458,7 @@ export function BaseMcpX402PlanCard({
       !publicClient
     ) {
       setPaymentMessage(
-        "Bu sayfada doğrulanabilir bir x402 ödeme oturumu bulunamadı; intent planını yeniden oluştur.",
+        "No verifiable x402 payment session found on this page; recreate the intent plan.",
       );
       return;
     }
@@ -467,7 +467,7 @@ export function BaseMcpX402PlanCard({
     try {
       const expectedAccount = getAddress(expectedUserAddress);
       if (getAddress(address) !== expectedAccount) {
-        throw new Error("Aktif cüzdan x402 ödeme oturumuyla eşleşmiyor.");
+        throw new Error("Active wallet does not match the x402 payment session.");
       }
       const response = await requestWithTimeout(
         new URL(`${session.relayPath}/status`, BACKEND_URL),
@@ -497,7 +497,7 @@ export function BaseMcpX402PlanCard({
       if (status.paymentState === "prepared" && status.retryable) {
         setPaymentState("failed");
         setPaymentMessage(
-          "İmza upstream kaynağa iletilmemiş; aynı doğrulanmış oturumla yeniden cüzdan onayı isteyebilirsin.",
+          "Signature was not forwarded to the upstream source; you can request wallet approval again with the same verified session.",
         );
         return;
       }
@@ -517,7 +517,7 @@ export function BaseMcpX402PlanCard({
         });
         setPaymentState("paid_response_invalid");
         setPaymentMessage(
-          "Ödeme Base makbuzu ve imzalanan nonce ile kesin olarak doğrulandı; kaybolan ücretli API yanıtı otomatik tekrar çağrılmadı.",
+          "Payment was definitively verified with Base receipt and signed nonce; missing paid API response was not automatically retried.",
         );
         return;
       }
@@ -525,15 +525,15 @@ export function BaseMcpX402PlanCard({
       setPaymentMessage(
         status.paymentState === "verifying" ||
           status.paymentState === "submitting"
-          ? "Ödeme hâlâ doğrulanıyor; otomatik tekrar yok. Biraz sonra durumu yeniden kontrol et."
-          : "Relay kesin bir settlement kanıtı taşımıyor; yeni ödeme yapma ve intent planını yeniden oluşturma.",
+          ? "Payment is still being verified; no automatic retry. Check the status again shortly."
+          : "Relay does not carry definitive settlement proof; do not make a new payment and recreate the intent plan.",
       );
     } catch (error) {
       setPaymentState("indeterminate");
       setPaymentMessage(
-        `x402 ödeme durumu kesinleştirilemedi; otomatik tekrar kapalı. ${safeErrorMessage(
+        `x402 payment status could not be finalized; auto retry disabled. ${safeErrorMessage(
           error,
-          "Durum servisi kullanılamıyor.",
+          "Status service is unavailable.",
         )}`,
       );
     } finally {

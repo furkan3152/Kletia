@@ -3,7 +3,7 @@ import type {
   BaseLendingRoute,
   BaseRiskTolerance,
   BaseYieldRankingEvidence,
-} from "../networks/base/intent/routeTypes.js";
+} from "./intent/routeTypes.js";
 
 const RISK_RANK = {
   core: 0,

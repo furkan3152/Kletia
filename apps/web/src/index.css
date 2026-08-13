@@ -6,18 +6,50 @@ html,
 body,
 #root {
   height: 100%;
+  min-height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Prevent ANY whole-page scrolling */
-  background-color: #0d0d0d; /* Kletia Dark */
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: #0d0d0d;
   color: #ececec;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
 }
 
-/* Chat için görünmez kaydırma çubuğu */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  button {
+    min-height: 44px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Hidden scrollbar for the chat viewport. */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -213,19 +245,21 @@ body,
     box-shadow 0.15s;
 }
 
-.arc-feature-card:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 #1a1a1a;
-}
-
 .dark .arc-feature-card {
   background: #131e32;
   border-color: #4b5563;
   box-shadow: 4px 4px 0 #475569;
 }
 
-.dark .arc-feature-card:hover {
-  box-shadow: 6px 6px 0 #475569;
+@media (hover: hover) {
+  .arc-feature-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 #1a1a1a;
+  }
+
+  .dark .arc-feature-card:hover {
+    box-shadow: 6px 6px 0 #475569;
+  }
 }
 
 /* Input Fields */
@@ -339,4 +373,76 @@ body,
 
 .arc-mode .arc-link-btn:hover {
   background: var(--arc-primary-dark);
+}
+
+@media (max-width: 640px) {
+  .arc-dashboard {
+    padding: 0.25rem;
+  }
+
+  .arc-dashboard-header {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-width: 3px;
+    box-shadow: 4px 4px 0 #1a1a1a;
+  }
+
+  .dark .arc-dashboard-header {
+    box-shadow: 4px 4px 0 #475569;
+  }
+
+  .arc-dashboard-header-left {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .arc-dashboard-header-icon {
+    font-size: 1.5rem;
+  }
+
+  .arc-dashboard-title {
+    font-size: 1.125rem;
+    line-height: 1.4;
+  }
+
+  .arc-dashboard-subtitle {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+  }
+
+  .arc-section {
+    margin-bottom: 1rem;
+  }
+
+  .arc-feature-card {
+    padding: 1rem;
+    box-shadow: 3px 3px 0 #1a1a1a;
+  }
+
+  .dark .arc-feature-card {
+    box-shadow: 3px 3px 0 #475569;
+  }
+
+  .arc-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .arc-link-btn {
+    min-height: 44px;
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

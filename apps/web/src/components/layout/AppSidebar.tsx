@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Sun,
   TrendingUp,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -91,7 +92,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   }, [activeTab, availableSections, setActiveTab, setIsPortfolioOpen]);
 
   const navItemClass = (isActive: boolean) =>
-    `w-full flex items-center justify-between px-4 py-3 font-black border-[3px] border-[#1A1A1A] dark:border-[#4B5563] transition-all duration-100 ease-out group cursor-pointer ${
+    `group flex min-h-12 w-full items-center justify-between border-[3px] border-[#1A1A1A] px-4 py-3 font-black transition-[transform,box-shadow,background-color] duration-100 ease-out focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] ${
       isActive
         ? "text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] translate-x-2"
         : "bg-white dark:bg-[#1E293B] text-[#1A1A1A] dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[8px_8px_0_#1A1A1A] dark:hover:shadow-[8px_8px_0_#475569]"
@@ -111,23 +112,56 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     }
   };
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isOpen, setIsOpen]);
+
   return (
     <>
       {isOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/50 z-40"
+        <button
+          type="button"
+          aria-label="Close Kletia navigation"
+          className="fixed inset-0 z-[55] bg-black/60 md:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed md:relative top-0 left-0 h-full md:h-[calc(100%-2rem)] bg-white dark:bg-[#131E32] border-r-[4px] md:border-[4px] border-[#1A1A1A] dark:border-[#4B5563] md:shadow-[8px_8px_0_#1A1A1A] dark:md:shadow-[8px_8px_0_#475569] z-40 flex flex-col transition-all duration-300 ease-in-out pt-20 md:pt-0 md:m-4 md:rounded shrink-0 ${
+        aria-label="Kletia workspace navigation"
+        aria-hidden={!isOpen}
+        className={`fixed left-0 top-0 z-[60] flex h-[100dvh] w-[min(20rem,calc(100vw-1rem))] shrink-0 flex-col border-r-[4px] border-[#1A1A1A] bg-white transition-[transform,opacity] duration-200 ease-in-out dark:border-[#4B5563] dark:bg-[#131E32] md:relative md:z-40 md:m-4 md:h-[calc(100%-2rem)] md:rounded md:border-[4px] md:shadow-[8px_8px_0_#1A1A1A] dark:md:shadow-[8px_8px_0_#475569] ${
           isOpen
-            ? "w-72 translate-x-0 md:mr-0"
-            : "w-0 -translate-x-full md:-ml-8 opacity-0 overflow-hidden md:m-0 border-none md:border-none shadow-none md:shadow-none"
+            ? "translate-x-0 opacity-100 md:w-72 md:mr-0"
+            : "pointer-events-none -translate-x-full overflow-hidden opacity-0 md:m-0 md:-ml-8 md:w-0 md:border-none md:shadow-none"
         }`}
       >
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-8 custom-scrollbar">
+        <div className="flex min-h-16 items-center justify-between border-b-[4px] border-[#1A1A1A] px-4 pt-[env(safe-area-inset-top)] dark:border-[#4B5563] md:hidden">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">
+              Workspace
+            </p>
+            <p className="font-black uppercase text-[#1A1A1A] dark:text-white">
+              Kletia navigation
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close navigation"
+            className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-white shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569]"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="custom-scrollbar flex-1 space-y-8 overflow-y-auto px-4 py-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2 ml-2 mr-1">
               <div className="min-w-0">
@@ -184,7 +218,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     </div>
                     <ChevronRight
                       size={16}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="opacity-60 transition-opacity duration-100 group-hover:opacity-100"
+                      aria-hidden="true"
                     />
                   </button>
                 );
@@ -199,7 +234,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-1.5 border-[2px] border-[#1A1A1A] dark:border-[#4B5563] bg-[#EFEFEF] dark:bg-[#0F172A] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-100 ease-out"
+              aria-label={isDarkMode ? "Use light theme" : "Use dark theme"}
+              className="flex h-11 w-11 items-center justify-center border-[2px] border-[#1A1A1A] bg-[#EFEFEF] shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#0F172A] dark:shadow-[2px_2px_0_#475569]"
             >
               {isDarkMode ? (
                 <Sun className="w-4 h-4 text-[#FFD700]" />
@@ -211,7 +247,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <button
             type="button"
             onClick={clearMessages}
-            className="w-full p-2 mt-2 border-[2px] border-[#1A1A1A] dark:border-[#4B5563] bg-[#FF3B30] text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569] hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all duration-100 ease-out font-black flex items-center justify-center gap-2 uppercase tracking-widest"
+            className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border-[2px] border-[#1A1A1A] bg-[#FF3B30] p-2 font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]"
           >
             <MessageSquare className="w-4 h-4" /> CLEAR HISTORY
           </button>

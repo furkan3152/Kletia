@@ -36,7 +36,7 @@ const SECURITY_ACTION_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> =
 
 const safeSecurityErrorMessage = (
   error: unknown,
-  fallback = "Güvenlik kontrolü başarısız.",
+  fallback = "Security check failed.",
 ): string => {
   if (!(error instanceof Error)) return fallback;
   const sanitized = error.message
@@ -77,7 +77,7 @@ export function useSecureWriteContract() {
       publicClient?.chain?.id !== expectedChainId
     ) {
       throw new Error(
-        "Cüzdan hesabı veya ağı güvenlik kontrolü sırasında değişti; işlem iptal edildi.",
+        "Wallet account or network changed during security check; transaction cancelled.",
       );
     }
   };
@@ -88,12 +88,12 @@ export function useSecureWriteContract() {
     securityAction: string,
   ) => {
     if (!address) {
-      throw new Error("Güvenlik kontrolü için hedef adres eksik.");
+      throw new Error("Target address missing for security check.");
     }
     const target = getAddress(address);
     const normalizedAction = securityAction.trim().toLowerCase();
     if (!/^[a-z][a-z0-9_]{0,63}$/.test(normalizedAction)) {
-      throw new Error("Güvenlik kontrolü için geçerli bir action gerekli.");
+      throw new Error("A valid action is required for the security check.");
     }
 
     const controller = new AbortController();
@@ -118,7 +118,7 @@ export function useSecureWriteContract() {
       if (!res.ok || data?.status !== "success") {
         throw new Error(
           data?.message ||
-            "Güvenlik servisi hedefi doğrulayamadı; işlem gönderilmedi.",
+            "Security service failed to verify the target; transaction not sent.",
         );
       }
 
@@ -147,13 +147,13 @@ export function useSecureWriteContract() {
         const tags = Array.isArray(data.tags)
           ? ` Riskler: ${data.tags.join(", ")}`
           : "";
-        throw new Error(`Güvenlik politikası işlemi engelledi.${tags}`);
+        throw new Error(`Security policy blocked the operation.${tags}`);
       }
       return data;
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         throw new Error(
-          "Güvenlik servisi zaman aşımına uğradı; kontrolsüz işlem gönderilmedi.",
+          "Security service timed out; uncontrolled transaction not sent.",
           { cause: error },
         );
       }
@@ -165,20 +165,20 @@ export function useSecureWriteContract() {
 
   const runChecks = async (args: SecureWriteContractArgs) => {
     if (!publicClient || !account) {
-      throw new Error("İşlem güvenliği için cüzdan bağlantısı gerekiyor.");
+      throw new Error("Wallet connection required for transaction security.");
     }
     const network = getNetworkByChainId(chainId);
     if (!network) {
       throw new Error(`Desteklenmeyen chain ID: ${chainId}.`);
     }
     if (args.chainId !== undefined && args.chainId !== network.chainId) {
-      throw new Error("İşlem isteğindeki chain ID aktif ağla eşleşmiyor.");
+      throw new Error("Chain ID in transaction request does not match the active network.");
     }
     const allowedFunctions =
       SECURITY_ACTION_FUNCTIONS[args.securityAction.trim().toLowerCase()];
     if (!allowedFunctions || !allowedFunctions.has(args.functionName)) {
       throw new Error(
-        "Güvenlik action alanı bu kontrat fonksiyonuna bağlı değil.",
+        "Security action field is not associated with this contract function.",
       );
     }
 

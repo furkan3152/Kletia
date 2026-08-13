@@ -1,6 +1,6 @@
 import { namehash, normalize } from "viem/ens";
-import { publicClient } from "../config/client.js";
-import { TOKENS, ROUTERS } from "../networks/base/contracts.js";
+import { basePublicClient } from "../../config/client.js";
+import { TOKENS, ROUTERS } from "./contracts.js";
 import { getAddress, zeroAddress, type Address } from "viem";
 
 export const getAddressSafe = (
@@ -40,8 +40,8 @@ export async function resolveBasenameEvidence(
     normalizedName = normalize(normalizedName);
     const node = namehash(normalizedName);
     const L2Resolver = ROUTERS.BNS_RESOLVER;
-    const observedAtBlock = await publicClient.getBlockNumber();
-    const addr = await publicClient.readContract({
+    const observedAtBlock = await basePublicClient.getBlockNumber();
+    const addr = await basePublicClient.readContract({
       address: L2Resolver,
       abi: [
         {

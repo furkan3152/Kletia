@@ -155,7 +155,7 @@ function readJournal(
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Bu trace kimliği için yerel yürütme kaydı planla eşleşmiyor. Güvenlik için yeniden gönderim engellendi.",
+          "Local execution record for this trace ID does not match the plan. Resubmission blocked for security.",
         updatedAt: new Date().toISOString(),
       };
     }
@@ -168,7 +168,7 @@ function readJournal(
       state: "blocked",
       consumed: true,
       statusMessage:
-        "Yerel yürütme günlüğü okunamadı. Olası çift işlem riskine karşı yeniden gönderim engellendi.",
+        "Local execution log could not be read. Resubmission blocked to prevent potential double-spend risk.",
       updatedAt: new Date().toISOString(),
     };
   }
@@ -225,7 +225,7 @@ export function getArcAppKitJournalState(
     state: entry.state === "started" ? "blocked" : entry.state,
     statusMessage:
       entry.state === "started"
-        ? "Önceki App Kit denemesi imza/yayın aşamasında kesildi. Zincir durumu doğrulanmadan aynı niyet yeniden gönderilemez."
+        ? "Previous App Kit attempt was interrupted during signature/broadcast phase. The same intent cannot be resubmitted without chain state verification."
         : entry.statusMessage,
     txHash: entry.txHash,
   };
@@ -240,13 +240,13 @@ function assertDecimal(
   field: string,
 ): asserts value is string {
   if (typeof value !== "string" || !DECIMAL_INPUT.test(value)) {
-    throw new Error(`${field} geçerli bir ondalık sayı değil.`);
+    throw new Error(`${field} is not a valid decimal number.`);
   }
   if ((value.split(".")[1] || "").length > decimals) {
-    throw new Error(`${field} ${decimals} ondalık hassasiyetini aşıyor.`);
+    throw new Error(`${field} exceeds ${decimals} decimal precision.`);
   }
   if (parseUnits(value, decimals) <= 0n) {
-    throw new Error(`${field} sıfırdan büyük olmalıdır.`);
+    throw new Error(`${field} must be greater than zero.`);
   }
 }
 
@@ -256,10 +256,10 @@ function assertNonNegativeDecimal(
   field: string,
 ): asserts value is string {
   if (typeof value !== "string" || !DECIMAL_INPUT.test(value)) {
-    throw new Error(`${field} geçerli bir ondalık sayı değil.`);
+    throw new Error(`${field} is not a valid decimal number.`);
   }
   if ((value.split(".")[1] || "").length > decimals) {
-    throw new Error(`${field} ${decimals} ondalık hassasiyetini aşıyor.`);
+    throw new Error(`${field} exceeds ${decimals} decimal precision.`);
   }
   parseUnits(value, decimals);
 }
@@ -272,7 +272,7 @@ function assertSameDecimal(
 ): asserts actual is string {
   assertDecimal(actual, decimals, field);
   if (parseUnits(actual, decimals) !== parseUnits(expected, decimals)) {
-    throw new Error(`${field} imzalanan niyetle eşleşmiyor.`);
+    throw new Error(`${field} does not match the signed intent.`);
   }
 }
 
@@ -286,7 +286,7 @@ function assertSameAddress(
     !isAddress(actual) ||
     getAddress(actual) !== getAddress(expected)
   ) {
-    throw new Error(`${field} aktif niyetle eşleşmiyor.`);
+    throw new Error(`${field} does not match the active intent.`);
   }
 }
 
@@ -295,7 +295,7 @@ function assertTransactionHash(
   field: string,
 ): asserts value is `0x${string}` {
   if (typeof value !== "string" || !TX_HASH.test(value)) {
-    throw new Error(`${field} geçerli bir işlem hash’i değil.`);
+    throw new Error(`${field} is not a valid transaction hash.`);
   }
 }
 
@@ -309,7 +309,7 @@ export function assertArcAppKitPlan(
   plan: unknown,
 ): asserts plan is ArcAppKitExecutionPlan {
   if (!plan || typeof plan !== "object") {
-    throw new Error("Circle App Kit planı eksik.");
+    throw new Error("Circle App Kit plan is missing.");
   }
   const candidate = plan as Record<string, unknown>;
   if (
@@ -319,7 +319,7 @@ export function assertArcAppKitPlan(
     typeof candidate.traceId !== "string" ||
     !TRACE_ID.test(candidate.traceId)
   ) {
-    throw new Error("Circle App Kit planı Arc Testnet politikasına uymuyor.");
+    throw new Error("Circle App Kit plan does not comply with Arc Testnet policy.");
   }
   if (candidate.operation === "swap") {
     if (
@@ -327,25 +327,25 @@ export function assertArcAppKitPlan(
       !TOKENS.has(candidate.tokenOut as ArcAppKitToken) ||
       candidate.tokenIn === candidate.tokenOut
     ) {
-      throw new Error("Circle App Kit swap token çifti geçersiz.");
+      throw new Error("Circle App Kit swap token pair is invalid.");
     }
     assertDecimal(
       candidate.amount,
       tokenDecimals(candidate.tokenIn as ArcAppKitToken),
-      "App Kit miktarı",
+      "App Kit amount",
     );
     if (
       !Number.isSafeInteger(candidate.slippageBps) ||
       Number(candidate.slippageBps) <= 0 ||
       Number(candidate.slippageBps) > 500
     ) {
-      throw new Error("Circle App Kit swap toleransı geçersiz.");
+      throw new Error("Circle App Kit swap slippage tolerance is invalid.");
     }
     if (candidate.minimumOutput !== undefined) {
       assertDecimal(
         candidate.minimumOutput,
         tokenDecimals(candidate.tokenOut as ArcAppKitToken),
-        "Minimum alınacak miktar",
+        "Minimum output amount",
       );
     }
     return;
@@ -356,9 +356,9 @@ export function assertArcAppKitPlan(
       (candidate.token !== "USDC" && candidate.token !== "EURC") ||
       !isAddress(String(candidate.recipient || ""))
     ) {
-      throw new Error("Circle App Kit Send planı geçersiz.");
+      throw new Error("Circle App Kit Send plan is invalid.");
     }
-    assertDecimal(candidate.amount, 6, "App Kit miktarı");
+    assertDecimal(candidate.amount, 6, "App Kit amount");
     return;
   }
 
@@ -370,14 +370,14 @@ export function assertArcAppKitPlan(
       candidate.useForwarder !== true ||
       (candidate.transferSpeed !== "FAST" && candidate.transferSpeed !== "SLOW")
     ) {
-      throw new Error("Circle App Kit bridge planı geçersiz.");
+      throw new Error("Circle App Kit bridge plan is invalid.");
     }
-    assertDecimal(candidate.amount, 6, "App Kit miktarı");
+    assertDecimal(candidate.amount, 6, "App Kit amount");
     if (candidate.transferSpeed === "FAST" && candidate.maxFee === undefined) {
-      throw new Error("FAST bridge için maksimum ücret sınırı eksik.");
+      throw new Error("Maximum fee limit is missing for FAST bridge.");
     }
     if (candidate.maxFee !== undefined) {
-      assertDecimal(candidate.maxFee, 6, "Maksimum bridge ücreti");
+      assertDecimal(candidate.maxFee, 6, "Maximum bridge fee");
     }
     if (
       candidate.transferSpeed === "FAST" &&
@@ -385,11 +385,11 @@ export function assertArcAppKitPlan(
         parseUnits(candidate.amount, 6)
     ) {
       throw new Error(
-        "FAST bridge maksimum ücreti gönderilecek miktardan küçük olmalıdır.",
+        "FAST bridge maximum fee must be less than the amount to send.",
       );
     }
     if (candidate.transferSpeed === "SLOW" && candidate.maxFee !== undefined) {
-      throw new Error("SLOW bridge planı FAST maxFee alanı içeremez.");
+      throw new Error("SLOW bridge plan cannot include FAST maxFee field.");
     }
     return;
   }
@@ -419,7 +419,7 @@ async function createRuntime(connector: Connector, expectedAddress: string) {
     !rawProvider ||
     typeof (rawProvider as { request?: unknown }).request !== "function"
   ) {
-    throw new Error("Bağlı cüzdan EIP-1193 provider sunmuyor.");
+    throw new Error("Connected wallet does not provide an EIP-1193 provider.");
   }
   const provider = rawProvider as RequestProvider;
   const [chainValue, accountValue] = await Promise.all([
@@ -430,7 +430,7 @@ async function createRuntime(connector: Connector, expectedAddress: string) {
     typeof chainValue === "string" ? Number.parseInt(chainValue, 16) : NaN;
   if (providerChainId !== ARC_CHAIN_ID) {
     throw new Error(
-      "Circle App Kit yalnızca aktif Arc Testnet oturumunda çalışır.",
+      "Circle App Kit only operates during an active Arc Testnet session.",
     );
   }
   const providerAccount =
@@ -442,7 +442,7 @@ async function createRuntime(connector: Connector, expectedAddress: string) {
     getAddress(providerAccount) !== getAddress(expectedAddress)
   ) {
     throw new Error(
-      "Circle App Kit provider hesabı aktif cüzdanla eşleşmiyor.",
+      "Circle App Kit provider account does not match the active wallet.",
     );
   }
 
@@ -521,25 +521,25 @@ function assertSwapEstimateMatchesPlan(
     estimate.chainOut !== "Arc_Testnet" ||
     estimate.chain !== "Arc_Testnet"
   ) {
-    throw new Error("Circle swap tahmini Arc niyet rotasıyla eşleşmiyor.");
+    throw new Error("Circle swap estimate does not match the Arc intent route.");
   }
   assertSameDecimal(
     estimate.amountIn,
     plan.amount,
     tokenDecimals(plan.tokenIn),
-    "Circle swap girdi miktarı",
+    "Circle swap input amount",
   );
   assertSameAddress(
     estimate.fromAddress,
     expectedAddress,
-    "Circle swap göndereni",
+    "Circle swap sender",
   );
-  assertSameAddress(estimate.toAddress, expectedAddress, "Circle swap alıcısı");
+  assertSameAddress(estimate.toAddress, expectedAddress, "Circle swap recipient");
   if (
     estimate.stopLimit.token !== plan.tokenOut ||
     estimate.estimatedOutput.token !== plan.tokenOut
   ) {
-    throw new Error("Circle swap çıktı tokeni niyetle eşleşmiyor.");
+    throw new Error("Circle swap output token does not match the intent.");
   }
   assertDecimal(
     estimate.stopLimit.amount,
@@ -549,14 +549,14 @@ function assertSwapEstimateMatchesPlan(
   assertDecimal(
     estimate.estimatedOutput.amount,
     tokenDecimals(plan.tokenOut),
-    "Circle swap tahmini çıktısı",
+    "Circle swap estimated output",
   );
   if (
     plan.minimumOutput &&
     parseUnits(estimate.stopLimit.amount, tokenDecimals(plan.tokenOut)) <
       parseUnits(plan.minimumOutput, tokenDecimals(plan.tokenOut))
   ) {
-    throw new Error("Circle swap sağlayıcısı kullanıcı minimumunu korumuyor.");
+    throw new Error("Circle swap provider does not honor user minimum.");
   }
   for (const fee of estimate.fees || []) {
     if (
@@ -565,9 +565,9 @@ function assertSwapEstimateMatchesPlan(
       typeof fee.type !== "string" ||
       fee.type.length === 0
     ) {
-      throw new Error("Circle swap ücret kalemi doğrulanamadı.");
+      throw new Error("Circle swap fee item could not be validated.");
     }
-    assertNonNegativeDecimal(fee.amount, 18, "Circle swap ücreti");
+    assertNonNegativeDecimal(fee.amount, 18, "Circle swap fee");
   }
 }
 
@@ -583,20 +583,20 @@ function assertSwapResultMatchesPlan(
     result.chainOut !== "Arc_Testnet" ||
     result.chain !== "Arc_Testnet"
   ) {
-    throw new Error("Circle swap sonucu Arc niyet rotasıyla eşleşmiyor.");
+    throw new Error("Circle swap result does not match the Arc intent route.");
   }
   assertSameDecimal(
     result.amountIn,
     plan.amount,
     tokenDecimals(plan.tokenIn),
-    "Circle swap yürütme miktarı",
+    "Circle swap execution amount",
   );
   assertSameAddress(
     result.fromAddress,
     expectedAddress,
-    "Circle swap göndereni",
+    "Circle swap sender",
   );
-  assertSameAddress(result.toAddress, expectedAddress, "Circle swap alıcısı");
+  assertSameAddress(result.toAddress, expectedAddress, "Circle swap recipient");
   if (
     !result.config ||
     result.config.slippageBps !== plan.slippageBps ||
@@ -604,14 +604,14 @@ function assertSwapResultMatchesPlan(
       ? result.config.stopLimit !== plan.minimumOutput
       : result.config.stopLimit !== undefined)
   ) {
-    throw new Error("Circle swap yürütme sınırları niyetle eşleşmiyor.");
+    throw new Error("Circle swap execution limits do not match the intent.");
   }
   assertTransactionHash(result.txHash, "Circle swap");
   if (result.amountOut !== undefined) {
     assertDecimal(
       result.amountOut,
       tokenDecimals(plan.tokenOut),
-      "Circle swap gerçekleşen çıktısı",
+      "Circle swap realized output",
     );
   }
   if (
@@ -621,7 +621,7 @@ function assertSwapResultMatchesPlan(
     parseUnits(result.amountOut, tokenDecimals(plan.tokenOut)) <
       parseUnits(plan.minimumOutput, tokenDecimals(plan.tokenOut))
   ) {
-    throw new Error("Circle swap sonucu kullanıcı minimumunun altında.");
+    throw new Error("Circle swap result is below the user minimum.");
   }
 }
 
@@ -635,30 +635,30 @@ function assertBridgeEstimateMatchesPlan(
     estimate.source.chain !== "Arc_Testnet" ||
     estimate.destination.chain !== plan.destinationChain
   ) {
-    throw new Error("Circle bridge tahmini niyet ağlarıyla eşleşmiyor.");
+    throw new Error("Circle bridge estimate does not match the intent networks.");
   }
-  assertSameDecimal(estimate.amount, plan.amount, 6, "Circle bridge miktarı");
+  assertSameDecimal(estimate.amount, plan.amount, 6, "Circle bridge amount");
   assertSameAddress(
     estimate.source.address,
     expectedAddress,
-    "Circle bridge kaynağı",
+    "Circle bridge source",
   );
   assertSameAddress(
     estimate.destination.recipientAddress || estimate.destination.address,
     plan.recipient,
-    "Circle bridge alıcısı",
+    "Circle bridge recipient",
   );
 
   if (estimate.fees.length === 0 || estimate.gasFees.length === 0) {
-    throw new Error("Circle bridge tam ücret tahmini döndürmedi.");
+    throw new Error("Circle bridge did not return a complete fee estimate.");
   }
   for (const fee of estimate.fees) {
     if (fee.error != null || fee.amount === null) {
       throw new Error(
-        `Circle bridge ${fee.type} ücreti şu anda doğrulanamıyor.`,
+        `Circle bridge ${fee.type} fee cannot be verified at this time.`,
       );
     }
-    assertNonNegativeDecimal(fee.amount, 6, `Circle bridge ${fee.type} ücreti`);
+    assertNonNegativeDecimal(fee.amount, 6, `Circle bridge ${fee.type} fee`);
   }
   for (const gasFee of estimate.gasFees) {
     assertArcAppKitBridgeGasEstimate(gasFee, plan.destinationChain);
@@ -673,14 +673,14 @@ export function assertArcAppKitBridgeGasEstimate(
 ): void {
   if (gasFee.error != null || gasFee.fees === null) {
     throw new Error(
-      `Circle bridge ${String(gasFee.blockchain)} gas ücreti doğrulanamıyor.`,
+      `Circle bridge ${String(gasFee.blockchain)} gas fee cannot be verified.`,
     );
   }
   if (
     gasFee.blockchain !== "Arc_Testnet" &&
     gasFee.blockchain !== destinationChain
   ) {
-    throw new Error("Circle bridge gas tahmini beklenmeyen bir ağ içeriyor.");
+    throw new Error("Circle bridge gas estimate contains an unexpected network.");
   }
   if (
     typeof gasFee.name !== "string" ||
@@ -696,9 +696,9 @@ export function assertArcAppKitBridgeGasEstimate(
     typeof gasFee.fees.fee !== "string" ||
     gasFee.fees.fee.length > 96
   ) {
-    throw new Error("Circle bridge gas tahmini geçersiz.");
+    throw new Error("Circle bridge gas estimate is invalid.");
   }
-  assertNonNegativeDecimal(gasFee.fees.fee, 18, "Circle bridge gas ücreti");
+  assertNonNegativeDecimal(gasFee.fees.fee, 18, "Circle bridge gas fee");
 }
 
 function assertBridgeResultMatchesPlan(
@@ -714,23 +714,23 @@ function assertBridgeResultMatchesPlan(
     result.destination.chain.isTestnet !== true ||
     result.destination.useForwarder !== true
   ) {
-    throw new Error("Circle bridge sonucu niyet ağlarıyla eşleşmiyor.");
+    throw new Error("Circle bridge result does not match intent networks.");
   }
   assertSameDecimal(
     result.amount,
     plan.amount,
     6,
-    "Circle bridge yürütme miktarı",
+    "Circle bridge execution amount",
   );
   assertSameAddress(
     result.source.address,
     expectedAddress,
-    "Circle bridge kaynağı",
+    "Circle bridge source",
   );
   assertSameAddress(
     result.destination.recipientAddress || result.destination.address,
     plan.recipient,
-    "Circle bridge alıcısı",
+    "Circle bridge recipient",
   );
   if (
     !result.config ||
@@ -740,13 +740,13 @@ function assertBridgeResultMatchesPlan(
       ? result.config.maxFee !== plan.maxFee
       : result.config.maxFee !== undefined && result.config.maxFee !== "0")
   ) {
-    throw new Error("Circle bridge yürütme sınırları niyetle eşleşmiyor.");
+    throw new Error("Circle bridge execution limits do not match intent.");
   }
   if (typeof result.provider !== "string" || result.provider.length === 0) {
-    throw new Error("Circle bridge sağlayıcısı doğrulanamadı.");
+    throw new Error("Circle bridge provider could not be verified.");
   }
   if (result.steps.length === 0) {
-    throw new Error("Circle bridge adım kanıtı eksik.");
+    throw new Error("Circle bridge step proof is missing.");
   }
   for (const step of result.steps) {
     if (
@@ -754,13 +754,13 @@ function assertBridgeResultMatchesPlan(
       step.name.length === 0 ||
       !["pending", "success", "error", "noop"].includes(step.state)
     ) {
-      throw new Error("Circle bridge adım kanıtı geçersiz.");
+      throw new Error("Circle bridge step proof is invalid.");
     }
     if (step.txHash !== undefined) {
       assertTransactionHash(step.txHash, `Circle bridge ${step.name}`);
     }
     if (step.batchId !== undefined && step.batchId.length === 0) {
-      throw new Error("Circle bridge batch kimliği geçersiz.");
+      throw new Error("Circle bridge batch ID is invalid.");
     }
   }
   if (
@@ -769,13 +769,13 @@ function assertBridgeResultMatchesPlan(
       (step) => step.state === "pending" || step.state === "error",
     )
   ) {
-    throw new Error("Circle bridge başarı durumu adımlarla tutarsız.");
+    throw new Error("Circle bridge success state is inconsistent with steps.");
   }
   if (
     result.state === "error" &&
     !result.steps.some((step) => step.state === "error")
   ) {
-    throw new Error("Circle bridge hata durumu adımlarla tutarsız.");
+    throw new Error("Circle bridge error state is inconsistent with steps.");
   }
 }
 
@@ -805,7 +805,7 @@ function formatBridgeExecutionResult(
     return {
       state: "success",
       consumed,
-      statusMessage: "Circle bridge tüm adımları tamamladı.",
+      statusMessage: "Circle bridge completed all steps.",
       txHash: sourceStep?.txHash,
       explorerUrl: sourceStep?.txHash
         ? arcExplorerUrl(sourceStep.txHash)
@@ -818,7 +818,7 @@ function formatBridgeExecutionResult(
       state: "pending",
       consumed,
       statusMessage:
-        "Kaynak işlem gönderildi; Circle attestation/forwarder yolu sürüyor. Aynı niyeti yeniden göndermeyin.",
+        "Source transaction sent; Circle attestation/forwarder path is ongoing. Do not resend the same intent.",
       txHash: sourceStep?.txHash,
       explorerUrl: sourceStep?.txHash
         ? arcExplorerUrl(sourceStep.txHash)
@@ -830,8 +830,8 @@ function formatBridgeExecutionResult(
     state: retryable ? "recoverable" : "blocked",
     consumed,
     statusMessage: retryable
-      ? "Bridge kısmen ilerledi. Resmî SDK ile kaldığı yerden devam edilebilir; kaynak işlemi yeniden başlatılmaz."
-      : "Bridge kısmen ilerledi ancak güvenli otomatik devam koşulu yok. Aynı niyeti yeniden göndermeyin ve işlem adımlarını inceleyin.",
+      ? "Bridge partially progressed. Official SDK can resume from where it left off; the source transaction will not be restarted."
+      : "Bridge partially progressed but no safe automatic continuation condition exists. Do not resend the same intent and review the transaction steps.",
     txHash: sourceStep?.txHash,
     explorerUrl: sourceStep?.txHash
       ? arcExplorerUrl(sourceStep.txHash)
@@ -866,19 +866,19 @@ export async function quoteArcAppKitPlan(
         parseUnits(plan.minimumOutput, tokenDecimals(plan.tokenOut))
     ) {
       throw new Error(
-        `Canlı çıktı ${plan.minimumOutput} ${plan.tokenOut} altındaki kullanıcı sınırını karşılamıyor.`,
+        `Live output ${plan.minimumOutput} does not meet the user limit under ${plan.tokenOut}.`,
       );
     }
     return {
       ...base,
-      headline: `${plan.amount} ${plan.tokenIn} → yaklaşık ${estimatedOutput} ${plan.tokenOut}`,
+      headline: `${plan.amount} ${plan.tokenIn} → approximately ${estimatedOutput} ${plan.tokenOut}`,
       estimatedOutput: `${estimatedOutput} ${plan.tokenOut}`,
       minimumOutput: `${estimate.stopLimit.amount} ${plan.tokenOut}`,
       fees: (estimate.fees || []).map(
         (fee) => `${fee.amount} ${String(fee.token)} (${fee.type})`,
       ),
       feeDisclosure:
-        "Sağlayıcı ücret kalemi yoksa bu sıfır gas garantisi değildir; cüzdan son gas tutarını ayrıca gösterir. Üretim kit anahtarı istemciye gömülmez, anonim SDK kotası uygulanabilir.",
+        "If the provider fee item is absent, this does not guarantee zero gas; the wallet separately displays the final gas amount. The production kit key is not embedded in the client; anonymous SDK quota may apply.",
     };
   }
 
@@ -894,14 +894,14 @@ export async function quoteArcAppKitPlan(
       estimate.gasPrice < 0n ||
       !/^\d+$/.test(estimate.fee)
     ) {
-      throw new Error("Circle Send gas tahmini doğrulanamadı.");
+      throw new Error("Circle Send gas estimate could not be verified.");
     }
     return {
       ...base,
       headline: `${plan.amount} ${plan.token} → ${getAddress(plan.recipient)}`,
       fees: [feeText(estimate.fee, "USDC gas", 18) as string],
       feeDisclosure:
-        "Arc gası native USDC ile ödenir; gösterilen gas tahmindir ve cüzdan onayı nihai tutarı belirler.",
+        "Arc gas is paid with native USDC; the displayed gas is an estimate and the wallet approval determines the final amount.",
     };
   }
 
@@ -922,8 +922,8 @@ export async function quoteArcAppKitPlan(
       `(${plan.transferSpeed}, Circle Forwarder)`,
     fees: [...protocolFees, ...gasFees],
     feeDisclosure:
-      `${plan.maxFee ? `${plan.maxFee} USDC SDK burn ücret tavanı uygulandı. ` : ""}` +
-      "Protokol/forwarder ücretleri ve ağ gası ayrı kalemlerdir; Kletia belirsiz veya eksik bir ücret tahmininde yürütmeyi açmaz.",
+      `${plan.maxFee ? `${plan.maxFee} USDC SDK burn fee cap applied.` : ""}` +
+      "Protocol/forwarder fees and network gas are separate items; Kletia will not execute if the fee estimate is uncertain or incomplete.",
   };
 }
 
@@ -938,7 +938,7 @@ export async function executeArcAppKitPlan(
   const existingJournal = readJournal(plan, expectedAddress);
   if (existingJournal) {
     throw new Error(
-      "Bu App Kit niyeti daha önce yürütmeye alındı. Olası çift işlem riskine karşı yeni kaynak işlemi başlatılmadı.",
+      "This App Kit intent has already been executed. To avoid double-spend risk, a new source transaction was not initiated.",
     );
   }
   if (
@@ -946,11 +946,11 @@ export async function executeArcAppKitPlan(
       state: "started",
       consumed: false,
       statusMessage:
-        "Cüzdan imzası/yayın sonucu bekleniyor; bu trace yeniden başlatılamaz.",
+        "Waiting for wallet signature/broadcast result; this trace cannot be restarted.",
     })
   ) {
     throw new Error(
-      "Güvenli yürütme günlüğü oluşturulamadı. Çift işlem koruması olmadan App Kit çalıştırılmaz.",
+      "Secure execution log could not be created. App Kit will not run without double-spend protection.",
     );
   }
 
@@ -961,7 +961,7 @@ export async function executeArcAppKitPlan(
     } catch (error) {
       if (isUserCancellationError(error)) {
         clearJournal(plan, expectedAddress);
-        throw new Error("Cüzdan imzası kullanıcı tarafından iptal edildi.", {
+        throw new Error("Wallet signature was cancelled by the user.", {
           cause: error,
         });
       }
@@ -969,7 +969,7 @@ export async function executeArcAppKitPlan(
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Swap yürütmesi imza/yayın sonrasında belirsiz bir hatayla kesildi. Zincir doğrulanmadan aynı niyeti yeniden göndermeyin.",
+          "Swap execution was interrupted by an unknown error after signature/broadcast. Do not resend the same intent without chain verification.",
         steps: [],
       };
       writeJournal(plan, expectedAddress, blocked);
@@ -982,7 +982,7 @@ export async function executeArcAppKitPlan(
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Swap sağlayıcı sonucu imzalanan niyetle yeniden doğrulanamadı. İşlem hash’inizi cüzdandan inceleyin; niyeti tekrar göndermeyin.",
+          "Swap provider result could not be re-verified against the signed intent. Check your transaction hash in the wallet; do not resend the intent.",
         txHash: TX_HASH.test(result.txHash) ? result.txHash : undefined,
         steps: [],
       };
@@ -1000,10 +1000,10 @@ export async function executeArcAppKitPlan(
       consumed: true,
       statusMessage:
         state === "success"
-          ? "Arc stable swap zincir üzerinde tamamlandı."
+          ? "Arc stable swap completed on-chain."
           : state === "pending"
-            ? "Swap kaynak işlemi gönderildi ancak SDK durumu henüz kesinleşmedi. Aynı niyeti yeniden göndermeyin."
-            : "Swap kaynak işlemi gönderildi ancak sağlayıcı terminal başarı doğrulamadı. Aynı niyeti yeniden göndermeyin.",
+            ? "Swap source transaction sent but SDK status is not yet finalized. Do not resend the same intent."
+            : "Swap source transaction sent but provider did not confirm terminal success. Do not resend the same intent.",
       txHash: result.txHash,
       explorerUrl: arcExplorerUrl(result.txHash),
       steps: [
@@ -1031,7 +1031,7 @@ export async function executeArcAppKitPlan(
     } catch (error) {
       if (isUserCancellationError(error)) {
         clearJournal(plan, expectedAddress);
-        throw new Error("Cüzdan imzası kullanıcı tarafından iptal edildi.", {
+        throw new Error("Wallet signature was cancelled by the user.", {
           cause: error,
         });
       }
@@ -1039,7 +1039,7 @@ export async function executeArcAppKitPlan(
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Send yürütmesi imza/yayın sonrasında belirsiz bir hatayla kesildi. Zincir doğrulanmadan aynı niyeti yeniden göndermeyin.",
+          "Send execution was interrupted by an unknown error after signature/broadcast. Do not resend the same intent without chain verification.",
         steps: [],
       };
       writeJournal(plan, expectedAddress, blocked);
@@ -1049,13 +1049,13 @@ export async function executeArcAppKitPlan(
     if (result.state !== "success" || !result.txHash) {
       if (!submitted) {
         clearJournal(plan, expectedAddress);
-        throw new Error("Circle App Kit Send zincire gönderilmeden durdu.");
+        throw new Error("Circle App Kit Send stopped before being sent on-chain.");
       }
       const blocked: ArcAppKitExecutionResult = {
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Send işlemi yayınlanmış olabilir fakat başarı doğrulanmadı. Aynı niyeti yeniden göndermeyin.",
+          "Send transaction may have been broadcast but success was not confirmed. Do not resend the same intent.",
         txHash:
           result.txHash && TX_HASH.test(result.txHash)
             ? result.txHash
@@ -1072,7 +1072,7 @@ export async function executeArcAppKitPlan(
         state: "blocked",
         consumed: true,
         statusMessage:
-          "Send sonucu doğrulanamadı. Cüzdan geçmişini inceleyin ve aynı niyeti yeniden göndermeyin.",
+          "Send result could not be verified. Review wallet history and do not resend the same intent.",
         steps: [],
       };
       writeJournal(plan, expectedAddress, blocked);
@@ -1081,7 +1081,7 @@ export async function executeArcAppKitPlan(
     const executionResult: ArcAppKitExecutionResult = {
       state: "success",
       consumed: true,
-      statusMessage: "Arc Send zincir üzerinde tamamlandı.",
+      statusMessage: "Arc Send completed on-chain.",
       txHash: result.txHash,
       explorerUrl: arcExplorerUrl(result.txHash),
       steps: [
@@ -1105,7 +1105,7 @@ export async function executeArcAppKitPlan(
   } catch (error) {
     if (isUserCancellationError(error)) {
       clearJournal(plan, expectedAddress);
-      throw new Error("Cüzdan imzası kullanıcı tarafından iptal edildi.", {
+      throw new Error("Wallet signature was cancelled by the user.", {
         cause: error,
       });
     }
@@ -1113,7 +1113,7 @@ export async function executeArcAppKitPlan(
       state: "blocked",
       consumed: true,
       statusMessage:
-        "Bridge yürütmesi imza/yayın sonrasında belirsiz bir hatayla kesildi. Zincir doğrulanmadan aynı niyeti yeniden burn etmeyin.",
+        "Bridge execution was interrupted by an unknown error after signing/broadcasting. Do not reburn the same intent before chain confirmation.",
       steps: [],
     };
     writeJournal(plan, expectedAddress, blocked);
@@ -1128,14 +1128,14 @@ export async function executeArcAppKitPlan(
     if (!likelySubmitted) {
       clearJournal(plan, expectedAddress);
       throw new Error(
-        "Circle bridge sonucu niyetle eşleşmedi; kaynak işlem kanıtı bulunmadığı için yürütme durduruldu.",
+        "Circle bridge result did not match the intent; execution halted due to missing source transaction proof.",
       );
     }
     const blocked: ArcAppKitExecutionResult = {
       state: "blocked",
       consumed: true,
       statusMessage:
-        "Bridge sağlayıcı sonucu niyetle yeniden doğrulanamadı. Aynı kaynak niyetini yeniden göndermeyin.",
+        "Bridge provider result could not be re-verified with the intent. Do not resend the same source intent.",
       steps: [],
     };
     writeJournal(plan, expectedAddress, blocked);
@@ -1149,7 +1149,7 @@ export async function executeArcAppKitPlan(
   if (result.state === "error" && !executionResult.consumed) {
     clearJournal(plan, expectedAddress);
     throw new Error(
-      "Circle bridge kaynak işlem göndermeden durdu; canlı tahmini yenileyebilirsiniz.",
+      "Circle bridge stopped without sending a source transaction; you may refresh the live estimate.",
     );
   }
   if (executionResult.state === "recoverable") {
@@ -1179,7 +1179,7 @@ export async function retryArcAppKitBridge(
     arcAppKitPlanFingerprint(recovery.plan) !== arcAppKitPlanFingerprint(plan)
   ) {
     throw new Error(
-      "Güvenli SDK retry bağlamı bu tarayıcı oturumunda bulunamadı. Kaynak bridge’i yeniden başlatmayın; kayıtlı işlem adımlarını inceleyin.",
+      "Safe SDK retry context not found in this browser session. Do not restart the source bridge; review recorded transaction steps.",
     );
   }
   const { kit, adapter, isRetryableError, isUserCancellationError } =
@@ -1190,7 +1190,7 @@ export async function retryArcAppKitBridge(
   );
   if (!failedStep?.error || !isRetryableError(failedStep.error)) {
     throw new Error(
-      "Circle bridge hatası resmî SDK tarafından retryable değil.",
+      "Circle bridge error is not retryable by the official SDK.",
     );
   }
   if (
@@ -1198,10 +1198,10 @@ export async function retryArcAppKitBridge(
       state: "started",
       consumed: true,
       statusMessage:
-        "Bridge tamamlanan kaynak adımları korunarak resmî SDK ile devam ettiriliyor.",
+        "Bridge is continuing with the official SDK, preserving completed source steps.",
     })
   ) {
-    throw new Error("Bridge retry günlüğü güvenli biçimde güncellenemedi.");
+    throw new Error("Bridge retry log could not be safely updated.");
   }
 
   let result: BridgeResult;
@@ -1215,7 +1215,7 @@ export async function retryArcAppKitBridge(
       const previous = formatBridgeExecutionResult(recovery.result, true);
       writeJournal(plan, expectedAddress, previous);
       throw new Error(
-        "Bridge devam imzası kullanıcı tarafından iptal edildi.",
+        "Bridge continuation signature was cancelled by the user.",
         {
           cause: error,
         },
@@ -1225,7 +1225,7 @@ export async function retryArcAppKitBridge(
       state: "blocked",
       consumed: true,
       statusMessage:
-        "Bridge retry çağrısı belirsiz bir durumda kesildi. Kaynak burn yeniden başlatılmadı; zincir ve forwarder durumunu inceleyin.",
+        "Bridge retry call was interrupted in an uncertain state. Source burn was not restarted; check chain and forwarder status.",
       steps: [],
     };
     writeJournal(plan, expectedAddress, blocked);
@@ -1238,7 +1238,7 @@ export async function retryArcAppKitBridge(
       state: "blocked",
       consumed: true,
       statusMessage:
-        "Bridge retry sonucu özgün niyetle doğrulanamadı. Kaynak burn yeniden başlatılmadı.",
+        "Bridge retry result could not be verified against the original intent. Source burn was not restarted.",
       steps: [],
     };
     writeJournal(plan, expectedAddress, blocked);

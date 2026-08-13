@@ -18,7 +18,7 @@ interface IKletiaSwapAdapterV2 {
 
     function spender() external view returns (address);
 
-        function configurationHash() external view returns (bytes32);
+    function configurationHash() external view returns (bytes32);
 
     function buildSwapCalldata(
         SwapCall calldata swapCall,

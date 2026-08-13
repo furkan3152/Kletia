@@ -33,22 +33,16 @@ import {
   type RouteData,
   type WidgetId,
 } from "./types";
-import { BasenameClaimer } from "./components/base/BasenameClaimer";
-import { AirdropSimulator } from "./components/widgets/AirdropSimulator";
-import { WebacyScanner } from "./components/widgets/WebacyScanner";
-import { ArcDashboardWidget } from "./components/arc/ArcDashboardWidget";
-import { ArcLendingDashboard } from "./components/arc/ArcLendingDashboard";
 import { ArcAppKitRouteCard } from "./components/arc/ArcAppKitRouteCard";
-import { BaseMcpHandoffPanel } from "./components/base/BaseMcpHandoffPanel";
 import { ApprovalReviewCard } from "./components/base/ApprovalReviewCard";
 import { LaunchTokenPreviewCard } from "./components/base/LaunchTokenPreviewCard";
 import { BaseMcpX402PlanCard } from "./components/base/x402/BaseMcpX402PlanCard";
 import { X402DiscoveryCard } from "./components/base/x402/X402DiscoveryCard";
-import { AlloraDashboard } from "./components/integrations/allora/AlloraDashboard";
 import { Navbar } from "./components/layout/Navbar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { AppSidebar } from "./components/layout/AppSidebar";
 import { ChatInput } from "./components/chat/ChatInput";
+import { IntentStarter } from "./components/chat/IntentStarter";
 import { AssetClarificationCard } from "./components/chat/AssetClarificationCard";
 import { EntityResolutionEvidenceCard } from "./components/chat/EntityResolutionEvidenceCard";
 import { TerminalLogs } from "./components/chat/TerminalLogs";
@@ -77,13 +71,42 @@ import {
 } from "./security/entityResolution";
 import { isBaseLaunchFactoryV2ResponseBinding } from "./networks/base/security/launchFactoryV2";
 import { resolveIntentHttpResponseBoundary } from "./security/intentHttpResponseBoundary";
-import "./App.css";
 
 const BASE_SWAP_EXECUTION_POLICY_SETTING = import.meta.env
   .VITE_BASE_SWAP_EXECUTION_MODE;
 const X402ServiceRouter = React.lazy(() =>
   import("./components/base/x402/X402ServiceRouter").then((module) => ({
     default: module.X402ServiceRouter,
+  })),
+);
+const AlloraDashboard = React.lazy(() =>
+  import("./components/integrations/allora/AlloraDashboard").then((module) => ({
+    default: module.AlloraDashboard,
+  })),
+);
+const BasenameClaimer = React.lazy(() =>
+  import("./components/base/BasenameClaimer").then((module) => ({
+    default: module.BasenameClaimer,
+  })),
+);
+const AirdropSimulator = React.lazy(() =>
+  import("./components/widgets/AirdropSimulator").then((module) => ({
+    default: module.AirdropSimulator,
+  })),
+);
+const WebacyScanner = React.lazy(() =>
+  import("./components/widgets/WebacyScanner").then((module) => ({
+    default: module.WebacyScanner,
+  })),
+);
+const ArcDashboardWidget = React.lazy(() =>
+  import("./components/arc/ArcDashboardWidget").then((module) => ({
+    default: module.ArcDashboardWidget,
+  })),
+);
+const ArcLendingDashboard = React.lazy(() =>
+  import("./components/arc/ArcLendingDashboard").then((module) => ({
+    default: module.ArcLendingDashboard,
   })),
 );
 const UUID_V4_PATTERN =
@@ -253,7 +276,6 @@ export default function App() {
   } = useNetwork();
   const { execute: executeTransaction } = useTransactionExecutor();
   const walletMatchesNetwork = chainId === network.chainId;
-  const [isBaseMcpHandoffOpen, setIsBaseMcpHandoffOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("chat");
   const [activeArcWidget, setActiveArcWidget] = useState<WidgetId>(null);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
@@ -262,7 +284,7 @@ export default function App() {
   const activeRequestRef = useRef<ActiveRequest | null>(null);
   const conversationContextRef = useRef<ConversationContext | null>(null);
   const clarificationSubmissionRef = useRef<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const {
     isDarkMode,
@@ -292,6 +314,7 @@ export default function App() {
   }, [accountStatus, address, bindWalletHistory]);
 
   useEffect(() => {
+    if (messages.length === 0) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -315,7 +338,7 @@ export default function App() {
       activeRequest.controller.abort();
       updateMessageForNetwork(activeRequest.network, activeRequest.messageId, {
         isLoading: false,
-        text: "ℹ️ Ağ değiştiği için önceki istek güvenli şekilde iptal edildi.",
+        text: "ℹ️ Previous request safely aborted due to network change.",
       });
       activeRequestRef.current = null;
     }
@@ -344,7 +367,6 @@ export default function App() {
     setActiveTab("chat");
     setActiveArcWidget(null);
     setIsPortfolioOpen(false);
-    setIsBaseMcpHandoffOpen(false);
   }, [address, networkMode, updateMessageForNetwork]);
 
   useEffect(
@@ -415,7 +437,7 @@ export default function App() {
       addMessage({
         id: createRequestId(),
         role: "kletia",
-        text: "🚨 Private key, seed phrase veya API kimlik bilgisi bu alana gönderilemez. Güvenlik için mesaj kaydedilmedi.",
+        text: "🚨 Private key, seed phrase, or API credentials cannot be sent here. Message not saved for security.",
         network: networkMode,
         chainId: network.chainId,
       });
@@ -426,7 +448,7 @@ export default function App() {
       addMessage({
         id: createRequestId(),
         role: "kletia",
-        text: "🚨 Önce sağ üstten cüzdanınızı bağlayın.",
+        text: "🚨 Please connect your wallet from the top right first.",
         network: networkMode,
         chainId: network.chainId,
       });
@@ -437,7 +459,7 @@ export default function App() {
       addMessage({
         id: createRequestId(),
         role: "kletia",
-        text: `🚨 Cüzdan ${network.name} ağına bağlı değil. Niyet ve işlem oluşturma güvenlik nedeniyle durduruldu.`,
+        text: `🚨 Wallet is not connected to the ${network.name} network. Intent and transaction creation halted for security.`,
         network: networkMode,
         chainId: network.chainId,
         walletAddress: address,
@@ -476,7 +498,7 @@ export default function App() {
         addMessage({
           id: createRequestId(),
           role: "kletia",
-          text: "🛑 Token seçim bağlamının süresi doldu veya ağ/cüzdan değişti. Niyeti yeniden gönderin.",
+          text: "🛑 Token selection context expired or network/wallet changed. Please resend the intent.",
           network: networkMode,
           chainId: network.chainId,
           walletAddress: address,
@@ -526,7 +548,7 @@ export default function App() {
         previousRequest.messageId,
         {
           isLoading: false,
-          text: "ℹ️ Daha yeni bir istek gönderildiği için bu istek iptal edildi.",
+          text: "ℹ️ This request was canceled because a newer request was sent.",
         },
       );
     }
@@ -544,7 +566,7 @@ export default function App() {
     addMessage({
       id: kletiaMsgId,
       role: "kletia",
-      text: `${network.name} niyet motoru çalışıyor...`,
+      text: `${network.name} intent engine is running...`,
       isLoading: true,
       network: networkMode,
       chainId: network.chainId,
@@ -604,7 +626,7 @@ export default function App() {
         data.feeRouterCoverage !== undefined &&
         !isBaseFeeRouterCoverage(data.feeRouterCoverage)
       ) {
-        throw new Error("Base Fee Router allowlist kapsamı doğrulanamadı.");
+        throw new Error("Base Fee Router allowlist coverage could not be verified.");
       }
       if (
         networkMode === "base" &&
@@ -615,7 +637,7 @@ export default function App() {
         !isBaseLiquidityRoutingResponse(data)
       ) {
         throw new Error(
-          "Base likidite rotasının factory, rezerv ve simülasyon kanıtı doğrulanamadı.",
+          "Base liquidity routing factory, reserve, and simulation proof could not be verified.",
         );
       }
 
@@ -625,7 +647,7 @@ export default function App() {
         !isBaseYieldRankingEvidence(data.yieldRankingEvidence)
       ) {
         throw new Error(
-          "Base lending verim ve risk sıralama kanıtı doğrulanamadı.",
+          "Base lending yield and risk ranking evidence could not be verified.",
         );
       }
 
@@ -646,10 +668,9 @@ export default function App() {
             });
           }
           conversationContextRef.current = null;
-          setIsBaseMcpHandoffOpen(true);
           updateRequestMessage(request, {
             isLoading: false,
-            text: data.message || "Resmî Base MCP handoff paneli açıldı.",
+            text: "Base Agent Mode is in development and will be available soon.",
           });
           return;
         }
@@ -717,7 +738,7 @@ export default function App() {
         conversationContextRef.current = null;
         updateRequestMessage(request, {
           isLoading: false,
-          text: `❌ İşlem iptal edildi: ${data.message || "Bilinmeyen hata"}`,
+          text: `❌ Transaction cancelled: ${data.message || "Bilinmeyen hata"}`,
         });
         return;
       }
@@ -760,7 +781,7 @@ export default function App() {
         data.launchFactoryV2Evidence !== undefined;
       if (hasLaunchFactoryV2Marker && networkMode !== "base") {
         throw new Error(
-          "Kletia Launch Factory V2 yalnız Base Mainnet oturumunda kullanılabilir.",
+          "Kletia Launch Factory V2 is only available in Base Mainnet sessions.",
         );
       }
       if (networkMode === "base" && hasLaunchFactoryV2Marker) {
@@ -772,14 +793,14 @@ export default function App() {
           })
         ) {
           throw new Error(
-            "Token launch yanıtı exact Kletia Launch Factory V2 calldata, CREATE2 kimliği, aktif cüzdan ve simülasyon kanıtına bağlanamadı.",
+            "Token launch response could not be bound to exact Kletia Launch Factory V2 calldata, CREATE2 ID, active wallet, and simulation proof.",
           );
         }
         updateRequestMessage(request, {
           isLoading: false,
           text:
             data.winnerMessage ||
-            "Deterministik fixed-supply token planı Base Mainnet için hazır.",
+            "Deterministic fixed-supply token plan is ready for Base Mainnet.",
           intentData: data,
           selectedRouteIndex: 0,
           terminalLogs: [],
@@ -790,14 +811,14 @@ export default function App() {
       if (networkMode === "base" && data.action === "yield_compare") {
         if (!isBaseYieldComparisonResponse(data)) {
           throw new Error(
-            "Canlı Base lending karşılaştırması doğrulanmış fırsat döndürmedi.",
+            "Live Base lending comparison did not return verified opportunities.",
           );
         }
         updateRequestMessage(request, {
           isLoading: false,
           text:
             data.winnerMessage ||
-            "Canlı Base lending oranları ve likidite karşılaştırıldı.",
+            "Live Base lending rates and liquidity have been compared.",
           intentData: data,
           terminalLogs: [],
         });
@@ -832,7 +853,7 @@ export default function App() {
       if (data.action === "portfolio") {
         if (!data.data || typeof data.data !== "object") {
           throw new Error(
-            "Portföy servisi doğrulanabilir bir veri nesnesi döndürmedi.",
+            "Portfolio service did not return a verifiable data object.",
           );
         }
         const portfolioData = {
@@ -846,7 +867,7 @@ export default function App() {
             : isArcPortfolioData(portfolioData);
         if (!validPortfolio) {
           throw new Error(
-            `Portföy yanıtı ${network.name} veri şemasıyla eşleşmiyor.`,
+            `Portfolio response does not match the ${network.name} data schema.`,
           );
         }
         const portfolioResponse: IntentResponse = {
@@ -857,7 +878,7 @@ export default function App() {
           isLoading: false,
           text:
             data.message ||
-            "Portföy tarandı. Kaynak ve bütünlük ayrıntıları sağ panelde güncellendi.",
+            "Portfolio scanned. Source and integrity details updated in the right panel.",
           intentData: portfolioResponse,
           terminalLogs: [],
         });
@@ -866,13 +887,9 @@ export default function App() {
       }
 
       if (data.action === "agent_action") {
-        if (networkMode === "base") setIsBaseMcpHandoffOpen(true);
         updateRequestMessage(request, {
           isLoading: false,
-          text:
-            data.message ||
-            data.winnerMessage ||
-            "Open the official Base MCP handoff to continue in your OAuth-connected agent client.",
+          text: "Base Agent Mode is in development and will be available soon.",
           terminalLogs: [],
         });
         return;
@@ -896,14 +913,14 @@ export default function App() {
           !isArcAppKitResponseBound(data, requestId)
         ) {
           throw new Error(
-            "Circle App Kit planı aktif Arc Testnet oturumuyla eşleşmiyor.",
+            "Circle App Kit plan does not match the active Arc Testnet session.",
           );
         }
         updateRequestMessage(request, {
           isLoading: false,
           text:
             data.winnerMessage ||
-            "Circle App Kit rotası hazır; canlı tahmin alınıyor.",
+            "Circle App Kit route is ready; live forecast is being fetched.",
           intentData: data,
           terminalLogs: [],
         });
@@ -922,14 +939,14 @@ export default function App() {
             typeof data.trustNotice !== "string")
         ) {
           throw new Error(
-            "CDP Bazaar sonucu aktif Base Mainnet güvenlik sözleşmesiyle eşleşmiyor.",
+            "CDP Bazaar result does not match the active Base Mainnet security contract.",
           );
         }
         updateRequestMessage(request, {
           isLoading: false,
           text:
             data.winnerMessage ||
-            "CDP Bazaar servisleri ödeme tavanı ve Base USDC politikasına göre doğrulandı.",
+            "CDP Bazaar services verified against payment cap and Base USDC policy.",
           intentData: data,
           terminalLogs: [],
         });
@@ -953,14 +970,14 @@ export default function App() {
             typeof data.trustNotice !== "string")
         ) {
           throw new Error(
-            "Base MCP x402 planı aktif istek ve kullanıcı onayı politikasına bağlı değil.",
+            "Base MCP x402 plan is not bound to the active request and user approval policy.",
           );
         }
         updateRequestMessage(request, {
           isLoading: false,
           text:
             data.winnerMessage ||
-            "Base MCP x402 planı hazır; ödeme için Base Account onayı gerekiyor.",
+            "Base MCP x402 plan is ready; Base Account approval is required for payment.",
           intentData: data,
           terminalLogs: [],
         });
@@ -974,7 +991,7 @@ export default function App() {
         !isBaseSwapRoutingEvidence(data.quoteCoverage, data.rankingEvidence)
       ) {
         throw new Error(
-          "Base rota sıralama ve kaynak kapsamı kanıtı doğrulanamadı.",
+          "Base route ranking and source coverage evidence could not be verified.",
         );
       }
 
@@ -989,7 +1006,7 @@ export default function App() {
         )
       ) {
         throw new Error(
-          "Base swap yanıtı frontend release execution-mode politikasıyla eşleşmiyor.",
+          "Base swap response does not match frontend release execution-mode policy.",
         );
       }
       if (
@@ -997,7 +1014,7 @@ export default function App() {
         !isBaseIntentRouterV2ResponseBinding(data)
       ) {
         throw new Error(
-          "Base Intent Router V2 yanıt kümesi typed intent, calldata, sıralama ve politika hedeflerine bağlanamadı.",
+          "Base Intent Router V2 response set could not be bound to typed intent, calldata, ranking, and policy targets.",
         );
       }
 
@@ -1005,7 +1022,7 @@ export default function App() {
         isLoading: false,
         text:
           data.winnerMessage ||
-          `🏆 ${network.name} rotası hazır: **${data.winner || data.allRoutes[0].name}**`,
+          `🏆 ${network.name} route ready: **${data.winner || data.allRoutes[0].name}**`,
         intentData: data,
         selectedRouteIndex: requiresExplicitLiquiditySelection(data)
           ? undefined
@@ -1024,7 +1041,7 @@ export default function App() {
       if ((error as Error).name !== "AbortError") {
         updateRequestMessage(request, {
           isLoading: false,
-          text: `❌ Sistem hatası: ${getErrorMessage(error)}`,
+          text: `❌ System error: ${getErrorMessage(error)}`,
         });
       }
     } finally {
@@ -1079,8 +1096,8 @@ export default function App() {
     updateMessageForNetwork(conversation.network, messageId, {
       clarificationStatus: "submitting",
     });
-    void submitIntent("Doğrulanmış token seçimini uygula.", {
-      displayText: `${option.label} (${option.symbol}) seç`,
+    void submitIntent("Apply verified token selection.", {
+      displayText: `Select ${option.label} (${option.symbol})`,
       conversation: { ...conversation },
       clarificationSelection: { optionId: option.id },
       clarificationSourceMessageId: messageId,
@@ -1102,7 +1119,7 @@ export default function App() {
       !isAddress(data.userAddress)
     ) {
       throw new Error(
-        "Basename yeniden doğrulama bağlamı eksik veya güvenli sınırları aşıyor.",
+        "Basename revalidation context is missing or exceeds safe boundaries.",
       );
     }
 
@@ -1151,8 +1168,8 @@ export default function App() {
         ) {
           throw new Error(
             response.status === 409
-              ? "Basename kaydı plan oluşturulduktan sonra değişti veya artık çözümlenemiyor; yeni niyet oluşturun."
-              : "Basename imza öncesi yeniden doğrulanamadı; işlem gönderilmedi.",
+              ? "Basename record changed or is no longer resolvable after plan creation; create a new intent."
+              : "Basename could not be revalidated before signing; transaction not sent.",
           );
         }
       } finally {
@@ -1235,7 +1252,7 @@ export default function App() {
     try {
       if (!activeRoute) {
         throw new Error(
-          "Seçilen rota indeksi geçersiz. Niyeti yeniden oluşturun.",
+          "Selected route index is invalid. Recreate the intent.",
         );
       }
 
@@ -1248,7 +1265,7 @@ export default function App() {
         data.chainId !== network.chainId
       ) {
         throw new Error(
-          "Bu rota farklı bir ağ veya cüzdan oturumuna ait. Niyeti yeniden oluşturun.",
+          "This route belongs to a different network or wallet session. Recreate the intent.",
         );
       }
 
@@ -1260,7 +1277,7 @@ export default function App() {
         activeRoute.requestId !== data.requestId
       ) {
         throw new Error(
-          "Seçilen rota bu niyet isteğine ait değil. Niyeti yeniden oluşturun.",
+          "Selected route does not belong to this intent request. Recreate the intent.",
         );
       }
 
@@ -1268,7 +1285,7 @@ export default function App() {
         activeRoute.network !== networkMode ||
         activeRoute.chainId !== network.chainId
       ) {
-        throw new Error("Seçilen rotanın ağ metadatası aktif ağla eşleşmiyor.");
+        throw new Error("Selected route's network metadata does not match the active network.");
       }
 
       if (
@@ -1279,13 +1296,13 @@ export default function App() {
         )
       ) {
         throw new Error(
-          "Base swap yanıtı aktif frontend release moduna ait değil. Niyeti yeniden oluşturun.",
+          "Base swap response does not belong to the active frontend release mode. Recreate the intent.",
         );
       }
 
       if (!hasExecutableIntentActionBinding(data, activeRoute)) {
         throw new Error(
-          "Seçilen rota doğrulanmış bir niyet action alanına bağlı değil.",
+          "Selected route is not bound to a verified intent action field.",
         );
       }
 
@@ -1305,7 +1322,7 @@ export default function App() {
         })
       ) {
         throw new Error(
-          "Launch Factory V2 planı imza öncesi cüzdan, calldata, fee, salt veya CREATE2 adresi doğrulamasını geçemedi.",
+          "Launch Factory V2 plan failed pre-signature wallet, calldata, fee, salt, or CREATE2 address verification.",
         );
       }
 
@@ -1317,7 +1334,7 @@ export default function App() {
         getAddress(data.userAddress) !== getAddress(address) ||
         getAddress(activeRoute.userAddress) !== getAddress(address)
       ) {
-        throw new Error("Seçilen rota bağlı cüzdan için oluşturulmamış.");
+        throw new Error("Selected route was not created for the connected wallet.");
       }
       const executionAction = responseIntentAction(data);
       const executionEntityResolution = data.entityResolution;
@@ -1333,7 +1350,7 @@ export default function App() {
         })
       ) {
         throw new Error(
-          "Seçilen rota güncel cüzdan, ağ ve action alanlarına bağlı varlık kanıtı taşımıyor.",
+          "Selected route does not carry asset proof bound to the current wallet, network, and action fields.",
         );
       }
       const requiresRecipientRevalidation =
@@ -1348,18 +1365,18 @@ export default function App() {
         routeExpiry <= currentEpochMs()
       ) {
         throw new Error(
-          "Seçilen rotanın teklif süresi geçersiz veya dolmuş. Niyeti yeniden oluşturun.",
+          "Selected route's quote expiry is invalid or expired. Recreate the intent.",
         );
       }
 
       if (!isAddress(activeRoute.router)) {
-        throw new Error("Seçilen rota geçerli bir hedef adres taşımıyor.");
+        throw new Error("Selected route does not carry a valid target address.");
       }
       if (!isCalldata(activeRoute.calldata)) {
-        throw new Error("Seçilen rota geçerli calldata taşımıyor.");
+        throw new Error("Selected route does not carry valid calldata.");
       }
       if (!isUnsignedIntegerString(activeRoute.value)) {
-        throw new Error("Seçilen rota geçerli bir native değer taşımıyor.");
+        throw new Error("The selected route does not carry a valid native value.");
       }
 
       const targetAddress = getAddress(activeRoute.router);
@@ -1373,20 +1390,20 @@ export default function App() {
       const resolvedApprovals = routeApprovals(activeRoute, data);
       if (officialArcPolicy.requireEoa && resolvedApprovals.length !== 0) {
         throw new Error(
-          "Resmî Arc extension rotası hiçbir token allowance oluşturamaz.",
+          "The official Arc extension route cannot create any token allowance.",
         );
       }
 
-      addOriginLog(`🛡️ ${network.name} güvenlik ve simülasyon hattı devrede.`);
+      addOriginLog(`🛡️ ${network.name} security and simulation line is active.`);
       addOriginLog(`🔗 Hedef: ${targetAddress}`);
       if (txValue > 0n) {
         addOriginLog(
-          `⚡ Native ${network.nativeCurrency.symbol} değeri doğrulandı.`,
+          `⚡ Native ${network.nativeCurrency.symbol} value verified.`,
         );
       }
       if (officialArcPolicy.requireEoa) {
         addOriginLog(
-          "🧾 Resmî Arc extension calldata ve original-sender EOA politikası yeniden decode edilerek doğrulandı.",
+          "🧾 Official Arc extension calldata and original-sender EOA policy re-decoded and verified.",
         );
       }
       const responseUsesIntentRouterV2 =
@@ -1395,7 +1412,7 @@ export default function App() {
         activeRoute.executionMode === "kletia_intent_router_v2";
       if (responseUsesIntentRouterV2 !== routeUsesIntentRouterV2) {
         throw new Error(
-          "Base V2 yanıtı ile seçilen rotanın executionMode alanı eşleşmiyor.",
+          "The executionMode field of the selected route does not match the Base V2 response.",
         );
       }
       const isIntentRouterV2 =
@@ -1412,7 +1429,7 @@ export default function App() {
               !activeRoute.wrappedNative
             ) {
               throw new Error(
-                "Typed Base V2 rota yetkileri eksik; işlem gönderilmedi.",
+                "Typed Base V2 route authorities are missing; transaction not sent.",
               );
             }
             return {
@@ -1428,7 +1445,7 @@ export default function App() {
         : undefined;
       if (isIntentRouterV2 && resolvedApprovals.length > 0) {
         addOriginLog(
-          "🔐 V2 exact approval ve swap yalnızca tek bir Base atomic paketi olarak yürütülecek.",
+          "🔐 V2 exact approval and swap will be executed only as a single Base atomic package.",
         );
       }
       const launchFactoryV2Authority = isLaunchFactoryV2
@@ -1436,11 +1453,11 @@ export default function App() {
             const evidence = data.launchFactoryV2Evidence;
             if (!evidence) {
               throw new Error(
-                "Launch Factory V2 runtime kanıtı işlem planında bulunamadı.",
+                "Launch Factory V2 runtime proof not found in the transaction plan.",
               );
             }
             addOriginLog(
-              "🧬 deployToken calldata, creator-scoped salt, full-supply recipient ve CREATE2 tahmini yeniden doğrulandı.",
+              "🧬 deployToken calldata, creator-scoped salt, full-supply recipient, and CREATE2 prediction re-verified.",
             );
             return {
               factory: getAddress(evidence.factory),
@@ -1483,7 +1500,7 @@ export default function App() {
             ? async () => {
                 await revalidateBasenameRecipients(data);
                 addOriginLog(
-                  "✅ Basename adresi değişmemiş; güncel resolver kanıtı işlem planıyla eşleşiyor.",
+                  "✅ Basename address unchanged; matches current resolver proof in the transaction plan.",
                 );
               }
             : undefined,
@@ -1496,20 +1513,20 @@ export default function App() {
       if (originNetwork === "arc") {
         updateOriginMessage({
           txHash: result.hash,
-          text: "✅ Arc Testnet işlemi başarılı receipt ile final oldu.",
+          text: "✅ Arc Testnet transaction finalized with a successful receipt.",
         });
-        addOriginLog("✅ Arc Testnet işlemi başarılı receipt ile final oldu.");
+        addOriginLog("✅ Arc Testnet transaction finalized with a successful receipt.");
       } else {
         updateOriginMessage({
           txHash: result.hash,
-          text: "✅ Base Mainnet işlemi başarılı receipt ile zincire dahil edildi.",
+          text: "✅ Base Mainnet transaction included on-chain with a successful receipt.",
         });
         addOriginLog(
-          "✅ Base Mainnet işlemi başarılı receipt ile zincire dahil edildi; bu ifade ek L1 kesinleşmesi anlamına gelmez.",
+          "✅ Base Mainnet transaction included on-chain with a successful receipt; this does not imply additional L1 finality.",
         );
       }
     } catch (error: unknown) {
-      addOriginLog(`❌ İptal / Hata: ${getErrorMessage(error)}`);
+      addOriginLog(`❌ Cancel/Error: ${getErrorMessage(error)}`);
     } finally {
       updateOriginMessage({ isLoading: false });
     }
@@ -1528,13 +1545,10 @@ export default function App() {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-[#EFEFEF] dark:bg-[#0B1120] text-[#1A1A1A] dark:text-gray-100 font-sans antialiased overflow-hidden transition-colors duration-300">
-      {}
+    <div className="fixed inset-0 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#EFEFEF] font-sans text-[#1A1A1A] antialiased transition-colors duration-200 dark:bg-[#0B1120] dark:text-gray-100">
       <div className="fixed inset-0 z-0 pointer-events-none select-none">
-        {}
         <div className="absolute inset-0 bg-[radial-gradient(#1A1A1A33_2px,transparent_2px)] dark:bg-[radial-gradient(#ffffff15_2px,transparent_2px)] [background-size:30px_30px] opacity-70"></div>
 
-        {}
         <div className="hidden md:block absolute -left-10 top-[15%] text-[180px] font-black text-black/[0.03] dark:text-white/[0.02] -rotate-12 tracking-tighter">
           KLETIA
         </div>
@@ -1542,14 +1556,11 @@ export default function App() {
           OMNI
         </div>
 
-        {}
         <div className="hidden md:block absolute top-[15%] right-[10%] w-24 h-24 bg-[#0052FF] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] rotate-12 opacity-80 dark:opacity-50"></div>
         <div className="hidden md:block absolute bottom-[25%] left-[5%] md:left-[10%] w-24 md:w-40 h-12 md:h-16 bg-[#FFD700] dark:bg-[#CCA000] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] rounded-full shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] -rotate-6 opacity-80 dark:opacity-60"></div>
       </div>
 
-      {}
       <Navbar
-        onBaseMcpHandoff={() => setIsBaseMcpHandoffOpen(true)}
         address={address}
         handleFundClick={handleFundClick}
         onMenuClick={() => setIsAppSidebarOpen(!isAppSidebarOpen)}
@@ -1558,15 +1569,8 @@ export default function App() {
         isNetworkSwitching={isSwitching}
         networkSwitchError={switchError}
       />
-      <BaseMcpHandoffPanel
-        open={networkMode === "base" && isBaseMcpHandoffOpen}
-        appWallet={address}
-        onClose={() => setIsBaseMcpHandoffOpen(false)}
-      />
 
-      {}
-      <div className="flex flex-1 overflow-hidden z-10 relative min-h-0 min-w-0">
-        {}
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <AppSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -1578,6 +1582,16 @@ export default function App() {
         />
 
         <div className="grid grid-rows-[1fr_auto] flex-1 overflow-hidden relative w-full h-full min-h-0 min-w-0">
+          <React.Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center">
+                <div className="mx-3 flex max-w-full items-center gap-3 border-[4px] border-[#1A1A1A] bg-white p-4 font-black uppercase text-[#1A1A1A] shadow-[5px_5px_0_#1A1A1A] sm:p-5 sm:shadow-[6px_6px_0_#1A1A1A]">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#0052FF]" />
+                  Loading workspace
+                </div>
+              </div>
+            }
+          >
           {networkMode === "base" && activeTab === "allora" ? (
             <AlloraDashboard
               isDarkMode={isDarkMode}
@@ -1591,7 +1605,7 @@ export default function App() {
             <React.Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">
-                  <div className="flex items-center gap-3 border-[4px] border-[#1A1A1A] bg-white p-5 font-black uppercase text-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A]">
+                  <div className="mx-3 flex max-w-full items-center gap-3 border-[4px] border-[#1A1A1A] bg-white p-4 font-black uppercase text-[#1A1A1A] shadow-[5px_5px_0_#1A1A1A] sm:p-5 sm:shadow-[6px_6px_0_#1A1A1A]">
                     <Loader2 className="h-5 w-5 animate-spin text-[#0052FF]" />
                     Loading x402 workspace
                   </div>
@@ -1619,27 +1633,25 @@ export default function App() {
             </div>
           ) : (
             <>
-              {}
               <div
-                className="overflow-y-auto p-3 md:p-6 bg-transparent scroll-smooth min-h-0 custom-scrollbar"
+                className="custom-scrollbar min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-transparent p-2.5 scroll-smooth sm:p-4 md:p-6"
                 id="chat-container"
-                style={{
-                  maskImage:
-                    "linear-gradient(to bottom, black 85%, transparent 100%)",
-                  WebkitMaskImage:
-                    "linear-gradient(to bottom, black 85%, transparent 100%)",
-                }}
               >
-                <div className="max-w-4xl mx-auto relative w-full pr-1 md:pr-0">
-                  <div className="space-y-6 md:space-y-8">
+                <div className="relative mx-auto w-full max-w-4xl min-w-0 pr-1 md:pr-0">
+                  {messages.length === 0 && (
+                    <IntentStarter
+                      networkMode={networkMode}
+                      onSelect={handleWidgetClick}
+                    />
+                  )}
+                  <div className="space-y-5 sm:space-y-6 md:space-y-8">
                     {messages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        className={`flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        {}
                         {msg.role === "kletia" && (
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-white dark:bg-slate-800 border-[3px] border-[#4B5563] dark:border-[#4B5563] shadow-[3px_3px_0_#475569] dark:shadow-[3px_3px_0_#475569] flex items-center justify-center shrink-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#4B5563] bg-white shadow-[3px_3px_0_#475569] dark:border-[#4B5563] dark:bg-slate-800 dark:shadow-[3px_3px_0_#475569] sm:h-10 sm:w-10 md:h-12 md:w-12">
                             {msg.isLoading && !msg.terminalLogs?.length ? (
                               <Loader2
                                 className="w-5 h-5 md:w-6 md:h-6 text-[#0052FF] animate-spin"
@@ -1654,9 +1666,8 @@ export default function App() {
                           </div>
                         )}
 
-                        {}
                         <div
-                          className={`max-w-[85%] sm:w-auto px-4 py-3 md:px-6 md:py-5 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-sm md:text-lg font-bold break-words
+                            className={`min-w-0 max-w-[calc(100%-2.875rem)] overflow-x-hidden break-words border-[3px] border-[#1A1A1A] px-3 py-3 text-[15px] font-bold leading-6 dark:border-[#4B5563] sm:max-w-[calc(100%-3.25rem)] sm:w-auto sm:px-4 md:max-w-[85%] md:px-6 md:py-5 md:text-lg
                   ${
                     msg.role === "user"
                       ? "bg-[#0052FF] text-white ml-auto shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]"
@@ -1741,7 +1752,6 @@ export default function App() {
                               />
                             )}
 
-                          {}
                           {msg.intentData?.executionKind === "circle_app_kit" &&
                             msg.intentData.executionPlan &&
                             msg.intentData.network === "arc" &&
@@ -2071,8 +2081,7 @@ export default function App() {
                                     msg.intentData,
                                   ) && (
                                     <option value="" disabled>
-                                      LP pozisyonunu/protokolü seçin
-                                    </option>
+                                      Select LP position/protocol</option>
                                   )}
                                   {msg.intentData.allRoutes.map(
                                     (route, idx) => {
@@ -2211,13 +2220,11 @@ export default function App() {
                               </div>
                             )}
 
-                          {}
                           <TerminalLogs msg={msg} />
                         </div>
 
-                        {}
                         {msg.role === "user" && (
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0052FF] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] flex items-center justify-center shrink-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#0052FF] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:h-10 sm:w-10 md:h-12 md:w-12">
                             <User
                               className="w-5 h-5 md:w-6 md:h-6 text-white"
                               strokeWidth={4}
@@ -2231,7 +2238,6 @@ export default function App() {
                 </div>
               </div>
 
-              {}
               <ChatInput
                 inputRef={inputRef}
                 input={input}
@@ -2241,9 +2247,9 @@ export default function App() {
               />
             </>
           )}
+          </React.Suspense>
         </div>
 
-        {}
         <Sidebar
           isPortfolioOpen={isPortfolioOpen}
           setIsPortfolioOpen={setIsPortfolioOpen}

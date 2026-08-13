@@ -98,7 +98,7 @@ contract UniswapV2CompatibleAdapter is IKletiaSwapAdapterV2 {
         return ACTION_KIND;
     }
 
-        function buildSwapCalldata(
+    function buildSwapCalldata(
         SwapCall calldata swapCall,
         bytes calldata adapterData
     ) external view override returns (address callTarget, address allowanceSpender, bytes memory callData) {

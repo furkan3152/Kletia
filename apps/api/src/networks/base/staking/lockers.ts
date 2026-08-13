@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   BASE_STAKING_CONTRACTS,
   getBaseTokenDefinition,
@@ -117,7 +117,7 @@ export async function getStakingRoutes(
   }
 
   const user = userAddress as Address;
-  const userBalance = await publicClient.readContract({
+  const userBalance = await basePublicClient.readContract({
     address: token.address,
     abi: erc20Abi,
     functionName: "balanceOf",

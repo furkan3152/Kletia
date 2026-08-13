@@ -1,4 +1,4 @@
-import { normalizeBaseProtocolId } from "../networks/base/protocols.js";
+import { normalizeBaseProtocolId } from "./protocols.js";
 
 export interface ProtocolIdentifiedRoute {
   readonly protocolId?: unknown;
@@ -40,14 +40,14 @@ export function normalizeExcludedBaseProtocols(
     if (typeof value !== "string") {
       throw protocolConstraintError(
         "INVALID_PROTOCOL_EXCLUSION",
-        "Hariç tutulan protokol listesi geçersiz bir değer taşıyor.",
+        "Excluded protocol list contains an invalid value.",
       );
     }
     const protocolId = normalizeBaseProtocolId(value.trim());
     if (!protocolId) {
       throw protocolConstraintError(
         "INVALID_PROTOCOL_EXCLUSION",
-        "Hariç tutulan protokol açık ve doğrulanabilir olmalıdır.",
+        "Excluded protocol must be explicit and verifiable.",
       );
     }
     return protocolId;
@@ -81,7 +81,7 @@ export function assertBaseProtocolConstraintCompatibility(
   ) {
     throw protocolConstraintError(
       "PROTOCOL_CONSTRAINT_CONFLICT",
-      `İstenen ${normalizedRequested} protokolü aynı niyette hariç tutulmuş; hiçbir işlem rotası hazırlanmadı.`,
+      `The requested ${normalizedRequested} protocol is excluded in the same intent; no transaction route was prepared.`,
     );
   }
   return excludedProtocolIds;
@@ -115,7 +115,7 @@ export function applyBaseProtocolExclusions<T extends ProtocolIdentifiedRoute>(
     ) {
       throw protocolConstraintError(
         "ROUTE_PROTOCOL_EVIDENCE_REQUIRED",
-        "Protokol hariç tutma kuralı uygulanırken bir rota doğrulanmış protocolId taşımıyor.",
+        "A route does not carry a verified protocolId while applying the protocol exclusion rule.",
       );
     }
     if (isBaseProtocolExcluded(route.protocolId, excludedProtocolIds)) {
@@ -143,7 +143,7 @@ export function assertProtocolExclusionsLeaveEligibleRoutes(
   if (evidence.candidateRouteCount > 0 && evidence.eligibleRouteCount === 0) {
     throw protocolConstraintError(
       "NO_ROUTE_AFTER_PROTOCOL_EXCLUSIONS",
-      `${routeKind} için bulunan tüm rotalar açık protokol hariç tutma kuralıyla elendi; hiçbir işlem hazırlanmadı.`,
+      `All routes found for ${routeKind} were eliminated by the open protocol exclusion rule; no transaction was prepared.`,
     );
   }
 }

@@ -1,5 +1,5 @@
 import { encodeFunctionData, formatUnits } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import {
   ROUTERS,
   AERO_ETH_ABI,
@@ -33,7 +33,7 @@ export async function getAerodromeRoutes(
 
   const v1Results = await Promise.allSettled(
     [false, true].map(async (stable) => {
-      const amounts = await publicClient.readContract({
+      const amounts = await basePublicClient.readContract({
         address: ROUTERS.AERO_V1,
         abi: AERODROME_ROUTER_ABI,
         functionName: "getAmountsOut",
@@ -122,7 +122,7 @@ export async function getAerodromeRoutes(
 
   const slipResults = await Promise.allSettled(
     [1, 50, 100, 200, 500, 2000].map(async (tickSpacing) => {
-      const quote = await publicClient.readContract({
+      const quote = await basePublicClient.readContract({
         address: ROUTERS.AERO_SLIPSTREAM_QUOTER,
         abi: SLIPSTREAM_QUOTER_ABI,
         functionName: "quoteExactInputSingle",

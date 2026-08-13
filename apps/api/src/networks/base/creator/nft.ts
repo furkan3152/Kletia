@@ -7,7 +7,7 @@ export async function handleNftMint(
 ): Promise<never> {
   if (!collectionAddress) {
     throw new Error(
-      "Mintlemek istediğin Zora NFT koleksiyonunun adresini belirtmelisin.",
+      "You must specify the address of the Zora NFT collection you want to mint.",
     );
   }
 
@@ -17,13 +17,13 @@ export async function handleNftMint(
     if (targetAddress === "0x0000000000000000000000000000000000000000")
       throw new Error();
   } catch (e) {
-    throw new Error("Geçerli bir NFT kontrat adresi girmelisin (0x...).");
+    throw new Error("You must enter a valid NFT contract address (0x...).");
   }
 
   const quantity = quantityStr ? parseInt(quantityStr) : 1;
   if (isNaN(quantity) || quantity <= 0) {
     throw new Error(
-      "Mintlenecek NFT adedini geçerli bir sayı olarak girmelisin.",
+      "You must enter a valid number for the quantity of NFTs to mint.",
     );
   }
 

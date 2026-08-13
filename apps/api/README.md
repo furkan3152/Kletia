@@ -25,7 +25,7 @@ Network-owned transaction construction must never be added to a shared folder.
 ## Commands
 
 ```bash
-npm ci
+npm ci --legacy-peer-deps
 npm run typecheck
 npm test
 npm run build

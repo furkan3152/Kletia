@@ -14,7 +14,8 @@ import {
   BASE_LAUNCH_FACTORY_V2_FEE_CAP,
   BASE_LAUNCH_FACTORY_V2_MAX_SUPPLY,
   BASE_LAUNCH_FACTORY_V2_RUNTIME_CODEHASH,
-  BASE_LAUNCH_TIMELOCK_ADDRESS,
+  BASE_LAUNCH_OWNER_AUTHORITY_ADDRESS,
+  BASE_LAUNCH_OWNER_AUTHORITY_KIND,
   BASE_LAUNCH_TREASURY_SAFE_ADDRESS,
 } from "../config/launchFactoryV2";
 import type {
@@ -42,7 +43,8 @@ const EVIDENCE_KEYS = [
   "predictedAddress",
   "observedAtBlock",
   "factoryCodehash",
-  "ownerTimelock",
+  "ownerAuthority",
+  "ownerAuthorityKind",
   "treasurySafe",
   "pendingTreasury",
   "factoryFeeCap",
@@ -177,7 +179,11 @@ export function isBaseLaunchFactoryV2Evidence(
     !isBytes32(value.factoryCodehash) ||
     value.factoryCodehash.toLowerCase() !==
       BASE_LAUNCH_FACTORY_V2_RUNTIME_CODEHASH.toLowerCase() ||
-    !sameAddress(value.ownerTimelock, BASE_LAUNCH_TIMELOCK_ADDRESS) ||
+    !sameAddress(
+      value.ownerAuthority,
+      BASE_LAUNCH_OWNER_AUTHORITY_ADDRESS,
+    ) ||
+    value.ownerAuthorityKind !== BASE_LAUNCH_OWNER_AUTHORITY_KIND ||
     !sameAddress(value.treasurySafe, BASE_LAUNCH_TREASURY_SAFE_ADDRESS) ||
     !sameAddress(value.pendingTreasury, ZERO_ADDRESS) ||
     value.factoryFeeCap !== BASE_LAUNCH_FACTORY_V2_FEE_CAP.toString() ||

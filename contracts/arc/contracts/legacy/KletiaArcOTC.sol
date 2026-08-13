@@ -3,8 +3,10 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
-import "./IERC20.sol";
+import "../IERC20.sol";
 
+/// @notice Historical Arc Testnet deployment retained only for source verification.
+/// @dev The public Kletia application does not route intents to this contract.
 contract KletiaArcOTC is ERC2771Context {
     struct Order {
         address maker;

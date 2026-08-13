@@ -2,6 +2,7 @@ import {
   encodeFunctionData,
   formatUnits,
   getAddress,
+  keccak256,
   parseUnits,
   type Address,
   type Hex,
@@ -17,7 +18,10 @@ import {
 } from "./abis.js";
 import {
   ARC_CONTRACTS,
+  ARC_LEGACY_VAULT_ADDRESS,
   ARC_NATIVE_USDC_ADDRESS,
+  ARC_VAULT_EXECUTION_MODE,
+  ARC_VAULT_V2_RUNTIME_CODEHASH,
   NETWORKS,
   arcPublicClient,
   isNetworkTargetAllowed,
@@ -114,7 +118,7 @@ function assertArcAsset(
   if (!asset || !allowed.includes(asset)) {
     throw new ArcPlanError(
       "ARC_INTENT_ASSET_MISMATCH",
-      `${action} için ${field} yalnızca ${allowed.join(" veya ")} olabilir; kullanıcı niyeti farklı bir varlığa sessizce çevrilmedi.`,
+      `${action} for ${field} can only be ${allowed.join(" veya ")}; user intent was not silently converted to a different asset.`,
     );
   }
   return asset;
@@ -127,7 +131,7 @@ function assertKletiaProtocol(intent: ParsedIntent, action: string) {
   if (!normalized.includes("kletia") && normalized !== "arc") {
     throw new ArcPlanError(
       "ARC_INTENT_PROTOCOL_MISMATCH",
-      `${action} yalnızca deploy manifestindeki Kletia Arc hedefi için hazırlanabilir; farklı protokol sessizce yeniden yönlendirilmedi.`,
+      `${action} can only be prepared for the Kletia Arc target in the deploy manifest; different protocol was not silently redirected.`,
     );
   }
 }
@@ -140,7 +144,7 @@ function parsePositiveAmount(
   if (!normalized || normalized.toUpperCase() === "MAX") {
     throw new ArcPlanError(
       "ARC_AMOUNT_REQUIRED",
-      `${label} için açık ve pozitif bir miktar belirtmelisin.`,
+      `You must specify a positive and non-zero amount for ${label}.`,
     );
   }
 
@@ -151,7 +155,7 @@ function parsePositiveAmount(
   } catch {
     throw new ArcPlanError(
       "ARC_INVALID_AMOUNT",
-      `${label} miktarı geçerli bir ondalık sayı olmalıdır.`,
+      `The ${label} amount must be a valid decimal number.`,
     );
   }
 }
@@ -179,7 +183,7 @@ async function resolveTokenOrLpAmount(
   if (balance <= 0n) {
     throw new ArcPlanError(
       "ARC_INSUFFICIENT_BALANCE",
-      `${label} için kullanılabilir bakiye bulunamadı.`,
+      `No available balance found for ${label}.`,
     );
   }
   return balance;
@@ -215,7 +219,7 @@ function transactionResult(
   if (!isNetworkTargetAllowed("arc", route.router, action)) {
     throw new ArcPlanError(
       "ARC_TARGET_NOT_ALLOWED",
-      `Arc işlem hedefi allowlist dışında: ${route.router}`,
+      `Arc transaction target is outside the allowlist: ${route.router}.`,
     );
   }
 
@@ -237,7 +241,7 @@ function transactionResult(
     status: "success",
     action,
     winner: route.name,
-    winnerMessage: `Arc Testnet işlemi hazır: ${route.expectedOutput}`,
+    winnerMessage: `Arc Testnet transaction ready: ${route.expectedOutput}.`,
     expectedOutput: route.expectedOutput,
     targetContract: route.router,
     calldata: route.calldata,
@@ -276,7 +280,7 @@ async function simulateArcTransaction(
     if (balance < required) {
       throw new ArcPlanError(
         "ARC_INSUFFICIENT_TOKEN_BALANCE",
-        `Arc işlemi için ${formatUnits(required, 18)} token gerekiyor; bakiye yetersiz.`,
+        `${formatUnits(required, 18)} tokens are required for the Arc transaction; insufficient balance.`,
       );
     }
 
@@ -291,7 +295,7 @@ async function simulateArcTransaction(
       finalTransactionSimulated: false,
       requiresPostApprovalSimulation: true,
       reason:
-        "ERC20 approval tamamlandıktan sonra imzalanacak son işlem yeniden simüle edilmelidir.",
+        "The final transaction to be signed must be re-simulated after ERC20 approval is completed.",
     };
     result.simulation = simulation;
     result.allRoutes[0].simulation = simulation;
@@ -326,7 +330,7 @@ async function simulateArcTransaction(
     });
     throw new ArcPlanError(
       "ARC_SIMULATION_FAILED",
-      "Arc işlemi canlı ağ simülasyonundan geçemedi.",
+      "Arc transaction failed live network simulation.",
     );
   }
 }
@@ -425,7 +429,7 @@ async function handleUnstake(intent: ParsedIntent, user: Address) {
     if (amount <= 0n) {
       throw new ArcPlanError(
         "ARC_NO_STAKE",
-        "Arc staking pozisyonu bulunamadı.",
+        "Arc staking position not found.",
       );
     }
   } else {
@@ -466,13 +470,13 @@ async function handleClaimRewards(intent: ParsedIntent, user: Address) {
   if (pendingRewards <= 0n) {
     throw new ArcPlanError(
       "ARC_NO_STAKING_REWARDS",
-      "Bu cüzdan için şu anda claim edilebilir Arc staking ödülü yok.",
+      "No claimable Arc staking rewards currently available for this wallet.",
     );
   }
   if (rewardPoolBalance < pendingRewards) {
     throw new ArcPlanError(
       "ARC_REWARD_POOL_INSUFFICIENT",
-      "Arc staking ödül havuzu bu claim işlemini tam karşılamıyor; eksik ödeme planı oluşturulmadı.",
+      "Arc staking reward pool does not fully cover this claim; no partial payment plan created.",
       503,
     );
   }
@@ -505,13 +509,13 @@ async function handleClaimUnstaked(intent: ParsedIntent, user: Address) {
   if (pendingUnstake <= 0n) {
     throw new ArcPlanError(
       "ARC_NO_PENDING_UNSTAKE",
-      "Bu cüzdan için claim bekleyen bir Arc unstake talebi yok.",
+      "No pending Arc unstake claim request for this wallet.",
     );
   }
   if (cooldownRemaining > 0n) {
     throw new ArcPlanError(
       "ARC_STAKING_COOLDOWN_ACTIVE",
-      `Arc unstake cooldown süresi devam ediyor; yaklaşık ${cooldownRemaining.toString()} saniye kaldı.`,
+      `Arc unstake cooldown is active; approximately ${cooldownRemaining.toString()} seconds remaining.`,
     );
   }
 
@@ -529,17 +533,145 @@ async function handleClaimUnstaked(intent: ParsedIntent, user: Address) {
   });
 }
 
-function handleVault(intent: ParsedIntent, withdraw: boolean) {
-  const action = withdraw ? "Arc vault withdrawal" : "Arc vault deposit";
+export function assertArcVaultReserveForPlan(
+  totalDeposited: bigint,
+  vaultBalance: bigint,
+  requestedInterest = 0n,
+) {
+  if (vaultBalance < totalDeposited) {
+    throw new ArcPlanError(
+      "ARC_VAULT_PRINCIPAL_RESERVE_INSUFFICIENT",
+      "Arc Vault balance does not cover the total user principal; Kletia did not create a new vault transaction.",
+      503,
+    );
+  }
+  if (vaultBalance < totalDeposited + requestedInterest) {
+    throw new ArcPlanError(
+      "ARC_VAULT_WITHDRAWAL_RESERVE_INSUFFICIENT",
+      "Arc Vault cannot cover the interest of this withdrawal without affecting other users' principal; transaction not created.",
+      503,
+    );
+  }
+}
+
+async function handleVault(
+  intent: ParsedIntent,
+  withdraw: boolean,
+  user: Address,
+  legacyMigration = false,
+) {
+  if (legacyMigration && (!withdraw || ARC_VAULT_EXECUTION_MODE !== "vault_v2")) {
+    throw new ArcPlanError(
+      "ARC_VAULT_LEGACY_MIGRATION_INACTIVE",
+      "Legacy Vault withdrawal is available only while the application is in Vault V2 migration mode.",
+      409,
+    );
+  }
+  const vaultAddress = legacyMigration
+    ? ARC_LEGACY_VAULT_ADDRESS
+    : ARC_CONTRACTS.Vault;
+  const vaultMode = legacyMigration ? "legacy_v1" : ARC_VAULT_EXECUTION_MODE;
+  const action = legacyMigration
+    ? "Arc legacy vault migration withdrawal"
+    : withdraw
+      ? "Arc vault withdrawal"
+      : "Arc vault deposit";
   assertKletiaProtocol(intent, action);
   assertArcAsset(intent.tokenIn, ["USDC"], action, "tokenIn");
   assertArcAsset(intent.tokenOut, ["USDC"], action, "tokenOut");
   const amount = withdraw
     ? 0n
     : parsePositiveAmount(intent.amount, "Arc vault deposit");
-  return transactionResult(withdraw ? "vault_withdraw" : "vault_deposit", {
-    name: "Kletia Arc Vault",
-    router: ARC_CONTRACTS.Vault,
+  const observedBlock = await arcPublicClient.getBlockNumber();
+  const [totalDeposited, vaultBalance, pendingInterest, vaultCode, position] = await Promise.all([
+    arcPublicClient.readContract({
+      address: vaultAddress,
+      abi: ARC_VAULT_ABI,
+      functionName: "totalDeposited",
+      blockNumber: observedBlock,
+    }),
+    arcPublicClient.getBalance({
+      address: vaultAddress,
+      blockNumber: observedBlock,
+    }),
+    withdraw
+      ? arcPublicClient.readContract({
+          address: vaultAddress,
+          abi: ARC_VAULT_ABI,
+          functionName: "pendingInterest",
+          args: [user],
+          blockNumber: observedBlock,
+        })
+      : Promise.resolve(0n),
+    vaultMode === "vault_v2"
+      ? arcPublicClient.getCode({
+          address: vaultAddress,
+          blockNumber: observedBlock,
+        })
+      : Promise.resolve(undefined),
+    withdraw
+      ? arcPublicClient.readContract({
+          address: vaultAddress,
+          abi: ARC_VAULT_ABI,
+          functionName: "deposits",
+          args: [user],
+          blockNumber: observedBlock,
+        })
+      : Promise.resolve(null),
+  ]);
+  if (withdraw && (position === null || position[0] <= 0n)) {
+    throw new ArcPlanError(
+      legacyMigration ? "ARC_NO_LEGACY_VAULT_POSITION" : "ARC_NO_VAULT_POSITION",
+      legacyMigration
+        ? "This wallet has no legacy Arc Vault principal to migrate."
+        : "This wallet has no active Arc Vault principal to withdraw.",
+    );
+  }
+  if (vaultMode === "vault_v2") {
+    if (
+      !vaultCode ||
+      vaultCode === "0x" ||
+      keccak256(vaultCode).toLowerCase() !== ARC_VAULT_V2_RUNTIME_CODEHASH
+    ) {
+      throw new ArcPlanError(
+        "ARC_VAULT_V2_RUNTIME_MISMATCH",
+        "Arc Vault V2 runtime bytecode does not match deployment evidence; transaction not created.",
+        503,
+      );
+    }
+    const reserve = await arcPublicClient.readContract({
+      address: vaultAddress,
+      abi: ARC_VAULT_ABI,
+      functionName: "reserveStatus",
+      blockNumber: observedBlock,
+    });
+    if (!reserve[5] || reserve[0] < reserve[3]) {
+      throw new ArcPlanError(
+        "ARC_VAULT_V2_INSOLVENT",
+        "Arc Vault V2 does not cover total principal and interest obligations; transaction not created.",
+        503,
+      );
+    }
+  } else {
+    assertArcVaultReserveForPlan(
+      totalDeposited,
+      vaultBalance,
+      pendingInterest,
+    );
+  }
+  const resultAction = legacyMigration
+    ? "vault_legacy_withdraw"
+    : withdraw
+      ? "vault_withdraw"
+      : "vault_deposit";
+  return transactionResult(resultAction, {
+    name:
+      vaultMode === "vault_v2"
+        ? "Kletia Arc Vault V2"
+        : legacyMigration
+          ? "Kletia Arc Vault Legacy Migration"
+          : "Kletia Arc Vault Legacy",
+    router: vaultAddress,
     calldata: encodeFunctionData({
       abi: ARC_VAULT_ABI,
       functionName: withdraw ? "withdraw" : "deposit",
@@ -548,7 +680,7 @@ function handleVault(intent: ParsedIntent, withdraw: boolean) {
     amountInWei: amount.toString(),
     isNativeIn: !withdraw,
     expectedOutput: withdraw
-      ? "Full Arc vault principal and accrued yield"
+      ? `Full Arc vault principal and ${formatUnits(pendingInterest, 18)} USDC accrued yield; ${vaultMode} reserve checked at block ${observedBlock.toString()}`
       : `${formatUnits(amount, 18)} USDC vault deposit`,
   });
 }
@@ -563,7 +695,7 @@ function handleMemo(intent: ParsedIntent) {
   } catch {
     throw new ArcPlanError(
       "ARC_INVALID_RECIPIENT",
-      "Memo transfer için geçerli bir EVM alıcı adresi gerekli.",
+      "A valid EVM recipient address is required for memo transfer.",
     );
   }
   const memo = String(intent.memo || intent.name || "").trim();
@@ -571,7 +703,7 @@ function handleMemo(intent: ParsedIntent) {
   if (!memo || memoBytes > 256) {
     throw new ArcPlanError(
       "ARC_INVALID_MEMO",
-      "Memo boş olamaz ve UTF-8 olarak en fazla 256 byte olmalıdır.",
+      "Memo cannot be empty and must be at most 256 bytes in UTF-8.",
     );
   }
 
@@ -615,7 +747,7 @@ async function handleAddLiquidity(intent: ParsedIntent) {
   if (usdcReserve <= 0n || tokenReserve <= 0n) {
     throw new ArcPlanError(
       "ARC_EMPTY_POOL",
-      "Arc likidite havuzu rezervleri hazır değil.",
+      "Arc liquidity pool reserves are not ready.",
     );
   }
 
@@ -623,7 +755,7 @@ async function handleAddLiquidity(intent: ParsedIntent) {
   if (requiredKlet <= 0n) {
     throw new ArcPlanError(
       "ARC_LIQUIDITY_AMOUNT_TOO_LOW",
-      "Arc likidite miktarı canlı rezerv oranında pozitif KLET gereksinimi üretmiyor.",
+      "Arc liquidity amount does not generate a positive KLET requirement at live reserve ratio.",
     );
   }
   const userMaxKlet = parsePositiveAmount(
@@ -633,7 +765,7 @@ async function handleAddLiquidity(intent: ParsedIntent) {
   if (userMaxKlet < requiredKlet) {
     throw new ArcPlanError(
       "ARC_LIQUIDITY_KLET_CAP_EXCEEDED",
-      `Canlı rezervler en az ${formatUnits(requiredKlet, 18)} KLET gerektiriyor; kullanıcının ${formatUnits(userMaxKlet, 18)} KLET tavanı aşılmadı ve rota hazırlanmadı.`,
+      `Live reserves require at least ${formatUnits(requiredKlet, 18)} KLET; user's ${formatUnits(userMaxKlet, 18)} KLET cap not exceeded and route not prepared.`,
     );
   }
 
@@ -739,7 +871,7 @@ async function handleLendingWithdraw(intent: ParsedIntent, user: Address) {
   if (tokenOut && tokenOut !== token) {
     throw new ArcPlanError(
       "ARC_INTENT_ASSET_MISMATCH",
-      "Arc lending withdrawal tokenIn ve tokenOut alanları aynı varlığı göstermelidir.",
+      "Arc lending withdrawal tokenIn and tokenOut fields must represent the same asset.",
     );
   }
 
@@ -756,7 +888,7 @@ async function handleLendingWithdraw(intent: ParsedIntent, user: Address) {
   if (amount <= 0n || amount > available) {
     throw new ArcPlanError(
       "ARC_LENDING_WITHDRAW_BALANCE",
-      `Çekilebilir ${token} bakiyesi yetersiz.`,
+      `Insufficient withdrawable ${token} balance.`,
     );
   }
 
@@ -832,6 +964,26 @@ function handleLendingRepay(intent: ParsedIntent) {
 
 export async function getArcPortfolio(userAddress: string) {
   const user = getAddress(userAddress);
+  const observedBlock = await arcPublicClient.getBlockNumber();
+  if (ARC_VAULT_EXECUTION_MODE === "vault_v2") {
+    const activeVaultCode = await arcPublicClient.getCode({
+      address: ARC_CONTRACTS.Vault,
+      blockNumber: observedBlock,
+    });
+    if (
+      !activeVaultCode ||
+      activeVaultCode === "0x" ||
+      keccak256(activeVaultCode).toLowerCase() !==
+        ARC_VAULT_V2_RUNTIME_CODEHASH
+    ) {
+      throw new ArcPlanError(
+        "ARC_VAULT_V2_RUNTIME_MISMATCH",
+        "Arc Vault V2 runtime bytecode does not match deployment evidence; portfolio response not generated.",
+        503,
+      );
+    }
+  }
+
   const [
     nativeBalance,
     kletBalance,
@@ -843,63 +995,102 @@ export async function getArcPortfolio(userAddress: string) {
     lendingBorrowed,
     lendingSupplied,
     lendingHealth,
+    legacyVaultPosition,
   ] = await Promise.all([
-    arcPublicClient.getBalance({ address: user }),
+    arcPublicClient.getBalance({ address: user, blockNumber: observedBlock }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Token,
       abi: ARC_ERC20_ABI,
       functionName: "balanceOf",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Vault,
       abi: ARC_VAULT_ABI,
       functionName: "deposits",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Vault,
       abi: ARC_VAULT_ABI,
       functionName: "pendingInterest",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Staking,
       abi: ARC_STAKING_ABI,
       functionName: "getStakerInfo",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Staking,
       abi: ARC_STAKING_ABI,
       functionName: "pendingRewards",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Lending,
       abi: ARC_LENDING_ABI,
       functionName: "collateralBalance",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Lending,
       abi: ARC_LENDING_ABI,
       functionName: "getBorrowedBalance",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Lending,
       abi: ARC_LENDING_ABI,
       functionName: "getSuppliedBalance",
       args: [user],
+      blockNumber: observedBlock,
     }),
     arcPublicClient.readContract({
       address: ARC_CONTRACTS.Lending,
       abi: ARC_LENDING_ABI,
       functionName: "healthFactor",
       args: [user],
+      blockNumber: observedBlock,
     }),
+    ARC_VAULT_EXECUTION_MODE === "vault_v2"
+      ? Promise.all([
+          arcPublicClient.readContract({
+            address: ARC_LEGACY_VAULT_ADDRESS,
+            abi: ARC_VAULT_ABI,
+            functionName: "deposits",
+            args: [user],
+            blockNumber: observedBlock,
+          }),
+          arcPublicClient.readContract({
+            address: ARC_LEGACY_VAULT_ADDRESS,
+            abi: ARC_VAULT_ABI,
+            functionName: "pendingInterest",
+            args: [user],
+            blockNumber: observedBlock,
+          }),
+        ])
+      : Promise.resolve(null),
   ]);
+
+  const legacyVault =
+    legacyVaultPosition && legacyVaultPosition[0][0] > 0n
+      ? {
+          address: ARC_LEGACY_VAULT_ADDRESS,
+          principal: formatUnits(legacyVaultPosition[0][0], 18),
+          accruedInterest: formatUnits(legacyVaultPosition[0][2], 18),
+          pendingInterest: formatUnits(legacyVaultPosition[1], 18),
+          migrationRequired: true as const,
+        }
+      : undefined;
 
   return {
     status: "success",
@@ -923,10 +1114,13 @@ export async function getArcPortfolio(userAddress: string) {
         },
       ],
       vault: {
+        executionMode: ARC_VAULT_EXECUTION_MODE,
+        address: ARC_CONTRACTS.Vault,
         principal: formatUnits(vaultDeposit[0], 18),
         accruedInterest: formatUnits(vaultDeposit[2], 18),
         pendingInterest: formatUnits(vaultPending, 18),
       },
+      ...(legacyVault ? { legacyVault } : {}),
       staking: {
         stakedAmount: formatUnits(stakingInfo[0], 18),
         pendingUnstake: formatUnits(stakingInfo[3], 18),
@@ -962,6 +1156,7 @@ export async function getArcPortfolio(userAddress: string) {
         executionPolicy:
           "Every value-moving request is rebuilt from explicit inputs, bound to Arc Testnet, checked against its action target, and simulated before wallet approval. This portfolio response sends no transaction.",
       },
+      observedAtBlock: observedBlock.toString(),
     },
     message:
       "Arc Testnet portfolio scanned with the currently available intent-route families and execution policy.",
@@ -993,10 +1188,13 @@ export async function dispatchArcAction(
       result = await handleClaimUnstaked(intent, user);
       break;
     case "vault_deposit":
-      result = handleVault(intent, false);
+      result = await handleVault(intent, false, user);
       break;
     case "vault_withdraw":
-      result = handleVault(intent, true);
+      result = await handleVault(intent, true, user);
+      break;
+    case "vault_legacy_withdraw":
+      result = await handleVault(intent, true, user, true);
       break;
     case "memo_send":
       result = handleMemo(intent);

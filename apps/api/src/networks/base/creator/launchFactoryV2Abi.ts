@@ -104,3 +104,20 @@ export const TIMELOCK_IDENTITY_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
+
+export const SAFE_IDENTITY_ABI = [
+  {
+    type: "function",
+    name: "getThreshold",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "getOwners",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]" }],
+  },
+] as const;

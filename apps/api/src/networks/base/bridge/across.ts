@@ -165,19 +165,19 @@ interface AcrossQuote {
 
 function asRecord(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Across geçersiz ${field} verisi döndürdü.`);
+    throw new Error(`Across returned invalid ${field} data.`);
   }
   return value as Record<string, unknown>;
 }
 
 function asAddress(value: unknown, field: string): Address {
   if (typeof value !== "string") {
-    throw new Error(`Across geçersiz ${field} adresi döndürdü.`);
+    throw new Error(`Across returned an invalid ${field} address.`);
   }
   try {
     return getAddress(value);
   } catch {
-    throw new Error(`Across geçersiz ${field} adresi döndürdü.`);
+    throw new Error(`Across returned an invalid ${field} address.`);
   }
 }
 
@@ -186,11 +186,11 @@ function asUnsignedBigInt(value: unknown, field: string): bigint {
     (typeof value !== "string" && typeof value !== "number") ||
     !/^(0|[1-9]\d*)$/.test(String(value))
   ) {
-    throw new Error(`Across geçersiz ${field} değeri döndürdü.`);
+    throw new Error(`Across returned an invalid ${field} value.`);
   }
   const parsed = BigInt(value);
   if (parsed < 0n) {
-    throw new Error(`Across geçersiz ${field} değeri döndürdü.`);
+    throw new Error(`Across returned an invalid ${field} value.`);
   }
   return parsed;
 }
@@ -198,7 +198,7 @@ function asUnsignedBigInt(value: unknown, field: string): bigint {
 function asUint32(value: unknown, field: string): number {
   const parsed = asUnsignedBigInt(value, field);
   if (parsed > 0xffff_ffffn) {
-    throw new Error(`Across ${field} değeri uint32 sınırını aşıyor.`);
+    throw new Error(`Across ${field} value exceeds the uint32 limit.`);
   }
   return Number(parsed);
 }
@@ -206,7 +206,7 @@ function asUint32(value: unknown, field: string): number {
 function asChainId(value: unknown, field: string): number {
   const parsed = asUnsignedBigInt(value, field);
   if (parsed > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error(`Across geçersiz ${field} döndürdü.`);
+    throw new Error(`Across returned an invalid ${field}.`);
   }
   return Number(parsed);
 }
@@ -220,14 +220,14 @@ function acrossCredentials(): {
   if (!apiKey || !integratorId) {
     throw Object.assign(
       new Error(
-        "Across Base mainnet rotası için ACROSS_API_KEY ve ACROSS_INTEGRATOR_ID zorunludur.",
+        "ACROSS_API_KEY and ACROSS_INTEGRATOR_ID are required for the Across Base mainnet route.",
       ),
       { code: "ACROSS_CONFIGURATION_REQUIRED", statusCode: 503 },
     );
   }
   if (!/^0x[0-9a-fA-F]{4}$/.test(integratorId)) {
     throw Object.assign(
-      new Error("ACROSS_INTEGRATOR_ID 2 baytlık 0x-prefiksli hex olmalıdır."),
+      new Error("ACROSS_INTEGRATOR_ID must be a 2-byte 0x-prefixed hex."),
       { code: "ACROSS_CONFIGURATION_INVALID", statusCode: 503 },
     );
   }
@@ -240,14 +240,14 @@ function maxRelayFeeBps(): bigint {
     DEFAULT_MAX_RELAY_FEE_BPS.toString();
   if (!/^\d+$/.test(raw)) {
     throw Object.assign(
-      new Error("ACROSS_MAX_RELAY_FEE_BPS yapılandırması geçersiz."),
+      new Error("ACROSS_MAX_RELAY_FEE_BPS configuration is invalid."),
       { code: "ACROSS_CONFIGURATION_INVALID", statusCode: 503 },
     );
   }
   const parsed = BigInt(raw);
   if (parsed < 1n || parsed > 1_000n) {
     throw Object.assign(
-      new Error("ACROSS_MAX_RELAY_FEE_BPS 1 ile 1000 arasında olmalıdır."),
+      new Error("ACROSS_MAX_RELAY_FEE_BPS must be between 1 and 1000."),
       { code: "ACROSS_CONFIGURATION_INVALID", statusCode: 503 },
     );
   }
@@ -276,7 +276,7 @@ function parseQuote(
 
   const spokePoolAddress = asAddress(data.spokePoolAddress, "spokePoolAddress");
   if (!isAddressEqual(spokePoolAddress, BASE_ACROSS_SPOKE_POOL)) {
-    throw new Error("Across beklenmeyen bir Base SpokePool hedefi döndürdü.");
+    throw new Error("Across returned an unexpected Base SpokePool target.");
   }
 
   const responseInputToken = asAddress(inputToken.address, "inputToken");
@@ -287,7 +287,7 @@ function parseQuote(
     asChainId(inputToken.decimals, "inputToken.decimals") !== route.decimals
   ) {
     throw new Error(
-      "Across teklifindeki Base giriş tokeni istenen rota ile eşleşmiyor.",
+      "The Base input token in the Across quote does not match the requested route.",
     );
   }
   if (
@@ -297,12 +297,12 @@ function parseQuote(
     asChainId(outputToken.decimals, "outputToken.decimals") !== route.decimals
   ) {
     throw new Error(
-      "Across teklifindeki hedef token istenen rota ile eşleşmiyor.",
+      "The target token in the Across quote does not match the requested route.",
     );
   }
 
   if (data.isAmountTooLow !== false) {
-    throw new Error("Miktar Across köprüleme alt limitinin altında.");
+    throw new Error("Amount is below the Across bridging minimum limit.");
   }
   const minDeposit = asUnsignedBigInt(limits.minDeposit, "limits.minDeposit");
   const maxDeposit = asUnsignedBigInt(limits.maxDeposit, "limits.maxDeposit");
@@ -312,7 +312,7 @@ function parseQuote(
     amountInWei < minDeposit ||
     amountInWei > maxDeposit
   ) {
-    throw new Error("Miktar Across köprüleme limitleri dışında.");
+    throw new Error("Amount is outside Across bridging limits.");
   }
 
   const totalRelayFee = asUnsignedBigInt(fee.total, "totalRelayFee.total");
@@ -323,14 +323,14 @@ function parseQuote(
     outputAmount > amountInWei ||
     outputAmount !== amountInWei - totalRelayFee
   ) {
-    throw new Error("Across teklifindeki çıkış miktarı ve ücret tutarsız.");
+    throw new Error("The output amount and fee in the Across quote are inconsistent.");
   }
   const relayFeeBps =
     (totalRelayFee * 10_000n + amountInWei - 1n) / amountInWei;
   if (relayFeeBps > maxRelayFeeBps()) {
     throw Object.assign(
       new Error(
-        `Across relay ücreti yapılandırılmış üst sınırı aşıyor (${relayFeeBps} bps).`,
+        `Across relay fee exceeds the configured upper limit (${relayFeeBps} bps).`,
       ),
       { code: "ACROSS_FEE_LIMIT_EXCEEDED", statusCode: 400 },
     );
@@ -342,7 +342,7 @@ function parseQuote(
     quoteTimestamp < now - MAX_QUOTE_AGE_SECONDS ||
     quoteTimestamp > now + 60
   ) {
-    throw new Error("Across teklifi güncel değil.");
+    throw new Error("Across quote is not current.");
   }
 
   const fillDeadline = asUint32(data.fillDeadline, "fillDeadline");
@@ -352,7 +352,7 @@ function parseQuote(
     fillDeadline > now + MAX_FILL_WINDOW_SECONDS
   ) {
     throw new Error(
-      "Across geçersiz veya süresi dolmuş fillDeadline döndürdü.",
+      "Across returned an invalid or expired fillDeadline.",
     );
   }
 
@@ -370,7 +370,7 @@ function parseQuote(
     !validAbsoluteExclusivity &&
     !validRelativeExclusivity
   ) {
-    throw new Error("Across geçersiz exclusivityDeadline döndürdü.");
+    throw new Error("Across returned an invalid exclusivityDeadline.");
   }
 
   const exclusiveRelayer = asAddress(data.exclusiveRelayer, "exclusiveRelayer");
@@ -393,16 +393,16 @@ async function readJsonResponse(response: Response): Promise<unknown> {
     Number.isFinite(Number(contentLength)) &&
     Number(contentLength) > MAX_QUOTE_BYTES
   ) {
-    throw new Error("Across teklif yanıtı güvenli boyut sınırını aşıyor.");
+    throw new Error("Across quote response exceeds safe size limit.");
   }
   const raw = await response.text();
   if (Buffer.byteLength(raw, "utf8") > MAX_QUOTE_BYTES) {
-    throw new Error("Across teklif yanıtı güvenli boyut sınırını aşıyor.");
+    throw new Error("Across quote response exceeds safe size limit.");
   }
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error("Across geçerli JSON döndürmedi.");
+    throw new Error("Across did not return valid JSON.");
   }
 }
 
@@ -422,7 +422,7 @@ export async function getAcrossBridgeRoutes(
     : undefined;
   if (!destination) {
     throw new Error(
-      `Desteklenmeyen Hedef Ağ: ${destinationChainStr}. Yalnız Ethereum, Arbitrum veya Optimism seçilebilir.`,
+      `Unsupported Target Network: ${destinationChainStr}. Only Ethereum, Arbitrum, or Optimism are selectable.`,
     );
   }
 
@@ -433,7 +433,7 @@ export async function getAcrossBridgeRoutes(
     normalizedSymbol !== "USDC"
   ) {
     throw new Error(
-      `Across Base rotasında desteklenmeyen token: ${tokenSymbol}.`,
+      `Unsupported token on Across Base route: ${tokenSymbol}.`,
     );
   }
   const route = destination.tokens[normalizedSymbol];
@@ -444,14 +444,14 @@ export async function getAcrossBridgeRoutes(
     normalizedInputToken = getAddress(tokenAddress);
     normalizedUser = getAddress(userAddress);
   } catch {
-    throw new Error("Across rotası için geçersiz kullanıcı veya token adresi.");
+    throw new Error("Invalid user or token address for Across route.");
   }
   if (
     normalizedUser === zeroAddress ||
     !isAddressEqual(normalizedInputToken, route.inputToken)
   ) {
     throw new Error(
-      "Base giriş tokeni desteklenen Across rotası ile eşleşmiyor.",
+      "Base input token does not match a supported Across route.",
     );
   }
   if (
@@ -460,7 +460,7 @@ export async function getAcrossBridgeRoutes(
     isNative !== (normalizedSymbol === "ETH")
   ) {
     throw new Error(
-      "Across rota parametreleri token yapılandırması ile eşleşmiyor.",
+      "Across route parameters do not match token configuration.",
     );
   }
 
@@ -514,7 +514,7 @@ export async function getAcrossBridgeRoutes(
     quote.fillDeadline * 1000 - FILL_DEADLINE_SAFETY_MS,
   );
   if (quoteExpiresAt <= Date.now()) {
-    throw Object.assign(new Error("Across teklifinin imza süresi dolmuş."), {
+    throw Object.assign(new Error("The signature period for the Across quote has expired."), {
       code: "ACROSS_QUOTE_EXPIRED",
       statusCode: 400,
     });
@@ -524,7 +524,7 @@ export async function getAcrossBridgeRoutes(
     {
       name: "Across V3 Bridge",
       protocolId: "across",
-      expectedOutput: `${formatUnits(quote.outputAmount, route.decimals)} ${normalizedSymbol} (${destination.displayName} ağında)`,
+      expectedOutput: `${formatUnits(quote.outputAmount, route.decimals)} ${normalizedSymbol} (${destination.displayName} network)`,
       routePath: `Base -> ${destination.displayName}`,
       router: quote.spokePoolAddress,
       calldata,

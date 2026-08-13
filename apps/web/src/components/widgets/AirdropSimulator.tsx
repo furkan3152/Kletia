@@ -771,7 +771,6 @@ export const AirdropSimulator: React.FC = () => {
   return (
     <div className="w-full h-full p-4 md:p-8 overflow-y-auto custom-scrollbar flex flex-col items-center">
       <div className="w-full max-w-5xl space-y-6">
-        {}
         <div className="bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 md:p-8 shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tighter flex items-center gap-3">
@@ -785,7 +784,6 @@ export const AirdropSimulator: React.FC = () => {
           </div>
         </div>
 
-        {}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
             <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-6 h-6" />
@@ -807,7 +805,6 @@ export const AirdropSimulator: React.FC = () => {
           </button>
         </div>
 
-        {}
         {visibleResult && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">
             <div className="lg:col-span-3 bg-indigo-100 dark:bg-indigo-950 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
@@ -825,7 +822,6 @@ export const AirdropSimulator: React.FC = () => {
               </div>
             </div>
 
-            {}
             <div className="lg:col-span-1 bg-white dark:bg-[#131E32] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 flex flex-col items-center justify-center shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] text-center">
               <h3 className="text-xl font-black uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-4">
                 Kletia Activity Score
@@ -850,9 +846,7 @@ export const AirdropSimulator: React.FC = () => {
               </p>
             </div>
 
-            {}
             <div className="lg:col-span-2 flex flex-col gap-4">
-              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-8 h-8 text-purple-500" />
@@ -877,7 +871,6 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Database className="w-8 h-8 text-blue-500" />
@@ -945,7 +938,6 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
               </div>
 
-              {}
               <div className="bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-5 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <Activity className="w-8 h-8 text-emerald-500" />

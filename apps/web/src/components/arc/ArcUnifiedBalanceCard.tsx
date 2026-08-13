@@ -22,7 +22,7 @@ const hasAmount = (value: string): boolean => !/^0(?:\.0+)?$/.test(value);
 const errorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
-    : "Circle Gateway Unified Balance sorgusu tamamlanamadı.";
+    : "Circle Gateway Unified Balance query failed.";
 
 export function ArcUnifiedBalanceCard() {
   const { address, isConnected } = useAccount();
@@ -51,8 +51,8 @@ export function ArcUnifiedBalanceCard() {
       setErrorState({
         sessionKey,
         value: isConnected
-          ? "Circle Gateway verisi için cüzdanı Arc Testnet ağına geçirin."
-          : "Circle Gateway verisi için önce cüzdanı bağlayın.",
+          ? "Switch wallet to Arc Testnet network for Circle Gateway data."
+          : "Connect wallet first for Circle Gateway data.",
       });
       return;
     }
@@ -105,11 +105,7 @@ export function ArcUnifiedBalanceCard() {
             Unified USDC
           </h3>
           <p className="mt-3 text-sm font-bold leading-relaxed">
-            Resmî Circle Gateway bakiyesini desteklenen testnet zincirleri
-            boyunca birleştirir. Bu değer normal cüzdan bakiyesi değildir;
-            yalnız Gateway’e yatırılmış, zincirler arası harcanabilir USDC’yi ve
-            bekleyen yatırımları gösterir.
-          </p>
+            The official Circle Gateway balance aggregates across supported testnet chains. This value is not the normal wallet balance; it shows USDC deposited to the Gateway, spendable across chains, and pending deposits.</p>
         </div>
 
         <button
@@ -123,15 +119,15 @@ export function ArcUnifiedBalanceCard() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {isLoading ? "Gateway okunuyor" : "Canlı bakiyeyi getir"}
+          {isLoading ? "Gateway okunuyor" : "Fetch live balance"}
         </button>
       </div>
 
       {!sessionMatches && (
         <div className="mt-5 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black uppercase shadow-[3px_3px_0_#1A1A1A]">
           {isConnected
-            ? "Yanlış ağ: salt-okunur sorgu bile yalnız Arc Testnet oturumunda açılır."
-            : "Arc Testnet cüzdanını bağlayarak salt-okunur sorguyu etkinleştir."}
+            ? "Wrong network: even read-only queries open only in Arc Testnet session."
+            : "Enable read-only query by connecting the Arc Testnet wallet."}
         </div>
       )}
 
@@ -169,9 +165,7 @@ export function ArcUnifiedBalanceCard() {
             </div>
             {visibleRows.length === 0 ? (
               <p className="text-sm font-bold">
-                Bu hesap için doğrulanmış veya bekleyen Gateway USDC bakiyesi
-                bulunmadı.
-              </p>
+                No verified or pending Gateway USDC balance found for this account.</p>
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
                 {visibleRows.map((chain) => (
@@ -180,13 +174,11 @@ export function ArcUnifiedBalanceCard() {
                     className="border-[2px] border-[#1A1A1A] bg-[#F8FAFC] p-3 text-xs font-bold"
                   >
                     <div className="font-black uppercase">{chain.chain}</div>
-                    <div>Doğrulanmış: {chain.confirmedBalance} USDC</div>
+                    <div>Verified: {chain.confirmedBalance} USDC</div>
                     <div>Bekleyen: {chain.pendingBalance} USDC</div>
                     {chain.pendingTransactions.length > 0 && (
                       <div className="mt-1 text-[10px] font-black uppercase text-[#8B5CF6]">
-                        {chain.pendingTransactions.length} bekleyen Gateway
-                        yatırımı
-                      </div>
+                        {chain.pendingTransactions.length} pending Gateway investment</div>
                     )}
                   </div>
                 ))}
@@ -197,11 +189,7 @@ export function ArcUnifiedBalanceCard() {
       )}
 
       <p className="mt-5 text-[10px] font-bold uppercase leading-relaxed text-gray-600">
-        Kaynak: Circle App Kit Unified Balance / Gateway. Sorgu `networkType:
-        testnet` ile sınırlandırılır; işlem oluşturmaz, cüzdan imzası veya özel
-        anahtar istemez. Bakiye sorgusu için açık cüzdan adresi Circle Gateway
-        salt-okunur API’sine gönderilir.
-      </p>
+        Source: Circle App Kit Unified Balance / Gateway. Query is limited to `networkType: testnet`; it does not create transactions or request wallet signatures or private keys. The open wallet address is sent to the Circle Gateway read-only API for balance query.</p>
     </section>
   );
 }

@@ -144,7 +144,7 @@ contract UniswapV3SwapRouter02Adapter is IKletiaSwapAdapterV2 {
         return ACTION_KIND;
     }
 
-        function buildSwapCalldata(
+    function buildSwapCalldata(
         SwapCall calldata swapCall,
         bytes calldata adapterData
     )

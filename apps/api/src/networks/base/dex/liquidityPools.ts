@@ -1,5 +1,5 @@
 import { getAddress, zeroAddress, type Address } from "viem";
-import { publicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../config/client.js";
 import { ROUTERS } from "../contracts.js";
 import { AERO_FACTORY_ABI, UNI_FACTORY_ABI } from "./constants.js";
 
@@ -134,25 +134,25 @@ async function readPool(
   observedBlock: bigint,
 ): Promise<LiquidityPoolSnapshot> {
   const [token0, token1, reserves, totalSupply] = await Promise.all([
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: input.pool,
       abi: LIQUIDITY_POOL_ABI,
       functionName: "token0",
       blockNumber: observedBlock,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: input.pool,
       abi: LIQUIDITY_POOL_ABI,
       functionName: "token1",
       blockNumber: observedBlock,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: input.pool,
       abi: LIQUIDITY_POOL_ABI,
       functionName: "getReserves",
       blockNumber: observedBlock,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: input.pool,
       abi: LIQUIDITY_POOL_ABI,
       functionName: "totalSupply",
@@ -220,7 +220,7 @@ export async function discoverLiquidityPools(
   if (tokenA === tokenB) return [];
   let observedBlock: bigint;
   try {
-    observedBlock = await publicClient.getBlockNumber();
+    observedBlock = await basePublicClient.getBlockNumber();
   } catch {
     throw Object.assign(
       new Error(
@@ -236,7 +236,7 @@ export async function discoverLiquidityPools(
   const tasks: Array<() => Promise<LiquidityPoolSnapshot>> = [];
   for (const stable of [false, true] as const) {
     tasks.push(async () => {
-      const poolResult = await publicClient.readContract({
+      const poolResult = await basePublicClient.readContract({
         address: ROUTERS.AERO_FACTORY,
         abi: AERO_FACTORY_ABI,
         functionName: "getPool",
@@ -266,14 +266,14 @@ export async function discoverLiquidityPools(
 
   for (const definition of V2_LIQUIDITY_ROUTERS) {
     tasks.push(async () => {
-      const factoryResult = await publicClient.readContract({
+      const factoryResult = await basePublicClient.readContract({
         address: definition.router,
         abi: ROUTER_FACTORY_ABI,
         functionName: "factory",
         blockNumber: observedBlock,
       });
       const factory = getAddress(factoryResult);
-      const poolResult = await publicClient.readContract({
+      const poolResult = await basePublicClient.readContract({
         address: factory,
         abi: UNI_FACTORY_ABI,
         functionName: "getPair",

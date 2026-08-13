@@ -17,14 +17,15 @@ module.exports = {
         version: "0.8.24",
         settings: {
           evmVersion: "cancun",
-          optimizer: { enabled: true, runs: 200 },
+          // Matches the existing Arc Testnet deployment metadata exactly.
+          optimizer: { enabled: false },
         },
       },
       {
         version: "0.8.20",
         settings: {
           evmVersion: "cancun",
-          optimizer: { enabled: true, runs: 200 },
+          optimizer: { enabled: false },
         },
       },
     ],

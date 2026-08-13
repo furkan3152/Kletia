@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "kletia_arc_testnet_deployment_v1",
+  "network": {
+    "name": "Arc Testnet",
+    "chainId": 5042002,
+    "nativeAsset": "USDC",
+    "explorer": "https://testnet.arcscan.app"
+  },
+  "observedAt": "2026-08-13",
+  "observedAtBlock": "56854829",
+  "compiler": {
+    "solidity": ["0.8.24", "0.8.20"],
+    "evmVersion": "cancun",
+    "optimizerEnabled": false,
+    "license": "MIT"
+  },
+  "trustRoots": {
+    "erc2771Forwarder": {
+      "address": "0x7dE7A249673F2235A91E484CfCE49D00867B67Ec",
+      "deploymentTransaction": "0x416d7a0845c495e15e06780cabba808dfd53b47bfd0e09e57d4573a20491cd4b",
+      "deploymentBlock": "52436104",
+      "verifiedExact": true,
+      "explorerUrl": "https://testnet.arcscan.app/address/0x7dE7A249673F2235A91E484CfCE49D00867B67Ec?tab=contract"
+    },
+    "kletToken": {
+      "address": "0xAe77D247c26258397653a020995E957Bc88E039A",
+      "deploymentTransaction": "0x9176fc0ec7cc2a1167b120a2ae22eac855cd2358328ceb25c13b07d01e90e63f",
+      "deploymentBlock": "52436119",
+      "verifiedExact": true,
+      "explorerUrl": "https://testnet.arcscan.app/address/0xAe77D247c26258397653a020995E957Bc88E039A?tab=contract"
+    }
+  },
+  "applicationContracts": {
+    "swap": {
+      "address": "0x535EF89e3C3a74Cf1A76703972686cb7a2e34fe8",
+      "verifiedExact": true
+    },
+    "lending": {
+      "address": "0x2748a478Ec0f6D90FfdE89b27721f469126835F7",
+      "verifiedExact": true
+    },
+    "batchPay": {
+      "address": "0x09B6d2987EcAF021533A2727d2967696595Fa6dd",
+      "verifiedExact": true
+    },
+    "vault": {
+      "address": "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d",
+      "deploymentTransaction": "0x9494347ea1e07a8214cb923f2a244c9ec5280c9853e0e204a26d3e13093fdef2",
+      "deploymentBlock": "56838393",
+      "runtimeCodehash": "0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f",
+      "verifiedExact": true,
+      "explorerUrl": "https://testnet.arcscan.app/address/0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d?tab=contract"
+    },
+    "memoTransfer": {
+      "address": "0x1633f12f31195B34feE6eDC250e1D543DAB72698",
+      "verifiedExact": true
+    },
+    "agentRegistry": {
+      "address": "0xDEb07309c1689fEeCa44ac70939ce0297d511596",
+      "verifiedExact": true
+    },
+    "staking": {
+      "address": "0xB85a7F6335D0544b4951e5f07Bcd326722b2BC07",
+      "verifiedExact": true
+    }
+  },
+  "migrations": {
+    "vaultV2": {
+      "status": "deployed_exact_verified_active",
+      "source": "contracts/KletiaArcVaultV2.sol",
+      "migrationRunbook": "VAULT_V2_MIGRATION.md",
+      "applicationExecutionMode": "vault_v2",
+      "address": "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d",
+      "runtimeCodehash": "0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f",
+      "verifiedExact": true
+    }
+  },
+  "legacyReserveCoverage": {
+    "horizonSeconds": "2592000",
+    "operationalBufferSeconds": "86400",
+    "lastFundingTransactions": {
+      "vault": "0x458b592ec08d0c8c084a79749b38e88021458a955f36bd09f748a7e832c601c9",
+      "staking": "0x59d6766d8c3d3990cd274addb3e86913236acdd0fa6766de49eed84c91fcb6a9"
+    },
+    "observedAtBlock": "56854829",
+    "vaultCoverageSatisfied": true,
+    "stakingCoverageSatisfied": true,
+    "evidenceCommand": "npm run reserves:status"
+  },
+  "legacyDeployments": {
+    "vaultV1": {
+      "address": "0xe2810DB53998f8A51bBf5Bf94c21208b174da174",
+      "runtimeEnabled": true,
+      "newDepositsEnabled": false,
+      "purpose": "self-custodial migration withdrawals only",
+      "verifiedExact": true,
+      "source": "contracts/legacy/KletiaArcVault.sol"
+    },
+    "otc": {
+      "address": "0xf4c1F168491F22222145cff88414fE489BF8c39d",
+      "runtimeEnabled": false,
+      "source": "contracts/legacy/KletiaArcOTC.sol"
+    }
+  }
+}

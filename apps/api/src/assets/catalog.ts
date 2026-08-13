@@ -199,17 +199,17 @@ export function normalizeAssetReference(value: unknown): string {
   const raw = trimmed.normalize("NFKC");
   if (!raw || raw.length > 128) {
     throw new UnsafeAssetReferenceError(
-      "Token referansı 1-128 görünür karakter arasında olmalıdır.",
+      "Token reference must be between 1 and 128 visible characters.",
     );
   }
   if (FORBIDDEN_TEXT.test(raw)) {
     throw new UnsafeAssetReferenceError(
-      "Token referansı görünmez, yön-değiştirici veya kontrol karakteri içeremez.",
+      "Token reference cannot contain invisible, directionality, or control characters.",
     );
   }
   if (raw !== trimmed) {
     throw new UnsafeAssetReferenceError(
-      "Token referansı uyumluluk/homoglif normalizasyonuyla sessizce değiştirilemez.",
+      "Token reference cannot be silently altered by compatibility/homoglyph normalization.",
     );
   }
   return raw.replace(/\s+/gu, " ");

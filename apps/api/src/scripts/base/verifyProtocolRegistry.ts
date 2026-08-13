@@ -1,5 +1,5 @@
-import { getAddress, parseAbi, parseAbiItem, type Address } from "viem";
-import { publicClient } from "../../config/client.js";
+import { getAddress, parseAbi, type Address } from "viem";
+import { basePublicClient } from "../../config/client.js";
 import {
   AAVE_V3_BASE,
   BASE_ERC4626_VAULTS,
@@ -28,7 +28,10 @@ import {
   type FeeRouterPolicyTarget,
 } from "../../networks/base/security/feeRouterPolicy.js";
 
-const FEE_ROUTER_LOG_CHUNK_SIZE = 9_999n;
+const BASE_BLOCKSCOUT_LOGS_API = "https://base.blockscout.com/api";
+const TARGET_APPROVED_TOPIC =
+  "0x1544fe18ad8a1b607a5147fee4bed9273c6c8c53b721318602ef311de4f4c939";
+const BLOCKSCOUT_LOG_CAP = 1_000;
 
 const AAVE_DATA_ABI = parseAbi([
   "function getReserveConfigurationData(address asset) view returns (uint256 decimals,uint256 ltv,uint256 liquidationThreshold,uint256 liquidationBonus,uint256 reserveFactor,bool usageAsCollateralEnabled,bool borrowingEnabled,bool stableBorrowRateEnabled,bool isActive,bool isFrozen)",
@@ -45,9 +48,6 @@ const FEE_ROUTER_ABI = parseAbi([
   "function feeBasisPoints() view returns (uint256)",
   "function paused() view returns (bool)",
 ]);
-const TARGET_APPROVED_EVENT = parseAbiItem(
-  "event TargetApproved(address indexed target, bool isApproved)",
-);
 const V2_ROUTER_IDENTITY_ABI = parseAbi([
   "function factory() view returns (address)",
   "function WETH() view returns (address)",
@@ -83,7 +83,7 @@ function sameAddress(left: Address, right: Address): boolean {
 }
 
 async function feeRouterApproval(target: Address, blockNumber: bigint) {
-  return publicClient.readContract({
+  return basePublicClient.readContract({
     address: BASE_FEE_ROUTER,
     abi: FEE_ROUTER_ABI,
     functionName: "approvedTargets",
@@ -104,32 +104,65 @@ async function feeRouterPolicyApprovals(
   }));
 }
 
-async function scanFeeRouterApprovalHistory(toBlock: bigint) {
-  const ranges: Array<{ fromBlock: bigint; toBlock: bigint }> = [];
-  for (
-    let fromBlock = BASE_FEE_ROUTER_DEPLOYMENT_BLOCK;
-    fromBlock <= toBlock;
-    fromBlock += FEE_ROUTER_LOG_CHUNK_SIZE + 1n
-  ) {
-    ranges.push({
-      fromBlock,
-      toBlock:
-        fromBlock + FEE_ROUTER_LOG_CHUNK_SIZE > toBlock
-          ? toBlock
-          : fromBlock + FEE_ROUTER_LOG_CHUNK_SIZE,
-    });
-  }
+type BlockscoutApprovalLog = {
+  address: string;
+  blockNumber: string;
+  data: string;
+  topics: Array<string | null>;
+  transactionHash: string;
+};
 
-  const chunks = await mapBounded(ranges, 4, ({ fromBlock, toBlock }) =>
-    publicClient.getLogs({
-      address: BASE_FEE_ROUTER,
-      event: TARGET_APPROVED_EVENT,
-      fromBlock,
-      toBlock,
-      strict: true,
-    }),
+async function fetchBlockscoutApprovalLogs(
+  fromBlock: bigint,
+  toBlock: bigint,
+): Promise<BlockscoutApprovalLog[]> {
+  const query = new URLSearchParams({
+    module: "logs",
+    action: "getLogs",
+    fromBlock: fromBlock.toString(),
+    toBlock: toBlock.toString(),
+    address: BASE_FEE_ROUTER,
+    topic0: TARGET_APPROVED_TOPIC,
+  });
+  const response = await fetch(`${BASE_BLOCKSCOUT_LOGS_API}?${query}`, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Base Blockscout log HTTP ${response.status}.`);
+  }
+  const body = (await response.json()) as {
+    status?: string;
+    message?: string;
+    result?: unknown;
+  };
+  if (!Array.isArray(body.result)) {
+    if (String(body.result || "").toLowerCase().includes("no records")) {
+      return [];
+    }
+    throw new Error(
+      `Base Blockscout log response invalid: ${body.message || "unknown"}.`,
+    );
+  }
+  if (body.result.length < BLOCKSCOUT_LOG_CAP) {
+    return body.result as BlockscoutApprovalLog[];
+  }
+  if (fromBlock === toBlock) {
+    throw new Error("Base Blockscout single-block log cap reached.");
+  }
+  const midpoint = (fromBlock + toBlock) / 2n;
+  const [left, right] = await Promise.all([
+    fetchBlockscoutApprovalLogs(fromBlock, midpoint),
+    fetchBlockscoutApprovalLogs(midpoint + 1n, toBlock),
+  ]);
+  return [...left, ...right];
+}
+
+async function scanFeeRouterApprovalHistory(toBlock: bigint) {
+  const logs = await fetchBlockscoutApprovalLogs(
+    BASE_FEE_ROUTER_DEPLOYMENT_BLOCK,
+    toBlock,
   );
-  const logs = chunks.flat();
   const finalEventState = new Map<
     string,
     {
@@ -140,12 +173,29 @@ async function scanFeeRouterApprovalHistory(toBlock: bigint) {
     }
   >();
   for (const log of logs) {
-    const target = getAddress(log.args.target);
+    const blockNumber = BigInt(log.blockNumber);
+    const targetTopic = log.topics?.[1] || "";
+    if (
+      getAddress(log.address) !== BASE_FEE_ROUTER ||
+      log.topics?.[0]?.toLowerCase() !== TARGET_APPROVED_TOPIC ||
+      !/^0x[0-9a-f]{64}$/iu.test(targetTopic) ||
+      !/^0x[0-9a-f]{64}$/iu.test(log.data) ||
+      !/^0x[0-9a-f]{64}$/iu.test(log.transactionHash) ||
+      blockNumber < BASE_FEE_ROUTER_DEPLOYMENT_BLOCK ||
+      blockNumber > toBlock
+    ) {
+      throw new Error("Base Blockscout returned a malformed approval log.");
+    }
+    const approvedWord = BigInt(log.data);
+    if (approvedWord !== 0n && approvedWord !== 1n) {
+      throw new Error("Base Blockscout returned a non-boolean approval state.");
+    }
+    const target = getAddress(`0x${targetTopic.slice(-40)}`);
     finalEventState.set(target.toLowerCase(), {
       target,
-      approved: log.args.isApproved,
-      blockNumber: log.blockNumber,
-      transactionHash: log.transactionHash,
+      approved: approvedWord === 1n,
+      blockNumber,
+      transactionHash: log.transactionHash as `0x${string}`,
     });
   }
 
@@ -154,7 +204,7 @@ async function scanFeeRouterApprovalHistory(toBlock: bigint) {
 
 async function main() {
   assertFeeRouterPolicyIsInternallyConsistent();
-  const blockNumber = await publicClient.getBlockNumber();
+  const blockNumber = await basePublicClient.getBlockNumber();
   const tokenFor = (symbol: keyof typeof BASE_TOKEN_REGISTRY) =>
     BASE_TOKEN_REGISTRY[symbol].address;
   const currentSwapTargets = [
@@ -193,29 +243,29 @@ async function main() {
     feeRouterPaused,
     approvalHistory,
   ] = await Promise.all([
-    publicClient.getCode({
+    basePublicClient.getCode({
       address: BASE_FEE_ROUTER,
       blockNumber,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: BASE_FEE_ROUTER,
       abi: FEE_ROUTER_ABI,
       functionName: "owner",
       blockNumber,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: BASE_FEE_ROUTER,
       abi: FEE_ROUTER_ABI,
       functionName: "feeTreasury",
       blockNumber,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: BASE_FEE_ROUTER,
       abi: FEE_ROUTER_ABI,
       functionName: "feeBasisPoints",
       blockNumber,
     }),
-    publicClient.readContract({
+    basePublicClient.readContract({
       address: BASE_FEE_ROUTER,
       abi: FEE_ROUTER_ABI,
       functionName: "paused",
@@ -238,7 +288,7 @@ async function main() {
   if (feeRouterPaused) failures.push("FEE_ROUTER_PAUSED");
 
   const codeChecks = await mapBounded(uniqueTargets, 4, async (target) => {
-    const code = await publicClient.getCode({ address: target });
+    const code = await basePublicClient.getCode({ address: target });
     const ok = Boolean(code && code !== "0x");
     if (!ok) failures.push(`NO_RUNTIME_CODE:${target}`);
     return { target, ok, byteLength: ok ? (code!.length - 2) / 2 : 0 };
@@ -256,18 +306,18 @@ async function main() {
     3,
     async (router) => {
       const [factory, weth] = await Promise.all([
-        publicClient.readContract({
+        basePublicClient.readContract({
           address: router,
           abi: V2_ROUTER_IDENTITY_ABI,
           functionName: "factory",
         }),
-        publicClient.readContract({
+        basePublicClient.readContract({
           address: router,
           abi: V2_ROUTER_IDENTITY_ABI,
           functionName: "WETH",
         }),
       ]);
-      const factoryCode = await publicClient.getCode({
+      const factoryCode = await basePublicClient.getCode({
         address: factory,
       });
       const factoryHasCode = Boolean(factoryCode && factoryCode !== "0x");
@@ -290,19 +340,19 @@ async function main() {
 
   const [aerodromeDefaultFactory, aerodromeFactoryRegistry] = await Promise.all(
     [
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: ROUTERS.AERO_V1,
         abi: AERODROME_ROUTER_IDENTITY_ABI,
         functionName: "defaultFactory",
       }),
-      publicClient.readContract({
+      basePublicClient.readContract({
         address: ROUTERS.AERO_V1,
         abi: AERODROME_ROUTER_IDENTITY_ABI,
         functionName: "factoryRegistry",
       }),
     ],
   );
-  const aerodromeFactoryApproved = await publicClient.readContract({
+  const aerodromeFactoryApproved = await basePublicClient.readContract({
     address: aerodromeFactoryRegistry,
     abi: AERODROME_FACTORY_REGISTRY_ABI,
     functionName: "isPoolFactoryApproved",
@@ -321,7 +371,7 @@ async function main() {
     AAVE_V3_BASE.reserves,
     3,
     async ({ token }) => {
-      const configuration = await publicClient.readContract({
+      const configuration = await basePublicClient.readContract({
         address: AAVE_V3_BASE.protocolDataProvider,
         abi: AAVE_DATA_ABI,
         functionName: "getReserveConfigurationData",
@@ -337,7 +387,7 @@ async function main() {
     MOONWELL_BASE.markets,
     3,
     async ({ token, market }) => {
-      const underlying = await publicClient.readContract({
+      const underlying = await basePublicClient.readContract({
         address: market,
         abi: UNDERLYING_ABI,
         functionName: "underlying",
@@ -352,7 +402,7 @@ async function main() {
     COMPOUND_V3_BASE.markets,
     3,
     async ({ token, comet }) => {
-      const baseToken = await publicClient.readContract({
+      const baseToken = await basePublicClient.readContract({
         address: comet,
         abi: COMET_ABI,
         functionName: "baseToken",
@@ -367,7 +417,7 @@ async function main() {
     BASE_ERC4626_VAULTS,
     3,
     async ({ id, token, vault }) => {
-      const asset = await publicClient.readContract({
+      const asset = await basePublicClient.readContract({
         address: vault,
         abi: ERC4626_ABI,
         functionName: "asset",
@@ -446,7 +496,7 @@ async function main() {
     liquidityTargets,
     4,
     async (target) => {
-      const code = await publicClient.getCode({ address: target });
+      const code = await basePublicClient.getCode({ address: target });
       const ok = Boolean(code && code !== "0x");
       if (!ok) {
         failures.push(`NO_LIQUIDITY_RUNTIME_CODE:${target}`);

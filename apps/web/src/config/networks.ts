@@ -270,7 +270,7 @@ export const NETWORKS = {
             action: {
               type: "prompt",
               prompt:
-                "USDC için en iyi Base getirisini ve likiditeyi karşılaştır",
+                "Compare the best Base yield and liquidity for USDC",
             },
           },
           {
@@ -280,7 +280,7 @@ export const NETWORKS = {
             action: {
               type: "prompt",
               prompt:
-                "USDC için en düşük borç faizini ve likiditeyi karşılaştır",
+                "Compare the lowest borrow rate and liquidity for USDC",
             },
           },
           {
@@ -289,7 +289,7 @@ export const NETWORKS = {
             icon: "swap",
             action: {
               type: "prompt",
-              prompt: "10 USDC ile AERO al, en verimli doğrulanmış rotayı bul",
+              prompt: "Buy AERO with 10 USDC, find the most efficient verified route",
             },
           },
           {

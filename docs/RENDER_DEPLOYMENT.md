@@ -94,8 +94,23 @@ Backend minimum for a healthy public release:
 - `WEBACY_API_KEY`: URL and transaction-risk gates.
 - `ALLORA_API_KEY`: live prediction routes.
 - `ALCHEMY_API_KEY`: portfolio and token metadata paths.
+- `ARC_VAULT_EXECUTION_MODE=vault_v2`
+- `ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d`
+- `ARC_VAULT_V2_RUNTIME_CODEHASH=0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f`
+  These three values are one release boundary. The backend re-reads the Arc
+  runtime code before producing a Vault V2 plan. The legacy Vault remains a
+  separate, withdrawal-only user migration route.
 - `X402_TREASURY_ADDRESS`: public Base treasury address, not a private key.
-- Coinbase/CDP and Across values only for the corresponding enabled routes.
+- `CDP_API_KEY_NAME` and `CDP_API_KEY_PRIVATE_KEY`: Coinbase onramp JWT pair.
+- A complete CDP x402 facilitator pair, using either the modern
+  `CDP_API_KEY_ID`/`CDP_API_KEY_SECRET` names or the compatible key-name/private-
+  key pair above.
+- Across values only when Across bridge routing is enabled.
+
+The API now fails at startup in production if the always-visible intent,
+security, prediction, portfolio or onramp feature would otherwise start without
+its required provider credential. This prevents a green deployment that serves
+only partial functionality.
 
 Do not upload `PRIVATE_KEY`, `BASE_PRIVATE_KEY`, `ARC_PRIVATE_KEY`, or a
 deployer key to either Render service. The public application builds plans and
@@ -109,6 +124,9 @@ Frontend build-time values:
   value is public in the JavaScript bundle; apply provider domain/rate limits
   and never put a private server credential here.
 - `VITE_ARC_RPC_URL=https://rpc.testnet.arc.network`
+- `VITE_ARC_VAULT_EXECUTION_MODE=vault_v2`
+- `VITE_ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d`
+  Keep both aligned with the backend in every release.
 - `VITE_WALLETCONNECT_PROJECT_ID`: restrict it to `kletiaai.xyz` and
   `www.kletiaai.xyz` in the provider dashboard.
 - `VITE_BASE_SWAP_EXECUTION_MODE` must match backend

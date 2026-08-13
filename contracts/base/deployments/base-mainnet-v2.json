@@ -4,13 +4,13 @@
     "name": "Base Mainnet",
     "chainId": 8453
   },
-  "observedAtBlock": "49715719",
+  "observedAtBlock": "49931549",
   "releaseState": {
     "baseSwapExecutionMode": "legacy_v1",
     "baseTokenDeploymentMode": "launch_v2",
     "launchFactoryRuntimeEvidenceBlock": "49717053",
     "x402AttestationRegistryBinding": "supplemental_read_only",
-    "adapterLifecycle": "configure_scheduled",
+    "adapterLifecycle": "configured_enable_scheduled_waiting",
     "runtimeEvidence": null,
     "cutoverReady": false
   },
@@ -100,8 +100,48 @@
       "explorerUrl": "https://basescan.org/address/0x4A587b315472Dd452B2FbC42366B16dCC267ae34#code"
     }
   },
+  "supportingContracts": {
+    "x402Factory": {
+      "address": "0xD6e7bAc04a9969f75AEA3f17b5b82db1C988DD46",
+      "deploymentTransaction": "0x31f0adc226bc928d798518f592cda77096f6b059533bf575e3adf556786ab26a",
+      "deploymentBlock": "48037476",
+      "runtimeCodehash": "0xb3a4928dbc77e27cf23f7d98f61207344f2c4e0f6c30e24d0db838f00c28a3f0",
+      "compilerVersion": "v0.8.20+commit.a1b79de6",
+      "optimizerEnabled": true,
+      "optimizerRuns": 200,
+      "evmVersion": "paris",
+      "license": "MIT",
+      "localStandardInputRuntimeExact": true,
+      "localEvidenceObservedAtBlock": "49930732",
+      "blockscoutVerification": "fully_verified",
+      "baseScanVerification": "exact_match",
+      "verifiedExact": true,
+      "baseScanSourceAttribution": "byte_identical_similar_match_source",
+      "baseScanSimilarMatchSource": "0x6a4Bc1Bd660c78c6c01E60033F07C219Aa9DE8cF",
+      "baseScanUrl": "https://basescan.org/address/0xD6e7bAc04a9969f75AEA3f17b5b82db1C988DD46#code",
+      "blockscoutUrl": "https://base.blockscout.com/address/0xD6e7bAc04a9969f75AEA3f17b5b82db1C988DD46?tab=contract"
+    },
+    "x402Gateways": {
+      "factory": "0xD6e7bAc04a9969f75AEA3f17b5b82db1C988DD46",
+      "count": 2,
+      "addresses": [
+        "0x39Eb74cB023e18c3e9C80ca46888a7Da22bFED7B",
+        "0x0B6df3ddC99A4215AcbF4Ab840671e73577A387e"
+      ],
+      "runtimeCodehash": "0x3479dc8065404d6adf3478a11516e6c6d4a9fa99f7df9949be8f0fa988903e9a",
+      "compilerVersion": "v0.8.20+commit.a1b79de6",
+      "optimizerEnabled": true,
+      "optimizerRuns": 200,
+      "evmVersion": "paris",
+      "license": "MIT",
+      "localStandardInputRuntimeExact": true,
+      "blockscoutVerification": "fully_verified",
+      "verifiedExact": true,
+      "verificationCommand": "npm run verify:x402-gateways:blockscout"
+    }
+  },
   "uniswapCanary": {
-    "adapterConfigured": false,
+    "adapterConfigured": true,
     "adapterEnabled": false,
     "configureOperation": {
       "operationId": "0x1349520995de6695bde9d984cdd971b47e495a7539dbc5d3ef9d8a87037e0162",
@@ -114,9 +154,25 @@
       "salt": "0x0e657bb7024594bb25cb2f29abcd372401f5b9a5547b654fd73852a661c3c566",
       "readyAt": "1786393043",
       "readyAtIsoUtc": "2026-08-10T20:17:23.000Z",
-      "status": "pending"
+      "status": "done",
+      "executeTransaction": "0x34bb43c00e4339c5b0a6827fb2935e2fda3b9ba5f5e1d0eff4c8056b78e825bf",
+      "executeBlock": "49931434"
     },
-    "enableOperation": null
+    "enableOperation": {
+      "operationId": "0x92a7ba56e9b639af070a358ad065c52170a1859dcc9a89536df7c689aefdf7b8",
+      "scheduleTransaction": "0x28db7950846d0c2ff0da759cb257efaaaeb1491ea176780b6af6b358c7bd72b4",
+      "scheduleBlock": "49931549",
+      "safeTransactionHash": "0xfc4f0b8cc416caadf7991ed10ccfda44a9fcbceab882ce0c47d2767851325430",
+      "safeNonce": "1",
+      "target": "0xce874051C9B60ECaD06721611DCEAc36aC0e8529",
+      "value": "0",
+      "data": "0xb417143d000000000000000000000000b21c455cee9ecb4bd0cf19a88d771065db45592b",
+      "predecessor": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "salt": "0xfdbfe14fac896cc234c1ef89d948585324cc2c307335a4fae5530445acf21b58",
+      "readyAt": "1786825245",
+      "readyAtIsoUtc": "2026-08-15T20:20:45.000Z",
+      "status": "waiting"
+    }
   },
   "legacyFeeRouterCleanup": {
     "router": "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",

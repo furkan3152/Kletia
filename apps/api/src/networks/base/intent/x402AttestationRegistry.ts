@@ -19,7 +19,10 @@ const RUNTIME_CODE_PATTERN = /^0x(?:[0-9a-fA-F]{2})+$/u;
 
 export const BASE_X402_ATTESTATION_REGISTRY_ENV =
   "KLETIA_X402_ATTESTATION_REGISTRY_ADDRESS";
-export const BASE_X402_ATTESTATION_OWNER_ENV = "KLETIA_V2_TIMELOCK_ADDRESS";
+export const BASE_X402_ATTESTATION_OWNER_ENV =
+  "KLETIA_X402_ATTESTATION_OWNER_ADDRESS";
+export const LEGACY_BASE_X402_ATTESTATION_OWNER_ENV =
+  "KLETIA_V2_TIMELOCK_ADDRESS";
 export const BASE_X402_ATTESTATION_GUARDIAN_ENV = "KLETIA_V2_GUARDIAN_SAFE";
 
 // These are public, immutable deployment identities, not secrets. Keeping the
@@ -284,6 +287,7 @@ export function resolveBaseX402AttestationRegistryConfig(
     BASE_X402_ATTESTATION_REGISTRY_ADDRESS;
   const ownerValue =
     environment[BASE_X402_ATTESTATION_OWNER_ENV]?.trim() ||
+    environment[LEGACY_BASE_X402_ATTESTATION_OWNER_ENV]?.trim() ||
     BASE_X402_ATTESTATION_OWNER_ADDRESS;
   const guardianValue =
     environment[BASE_X402_ATTESTATION_GUARDIAN_ENV]?.trim() ||

@@ -436,7 +436,7 @@ export const X402ConsoleWidget: React.FC = () => {
   const log = useCallback((msg: string) => {
     setStatusLog((prev) => [
       ...prev.slice(-19),
-      `[${new Date().toLocaleTimeString()}] ${msg}`,
+      `[${new Date().toLocaleTimeString("en-US")}] ${msg}`,
     ]);
   }, []);
 

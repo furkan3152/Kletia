@@ -738,7 +738,7 @@ export default function App() {
         conversationContextRef.current = null;
         updateRequestMessage(request, {
           isLoading: false,
-          text: `❌ Transaction cancelled: ${data.message || "Bilinmeyen hata"}`,
+          text: `❌ Transaction cancelled: ${data.message || "Unknown error"}`,
         });
         return;
       }
@@ -1395,7 +1395,7 @@ export default function App() {
       }
 
       addOriginLog(`🛡️ ${network.name} security and simulation line is active.`);
-      addOriginLog(`🔗 Hedef: ${targetAddress}`);
+      addOriginLog(`🔗 Target: ${targetAddress}`);
       if (txValue > 0n) {
         addOriginLog(
           `⚡ Native ${network.nativeCurrency.symbol} value verified.`,

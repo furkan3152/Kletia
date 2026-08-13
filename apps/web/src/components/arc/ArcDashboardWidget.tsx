@@ -313,7 +313,7 @@ export const ArcDashboardWidget: React.FC<{
                     seedIntent(() => {
                       const amount = parsePositiveAmount(
                         vaultAmount,
-                        "Teminat",
+                        "Collateral",
                         18,
                       );
                       return `Deposit ${amount} KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval`;
@@ -821,7 +821,7 @@ export const ArcDashboardWidget: React.FC<{
               </span>
               <span className="text-xl font-black text-[#1A1A1A] flex items-center gap-2">
                 {swapRate && (swapRate as bigint) > 0n
-                  ? `${Number(formatEther(swapRate as bigint)).toLocaleString(undefined, { maximumFractionDigits: 8 })} USDC`
+                  ? `${Number(formatEther(swapRate as bigint)).toLocaleString("en-US", { maximumFractionDigits: 8 })} USDC`
                   : "—"}{" "}
                 <span className="text-xs text-[#10B981] bg-[#D1FAE5] px-2 py-0.5 border-[2px] border-[#10B981]">
                   On-Chain
@@ -837,7 +837,7 @@ export const ArcDashboardWidget: React.FC<{
                   ? "—"
                   : `$${Number(
                       formatEther(usdcReserve as bigint),
-                    ).toLocaleString(undefined, {
+                    ).toLocaleString("en-US", {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 6,
                     })}`}

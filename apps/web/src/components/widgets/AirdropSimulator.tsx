@@ -818,7 +818,7 @@ export const AirdropSimulator: React.FC = () => {
                 Coverage:{" "}
                 {visibleResult.activityCompleteness === "complete"
                   ? "complete for the returned first pages"
-                  : `partial_capped — ${visibleResult.cappedSources.join(", ")} reached the ${BLOCKSCOUT_PAGE_SIZE.toLocaleString()}-row API cap`}
+                  : `partial_capped — ${visibleResult.cappedSources.join(", ")} reached the ${BLOCKSCOUT_PAGE_SIZE.toLocaleString("en-US")}-row API cap`}
               </div>
             </div>
 
@@ -886,12 +886,14 @@ export const AirdropSimulator: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
-                    {visibleResult.contractsCount.toLocaleString()} observed
+                    {visibleResult.contractsCount.toLocaleString("en-US")} observed
                     contract addresses
                   </div>
                   <div className="text-sm font-bold text-gray-600 dark:text-slate-400">
                     Priced transfer volume: $
-                    {Math.round(visibleResult.totalVolumeUsd).toLocaleString()}
+                    {Math.round(visibleResult.totalVolumeUsd).toLocaleString(
+                      "en-US",
+                    )}
                   </div>
                   {visibleResult.volumeStatus === "partial" && (
                     <div className="text-xs font-black text-[#B45309] dark:text-amber-400 mt-1">
@@ -974,7 +976,7 @@ export const AirdropSimulator: React.FC = () => {
                   <div>
                     <div className="text-lg font-black text-[#1A1A1A] dark:text-white">
                       {visibleResult.normalTransactionsCapped ? "≥" : ""}
-                      {visibleResult.totalTxs.toLocaleString()}
+                      {visibleResult.totalTxs.toLocaleString("en-US")}
                     </div>
                     <div className="text-xs font-bold text-gray-500">
                       Normal tx rows
@@ -1001,7 +1003,8 @@ export const AirdropSimulator: React.FC = () => {
                   mock value is inserted.
                 </p>
                 <p className="text-xs font-black text-[#1A1A1A] mt-2">
-                  Snapshot: {new Date(visibleResult.fetchedAt).toLocaleString()}
+                  Snapshot:{" "}
+                  {new Date(visibleResult.fetchedAt).toLocaleString("en-US")}
                   {" · "}Outgoing dust rows: {visibleResult.dustTxCount}/
                   {visibleResult.outgoingTxCount}
                 </p>

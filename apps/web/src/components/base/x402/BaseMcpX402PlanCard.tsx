@@ -485,7 +485,7 @@ export function BaseMcpX402PlanCard({
         throw new Error(
           typeof payload?.message === "string"
             ? payload.message
-            : `x402 durum sorgusu HTTP ${response.status} ile durdu.`,
+            : `The x402 status request stopped with HTTP ${response.status}.`,
         );
       }
       const status = parseBaseX402BuyerStatus(

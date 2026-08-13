@@ -217,7 +217,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
         <div className="z-10 bg-white dark:bg-[#0F172A] border-[4px] border-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] p-6 lg:min-w-[300px] flex flex-col justify-center">
           <div className="mb-4">
             <span className="text-xs font-black text-gray-500 uppercase block mb-1">
-              Bakiye
+              Balance
             </span>
             <div className="text-4xl font-black text-[#1A1A1A] dark:text-white flex items-end gap-2">
               {isArcConnected && balance.data

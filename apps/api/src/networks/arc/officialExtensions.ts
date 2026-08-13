@@ -621,7 +621,7 @@ export function assertOfficialArcCallPlan(
   if (plan.action !== "arc_atomic_usdc_payout") {
     throw new ArcOfficialPlanError(
       "ARC_OFFICIAL_ACTION_NOT_ALLOWED",
-      "Bilinmeyen resmi Arc extension aksiyonu.",
+      "Unknown official Arc extension action.",
     );
   }
   if (

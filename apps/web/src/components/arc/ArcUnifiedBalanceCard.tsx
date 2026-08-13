@@ -161,7 +161,9 @@ export function ArcUnifiedBalanceCard() {
           <div className="mt-4 border-[3px] border-[#1A1A1A] bg-white p-4 shadow-[4px_4px_0_#1A1A1A]">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-[2px] border-[#1A1A1A] pb-2 text-[10px] font-black uppercase tracking-widest">
               <span>Circle Gateway • testnet only</span>
-              <span>{new Date(snapshot.observedAt).toLocaleTimeString()}</span>
+              <span>
+                {new Date(snapshot.observedAt).toLocaleTimeString("en-US")}
+              </span>
             </div>
             {visibleRows.length === 0 ? (
               <p className="text-sm font-bold">
@@ -175,7 +177,7 @@ export function ArcUnifiedBalanceCard() {
                   >
                     <div className="font-black uppercase">{chain.chain}</div>
                     <div>Verified: {chain.confirmedBalance} USDC</div>
-                    <div>Bekleyen: {chain.pendingBalance} USDC</div>
+                    <div>Pending: {chain.pendingBalance} USDC</div>
                     {chain.pendingTransactions.length > 0 && (
                       <div className="mt-1 text-[10px] font-black uppercase text-[#8B5CF6]">
                         {chain.pendingTransactions.length} pending Gateway investment</div>

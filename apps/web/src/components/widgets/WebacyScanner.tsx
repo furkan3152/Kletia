@@ -184,7 +184,7 @@ export function WebacyScanner() {
 
             <div className="p-6 flex flex-col gap-4">
               <h3 className="font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-2">
-                Tespit Edilen Risk Etiketleri
+                Detected Risk Tags
               </h3>
 
               {result.tags && result.tags.length > 0 ? (

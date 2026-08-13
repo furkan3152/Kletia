@@ -23,6 +23,12 @@ Create a Render Blueprint and select the repository-root `render.yaml`. It
 creates both services with their correct root directories, commands, domains,
 environment boundaries, and frontend SPA rewrite.
 
+The committed Blueprint pins both services to `main`, keeps the API in
+Frankfurt, and uses Render's free web-service instance so it matches the
+current Hobby workspace without requiring a paid instance upgrade. Upgrade the
+API plan deliberately when sustained traffic requires it; do not change the
+service root directories or split the Base and Arc runtimes again.
+
 Do not select a JavaScript entry file when using the Blueprint:
 
 - Backend runtime: Node, root directory `apps/api`. Build command is

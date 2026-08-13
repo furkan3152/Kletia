@@ -7,9 +7,9 @@ type Props = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  tokenIn: "Girdi",
+  tokenIn: "Input",
   tokenOut: "Output",
-  collateralToken: "Teminat",
+  collateralToken: "Collateral",
   borrowToken: "Debt",
 };
 
@@ -19,7 +19,7 @@ const shortAddress = (address: string): string =>
 const securityLabel = (status: string): string => {
   if (status === "manifest_verified") return "Manifest verified";
   if (status === "provider_passed") return "Live scan passed";
-  return "Registry incelendi";
+  return "Registry reviewed";
 };
 
 export function EntityResolutionEvidenceCard({ evidence }: Props) {

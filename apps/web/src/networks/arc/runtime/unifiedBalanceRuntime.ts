@@ -105,7 +105,7 @@ export async function readArcUnifiedUsdcBalance(
   }
   assertUsdcAmount(raw.totalConfirmedBalance, "Total confirmed balance");
   const totalPendingBalance = raw.totalPendingBalance ?? "0";
-  assertUsdcAmount(totalPendingBalance, "Toplam bekleyen bakiye");
+  assertUsdcAmount(totalPendingBalance, "Total pending balance");
 
   const accounts = raw.breakdown.map((entry): ArcUnifiedBalanceAccount => {
     if (
@@ -116,13 +116,13 @@ export async function readArcUnifiedUsdcBalance(
     }
     assertUsdcAmount(entry.totalConfirmed, "Account confirmed balance");
     const totalPending = entry.totalPending ?? "0";
-    assertUsdcAmount(totalPending, "Hesap bekleyen bakiyesi");
+    assertUsdcAmount(totalPending, "Account pending balance");
 
     const chains = entry.breakdown.map((chain): ArcUnifiedBalanceChain => {
       const chainName = String(chain.chain);
       if (!supportedTestnetChains.has(chainName)) {
         throw new Error(
-          `Circle Gateway testnet sorgusunda izin verilmeyen zincir: ${chainName}`,
+          `Circle Gateway returned a chain outside the allowed testnet set: ${chainName}`,
         );
       }
       assertUsdcAmount(
@@ -130,7 +130,7 @@ export async function readArcUnifiedUsdcBalance(
         `${chainName} confirmed balance`,
       );
       const pendingBalance = chain.pendingBalance ?? "0";
-      assertUsdcAmount(pendingBalance, `${chainName} bekleyen bakiye`);
+      assertUsdcAmount(pendingBalance, `${chainName} pending balance`);
       const pendingTransactions = (chain.pendingTransactions ?? []).map(
         (transaction): ArcUnifiedBalancePendingTransaction => {
           assertTransactionId(transaction.transactionHash);

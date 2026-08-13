@@ -21,9 +21,9 @@ const displayAmount = (value: string, decimals = 6): string => {
 const cooldownLabel = (seconds: number): string => {
   if (!Number.isFinite(seconds) || seconds < 0) return "Unavailable";
   if (seconds === 0) return "Inactive";
-  if (seconds < 60) return `${seconds} sn`;
-  if (seconds < 3_600) return `${Math.ceil(seconds / 60)} dk`;
-  return `${Math.ceil(seconds / 3_600)} sa`;
+  if (seconds < 60) return `${seconds} sec`;
+  if (seconds < 3_600) return `${Math.ceil(seconds / 60)} min`;
+  return `${Math.ceil(seconds / 3_600)} hr`;
 };
 
 function Metric({
@@ -62,7 +62,7 @@ export default function ArcPortfolioViewer({
       <div className="bg-[#67E8F9] p-5 md:p-6 border-[3px] border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] text-center">
         <h3 className="text-black font-black uppercase tracking-widest text-xs md:text-sm mb-1 flex items-center justify-center gap-2">
           <FlaskConical className="w-4 h-4" />
-          Arc Testnet Native Bakiye
+          Arc Testnet Native Balance
         </h3>
         <div className="text-3xl md:text-5xl font-black text-[#1A1A1A] tracking-tighter break-all">
           {nativeUsdc
@@ -102,17 +102,17 @@ export default function ArcPortfolioViewer({
           value={data.vault.executionMode === "vault_v2" ? "Vault V2" : "Legacy V1"}
         />
         <Metric
-          label="Ana para"
+          label="Principal"
           value={displayAmount(data.vault.principal)}
           unit="USDC"
         />
         <Metric
-          label="Tahakkuk eden faiz"
+          label="Accrued interest"
           value={displayAmount(data.vault.accruedInterest)}
           unit="USDC"
         />
         <Metric
-          label="Bekleyen faiz"
+          label="Pending interest"
           value={displayAmount(data.vault.pendingInterest)}
           unit="USDC"
         />
@@ -122,7 +122,7 @@ export default function ArcPortfolioViewer({
         <div className="p-4 bg-[#FEF3C7] dark:bg-amber-950/40 border-[3px] border-[#1A1A1A] dark:border-amber-400 shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#F59E0B]">
           <h4 className="font-black uppercase flex items-center gap-2 border-b-[3px] border-[#1A1A1A] dark:border-amber-400 pb-2 text-amber-950 dark:text-amber-100">
             <AlertTriangle className="w-4 h-4" strokeWidth={3} />
-            Legacy Vault Pozisyonu
+            Legacy Vault Position
           </h4>
           <Metric
             label="Principal to be transferred"
@@ -130,7 +130,7 @@ export default function ArcPortfolioViewer({
             unit="USDC"
           />
           <Metric
-            label="Bekleyen faiz"
+            label="Pending interest"
             value={displayAmount(data.legacyVault.pendingInterest)}
             unit="USDC"
           />
@@ -145,12 +145,12 @@ export default function ArcPortfolioViewer({
           Kletia Staking
         </h4>
         <Metric
-          label="Stake edilen"
+          label="Amount staked"
           value={displayAmount(data.staking.stakedAmount)}
           unit="USDC"
         />
         <Metric
-          label="Bekleyen unstake"
+          label="Pending unstake"
           value={displayAmount(data.staking.pendingUnstake)}
           unit="USDC"
         />
@@ -171,7 +171,7 @@ export default function ArcPortfolioViewer({
           Kletia Lending
         </h4>
         <Metric
-          label="KLET teminat"
+          label="KLET collateral"
           value={displayAmount(data.lending.collateralKLET)}
           unit="KLET"
         />
@@ -196,10 +196,14 @@ export default function ArcPortfolioViewer({
           <ShieldCheck className="w-4 h-4" />
           Chain Source Verified</div>
         <p className="mt-1 text-xs font-bold text-emerald-900/80 dark:text-emerald-100/80">
-          Balances and positions have been read from Kletia contracts via Arc Testnet RPC. Chain ID: __KLETIA_EXPR_N__{data.chainId}. Mock data and estimated USD value are not used.</p>
+          Balances and positions have been read from Kletia contracts via Arc
+          Testnet RPC. Chain ID: {data.chainId}. Mock data and estimated USD
+          value are not used.
+        </p>
         <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-emerald-900/70 dark:text-emerald-200/70">
           <Timer className="w-3 h-3" />
-          The read represents the response time of the portfolio request.{` Blok: ${data.observedAtBlock}.`}
+          The read represents the response time of the portfolio request.
+          {` Block: ${data.observedAtBlock}.`}
         </div>
       </div>
     </div>

@@ -154,18 +154,24 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
         </div>
 
         <div className="mt-4 md:mt-0 flex items-center gap-4">
-          <label className="font-bold uppercase text-sm">Zaman Dilimi:</label>
+          <label
+            htmlFor="allora-timeframe"
+            className="font-bold uppercase text-sm"
+          >
+            Timeframe:
+          </label>
           <select
+            id="allora-timeframe"
             value={timeframe}
             onChange={(e) => setTimeframe(e.target.value as "5m" | "8h")}
-            className={`p-2 border-2 font-bold focus:outline-none transition-all hover:translate-y-[-2px] ${
+            className={`min-h-10 p-2 border-2 font-bold transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
               isDarkMode
                 ? "bg-gray-800 border-[#CCA000] text-[#CCA000]"
                 : "bg-white border-blue-600 text-blue-600"
             }`}
           >
             <option value="5m">5 Minutes (Short Term)</option>
-            <option value="8h">8 Saat (Orta Vade)</option>
+            <option value="8h">8 Hours (Medium Term)</option>
           </select>
         </div>
       </div>
@@ -225,7 +231,7 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
 
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-bold uppercase opacity-70">
-                    Allora Tahmini ({timeframe})
+                    Allora Prediction ({timeframe})
                   </span>
                   <div className="flex items-end gap-2">
                     <span className={`text-3xl font-black ${headerText}`}>
@@ -241,7 +247,8 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
                 <div className="mt-auto pt-4 border-t-2 border-dashed border-gray-500 text-xs font-bold uppercase tracking-wide opacity-70">
                   This is a model observation; not a buy/sell recommendation.
                   <span className="block mt-1 normal-case">
-                    Updated: __KLETIA_EXPR_N__{new Date(item.fetchedAt).toLocaleTimeString()}
+                    Updated:{" "}
+                    {new Date(item.fetchedAt).toLocaleTimeString("en-US")}
                   </span>
                 </div>
               </div>

@@ -44,10 +44,12 @@ export function ApprovalReviewCard({
         ))}
       </div>
       <p className="mt-2 text-[10px] font-bold leading-relaxed">
-        Unlimited approval is not used. Wallet __KLETIA_EXPR_N__{" "}
-        {network === "base" ? "atomic" : "batch"} If the call is not supported,
-        approval can be a separate transaction before the main transaction;
-        if the main transaction does not complete, review and revoke the remaining allowance from your wallet.
+        Unlimited approval is not used. When the wallet supports{" "}
+        {network === "base" ? "atomic" : "batch"} execution, the approval and
+        main call are submitted together. Otherwise, approval can be a separate
+        transaction before the main transaction. If the main transaction does
+        not complete, review and revoke the remaining allowance from your
+        wallet.
       </p>
     </div>
   );

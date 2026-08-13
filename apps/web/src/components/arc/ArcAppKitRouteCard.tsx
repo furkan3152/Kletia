@@ -236,7 +236,8 @@ export function ArcAppKitRouteCard({
             {quote.feeDisclosure}
           </div>
           <div className="text-[10px] uppercase text-gray-600">
-            Estimation time: {new Date(quote.observedAt).toLocaleTimeString()}
+            Estimation time:{" "}
+            {new Date(quote.observedAt).toLocaleTimeString("en-US")}
           </div>
         </div>
       ) : null}
@@ -283,7 +284,7 @@ export function ArcAppKitRouteCard({
         className="flex w-full items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-white py-3 text-xs font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-all enabled:hover:-translate-y-0.5 enabled:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4B5563]"
       >
         <RefreshCw className={`h-4 w-4 ${isQuoting ? "animate-spin" : ""}`} />
-        Tahmini Yenile
+        Refresh Estimate
       </button>
 
       <button

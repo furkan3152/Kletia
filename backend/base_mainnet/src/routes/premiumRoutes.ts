@@ -66,15 +66,33 @@ type X402Environment = {
   NODE_ENV?: string;
   CDP_API_KEY_ID?: string;
   CDP_API_KEY_SECRET?: string;
+  CDP_API_KEY_NAME?: string;
+  CDP_API_KEY_PRIVATE_KEY?: string;
 };
 
 export function readOfficialCdpX402Credentials(
   environment: X402Environment = process.env,
 ) {
   const apiKeyId = environment.CDP_API_KEY_ID?.trim();
-  const apiKeySecret = environment.CDP_API_KEY_SECRET?.trim();
-  if (!apiKeyId || !apiKeySecret) return null;
-  return { apiKeyId, apiKeySecret };
+  const apiKeySecret = environment.CDP_API_KEY_SECRET
+    ?.trim()
+    .replace(/\\n/g, '\n');
+  if (apiKeyId && apiKeySecret) {
+    return { apiKeyId, apiKeySecret };
+  }
+
+  // CDP previously named the same JWT credentials KEY_NAME/PRIVATE_KEY.
+  // Keep existing production installations compatible while still passing
+  // the credentials to the official CDP x402 SDK client below.
+  const legacyApiKeyId = environment.CDP_API_KEY_NAME?.trim();
+  const legacyApiKeySecret = environment.CDP_API_KEY_PRIVATE_KEY
+    ?.trim()
+    .replace(/\\n/g, '\n');
+  if (!legacyApiKeyId || !legacyApiKeySecret) return null;
+  return {
+    apiKeyId: legacyApiKeyId,
+    apiKeySecret: legacyApiKeySecret,
+  };
 }
 
 export function assertProductionX402Configuration(
@@ -85,7 +103,7 @@ export function assertProductionX402Configuration(
     !readOfficialCdpX402Credentials(environment)
   ) {
     throw new Error(
-      'CDP_API_KEY_ID and CDP_API_KEY_SECRET are required for production x402 settlement.',
+      'A complete CDP API key pair is required for production x402 settlement.',
     );
   }
 }

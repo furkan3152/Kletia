@@ -15,6 +15,15 @@ const webacyClient = process.env.WEBACY_API_KEY
     })
   : null;
 
+// This denylist is deliberately local and deterministic. Webacy adds broader
+// reputation evidence when configured, but an optional provider credential
+// must not become a single point of failure for every non-URL intent.
+const BASE_LOCALLY_BLOCKED_ADDRESSES = new Set([
+  "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+  "0x0c99ae577ba40a81144beb7c504f2c74adb318e8",
+  "0x5ced88f3c35bf7a7b5cbd5098ebb1c92e21dfa0c",
+]);
+
 async function withTimeout<T>(promise: Promise<T>, ms = 8_000): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -165,15 +174,27 @@ export async function validateAddress(
   }
 
   if (req.kletiaNetwork?.id === "base") {
-    if (!webacyClient) {
+    if (BASE_LOCALLY_BLOCKED_ADDRESSES.has(validAddress.toLowerCase())) {
       return blocked(
         req,
         res,
-        503,
-        "WEBACY_UNAVAILABLE",
-        "Base address risk verification is unavailable.",
-        { source: "webacy", network: "base", chainId: 8453 },
+        403,
+        "HIGH_RISK_ADDRESS",
+        "The Base address is blocked by Kletia's deterministic risk policy.",
+        {
+          riskScore: 100,
+          source: "kletia_deterministic_denylist",
+          network: "base",
+          chainId: 8453,
+        },
       );
+    }
+
+    if (!webacyClient) {
+      // Route policy, target allowlists, response identity binding and
+      // pre-sign simulation remain mandatory downstream. The Webacy widget
+      // still reports itself unavailable; no score or approval is fabricated.
+      return next();
     }
 
     try {

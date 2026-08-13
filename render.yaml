@@ -5,7 +5,10 @@ services:
     runtime: node
     rootDir: apps/api
     plan: starter
-    buildCommand: npm ci --legacy-peer-deps && npm run build
+    # NODE_ENV=production is present during Render builds. Explicitly include
+    # build-time TypeScript and type packages; the runtime still starts only
+    # the emitted JavaScript.
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
     startCommand: npm start
     domains:
       - api.kletiaai.xyz
@@ -94,7 +97,8 @@ services:
     runtime: node
     rootDir: apps/web
     plan: starter
-    buildCommand: npm ci --legacy-peer-deps && npm run build
+    # Vite, TypeScript and React types are build-time devDependencies.
+    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
     startCommand: npm start
     domains:
       - kletiaai.xyz

@@ -3,7 +3,7 @@ FROM node:22.23.1-alpine3.24 AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps
 
 COPY src ./src
 COPY tsconfig.json tsconfig.build.json ./

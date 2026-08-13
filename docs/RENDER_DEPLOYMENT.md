@@ -26,10 +26,10 @@ environment boundaries, and frontend SPA rewrite.
 Do not select a JavaScript entry file when using the Blueprint:
 
 - Backend runtime: Node, root directory `apps/api`. Build command is
-  `npm ci --legacy-peer-deps && npm run build`; start command is `npm start`
+  `npm ci --include=dev --legacy-peer-deps && npm run build`; start command is `npm start`
   (`dist/index.js`).
 - Frontend runtime: Node Web Service, root directory `apps/web`.
-  Build command is `npm ci --legacy-peer-deps && npm run build`; start command
+  Build command is `npm ci --include=dev --legacy-peer-deps && npm run build`; start command
   is `npm start` (`scripts/serve-production.mjs`).
 
 ## Manual service creation (only if Blueprint is not used)
@@ -38,7 +38,7 @@ Backend Web Service:
 
 - Root Directory: `apps/api`
 - Runtime: Node
-- Build Command: `npm ci --legacy-peer-deps && npm run build`
+- Build Command: `npm ci --include=dev --legacy-peer-deps && npm run build`
 - Start Command: `npm start`
 - Health Check Path: `/health`
 
@@ -49,7 +49,7 @@ container deployment but is not used by this Blueprint.
 Frontend Web Service (the current deployment type):
 
 - Root Directory: `apps/web`
-- Build Command: `npm ci --legacy-peer-deps && npm run build`
+- Build Command: `npm ci --include=dev --legacy-peer-deps && npm run build`
 - Start Command: `npm start`
 - Start file: `scripts/serve-production.mjs`
 - Health Check Path: `/health`
@@ -77,6 +77,12 @@ TLS, wallet connections, x402 relay, Base, and Arc checks pass.
 Values marked `sync: false` in `render.yaml` must be entered in the Render
 Dashboard. An existing Blueprint does not prompt again for newly-added
 `sync: false` values, so add missing values manually.
+
+Render exposes `NODE_ENV=production` during the build. Do not shorten either
+build command to `npm install` or a plain `npm ci`: TypeScript, Vite, and the
+Node/Express declaration packages are build-time devDependencies and must be
+installed with `--include=dev`. They are not imported by the emitted API
+runtime.
 
 Backend minimum for a healthy public release:
 

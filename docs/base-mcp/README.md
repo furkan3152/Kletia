@@ -6,11 +6,11 @@ custodial agent.
 
 ## Implemented surface
 
-| Endpoint | Class | Purpose |
-| --- | --- | --- |
-| `GET /api/base-mcp/context` | deterministic/read-only | Bind an explicit Base MCP-detected wallet to Base Mainnet policy context |
-| `POST /api/base-mcp/x402/discover` | read-only | Search Coinbase CDP Bazaar without putting free-text discovery terms in the URL |
-| `GET /api/base-mcp/x402/prepare` | prepare-only | Build a capped, public-HTTPS, GET/POST plan for Base MCP's native x402 tools |
+| Endpoint                           | Class                   | Purpose                                                                         |
+| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/base-mcp/context`        | deterministic/read-only | Bind an explicit Base MCP-detected wallet to Base Mainnet policy context        |
+| `POST /api/base-mcp/x402/discover` | read-only               | Search Coinbase CDP Bazaar without putting free-text discovery terms in the URL |
+| `GET /api/base-mcp/x402/prepare`   | prepare-only            | Build a capped, public-HTTPS, GET/POST plan for Base MCP's native x402 tools    |
 
 All three endpoints require:
 

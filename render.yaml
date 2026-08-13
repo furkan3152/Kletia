@@ -3,7 +3,7 @@ services:
   - type: web
     name: kletia-backend
     runtime: node
-    rootDir: backend/base_mainnet
+    rootDir: apps/api
     plan: starter
     buildCommand: npm ci --legacy-peer-deps && npm run build
     startCommand: npm start
@@ -92,7 +92,7 @@ services:
   - type: web
     name: kletia-frontend
     runtime: node
-    rootDir: frontend/base_mainnet
+    rootDir: apps/web
     plan: starter
     buildCommand: npm ci --legacy-peer-deps && npm run build
     startCommand: npm start

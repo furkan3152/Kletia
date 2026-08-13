@@ -1,0 +1,342 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent ANY whole-page scrolling */
+  background-color: #0d0d0d; /* Kletia Dark */
+  color: #ececec;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+/* Chat için görünmez kaydırma çubuğu */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+/* NeoBrutalist Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: #1a1a1a transparent;
+}
+
+.dark .custom-scrollbar {
+  scrollbar-color: #475569 transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-left: 2px dashed #1a1a1a44;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  border-left: 2px dashed #ffffff22;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #1a1a1a;
+  border: 2px solid #efefef;
+  border-radius: 0px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border: 2px solid #0b1120;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #0052ff;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* =========================================================================
+   ARC MODE GLOBAL OVERRIDES (Brutalist)
+   ========================================================================= */
+:root {
+  --arc-primary: #6d28d9;
+  --arc-primary-dark: #5b21b6;
+  --arc-bg-deep: #f3e8ff;
+  --arc-bg-mid: #e9d5ff;
+  --arc-border: #4c1d95;
+}
+
+.dark {
+  --arc-primary: #6d28d9;
+  --arc-primary-dark: #5b21b6;
+  --arc-bg-deep: #0d0a14;
+  --arc-bg-mid: #161224;
+  --arc-border: #281d45;
+}
+
+.arc-mode .bg-\[\#0052FF\] {
+  background-color: var(--arc-primary) !important;
+}
+.arc-mode .text-\[\#0052FF\] {
+  color: var(--arc-primary) !important;
+}
+.arc-mode .border-\[\#0052FF\] {
+  border-color: var(--arc-primary) !important;
+}
+.arc-mode.dark .bg-\[\#131E32\] {
+  background-color: var(--arc-bg-deep) !important;
+}
+.arc-mode.dark .bg-\[\#1A2841\] {
+  background-color: var(--arc-bg-mid) !important;
+  border-color: var(--arc-border) !important;
+}
+.arc-mode .hover\:bg-blue-700:hover {
+  background-color: var(--arc-primary-dark) !important;
+}
+
+/* =========================================================================
+   ARC WIDGET COMPONENTS (Neo-Brutalist Design System)
+   ========================================================================= */
+
+/* Dashboard Container */
+.arc-dashboard {
+  padding: 1.5rem;
+  animation: arc-fade-in 0.3s ease-out;
+}
+
+@keyframes arc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dashboard Header */
+.arc-dashboard-header {
+  padding: 1.5rem;
+  background: #f3f4f6;
+  border: 4px solid #1a1a1a;
+  box-shadow: 6px 6px 0 #1a1a1a;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.dark .arc-dashboard-header {
+  background: #1a2841;
+  border-color: #4b5563;
+  box-shadow: 6px 6px 0 #475569;
+}
+
+.arc-dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.arc-dashboard-header-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+/* Dashboard Title & Subtitle */
+.arc-dashboard-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #1a1a1a;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  margin: 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 3px solid #1a1a1a;
+}
+
+.dark .arc-dashboard-title {
+  color: #ffffff;
+  border-bottom-color: #4b5563;
+}
+
+.arc-dashboard-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 700;
+  margin: 0.25rem 0 0 0;
+}
+
+.dark .arc-dashboard-subtitle {
+  color: #94a3b8;
+}
+
+/* Section Container */
+.arc-section {
+  margin-bottom: 1.5rem;
+}
+
+.arc-section-title {
+  font-size: 1rem;
+  font-weight: 900;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  color: #1a1a1a;
+}
+
+.dark .arc-section-title {
+  border-bottom-color: #334155;
+  color: #e2e8f0;
+}
+
+/* Feature Card */
+.arc-feature-card {
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 3px solid #1a1a1a;
+  box-shadow: 4px 4px 0 #1a1a1a;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.arc-feature-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1a1a1a;
+}
+
+.dark .arc-feature-card {
+  background: #131e32;
+  border-color: #4b5563;
+  box-shadow: 4px 4px 0 #475569;
+}
+
+.dark .arc-feature-card:hover {
+  box-shadow: 6px 6px 0 #475569;
+}
+
+/* Input Fields */
+.arc-input {
+  width: 100%;
+  padding: 12px;
+  background: #f3f4f6;
+  border: 3px solid #1a1a1a;
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 700;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.arc-input:focus {
+  border-color: #0052ff;
+  box-shadow: 3px 3px 0 #0052ff;
+}
+
+.arc-input::placeholder {
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.dark .arc-input {
+  background: #0f172a;
+  border-color: #4b5563;
+  color: #e2e8f0;
+}
+
+.dark .arc-input:focus {
+  border-color: #6d28d9;
+  box-shadow: 3px 3px 0 #6d28d9;
+}
+
+.dark .arc-input::placeholder {
+  color: #64748b;
+}
+
+/* Input Label */
+.arc-input-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.dark .arc-input-label {
+  color: #94a3b8;
+}
+
+/* Link Button */
+.arc-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 12px 20px;
+  font-weight: 900;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 3px solid #1a1a1a;
+  background: #0052ff;
+  color: #ffffff;
+  box-shadow: 3px 3px 0 #1a1a1a;
+  cursor: pointer;
+  transition:
+    transform 0.1s,
+    box-shadow 0.1s;
+}
+
+.arc-link-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 #1a1a1a;
+}
+
+.arc-link-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.dark .arc-link-btn {
+  border-color: #4b5563;
+  box-shadow: 3px 3px 0 #475569;
+}
+
+.dark .arc-link-btn:hover {
+  box-shadow: 4px 4px 0 #475569;
+}
+
+.dark .arc-link-btn:active {
+  box-shadow: none;
+}
+
+/* Arc Mode overrides for inputs */
+.arc-mode .arc-input:focus {
+  border-color: var(--arc-primary);
+  box-shadow: 3px 3px 0 var(--arc-primary);
+}
+
+.arc-mode .arc-link-btn {
+  background: var(--arc-primary);
+}
+
+.arc-mode .arc-link-btn:hover {
+  background: var(--arc-primary-dark);
+}

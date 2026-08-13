@@ -37,12 +37,12 @@ the reviewed Uniswap V2 adapter. A failed precondition creates no partial
 deployment. The exporter still validates every live invariant; the manifest
 never makes a pending or drifted deployment executable by itself.
 
-This pending swap state does not quarantine the two independent deployments.
+The active swap release is independent from the other two V2 deployments.
 `KletiaLaunchFactoryV2` is connected through the explicit `launch_v2` token
 deployment mode and its own live evidence exporter; the legacy token factory is
 not simultaneously authorized. The x402 attestation registry is connected as
 a Base-only, read-only supplemental claim verifier. Neither connection grants
-the pending intent router execution authority or changes Arc Testnet behavior.
+additional intent-router execution authority or changes Arc Testnet behavior.
 
 ## Governance topology
 
@@ -245,6 +245,6 @@ marker-stripped response cannot silently downgrade into a direct swap.
 5. Re-run fork tests, exact-source/codehash review and runtime evidence export
    before unpausing or re-enabling.
 
-Asset rescue is available only while paused and only through delayed owner
-governance. It is not a substitute for balance reconciliation or user
+Asset rescue is available only while paused and only through the two-of-two
+Governance Safe. It is not a substitute for balance reconciliation or user
 reimbursement policy.

@@ -5,10 +5,10 @@
 Kletia is an intent-driven aggregator with one canonical application shell and
 two deliberately isolated execution profiles:
 
-| Profile | Network | Settlement asset | Purpose |
-| --- | --- | --- | --- |
-| `base` | Base Mainnet (`8453`) | ETH for gas; Base assets such as native USDC | Production DeFi aggregation, x402 discovery/payment flows and Base-native experiences |
-| `arc` | Arc Testnet (`5042002`) | Native USDC | Arc-native programmable-money flows, App Kit integrations and testnet experimentation |
+| Profile | Network                 | Settlement asset                             | Purpose                                                                               |
+| ------- | ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `base`  | Base Mainnet (`8453`)   | ETH for gas; Base assets such as native USDC | Production DeFi aggregation, x402 discovery/payment flows and Base-native experiences |
+| `arc`   | Arc Testnet (`5042002`) | Native USDC                                  | Arc-native programmable-money flows, App Kit integrations and testnet experimentation |
 
 Changing the profile is not a cosmetic RPC toggle. The wallet chain, intent
 parser context, supported actions, contract registry, native asset metadata,
@@ -17,12 +17,15 @@ Base response cannot be executed while Arc is active, and vice versa.
 
 The canonical runtime is:
 
-- frontend: `frontend/base_mainnet`
-- backend: `backend/base_mainnet`
+- web application: `apps/web`
+- intent API: `apps/api`
+- Base contracts: `contracts/base`
+- Arc contracts: `contracts/arc`
 - deployment definition: `render.yaml`
 
-The older `arc_testnet` application directories are retained only as reference
-copies. Arc remains a first-class profile inside the canonical runtime.
+Arc is a first-class profile in the unified runtime, not a copied application.
+Network-specific contract packages remain independent so their compiler,
+deployment, verification, and credential boundaries cannot silently cross.
 
 ## Intent lifecycle
 

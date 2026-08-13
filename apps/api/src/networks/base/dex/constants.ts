@@ -1,0 +1,192 @@
+import {
+  ROUTERS,
+  UNI_V2_ROUTER_ABI,
+  AERODROME_ROUTER_ABI,
+} from "../contracts.js";
+
+export { ROUTERS, UNI_V2_ROUTER_ABI, AERODROME_ROUTER_ABI };
+
+export const AERO_FACTORY = ROUTERS.AERO_FACTORY;
+
+export const AERO_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+      { internalType: "bool", name: "stable", type: "bool" },
+      { internalType: "uint256", name: "amountADesired", type: "uint256" },
+      { internalType: "uint256", name: "amountBDesired", type: "uint256" },
+      { internalType: "uint256", name: "amountAMin", type: "uint256" },
+      { internalType: "uint256", name: "amountBMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "addLiquidity",
+    outputs: [
+      { internalType: "uint256", name: "amountA", type: "uint256" },
+      { internalType: "uint256", name: "amountB", type: "uint256" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "token", type: "address" },
+      { internalType: "bool", name: "stable", type: "bool" },
+      { internalType: "uint256", name: "amountTokenDesired", type: "uint256" },
+      { internalType: "uint256", name: "amountTokenMin", type: "uint256" },
+      { internalType: "uint256", name: "amountETHMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "addLiquidityETH",
+    outputs: [
+      { internalType: "uint256", name: "amountToken", type: "uint256" },
+      { internalType: "uint256", name: "amountETH", type: "uint256" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+    ],
+    stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+      { internalType: "bool", name: "stable", type: "bool" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+      { internalType: "uint256", name: "amountAMin", type: "uint256" },
+      { internalType: "uint256", name: "amountBMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "removeLiquidity",
+    outputs: [
+      { internalType: "uint256", name: "amountA", type: "uint256" },
+      { internalType: "uint256", name: "amountB", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "token", type: "address" },
+      { internalType: "bool", name: "stable", type: "bool" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+      { internalType: "uint256", name: "amountTokenMin", type: "uint256" },
+      { internalType: "uint256", name: "amountETHMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "removeLiquidityETH",
+    outputs: [
+      { internalType: "uint256", name: "amountToken", type: "uint256" },
+      { internalType: "uint256", name: "amountETH", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+export const UNIV2_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+      { internalType: "uint256", name: "amountADesired", type: "uint256" },
+      { internalType: "uint256", name: "amountBDesired", type: "uint256" },
+      { internalType: "uint256", name: "amountAMin", type: "uint256" },
+      { internalType: "uint256", name: "amountBMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "addLiquidity",
+    outputs: [
+      { internalType: "uint256", name: "amountA", type: "uint256" },
+      { internalType: "uint256", name: "amountB", type: "uint256" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "token", type: "address" },
+      { internalType: "uint256", name: "amountTokenDesired", type: "uint256" },
+      { internalType: "uint256", name: "amountTokenMin", type: "uint256" },
+      { internalType: "uint256", name: "amountETHMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "addLiquidityETH",
+    outputs: [
+      { internalType: "uint256", name: "amountToken", type: "uint256" },
+      { internalType: "uint256", name: "amountETH", type: "uint256" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+    ],
+    stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+      { internalType: "uint256", name: "amountAMin", type: "uint256" },
+      { internalType: "uint256", name: "amountBMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "removeLiquidity",
+    outputs: [
+      { internalType: "uint256", name: "amountA", type: "uint256" },
+      { internalType: "uint256", name: "amountB", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "token", type: "address" },
+      { internalType: "uint256", name: "liquidity", type: "uint256" },
+      { internalType: "uint256", name: "amountTokenMin", type: "uint256" },
+      { internalType: "uint256", name: "amountETHMin", type: "uint256" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
+    name: "removeLiquidityETH",
+    outputs: [
+      { internalType: "uint256", name: "amountToken", type: "uint256" },
+      { internalType: "uint256", name: "amountETH", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+export const UNI_FACTORY_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+    ],
+    name: "getPair",
+    outputs: [{ internalType: "address", name: "pair", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const AERO_FACTORY_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "tokenA", type: "address" },
+      { internalType: "address", name: "tokenB", type: "address" },
+      { internalType: "bool", name: "stable", type: "bool" },
+    ],
+    name: "getPool",
+    outputs: [{ internalType: "address", name: "pool", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;

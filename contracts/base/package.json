@@ -1,0 +1,31 @@
+{
+  "name": "@kletia/contracts-base",
+  "version": "1.0.0",
+  "description": "Kletia intent-native settlement contracts and typed protocol adapters for Base",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "evidence:v2:base": "hardhat run scripts/v2/export-runtime-evidence.js --network base",
+    "evidence:v2:base:deployment": "hardhat run scripts/v2/export-deployed-runtime-evidence.js --network base"
+  },
+  "keywords": [],
+  "author": "Kletia",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.1.3",
+    "@nomicfoundation/hardhat-verify": "^2.1.3",
+    "dotenv": "17.4.2",
+    "ethers": "^6.17.0",
+    "hardhat": "2.28.6"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1"
+  },
+  "overrides": {
+    "viem": "2.55.10"
+  }
+}

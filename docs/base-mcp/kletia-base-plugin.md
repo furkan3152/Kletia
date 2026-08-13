@@ -1,6 +1,7 @@
 # Kletia Base MCP x402 Plugin
 
 > [!IMPORTANT]
+>
 > ## STOP — COMPLETE BASE MCP ONBOARDING FIRST
 >
 > Before calling any Kletia endpoint, you MUST:

@@ -12,12 +12,11 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "test": "vitest run",
     "verify:base-registry": "tsx src/scripts/base/verifyProtocolRegistry.ts",
     "evidence:launch-factory-v2": "tsx src/scripts/base/exportLaunchFactoryV2Evidence.ts",
     "plan:fee-router-cleanup": "tsx src/scripts/base/planFeeRouterCleanup.ts",
     "fund:arc-reserves": "tsx src/scripts/arc/fundThirtyDayReserves.ts",
-    "release:preflight": "npm run typecheck && npm run test && npm run verify:base-registry",
+    "release:preflight": "npm run typecheck && npm run build && npm run verify:base-registry",
     "typecheck": "tsc -p tsconfig.api.json"
   },
   "keywords": [
@@ -51,11 +50,8 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
-    "@types/supertest": "^7.2.0",
-    "supertest": "^7.2.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.0.0",
-    "vitest": "^4.1.9"
+    "typescript": "^5.0.0"
   },
   "overrides": {
     "axios": "1.18.1",

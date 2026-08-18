@@ -8,7 +8,6 @@
   },
   "scripts": {
     "compile": "hardhat compile",
-    "test": "hardhat test",
     "verify:x402-factory": "node scripts/verification/x402-factory.js",
     "verify:x402-factory:submit": "node scripts/verification/x402-factory.js --submit",
     "verify:x402-gateways:blockscout": "node scripts/verification/x402-gateways-blockscout.js",

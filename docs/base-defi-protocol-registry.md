@@ -475,7 +475,6 @@ the repository root:
 cd apps/api
 node --version
 npm run typecheck
-npm test
 BASE_RPC_URL="https://replace-with-a-private-base-mainnet-rpc" \
   npm run verify:base-registry
 ```

@@ -1,17 +1,25 @@
 # Kletia
 
-Kletia is an intent-driven Web3 aggregator with one application shell and two
+Kletia is an intent-driven Web3 aggregator with one application shell and three
 strictly isolated execution profiles:
 
 | Profile | Chain                   | Runtime role                                                                                                      |
 | ------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Base    | Base Mainnet (`8453`)   | Production DeFi aggregation, Basenames, Across, Allora, x402, token launch, portfolio and security tooling        |
 | Arc     | Arc Testnet (`5042002`) | Native-USDC programmable money, swap, liquidity, lending, vault, staking, memo, batch payments and Circle App Kit |
+| Arbitrum | Arbitrum One (`42161`) | Public Beta: live Uniswap V3 routing, Aave V3 positions, Across checkpoints and staged Base-to-Arbitrum workflows |
 
 A network switch changes the wallet chain, intent vocabulary, asset registry,
 native currency, protocol targets, widgets, response validation and executable
-state together. Base plans cannot execute in Arc mode, and Arc plans cannot
-execute in Base mode.
+state together. A plan from one network cannot execute in another network
+session. Arc Testnet is never mixed into Base/Arbitrum Mainnet capital flows.
+
+Cross-chain workflows are not described as globally atomic. `WorkflowPlanV1`
+seals each network-bound step, waits for an exact transaction receipt or Across
+fill/refund evidence, then prepares the next short-lived quote. A
+`PolicyAgentV1` signature grants planning permission only; every approval,
+bridge, swap, supply, withdraw, borrow, repay, and x402 payment remains an
+explicit wallet authorization.
 
 ## Repository
 
@@ -65,6 +73,8 @@ Server secrets belong only in `apps/api/.env` or the Render API service:
 - `OPENROUTER_API_KEY`, `WEBACY_API_KEY`, `ALLORA_API_KEY`
 - CDP server credentials for x402, onramp, and optional paymaster routes
 - Across API credentials
+- `ARBITRUM_RPC_URL`, the `ARBITRUM_MVP_ENABLED` release flag, and a random
+  server-only `WORKFLOW_SIGNING_SECRET`
 - dedicated server-side Base RPC credentials
 
 `VITE_*` values are embedded in the browser bundle. They must contain only

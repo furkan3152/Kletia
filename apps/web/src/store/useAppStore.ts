@@ -12,7 +12,7 @@ import {
   resolveWalletHistoryBinding,
 } from "./walletHistoryPolicy";
 
-const STORE_VERSION = 3;
+const STORE_VERSION = 4;
 
 type MessagesByNetwork = Record<NetworkMode, ChatMessage[]>;
 
@@ -54,6 +54,7 @@ interface AppState {
 const createEmptyMessageBuckets = (): MessagesByNetwork => ({
   base: [],
   arc: [],
+  arbitrum: [],
 });
 
 const toSafePersistedMessage = (
@@ -223,7 +224,11 @@ export const useAppStore = create<AppState>()(
 
           if (binding.restorePersistedHistory) {
             const restored = state.pendingMessagesByNetwork;
-            if (restored.base.length > 0 || restored.arc.length > 0) {
+            if (
+              restored.base.length > 0 ||
+              restored.arc.length > 0 ||
+              restored.arbitrum.length > 0
+            ) {
               return {
                 historyOwner: binding.activeOwner,
                 pendingMessagesByNetwork: createEmptyMessageBuckets(),
@@ -280,6 +285,11 @@ export const useAppStore = create<AppState>()(
                 toSafePersistedMessage(message, "arc", state.historyOwner),
               )
             : [],
+          arbitrum: state.historyOwner
+            ? state.messagesByNetwork.arbitrum.map((message) =>
+                toSafePersistedMessage(message, "arbitrum", state.historyOwner),
+              )
+            : [],
         },
       }),
       migrate: (persistedState, version): PersistedAppState => {
@@ -331,6 +341,13 @@ export const useAppStore = create<AppState>()(
             arc: historyOwner
               ? readPersistedMessages(persistedBuckets.arc, "arc", historyOwner)
               : [],
+            arbitrum: historyOwner
+              ? readPersistedMessages(
+                  persistedBuckets.arbitrum,
+                  "arbitrum",
+                  historyOwner,
+                )
+              : [],
           },
         };
       },
@@ -357,6 +374,11 @@ export const useAppStore = create<AppState>()(
               arc: readPersistedMessages(
                 persistedBuckets?.arc,
                 "arc",
+                historyOwner,
+              ),
+              arbitrum: readPersistedMessages(
+                persistedBuckets?.arbitrum,
+                "arbitrum",
                 historyOwner,
               ),
             }

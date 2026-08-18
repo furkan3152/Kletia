@@ -68,7 +68,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 }) => {
   const { isDarkMode, toggleTheme, clearMessages } = useAppStore();
   const { address } = useAccount();
-  const { networkMode, network, toggleNetwork, isSwitching, switchError } =
+  const { networkMode, network, switchNetwork, isSwitching, switchError } =
     useNetwork();
 
   const availableSections = React.useMemo(
@@ -185,7 +185,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
               <NetworkSwitcher
                 networkMode={networkMode}
-                onToggle={toggleNetwork}
+                onSelect={switchNetwork}
                 isSwitching={isSwitching}
                 error={switchError}
                 showStatusBadge={false}

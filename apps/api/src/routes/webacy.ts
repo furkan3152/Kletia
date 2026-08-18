@@ -6,6 +6,7 @@ import {
   ARC_NATIVE_USDC_ADDRESS,
   NETWORKS,
   arcPublicClient,
+  arbitrumPublicClient,
   basePublicClient,
   isNetworkTargetAllowed,
   type NetworkId,
@@ -130,7 +131,12 @@ function sendFailure(
     message,
     decision: "blocked",
     riskScore: null,
-    source: network === "arc" ? "arc_manifest+rpc_bytecode" : "webacy",
+    source:
+      network === "arc"
+        ? "arc_manifest+rpc_bytecode"
+        : network === "arbitrum"
+          ? "arbitrum_manifest+rpc_bytecode"
+          : "webacy",
     network,
     chainId: NETWORKS[network].chainId,
   });
@@ -193,6 +199,49 @@ async function scanArcTarget(address: Address, action?: string) {
     ],
     network: "arc",
     chainId: NETWORKS.arc.chainId,
+  };
+}
+
+async function scanArbitrumTarget(address: Address, action?: string) {
+  const allowlisted = isNetworkTargetAllowed("arbitrum", address, action);
+  const [chainId, bytecode] = await Promise.all([
+    withTimeout(arbitrumPublicClient.getChainId(), 8_000),
+    withTimeout(arbitrumPublicClient.getCode({ address }), 8_000),
+  ]);
+  if (chainId !== NETWORKS.arbitrum.chainId) {
+    throw new ControlledRouteError(
+      "ARBITRUM_RPC_CHAIN_MISMATCH",
+      "Arbitrum RPC does not match Arbitrum One.",
+      503,
+    );
+  }
+  const hasBytecode = Boolean(bytecode && bytecode !== "0x");
+  const explicitNativeRecipient = action === "transfer" && !hasBytecode;
+  const approved = allowlisted && (hasBytecode || explicitNativeRecipient);
+  return {
+    success: true,
+    status: "success",
+    address,
+    isContract: hasBytecode,
+    allowlisted,
+    bytecodeVerified: hasBytecode,
+    bytecodeBytes: hasBytecode ? (bytecode!.length - 2) / 2 : 0,
+    riskScore: null,
+    riskLevel: null,
+    decision: approved ? "approved" : "blocked",
+    source: "arbitrum_manifest+rpc_bytecode",
+    tags: [
+      allowlisted
+        ? "Arbitrum reviewed manifest"
+        : "Not in Arbitrum reviewed manifest",
+      hasBytecode
+        ? "RPC bytecode verified"
+        : explicitNativeRecipient
+          ? "Explicit native-transfer recipient"
+          : "No RPC bytecode",
+    ],
+    network: "arbitrum",
+    chainId: NETWORKS.arbitrum.chainId,
   };
 }
 
@@ -325,17 +374,30 @@ async function handleScan(req: Request, res: Response) {
         ...actionEvidence,
       });
     }
+    if (network === "arbitrum") {
+      return res.json({
+        ...(await scanArbitrumTarget(address, action)),
+        ...actionEvidence,
+      });
+    }
     return res.json({
       ...(await scanBaseAddress(address)),
       ...actionEvidence,
     });
   } catch (error: any) {
     const failure = resolvePublicRouteFailure(error, {
-      code: network === "arc" ? "ARC_RPC_ERROR" : "WEBACY_ERROR",
+      code:
+        network === "arc"
+          ? "ARC_RPC_ERROR"
+          : network === "arbitrum"
+            ? "ARBITRUM_RPC_ERROR"
+            : "WEBACY_ERROR",
       message:
         network === "arc"
           ? "Arc target verification is unavailable."
-          : "Base risk verification is unavailable.",
+          : network === "arbitrum"
+            ? "Arbitrum target verification is unavailable."
+            : "Base risk verification is unavailable.",
       statusCode: 502,
     });
     console.error(

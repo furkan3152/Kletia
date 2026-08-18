@@ -3,7 +3,7 @@ import { getNetwork, type NetworkMode } from "../../config/networks";
 
 interface NetworkSwitcherProps {
   networkMode: NetworkMode;
-  onToggle: () => void | Promise<unknown>;
+  onSelect: (network: NetworkMode) => void | Promise<unknown>;
   isSwitching?: boolean;
   error?: string | null;
   showStatusBadge?: boolean;
@@ -11,57 +11,46 @@ interface NetworkSwitcherProps {
 
 export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
   networkMode,
-  onToggle,
+  onSelect,
   isSwitching = false,
   error,
   showStatusBadge = true,
 }) => {
-  const isArc = networkMode === "arc";
   const currentNetwork = getNetwork(networkMode);
-  const targetNetwork = getNetwork(isArc ? "base" : "arc");
-
-  const handleToggle = () => {
-    void Promise.resolve(onToggle()).catch(() => {});
-  };
+  const options: readonly NetworkMode[] = ["base", "arc", "arbitrum"];
 
   return (
     <div className="flex min-w-0 items-center" title={error ?? currentNetwork.name}>
-      <button
-        type="button"
-        onClick={handleToggle}
-        disabled={isSwitching}
-        aria-label={`Switch to ${targetNetwork.name}`}
+      <div
+        role="group"
+        aria-label="Select execution network"
         aria-busy={isSwitching}
         className="relative flex min-h-11 items-center overflow-hidden border-[3px] border-[#1A1A1A] bg-white p-1 shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,opacity] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none disabled:cursor-wait disabled:opacity-60 dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569]"
-        title={`Switch to ${targetNetwork.name}`}
+        title={currentNetwork.name}
       >
-        <div className="relative z-10 flex h-8 w-32">
-          <div
-            className={`absolute top-0 left-0 h-full w-1/2 border-[2px] border-[#1A1A1A] transition-transform duration-200 ease-in-out ${isArc ? "translate-x-full bg-[#8B5CF6]" : "translate-x-0 bg-[#0052FF]"}`}
-          />
-
-          <div
-            className={`z-20 flex flex-1 items-center justify-center gap-1.5 px-2 py-1 text-[10px] font-black uppercase transition-colors duration-100 ${!isArc ? "text-white" : "text-[#1A1A1A] dark:text-gray-300"}`}
-          >
-            <span
-              className="h-2 w-2 rounded-full border border-current bg-[#0052FF]"
-              aria-hidden="true"
-            />
-            Base
-          </div>
-          <div
-            className={`z-20 flex flex-1 items-center justify-center gap-1.5 px-2 py-1 text-[10px] font-black uppercase transition-colors duration-100 ${isArc ? "text-white" : "text-[#1A1A1A] dark:text-gray-300"}`}
-          >
-            <span
-              className="h-2 w-2 rounded-full border border-current bg-[#8B5CF6]"
-              aria-hidden="true"
-            />
-            Arc
-          </div>
+        <div className="relative z-10 grid h-8 grid-cols-3">
+          {options.map((option) => {
+            const definition = getNetwork(option);
+            const active = option === networkMode;
+            return (
+              <button
+                key={option}
+                type="button"
+                disabled={isSwitching || active || !definition.enabled}
+                aria-pressed={active}
+                onClick={() => void Promise.resolve(onSelect(option)).catch(() => {})}
+                className={`flex min-w-[62px] items-center justify-center gap-1 border-2 border-[#1A1A1A] px-2 text-[9px] font-black uppercase disabled:cursor-default disabled:opacity-50 ${active ? "text-white" : "text-[#1A1A1A] dark:text-gray-200"}`}
+                style={{ backgroundColor: active ? definition.color : undefined }}
+              >
+                {definition.shortName}
+                {definition.beta ? <small className="text-[7px]">BETA</small> : null}
+              </button>
+            );
+          })}
         </div>
-      </button>
+      </div>
 
-      {showStatusBadge && isArc && (
+      {showStatusBadge && networkMode === "arc" && (
         <span className="ml-3 hidden min-h-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:inline-flex">
           TESTNET
         </span>

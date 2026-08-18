@@ -71,6 +71,7 @@ const config = createConfig({
         "https://rpc.quicknode.testnet.arc.network",
       ).map((url) => http(url)),
     ),
+    [NETWORKS.arbitrum.chainId]: http(NETWORKS.arbitrum.rpcUrl),
   },
   ssr: false,
 });

@@ -33,6 +33,12 @@ services:
         sync: false
       - key: ARC_RPC_URL
         value: https://rpc.testnet.arc.network
+      - key: ARBITRUM_RPC_URL
+        sync: false
+      - key: ARBITRUM_MVP_ENABLED
+        value: "false"
+      - key: WORKFLOW_SIGNING_SECRET
+        generateValue: true
       - key: ARC_VAULT_EXECUTION_MODE
         value: vault_v2
       - key: ARC_VAULT_V2_ADDRESS
@@ -151,6 +157,10 @@ services:
         value: "false"
       - key: VITE_ARC_RPC_URL
         value: https://rpc.testnet.arc.network
+      - key: VITE_ARBITRUM_RPC_URL
+        value: https://arb1.arbitrum.io/rpc
+      - key: VITE_ARBITRUM_MVP_ENABLED
+        value: "false"
       - key: VITE_ARC_VAULT_EXECUTION_MODE
         value: vault_v2
       - key: VITE_ARC_VAULT_V2_ADDRESS

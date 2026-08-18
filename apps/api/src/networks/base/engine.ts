@@ -7,6 +7,8 @@ import {
   type Address,
 } from "viem";
 import type { ParsedIntent } from "../../ai/parser.js";
+import { compileWorkflow } from "../../workflows/workflow.js";
+import { buildPolicyAgent } from "../../policies/policyAgent.js";
 import { basePublicClient } from "../../config/client.js";
 import { getPortfolio } from "./portfolio/viewer.js";
 import { handleBaseName } from "./intent/basename.js";
@@ -219,6 +221,14 @@ export async function executeKletiaEngine(
 
     if (intent.action === "chat") {
       return { status: "question", message: intent.message };
+    }
+
+    if (intent.action === "workflow") {
+      return await compileWorkflow(intent, userAddress, msgId);
+    }
+
+    if (intent.action === "policy_agent") {
+      return buildPolicyAgent(intent, userAddress, "base");
     }
 
     if (intent.action === "agent_action") {

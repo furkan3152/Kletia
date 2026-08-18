@@ -43,14 +43,28 @@ describe("network execution profiles", () => {
     expect(NETWORKS.arc.contracts.Swap).toBe(ARC_CONTRACTS.Swap);
   });
 
-  it("resolves only the two explicitly supported chain identities", () => {
+  it("defines Arbitrum One as an isolated public beta profile", () => {
+    expect(NETWORKS.arbitrum.chainId).toBe(42_161);
+    expect(NETWORKS.arbitrum.isTestnet).toBe(false);
+    expect(NETWORKS.arbitrum.beta).toBe(true);
+    expect(NETWORKS.arbitrum.usdc).toBe("0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+    expect(NETWORKS.arbitrum.features.x402).toBe(false);
+    expect(NETWORKS.arbitrum.features.arcContracts).toBe(false);
+  });
+
+  it("resolves only the three explicitly supported chain identities", () => {
     expect(getNetworkByChainId(8_453)?.key).toBe("base");
     expect(getNetworkByChainId(5_042_002)?.key).toBe("arc");
+    expect(getNetworkByChainId(42_161)?.key).toBe("arbitrum");
     expect(getNetworkByChainId(84_532)).toBeUndefined();
   });
 
   it("ships editable sidebar examples with concrete amounts", () => {
-    const prompts = [...promptActions("base"), ...promptActions("arc")];
+    const prompts = [
+      ...promptActions("base"),
+      ...promptActions("arc"),
+      ...promptActions("arbitrum"),
+    ];
 
     expect(prompts.length).toBeGreaterThan(0);
     for (const prompt of prompts) {

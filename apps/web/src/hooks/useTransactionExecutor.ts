@@ -104,8 +104,8 @@ export function resolveBaseWalletExecutionCapabilities(
   chainId: number,
   capabilities: unknown,
 ): BaseWalletExecutionCapabilities {
-  const isBaseMainnet = network === "base" && chainId === BASE_MAINNET_CHAIN_ID;
-  if (!isBaseMainnet || !capabilities || typeof capabilities !== "object") {
+  const expectedChainId = getNetwork(network).chainId;
+  if (chainId !== expectedChainId || !capabilities || typeof capabilities !== "object") {
     return {
       canUseAtomicCalls: false,
       canUsePaymaster: false,
@@ -113,7 +113,7 @@ export function resolveBaseWalletExecutionCapabilities(
   }
 
   const targetCapabilities = (capabilities as Record<string, unknown>)[
-    String(BASE_MAINNET_CHAIN_ID)
+    String(chainId)
   ];
   if (!targetCapabilities || typeof targetCapabilities !== "object") {
     return {
@@ -128,7 +128,10 @@ export function resolveBaseWalletExecutionCapabilities(
 
   return {
     canUseAtomicCalls: atomicStatus === "ready" || atomicStatus === "supported",
-    canUsePaymaster: paymasterService?.supported === true,
+    canUsePaymaster:
+      network === "base" &&
+      chainId === BASE_MAINNET_CHAIN_ID &&
+      paymasterService?.supported === true,
   };
 }
 
@@ -389,15 +392,19 @@ export function useTransactionExecutor() {
           );
         }
 
-        const expectedSource =
-          network === "arc" ? "arc_manifest+rpc_bytecode" : "webacy";
+        const expectedSource = network === "arc"
+          ? "arc_manifest+rpc_bytecode"
+          : network === "arbitrum"
+            ? "arbitrum_manifest+rpc_bytecode"
+            : "webacy";
         if (
           result.network !== network ||
           result.chainId !== expectedNetwork.chainId ||
           result.source !== expectedSource ||
           !result.address ||
           getAddress(result.address) !== getAddress(target) ||
-          result.isContract !== true
+          (result.isContract !== true &&
+            !(network === "arbitrum" && normalizedAction === "transfer"))
         ) {
           throw new Error(
             "Security service returned a response for a different network or target.",
@@ -446,6 +453,16 @@ export function useTransactionExecutor() {
         ) {
           throw new Error(
             "Arc manifest or RPC bytecode proof is missing; transaction was not sent.",
+          );
+        }
+        if (
+          network === "arbitrum" &&
+          (result.riskScore !== null ||
+            result.allowlisted !== true ||
+            (result.bytecodeVerified !== true && normalizedAction !== "transfer"))
+        ) {
+          throw new Error(
+            "Arbitrum reviewed manifest or recipient binding proof is missing; transaction was not sent.",
           );
         }
 
@@ -620,7 +637,7 @@ export function useTransactionExecutor() {
         });
 
         if (allowance >= approval.amount) {
-          onLog(`✅ ${approval.symbol || "Token"} allowance yeterli.`);
+          onLog(`✅ ${approval.symbol || "Token"} allowance is sufficient.`);
           continue;
         }
 
@@ -688,7 +705,7 @@ export function useTransactionExecutor() {
       if (missingApprovals.length > 0 && useAtomicCalls) {
         assertExecutionContext();
         onLog(
-          `🔬 Simulating ${atomicCalls.length} call together with Base atomic package.`,
+          `🔬 Simulating ${atomicCalls.length} calls together as an atomic wallet package.`,
         );
         try {
           const atomicSimulation = await publicClient.simulateCalls({
@@ -846,7 +863,7 @@ export function useTransactionExecutor() {
         assertExecutionContext();
         const callResult = await sendCallsAsync({
           account: executionAddress,
-          chainId: NETWORKS.base.chainId,
+          chainId: plan.chainId,
           calls: atomicCalls,
           forceAtomic: true,
           experimental_fallback: false,

@@ -10,6 +10,8 @@ import {
 } from "./assets/resolver.js";
 import { executeKletiaEngine } from "./networks/base/engine.js";
 import { executeArcEngine } from "./networks/arc/engine.js";
+import { executeArbitrumEngine } from "./networks/arbitrum/engine.js";
+import workflowRoutes from "./workflows/routes.js";
 import { createVerifiedIntentResultEnvelope } from "./intent/responseEnvelope.js";
 import {
   RequestIdValidationError,
@@ -41,6 +43,7 @@ import {
 } from "./config/networks.js";
 import {
   requireArcNetwork,
+  requireArbitrumNetwork,
   requireBaseNetwork,
   requireFixedBaseNetwork,
   requireIntentNetwork,
@@ -164,6 +167,7 @@ app.use("/api/allora", requireBaseNetwork, alloraRoutes);
 app.use("/api/paymaster", requireFixedBaseNetwork, paymasterRoutes);
 app.use("/api/webacy", webacyRoutes);
 app.use("/api/arc", requireArcNetwork, arcRoutes);
+app.use("/api/workflows", workflowRoutes);
 app.use("/api/base/x402-buyer", requireBaseNetwork, baseX402BuyerRoutes);
 app.use("/api/base", requireBaseNetwork, baseRoutes);
 app.use("/api/base-mcp", requireBaseNetwork, baseMcpRoutes);
@@ -181,7 +185,7 @@ type NetworkHealthCheck = {
   chainId: number | null;
   expectedChainId: number;
   blockNumber?: string;
-  status: "ok" | "chain_mismatch" | "unreachable";
+  status: "ok" | "chain_mismatch" | "unreachable" | "disabled";
   checkedAt: number;
   error?: string;
 };
@@ -220,6 +224,20 @@ async function readNetworkHealth(
   const check = (async () => {
     const config = NETWORKS[network];
     let value: NetworkHealthCheck;
+    if (!config.enabled) {
+      value = {
+        network,
+        chainId: null,
+        expectedChainId: config.chainId,
+        status: "disabled",
+        checkedAt: Date.now(),
+      };
+      networkHealthCache.set(network, {
+        expiresAt: Date.now() + NETWORK_HEALTH_TTL_MS,
+        value,
+      });
+      return value;
+    }
     try {
       const [chainId, blockNumber] = await withDeadline(
         Promise.all([
@@ -270,8 +288,12 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get(["/api/health/base", "/api/health/arc"], async (req, res) => {
-  const network: NetworkId = req.path.endsWith("/arc") ? "arc" : "base";
+app.get(["/api/health/base", "/api/health/arc", "/api/health/arbitrum"], async (req, res) => {
+  const network: NetworkId = req.path.endsWith("/arc")
+    ? "arc"
+    : req.path.endsWith("/arbitrum")
+      ? "arbitrum"
+      : "base";
   const check = await readNetworkHealth(network);
   res.setHeader("Cache-Control", "no-store");
   return res.status(check.status === "ok" ? 200 : 503).json({
@@ -283,8 +305,11 @@ app.get(["/api/health/base", "/api/health/arc"], async (req, res) => {
 });
 
 app.get("/api/health", async (_req, res) => {
+  const enabledNetworks = (Object.keys(NETWORKS) as NetworkId[]).filter(
+    (network) => NETWORKS[network].enabled,
+  );
   const checks = await Promise.all(
-    (Object.keys(NETWORKS) as NetworkId[]).map((network) =>
+    enabledNetworks.map((network) =>
       readNetworkHealth(network),
     ),
   );
@@ -437,7 +462,7 @@ app.post(
 );
 
 interface ConversationSession {
-  network: "base" | "arc";
+  network: NetworkId;
   userAddress: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   lastAccess: number;
@@ -889,7 +914,14 @@ app.post(
               resolutionPrompt,
               requestId,
             )
-          : await executeKletiaEngine(
+          : network.id === "arbitrum"
+            ? await executeArbitrumEngine(
+                executableIntent,
+                userAddress,
+                resolutionPrompt,
+                requestId,
+              )
+            : await executeKletiaEngine(
               executableIntent,
               userAddress,
               resolutionPrompt,
@@ -930,8 +962,11 @@ app.post(
 const httpServer = createServer(app);
 
 export async function assertRuntimeNetworkAttestation() {
+  const enabledNetworks = (Object.keys(NETWORKS) as NetworkId[]).filter(
+    (network) => NETWORKS[network].enabled,
+  );
   const checks = await Promise.all(
-    (Object.keys(NETWORKS) as NetworkId[]).map((network) =>
+    enabledNetworks.map((network) =>
       readNetworkHealth(network, true),
     ),
   );

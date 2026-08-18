@@ -156,6 +156,14 @@ const NON_ASSET_ACTIONS: Readonly<Record<NetworkMode, ReadonlySet<string>>> = {
     "claim_rewards",
     "claim_unstaked",
   ]),
+  arbitrum: new Set([
+    "chat",
+    "portfolio",
+    "open_widget",
+    "yield_compare",
+    "workflow",
+    "policy_agent",
+  ]),
 };
 const SINGLE_RECIPIENT_ACTIONS = new Set([
   "appkit_send",

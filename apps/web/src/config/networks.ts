@@ -1,10 +1,10 @@
 import { defineChain, type Address, type Chain } from "viem";
-import { base } from "viem/chains";
+import { arbitrum, base } from "viem/chains";
 import { ARC_CONTRACTS } from "../networks/arc/config";
 import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
 import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
-export type NetworkMode = "base" | "arc";
+export type NetworkMode = "base" | "arc" | "arbitrum";
 
 export type AppTab =
   | "chat"
@@ -116,6 +116,8 @@ export interface NetworkDefinition {
   readonly icon: string;
   readonly badge: string;
   readonly isTestnet: boolean;
+  readonly beta?: boolean;
+  readonly enabled: boolean;
   readonly apiPrefix: string;
   readonly navigation: readonly NetworkNavigationSection[];
 }
@@ -156,6 +158,9 @@ export const ALLOW_PUBLIC_BASE_RPC_FALLBACK =
   import.meta.env.VITE_ALLOW_PUBLIC_BASE_RPC_FALLBACK === "true";
 const ARC_RPC_URL =
   import.meta.env.VITE_ARC_RPC_URL || "https://rpc.testnet.arc.network";
+const ARBITRUM_RPC_URL =
+  import.meta.env.VITE_ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
+const ARBITRUM_USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as const;
 
 export const NETWORKS = {
   base: {
@@ -205,6 +210,7 @@ export const NETWORKS = {
     icon: "🔵",
     badge: "OMNI-ENGINE",
     isTestnet: false,
+    enabled: true,
     apiPrefix: "/api",
     navigation: [
       {
@@ -304,6 +310,16 @@ export const NETWORKS = {
                 "Stake 100 WELL in the Moonwell Safety Module on Base Mainnet and show the expected stkWELL output and risks before execution",
             },
           },
+          {
+            id: "base-arbitrum-workflow",
+            label: "Cross-chain Workflow",
+            icon: "liquidity",
+            action: {
+              type: "prompt",
+              prompt:
+                "Bridge 10 USDC from Base to Arbitrum with Across, then supply only the received USDC to Aave V3; show every checkpoint and require a separate wallet approval for each financial step",
+            },
+          },
         ],
       },
     ],
@@ -360,6 +376,7 @@ export const NETWORKS = {
     icon: "🌀",
     badge: "BUILT ON ARC",
     isTestnet: true,
+    enabled: true,
     apiPrefix: "/api/arc",
     navigation: [
       {
@@ -462,11 +479,91 @@ export const NETWORKS = {
       },
     ],
   },
+  arbitrum: {
+    key: "arbitrum",
+    name: "Arbitrum One",
+    shortName: "Arbitrum",
+    chainId: arbitrum.id,
+    chain: arbitrum,
+    rpcUrl: ARBITRUM_RPC_URL,
+    explorer: { name: "Arbiscan", url: "https://arbiscan.io" },
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+      displayDecimals: 18,
+    },
+    tokens: {
+      usdc: { address: ARBITRUM_USDC, decimals: 6, isNative: false },
+    },
+    usdc: ARBITRUM_USDC,
+    contracts: {},
+    features: {
+      baseMcpHandoff: false,
+      paymaster: false,
+      basename: false,
+      allora: false,
+      airdrop: false,
+      x402: false,
+      webacy: true,
+      arcDashboard: false,
+      arcLending: false,
+      arcContracts: false,
+    },
+    funding: {
+      kind: "onramp",
+      label: "Fund Wallet",
+      url: "https://bridge.arbitrum.io",
+    },
+    color: "#28A0F0",
+    icon: "◆",
+    badge: "PUBLIC BETA",
+    beta: true,
+    enabled:
+      import.meta.env.VITE_ARBITRUM_MVP_ENABLED === "true" ||
+      (import.meta.env.DEV && import.meta.env.VITE_ARBITRUM_MVP_ENABLED !== "false"),
+    isTestnet: false,
+    apiPrefix: "/api",
+    navigation: [
+      {
+        id: "command-center",
+        label: "Command Center",
+        items: [
+          { id: "chat", label: "Omni-Engine", icon: "chat", action: { type: "tab", tab: "chat" } },
+        ],
+      },
+      {
+        id: "arbitrum-defi",
+        label: "Arbitrum Beta",
+        items: [
+          {
+            id: "arbitrum-swap",
+            label: "Uniswap V3 Swap",
+            icon: "swap",
+            action: { type: "prompt", prompt: "Swap 10 USDC to WETH on Arbitrum One through the best live Uniswap V3 fee tier and show the exact quote before approval" },
+          },
+          {
+            id: "arbitrum-lend",
+            label: "Aave V3 Supply",
+            icon: "lending",
+            action: { type: "prompt", prompt: "Supply 10 USDC to Aave V3 on Arbitrum One after checking the live reserve and rate" },
+          },
+          {
+            id: "arbitrum-yield",
+            label: "Live Aave Rates",
+            icon: "vault",
+            action: { type: "prompt", prompt: "Show the live USDC supply and variable borrow rates from Aave V3 on Arbitrum without preparing a transaction" },
+          },
+        ],
+      },
+    ],
+  },
 } as const satisfies Record<NetworkMode, NetworkDefinition>;
 
 export const SUPPORTED_CHAINS = [
   NETWORKS.base.chain,
   NETWORKS.arc.chain,
+  NETWORKS.arbitrum.chain,
 ] as const;
 
 export const getNetwork = (mode: NetworkMode): NetworkDefinition =>
@@ -478,7 +575,7 @@ export const getNetworkByChainId = (
   Object.values(NETWORKS).find((network) => network.chainId === chainId);
 
 export const isNetworkMode = (value: unknown): value is NetworkMode =>
-  value === "base" || value === "arc";
+  value === "base" || value === "arc" || value === "arbitrum";
 
 export const getApiPrefix = (mode: NetworkMode): string =>
   NETWORKS[mode].apiPrefix;

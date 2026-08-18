@@ -119,6 +119,54 @@ export const IntentSchema = z.object({
     )
     .max(25)
     .optional(),
+  workflowSteps: z
+    .array(
+      z
+        .object({
+          action: z.enum([
+            "bridge",
+            "swap",
+            "lend",
+            "withdraw",
+            "borrow",
+            "repay",
+            "transfer",
+            "gas_acquire",
+            "x402_request",
+          ]),
+          network: z.enum(["base", "arc", "arbitrum"]).optional(),
+          tokenIn: z.string().trim().optional(),
+          tokenOut: z.string().trim().optional(),
+          amount: z.string().trim().optional(),
+          protocol: z.string().trim().optional(),
+          destinationChain: z.string().trim().toLowerCase().optional(),
+          objective: z
+            .enum([
+              "best_output",
+              "best_rate",
+              "lowest_borrow_cost",
+              "lowest_risk",
+            ])
+            .optional(),
+        })
+        .strict(),
+    )
+    .min(2)
+    .max(8)
+    .optional(),
+  policyAgent: z
+    .object({
+      name: z.string().trim().min(1).max(64),
+      objective: z.string().trim().min(1).max(500),
+      allowedNetworks: z.array(z.enum(["base", "arc", "arbitrum"])).min(1).max(3),
+      allowedProtocols: z.array(z.string().trim().min(1).max(64)).max(12),
+      allowedAssets: z.array(z.string().trim().min(1).max(64)).max(16),
+      maxSpendUsdc: z.string().trim().regex(/^\d+(?:\.\d{1,6})?$/u),
+      riskTolerance: z.enum(["conservative", "balanced", "aggressive"]),
+      expiresInHours: z.coerce.number().int().min(1).max(720),
+    })
+    .strict()
+    .optional(),
 });
 
 export type ParsedIntent = z.infer<typeof IntentSchema>;
@@ -198,6 +246,15 @@ const REQUIRED_AMOUNT_ACTIONS: Record<NetworkId, ReadonlySet<string>> = {
     "appkit_send",
     "appkit_bridge",
     "official_memo_send",
+  ]),
+  arbitrum: new Set([
+    "transfer",
+    "swap",
+    "lend",
+    "withdraw",
+    "borrow",
+    "repay",
+    "bridge",
   ]),
 };
 
@@ -789,6 +846,11 @@ function hasPromptBoundAction(action: string, text: string): boolean {
       /\b(?:base\s+mcp|mcp\s+(?:agent|handoff)|agent\s+(?:mode|handoff)|ajan\s+modu)\b/iu,
     open_widget:
       /\b(?:open|show|launch|aç|ac|göster|goster)\b[^,;:.!?\n]{0,64}\b(?:widget|panel|tool|araç|arac)\b/iu,
+    transfer: /\b(?:send|transfer|pay|gönder|gonder|aktar|öde|ode)\b/iu,
+    workflow:
+      /^(?=[\s\S]*(?:\b(?:then|after|next|and then)\b|sonra|ardından|ardindan))(?=[\s\S]*(?:\b(?:bridge|swap|lend|supply|borrow|repay|withdraw)\b|köprü|kopru|borç|borc|yatır|yatir|çek|cek))[\s\S]*$/iu,
+    policy_agent:
+      /\b(?:create|build|configure|set up|oluştur|olustur|kur)\b[^,;:.!?\n]{0,64}\b(?:policy\s+agent|sub[- ]?agent|alt\s+ajan|strategy\s+agent)\b/iu,
   };
   return rules[action]?.test(text) === true;
 }
@@ -2875,7 +2937,7 @@ function buildSystemPrompt(network: NetworkId): string {
   const config = NETWORKS[network];
   const commonRules = `You are Kletia's smart, friendly Web3 assistant.
 Return exactly one JSON object and no markdown. The required fields are:
-{"isComplete":boolean,"action":string,"message":string,"amount":string,"secondaryAmount"?:string,"tokenIn"?:string,"tokenOut"?:string,"protocol"?:string,"objective"?:"best_output"|"best_rate"|"lowest_borrow_cost"|"lowest_risk","riskTolerance"?:"conservative"|"balanced"|"aggressive","timeHorizonDays"?:number,"maxGas"?:string,"maxPriceImpactBps"?:number,"excludedProtocols"?:string[],"collateralToken"?:string,"borrowToken"?:string,"allowMultiStep"?:boolean,"destinationChain"?:string,"durationInDays"?:number,"name"?:string,"symbol"?:string,"slippage"?:string,"recipient"?:string,"memo"?:string,"minimumOutput"?:string,"maxFee"?:string,"transferSpeed"?:"FAST"|"SLOW","transfers"?:{"recipient":string,"amount":string}[],"serviceQuery"?:string,"url"?:string,"method"?:"GET"|"POST","maxPayment"?:string,"requestBody"?:object,"curatedOnly"?:boolean}
+{"isComplete":boolean,"action":string,"message":string,"amount":string,"secondaryAmount"?:string,"tokenIn"?:string,"tokenOut"?:string,"protocol"?:string,"objective"?:"best_output"|"best_rate"|"lowest_borrow_cost"|"lowest_risk","riskTolerance"?:"conservative"|"balanced"|"aggressive","timeHorizonDays"?:number,"maxGas"?:string,"maxPriceImpactBps"?:number,"excludedProtocols"?:string[],"collateralToken"?:string,"borrowToken"?:string,"allowMultiStep"?:boolean,"destinationChain"?:string,"durationInDays"?:number,"name"?:string,"symbol"?:string,"slippage"?:string,"recipient"?:string,"memo"?:string,"minimumOutput"?:string,"maxFee"?:string,"transferSpeed"?:"FAST"|"SLOW","transfers"?:{"recipient":string,"amount":string}[],"serviceQuery"?:string,"url"?:string,"method"?:"GET"|"POST","maxPayment"?:string,"requestBody"?:object,"curatedOnly"?:boolean,"workflowSteps"?:{"action":string,"network"?:"base"|"arc"|"arbitrum","tokenIn"?:string,"tokenOut"?:string,"amount"?:string,"protocol"?:string,"destinationChain"?:string,"objective"?:string}[],"policyAgent"?:{"name":string,"objective":string,"allowedNetworks":string[],"allowedProtocols":string[],"allowedAssets":string[],"maxSpendUsdc":string,"riskTolerance":"conservative"|"balanced"|"aggressive","expiresInHours":number}}
 
 The request is already bound by the server to ${config.displayName} (chainId ${config.chainId}).
 Never select, change, or infer another network. Allowed actions: ${config.intentActions.join(", ")}.
@@ -2934,6 +2996,25 @@ address exactly from the current user text. Never invent, substitute or reuse
 an address from an example. If an address is missing, return isComplete=false.`;
   }
 
+  if (network === "arbitrum") {
+    return `${commonRules}
+
+Arbitrum One beta semantics:
+- transfer: send native ETH, WETH, native USDC or ARB to an explicit EVM recipient.
+- swap: swap only WETH, native USDC or ARB through the reviewed Uniswap V3 deployment. tokenIn and tokenOut must differ.
+- lend / withdraw / borrow / repay: use the reviewed Aave V3 Arbitrum market. Never invent collateral, debt, amount or a MAX borrow amount.
+- yield_compare: read-only Aave V3 supply and variable borrow rates; amount is "0" and no transaction is created.
+- policy_agent: create a non-custodial planning policy. It cannot authorize token approvals or transactions; every financial step remains separately wallet-approved.
+- portfolio: return live Arbitrum balances and Aave account data.
+
+Examples:
+User: "Swap 10 USDC to WETH on Arbitrum"
+{"isComplete":true,"action":"swap","tokenIn":"USDC","tokenOut":"WETH","amount":"10","protocol":"uniswap-v3","slippage":"1","message":"Preparing a reviewed Arbitrum Uniswap V3 route."}
+User: "Supply 25 USDC to Aave on Arbitrum"
+{"isComplete":true,"action":"lend","tokenIn":"USDC","amount":"25","protocol":"aave-v3","riskTolerance":"balanced","message":"Preparing the Aave V3 supply route."}
+If a request starts from Base and continues on Arbitrum, ask the user to switch to the Base workspace; cross-chain workflows are compiled only from their source network.`;
+  }
+
   return `${commonRules}
 
 Base action semantics:
@@ -2953,6 +3034,8 @@ Base action semantics:
 - agent_action: open the non-custodial Base MCP handoff. It never means Kletia is connected to Base MCP, owns a wallet, or may execute autonomously.
 - x402_discover: search Coinbase CDP Bazaar for a useful paid API. serviceQuery and a tight human-decimal maxPayment in USDC are required. Default curatedOnly=true unless the user explicitly asks for the broader catalog.
 - x402_request: prepare one explicit HTTPS x402 API request for the official Base MCP approval flow. url, GET or POST method and a tight maxPayment are required; requestBody is allowed only for POST. Never invent a URL or payment cap.
+- workflow: compile two or more explicitly ordered Base/Arbitrum actions into a staged plan. Preserve the user's order, assets and amounts in workflowSteps. Never describe a cross-chain workflow as globally atomic.
+- policy_agent: create a non-custodial signed planning policy. The policy cannot move funds or replace per-step wallet approval.
 - portfolio: Base wallet and DeFi overview.
 
 Examples:
@@ -3099,7 +3182,10 @@ export async function parseUserIntent(
       return promptBindingFailure(constraintFailure);
     }
     const requestedActions = conflictingBaseActions(bindingText);
-    if (requestedActions.length > 1) {
+    if (
+      requestedActions.length > 1 &&
+      !hasPromptBoundAction("workflow", bindingText)
+    ) {
       return promptBindingFailure(
         "Multiple financial actions cannot be safely reduced to a single intent in one message; you must send transactions separately or as a clear, approved plan.",
       );
@@ -3108,7 +3194,7 @@ export async function parseUserIntent(
     if (deterministic) {
       return enforcePromptBoundIntent(deterministic, bindingText, network);
     }
-  } else {
+  } else if (network === "arc") {
     const deterministic = parseDeterministicArcIntent(userPrompt);
     if (deterministic) return deterministic;
   }
@@ -3417,6 +3503,14 @@ export async function parseUserIntent(
     }
 
     if (network === "base" && parsedJson.isComplete) {
+      if (
+        parsedJson.action === "workflow" &&
+        Array.isArray(parsedJson.workflowSteps) &&
+        parsedJson.workflowSteps.length > 0
+      ) {
+        parsedJson.tokenIn = parsedJson.workflowSteps[0].tokenIn;
+        parsedJson.amount = parsedJson.workflowSteps[0].amount;
+      }
       const missingField =
         parsedJson.action === "x402_discover" &&
         (!parsedJson.serviceQuery || !parsedJson.maxPayment)
@@ -3428,6 +3522,12 @@ export async function parseUserIntent(
                 String(parsedJson.method).toUpperCase() === "POST" &&
                 !parsedJson.requestBody
               ? "For POST x402 requests, you must specify the JSON object to be sent."
+              : parsedJson.action === "workflow" &&
+                  (!Array.isArray(parsedJson.workflowSteps) ||
+                    parsedJson.workflowSteps.length < 2 ||
+                    !parsedJson.tokenIn ||
+                    !parsedJson.amount)
+                ? "A workflow requires at least two ordered steps plus an explicit source asset and amount."
               : "";
       if (missingField) {
         parsedJson.isComplete = false;

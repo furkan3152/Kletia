@@ -154,6 +154,16 @@ export type RouteData = {
   feeRouterCompatible?: boolean;
   simulationReturnPolicy?: "uint256_zero";
   simulationStatus?: "passed" | "deferred_until_approval";
+  yieldComparison?: {
+    policyVersion: "arbitrum_aave_v3_live_rates_v1";
+    protocolId: "aave-v3";
+    asset: string;
+    supplyApyBps: number;
+    variableBorrowApyBps: number;
+    availableLiquidityAtomic: string;
+    observedAt: string;
+    mockData: false;
+  };
   quoteSource?: string;
   policyTargets?: string[];
   targetContract?: string;
@@ -627,7 +637,30 @@ export type ArcPortfolioData = {
   observedAtBlock: string;
 };
 
-export type PortfolioData = BasePortfolioData | ArcPortfolioData;
+export type ArbitrumPortfolioData = {
+  network: "arbitrum";
+  chainId: 42161;
+  policyVersion: "kletia_arbitrum_portfolio_v1";
+  observedAtBlock: string;
+  native: { symbol: "ETH"; balanceAtomic: string; decimals: 18 };
+  tokens: Array<{
+    symbol: "USDC" | "WETH" | "ARB";
+    address: string;
+    balanceAtomic: string;
+    decimals: 6 | 18;
+  }>;
+  aave: {
+    totalCollateralBase: string;
+    totalDebtBase: string;
+    availableBorrowsBase: string;
+    currentLiquidationThresholdBps: number;
+    ltvBps: number;
+    healthFactor: string | null;
+  };
+  mockData: false;
+};
+
+export type PortfolioData = BasePortfolioData | ArcPortfolioData | ArbitrumPortfolioData;
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -1526,6 +1559,42 @@ export const isArcPortfolioData = (value: unknown): value is ArcPortfolioData =>
   typeof value.observedAtBlock === "string" &&
   UNSIGNED_INTEGER.test(value.observedAtBlock);
 
+export const isArbitrumPortfolioData = (
+  value: unknown,
+): value is ArbitrumPortfolioData =>
+  isObjectRecord(value) &&
+  value.network === "arbitrum" &&
+  value.chainId === 42_161 &&
+  value.policyVersion === "kletia_arbitrum_portfolio_v1" &&
+  typeof value.observedAtBlock === "string" &&
+  UNSIGNED_INTEGER.test(value.observedAtBlock) &&
+  isObjectRecord(value.native) &&
+  value.native.symbol === "ETH" &&
+  value.native.decimals === 18 &&
+  typeof value.native.balanceAtomic === "string" &&
+  UNSIGNED_INTEGER.test(value.native.balanceAtomic) &&
+  Array.isArray(value.tokens) &&
+  value.tokens.length === 3 &&
+  value.tokens.every(
+    (token) =>
+      isObjectRecord(token) &&
+      (token.symbol === "USDC" || token.symbol === "WETH" || token.symbol === "ARB") &&
+      isCanonicalAddress(token.address) &&
+      (token.decimals === 6 || token.decimals === 18) &&
+      typeof token.balanceAtomic === "string" &&
+      UNSIGNED_INTEGER.test(token.balanceAtomic),
+  ) &&
+  isObjectRecord(value.aave) &&
+  hasStringFields(value.aave, [
+    "totalCollateralBase",
+    "totalDebtBase",
+    "availableBorrowsBase",
+  ]) &&
+  typeof value.aave.currentLiquidationThresholdBps === "number" &&
+  typeof value.aave.ltvBps === "number" &&
+  (value.aave.healthFactor === null || typeof value.aave.healthFactor === "string") &&
+  value.mockData === false;
+
 export type EntityAssetField =
   "tokenIn" | "tokenOut" | "collateralToken" | "borrowToken";
 
@@ -1627,6 +1696,78 @@ export type IntentEntityResolution = {
   scorePolicy: "informational_only_hard_gates_take_precedence";
 };
 
+export type WorkflowStepStatus =
+  | "planned"
+  | "awaiting_signature"
+  | "submitted"
+  | "confirmed"
+  | "filled"
+  | "ready"
+  | "failed"
+  | "refunded"
+  | "indeterminate";
+
+export type WorkflowPlanV1 = {
+  version: 1;
+  workflowId: string;
+  requestId: string;
+  userAddress: string;
+  createdAt: number;
+  expiresAt: number;
+  objective: "risk_adjusted_net_return";
+  atomicity: {
+    sameChain: "wallet_batch_when_verified";
+    crossChain: "staged_checkpointed_no_global_rollback";
+  };
+  hardPolicies: {
+    minimumHealthFactor: "1.5";
+    requiresPerStepWalletApproval: true;
+    mockDataAllowed: false;
+  };
+  currentStepIndex: number;
+  steps: Array<{
+    id: string;
+    order: number;
+    action: string;
+    network: "base" | "arbitrum";
+    chainId: 8453 | 42161;
+    tokenIn?: string;
+    tokenOut?: string;
+    amount: string;
+    protocol?: string;
+    destinationChain?: string;
+    objective?: string;
+    dependsOn: string[];
+    status: WorkflowStepStatus;
+    expectedOutputAtomic?: string;
+    execution?: {
+      target: string;
+      calldataHash: string;
+      value: string;
+      quoteExpiresAt: number;
+    };
+    txHash?: string;
+    fillTxHash?: string;
+  }>;
+};
+
+export type PolicyAgentV1 = {
+  version: 1;
+  policyId: string;
+  owner: string;
+  name: string;
+  objective: string;
+  allowedNetworks: NetworkMode[];
+  allowedProtocols: string[];
+  allowedAssets: string[];
+  maxSpendUsdcAtomic: string;
+  riskTolerance: "conservative" | "balanced" | "aggressive";
+  createdAt: number;
+  expiresAt: number;
+  authority: "planning_only_no_transaction_authority";
+  requiresPerStepWalletApproval: true;
+};
+
 export type IntentResponse = {
   status: string;
   message?: string;
@@ -1684,6 +1825,30 @@ export type IntentResponse = {
   launchFactoryV2Evidence?: BaseLaunchFactoryV2Evidence;
   predictedTokenAddress?: string;
   simulationStatus?: "passed" | "deferred_until_approval";
+  workflowPlan?: WorkflowPlanV1;
+  workflowToken?: string;
+  policyAgent?: PolicyAgentV1;
+  yieldComparison?: {
+    policyVersion: "arbitrum_aave_v3_live_rates_v1";
+    protocolId: "aave-v3";
+    asset: string;
+    supplyApyBps: number;
+    variableBorrowApyBps: number;
+    availableLiquidityAtomic: string;
+    observedAt: string;
+    mockData: false;
+  };
+  gasReadiness?: {
+    policyVersion: "arbitrum_explicit_gas_acquisition_v1";
+    nativeAsset: "ETH";
+    balanceAtomic: string;
+    recommendedBufferAtomic: string;
+    gasAcquisitionRequired: boolean;
+    automaticSpendAllowed: false;
+    acquisitionPolicy: "switch_to_base_and_request_bounded_across_eth_route";
+    observedAtBlock: string;
+    mockData: false;
+  };
 };
 
 const hasBaseIntentV2RouteMarker = (value: unknown): boolean => {

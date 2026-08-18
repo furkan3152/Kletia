@@ -11,7 +11,7 @@ interface NavbarProps {
   handleFundClick: (wallet: string, e: React.MouseEvent) => void;
   onMenuClick: () => void;
   networkMode?: NetworkMode;
-  onNetworkToggle?: () => void | Promise<unknown>;
+  onNetworkSelect?: (network: NetworkMode) => void | Promise<unknown>;
   isNetworkSwitching?: boolean;
   networkSwitchError?: string | null;
 }
@@ -21,14 +21,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   handleFundClick,
   onMenuClick,
   networkMode,
-  onNetworkToggle,
+  onNetworkSelect,
   isNetworkSwitching,
   networkSwitchError,
 }) => {
   const networkController = useNetwork();
   const effectiveNetworkMode = networkMode ?? networkController.networkMode;
   const activeNetwork = getNetwork(effectiveNetworkMode);
-  const toggleNetwork = onNetworkToggle ?? networkController.toggleNetwork;
+  const selectNetwork = onNetworkSelect ?? networkController.switchNetwork;
   const networkIsSwitching =
     isNetworkSwitching ?? networkController.isSwitching;
   const networkError = networkSwitchError ?? networkController.switchError;
@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="hidden xl:block">
           <NetworkSwitcher
             networkMode={effectiveNetworkMode}
-            onToggle={toggleNetwork}
+            onSelect={selectNetwork}
             isSwitching={networkIsSwitching}
             error={networkError}
           />
@@ -205,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="mt-3 flex items-center justify-between gap-3 border-t-[3px] border-[#1A1A1A] pt-3 dark:border-[#4B5563] xl:hidden">
         <NetworkSwitcher
           networkMode={effectiveNetworkMode}
-          onToggle={toggleNetwork}
+          onSelect={selectNetwork}
           isSwitching={networkIsSwitching}
           error={networkError}
           showStatusBadge={false}

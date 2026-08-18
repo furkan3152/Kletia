@@ -7,7 +7,11 @@ import {
   type Chain,
   type PublicClient,
 } from "viem";
-import { arcTestnet, base } from "viem/chains";
+import { arbitrum, arcTestnet, base } from "viem/chains";
+import {
+  ARBITRUM_CONTRACTS,
+  ARBITRUM_TOKENS,
+} from "../networks/arbitrum/contracts.js";
 import { ROUTERS, TOKENS } from "../networks/base/contracts.js";
 import {
   AAVE_V3_BASE,
@@ -21,7 +25,7 @@ import { configuredBaseTokenDeploymentTarget } from "../networks/base/config/lau
 
 dotenv.config();
 
-export type NetworkId = "base" | "arc";
+export type NetworkId = "base" | "arc" | "arbitrum";
 
 export const ARC_NATIVE_USDC_ADDRESS = getAddress(
   "0x3600000000000000000000000000000000000000",
@@ -80,7 +84,7 @@ export interface NativeAssetConfig {
 
 export interface NetworkConfig {
   readonly id: NetworkId;
-  readonly chainId: 8453 | 5042002;
+  readonly chainId: 8453 | 5042002 | 42161;
   readonly displayName: string;
   readonly chain: Chain;
   readonly rpcUrl: string;
@@ -89,6 +93,8 @@ export interface NetworkConfig {
   readonly tokens: readonly string[];
   readonly widgets: readonly string[];
   readonly intentActions: readonly string[];
+  readonly beta?: boolean;
+  readonly enabled: boolean;
 }
 
 export const ARC_CONTRACTS = {
@@ -120,6 +126,22 @@ const baseRpcUrl =
     : "https://mainnet.base.org");
 
 const arcRpcUrl = process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network";
+const configuredArbitrumRpcUrl = process.env.ARBITRUM_RPC_URL?.trim();
+export const ARBITRUM_MVP_ENABLED =
+  process.env.ARBITRUM_MVP_ENABLED?.trim() === "true" ||
+  (process.env.NODE_ENV !== "production" &&
+    process.env.ARBITRUM_MVP_ENABLED?.trim() !== "false");
+if (
+  process.env.NODE_ENV === "production" &&
+  ARBITRUM_MVP_ENABLED &&
+  !configuredArbitrumRpcUrl
+) {
+  throw new Error(
+    "ARBITRUM_RPC_URL is required when the Arbitrum Mainnet beta is enabled in production.",
+  );
+}
+const arbitrumRpcUrl =
+  configuredArbitrumRpcUrl || "https://arb1.arbitrum.io/rpc";
 
 const BASE_ACTIONS = [
   "chat",
@@ -144,6 +166,8 @@ const BASE_ACTIONS = [
   "agent_action",
   "x402_discover",
   "x402_request",
+  "workflow",
+  "policy_agent",
 ] as const;
 
 const ARC_ACTIONS = [
@@ -172,6 +196,20 @@ const ARC_ACTIONS = [
   "remove_liquidity",
 ] as const;
 
+const ARBITRUM_ACTIONS = [
+  "chat",
+  "portfolio",
+  "open_widget",
+  "transfer",
+  "swap",
+  "lend",
+  "withdraw",
+  "borrow",
+  "repay",
+  "yield_compare",
+  "policy_agent",
+] as const;
+
 export const NETWORKS: Record<NetworkId, NetworkConfig> = {
   base: {
     id: "base",
@@ -184,6 +222,7 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     tokens: Object.freeze(Object.keys(TOKENS)),
     widgets: Object.freeze(["webacy", "allora", "airdrop", "x402", "basename"]),
     intentActions: BASE_ACTIONS,
+    enabled: true,
   },
   arc: {
     id: "arc",
@@ -205,6 +244,21 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
       "lending",
     ]),
     intentActions: ARC_ACTIONS,
+    enabled: true,
+  },
+  arbitrum: {
+    id: "arbitrum",
+    chainId: 42161,
+    displayName: "Arbitrum One",
+    chain: arbitrum,
+    rpcUrl: arbitrumRpcUrl,
+    explorerUrl: "https://arbiscan.io",
+    nativeAsset: { name: "Ether", symbol: "ETH", decimals: 18 },
+    tokens: Object.freeze(["ETH", "WETH", "USDC", "ARB"]),
+    widgets: Object.freeze(["arbitrum", "swap", "lending"]),
+    intentActions: ARBITRUM_ACTIONS,
+    beta: true,
+    enabled: ARBITRUM_MVP_ENABLED,
   },
 };
 
@@ -220,9 +274,16 @@ export const arcPublicClient = createPublicClient({
   batch: { multicall: true },
 });
 
+export const arbitrumPublicClient = createPublicClient({
+  chain: arbitrum,
+  transport: http(arbitrumRpcUrl),
+  batch: { multicall: true },
+});
+
 export const NETWORK_CLIENTS: Record<NetworkId, PublicClient> = {
   base: basePublicClient as PublicClient,
   arc: arcPublicClient as PublicClient,
+  arbitrum: arbitrumPublicClient as PublicClient,
 };
 
 const NETWORK_ALIASES: Record<string, NetworkId> = {
@@ -236,16 +297,23 @@ const NETWORK_ALIASES: Record<string, NetworkId> = {
   arc_testnet: "arc",
   "eip155:5042002": "arc",
   "5042002": "arc",
+  arbitrum: "arbitrum",
+  arb: "arbitrum",
+  "arbitrum-one": "arbitrum",
+  arbitrum_one: "arbitrum",
+  "eip155:42161": "arbitrum",
+  "42161": "arbitrum",
 };
 
 export class NetworkValidationError extends Error {
-  readonly statusCode = 400;
+  readonly statusCode: number;
   readonly code: string;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, statusCode = 400) {
     super(message);
     this.name = "NetworkValidationError";
     this.code = code;
+    this.statusCode = statusCode;
   }
 }
 
@@ -279,7 +347,7 @@ export function resolveNetworkRequest(
   if (!network) {
     throw new NetworkValidationError(
       "NETWORK_REQUIRED",
-      "The network field is required. Supported values: base, arc.",
+      "The network field is required. Supported values: base, arc, arbitrum.",
     );
   }
   if (chainId === null) {
@@ -296,6 +364,13 @@ export function resolveNetworkRequest(
       `The ${network} network requires chainId ${config.chainId}; ${chainId} was not accepted.`,
     );
   }
+  if (!config.enabled) {
+    throw new NetworkValidationError(
+      "NETWORK_DISABLED",
+      `${config.displayName} beta is not enabled on this deployment.`,
+      503,
+    );
+  }
   return config;
 }
 
@@ -306,7 +381,7 @@ const KLETIA_ROUTER = "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf";
 const BASE_INTENT_V2_ADDRESS_MANIFEST = configuredBaseIntentV2AddressManifest(
   process.env,
 );
-const ACROSS_SPOKE_POOL = "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64";
+export const ACROSS_SPOKE_POOL = "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64";
 export const BASE_CONTRACTS = Object.freeze({
   basenameRegistrarController: getAddress(
     "0xa7d2607c6BD39Ae9521e514026CBB078405Ab322",
@@ -369,6 +444,7 @@ const BASE_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
     BASE_STAKING_CONTRACTS.stkSeam,
   ),
   bridge: targetSet(ACROSS_SPOKE_POOL, KLETIA_ROUTER),
+  workflow: targetSet(ACROSS_SPOKE_POOL),
   basename_register: targetSet(BASE_CONTRACTS.basenameRegistrarController),
   basename_renew: targetSet(BASE_CONTRACTS.basenameRegistrarController),
   x402_factory_create: targetSet(BASE_CONTRACTS.x402Factory),
@@ -416,6 +492,28 @@ const ARC_STATIC_TARGETS = new Set(
   ].map((address) => address.toLowerCase()),
 );
 
+const ARBITRUM_ACTION_TARGETS: Readonly<
+  Record<string, ReadonlySet<string>>
+> = {
+  swap: targetSet(ARBITRUM_CONTRACTS.uniswapV3SwapRouter),
+  lend: targetSet(ARBITRUM_CONTRACTS.aaveV3Pool),
+  withdraw: targetSet(ARBITRUM_CONTRACTS.aaveV3Pool),
+  borrow: targetSet(ARBITRUM_CONTRACTS.aaveV3Pool),
+  repay: targetSet(ARBITRUM_CONTRACTS.aaveV3Pool),
+  bridge: targetSet(ARBITRUM_CONTRACTS.acrossSpokePool),
+  transfer: targetSet(
+    ARBITRUM_TOKENS.USDC.address,
+    ARBITRUM_TOKENS.WETH.address,
+    ARBITRUM_TOKENS.ARB.address,
+  ),
+};
+const ARBITRUM_STATIC_TARGETS = targetSet(
+  ...Object.values(ARBITRUM_CONTRACTS),
+  ARBITRUM_TOKENS.USDC.address,
+  ARBITRUM_TOKENS.WETH.address,
+  ARBITRUM_TOKENS.ARB.address,
+);
+
 export function isNetworkTargetAllowed(
   network: NetworkId,
   target: string,
@@ -429,6 +527,13 @@ export function isNetworkTargetAllowed(
   }
 
   const lower = normalized.toLowerCase();
+  if (network === "arbitrum") {
+    if (action?.trim().toLowerCase() === "transfer") return true;
+    if (!action) return ARBITRUM_STATIC_TARGETS.has(lower);
+    const actionTargets =
+      ARBITRUM_ACTION_TARGETS[action.trim().toLowerCase()];
+    return actionTargets?.has(lower) === true;
+  }
   if (network === "arc") {
     if (!action) return ARC_STATIC_TARGETS.has(lower);
     const actionTargets = ARC_ACTION_TARGETS[action.trim().toLowerCase()];
@@ -463,6 +568,7 @@ export function isNetworkPolicyTargetAllowed(
     return false;
   }
   const lower = normalized.toLowerCase();
+  if (network === "arbitrum") return ARBITRUM_STATIC_TARGETS.has(lower);
   if (network === "arc") return ARC_STATIC_TARGETS.has(lower);
   if (ARC_STATIC_TARGETS.has(lower)) return false;
   const selectedFactory = configuredBaseTokenDeploymentTarget(process.env);
@@ -480,7 +586,9 @@ export function getPublicNetworkDescriptor(config: NetworkConfig) {
     rpcUrl:
       config.id === "base"
         ? "https://mainnet.base.org"
-        : "https://rpc.testnet.arc.network",
+        : config.id === "arc"
+          ? "https://rpc.testnet.arc.network"
+          : "https://arb1.arbitrum.io/rpc",
     explorerUrl: config.explorerUrl,
     tokens: config.tokens,
     widgets: config.widgets,
@@ -488,5 +596,7 @@ export function getPublicNetworkDescriptor(config: NetworkConfig) {
     contracts: config.id === "arc" ? ARC_CONTRACTS : undefined,
     nativeTokenAddress:
       config.id === "arc" ? ARC_NATIVE_USDC_ADDRESS : undefined,
+    beta: config.beta === true,
+    enabled: config.enabled,
   };
 }

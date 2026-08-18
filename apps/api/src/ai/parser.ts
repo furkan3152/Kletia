@@ -133,6 +133,7 @@ export const IntentSchema = z.object({
             "transfer",
             "gas_acquire",
             "x402_request",
+            "data_purchase",
           ]),
           network: z.enum(["base", "arc", "arbitrum"]).optional(),
           tokenIn: z.string().trim().optional(),
@@ -148,6 +149,9 @@ export const IntentSchema = z.object({
               "lowest_risk",
             ])
             .optional(),
+          url: z.string().trim().url().optional(),
+          method: z.enum(["GET"]).optional(),
+          maxPayment: z.string().trim().regex(/^\d+(?:\.\d{1,6})?$/u).optional(),
         })
         .strict(),
     )
@@ -158,7 +162,7 @@ export const IntentSchema = z.object({
     .object({
       name: z.string().trim().min(1).max(64),
       objective: z.string().trim().min(1).max(500),
-      allowedNetworks: z.array(z.enum(["base", "arc", "arbitrum"])).min(1).max(3),
+      allowedNetworks: z.array(z.enum(["base", "arbitrum"])).min(1).max(2),
       allowedProtocols: z.array(z.string().trim().min(1).max(64)).max(12),
       allowedAssets: z.array(z.string().trim().min(1).max(64)).max(16),
       maxSpendUsdc: z.string().trim().regex(/^\d+(?:\.\d{1,6})?$/u),
@@ -2330,7 +2334,8 @@ function parseRawDeterministicBaseIntent(
     /\bx402\b/iu.test(prompt) &&
     x402UrlMatch &&
     x402Methods.length === 1 &&
-    x402CapMatch
+    x402CapMatch &&
+    !/\b(?:then|after|next|and then)\b|sonra|ardından|ardindan/iu.test(prompt)
   ) {
     const url = x402UrlMatch[0].replace(/[),.;!?]+$/u, "");
     try {
@@ -2937,7 +2942,7 @@ function buildSystemPrompt(network: NetworkId): string {
   const config = NETWORKS[network];
   const commonRules = `You are Kletia's smart, friendly Web3 assistant.
 Return exactly one JSON object and no markdown. The required fields are:
-{"isComplete":boolean,"action":string,"message":string,"amount":string,"secondaryAmount"?:string,"tokenIn"?:string,"tokenOut"?:string,"protocol"?:string,"objective"?:"best_output"|"best_rate"|"lowest_borrow_cost"|"lowest_risk","riskTolerance"?:"conservative"|"balanced"|"aggressive","timeHorizonDays"?:number,"maxGas"?:string,"maxPriceImpactBps"?:number,"excludedProtocols"?:string[],"collateralToken"?:string,"borrowToken"?:string,"allowMultiStep"?:boolean,"destinationChain"?:string,"durationInDays"?:number,"name"?:string,"symbol"?:string,"slippage"?:string,"recipient"?:string,"memo"?:string,"minimumOutput"?:string,"maxFee"?:string,"transferSpeed"?:"FAST"|"SLOW","transfers"?:{"recipient":string,"amount":string}[],"serviceQuery"?:string,"url"?:string,"method"?:"GET"|"POST","maxPayment"?:string,"requestBody"?:object,"curatedOnly"?:boolean,"workflowSteps"?:{"action":string,"network"?:"base"|"arc"|"arbitrum","tokenIn"?:string,"tokenOut"?:string,"amount"?:string,"protocol"?:string,"destinationChain"?:string,"objective"?:string}[],"policyAgent"?:{"name":string,"objective":string,"allowedNetworks":string[],"allowedProtocols":string[],"allowedAssets":string[],"maxSpendUsdc":string,"riskTolerance":"conservative"|"balanced"|"aggressive","expiresInHours":number}}
+{"isComplete":boolean,"action":string,"message":string,"amount":string,"secondaryAmount"?:string,"tokenIn"?:string,"tokenOut"?:string,"protocol"?:string,"objective"?:"best_output"|"best_rate"|"lowest_borrow_cost"|"lowest_risk","riskTolerance"?:"conservative"|"balanced"|"aggressive","timeHorizonDays"?:number,"maxGas"?:string,"maxPriceImpactBps"?:number,"excludedProtocols"?:string[],"collateralToken"?:string,"borrowToken"?:string,"allowMultiStep"?:boolean,"destinationChain"?:string,"durationInDays"?:number,"name"?:string,"symbol"?:string,"slippage"?:string,"recipient"?:string,"memo"?:string,"minimumOutput"?:string,"maxFee"?:string,"transferSpeed"?:"FAST"|"SLOW","transfers"?:{"recipient":string,"amount":string}[],"serviceQuery"?:string,"url"?:string,"method"?:"GET"|"POST","maxPayment"?:string,"requestBody"?:object,"curatedOnly"?:boolean,"workflowSteps"?:{"action":string,"network"?:"base"|"arc"|"arbitrum","tokenIn"?:string,"tokenOut"?:string,"amount"?:string,"protocol"?:string,"destinationChain"?:string,"objective"?:string,"url"?:string,"method"?:"GET","maxPayment"?:string}[],"policyAgent"?:{"name":string,"objective":string,"allowedNetworks":string[],"allowedProtocols":string[],"allowedAssets":string[],"maxSpendUsdc":string,"riskTolerance":"conservative"|"balanced"|"aggressive","expiresInHours":number}}
 
 The request is already bound by the server to ${config.displayName} (chainId ${config.chainId}).
 Never select, change, or infer another network. Allowed actions: ${config.intentActions.join(", ")}.
@@ -3034,7 +3039,7 @@ Base action semantics:
 - agent_action: open the non-custodial Base MCP handoff. It never means Kletia is connected to Base MCP, owns a wallet, or may execute autonomously.
 - x402_discover: search Coinbase CDP Bazaar for a useful paid API. serviceQuery and a tight human-decimal maxPayment in USDC are required. Default curatedOnly=true unless the user explicitly asks for the broader catalog.
 - x402_request: prepare one explicit HTTPS x402 API request for the official Base MCP approval flow. url, GET or POST method and a tight maxPayment are required; requestBody is allowed only for POST. Never invent a URL or payment cap.
-- workflow: compile two or more explicitly ordered Base/Arbitrum actions into a staged plan. Preserve the user's order, assets and amounts in workflowSteps. Never describe a cross-chain workflow as globally atomic.
+- workflow: compile two or more explicitly ordered Base/Arbitrum actions into a staged plan. Preserve the user's order, assets and amounts in workflowSteps. A real Base x402 GET purchase is represented as data_purchase and must retain url, method and maxPayment. A gas_acquire step must retain tokenIn USDC, tokenOut ETH, exact ETH amount, destinationChain arbitrum, and maxPayment as the maximum Base USDC spend. Never describe a cross-chain workflow as globally atomic.
 - policy_agent: create a non-custodial signed planning policy. The policy cannot move funds or replace per-step wallet approval.
 - portfolio: Base wallet and DeFi overview.
 
@@ -3058,7 +3063,11 @@ User: "Open the official Base MCP agent handoff"
 User: "Find wallet risk report service under 0.05 USDC on Base"
 {"isComplete":true,"action":"x402_discover","serviceQuery":"wallet risk report","maxPayment":"0.05","curatedOnly":true,"amount":"0","message":"Searching CDP Bazaar for capped Base x402 services."}
 User: "Call https://example.com/api/report with x402 and pay at most 0.1 USDC"
-{"isComplete":true,"action":"x402_request","url":"https://example.com/api/report","method":"GET","maxPayment":"0.1","amount":"0","message":"Preparing a Base MCP x402 approval plan."}`;
+{"isComplete":true,"action":"x402_request","url":"https://example.com/api/report","method":"GET","maxPayment":"0.1","amount":"0","message":"Preparing a Base MCP x402 approval plan."}
+User: "Buy the report from https://example.com/api/report with x402 GET for at most 0.1 USDC, then bridge 5 USDC to Arbitrum and lend it on Aave"
+{"isComplete":true,"action":"workflow","tokenIn":"USDC","amount":"5","workflowSteps":[{"action":"data_purchase","network":"base","url":"https://example.com/api/report","method":"GET","maxPayment":"0.1"},{"action":"bridge","network":"base","tokenIn":"USDC","amount":"5","destinationChain":"arbitrum","protocol":"across"},{"action":"lend","network":"arbitrum","tokenIn":"USDC","amount":"MAX","protocol":"aave-v3"}],"message":"Preparing a separately approved x402 purchase and staged Base-to-Arbitrum lending workflow."}
+User: "Spend at most 0.08 USDC to acquire exactly 0.00002 ETH gas on Arbitrum, then lend 10 USDC on Aave"
+{"isComplete":true,"action":"workflow","tokenIn":"USDC","amount":"0.00002","workflowSteps":[{"action":"gas_acquire","network":"base","tokenIn":"USDC","tokenOut":"ETH","amount":"0.00002","maxPayment":"0.08","destinationChain":"arbitrum","protocol":"across"},{"action":"lend","network":"arbitrum","tokenIn":"USDC","amount":"10","protocol":"aave-v3"}],"message":"Preparing capped Arbitrum gas acquisition followed by a separately signed Aave supply."}`;
 }
 
 // ✨ AI ERROR TRANSLATOR
@@ -3508,8 +3517,15 @@ export async function parseUserIntent(
         Array.isArray(parsedJson.workflowSteps) &&
         parsedJson.workflowSteps.length > 0
       ) {
-        parsedJson.tokenIn = parsedJson.workflowSteps[0].tokenIn;
-        parsedJson.amount = parsedJson.workflowSteps[0].amount;
+        const fundingStep = parsedJson.workflowSteps.find(
+          (step: { tokenIn?: unknown; amount?: unknown }) =>
+            typeof step.tokenIn === "string" &&
+            step.tokenIn.trim().length > 0 &&
+            typeof step.amount === "string" &&
+            step.amount.trim().length > 0,
+        );
+        parsedJson.tokenIn = fundingStep?.tokenIn;
+        parsedJson.amount = fundingStep?.amount;
       }
       const missingField =
         parsedJson.action === "x402_discover" &&

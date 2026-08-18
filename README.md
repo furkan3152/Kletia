@@ -21,6 +21,13 @@ fill/refund evidence, then prepares the next short-lived quote. A
 bridge, swap, supply, withdraw, borrow, repay, and x402 payment remains an
 explicit wallet authorization.
 
+Workflow checkpoints are resumable without persisting calldata. Base x402
+steps require the exact EIP-3009 nonce and settlement logs; capped gas
+acquisition uses a live Across exact-output quote for Arbitrum native ETH.
+Same-chain calls are atomic only when the connected wallet proves the relevant
+chain capability. Cross-chain execution has fill/refund/indeterminate states
+and no global rollback.
+
 ## Repository
 
 ```text

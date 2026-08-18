@@ -21,7 +21,7 @@ import {
 import type {
   BaseLaunchFactoryV2Evidence,
   IntentResponse,
-} from "../../../types";
+} from "../../../shared/types";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const USER_SALT_DOMAIN = keccak256(

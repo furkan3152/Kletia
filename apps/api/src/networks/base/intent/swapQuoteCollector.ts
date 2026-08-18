@@ -1,7 +1,7 @@
 import { erc20Abi, parseUnits, type Address, type Hex } from "viem";
 
-import type { ParsedIntent } from "../../../ai/parser.js";
-import { basePublicClient } from "../../../config/client.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import { getAerodromeRoutes } from "../dex/aerodrome.js";
 import { getUniswapAndV2Routes } from "../dex/standardAmm.js";
 import { getV3Routes } from "../dex/v3Amm.js";
@@ -18,8 +18,8 @@ import {
   assertProtocolExclusionsLeaveEligibleRoutes,
   type ProtocolExclusionEvidence,
 } from "../protocolConstraints.js";
-import { checkTokenSecurity } from "../security.js";
-import { getAddressSafe } from "../utils.js";
+import { checkTokenSecurity } from "../security/tokenSecurity.js";
+import { getAddressSafe } from "../assets/tokenAddress.js";
 
 export const BASE_SWAP_QUOTE_COLLECTION_POLICY =
   "kletia_base_swap_quote_collection_v1" as const;

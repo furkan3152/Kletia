@@ -1,5 +1,5 @@
 import { getAddress, parseAbi, type Address } from "viem";
-import { basePublicClient } from "../../config/client.js";
+import { basePublicClient } from "../../shared/config/client.js";
 import {
   AAVE_V3_BASE,
   BASE_ERC4626_VAULTS,

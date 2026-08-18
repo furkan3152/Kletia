@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import { normalizeBaseProtocolId } from "../protocols.js";
 import { AERO_ABI, UNIV2_ABI } from "./constants.js";
 import {

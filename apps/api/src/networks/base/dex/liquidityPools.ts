@@ -1,5 +1,5 @@
 import { getAddress, zeroAddress, type Address } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import { ROUTERS } from "../contracts.js";
 import { AERO_FACTORY_ABI, UNI_FACTORY_ABI } from "./constants.js";
 

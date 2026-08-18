@@ -1,44 +1,58 @@
 # Repository Structure
 
-Kletia is a single product with two isolated network profiles. The repository
-layout reflects runtime responsibility rather than the network that happened
-to be implemented first.
+Kletia is one product with three isolated network profiles and a staged
+cross-chain workflow layer. The directory layout follows runtime ownership,
+not implementation history.
 
 ```text
 apps/
   api/
-    src/networks/base/  Base protocol adapters, intents, routes, and policies
-    src/networks/arc/   Arc contract ABI, intents, routes, and App Kit support
-    src/                Shared parser, security, middleware, and API envelope
+    src/index.ts                 HTTP composition root
+    src/networks/base/           Base-only discovery and execution
+    src/networks/arc/            Arc-only programmable-money runtime
+    src/networks/arbitrum/       Arbitrum-only Uniswap/Aave runtime
+    src/shared/                  Common parser, registry, policy and safety
+    src/cross-chain/             Base-Arbitrum workflow graph and checkpoints
+    src/integrations/            Bounded external-provider routes
+    src/scripts/                 Operator-only commands, excluded from build
   web/
-    src/networks/base/  Base execution policies and x402 runtime
-    src/networks/arc/   Arc configuration and Circle App Kit runtime
-    src/components/     Shared and explicitly network-owned interface modules
+    src/main.tsx                 Browser entry point
+    src/app/                     Application shell and global styles
+    src/networks/*/              Network-owned UI and execution bindings
+    src/shared/                  Common UI, state, hooks, types and validation
+    src/cross-chain/             Workflow presentation
+    src/integrations/            External-provider interfaces
 contracts/
-  base/             Base Mainnet Solidity, deployments, and evidence tools
-  arc/              Arc Testnet Solidity and verification configuration
-attachments/        Path-stable hackathon submission material
-docs/               Architecture, registry, deployment, and grant documents
-tooling/             Repository-wide structural validation
-render.yaml          Two-service production deployment definition
+  base/                          Base Mainnet Solidity and evidence tooling
+  arc/                           Arc Testnet Solidity and migration tooling
+attachments/                     Path-stable hackathon submission material
+docs/                            Architecture, deployment and protocol records
+tooling/                         Repository-wide structural validation
+render.yaml                      API and static-site deployment definition
 ```
 
 ## Ownership rules
 
-- `apps/api/src/config/networks.ts` is the shared network registry and enforces
-  chain identity, native-asset metadata, supported actions, and policy targets.
-- Base and Arc transaction construction live under their respective
-  `apps/api/src/networks/*` boundaries. They only share parser, security,
-  middleware, and response-envelope infrastructure.
-- User-facing Turkish copy and Turkish intent synonyms are product language
-  data. Source identifiers, package names, internal comments, and repository
-  documentation use English.
-- `contracts/base` never compiles or deploys Arc sources.
-- `contracts/arc` never contains Base x402, GIWA, or Base router sources.
-- Build artifacts, caches, local data exports, private keys, and wallet files
-  are not source and are never tracked.
-- Files under `attachments/` have stable public paths because prior hackathon
-  submissions reference them. Refactors must not move or rename them.
+- A network-owned module may import `shared`, but Base-owned code must not
+  import Arc-owned code and Arc-owned code must not import Base-owned code.
+- `shared` contains reusable parsing, policy, validation and presentation
+  primitives. It is not a generic home for protocol calldata or contract
+  targets.
+- `cross-chain` may coordinate Base and Arbitrum only through sealed,
+  network-bound steps. Arc Testnet never enters a mainnet capital workflow.
+- `integrations` owns external HTTP-provider boundaries. Protocol contracts and
+  chain-specific transaction builders remain in `networks/<network>`.
+- `contracts/base` never compiles or deploys Arc sources. `contracts/arc` never
+  contains Base x402 or Base router sources.
+- Source identifiers, package names, comments and documentation use English.
+  Turkish intent synonyms are accepted only in explicitly allowlisted parser
+  sources.
+- Generated output, caches, local exports, private keys and wallet files are
+  not source and are never tracked.
+- Files under `attachments/` have immutable paths and validated hashes because
+  prior submissions reference them. Refactors must not move or modify them.
 
-Run `npm run check:structure` from the repository root after any package or
-deployment-path change.
+Run `npm run check:structure` after any package, source-boundary or deployment
+path change. The check rejects deprecated paths, cross-network imports,
+generated files, attachment changes, mixed contract ownership and stale Render
+roots.

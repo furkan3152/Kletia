@@ -11,7 +11,7 @@ import {
   declareDiscoveryExtension,
 } from "@x402/extensions/bazaar";
 import { formatUnits, getAddress, parseUnits, type Address } from "viem";
-import { basePublicClient } from "../../../config/networks.js";
+import { basePublicClient } from "../../../shared/config/networks.js";
 import {
   BASE_X402_FACTORY_ADDRESS as X402_FACTORY_ADDRESS,
   BASE_X402_MAX_PRICE_ATOMIC as X402_MAX_PRICE_ATOMIC,

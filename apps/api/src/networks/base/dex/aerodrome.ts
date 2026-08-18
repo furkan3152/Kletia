@@ -1,5 +1,5 @@
 import { encodeFunctionData, formatUnits } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import {
   ROUTERS,
   AERO_ETH_ABI,

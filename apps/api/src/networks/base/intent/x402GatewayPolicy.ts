@@ -1,6 +1,6 @@
 import { formatUnits, getAddress, type Address } from "viem";
 
-import { BASE_CONTRACTS, basePublicClient } from "../../../config/networks.js";
+import { BASE_CONTRACTS, basePublicClient } from "../../../shared/config/networks.js";
 
 export const BASE_X402_USDC = getAddress(
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",

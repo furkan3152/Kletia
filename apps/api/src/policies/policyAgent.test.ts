@@ -28,7 +28,7 @@ describe("PolicyAgentV1", () => {
     expect(result.typedData.domain.chainId).toBe(8453);
   });
 
-  it("rejects mixed Arc testnet and mainnet capital policy", () => {
+  it("rejects Arc Testnet in a Base/Arbitrum capital policy", () => {
     expect(() => buildPolicyAgent({
       isComplete: true,
       action: "policy_agent",
@@ -38,13 +38,13 @@ describe("PolicyAgentV1", () => {
       policyAgent: {
         name: "Mixed policy",
         objective: "Mix test and production capital in one policy.",
-        allowedNetworks: ["arc", "base"],
+        allowedNetworks: ["arc", "base"] as unknown as Array<"base" | "arbitrum">,
         allowedProtocols: ["across"],
         allowedAssets: ["USDC"],
         maxSpendUsdc: "1",
         riskTolerance: "conservative",
         expiresInHours: 1,
       },
-    }, owner, "base")).toThrow(/cannot share/u);
+    }, owner, "base")).toThrow(/unsupported network/u);
   });
 });

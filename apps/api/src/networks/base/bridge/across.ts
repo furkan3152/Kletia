@@ -268,7 +268,7 @@ function parseQuote(
   exclusiveRelayer: Address;
   exclusivityDeadline: number;
 } {
-  const data = asRecord(value, "teklif");
+  const data = asRecord(value, "quote");
   const fee = asRecord(data.totalRelayFee, "totalRelayFee");
   const limits = asRecord(data.limits, "limit");
   const inputToken = asRecord(data.inputToken, "inputToken");
@@ -484,7 +484,7 @@ export async function getAcrossBridgeRoutes(
   const rawQuote = await readJsonResponse(response);
   if (!response.ok) {
     throw new Error(
-      `Across Protocol API teklifi reddetti (HTTP ${response.status}).`,
+      `Across Protocol API rejected the quote (HTTP ${response.status}).`,
     );
   }
 

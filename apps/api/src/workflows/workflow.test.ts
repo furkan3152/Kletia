@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowPlanV1 } from "./workflow.js";
 import {
+  assertDataPurchaseReceiptEvidence,
   assertWorkflowPlan,
   openWorkflowToken,
   sealWorkflowPlan,
 } from "./workflow.js";
 import { ARBITRUM_CONTRACTS } from "../networks/arbitrum/contracts.js";
-import { ACROSS_SPOKE_POOL } from "../config/networks.js";
+import { ACROSS_SPOKE_POOL, ACROSS_SPOKE_POOL_PERIPHERY } from "../config/networks.js";
+import { TOKENS } from "../networks/base/contracts.js";
+import { encodeAbiParameters, keccak256, padHex, toHex } from "viem";
 
 const wallet = "0x0000000000000000000000000000000000000001" as const;
 
@@ -130,5 +133,98 @@ describe("WorkflowPlanV1 server boundary", () => {
     expect(() => openWorkflowToken(sealWorkflowPlan(expired))).toThrow(
       /expired/u,
     );
+  });
+
+  it("accepts a bounded Base gas-acquisition step and rejects the same semantics on Arbitrum", () => {
+    const candidate = plan();
+    const gasStep = {
+      ...candidate.steps[0],
+      action: "gas_acquire",
+      tokenIn: "USDC",
+      tokenOut: "ETH",
+      amount: "0.00001",
+      maxPayment: "0.05",
+      destinationChain: "arbitrum",
+      execution: {
+        target: ACROSS_SPOKE_POOL_PERIPHERY,
+        calldataHash: `0x${"33".repeat(32)}` as const,
+        value: "0",
+        quoteExpiresAt: candidate.createdAt + 30_000,
+      },
+    };
+    expect(() => assertWorkflowPlan({
+      ...candidate,
+      steps: [gasStep, candidate.steps[1]],
+    })).not.toThrow();
+
+    expect(() => assertWorkflowPlan({
+      ...candidate,
+      steps: [
+        { ...gasStep, network: "arbitrum", chainId: 42161 },
+        candidate.steps[1],
+      ],
+    })).toThrow(/step graph/u);
+  });
+});
+
+describe("workflow x402 receipt checkpoint", () => {
+  const payTo = "0x0000000000000000000000000000000000000002" as const;
+  const nonce = `0x${"ab".repeat(32)}` as const;
+  const dataStep = {
+    id: "step-1",
+    order: 1,
+    action: "data_purchase",
+    network: "base" as const,
+    chainId: 8453 as const,
+    amount: "0.0085",
+    url: "https://example.com/report",
+    method: "GET" as const,
+    maxPayment: "0.0085",
+    dependsOn: [],
+    status: "awaiting_signature" as const,
+    payment: {
+      asset: TOKENS.USDC,
+      payTo,
+      amountAtomic: "8500",
+      requestUrl: "https://example.com/report",
+      observedAt: new Date().toISOString(),
+    },
+  };
+  const transferTopic = keccak256(toHex("Transfer(address,address,uint256)"));
+  const authorizationTopic = keccak256(toHex("AuthorizationUsed(address,bytes32)"));
+  const receipt = {
+    status: "success" as const,
+    logs: [
+      {
+        address: TOKENS.USDC,
+        topics: [transferTopic, padHex(wallet), padHex(payTo)],
+        data: encodeAbiParameters([{ type: "uint256" }], [8500n]),
+      },
+      {
+        address: TOKENS.USDC,
+        topics: [authorizationTopic, padHex(wallet), nonce],
+        data: "0x" as const,
+      },
+    ],
+  };
+
+  it("requires both the exact transfer and freshly signed authorization nonce", () => {
+    expect(() => assertDataPurchaseReceiptEvidence({
+      transactionTo: TOKENS.USDC,
+      receipt,
+      step: dataStep,
+      userAddress: wallet,
+      authorizationNonce: nonce,
+    })).not.toThrow();
+  });
+
+  it("rejects a stale same-amount settlement with another nonce", () => {
+    expect(() => assertDataPurchaseReceiptEvidence({
+      transactionTo: TOKENS.USDC,
+      receipt,
+      step: dataStep,
+      userAddress: wallet,
+      authorizationNonce: `0x${"cd".repeat(32)}`,
+    })).toThrow(/AuthorizationUsed nonce evidence/u);
   });
 });

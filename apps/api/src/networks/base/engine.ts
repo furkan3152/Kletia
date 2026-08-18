@@ -224,7 +224,13 @@ export async function executeKletiaEngine(
     }
 
     if (intent.action === "workflow") {
-      return await compileWorkflow(intent, userAddress, msgId);
+      return await compileWorkflow(
+        intent,
+        userAddress,
+        msgId,
+        originalPrompt,
+        baseX402Challenge,
+      );
     }
 
     if (intent.action === "policy_agent") {

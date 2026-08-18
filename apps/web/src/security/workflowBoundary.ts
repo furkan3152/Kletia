@@ -42,14 +42,22 @@ export function isWorkflowPlanV1(
   ) return false;
 
   return plan.steps.every((step, index) => {
-    const expectedNetwork = index === 0 ? "base" : "arbitrum";
-    const expectedChainId = expectedNetwork === "base" ? 8453 : 42161;
     const execution = step.execution;
+    const payment = step.payment;
+    const validNetwork =
+      (step.network === "base" &&
+        (step.action === "bridge" ||
+          step.action === "data_purchase" ||
+          step.action === "gas_acquire")) ||
+      (step.network === "arbitrum" &&
+        step.action !== "bridge" &&
+        step.action !== "data_purchase" &&
+        step.action !== "gas_acquire");
     return (
       step.id === `step-${index + 1}` &&
       step.order === index + 1 &&
-      step.network === expectedNetwork &&
-      step.chainId === expectedChainId &&
+      validNetwork &&
+      step.chainId === (step.network === "base" ? 8453 : 42161) &&
       typeof step.action === "string" &&
       /^[a-z][a-z0-9_]{0,63}$/u.test(step.action) &&
       typeof step.amount === "string" &&
@@ -66,8 +74,23 @@ export function isWorkflowPlanV1(
         INTEGER_PATTERN.test(execution.value) &&
         Number.isSafeInteger(execution.quoteExpiresAt)
       )) &&
+      ((step.action !== "data_purchase" && !payment) || (
+        index === 0 &&
+        step.action === "data_purchase" &&
+        step.network === "base" &&
+        step.method === "GET" &&
+        typeof step.url === "string" &&
+        step.url === payment?.requestUrl &&
+        isAddress(payment.asset) &&
+        isAddress(payment.payTo) &&
+        INTEGER_PATTERN.test(payment.amountAtomic) &&
+        BigInt(payment.amountAtomic) > 0n &&
+        payment.requestUrl.startsWith("https://") &&
+        Number.isFinite(Date.parse(payment.observedAt))
+      )) &&
       (!step.txHash || HEX_32_PATTERN.test(step.txHash)) &&
-      (!step.fillTxHash || HEX_32_PATTERN.test(step.fillTxHash))
+      (!step.fillTxHash || HEX_32_PATTERN.test(step.fillTxHash)) &&
+      (!step.authorizationNonce || HEX_32_PATTERN.test(step.authorizationNonce))
     );
   });
 }

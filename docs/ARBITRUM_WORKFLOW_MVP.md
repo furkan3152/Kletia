@@ -18,6 +18,10 @@ stand in for an Arbitrum token.
 - Aave V3 Pool, PoolAddressesProvider, ProtocolDataProvider, and Oracle for
   supply, withdraw, variable-rate borrow, repay, and live reserve reads.
 - Across V3 for staged Base-to-Arbitrum settlement and lifecycle evidence.
+- Across Swap API exact-output routes for explicitly capped Base USDC to
+  Arbitrum native ETH gas acquisition. The API pins the official
+  SpokePoolPeriphery target, exact output, maximum input, token identities,
+  approval spender, selector, chain IDs, recipient/refund wallet and expiry.
 
 Addresses are pinned in `apps/api/src/networks/arbitrum/contracts.ts`. The API
 also reads the Aave provider at runtime and rejects a pool, data-provider, or
@@ -30,15 +34,32 @@ one wallet, network, chain ID, target, calldata hash, native value, and quote
 expiry. The browser never creates the next step. It submits an exact receipt to
 `POST /api/workflows/advance`; the API verifies the transaction and, for a
 bridge, Across fill/refund state before compiling a fresh destination route.
+`POST /api/workflows/resume` re-quotes an unsigned step or re-checks a submitted
+Across checkpoint. The browser persists only the HMAC token and, while a
+checkpoint response is pending, the transaction hash plus exact EIP-3009 nonce;
+it never persists executable calldata or a signing capability.
 
 The `MAX` value after a bridge means the sealed Across output amount. It does
 not mean the user's full pre-existing destination balance. Quotes are never
 silently retried after expiry or an indeterminate result.
 
+A `data_purchase` step uses the real Base x402 buyer rail. Advancing the
+workflow requires both the exact Base USDC `Transfer` and the matching
+`AuthorizationUsed` nonce. The checkpoint is recorded before untrusted paid
+response data is parsed, so an invalid resource body cannot trigger a second
+payment. A `gas_acquire` step similarly requires an exact Arbitrum ETH output
+and a user-visible maximum Base USDC spend; it never spends automatically.
+
 Aave borrow sizing enforces a hard projected health-factor floor of `1.5` and a
 risk-dependent target above that floor. Borrowing remains a separately signed
 Arbitrum transaction after collateral is available; no MulticallHandler debt or
 credit delegation is created.
+
+When the connected wallet reports chain-specific atomic-call capability,
+same-chain approval plus action calls use `wallet_sendCalls` with
+`forceAtomic=true`. Unsupported wallets use the explicitly labelled sequential
+path unless a route marks atomic execution as mandatory. Cross-chain fills are
+always staged checkpoints and are never represented as globally atomic.
 
 ## Release procedure
 
@@ -46,7 +67,8 @@ credit delegation is created.
 2. Configure a dedicated Arbitrum RPC and a random `WORKFLOW_SIGNING_SECRET` on
    the API service. Configure Across API credentials for bridge workflows.
 3. Verify `/api/health/arbitrum`, live no-value portfolio/rate reads, Uniswap
-   quotes, Aave provider identities, and mobile layout.
+   quotes, Aave provider identities, an unsigned Across gas quote, and mobile
+   layout.
 4. Set both `ARBITRUM_MVP_ENABLED` and `VITE_ARBITRUM_MVP_ENABLED` to `true`,
    rebuild both services, and confirm that the wallet switches to chain 42161.
 5. Any real mainnet transfer is performed only through the user-facing wallet

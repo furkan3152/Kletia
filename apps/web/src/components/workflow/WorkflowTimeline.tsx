@@ -31,6 +31,9 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
                   {step.amount} {step.tokenIn || "asset"}
                   {step.tokenOut ? ` → ${step.tokenOut}` : ""}
                   {step.protocol ? ` · ${step.protocol}` : ""}
+                  {step.action === "gas_acquire" && step.maxPayment
+                    ? ` · max ${step.maxPayment} USDC`
+                    : ""}
                 </p>
               </div>
             </div>

@@ -12,7 +12,7 @@ import {
   resolveWalletHistoryBinding,
 } from "./walletHistoryPolicy";
 
-const STORE_VERSION = 4;
+const STORE_VERSION = 6;
 
 type MessagesByNetwork = Record<NetworkMode, ChatMessage[]>;
 
@@ -21,6 +21,19 @@ interface PersistedAppState {
   activeNetwork: NetworkMode;
   historyOwner: string | null;
   messagesByNetwork: MessagesByNetwork;
+  workflowResume: WorkflowResumeSnapshot | null;
+}
+
+export interface WorkflowResumeSnapshot {
+  workflowId: string;
+  requestId: string;
+  workflowToken: string;
+  walletAddress: string;
+  expiresAt: number;
+  pendingCheckpoint?: {
+    txHash: string;
+    authorizationNonce?: string;
+  };
 }
 
 interface AppState {
@@ -33,6 +46,9 @@ interface AppState {
   pendingMessagesByNetwork: MessagesByNetwork;
   messagesByNetwork: MessagesByNetwork;
   messages: ChatMessage[];
+  workflowResume: WorkflowResumeSnapshot | null;
+  setWorkflowResume: (snapshot: WorkflowResumeSnapshot) => void;
+  clearWorkflowResume: () => void;
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   updateMessageForNetwork: (
@@ -56,6 +72,60 @@ const createEmptyMessageBuckets = (): MessagesByNetwork => ({
   arc: [],
   arbitrum: [],
 });
+
+const readWorkflowResume = (value: unknown): WorkflowResumeSnapshot | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Partial<WorkflowResumeSnapshot>;
+  const walletAddress = normalizeWalletHistoryOwner(candidate.walletAddress);
+  if (
+    typeof candidate.workflowId !== "string" ||
+    candidate.workflowId.length < 1 ||
+    candidate.workflowId.length > 128 ||
+    typeof candidate.requestId !== "string" ||
+    candidate.requestId.length < 1 ||
+    candidate.requestId.length > 128 ||
+    typeof candidate.workflowToken !== "string" ||
+    candidate.workflowToken.length < 80 ||
+    candidate.workflowToken.length > 32_000 ||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(candidate.workflowToken) ||
+    !walletAddress ||
+    typeof candidate.expiresAt !== "number" ||
+    !Number.isSafeInteger(candidate.expiresAt) ||
+    candidate.expiresAt <= Date.now()
+  ) {
+    return null;
+  }
+  const pending = candidate.pendingCheckpoint;
+  if (
+    pending !== undefined &&
+    (!pending ||
+      typeof pending !== "object" ||
+      typeof pending.txHash !== "string" ||
+      !/^0x[0-9a-f]{64}$/iu.test(pending.txHash) ||
+      (pending.authorizationNonce !== undefined &&
+        (typeof pending.authorizationNonce !== "string" ||
+          !/^0x[0-9a-f]{64}$/iu.test(pending.authorizationNonce))))
+  ) {
+    return null;
+  }
+  return {
+    workflowId: candidate.workflowId,
+    requestId: candidate.requestId,
+    workflowToken: candidate.workflowToken,
+    walletAddress,
+    expiresAt: candidate.expiresAt,
+    ...(pending
+      ? {
+          pendingCheckpoint: {
+            txHash: pending.txHash,
+            ...(pending.authorizationNonce
+              ? { authorizationNonce: pending.authorizationNonce }
+              : {}),
+          },
+        }
+      : {}),
+  };
+};
 
 const toSafePersistedMessage = (
   message: ChatMessage,
@@ -122,6 +192,10 @@ export const useAppStore = create<AppState>()(
       pendingMessagesByNetwork: createEmptyMessageBuckets(),
       messagesByNetwork: createEmptyMessageBuckets(),
       messages: [],
+      workflowResume: null,
+      setWorkflowResume: (snapshot) =>
+        set({ workflowResume: readWorkflowResume(snapshot) }),
+      clearWorkflowResume: () => set({ workflowResume: null }),
 
       setActiveNetwork: (network) => {
         set((state) => ({
@@ -205,6 +279,7 @@ export const useAppStore = create<AppState>()(
           pendingMessagesByNetwork: createEmptyMessageBuckets(),
           messagesByNetwork: createEmptyMessageBuckets(),
           messages: [],
+          workflowResume: null,
         }),
 
       bindWalletHistory: (address) =>
@@ -219,6 +294,7 @@ export const useAppStore = create<AppState>()(
               pendingMessagesByNetwork: createEmptyMessageBuckets(),
               messagesByNetwork: createEmptyMessageBuckets(),
               messages: [],
+              workflowResume: null,
             };
           }
 
@@ -247,6 +323,10 @@ export const useAppStore = create<AppState>()(
             pendingMessagesByNetwork: createEmptyMessageBuckets(),
             messagesByNetwork: createEmptyMessageBuckets(),
             messages: [],
+            workflowResume:
+              state.workflowResume?.walletAddress === binding.activeOwner
+                ? state.workflowResume
+                : null,
           };
         }),
 
@@ -291,6 +371,11 @@ export const useAppStore = create<AppState>()(
               )
             : [],
         },
+        workflowResume:
+          state.historyOwner &&
+          state.workflowResume?.walletAddress === state.historyOwner
+            ? state.workflowResume
+            : null,
       }),
       migrate: (persistedState, version): PersistedAppState => {
         const persisted =
@@ -311,6 +396,7 @@ export const useAppStore = create<AppState>()(
             activeNetwork,
             historyOwner: null,
             messagesByNetwork: createEmptyMessageBuckets(),
+            workflowResume: null,
           };
         }
 
@@ -349,6 +435,12 @@ export const useAppStore = create<AppState>()(
                 )
               : [],
           },
+          workflowResume:
+            historyOwner &&
+            readWorkflowResume(persisted.workflowResume)?.walletAddress ===
+              historyOwner
+              ? readWorkflowResume(persisted.workflowResume)
+              : null,
         };
       },
       merge: (persistedState, currentState): AppState => {
@@ -384,6 +476,7 @@ export const useAppStore = create<AppState>()(
             }
           : createEmptyMessageBuckets();
         const messagesByNetwork = createEmptyMessageBuckets();
+        const workflowResume = readWorkflowResume(persisted.workflowResume);
 
         return {
           ...currentState,
@@ -397,6 +490,10 @@ export const useAppStore = create<AppState>()(
           pendingMessagesByNetwork,
           messagesByNetwork,
           messages: [],
+          workflowResume:
+            historyOwner && workflowResume?.walletAddress === historyOwner
+              ? workflowResume
+              : null,
         };
       },
     },

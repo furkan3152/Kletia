@@ -299,6 +299,9 @@ export default function App() {
     updateMessageForNetwork,
     addTerminalLogForNetwork,
     bindWalletHistory,
+    workflowResume,
+    setWorkflowResume,
+    clearWorkflowResume,
   } = useAppStore();
   const activeWalletOwner = normalizeWalletHistoryOwner(address);
   const messages = useMemo(
@@ -316,6 +319,192 @@ export default function App() {
       bindWalletHistory();
     }
   }, [accountStatus, address, bindWalletHistory]);
+
+  useEffect(() => {
+    if (
+      accountStatus !== "connected" ||
+      !address ||
+      !workflowResume ||
+      workflowResume.walletAddress !== normalizeWalletHistoryOwner(address)
+    ) {
+      return;
+    }
+    if (workflowResume.expiresAt <= currentEpochMs()) {
+      clearWorkflowResume();
+      return;
+    }
+    const alreadyHydrated = Object.values(
+      useAppStore.getState().messagesByNetwork,
+    )
+      .flat()
+      .some(
+        (message) =>
+          message.intentData?.workflowToken === workflowResume.workflowToken,
+      );
+    if (alreadyHydrated) return;
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const hasPendingCheckpoint = Boolean(workflowResume.pendingCheckpoint);
+        const response = await fetch(
+          `${BACKEND_URL}/api/workflows/${hasPendingCheckpoint ? "advance" : "resume"}`,
+          {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workflowToken: workflowResume.workflowToken,
+            userAddress: address,
+            ...(workflowResume.pendingCheckpoint
+              ? {
+                  txHash: workflowResume.pendingCheckpoint.txHash,
+                  ...(workflowResume.pendingCheckpoint.authorizationNonce
+                    ? {
+                        authorizationNonce:
+                          workflowResume.pendingCheckpoint.authorizationNonce,
+                      }
+                    : {}),
+                }
+              : {}),
+          }),
+          signal: controller.signal,
+          },
+        );
+        const body = (await response.json().catch(() => null)) as null | {
+          success?: boolean;
+          message?: string;
+          workflowPlan?: unknown;
+          workflowToken?: unknown;
+          execution?: unknown;
+        };
+        if (!response.ok || body?.success !== true) {
+          throw new Error(body?.message || "Workflow resume was rejected.");
+        }
+        if (
+          !isWorkflowToken(body.workflowToken) ||
+          !isWorkflowPlanV1(body.workflowPlan, {
+            requestId: workflowResume.requestId,
+            userAddress: address,
+            nowMs: currentEpochMs(),
+          })
+        ) {
+          throw new Error("Resumed workflow failed its wallet and HMAC boundary.");
+        }
+        const plan = body.workflowPlan;
+        const token = body.workflowToken;
+        const current = plan.steps[plan.currentStepIndex];
+        const terminal =
+          plan.currentStepIndex === plan.steps.length - 1 &&
+          ["confirmed", "filled", "failed", "refunded"].includes(
+            current.status,
+          );
+        if (terminal) {
+          clearWorkflowResume();
+        } else {
+          setWorkflowResume({
+            workflowId: plan.workflowId,
+            requestId: plan.requestId,
+            workflowToken: token,
+            walletAddress: normalizeWalletHistoryOwner(address)!,
+            expiresAt: plan.expiresAt,
+          });
+        }
+
+        let intentData: IntentResponse;
+        if (body.execution && typeof body.execution === "object") {
+          const execution = body.execution as IntentResponse;
+          const action = responseIntentAction(execution);
+          const commonExecutionMismatch =
+            execution.status !== "success" ||
+            execution.network !== current.network ||
+            execution.chainId !== current.chainId ||
+            execution.requestId !== plan.requestId ||
+            execution.userAddress?.toLowerCase() !== address.toLowerCase() ||
+            !action;
+          const dataPurchaseMismatch =
+            current.action === "data_purchase" &&
+            (execution.provider !== "Base MCP" ||
+              execution.approvalRequired !== true ||
+              !isBaseMcpX402Plan(execution.mcpPlan) ||
+              !isBaseX402ChallengeEvidence(
+                execution.challengeEvidence,
+                execution.mcpPlan,
+                address,
+              ));
+          const transactionMismatch =
+            current.action !== "data_purchase" &&
+            (!execution.allRoutes?.length ||
+              !isIntentEntityResolution(execution.entityResolution, {
+                network: current.network,
+                chainId: current.chainId,
+                requestId: plan.requestId,
+                userAddress: address,
+                action: action || "",
+              }));
+          if (
+            commonExecutionMismatch ||
+            dataPurchaseMismatch ||
+            transactionMismatch
+          ) {
+            throw new Error("Resumed execution failed its network and entity boundary.");
+          }
+          intentData = {
+            ...execution,
+            executionKind: "workflow_plan_v1",
+            workflowPlan: plan,
+            workflowToken: token,
+          };
+        } else {
+          intentData = {
+            status: "success",
+            action: "workflow",
+            executionKind: "workflow_plan_v1",
+            network: current.network,
+            chainId: current.chainId,
+            requestId: plan.requestId,
+            userAddress: address,
+            workflowPlan: plan,
+            workflowToken: token,
+          };
+        }
+        addMessage({
+          id: `${plan.workflowId}:resume:${current.id}`,
+          role: "kletia",
+          text: body.message || "Workflow checkpoint restored.",
+          intentData,
+          selectedRouteIndex: intentData.allRoutes?.length ? 0 : undefined,
+          terminalLogs: [],
+          network: current.network,
+          chainId: current.chainId,
+          walletAddress: address,
+          requestId: plan.requestId,
+        });
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        // A pending onchain checkpoint is deliberately retained. Clearing it
+        // after a transient API failure could cause a settled x402 payment to
+        // be prepared and signed again.
+        if (!workflowResume.pendingCheckpoint) clearWorkflowResume();
+        addMessage({
+          id: `workflow-resume-error:${workflowResume.workflowId}`,
+          role: "kletia",
+          text: `Workflow could not be restored safely: ${getErrorMessage(error)}`,
+          network: "base",
+          chainId: NETWORKS.base.chainId,
+          walletAddress: address,
+          requestId: workflowResume.requestId,
+        });
+      }
+    })();
+    return () => controller.abort();
+  }, [
+    accountStatus,
+    address,
+    addMessage,
+    clearWorkflowResume,
+    setWorkflowResume,
+    workflowResume,
+  ]);
 
   useEffect(() => {
     if (messages.length === 0) return;
@@ -636,6 +825,7 @@ export default function App() {
       if (data.action === "workflow") {
         if (
           networkMode !== "base" ||
+          data.executionKind !== "workflow_plan_v1" ||
           !data.workflowToken ||
           !isWorkflowToken(data.workflowToken) ||
           !isWorkflowPlanV1(data.workflowPlan, {
@@ -648,6 +838,13 @@ export default function App() {
             "Cross-chain workflow was not bound to the active Base wallet and request.",
           );
         }
+        setWorkflowResume({
+          workflowId: data.workflowPlan.workflowId,
+          requestId: data.workflowPlan.requestId,
+          workflowToken: data.workflowToken,
+          walletAddress: normalizeWalletHistoryOwner(address)!,
+          expiresAt: data.workflowPlan.expiresAt,
+        });
       }
       if (
         networkMode === "base" &&
@@ -741,7 +938,7 @@ export default function App() {
         };
         updateRequestMessage(request, {
           isLoading: false,
-          text: data.message || "Daha fazla bilgi gerekiyor.",
+          text: data.message || "More information is required.",
           clarification,
           conversationId: data.conversationId,
           conversationExpiresAt,
@@ -1022,6 +1219,38 @@ export default function App() {
         return;
       }
 
+      if (
+        data.executionKind === "workflow_plan_v1" &&
+        data.workflowPlan?.steps[data.workflowPlan.currentStepIndex]?.action ===
+          "data_purchase"
+      ) {
+        if (
+          networkMode !== "base" ||
+          data.provider !== "Base MCP" ||
+          data.approvalRequired !== true ||
+          !isBaseMcpX402Plan(data.mcpPlan) ||
+          data.mcpPlan.requestId !== requestId ||
+          !isBaseX402ChallengeEvidence(
+            data.challengeEvidence,
+            data.mcpPlan,
+            address,
+          )
+        ) {
+          throw new Error(
+            "Workflow data purchase is not bound to the live Base x402 challenge.",
+          );
+        }
+        updateRequestMessage(request, {
+          isLoading: false,
+          text:
+            data.winnerMessage ||
+            "The workflow data purchase is ready for explicit Base USDC approval.",
+          intentData: data,
+          terminalLogs: [],
+        });
+        return;
+      }
+
       if (data.executionKind === "base_mcp_x402") {
         if (
           networkMode !== "base" ||
@@ -1295,6 +1524,7 @@ export default function App() {
   const advanceWorkflowForMessage = async (
     messageId: string,
     submittedTxHash?: Hex,
+    authorizationNonce?: Hex,
   ) => {
     const message = useAppStore.getState().messagesByNetwork[
       useAppStore.getState().activeNetwork
@@ -1318,6 +1548,19 @@ export default function App() {
       throw new Error("Workflow state is missing or no longer bound to this wallet.");
     }
     const originNetwork = message.network || "base";
+    if (submittedTxHash) {
+      setWorkflowResume({
+        workflowId: currentData.workflowPlan.workflowId,
+        requestId: currentData.workflowPlan.requestId,
+        workflowToken: currentData.workflowToken,
+        walletAddress: normalizeWalletHistoryOwner(address)!,
+        expiresAt: currentData.workflowPlan.expiresAt,
+        pendingCheckpoint: {
+          txHash: submittedTxHash,
+          ...(authorizationNonce ? { authorizationNonce } : {}),
+        },
+      });
+    }
     const response = await fetch(`${BACKEND_URL}/api/workflows/advance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1325,6 +1568,7 @@ export default function App() {
         workflowToken: currentData.workflowToken,
         userAddress: address,
         ...(submittedTxHash ? { txHash: submittedTxHash } : {}),
+        ...(authorizationNonce ? { authorizationNonce } : {}),
       }),
     });
     const body = await response.json().catch(() => null) as null | {
@@ -1350,6 +1594,23 @@ export default function App() {
     }
     const updatedPlan = body.workflowPlan;
     const updatedToken = body.workflowToken;
+    const currentStep = updatedPlan.steps[updatedPlan.currentStepIndex];
+    const terminal =
+      updatedPlan.currentStepIndex === updatedPlan.steps.length - 1 &&
+      ["confirmed", "filled", "failed", "refunded"].includes(
+        currentStep.status,
+      );
+    if (terminal) {
+      clearWorkflowResume();
+    } else {
+      setWorkflowResume({
+        workflowId: updatedPlan.workflowId,
+        requestId: updatedPlan.requestId,
+        workflowToken: updatedToken,
+        walletAddress: normalizeWalletHistoryOwner(address)!,
+        expiresAt: updatedPlan.expiresAt,
+      });
+    }
     updateMessageForNetwork(originNetwork, messageId, {
       text: body.message || "Workflow checkpoint verified.",
       intentData: {
@@ -1361,20 +1622,24 @@ export default function App() {
     if (body.execution === null || body.execution === undefined) return;
     const execution = body.execution as IntentResponse;
     const nextStep = updatedPlan.steps[updatedPlan.currentStepIndex];
+    const expectedExecutionAction =
+      nextStep.action === "bridge" || nextStep.action === "gas_acquire"
+        ? "workflow"
+        : nextStep.action;
     if (
       execution.status !== "success" ||
       execution.network !== nextStep.network ||
       execution.chainId !== nextStep.chainId ||
       execution.requestId !== updatedPlan.requestId ||
       execution.userAddress?.toLowerCase() !== address.toLowerCase() ||
-      responseIntentAction(execution) !== nextStep.action ||
+      responseIntentAction(execution) !== expectedExecutionAction ||
       !execution.allRoutes?.length ||
       !isIntentEntityResolution(execution.entityResolution, {
         network: nextStep.network,
         chainId: nextStep.chainId,
         requestId: updatedPlan.requestId,
         userAddress: address,
-        action: nextStep.action,
+        action: expectedExecutionAction,
       })
     ) {
       throw new Error("Next workflow step failed the network and entity boundary.");
@@ -2074,7 +2339,11 @@ export default function App() {
                               />
                             )}
 
-                          {msg.intentData?.executionKind === "base_mcp_x402" &&
+                          {(msg.intentData?.executionKind === "base_mcp_x402" ||
+                            (msg.intentData?.executionKind === "workflow_plan_v1" &&
+                              msg.intentData.workflowPlan?.steps[
+                                msg.intentData.workflowPlan.currentStepIndex
+                              ]?.action === "data_purchase")) &&
                             networkMode === "base" &&
                             msg.network === "base" &&
                             msg.chainId === NETWORKS.base.chainId &&
@@ -2091,6 +2360,20 @@ export default function App() {
                                   msg.intentData.userAddress!
                                 }
                                 trustNotice={msg.intentData.trustNotice}
+                                onSettlementVerified={
+                                  msg.intentData.executionKind ===
+                                  "workflow_plan_v1"
+                                    ? async ({
+                                        transactionHash,
+                                        authorizationNonce,
+                                      }) =>
+                                        advanceWorkflowForMessage(
+                                          msg.id,
+                                          transactionHash,
+                                          authorizationNonce,
+                                        )
+                                    : undefined
+                                }
                               />
                             )}
 

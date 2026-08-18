@@ -990,7 +990,7 @@ export const X402ConsoleWidget: React.FC = () => {
 
   // ── Set Price ──────────────────────────────────────────────────────────
   const handleSetPrice = async () => {
-    if (!address || !activeContract) return alert("Wallet ve kontrat gerekli.");
+    if (!address || !activeContract) return alert("A wallet and contract are required.");
     if (!policy) {
       return alert(
         policyError || "The backend x402 safety policy is unavailable.",
@@ -1044,7 +1044,7 @@ export const X402ConsoleWidget: React.FC = () => {
 
   // ── Withdraw ───────────────────────────────────────────────────────────
   const handleWithdraw = async () => {
-    if (!address || !activeContract) return alert("Wallet ve kontrat gerekli.");
+    if (!address || !activeContract) return alert("A wallet and contract are required.");
     if (chainId !== BASE_CHAIN_ID) {
       return alert(`Switch your wallet to Base Mainnet (${BASE_CHAIN_ID}).`);
     }

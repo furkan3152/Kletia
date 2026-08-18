@@ -39,7 +39,10 @@ export const ARBITRUM_CONTRACTS = Object.freeze({
     "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
   ),
   acrossMulticallHandler: getAddress(
-    "0x924a9f036260DdD5808007E1AA95f08eD08aA569",
+    "0x0F7Ae28dE1C8532170AD4ee566B5801485c13a0E",
+  ),
+  acrossSpokePoolPeriphery: getAddress(
+    "0x97CCDBea4632140639aD5eA9b944aa034eb15fD4",
   ),
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isWorkflowPlanV1, isWorkflowToken } from "./workflowBoundary";
+import type { WorkflowPlanV1 } from "../types";
 
 const owner = "0x1111111111111111111111111111111111111111";
 const requestId = "11111111-1111-4111-8111-111111111111";
@@ -42,5 +43,43 @@ describe("WorkflowPlanV1 boundary", () => {
   it("accepts only bounded opaque HMAC token shape", () => {
     expect(isWorkflowToken(`${"a".repeat(80)}.${"b".repeat(43)}`)).toBe(true);
     expect(isWorkflowToken("not-a-token")).toBe(false);
+  });
+
+  it("accepts a capped Base gas acquisition step but rejects it on Arbitrum", () => {
+    const gasPlan = structuredClone(plan) as WorkflowPlanV1;
+    gasPlan.steps[0] = {
+      ...gasPlan.steps[0],
+      action: "gas_acquire",
+      amount: "0.00001",
+      tokenOut: "ETH",
+      maxPayment: "0.03",
+      destinationChain: "arbitrum",
+    };
+    expect(isWorkflowPlanV1(gasPlan, { requestId, userAddress: owner, nowMs: now })).toBe(true);
+    gasPlan.steps[0].network = "arbitrum";
+    gasPlan.steps[0].chainId = 42161;
+    expect(isWorkflowPlanV1(gasPlan, { requestId, userAddress: owner, nowMs: now })).toBe(false);
+  });
+
+  it("requires an exact sealed payment binding for a data purchase", () => {
+    const purchasePlan = structuredClone(plan) as WorkflowPlanV1;
+    purchasePlan.steps[0] = {
+      ...purchasePlan.steps[0],
+      action: "data_purchase",
+      amount: "0.0085",
+      url: "https://example.com/report",
+      method: "GET",
+      maxPayment: "0.0085",
+      payment: {
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        payTo: "0x2222222222222222222222222222222222222222",
+        amountAtomic: "8500",
+        requestUrl: "https://example.com/report",
+        observedAt: new Date(now).toISOString(),
+      },
+    };
+    expect(isWorkflowPlanV1(purchasePlan, { requestId, userAddress: owner, nowMs: now })).toBe(true);
+    purchasePlan.steps[0].payment!.requestUrl = "https://evil.example/report";
+    expect(isWorkflowPlanV1(purchasePlan, { requestId, userAddress: owner, nowMs: now })).toBe(false);
   });
 });

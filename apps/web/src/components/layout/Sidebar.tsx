@@ -6,7 +6,8 @@ import { useAppStore } from "../../store/useAppStore";
 import { useNetwork } from "../../hooks/useNetwork";
 import PortfolioViewer from "../base/PortfolioViewer";
 import ArcPortfolioViewer from "../arc/ArcPortfolioViewer";
-import { isArcPortfolioData, isBasePortfolioData } from "../../types";
+import { isArcPortfolioData, isArbitrumPortfolioData, isBasePortfolioData } from "../../types";
+import { ArbitrumPortfolioViewer } from "../arbitrum/ArbitrumPortfolioViewer";
 
 interface SidebarProps {
   isPortfolioOpen: boolean;
@@ -81,6 +82,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (networkMode === "arc" && isArcPortfolioData(latestPortfolio)) {
             return <ArcPortfolioViewer data={latestPortfolio} />;
           }
+          if (
+            networkMode === "arbitrum" &&
+            isArbitrumPortfolioData(latestPortfolio)
+          ) {
+            return <ArbitrumPortfolioViewer data={latestPortfolio} />;
+          }
           if (latestPortfolio) {
             return (
               <div className="p-5 mt-4 border-[3px] border-[#1A1A1A] bg-[#FEE2E2] dark:bg-red-950/30 dark:border-red-500 dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#EF4444] text-center font-bold">
@@ -99,10 +106,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   "
                   {networkMode === "arc"
                     ? "Show my Arc portfolio"
-                    : "Show my portfolio"}
+                    : networkMode === "arbitrum"
+                      ? "Show my Arbitrum portfolio"
+                      : "Show my portfolio"}
                   "
                 </b>{" "}
-                yazabilirsiniz.
+                to load live balances.
               </span>
             </div>
           );

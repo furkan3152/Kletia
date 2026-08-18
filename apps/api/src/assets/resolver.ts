@@ -18,9 +18,11 @@ import {
 } from "../networks/base/protocols.js";
 import {
   NETWORKS,
+  arbitrumPublicClient,
   basePublicClient,
   type NetworkId,
 } from "../config/networks.js";
+import { ARBITRUM_TOKENS } from "../networks/arbitrum/contracts.js";
 import { checkTokenSecurity } from "../networks/base/security.js";
 import {
   resolveBasenameEvidence,
@@ -300,6 +302,22 @@ const FIXED_ARC_FIELDS: Readonly<
   add_liquidity: { tokenIn: "USDC", tokenOut: "KLET" },
 });
 
+const ARBITRUM_ACTION_ASSETS: Readonly<
+  Record<string, Partial<Record<AssetField, readonly string[]>>>
+> = Object.freeze({
+  transfer: { tokenIn: ["ETH", "WETH", "USDC", "ARB"] },
+  swap: {
+    tokenIn: ["WETH", "USDC", "ARB"],
+    tokenOut: ["WETH", "USDC", "ARB"],
+  },
+  lend: { tokenIn: ["WETH", "USDC", "ARB"] },
+  withdraw: { tokenIn: ["WETH", "USDC", "ARB"] },
+  borrow: { tokenIn: ["WETH", "USDC", "ARB"] },
+  repay: { tokenIn: ["WETH", "USDC", "ARB"] },
+  yield_compare: { tokenIn: ["WETH", "USDC", "ARB"] },
+  bridge: { tokenIn: ["ETH", "WETH", "USDC"] },
+});
+
 const BASE_ASSET_FIELD_POLICY: Readonly<
   Record<
     string,
@@ -333,6 +351,7 @@ const BASE_ASSET_FIELD_POLICY: Readonly<
   withdraw: { required: ["tokenIn"], allowed: ["tokenIn"] },
   yield_compare: { required: ["tokenIn"], allowed: ["tokenIn"] },
   bridge: { required: ["tokenIn"], allowed: ["tokenIn"] },
+  workflow: { required: ["tokenIn"], allowed: ["tokenIn"] },
   allora_prediction: { required: ["tokenIn"], allowed: ["tokenIn"] },
 });
 
@@ -348,6 +367,7 @@ const NON_ASSET_ACTIONS: Readonly<Record<NetworkId, ReadonlySet<string>>> = {
     "agent_action",
     "x402_discover",
     "x402_request",
+    "policy_agent",
   ]),
   arc: new Set([
     "chat",
@@ -355,6 +375,13 @@ const NON_ASSET_ACTIONS: Readonly<Record<NetworkId, ReadonlySet<string>>> = {
     "open_widget",
     "claim_rewards",
     "claim_unstaked",
+  ]),
+  arbitrum: new Set([
+    "chat",
+    "portfolio",
+    "open_widget",
+    "workflow",
+    "policy_agent",
   ]),
 };
 
@@ -368,7 +395,7 @@ function assetFieldPolicy(
   if (network === "base") {
     const policy = BASE_ASSET_FIELD_POLICY[action];
     if (policy) return policy;
-  } else {
+  } else if (network === "arc") {
     const configured = ARC_ACTION_ASSETS[action];
     if (configured || action === "remove_liquidity") {
       const allowed =
@@ -377,6 +404,12 @@ function assetFieldPolicy(
           : (Object.keys(configured || {}) as AssetField[]);
       const required = action === "remove_liquidity" ? [] : allowed;
       return { required, allowed };
+    }
+  } else {
+    const configured = ARBITRUM_ACTION_ASSETS[action];
+    if (configured) {
+      const allowed = Object.keys(configured) as AssetField[];
+      return { required: allowed, allowed };
     }
   }
   if (NON_ASSET_ACTIONS[network].has(action)) return null;
@@ -473,6 +506,17 @@ function assertActionCompatibility(
       throw new EntityResolutionError(
         "ASSET_ACTION_UNSUPPORTED",
         `${asset.symbol} recognized but not supported in Arc ${action} operation as ${role} role.`,
+      );
+    }
+    return;
+  }
+
+  if (network === "arbitrum") {
+    const allowed = ARBITRUM_ACTION_ASSETS[action]?.[role];
+    if (!allowed || !allowed.includes(symbol)) {
+      throw new EntityResolutionError(
+        "ASSET_ACTION_UNSUPPORTED",
+        `${asset.symbol} is recognized but is not supported as ${role} for the Arbitrum ${action} beta route.`,
       );
     }
     return;
@@ -581,6 +625,32 @@ function resolveProtocol(
       original: protocol,
       canonical: appKitAction ? "circle-app-kit" : "kletia-arc",
       matchedBy: "curated_alias",
+    };
+  }
+
+  if (network === "arbitrum") {
+    const folded = foldAssetReference(protocol);
+    const canonical =
+      ["uniswap", "uniswapv3", "univ3"].includes(folded) && action === "swap"
+        ? "uniswap-v3"
+        : ["aave", "aavev3"].includes(folded) &&
+            ["lend", "withdraw", "borrow", "repay", "yield_compare"].includes(action)
+          ? "aave-v3"
+          : ["across", "acrossv3"].includes(folded) && action === "bridge"
+            ? "across"
+            : null;
+    if (!canonical) {
+      throw new EntityResolutionError(
+        "PROTOCOL_ACTION_UNSUPPORTED",
+        `${protocol} is not a verified protocol for the Arbitrum ${action} beta route.`,
+      );
+    }
+    return {
+      original: protocol,
+      canonical,
+      matchedBy: foldAssetReference(protocol) === foldAssetReference(canonical)
+        ? "canonical_id"
+        : "curated_alias",
     };
   }
 
@@ -1130,6 +1200,7 @@ function actionUsesRecipient(action: string): boolean {
     "appkit_bridge",
     "memo_send",
     "official_memo_send",
+    "transfer",
   ]).has(action);
 }
 
@@ -1218,7 +1289,7 @@ export async function resolveIntentEntities(
   }
 
   const client: PublicClient = (dependencies.baseClient ||
-    basePublicClient) as PublicClient;
+    (network === "arbitrum" ? arbitrumPublicClient : basePublicClient)) as PublicClient;
   const portfolioDiscovery =
     dependencies.discoverPortfolioAssets ||
     ((reference: string, owner: Address) =>
@@ -1363,8 +1434,10 @@ export async function resolveIntentEntities(
     if (isAddress(reference)) {
       if (network !== "base") {
         throw new EntityResolutionError(
-          "ARC_ASSET_ADDRESS_UNLISTED",
-          "Arc token contract address does not match USDC, EURC, or KLET identity in the official/Kletia manifest.",
+          "NETWORK_ASSET_ADDRESS_UNLISTED",
+          network === "arc"
+            ? "Arc token contract address does not match USDC, EURC, or KLET identity in the official/Kletia manifest."
+            : `Arbitrum token address is not one of the reviewed beta assets: ${ARBITRUM_TOKENS.USDC.address}, ${ARBITRUM_TOKENS.WETH.address}, or ${ARBITRUM_TOKENS.ARB.address}.`,
         );
       }
       const verified = await withinDeadline(

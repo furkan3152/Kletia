@@ -530,6 +530,13 @@ export async function getAcrossBridgeRoutes(
       calldata,
       value: isNative ? amountInWei.toString() : "0",
       quoteExpiresAt,
+      inputAmountAtomic: amountInWei.toString(),
+      outputAmountAtomic: quote.outputAmount.toString(),
+      inputTokenAddress: route.inputToken,
+      outputTokenAddress: route.outputToken,
+      destinationChainId: destination.chainId,
+      relayFeeAtomic: quote.totalRelayFee.toString(),
+      fillDeadline: quote.fillDeadline,
     },
   ];
 }

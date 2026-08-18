@@ -191,6 +191,29 @@ export function requireArcNetwork(
   }
 }
 
+export function requireArbitrumNetwork(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const config = resolveStrictRequestNetwork(req);
+    if (config.id !== "arbitrum") {
+      throw new NetworkValidationError(
+        "ARBITRUM_ONLY_ROUTE",
+        "This service is only available on Arbitrum One.",
+      );
+    }
+    req.kletiaNetwork = config;
+    return next();
+  } catch (error) {
+    if (error instanceof NetworkValidationError) {
+      return sendNetworkError(res, error);
+    }
+    return next(error);
+  }
+}
+
 export function readOptionalNetwork(req: Request): NetworkId | null {
   if (
     requestNetworkInputs(req).length === 0 &&

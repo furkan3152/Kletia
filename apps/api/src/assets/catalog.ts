@@ -7,6 +7,7 @@ import {
   type NetworkId,
 } from "../config/networks.js";
 import { ARC_OFFICIAL_ADDRESSES } from "../networks/arc/officialExtensions.js";
+import { ARBITRUM_TOKENS } from "../networks/arbitrum/contracts.js";
 
 export type AssetTrustTier =
   "core" | "established" | "elevated" | "project" | "portfolio";
@@ -185,11 +186,63 @@ const ARC_CATALOG: readonly AssetCatalogEntry[] = Object.freeze([
   }),
 ]);
 
+const ARBITRUM_CATALOG: readonly AssetCatalogEntry[] = Object.freeze([
+  Object.freeze({
+    network: "arbitrum" as const,
+    symbol: "ETH",
+    name: "Ether",
+    aliases: Object.freeze(["ETH", "Ether", "Ethereum", "native ETH"]),
+    decimals: 18,
+    representation: "native" as const,
+    trustTier: "core" as const,
+    verification: "manifest_verified" as const,
+    officialSource: "https://docs.arbitrum.io/build-decentralized-apps/reference/node-providers",
+  }),
+  Object.freeze({
+    network: "arbitrum" as const,
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    aliases: Object.freeze(["WETH", "Wrapped ETH", "Wrapped Ether"]),
+    address: ARBITRUM_TOKENS.WETH.address,
+    decimals: 18,
+    representation: "erc20" as const,
+    trustTier: "core" as const,
+    verification: "manifest_verified" as const,
+    officialSource:
+      "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-arbitrum-deployments",
+  }),
+  Object.freeze({
+    network: "arbitrum" as const,
+    symbol: "USDC",
+    name: "USD Coin",
+    aliases: Object.freeze(["USDC", "USD Coin", "native USDC", "Arbitrum USDC"]),
+    address: ARBITRUM_TOKENS.USDC.address,
+    decimals: 6,
+    representation: "erc20" as const,
+    trustTier: "core" as const,
+    verification: "manifest_verified" as const,
+    officialSource: "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+  }),
+  Object.freeze({
+    network: "arbitrum" as const,
+    symbol: "ARB",
+    name: "Arbitrum",
+    aliases: Object.freeze(["ARB", "Arbitrum", "Arbitrum token"]),
+    address: ARBITRUM_TOKENS.ARB.address,
+    decimals: 18,
+    representation: "erc20" as const,
+    trustTier: "established" as const,
+    verification: "manifest_verified" as const,
+    officialSource: "https://docs.arbitrum.foundation/arb-token",
+  }),
+]);
+
 export const ASSET_CATALOG: Readonly<
   Record<NetworkId, readonly AssetCatalogEntry[]>
 > = Object.freeze({
   base: Object.freeze(baseCatalog()),
   arc: ARC_CATALOG,
+  arbitrum: ARBITRUM_CATALOG,
 });
 
 const FORBIDDEN_TEXT = /[\p{Cc}\p{Cf}\p{Cs}]/u;

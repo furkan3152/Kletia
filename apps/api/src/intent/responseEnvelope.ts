@@ -798,6 +798,8 @@ function assertGenericEntityResolutionBinding(
     "lending_deposit",
     "lending_repay",
     "memo_send",
+    "transfer",
+    "workflow",
   ]);
   if (inputConsumingActions.has(action) && !tokenIn) {
     throw new IntentResponseError(
@@ -891,6 +893,38 @@ function assertGenericEntityResolutionBinding(
   }
 
   if (action === "remove_liquidity") return;
+  if (action === "transfer") {
+    const recipients = entityResolution.recipients as UnknownRecord[];
+    const recipient = recipients.find((candidate) => candidate.role === "recipient");
+    if (
+      recipients.length !== 1 ||
+      !recipient ||
+      typeof recipient.resolvedAddress !== "string"
+    ) {
+      throw new IntentResponseError(
+        "ENTITY_RECIPIENT_BINDING_MISSING",
+        "Transfer recipient resolution evidence is missing.",
+      );
+    }
+    const resolvedRecipient = getAddress(recipient.resolvedAddress);
+    if (rawResult.isNativeIn === true) {
+      const target = getAddress(String(rawResult.targetContract || rawResult.target));
+      if (!sameAddress(target, resolvedRecipient)) {
+        throw new IntentResponseError(
+          "ENTITY_RECIPIENT_BINDING_MISMATCH",
+          "Native transfer target does not match the resolved recipient.",
+        );
+      }
+    } else {
+      const calldata = checkedCalldata(rawResult.calldata, "transfer.calldata");
+      if (!sameAddress(decodedErc20TransferRecipient(calldata), resolvedRecipient)) {
+        throw new IntentResponseError(
+          "ENTITY_RECIPIENT_BINDING_MISMATCH",
+          "ERC-20 transfer calldata does not match the resolved recipient.",
+        );
+      }
+    }
+  }
   const allowedApprovalTokens = new Set(
     assets.flatMap((asset) =>
       typeof asset.address === "string"
@@ -1390,8 +1424,18 @@ function decimalValue(value: unknown, fieldName: string): string {
   );
 }
 
-function checkedCalldata(value: unknown, fieldName: string): Hex {
-  if (typeof value !== "string" || !/^0x(?:[0-9a-fA-F]{2}){4,}$/.test(value)) {
+function checkedCalldata(
+  value: unknown,
+  fieldName: string,
+  allowEmpty = false,
+): Hex {
+  if (
+    typeof value !== "string" ||
+    !(
+      (allowEmpty && value === "0x") ||
+      /^0x(?:[0-9a-fA-F]{2}){4,}$/.test(value)
+    )
+  ) {
     throw new IntentResponseError(
       "INVALID_TRANSACTION_CALLDATA",
       `${fieldName} must be valid EVM calldata of at least 4 bytes.`,
@@ -2833,7 +2877,11 @@ function normalizeRoute(
     String(rawRouter),
     fallback.action,
   );
-  const calldata = checkedCalldata(rawCalldata, "route.calldata");
+  const calldata = checkedCalldata(
+    rawCalldata,
+    "route.calldata",
+    fallback.action === "transfer" && fallback.isNativeIn,
+  );
   const routeValue =
     route.value ?? (fallback.isNativeIn ? fallback.value : "0");
   const hasExplicitRouteApprovals = Array.isArray(route.approvals);
@@ -3066,7 +3114,11 @@ export function createIntentResultEnvelope(
   }
 
   const targetContract = checkedAddress(network, rawTarget, action);
-  const calldata = checkedCalldata(rawResult.calldata, "transaction.calldata");
+  const calldata = checkedCalldata(
+    rawResult.calldata,
+    "transaction.calldata",
+    action === "transfer" && rawResult.isNativeIn === true,
+  );
   const value = decimalValue(
     rawResult.value ?? rawResult.amountInWei ?? "0",
     "transaction.value",

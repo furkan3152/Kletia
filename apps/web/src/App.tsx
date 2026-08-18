@@ -19,6 +19,7 @@ import {
   isBaseMcpX402Plan,
   isBaseFeeRouterCoverage,
   isArcPortfolioData,
+  isArbitrumPortfolioData,
   isBasePortfolioData,
   isBaseLiquidityRoutingResponse,
   isBaseSwapRoutingEvidence,
@@ -71,6 +72,9 @@ import {
 } from "./security/entityResolution";
 import { isBaseLaunchFactoryV2ResponseBinding } from "./networks/base/security/launchFactoryV2";
 import { resolveIntentHttpResponseBoundary } from "./security/intentHttpResponseBoundary";
+import { isWorkflowPlanV1, isWorkflowToken } from "./security/workflowBoundary";
+import { WorkflowTimeline } from "./components/workflow/WorkflowTimeline";
+import { PolicyAgentCard } from "./components/policy/PolicyAgentCard";
 
 const BASE_SWAP_EXECUTION_POLICY_SETTING = import.meta.env
   .VITE_BASE_SWAP_EXECUTION_MODE;
@@ -270,7 +274,7 @@ export default function App() {
     networkMode,
     network,
     chainId,
-    toggleNetwork,
+    switchNetwork,
     isSwitching,
     switchError,
   } = useNetwork();
@@ -628,6 +632,23 @@ export default function App() {
       ) {
         throw new Error("Base Fee Router allowlist coverage could not be verified.");
       }
+
+      if (data.action === "workflow") {
+        if (
+          networkMode !== "base" ||
+          !data.workflowToken ||
+          !isWorkflowToken(data.workflowToken) ||
+          !isWorkflowPlanV1(data.workflowPlan, {
+            requestId,
+            userAddress: address,
+            nowMs: currentEpochMs(),
+          })
+        ) {
+          throw new Error(
+            "Cross-chain workflow was not bound to the active Base wallet and request.",
+          );
+        }
+      }
       if (
         networkMode === "base" &&
         (data.actionType === "add_liquidity" ||
@@ -825,6 +846,29 @@ export default function App() {
         return;
       }
 
+      if (networkMode === "arbitrum" && data.action === "yield_compare") {
+        const comparison = data.yieldComparison;
+        if (
+          !comparison ||
+          comparison.policyVersion !== "arbitrum_aave_v3_live_rates_v1" ||
+          comparison.protocolId !== "aave-v3" ||
+          !isAddress(comparison.asset) ||
+          !Number.isFinite(comparison.supplyApyBps) ||
+          !Number.isFinite(comparison.variableBorrowApyBps) ||
+          !/^\d+$/u.test(comparison.availableLiquidityAtomic) ||
+          comparison.mockData !== false
+        ) {
+          throw new Error("Arbitrum yield response did not contain live Aave V3 evidence.");
+        }
+        updateRequestMessage(request, {
+          isLoading: false,
+          text: data.winnerMessage || "Live Arbitrum Aave V3 rates loaded.",
+          intentData: data,
+          terminalLogs: [],
+        });
+        return;
+      }
+
       if (data.action === "open_widget") {
         updateRequestMessage(request, {
           isLoading: false,
@@ -861,10 +905,11 @@ export default function App() {
           network: data.network,
           chainId: data.chainId,
         } as PortfolioData;
-        const validPortfolio =
-          networkMode === "base"
-            ? isBasePortfolioData(portfolioData)
-            : isArcPortfolioData(portfolioData);
+        const validPortfolio = networkMode === "base"
+          ? isBasePortfolioData(portfolioData)
+          : networkMode === "arc"
+            ? isArcPortfolioData(portfolioData)
+            : isArbitrumPortfolioData(portfolioData);
         if (!validPortfolio) {
           throw new Error(
             `Portfolio response does not match the ${network.name} data schema.`,
@@ -890,6 +935,30 @@ export default function App() {
         updateRequestMessage(request, {
           isLoading: false,
           text: "Base Agent Mode is in development and will be available soon.",
+          terminalLogs: [],
+        });
+        return;
+      }
+
+      if (data.action === "policy_agent") {
+        const policy = data.policyAgent;
+        if (
+          networkMode === "arc" ||
+          !policy ||
+          policy.version !== 1 ||
+          !/^0x[0-9a-f]{64}$/iu.test(policy.policyId) ||
+          !isAddress(policy.owner) ||
+          getAddress(policy.owner) !== getAddress(address) ||
+          policy.authority !== "planning_only_no_transaction_authority" ||
+          policy.requiresPerStepWalletApproval !== true ||
+          policy.expiresAt <= Math.floor(currentEpochMs() / 1_000)
+        ) {
+          throw new Error("Policy agent response failed its non-custodial authority boundary.");
+        }
+        updateRequestMessage(request, {
+          isLoading: false,
+          text: data.winnerMessage || "Planning policy is ready for wallet signature.",
+          intentData: data,
           terminalLogs: [],
         });
         return;
@@ -1223,6 +1292,130 @@ export default function App() {
     return approvals;
   };
 
+  const advanceWorkflowForMessage = async (
+    messageId: string,
+    submittedTxHash?: Hex,
+  ) => {
+    const message = useAppStore.getState().messagesByNetwork[
+      useAppStore.getState().activeNetwork
+    ].find((candidate) => candidate.id === messageId) ||
+      Object.values(useAppStore.getState().messagesByNetwork)
+        .flat()
+        .find((candidate) => candidate.id === messageId);
+    const currentData = message?.intentData;
+    if (
+      !message ||
+      !currentData?.workflowPlan ||
+      !currentData.workflowToken ||
+      !address ||
+      !isWorkflowToken(currentData.workflowToken) ||
+      !isWorkflowPlanV1(currentData.workflowPlan, {
+        requestId: currentData.requestId || "",
+        userAddress: address,
+        nowMs: currentEpochMs(),
+      })
+    ) {
+      throw new Error("Workflow state is missing or no longer bound to this wallet.");
+    }
+    const originNetwork = message.network || "base";
+    const response = await fetch(`${BACKEND_URL}/api/workflows/advance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workflowToken: currentData.workflowToken,
+        userAddress: address,
+        ...(submittedTxHash ? { txHash: submittedTxHash } : {}),
+      }),
+    });
+    const body = await response.json().catch(() => null) as null | {
+      success?: boolean;
+      message?: string;
+      code?: string;
+      workflowPlan?: unknown;
+      workflowToken?: unknown;
+      execution?: unknown;
+    };
+    if (!response.ok || body?.success !== true) {
+      throw new Error(body?.message || "Workflow checkpoint verification failed.");
+    }
+    if (
+      !isWorkflowToken(body.workflowToken) ||
+      !isWorkflowPlanV1(body.workflowPlan, {
+        requestId: currentData.requestId || "",
+        userAddress: address,
+        nowMs: currentEpochMs(),
+      })
+    ) {
+      throw new Error("Workflow service returned an invalid sealed state.");
+    }
+    const updatedPlan = body.workflowPlan;
+    const updatedToken = body.workflowToken;
+    updateMessageForNetwork(originNetwork, messageId, {
+      text: body.message || "Workflow checkpoint verified.",
+      intentData: {
+        ...currentData,
+        workflowPlan: updatedPlan,
+        workflowToken: updatedToken,
+      },
+    });
+    if (body.execution === null || body.execution === undefined) return;
+    const execution = body.execution as IntentResponse;
+    const nextStep = updatedPlan.steps[updatedPlan.currentStepIndex];
+    if (
+      execution.status !== "success" ||
+      execution.network !== nextStep.network ||
+      execution.chainId !== nextStep.chainId ||
+      execution.requestId !== updatedPlan.requestId ||
+      execution.userAddress?.toLowerCase() !== address.toLowerCase() ||
+      responseIntentAction(execution) !== nextStep.action ||
+      !execution.allRoutes?.length ||
+      !isIntentEntityResolution(execution.entityResolution, {
+        network: nextStep.network,
+        chainId: nextStep.chainId,
+        requestId: updatedPlan.requestId,
+        userAddress: address,
+        action: nextStep.action,
+      })
+    ) {
+      throw new Error("Next workflow step failed the network and entity boundary.");
+    }
+    const nextIntent: IntentResponse = {
+      ...execution,
+      workflowPlan: updatedPlan,
+      workflowToken: updatedToken,
+    };
+    if (nextStep.network === originNetwork) {
+      updateMessageForNetwork(originNetwork, messageId, {
+        text: body.message || `Workflow step ${nextStep.order} is ready.`,
+        intentData: nextIntent,
+        selectedRouteIndex: 0,
+        txHash: undefined,
+        terminalLogs: [],
+      });
+      return;
+    }
+    const nextMessageId = `${updatedPlan.workflowId}:${nextStep.id}`;
+    addMessage({
+      id: nextMessageId,
+      role: "kletia",
+      text: body.message || `Workflow step ${nextStep.order} is ready on ${nextStep.network}.`,
+      intentData: nextIntent,
+      selectedRouteIndex: 0,
+      terminalLogs: [],
+      network: nextStep.network,
+      chainId: nextStep.chainId,
+      walletAddress: address,
+      requestId: updatedPlan.requestId,
+    });
+    addOriginLogForWorkflow(originNetwork, messageId, `➡️ Step ${nextStep.order} is ready in the ${nextStep.network} workspace.`);
+  };
+
+  const addOriginLogForWorkflow = (
+    originNetwork: NetworkMode,
+    messageId: string,
+    log: string,
+  ) => addTerminalLogForNetwork(originNetwork, messageId, log);
+
   const executeRoute = async (msgId: string) => {
     const msg = messages.find((m) => m.id === msgId);
     if (!msg?.intentData || !address) return;
@@ -1372,7 +1565,11 @@ export default function App() {
       if (!isAddress(activeRoute.router)) {
         throw new Error("Selected route does not carry a valid target address.");
       }
-      if (!isCalldata(activeRoute.calldata)) {
+      const isNativeTransfer =
+        (data.actionType === "transfer" || data.action === "transfer") &&
+        data.isNativeIn === true &&
+        activeRoute.calldata === "0x";
+      if (!isNativeTransfer && !isCalldata(activeRoute.calldata)) {
         throw new Error("Selected route does not carry valid calldata.");
       }
       if (!isUnsignedIntegerString(activeRoute.value)) {
@@ -1380,7 +1577,7 @@ export default function App() {
       }
 
       const targetAddress = getAddress(activeRoute.router);
-      const txCalldata = activeRoute.calldata;
+      const txCalldata = activeRoute.calldata as Hex;
       const txValue = BigInt(activeRoute.value);
       const officialArcPolicy = validateArcOfficialRoute(
         activeRoute,
@@ -1516,6 +1713,12 @@ export default function App() {
           text: "✅ Arc Testnet transaction finalized with a successful receipt.",
         });
         addOriginLog("✅ Arc Testnet transaction finalized with a successful receipt.");
+      } else if (originNetwork === "arbitrum") {
+        updateOriginMessage({
+          txHash: result.hash,
+          text: "✅ Arbitrum One transaction finalized with a successful receipt.",
+        });
+        addOriginLog("✅ Arbitrum One transaction finalized with a successful receipt.");
       } else {
         updateOriginMessage({
           txHash: result.hash,
@@ -1524,6 +1727,10 @@ export default function App() {
         addOriginLog(
           "✅ Base Mainnet transaction included on-chain with a successful receipt; this does not imply additional L1 finality.",
         );
+      }
+      if (data.workflowPlan && data.workflowToken) {
+        addOriginLog("🔎 Advancing only after the submitted transaction matches the sealed workflow step.");
+        await advanceWorkflowForMessage(msgId, result.hash);
       }
     } catch (error: unknown) {
       addOriginLog(`❌ Cancel/Error: ${getErrorMessage(error)}`);
@@ -1565,7 +1772,7 @@ export default function App() {
         handleFundClick={handleFundClick}
         onMenuClick={() => setIsAppSidebarOpen(!isAppSidebarOpen)}
         networkMode={networkMode}
-        onNetworkToggle={toggleNetwork}
+        onNetworkSelect={switchNetwork}
         isNetworkSwitching={isSwitching}
         networkSwitchError={switchError}
       />
@@ -1750,6 +1957,49 @@ export default function App() {
                               address?.toLowerCase() && (
                               <EntityResolutionEvidenceCard
                                 evidence={msg.intentData.entityResolution}
+                              />
+                            )}
+
+                          {msg.intentData?.workflowPlan &&
+                            msg.intentData.workflowToken && (
+                              <div>
+                                <WorkflowTimeline plan={msg.intentData.workflowPlan} />
+                                {msg.txHash &&
+                                  ["submitted", "confirmed"].includes(
+                                    msg.intentData.workflowPlan.steps[
+                                      msg.intentData.workflowPlan.currentStepIndex
+                                    ]?.status || "",
+                                  ) && (
+                                    <button
+                                      type="button"
+                                      disabled={msg.isLoading || !address}
+                                      onClick={() => {
+                                        updateMessageForNetwork(msg.network || "base", msg.id, { isLoading: true });
+                                        void advanceWorkflowForMessage(msg.id)
+                                          .catch((error) =>
+                                            addTerminalLogForNetwork(
+                                              msg.network || "base",
+                                              msg.id,
+                                              `❌ ${getErrorMessage(error)}`,
+                                            ),
+                                          )
+                                          .finally(() =>
+                                            updateMessageForNetwork(msg.network || "base", msg.id, { isLoading: false }),
+                                          );
+                                      }}
+                                      className="mt-3 w-full border-[3px] border-[#1A1A1A] bg-[#FFF36D] px-3 py-2 text-xs font-black uppercase shadow-[3px_3px_0_#1A1A1A] disabled:opacity-50"
+                                    >
+                                      Refresh cross-chain checkpoint
+                                    </button>
+                                  )}
+                              </div>
+                            )}
+
+                          {msg.intentData?.policyAgent &&
+                            msg.intentData.network !== "arc" && (
+                              <PolicyAgentCard
+                                policy={msg.intentData.policyAgent}
+                                network={msg.intentData.network || "base"}
                               />
                             )}
 
@@ -2059,6 +2309,20 @@ export default function App() {
                                   </div>
                                 )}
 
+                                {msg.intentData.gasReadiness && (
+                                  <div className={`border-[3px] border-[#1A1A1A] p-3 text-[10px] font-bold text-[#1A1A1A] ${msg.intentData.gasReadiness.gasAcquisitionRequired ? "bg-[#FECACA]" : "bg-[#D9F99D]"}`}>
+                                    <div className="font-black uppercase">Arbitrum gas readiness</div>
+                                    <p className="mt-1">
+                                      Balance {msg.intentData.gasReadiness.balanceAtomic} wei · recommended buffer {msg.intentData.gasReadiness.recommendedBufferAtomic} wei
+                                    </p>
+                                    {msg.intentData.gasReadiness.gasAcquisitionRequired ? (
+                                      <p className="mt-2 leading-relaxed">
+                                        Execution is paused. Kletia will not spend USDC automatically. Switch to Base and request a bounded Across ETH route, then review that separate wallet approval.
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                )}
+
                                 <select
                                   className="w-full bg-[#EFEFEF] dark:bg-slate-800 border-[3px] border-[#1A1A1A] dark:border-[#4B5563] text-[#1A1A1A] dark:text-white font-black text-sm md:text-base p-2.5 md:p-3 outline-none focus:bg-[#0052FF] dark:focus:bg-[#0052FF] focus:text-white transition-colors cursor-pointer"
                                   value={msg.selectedRouteIndex ?? ""}
@@ -2073,6 +2337,7 @@ export default function App() {
                                   disabled={
                                     msg.isLoading ||
                                     !!msg.txHash ||
+                                    msg.intentData.gasReadiness?.gasAcquisitionRequired === true ||
                                     !walletMatchesNetwork ||
                                     msg.network !== networkMode ||
                                     msg.chainId !== network.chainId
@@ -2175,6 +2440,7 @@ export default function App() {
                                     msg.txHash
                                       ? "bg-[#10B981]"
                                       : msg.isLoading ||
+                                          msg.intentData.gasReadiness?.gasAcquisitionRequired === true ||
                                           !address ||
                                           !walletMatchesNetwork ||
                                           msg.network !== networkMode ||

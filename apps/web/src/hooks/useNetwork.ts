@@ -36,6 +36,10 @@ export function useNetwork() {
     async (mode: NetworkMode): Promise<boolean> => {
       const targetNetwork = getNetwork(mode);
       setSwitchError(null);
+      if (!targetNetwork.enabled) {
+        setSwitchError(`${targetNetwork.name} Public Beta is not enabled on this deployment.`);
+        return false;
+      }
 
       if (!isConnected) {
         setActiveNetwork(mode);
@@ -71,20 +75,15 @@ export function useNetwork() {
     [chainId, isConnected, setActiveNetwork, switchChainAsync],
   );
 
-  const toggleNetwork = useCallback(
-    () => switchNetwork(activeNetwork === "base" ? "arc" : "base"),
-    [activeNetwork, switchNetwork],
-  );
-
   return {
     networkMode: activeNetwork,
     network: getNetwork(activeNetwork),
     chainId,
     switchNetwork,
-    toggleNetwork,
     isSwitching: isPending,
     switchError,
     isArc: activeNetwork === "arc",
     isBase: activeNetwork === "base",
+    isArbitrum: activeNetwork === "arbitrum",
   };
 }

@@ -3,7 +3,7 @@ import {
   hasBaseIntentV2Marker,
   isBaseIntentRouterV2ResponseBinding,
   type IntentResponse,
-} from "../../../types";
+} from "../../../shared/types";
 
 export type BaseSwapExecutionPolicy = "legacy_v1" | "intent_v2";
 

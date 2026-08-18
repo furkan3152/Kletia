@@ -10,7 +10,7 @@ import {
   type PublicClient,
 } from "viem";
 
-import { basePublicClient } from "../../../config/networks.js";
+import { basePublicClient } from "../../../shared/config/networks.js";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const BASE_MAINNET_CHAIN_ID = 8_453 as const;

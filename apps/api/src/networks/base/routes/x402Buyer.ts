@@ -18,7 +18,7 @@ import {
 } from "viem";
 import { z } from "zod";
 import { TOKENS } from "../contracts.js";
-import { NETWORKS, basePublicClient } from "../../../config/networks.js";
+import { NETWORKS, basePublicClient } from "../../../shared/config/networks.js";
 import {
   BaseX402IntentError,
   forwardPinnedBaseX402BuyerPayment,
@@ -30,7 +30,7 @@ import {
 import {
   RequestIdValidationError,
   resolveIntentRequestId,
-} from "../../../security/requestId.js";
+} from "../../../shared/security/requestId.js";
 
 const router = Router();
 

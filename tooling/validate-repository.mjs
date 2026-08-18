@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import path from "node:path";
 
 const fail = (message) => {
   console.error(`Repository structure check failed: ${message}`);
@@ -28,9 +29,21 @@ const requiredFiles = [
   "contracts/base/package.json",
   "contracts/arc/package.json",
   "apps/api/src/networks/base/protocols.ts",
+  "apps/api/src/networks/base/abis/KletiaSmartRouter.json",
+  "apps/api/src/networks/base/assets/tokenAddress.ts",
+  "apps/api/src/networks/base/intent/basenameResolver.ts",
+  "apps/api/src/networks/base/security/simulation.ts",
+  "apps/api/src/networks/base/security/tokenSecurity.ts",
+  "apps/api/src/networks/base/routes/mcp.test.ts",
   "apps/api/src/networks/arc/routes.ts",
+  "apps/api/src/networks/arbitrum/engine.ts",
+  "apps/api/src/shared/config/networks.ts",
+  "apps/api/src/cross-chain/workflow.ts",
   "apps/web/src/networks/base/x402/baseX402Buyer.ts",
   "apps/web/src/networks/arc/config.ts",
+  "apps/web/src/networks/arbitrum/components/ArbitrumPortfolioViewer.tsx",
+  "apps/web/src/shared/components/layout/NetworkSwitcher.tsx",
+  "apps/web/src/cross-chain/components/WorkflowTimeline.tsx",
   "apps/web/public/kletia-logo.png",
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
@@ -90,6 +103,25 @@ const staleSourcePrefixes = [
   "apps/api/src/staking/",
   "apps/web/src/arc/",
   "apps/web/src/x402/",
+  "apps/api/src/ai/",
+  "apps/api/src/assets/",
+  "apps/api/src/config/",
+  "apps/api/src/intent/",
+  "apps/api/src/middleware/",
+  "apps/api/src/observability/",
+  "apps/api/src/policies/",
+  "apps/api/src/routes/",
+  "apps/api/src/security/",
+  "apps/api/src/workflows/",
+  "apps/web/src/components/",
+  "apps/web/src/config/",
+  "apps/web/src/hooks/",
+  "apps/web/src/security/",
+  "apps/web/src/store/",
+  "apps/web/src/utils/",
+  "apps/web/src/App.tsx",
+  "apps/web/src/index.css",
+  "apps/web/src/types.ts",
 ];
 for (const prefix of staleSourcePrefixes) {
   const stale = trackedFiles.find((file) => file.startsWith(prefix));
@@ -106,7 +138,7 @@ for (const file of trackedFiles) {
 }
 
 const multilingualIntentSources = new Set([
-  "apps/api/src/ai/parser.ts",
+  "apps/api/src/shared/ai/parser.ts",
   "apps/api/src/networks/base/intent/x402.ts",
 ]);
 const turkishApplicationCopy =
@@ -171,20 +203,24 @@ for (const file of trackedFiles) {
   }
 }
 
+const networkSourceRoot = /^(apps\/(?:api|web)\/src\/networks\/(base|arc|arbitrum))\//u;
+const relativeImportPattern =
+  /(?:from\s*|import\s*\()\s*["'](\.\.?\/[^"']+)["']/gu;
 for (const file of trackedFiles) {
   if (!/\.(?:ts|tsx|js|mjs)$/u.test(file)) continue;
+  const owner = file.match(networkSourceRoot)?.[2];
+  if (!owner) continue;
   const content = readFileSync(file, "utf8");
-  const baseOwned =
-    file.startsWith("apps/api/src/networks/base/") ||
-    file.startsWith("apps/web/src/networks/base/");
-  const arcOwned =
-    file.startsWith("apps/api/src/networks/arc/") ||
-    file.startsWith("apps/web/src/networks/arc/");
-  if (baseOwned && /networks\/arc\//u.test(content)) {
-    fail(`Base-owned source imports an Arc-owned module: ${file}`);
-  }
-  if (arcOwned && /networks\/base\//u.test(content)) {
-    fail(`Arc-owned source imports a Base-owned module: ${file}`);
+  for (const match of content.matchAll(relativeImportPattern)) {
+    const target = path.posix.normalize(
+      path.posix.join(path.posix.dirname(file), match[1]),
+    );
+    const targetOwner = target.match(networkSourceRoot)?.[2];
+    if (targetOwner && targetOwner !== owner) {
+      fail(
+        `${owner}-owned source imports ${targetOwner}-owned source: ${file}`,
+      );
+    }
   }
 }
 
@@ -217,7 +253,7 @@ if ((renderConfig.match(/branch: main/gu) ?? []).length !== 2) {
 }
 
 const navbarSource = readFileSync(
-  "apps/web/src/components/layout/Navbar.tsx",
+  "apps/web/src/shared/components/layout/Navbar.tsx",
   "utf8",
 );
 if (

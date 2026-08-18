@@ -1,5 +1,5 @@
 import { getAddress, keccak256, parseUnits, toBytes, type Address } from "viem";
-import type { ParsedIntent } from "../../ai/parser.js";
+import type { ParsedIntent } from "../../shared/ai/parser.js";
 
 export const ARC_APP_KIT_TOKENS = ["USDC", "EURC", "cirBTC"] as const;
 

@@ -15,14 +15,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fallback, http } from "viem";
 import { createConfig, WagmiProvider } from "wagmi";
 
-import App from "./App.tsx";
+import App from "./app/App.tsx";
 import {
   ALLOW_PUBLIC_BASE_RPC_FALLBACK,
   NETWORKS,
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
-} from "./config/networks";
-import "./index.css";
+} from "./shared/config/networks";
+import "./app/styles.css";
 
 const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as
   string | undefined;

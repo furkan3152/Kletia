@@ -7,8 +7,8 @@ import {
   type Address,
 } from "viem";
 
-import type { ParsedIntent } from "../../../ai/parser.js";
-import { basePublicClient } from "../../../config/client.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import { normalizeBaseProtocolId } from "../protocols.js";
 import {
   BASE_MAINNET_CHAIN_ID,
@@ -41,8 +41,8 @@ import {
 import {
   xRaySimulate,
   type XRaySimulationResult,
-} from "../security.js";
-import { getAddressSafe } from "../utils.js";
+} from "../security/simulation.js";
+import { getAddressSafe } from "../assets/tokenAddress.js";
 
 const V2_INTENT_TTL_SECONDS = 5n * 60n;
 const MAX_NONCE_ATTEMPTS = 8;

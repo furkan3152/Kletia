@@ -15,7 +15,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 
-import type { BaseX402ChallengeEvidence } from "../../../types";
+import type { BaseX402ChallengeEvidence } from "../../../shared/types";
 
 const BASE_CHAIN_ID = 8_453 as const;
 const BASE_CAIP_NETWORK = "eip155:8453";

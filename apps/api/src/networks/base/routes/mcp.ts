@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { Router, type Response } from "express";
 import { getAddress } from "viem";
-import type { ParsedIntent } from "../../../ai/parser.js";
-import { NETWORKS } from "../../../config/networks.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
+import { NETWORKS } from "../../../shared/config/networks.js";
 import {
   BaseX402IntentError,
   buildBaseMcpX402Plan,

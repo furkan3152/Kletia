@@ -5,7 +5,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import {
   PANCAKE_SMART_ROUTER_ABI,
   ROUTERS,

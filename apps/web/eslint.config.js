@@ -21,7 +21,7 @@ export default defineConfig([
     },
   },
   {
-    files: ["src/App.tsx", "src/hooks/useNetwork.ts"],
+    files: ["src/app/App.tsx", "src/shared/hooks/useNetwork.ts"],
     rules: {
       "react-hooks/set-state-in-effect": "off",
     },

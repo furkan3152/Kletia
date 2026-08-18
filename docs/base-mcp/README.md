@@ -77,14 +77,14 @@ Production infrastructure should still redact query strings from access logs.
 
 ## Validation
 
-Run with Node 20.19 or newer. This workspace was validated with Node 22:
+Run with Node 22.13 or newer:
 
 ```bash
-node node_modules/typescript/bin/tsc -p tsconfig.api.json
-node node_modules/vitest/vitest.mjs run src/tests/base-mcp-routes.test.ts
+npm --prefix apps/api run typecheck
+npm --prefix apps/api test -- src/networks/base/routes/mcp.test.ts
 ```
 
-The route tests cover:
+The dedicated route tests cover:
 
 - explicit-wallet and strict Base Mainnet isolation;
 - Arc rejection;
@@ -92,10 +92,12 @@ The route tests cover:
 - deterministic prepare IDs;
 - the official two-tool x402 plan;
 - private-host, malformed-body, and payment-cap rejection;
-- revalidation of Coinbase CDP Bazaar Base Mainnet USDC results.
+- deterministic preparation without a signature or transaction submission.
 
-They do not prove hosted Base MCP allowlisting, OAuth, a browser approval, a
-wallet signature, payment settlement, or a paid endpoint response.
+These tests do not call Coinbase CDP Bazaar and do not prove hosted Base MCP
+allowlisting, OAuth, a browser approval, a wallet signature, payment
+settlement, or a paid endpoint response. Those are separate integration and
+live-payment boundaries.
 
 ## Source contract
 

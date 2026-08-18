@@ -9,7 +9,7 @@ import {
   toFunctionSelector,
   type Address,
 } from "viem";
-import type { ArcOfficialPolicyEvidence, RouteData } from "../../../types";
+import type { ArcOfficialPolicyEvidence, RouteData } from "../../../shared/types";
 
 export const ARC_OFFICIAL_ADDRESSES = {
   usdc: getAddress("0x3600000000000000000000000000000000000000"),

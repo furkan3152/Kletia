@@ -28,6 +28,14 @@ Same-chain calls are atomic only when the connected wallet proves the relevant
 chain capability. Cross-chain execution has fill/refund/indeterminate states
 and no global rollback.
 
+Portfolio phrases such as “my Base USDC” resolve to a pinned wallet-balance
+snapshot. Later steps consume only the preceding receipt-proven output, never
+the wallet's unrelated pre-existing destination balance. If native ETH cannot
+be used directly by a selected DeFi reserve, the API returns a structured asset
+choice instead of silently substituting WETH. A terminal `borrow_capacity`
+step is read-only and reports the live Aave risk-adjusted amount without
+creating a borrow transaction.
+
 ## Repository
 
 ```text
@@ -40,6 +48,12 @@ docs            Architecture, deployment and protocol documentation
 tooling         Repository-wide validation
 ```
 
+Inside each application, `networks/` owns chain-specific behavior, `shared/`
+owns reusable policy and interface primitives, `cross-chain/` owns staged
+multi-network workflows, and `integrations/` owns external provider adapters.
+Transaction builders never move into `shared/` merely because more than one
+screen consumes them.
+
 See [Repository Structure](docs/REPOSITORY_STRUCTURE.md) for ownership rules
 and [Technical Architecture](docs/Kletia_Architecture_OnePager.md) for the
 intent lifecycle.
@@ -48,7 +62,7 @@ intent lifecycle.
 
 - Node.js 22.13 or newer
 - npm
-- An EVM wallet supporting Base Mainnet and Arc Testnet
+- An EVM wallet supporting Base Mainnet, Arc Testnet and Arbitrum One
 
 ## Local development
 
@@ -104,8 +118,8 @@ npm run compile:arc
 ```
 
 The structure check preserves the hackathon attachment paths, rejects old
-package roots, prevents Base/Arc contract mixing, and fails if generated build
-outputs are tracked.
+package and shared-source roots, prevents cross-network source or contract
+mixing, and fails if generated build outputs are tracked.
 
 ## Contracts
 
@@ -137,7 +151,9 @@ the unified application:
 - a Static Site from `apps/web` for `kletiaai.xyz`
 
 The exact dashboard settings, environment boundaries, DNS steps, and release
-checks are in [Render Deployment](docs/RENDER_DEPLOYMENT.md).
+checks are in [Render Deployment](docs/RENDER_DEPLOYMENT.md). A separate
+[Vercel deployment guide](docs/VERCEL_DEPLOYMENT.md) documents the two-project
+Vite/Express setup and its backend scaling boundary.
 
 ## License
 

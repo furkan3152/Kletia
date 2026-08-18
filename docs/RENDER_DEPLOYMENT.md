@@ -1,13 +1,13 @@
 # Kletia Render Deployment
 
 Kletia is deployed as two Render services from one repository. These are not
-separate Base and Arc applications:
+separate applications per network:
 
-- `apps/web` is the canonical unified Base Mainnet + Arc Testnet
-  React interface. The current Render deployment is a Static Site that
-  publishes Vite's production `dist` directory.
-- `apps/api` is the canonical unified Base Mainnet + Arc Testnet
-  omni-engine.
+- `apps/web` is the canonical unified Base Mainnet, Arc Testnet and
+  capability-gated Arbitrum One React interface. The current Render deployment
+  is a Static Site that publishes Vite's production `dist` directory.
+- `apps/api` is the canonical unified intent and workflow engine for the same
+  three profiles.
 - `contracts/base` and `contracts/arc` are source/deployment workspaces, not
   Render services.
 
@@ -27,7 +27,7 @@ The committed Blueprint pins both services to `main`, keeps the API in
 Frankfurt, and uses Render's free web-service instance so it matches the
 current Hobby workspace without requiring a paid instance upgrade. Upgrade the
 API plan deliberately when sustained traffic requires it; do not change the
-service root directories or split the Base and Arc runtimes again.
+service root directories or split the network runtimes again.
 
 Do not select a JavaScript entry file when using the Blueprint:
 
@@ -70,7 +70,7 @@ Node Web Service deployment and is not used by the Static Site.
 
 The Blueprint assigns:
 
-- `kletiaai.xyz` to the frontend Web Service. Add `www.kletiaai.xyz` as a
+- `kletiaai.xyz` to the frontend Static Site. Add `www.kletiaai.xyz` as a
   redirect/alias in Render if it is not created automatically.
 - `api.kletiaai.xyz` to the backend.
 
@@ -79,7 +79,8 @@ service's **Settings -> Custom Domains** page to the domain provider. Verify
 both domains in Render before public testing. Remove conflicting `AAAA` records
 unless Render explicitly instructs otherwise. Keep the Render subdomains
 enabled during the first rollout; disable them only after both custom domains,
-TLS, wallet connections, x402 relay, Base, and Arc checks pass.
+TLS, wallet connections, x402 relay, Base, and Arc checks pass. If Arbitrum is
+enabled, its readiness and wallet-switch checks must also pass.
 
 ## Required production environment values
 
@@ -100,6 +101,14 @@ Backend minimum for a healthy public release:
 - `WEBACY_API_KEY`: URL and transaction-risk gates.
 - `ALLORA_API_KEY`: live prediction routes.
 - `ALCHEMY_API_KEY`: portfolio and token metadata paths.
+- `ARBITRUM_RPC_URL`: dedicated Arbitrum One RPC when
+  `ARBITRUM_MVP_ENABLED=true`.
+- `ARBITRUM_MVP_ENABLED`: keep `false` until the Arbitrum readiness and
+  no-value smoke checks pass.
+- `WORKFLOW_SIGNING_SECRET`: a random server-only value of at least 32
+  characters for sealed workflow plans.
+- `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID`, and the configured relay-fee cap
+  when Base-to-Arbitrum workflows or gas acquisition are enabled.
 - `ARC_VAULT_EXECUTION_MODE=vault_v2`
 - `ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d`
 - `ARC_VAULT_V2_RUNTIME_CODEHASH=0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f`
@@ -111,7 +120,6 @@ Backend minimum for a healthy public release:
 - A complete CDP x402 facilitator pair, using either the modern
   `CDP_API_KEY_ID`/`CDP_API_KEY_SECRET` names or the compatible key-name/private-
   key pair above.
-- Across values only when Across bridge routing is enabled.
 
 The API now fails at startup in production if the always-visible intent,
 security, prediction, portfolio or onramp feature would otherwise start without
@@ -130,6 +138,9 @@ Frontend build-time values:
   value is public in the JavaScript bundle; apply provider domain/rate limits
   and never put a private server credential here.
 - `VITE_ARC_RPC_URL=https://rpc.testnet.arc.network`
+- `VITE_ARBITRUM_RPC_URL`: a browser-safe Arbitrum One RPC URL.
+- `VITE_ARBITRUM_MVP_ENABLED`: must remain aligned with the API capability
+  flag. A browser `true` value cannot override a disabled API.
 - `VITE_ARC_VAULT_EXECUTION_MODE=vault_v2`
 - `VITE_ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d`
   Keep both aligned with the backend in every release.
@@ -150,14 +161,17 @@ Before opening the site publicly:
 1. Backend `/health` returns 200 without RPC work.
 2. Backend `/api/health/base` reports chain `8453` and status `ready`.
 3. Backend `/api/health/arc` reports chain `5042002` and status `ready`.
-4. `https://kletiaai.xyz` loads with no localhost requests in DevTools; its
+4. If Arbitrum is enabled, `/api/health/arbitrum` reports chain `42161` and
+   status `ready`.
+5. `https://kletiaai.xyz` loads with no localhost requests in DevTools; its
    root response and a nested-path refresh both return the frontend.
-5. Switching Base -> Arc changes wallet network and clears stale executable
-   intents; switching Arc -> Base does the same.
-6. Test one read-only intent per network before any value-bearing intent.
-7. For x402, verify the live `402` challenge and wallet approval screen. Do not
+6. Switching profiles changes the wallet network and clears stale executable
+   intent state. Verify Base -> Arc -> Arbitrum -> Base when the beta is on.
+7. Test one read-only intent per enabled network before any value-bearing
+   intent.
+8. For x402, verify the live `402` challenge and wallet approval screen. Do not
    call a paid endpoint without its real `PAYMENT-RESPONSE` and Base receipt.
-8. Confirm frontend requests receive CORS permission only from the production
+9. Confirm frontend requests receive CORS permission only from the production
    domains and that no private key or server API secret appears in the bundle.
 
 DNS/TLS changes can take time to propagate. Do not change the frontend backend

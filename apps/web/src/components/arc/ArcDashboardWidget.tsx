@@ -8,6 +8,11 @@ import {
   ARC_LENDING_ABI,
 } from "../../networks/arc/config";
 import { NETWORKS } from "../../config/networks";
+import {
+  ACTIVE_WALLET_ADDRESS,
+  materializeIntentExample,
+  requiresActiveWalletAddress,
+} from "../../config/intentExamples";
 import { WidgetId } from "../../types";
 import { ArcUnifiedBalanceCard } from "./ArcUnifiedBalanceCard";
 
@@ -198,18 +203,31 @@ export const ArcDashboardWidget: React.FC<{
     });
 
   // --- Form States ---
-  const [swapAmount, setSwapAmount] = useState("");
+  const [swapAmount, setSwapAmount] = useState("1");
   const [isUsdcToToken, setIsUsdcToToken] = useState(true);
   const [batchAddresses, setBatchAddresses] = useState("");
-  const [batchAmount, setBatchAmount] = useState("");
-  const [vaultAmount, setVaultAmount] = useState("");
+  const [batchAmount, setBatchAmount] = useState("0.1");
+  const [vaultAmount, setVaultAmount] = useState("1");
   const [memoTo, setMemoTo] = useState("");
-  const [memoAmount, setMemoAmount] = useState("");
-  const [memoText, setMemoText] = useState("");
-  const [stakeAmount, setStakeAmount] = useState("");
-  const [lpUsdcAmount, setLpUsdcAmount] = useState("");
-  const [lpTokenAmount, setLpTokenAmount] = useState("");
+  const [memoAmount, setMemoAmount] = useState("0.1");
+  const [memoText, setMemoText] = useState("KLETIA-DEMO-001");
+  const [stakeAmount, setStakeAmount] = useState("1");
+  const [lpUsdcAmount, setLpUsdcAmount] = useState("1");
+  const [lpTokenAmount, setLpTokenAmount] = useState("10");
   const [intentError, setIntentError] = useState<string | null>(null);
+  const previousAddressRef = React.useRef<string | undefined>(undefined);
+
+  React.useEffect(() => {
+    const previousAddress = previousAddressRef.current;
+    const nextAddress = address ?? "";
+    setBatchAddresses((current) =>
+      !current || current === previousAddress ? nextAddress : current,
+    );
+    setMemoTo((current) =>
+      !current || current === previousAddress ? nextAddress : current,
+    );
+    previousAddressRef.current = nextAddress;
+  }, [address]);
 
   let previewAmount: bigint | undefined;
   try {
@@ -771,7 +789,7 @@ export const ArcDashboardWidget: React.FC<{
                   if (!memo) throw new Error("Memo text cannot be empty.");
                   if (new TextEncoder().encode(memo).length > 256) {
                     throw new Error(
-                      "Memo UTF-8 olarak en fazla 256 byte olabilir.",
+                      "Memo can contain at most 256 UTF-8 bytes.",
                     );
                   }
                   return `Send ${amount} native USDC to ${recipient} through Kletia Memo Pay on Arc Testnet with the permanent public on-chain memo ${JSON.stringify(memo)}; simulate it before wallet approval`;
@@ -908,7 +926,10 @@ export const ArcDashboardWidget: React.FC<{
               Arc Money Studio
             </h3>
             <p className="mt-1 max-w-3xl text-sm font-bold text-[#1A1A1A]">
-              Select a template; the widget inserts an editable sentence into the intent box instead of sending the transaction directly. No route is prepared without modifying the bracketed fields.</p>
+              Select a prefilled example to place an editable sentence in the
+              intent box. Recipient examples use the connected wallet; no
+              transaction is sent from this widget.
+            </p>
           </div>
           <span className="w-max rotate-1 border-[3px] border-[#1A1A1A] bg-[#8B5CF6] px-3 py-2 text-xs font-black uppercase text-white shadow-[3px_3px_0_#1A1A1A]">
             Intent First
@@ -921,35 +942,35 @@ export const ArcDashboardWidget: React.FC<{
               title: "Stable FX Guard",
               detail: "Circle App Kit • live stop limit",
               prompt:
-                "Swap [AMOUNT] USDC to EURC on Arc Testnet, use [SLIPPAGE]% slippage and do not accept less than [MINIMUM_OUTPUT] EURC",
+                "Swap 1 USDC to EURC on Arc Testnet, use 0.5% slippage and do not accept less than 0.99 EURC",
             },
             {
               icon: "🚀",
               title: "Testnet Bridge",
               detail: "CCTP • Circle Forwarder • SLOW",
               prompt:
-                "Bridge [AMOUNT] USDC from Arc Testnet to Base Sepolia for [RECIPIENT_ADDRESS] using SLOW mode",
+                `Bridge 1 USDC from Arc Testnet to Base Sepolia for ${ACTIVE_WALLET_ADDRESS} using SLOW mode`,
             },
             {
               icon: "🧾",
               title: "Intent Invoice",
               detail: "Official Memo • public opaque reference",
               prompt:
-                "Pay [AMOUNT] USDC on Arc to [RECIPIENT_ADDRESS] with official memo reference [PUBLIC_REFERENCE]",
+                `Pay 0.1 USDC on Arc to ${ACTIVE_WALLET_ADDRESS} with official memo reference KLETIA-DEMO-001`,
             },
             {
               icon: "⚛️",
               title: "Atomic Treasury",
               detail: "Multicall3From • all or nothing",
               prompt:
-                "Atomically pay [AMOUNT] native USDC to [RECIPIENT_ADDRESS] on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval",
+                `Atomically pay 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval`,
             },
             {
               icon: "✉️",
               title: "App Kit Send",
               detail: "USDC / EURC • official SDK",
               prompt:
-                "Send [AMOUNT] EURC on Arc Testnet to [RECIPIENT_ADDRESS] through Circle App Kit",
+                `Send 1 EURC on Arc Testnet to ${ACTIVE_WALLET_ADDRESS} through Circle App Kit`,
             },
             {
               icon: "🧠",
@@ -958,26 +979,36 @@ export const ArcDashboardWidget: React.FC<{
               prompt:
                 "Show my Arc portfolio and explain which Arc money routes are available without sending a transaction",
             },
-          ].map((blueprint) => (
-            <button
-              key={blueprint.title}
-              type="button"
-              onClick={() => onWidgetClick(blueprint.prompt)}
-              className="group flex min-h-20 items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-3 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none sm:p-4"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#1A1A1A]">
-                {blueprint.icon}
-              </span>
-              <span>
-                <span className="block text-sm font-black uppercase">
-                  {blueprint.title}
+          ].map((blueprint) => {
+            const prompt = materializeIntentExample(blueprint.prompt, address);
+            const needsWallet = requiresActiveWalletAddress(blueprint.prompt);
+            return (
+              <button
+                key={blueprint.title}
+                type="button"
+                disabled={!prompt}
+                onClick={() => prompt && onWidgetClick(prompt)}
+                title={
+                  needsWallet && !address
+                    ? "Connect a wallet to insert its address into this editable example."
+                    : undefined
+                }
+                className="group flex min-h-20 items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-3 text-left text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-55 disabled:shadow-none sm:p-4"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#EDE9FE] text-xl shadow-[2px_2px_0_#1A1A1A]">
+                  {blueprint.icon}
                 </span>
-                <span className="mt-1 block text-xs font-bold text-gray-600">
-                  {blueprint.detail}
+                <span>
+                  <span className="block text-sm font-black uppercase">
+                    {blueprint.title}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold text-gray-600">
+                    {blueprint.detail}
+                  </span>
                 </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
 

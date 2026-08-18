@@ -4,7 +4,21 @@ import {
   NETWORKS,
   getNetworkByChainId,
 } from "./networks";
+import {
+  ACTIVE_WALLET_ADDRESS,
+  materializeIntentExample,
+} from "./intentExamples";
 import { ARC_CONTRACTS } from "../networks/arc/config";
+
+const EXAMPLE_WALLET = "0x1111111111111111111111111111111111111111";
+
+function promptActions(network: keyof typeof NETWORKS): string[] {
+  return NETWORKS[network].navigation.flatMap((section) =>
+    section.items.flatMap((item) =>
+      item.action.type === "prompt" ? [item.action.prompt] : [],
+    ),
+  );
+}
 
 describe("network execution profiles", () => {
   it("keeps Base Mainnet production-only and free of Arc targets", () => {
@@ -33,5 +47,30 @@ describe("network execution profiles", () => {
     expect(getNetworkByChainId(8_453)?.key).toBe("base");
     expect(getNetworkByChainId(5_042_002)?.key).toBe("arc");
     expect(getNetworkByChainId(84_532)).toBeUndefined();
+  });
+
+  it("ships editable sidebar examples with concrete amounts", () => {
+    const prompts = [...promptActions("base"), ...promptActions("arc")];
+
+    expect(prompts.length).toBeGreaterThan(0);
+    for (const prompt of prompts) {
+      expect(prompt).not.toMatch(/\[(?:amount|recipient|slippage|minimum)/iu);
+      expect(prompt).not.toMatch(/\b(?:do it|yap|stake et)\b/iu);
+      expect(prompt).toMatch(/\d|portfolio|yield|borrow rates/iu);
+    }
+  });
+
+  it("materializes recipient examples only from the active wallet", () => {
+    const walletPrompts = promptActions("arc").filter((prompt) =>
+      prompt.includes(ACTIVE_WALLET_ADDRESS),
+    );
+
+    expect(walletPrompts.length).toBeGreaterThan(0);
+    for (const prompt of walletPrompts) {
+      expect(materializeIntentExample(prompt)).toBeNull();
+      const materialized = materializeIntentExample(prompt, EXAMPLE_WALLET);
+      expect(materialized).toContain(EXAMPLE_WALLET);
+      expect(materialized).not.toContain(ACTIVE_WALLET_ADDRESS);
+    }
   });
 });

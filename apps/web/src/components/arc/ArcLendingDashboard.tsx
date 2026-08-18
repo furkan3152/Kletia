@@ -327,7 +327,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
             <button
               onClick={() =>
                 onActionClick(
-                  "Add collateral with my KLET to Kletia lending protocol",
+                  "Deposit 1 KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
                 )
               }
               disabled={!isArcConnected}
@@ -358,7 +358,11 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                 : `$${maxBorrowUsd.toFixed(2)}`}
             </div>
             <button
-              onClick={() => onActionClick("Borrow USDC via Kletia lending")}
+              onClick={() =>
+                onActionClick(
+                  "Borrow 1 native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
+                )
+              }
               disabled={!isArcConnected}
               className="mt-6 w-full p-3 bg-[#0052FF] text-white font-black uppercase tracking-widest border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
             >
@@ -377,22 +381,26 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
             {
               icon: "💰",
               title: "Add Collateral",
-              prompt: "Add KLET collateral to Kletia lending protocol",
+              prompt:
+                "Deposit 1 KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
             {
               icon: "💸",
               title: "Borrow",
-              prompt: "Borrow USDC via Kletia lending",
+              prompt:
+                "Borrow 1 native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
             {
               icon: "💳",
               title: "Repay",
-              prompt: "Repay my USDC debt on Kletia lending",
+              prompt:
+                "Repay 1 native USDC to Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
             {
               icon: "🔓",
               title: "Withdraw Collateral",
-              prompt: "Withdraw KLET collateral via Kletia lending",
+              prompt:
+                "Withdraw 1 KLET collateral from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
           ].map((action, idx) => (
             <button

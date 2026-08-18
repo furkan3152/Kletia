@@ -1,9 +1,16 @@
 import { ArrowUpRight, Route, ShieldCheck } from "lucide-react";
+import type { Address } from "viem";
 
+import {
+  ACTIVE_WALLET_ADDRESS,
+  materializeIntentExample,
+  requiresActiveWalletAddress,
+} from "../../config/intentExamples";
 import type { NetworkMode } from "../../config/networks";
 
 interface IntentStarterProps {
   networkMode: NetworkMode;
+  walletAddress?: Address;
   onSelect: (prompt: string) => void;
 }
 
@@ -19,13 +26,13 @@ const STARTERS = {
       label: "Compare live yield",
       detail: "Rank eligible Base opportunities without moving funds.",
       prompt:
-        "Compare current Base lending and staking yields for my portfolio without executing a transaction",
+        "Compare best yield for USDC among Aave, Moonwell, and Compound on Base Mainnet without preparing a transaction",
     },
     {
       label: "Discover x402",
       detail: "Inspect a real Base payment challenge before approval.",
       prompt:
-        "Find a useful x402 service on Base under 0.01 USDC and show its live payment challenge without paying",
+        "Find a Coinbase-curated wallet security x402 service on Base, cap one call at 0.01 USDC, and show its live payment challenge without paying",
     },
   ],
   arc: [
@@ -33,7 +40,7 @@ const STARTERS = {
       label: "Map my Arc routes",
       detail: "Read balances and available money routes first.",
       prompt:
-        "Show my Arc portfolio and explain the available USDC routes without executing a transaction",
+        "Show my Arc portfolio and explain which Arc money routes are available without sending a transaction",
     },
     {
       label: "Review positions",
@@ -45,13 +52,14 @@ const STARTERS = {
       label: "Prepare atomic payment",
       detail: "Compose a fail-together Arc Testnet payment plan.",
       prompt:
-        "Prepare an atomic Arc Testnet payment plan and simulate it before asking for wallet approval",
+        `Atomically pay 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval`,
     },
   ],
 } as const;
 
 export function IntentStarter({
   networkMode,
+  walletAddress,
   onSelect,
 }: IntentStarterProps) {
   const isArc = networkMode === "arc";
@@ -81,32 +89,42 @@ export function IntentStarter({
         </div>
 
         <div className="mt-3 grid gap-2.5 sm:mt-4 sm:gap-3 md:grid-cols-3">
-          {items.map((item, index) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => onSelect(item.prompt)}
-              className="group flex min-h-[72px] items-start gap-2.5 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-2.5 text-left shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#EAF0FF] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#233554] sm:min-h-24 sm:gap-3 sm:p-3"
-            >
-              <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] font-mono text-xs font-black text-white sm:h-10 sm:w-10 sm:text-sm ${isArc ? "bg-[#8B5CF6]" : "bg-[#0052FF]"}`}
+          {items.map((item, index) => {
+            const prompt = materializeIntentExample(item.prompt, walletAddress);
+            const needsWallet = requiresActiveWalletAddress(item.prompt);
+            return (
+              <button
+                key={item.label}
+                type="button"
+                disabled={!prompt}
+                onClick={() => prompt && onSelect(prompt)}
+                title={
+                  needsWallet && !walletAddress
+                    ? "Connect a wallet to insert its address into this editable example."
+                    : undefined
+                }
+                className="group flex min-h-[72px] items-start gap-2.5 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-2.5 text-left shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#EAF0FF] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-55 disabled:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#233554] sm:min-h-24 sm:gap-3 sm:p-3"
               >
-                0{index + 1}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2 text-[13px] font-black uppercase sm:text-sm">
-                  {item.label}
-                  <ArrowUpRight
-                    className="h-4 w-4 shrink-0 transition-transform duration-100 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] font-mono text-xs font-black text-white sm:h-10 sm:w-10 sm:text-sm ${isArc ? "bg-[#8B5CF6]" : "bg-[#0052FF]"}`}
+                >
+                  0{index + 1}
                 </span>
-                <span className="mt-0.5 block text-[11px] font-bold leading-4 text-gray-600 dark:text-slate-300 sm:mt-1 sm:text-xs">
-                  {item.detail}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2 text-[13px] font-black uppercase sm:text-sm">
+                    {item.label}
+                    <ArrowUpRight
+                      className="h-4 w-4 shrink-0 transition-transform duration-100 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span className="mt-0.5 block text-[11px] font-bold leading-4 text-gray-600 dark:text-slate-300 sm:mt-1 sm:text-xs">
+                    {item.detail}
+                  </span>
                 </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-3 flex items-start gap-2 border-[2px] border-[#1A1A1A] bg-[#FFF36D] p-2.5 text-[11px] font-bold leading-4 text-[#1A1A1A] sm:mt-4 sm:p-3 sm:text-xs">

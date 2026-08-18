@@ -1641,6 +1641,7 @@ export default function App() {
                   {messages.length === 0 && (
                     <IntentStarter
                       networkMode={networkMode}
+                      walletAddress={address}
                       onSelect={handleWidgetClick}
                     />
                   )}
@@ -2214,7 +2215,7 @@ export default function App() {
                                     : msg.txHash
                                       ? msg.network === "arc"
                                         ? "Arc Final"
-                                        : "Base Zincire Dahil Edildi"
+                                        : "Included on Base"
                                       : "Execute Route"}
                                 </button>
                               </div>

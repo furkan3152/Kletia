@@ -21,6 +21,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     networkMode === "arc"
       ? "Arc Testnet: E.g., stake 10 USDC or show my Arc portfolio"
       : "Base Mainnet: E.g., buy ETH with 10 USDC or show my portfolio";
+  const networkFocusClass =
+    networkMode === "arc"
+      ? "focus:border-[#8B5CF6] focus:shadow-[3px_3px_0_#8B5CF6] focus-visible:outline-[#8B5CF6]"
+      : "focus:border-[#0052FF] focus:shadow-[3px_3px_0_#0052FF] focus-visible:outline-[#0052FF]";
 
   return (
     <div className="z-20 w-full bg-transparent px-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 sm:px-4 md:px-6 md:pb-8 md:pt-4">
@@ -47,7 +51,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           enterKeyHint="send"
           autoComplete="off"
           placeholder={placeholder}
-          className="max-h-32 min-h-14 w-full resize-none overflow-y-auto border-[3px] border-[#1A1A1A] bg-white px-3 py-3 pr-16 text-base font-black leading-6 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] outline-none transition-[background-color,box-shadow,border-color] duration-100 [field-sizing:content] placeholder:text-sm placeholder:font-bold placeholder:text-gray-600 focus:border-[#0052FF] focus:bg-[#FAFAFA] focus:shadow-[3px_3px_0_#0052FF] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:shadow-[3px_3px_0_#475569] dark:placeholder:text-slate-300 dark:focus:bg-[#131E32] md:min-h-16 md:px-5 md:py-4 md:pr-20 md:text-lg md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569]"
+          className={`max-h-32 min-h-14 w-full resize-none overflow-y-auto border-[3px] border-[#1A1A1A] bg-white px-3 py-3 pr-16 text-base font-black leading-6 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] outline-none transition-[background-color,box-shadow,border-color] duration-100 [field-sizing:content] placeholder:text-sm placeholder:font-bold placeholder:text-gray-600 focus:bg-[#FAFAFA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:shadow-[3px_3px_0_#475569] dark:placeholder:text-slate-300 dark:focus:bg-[#131E32] md:min-h-16 md:px-5 md:py-4 md:pr-20 md:text-lg md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] ${networkFocusClass}`}
         />
         <button
           type="button"

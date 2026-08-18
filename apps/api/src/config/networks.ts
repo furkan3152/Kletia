@@ -166,6 +166,7 @@ const BASE_ACTIONS = [
   "agent_action",
   "x402_discover",
   "x402_request",
+  "gas_acquire",
   "workflow",
   "policy_agent",
 ] as const;
@@ -382,6 +383,8 @@ const BASE_INTENT_V2_ADDRESS_MANIFEST = configuredBaseIntentV2AddressManifest(
   process.env,
 );
 export const ACROSS_SPOKE_POOL = "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64";
+export const ACROSS_SPOKE_POOL_PERIPHERY =
+  "0x97CCDBea4632140639aD5eA9b944aa034eb15fD4";
 export const BASE_CONTRACTS = Object.freeze({
   basenameRegistrarController: getAddress(
     "0xa7d2607c6BD39Ae9521e514026CBB078405Ab322",
@@ -444,7 +447,8 @@ const BASE_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
     BASE_STAKING_CONTRACTS.stkSeam,
   ),
   bridge: targetSet(ACROSS_SPOKE_POOL, KLETIA_ROUTER),
-  workflow: targetSet(ACROSS_SPOKE_POOL),
+  gas_acquire: targetSet(ACROSS_SPOKE_POOL_PERIPHERY),
+  workflow: targetSet(ACROSS_SPOKE_POOL, ACROSS_SPOKE_POOL_PERIPHERY),
   basename_register: targetSet(BASE_CONTRACTS.basenameRegistrarController),
   basename_renew: targetSet(BASE_CONTRACTS.basenameRegistrarController),
   x402_factory_create: targetSet(BASE_CONTRACTS.x402Factory),

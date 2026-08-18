@@ -43,6 +43,10 @@ type Props = {
   challengeEvidence?: BaseX402ChallengeEvidence;
   expectedUserAddress: string;
   trustNotice?: string;
+  onSettlementVerified?: (evidence: {
+    transactionHash: Hex;
+    authorizationNonce: Hex;
+  }) => Promise<void>;
 };
 
 type PaymentState =
@@ -129,6 +133,7 @@ export function BaseMcpX402PlanCard({
   challengeEvidence,
   expectedUserAddress,
   trustNotice,
+  onSettlementVerified,
 }: Props) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
@@ -401,6 +406,27 @@ export function BaseMcpX402PlanCard({
       });
       settlementVerified = true;
 
+      // Store the verified onchain checkpoint before parsing the untrusted
+      // resource body. A malformed paid response must never make a settled
+      // workflow step look unpaid or ask the user to authorize it again.
+      if (onSettlementVerified) {
+        try {
+          await onSettlementVerified({
+            transactionHash: settlement.transaction,
+            authorizationNonce: paymentContext.authorizationNonce,
+          });
+        } catch (checkpointError) {
+          setPaymentState("success");
+          setPaymentMessage(
+            `${session.evidence.amount} USDC payment is confirmed, but the workflow checkpoint could not be advanced. Do not repay; use Resume Workflow. ${safeErrorMessage(
+              checkpointError,
+              "Workflow checkpoint unavailable.",
+            )}`,
+          );
+          return;
+        }
+      }
+
       const paidEnvelope = await paidResponse.json().catch(() => null);
       const data = parseBaseX402PaidEnvelope(
         paidEnvelope,
@@ -411,7 +437,9 @@ export function BaseMcpX402PlanCard({
       setPaidData(data);
       setPaymentState("success");
       setPaymentMessage(
-        `${session.evidence.amount} USDC settlement and fee response confirmed.`,
+        onSettlementVerified
+          ? `${session.evidence.amount} USDC settlement and workflow checkpoint confirmed.`
+          : `${session.evidence.amount} USDC settlement and fee response confirmed.`,
       );
     } catch (error) {
       if (isWalletRejection(error)) {
@@ -432,7 +460,7 @@ export function BaseMcpX402PlanCard({
         setPaymentMessage(
           `Final result could not be verified after signature sent to source; auto retry disabled. ${safeErrorMessage(
             error,
-            "Settlement sonucu belirsiz.",
+            "Settlement outcome is uncertain.",
           )}`,
         );
       } else {

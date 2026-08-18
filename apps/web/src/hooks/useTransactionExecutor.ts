@@ -94,16 +94,16 @@ type TargetWalletCapabilities = {
   };
 };
 
-export type BaseWalletExecutionCapabilities = {
+export type WalletExecutionCapabilities = {
   canUseAtomicCalls: boolean;
   canUsePaymaster: boolean;
 };
 
-export function resolveBaseWalletExecutionCapabilities(
+export function resolveWalletExecutionCapabilities(
   network: NetworkMode,
   chainId: number,
   capabilities: unknown,
-): BaseWalletExecutionCapabilities {
+): WalletExecutionCapabilities {
   const expectedChainId = getNetwork(network).chainId;
   if (chainId !== expectedChainId || !capabilities || typeof capabilities !== "object") {
     return {
@@ -685,7 +685,7 @@ export function useTransactionExecutor() {
       } as const;
       const atomicCalls = buildAtomicCallBatch(missingApprovals, actionCall);
       const walletExecutionCapabilities =
-        resolveBaseWalletExecutionCapabilities(
+        resolveWalletExecutionCapabilities(
           plan.network,
           plan.chainId,
           capabilities,
@@ -855,10 +855,11 @@ export function useTransactionExecutor() {
 
       let hash: Hex;
       if (useAtomicCalls) {
+        const networkLabel = getNetwork(plan.network).name;
         onLog(
           canUsePaymaster
-            ? "⚡ Base atomic support and independent paymaster support verified; batch is sent as sponsored."
-            : "⚡ Base atomic support verified; batch is sent as all-or-nothing with a single approval.",
+            ? `⚡ ${networkLabel} atomic support and independent paymaster support verified; batch is sent as sponsored.`
+            : `⚡ ${networkLabel} atomic support verified; batch is sent as all-or-nothing with a single approval.`,
         );
         assertExecutionContext();
         const callResult = await sendCallsAsync({
@@ -887,7 +888,7 @@ export function useTransactionExecutor() {
           throwOnFailure: true,
         });
         if (callsStatus.status !== "success") {
-          throw new Error("Base atomic call batch did not reach a successful state.");
+          throw new Error(`${networkLabel} atomic call batch did not reach a successful state.`);
         }
         const transactionHashes = [
           ...new Set(
@@ -900,7 +901,7 @@ export function useTransactionExecutor() {
         ];
         if (transactionHashes.length !== 1) {
           throw new Error(
-            "Base atomic call batch did not return a single verifiable transaction hash.",
+            `${networkLabel} atomic call batch did not return a single verifiable transaction hash.`,
           );
         }
         hash = transactionHashes[0];

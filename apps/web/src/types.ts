@@ -1737,6 +1737,9 @@ export type WorkflowPlanV1 = {
     protocol?: string;
     destinationChain?: string;
     objective?: string;
+    url?: string;
+    method?: "GET";
+    maxPayment?: string;
     dependsOn: string[];
     status: WorkflowStepStatus;
     expectedOutputAtomic?: string;
@@ -1746,8 +1749,16 @@ export type WorkflowPlanV1 = {
       value: string;
       quoteExpiresAt: number;
     };
+    payment?: {
+      asset: string;
+      payTo: string;
+      amountAtomic: string;
+      requestUrl: string;
+      observedAt: string;
+    };
     txHash?: string;
     fillTxHash?: string;
+    authorizationNonce?: string;
   }>;
 };
 
@@ -1800,7 +1811,11 @@ export type IntentResponse = {
   actionType?: string;
   widgetTarget?: string;
   subTarget?: WidgetId;
-  executionKind?: "circle_app_kit" | "base_x402_discovery" | "base_mcp_x402";
+  executionKind?:
+    | "circle_app_kit"
+    | "base_x402_discovery"
+    | "base_mcp_x402"
+    | "workflow_plan_v1";
   executionPlan?: ArcAppKitExecutionPlan;
   routeProof?: ArcAppKitRouteProof;
   provider?: "Circle App Kit" | "Coinbase CDP Bazaar" | "Base MCP";

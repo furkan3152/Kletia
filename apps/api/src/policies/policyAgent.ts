@@ -4,7 +4,7 @@ import type { ParsedIntent } from "../ai/parser.js";
 import { NETWORKS, type NetworkId } from "../config/networks.js";
 
 const MAX_POLICY_HOURS = 24 * 30;
-const ALLOWED_NETWORKS = new Set<NetworkId>(["base", "arc", "arbitrum"]);
+const ALLOWED_NETWORKS = new Set<NetworkId>(["base", "arbitrum"]);
 const ALLOWED_PROTOCOLS = new Set(["across", "uniswap-v3", "aave-v3", "base-x402"]);
 const ALLOWED_ASSETS = new Set(["ETH", "WETH", "USDC", "ARB"]);
 
@@ -37,9 +37,6 @@ export function buildPolicyAgent(
     throw controlled("POLICY_TEXT_INVALID", "Policy name or objective is outside the safe length boundary.");
   }
   const allowedNetworks = boundedList(input.allowedNetworks, ALLOWED_NETWORKS, (value) => value.toLowerCase()) as NetworkId[];
-  if (allowedNetworks.includes("arc") && allowedNetworks.some((item) => item !== "arc")) {
-    throw controlled("POLICY_ENVIRONMENT_MIXED", "Arc Testnet cannot share a capital policy with mainnet networks.");
-  }
   const allowedProtocols = boundedList(input.allowedProtocols, ALLOWED_PROTOCOLS, (value) => value.toLowerCase());
   const allowedAssets = boundedList(input.allowedAssets, ALLOWED_ASSETS, (value) => value.toUpperCase());
   const maxSpendAtomic = parseUnits(input.maxSpendUsdc, 6);

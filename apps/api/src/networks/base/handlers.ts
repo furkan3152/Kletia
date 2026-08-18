@@ -1,14 +1,14 @@
 import { parseUnits, formatUnits, erc20Abi, encodeFunctionData } from "viem";
-import { basePublicClient } from "../../config/client.js";
+import { basePublicClient } from "../../shared/config/client.js";
 import { TOKENS } from "./contracts.js";
-import { getAddressSafe } from "./utils.js";
+import { getAddressSafe } from "./assets/tokenAddress.js";
 import {
-  checkTokenSecurity,
   xRaySimulate,
   type XRaySimulationResult,
-} from "./security.js";
-import { KletiaErrorTracker } from "../../ai/errorEngine.js";
-import type { ParsedIntent } from "../../ai/parser.js";
+} from "./security/simulation.js";
+import { checkTokenSecurity } from "./security/tokenSecurity.js";
+import { KletiaErrorTracker } from "../../shared/ai/errorEngine.js";
+import type { ParsedIntent } from "../../shared/ai/parser.js";
 import { normalizeBaseProtocolId } from "./protocols.js";
 
 import {

@@ -7,9 +7,9 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import type { ParsedIntent } from "../../ai/parser.js";
-import { arbitrumPublicClient } from "../../config/networks.js";
-import { emitAgentLog } from "../../observability/agentLog.js";
+import type { ParsedIntent } from "../../shared/ai/parser.js";
+import { arbitrumPublicClient } from "../../shared/config/networks.js";
+import { emitAgentLog } from "../../shared/observability/agentLog.js";
 import {
   AAVE_V3_ADDRESSES_PROVIDER_ABI,
   AAVE_V3_DATA_PROVIDER_ABI,
@@ -23,7 +23,7 @@ import {
   ARBITRUM_TOKENS,
   type ArbitrumTokenSymbol,
 } from "./contracts.js";
-import { buildPolicyAgent } from "../../policies/policyAgent.js";
+import { buildPolicyAgent } from "../../shared/policies/policyAgent.js";
 import { isAddressEqual } from "viem";
 
 const QUOTE_TTL_MS = 2 * 60 * 1_000;
@@ -32,6 +32,56 @@ const HEALTH_FACTOR_SCALE = 10n ** 18n;
 const UNISWAP_FEES = [500, 3_000, 10_000] as const;
 
 type Erc20ArbitrumToken = Exclude<ArbitrumTokenSymbol, "ETH">;
+
+export interface SafeBorrowCapacityInput {
+  readonly totalCollateralBase: bigint;
+  readonly totalDebtBase: bigint;
+  readonly availableBorrowsBase: bigint;
+  readonly liquidationThresholdBps: bigint;
+  readonly assetPriceBase: bigint;
+  readonly assetDecimals: number;
+  readonly availableLiquidityAtomic: bigint;
+  readonly targetHealthFactorScaled: bigint;
+}
+
+export function calculateSafeBorrowCapacity(
+  input: SafeBorrowCapacityInput,
+): {
+  readonly safeAdditionalBase: bigint;
+  readonly safeAmountAtomic: bigint;
+} {
+  if (
+    input.totalCollateralBase <= 0n ||
+    input.liquidationThresholdBps <= 0n ||
+    input.assetPriceBase <= 0n ||
+    input.targetHealthFactorScaled < 150n * 10n ** 16n ||
+    !Number.isInteger(input.assetDecimals) ||
+    input.assetDecimals < 0 ||
+    input.assetDecimals > 36
+  ) {
+    return { safeAdditionalBase: 0n, safeAmountAtomic: 0n };
+  }
+  const liquidationAdjustedCollateral =
+    (input.totalCollateralBase * input.liquidationThresholdBps) / 10_000n;
+  const maximumDebtAtTarget =
+    (liquidationAdjustedCollateral * HEALTH_FACTOR_SCALE) /
+    input.targetHealthFactorScaled;
+  const targetAdditionalBase = maximumDebtAtTarget > input.totalDebtBase
+    ? maximumDebtAtTarget - input.totalDebtBase
+    : 0n;
+  const safeAdditionalBase = targetAdditionalBase < input.availableBorrowsBase
+    ? targetAdditionalBase
+    : input.availableBorrowsBase;
+  const rawAmount =
+    (safeAdditionalBase * 10n ** BigInt(input.assetDecimals)) /
+    input.assetPriceBase;
+  return {
+    safeAdditionalBase,
+    safeAmountAtomic: rawAmount < input.availableLiquidityAtomic
+      ? rawAmount
+      : input.availableLiquidityAtomic,
+  };
+}
 
 function controlled(code: string, message: string, statusCode = 400): Error {
   return Object.assign(new Error(message), { code, statusCode });
@@ -344,7 +394,7 @@ async function swap(intent: ParsedIntent, owner: Address) {
 }
 
 async function aave(intent: ParsedIntent, owner: Address) {
-  const action = intent.action as "lend" | "withdraw" | "borrow" | "repay" | "yield_compare";
+  const action = intent.action as "lend" | "withdraw" | "borrow" | "borrow_capacity" | "repay" | "yield_compare";
   const asset = token(intent.tokenIn) as ReturnType<typeof token> & {
     symbol: Erc20ArbitrumToken;
     address: Address;
@@ -384,6 +434,59 @@ async function aave(intent: ParsedIntent, owner: Address) {
     observedAt: new Date().toISOString(),
     mockData: false,
   };
+  if (action === "borrow_capacity") {
+    const [account, price, blockNumber] = await Promise.all([
+      arbitrumPublicClient.readContract({
+        address: ARBITRUM_CONTRACTS.aaveV3Pool,
+        abi: AAVE_V3_POOL_ABI,
+        functionName: "getUserAccountData",
+        args: [owner],
+      }),
+      arbitrumPublicClient.readContract({
+        address: ARBITRUM_CONTRACTS.aaveV3Oracle,
+        abi: AAVE_V3_ORACLE_ABI,
+        functionName: "getAssetPrice",
+        args: [asset.address],
+      }),
+      arbitrumPublicClient.getBlockNumber(),
+    ]);
+    const target = targetHealthFactor(intent, asset.symbol);
+    const capacity = calculateSafeBorrowCapacity({
+      totalCollateralBase: account[0],
+      totalDebtBase: account[1],
+      availableBorrowsBase: account[2],
+      liquidationThresholdBps: account[3],
+      assetPriceBase: price,
+      assetDecimals: asset.decimals,
+      availableLiquidityAtomic: availableLiquidity,
+      targetHealthFactorScaled: target,
+    });
+    return {
+      status: "success",
+      action,
+      actionType: action,
+      readOnly: true,
+      winnerMessage:
+        `At the pinned Arbitrum block, the Kletia risk-adjusted additional ${asset.symbol} borrow capacity is ${formatUnits(capacity.safeAmountAtomic, asset.decimals)} ${asset.symbol}. No transaction was created.`,
+      borrowCapacity: {
+        policyVersion: "kletia_aave_borrow_capacity_v1",
+        protocolId: "aave-v3",
+        asset: asset.symbol,
+        assetAddress: asset.address,
+        safeAmountAtomic: capacity.safeAmountAtomic.toString(),
+        safeAmount: formatUnits(capacity.safeAmountAtomic, asset.decimals),
+        safeAdditionalBase: capacity.safeAdditionalBase.toString(),
+        protocolAvailableBorrowsBase: account[2].toString(),
+        availableLiquidityAtomic: availableLiquidity.toString(),
+        targetHealthFactor: formatUnits(target, 18),
+        hardMinimumHealthFactor: "1.5",
+        currentHealthFactor:
+          account[1] === 0n ? null : formatUnits(account[5], 18),
+        observedAtBlock: blockNumber.toString(),
+        mockData: false,
+      },
+    };
+  }
   if (action === "yield_compare") {
     return {
       status: "success",
@@ -657,9 +760,9 @@ export async function executeArbitrumEngine(
   if (intent.action === "portfolio") return portfolio(owner);
   if (intent.action === "policy_agent") return buildPolicyAgent(intent, owner, "arbitrum");
   if (intent.action === "swap") return withGasReadiness(await swap(intent, owner), owner, "swap");
-  if (["lend", "withdraw", "borrow", "repay", "yield_compare"].includes(intent.action)) {
+  if (["lend", "withdraw", "borrow", "borrow_capacity", "repay", "yield_compare"].includes(intent.action)) {
     const result = await aave(intent, owner);
-    return intent.action === "yield_compare"
+    return intent.action === "yield_compare" || intent.action === "borrow_capacity"
       ? result
       : withGasReadiness(result, owner, intent.action);
   }

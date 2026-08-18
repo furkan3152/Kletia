@@ -5,7 +5,7 @@ import {
   parseUnits,
   type Address,
 } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import {
   BASE_STAKING_CONTRACTS,
   getBaseTokenDefinition,

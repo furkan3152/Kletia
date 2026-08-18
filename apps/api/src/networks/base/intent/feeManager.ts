@@ -1,6 +1,6 @@
 import { parseUnits, formatUnits, erc20Abi } from "viem";
-import { basePublicClient } from "../../../config/client.js";
-import { getAddressSafe } from "../utils.js";
+import { basePublicClient } from "../../../shared/config/client.js";
+import { getAddressSafe } from "../assets/tokenAddress.js";
 
 export function feePolicyActionForIntent(
   action: string,

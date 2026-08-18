@@ -2,30 +2,30 @@ import express from "express";
 import cors, { type CorsOptions } from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { parseUserIntent, type ParsedIntent } from "./ai/parser.js";
+import { parseUserIntent, type ParsedIntent } from "./shared/ai/parser.js";
 import {
   resolveIntentEntities,
   type EntityClarification,
   type IntentEntityResolutionEvidence,
-} from "./assets/resolver.js";
+} from "./shared/assets/resolver.js";
 import { executeKletiaEngine } from "./networks/base/engine.js";
 import { executeArcEngine } from "./networks/arc/engine.js";
 import { executeArbitrumEngine } from "./networks/arbitrum/engine.js";
-import workflowRoutes from "./workflows/routes.js";
-import { createVerifiedIntentResultEnvelope } from "./intent/responseEnvelope.js";
+import workflowRoutes from "./cross-chain/routes.js";
+import { createVerifiedIntentResultEnvelope } from "./shared/intent/responseEnvelope.js";
 import {
   RequestIdValidationError,
   requireIntentRequestId,
   resolveIntentRequestId,
-} from "./security/requestId.js";
-import { resolveIntentPublicError } from "./security/intentError.js";
+} from "./shared/security/requestId.js";
+import { resolveIntentPublicError } from "./shared/security/intentError.js";
 import premiumRoutes from "./networks/base/routes/premium.js";
 import { agentRoutes } from "./networks/base/routes/agent.js";
-import { validateAddress, sanitizePrompt } from "./middleware/security.js";
+import { validateAddress, sanitizePrompt } from "./shared/http/security.js";
 import jwt, { type JwtHeader } from "jsonwebtoken";
-import alloraRoutes from "./routes/allora.js";
+import alloraRoutes from "./integrations/allora/routes.js";
 import paymasterRoutes from "./networks/base/routes/paymaster.js";
-import webacyRoutes from "./routes/webacy.js";
+import webacyRoutes from "./integrations/webacy/routes.js";
 import arcRoutes from "./networks/arc/routes.js";
 import baseRoutes from "./networks/base/routes/protocols.js";
 import baseMcpRoutes from "./networks/base/routes/mcp.js";
@@ -34,21 +34,21 @@ import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { pathToFileURL } from "url";
 import { getAddress, zeroAddress } from "viem";
-import { resolveBasenameEvidence } from "./networks/base/utils.js";
+import { resolveBasenameEvidence } from "./networks/base/intent/basenameResolver.js";
 import {
   NETWORKS,
   NETWORK_CLIENTS,
   getPublicNetworkDescriptor,
   type NetworkId,
-} from "./config/networks.js";
+} from "./shared/config/networks.js";
 import {
   requireArcNetwork,
   requireArbitrumNetwork,
   requireBaseNetwork,
   requireFixedBaseNetwork,
   requireIntentNetwork,
-} from "./middleware/network.js";
-import "./config/productionEnvironment.js";
+} from "./shared/http/network.js";
+import "./shared/config/productionEnvironment.js";
 
 (BigInt.prototype as any).toJSON = function () {
   return this.toString();
@@ -796,14 +796,46 @@ app.post(
             ...responseMetadata,
           });
         }
-        const selectedReference = selectedOption
-          ? selectedOption.address || selectedOption.symbol
-          : String(prompt).trim();
-        parsedIntent = {
-          ...pending.intent,
-          [field]: selectedReference,
-          isComplete: true,
-        };
+        const workflowField = /^workflowSteps\.(\d+)\.(tokenIn|tokenOut|collateralToken|borrowToken)$/u.exec(field);
+        if (workflowField) {
+          const stepIndex = Number(workflowField[1]);
+          const assetField = workflowField[2] as "tokenIn" | "tokenOut";
+          if (
+            !selectedOption ||
+            !pending.intent.workflowSteps ||
+            !Number.isSafeInteger(stepIndex) ||
+            stepIndex < 0 ||
+            stepIndex >= pending.intent.workflowSteps.length ||
+            (assetField !== "tokenIn" && assetField !== "tokenOut")
+          ) {
+            return res.status(409).json({
+              success: false,
+              code: "CLARIFICATION_CONTEXT_INVALID",
+              error: "Workflow asset selection context is invalid.",
+              message: "Workflow asset selection context is invalid.",
+              ...responseMetadata,
+            });
+          }
+          const workflowSteps = pending.intent.workflowSteps.map((step, index) =>
+            index === stepIndex
+              ? { ...step, [assetField]: selectedOption.symbol }
+              : step,
+          );
+          parsedIntent = {
+            ...pending.intent,
+            workflowSteps,
+            isComplete: true,
+          };
+        } else {
+          const selectedReference = selectedOption
+            ? selectedOption.address || selectedOption.symbol
+            : String(prompt).trim();
+          parsedIntent = {
+            ...pending.intent,
+            [field]: selectedReference,
+            isComplete: true,
+          };
+        }
         resolutionPrompt = pending.originalPrompt;
 
         conversationSessions.delete(conversationId!);
@@ -851,7 +883,7 @@ app.post(
           question:
             parsedIntent.question ||
             parsedIntent.message ||
-            "Biraz daha bilgi gerekli.",
+            "A little more information is required.",
           message: parsedIntent.message,
           conversationId,
           conversationExpiresAt: Date.now() + CONVERSATION_TTL_MS,
@@ -929,16 +961,24 @@ app.post(
               req.kletiaBaseX402Challenge,
             );
 
-      const result = createVerifiedIntentResultEnvelope(
-        {
-          message: rawResult.winnerMessage || executableIntent.message,
-          ...rawResult,
-        },
-        network.id,
-        requestId,
-        userAddress,
-        resolutionEvidence,
-      );
+      const result =
+        rawResult.executionKind === "workflow_plan_v1" &&
+        rawResult.action === "workflow" &&
+        rawResult.entityResolution
+          ? {
+              message: rawResult.winnerMessage || executableIntent.message,
+              ...rawResult,
+            }
+          : createVerifiedIntentResultEnvelope(
+              {
+                message: rawResult.winnerMessage || executableIntent.message,
+                ...rawResult,
+              },
+              network.id,
+              requestId,
+              userAddress,
+              resolutionEvidence,
+            );
 
       return res.json({ success: true, result, ...result });
     } catch (error: any) {
@@ -1052,4 +1092,8 @@ if (isDirectExecution) {
   startServer().catch((error) => shutdownProcess(1, "STARTUP_FAILED", error));
 }
 
+// Vercel's Express runtime discovers a default-exported application. The
+// direct-execution guard above preserves the long-running Render/local server
+// path, while importing this module on Vercel never opens a port.
+export default app;
 export { app, httpServer };

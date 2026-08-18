@@ -1,6 +1,6 @@
 import { encodeFunctionData } from "viem";
 import { ROUTERS, KLETIA_TOKEN_FACTORY_ABI } from "../contracts.js";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import {
   resolveBaseTokenDeploymentConfig,
   type BaseTokenDeploymentConfig,

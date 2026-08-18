@@ -1,5 +1,5 @@
 import { encodeFunctionData, formatUnits } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import { TOKENS, ROUTERS, UNI_V2_ROUTER_ABI } from "../contracts.js";
 
 export interface StandardAmmProtocolDiagnostics {

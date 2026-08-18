@@ -6,10 +6,10 @@ import {
   parseAbi,
   type Address,
 } from "viem";
-import type { ParsedIntent } from "../../ai/parser.js";
-import { compileWorkflow } from "../../workflows/workflow.js";
-import { buildPolicyAgent } from "../../policies/policyAgent.js";
-import { basePublicClient } from "../../config/client.js";
+import type { ParsedIntent } from "../../shared/ai/parser.js";
+import { compileWorkflow } from "../../cross-chain/workflow.js";
+import { buildPolicyAgent } from "../../shared/policies/policyAgent.js";
+import { basePublicClient } from "../../shared/config/client.js";
 import { getPortfolio } from "./portfolio/viewer.js";
 import { handleBaseName } from "./intent/basename.js";
 import { handleTokenDeployment } from "./creator/token.js";
@@ -19,7 +19,7 @@ import {
   applyKletiaFee,
   feePolicyActionForIntent,
 } from "./intent/feeManager.js";
-import { xRaySimulate } from "./security.js";
+import { xRaySimulate } from "./security/simulation.js";
 import {
   handleSmartSwap,
   handleDeFiBanking,
@@ -30,7 +30,7 @@ import {
   handleYieldCompare,
 } from "./handlers.js";
 
-import KletiaSmartRouterABI from "./KletiaSmartRouter.abi.json" with { type: "json" };
+import KletiaSmartRouterABI from "./abis/KletiaSmartRouter.json" with { type: "json" };
 import {
   assertBaseX402PaymentPromptBinding,
   buildBaseMcpX402Plan,
@@ -40,9 +40,9 @@ import {
 import { buildSwapRankingEvidence, rankSwapRoutes } from "./routingPolicy.js";
 import { resolveConfiguredBaseSwapExecution } from "./config/intentRouterV2Environment.js";
 import { executeBaseIntentV2Swap } from "./intent/routerV2Integration.js";
-import { agentLogRoom, emitAgentLog } from "../../observability/agentLog.js";
+import { agentLogRoom, emitAgentLog } from "../../shared/observability/agentLog.js";
 
-export { agentLogRoom, emitAgentLog } from "../../observability/agentLog.js";
+export { agentLogRoom, emitAgentLog } from "../../shared/observability/agentLog.js";
 
 const KLETIA_ROUTER_ADDRESS = getAddress(
   "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",

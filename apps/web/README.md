@@ -1,7 +1,20 @@
 # Kletia Web
 
-The canonical Kletia browser application. One React shell hosts two isolated
-execution profiles: Base Mainnet and Arc Testnet.
+The canonical Kletia browser application. One React shell hosts three isolated
+execution profiles: Base Mainnet, Arc Testnet, and the capability-gated
+Arbitrum One Public Beta.
+
+## Source ownership
+
+- `src/app`: the application composition root and global theme stylesheet.
+- `src/networks/base`, `src/networks/arc`, `src/networks/arbitrum`: network-owned
+  UI, runtime bindings, transaction policies, and wallet-facing evidence.
+- `src/shared`: reusable chat, layout, state, configuration, hooks, types,
+  validation, and utility code. Shared code may coordinate profiles but may not
+  construct an unscoped transaction.
+- `src/cross-chain`: the staged workflow timeline. Cross-chain plans are not
+  represented as globally atomic.
+- `src/integrations`: external provider interfaces such as Allora and Webacy.
 
 ## Commands
 
@@ -20,7 +33,6 @@ Configuration is documented in [`.env.example`](.env.example). Browser-facing
 `VITE_*` values are public and must never contain private keys or server API
 secrets.
 
-Network-specific runtime code lives under `src/networks/base` and
-`src/networks/arc`. Network-owned interface modules live under
-`src/components/base` and `src/components/arc`. Shared layout, chat, state,
-and security boundaries remain at `src` level.
+Arbitrum remains hidden unless `VITE_ARBITRUM_MVP_ENABLED=true`. The matching
+API capability must also be enabled and attested; the browser flag alone does
+not authorize an Arbitrum route.

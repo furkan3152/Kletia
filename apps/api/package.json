@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=22.13.0"
   },
-  "description": "Unified Kletia intent API for Base Mainnet and Arc Testnet",
+  "description": "Unified Kletia intent API for Base Mainnet, Arc Testnet, and capability-gated Arbitrum workflows",
   "main": "dist/index.js",
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",

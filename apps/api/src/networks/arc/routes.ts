@@ -24,11 +24,11 @@ import {
   ARC_VAULT_V2_RUNTIME_CODEHASH,
   NETWORKS,
   arcPublicClient,
-} from "../../config/networks.js";
+} from "../../shared/config/networks.js";
 import {
   ControlledRouteError,
   resolvePublicRouteFailure,
-} from "../../security/routeError.js";
+} from "../../shared/security/routeError.js";
 
 const router = Router();
 const arc = NETWORKS.arc;

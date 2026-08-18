@@ -1,8 +1,8 @@
 import { parseAbi, encodeFunctionData, type Address, type Hex } from "viem";
 import { namehash, normalize } from "viem/ens";
-import { ParsedIntent } from "../../../ai/parser.js";
-import { basePublicClient } from "../../../config/client.js";
-import { BASE_CONTRACTS } from "../../../config/networks.js";
+import { ParsedIntent } from "../../../shared/ai/parser.js";
+import { basePublicClient } from "../../../shared/config/client.js";
+import { BASE_CONTRACTS } from "../../../shared/config/networks.js";
 
 export const BASENAME_REGISTRAR_ABI = parseAbi([
   "function registerPrice(string name, uint256 duration) view returns (uint256)",

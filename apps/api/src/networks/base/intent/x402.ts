@@ -4,10 +4,10 @@ import { request as httpsRequest } from "node:https";
 import { BlockList, isIP } from "node:net";
 import { formatUnits, getAddress, isAddress, parseUnits } from "viem";
 import { z } from "zod";
-import type { ParsedIntent } from "../../../ai/parser.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
 import { TOKENS } from "../contracts.js";
-import { NETWORKS } from "../../../config/networks.js";
-import { containsSensitivePromptMaterial } from "../../../security/promptSecrets.js";
+import { NETWORKS } from "../../../shared/config/networks.js";
+import { containsSensitivePromptMaterial } from "../../../shared/security/promptSecrets.js";
 
 const BASE_CAIP_NETWORK = `eip155:${NETWORKS.base.chainId}` as const;
 const CDP_BAZAAR_SEARCH_URL =

@@ -1,5 +1,5 @@
 import { erc20Abi, formatUnits, getAddress } from "viem";
-import { basePublicClient } from "../../../config/client.js";
+import { basePublicClient } from "../../../shared/config/client.js";
 import {
   AAVE_V3_BASE,
   BASE_STAKING_CONTRACTS,

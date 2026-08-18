@@ -1,6 +1,6 @@
 import { getAddress, isAddress, keccak256, parseUnits, toBytes } from "viem";
 
-import type { ArcAppKitExecutionPlan, IntentResponse } from "../../../types";
+import type { ArcAppKitExecutionPlan, IntentResponse } from "../../../shared/types";
 
 const ACTION_OPERATION = {
   stable_swap: "swap",

@@ -4,7 +4,7 @@ import {
   isBaseX402ChallengeEvidence,
   type BaseMcpX402Plan,
   type BaseX402ChallengeEvidence,
-} from "../../../types";
+} from "../../../shared/types";
 
 const BASE_CHAIN_ID = 8_453;
 const SESSION_ID = /^[0-9a-f]{64}$/u;

@@ -14,7 +14,7 @@ import {
   ARC_CONTRACTS,
   NETWORKS,
   arcPublicClient,
-} from "../../config/networks.js";
+} from "../../shared/config/networks.js";
 
 const SECONDS_PER_DAY = 86_400n;
 const SECONDS_PER_YEAR = 31_536_000n;

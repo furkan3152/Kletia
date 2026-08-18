@@ -468,19 +468,14 @@ trade-size price impact, or impermanent-loss outcomes.
 
 ## Verification commands
 
-Use Node `20.19.0` or newer and a private Base Mainnet RPC where possible. From
+Use Node `22.13.0` or newer and a dedicated Base Mainnet RPC. From
 the repository root:
 
 ```bash
 cd apps/api
 node --version
 npm run typecheck
-node node_modules/vitest/vitest.mjs run \
-  src/tests/base-protocol-registry.test.ts \
-  src/tests/fee-router-compatibility.test.ts \
-  src/tests/efficiency-engine.test.ts \
-  src/tests/dex-quote-availability.test.ts \
-  src/tests/lending-market-status.test.ts
+npm test
 BASE_RPC_URL="https://replace-with-a-private-base-mainnet-rpc" \
   npm run verify:base-registry
 ```

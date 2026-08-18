@@ -8,7 +8,7 @@ import {
   readBaseX402AttestationRegistryStatus,
   verifyBaseX402AttestationClaim,
 } from "../intent/x402AttestationRegistry.js";
-import { NETWORKS } from "../../../config/networks.js";
+import { NETWORKS } from "../../../shared/config/networks.js";
 
 const router = Router();
 

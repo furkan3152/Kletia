@@ -3,17 +3,19 @@
 ## Product model
 
 Kletia is an intent-driven aggregator with one canonical application shell and
-two deliberately isolated execution profiles:
+three deliberately isolated execution profiles:
 
-| Profile | Network                 | Settlement asset                             | Purpose                                                                               |
-| ------- | ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `base`  | Base Mainnet (`8453`)   | ETH for gas; Base assets such as native USDC | Production DeFi aggregation, x402 discovery/payment flows and Base-native experiences |
-| `arc`   | Arc Testnet (`5042002`) | Native USDC                                  | Arc-native programmable-money flows, App Kit integrations and testnet experimentation |
+| Profile     | Network                 | Settlement asset                                 | Purpose                                                                               |
+| ----------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `base`      | Base Mainnet (`8453`)   | ETH for gas; Base assets such as canonical USDC | Production DeFi aggregation, x402 discovery/payment flows and Base-native experiences |
+| `arc`       | Arc Testnet (`5042002`) | Native USDC                                      | Arc-native programmable-money flows, App Kit integrations and testnet experimentation |
+| `arbitrum`  | Arbitrum One (`42161`)  | ETH for gas; reviewed Arbitrum assets            | Capability-gated Public Beta for Uniswap V3, Aave V3 and staged Across workflows      |
 
 Changing the profile is not a cosmetic RPC toggle. The wallet chain, intent
 parser context, supported actions, contract registry, native asset metadata,
 widgets, conversation state and response validation all change together. A
-Base response cannot be executed while Arc is active, and vice versa.
+response can execute only in the exact network, chain, wallet and request
+session for which it was prepared.
 
 The canonical runtime is:
 
@@ -26,6 +28,8 @@ The canonical runtime is:
 Arc is a first-class profile in the unified runtime, not a copied application.
 Network-specific contract packages remain independent so their compiler,
 deployment, verification, and credential boundaries cannot silently cross.
+Arbitrum uses reviewed external protocol deployments and does not add a Kletia
+contract package in the current MVP.
 
 ## Intent lifecycle
 
@@ -50,6 +54,11 @@ Network-bound response envelope
              v
 Explicit wallet approval and user-confirmed execution
 ```
+
+For a staged Base-to-Arbitrum request, a sealed workflow graph sits between
+route construction and wallet approval. The API prepares only the current
+step, verifies its receipt or Across lifecycle evidence, then produces a fresh
+short-lived next step. It does not claim a global cross-chain rollback.
 
 User-facing aggregator widgets do not bypass the intent engine. They create
 structured, editable text seeds for the same parser and routing pipeline used
@@ -97,6 +106,45 @@ The Arc profile remains testnet-only. Testnet balances, quotes and execution
 results must not be presented as Base Mainnet value or production guarantees.
 The existing deployed Arc contracts are not modified by the unified
 application architecture.
+
+## Arbitrum One Public Beta
+
+Arbitrum is capability-gated independently in the API and web build. The API
+attests chain `42161`, reviewed contract bytecode, and Aave provider identities
+before returning a route. Its current bounded surface is:
+
+- live ETH, WETH, native USDC and ARB balances;
+- exact-input Uniswap V3 quotes across reviewed fee tiers;
+- Aave V3 supply, withdraw, variable-rate borrow, repay and reserve reads;
+- read-only, oracle- and liquidity-bound additional borrow capacity at the
+  selected Kletia target health factor;
+- planning-only policy-agent generation;
+- staged Base-to-Arbitrum Across workflows.
+
+Borrow planning uses live collateral, debt, liquidity and oracle data and
+rejects a projected health factor below `1.5`. Arbitrum never inherits Base
+x402 targets or Arc native-USDC contract semantics.
+
+## Cross-chain workflow boundary
+
+`WorkflowPlanV1` is an HMAC-sealed server artifact for Base and Arbitrum steps.
+Each executable step binds its wallet, network, chain ID, target, calldata hash,
+native value and quote expiry. `advance` and `resume` verify onchain receipts or
+Across fill/refund state before preparing another step.
+
+The workflow amount model distinguishes an explicit amount, a pinned source
+wallet balance and the previous step's output. Swap output is taken from the
+confirmed token `Transfer` to the workflow wallet. Across output requires both
+the lifecycle fill proof and the destination token receipt. This prevents a
+pre-existing destination balance from being treated as newly routed capital.
+An unsupported native-asset representation returns a structured selection
+checkpoint; the server propagates the selected reviewed asset and inserts a
+reviewed destination swap only when the graph requires it.
+
+Base x402 may appear as an explicit `data_purchase` step and retains its exact
+EIP-3009 nonce and settlement-log requirements. Gas acquisition is an explicit
+exact-output Across step with a user-visible Base USDC ceiling. Neither step
+spends automatically. Arc Testnet is rejected from this mainnet workflow graph.
 
 ## Execution and custody boundaries
 

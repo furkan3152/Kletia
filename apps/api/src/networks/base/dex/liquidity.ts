@@ -1,4 +1,4 @@
-import { getAddressSafe } from "../utils.js";
+import { getAddressSafe } from "../assets/tokenAddress.js";
 import { buildAddLiquidityRoutes } from "./addLiquidity.js";
 import { buildRemoveLiquidityRoutes } from "./removeLiquidity.js";
 

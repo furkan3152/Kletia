@@ -12,7 +12,7 @@ import type {
   SwapEstimate,
   SwapResult,
 } from "@circle-fin/app-kit";
-import type { ArcAppKitExecutionPlan, ArcAppKitToken } from "../../../types";
+import type { ArcAppKitExecutionPlan, ArcAppKitToken } from "../../../shared/types";
 
 const ARC_CHAIN_ID = 5_042_002;
 const DECIMAL_INPUT = /^(?:\d+\.?\d*|\.\d+)$/;

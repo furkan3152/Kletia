@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ParsedIntent } from "../../../ai/parser.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
 import type { IntentV2ExecutionConfig } from "./routerV2.js";
 import { executeBaseIntentV2Swap } from "./routerV2Integration.js";
 

@@ -1,6 +1,7 @@
 import { defineChain, type Address, type Chain } from "viem";
 import { base } from "viem/chains";
 import { ARC_CONTRACTS } from "../networks/arc/config";
+import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
 import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
 export type NetworkMode = "base" | "arc";
@@ -270,7 +271,7 @@ export const NETWORKS = {
             action: {
               type: "prompt",
               prompt:
-                "Compare the best Base yield and liquidity for USDC",
+                "Compare best yield for USDC among Aave, Moonwell, and Compound on Base Mainnet without preparing a transaction",
             },
           },
           {
@@ -280,7 +281,7 @@ export const NETWORKS = {
             action: {
               type: "prompt",
               prompt:
-                "Compare the lowest borrow rate and liquidity for USDC",
+                "Compare USDC borrow rates and available liquidity across Aave, Moonwell, and Compound on Base Mainnet without preparing a transaction",
             },
           },
           {
@@ -289,7 +290,8 @@ export const NETWORKS = {
             icon: "swap",
             action: {
               type: "prompt",
-              prompt: "Buy AERO with 10 USDC, find the most efficient verified route",
+              prompt:
+                "Buy AERO with 10 USDC on Base Mainnet using the most efficient verified route and show the expected output before execution",
             },
           },
           {
@@ -298,7 +300,8 @@ export const NETWORKS = {
             icon: "staking",
             action: {
               type: "prompt",
-              prompt: "100 WELL stake et",
+              prompt:
+                "Stake 100 WELL in the Moonwell Safety Module on Base Mainnet and show the expected stkWELL output and risks before execution",
             },
           },
         ],
@@ -396,7 +399,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Help me prepare an Arc USDC to KLET swap",
+              prompt:
+                "Swap 1 native USDC to KLET on Arc Testnet using the live on-chain Kletia route; simulate it before wallet approval",
             },
           },
           {
@@ -406,7 +410,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Help me prepare an Arc time vault deposit",
+              prompt:
+                "Deposit 1 native USDC into the Kletia Vault on Arc Testnet; prepare the time-locked vault route and simulate it before wallet approval",
             },
           },
           {
@@ -416,7 +421,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Help me prepare an Arc staking deposit",
+              prompt:
+                "Stake 1 native USDC in Kletia Staking on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
           },
           {
@@ -426,7 +432,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Batch transfer USDC via Kletia Omni-Engine",
+              prompt:
+                `Atomically pay 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval`,
             },
           },
           {
@@ -436,7 +443,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Send USDC with a memo via Kletia Omni-Engine",
+              prompt:
+                `Send 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} through Kletia Memo Pay on Arc Testnet with the permanent public on-chain memo "KLETIA-DEMO-001"; simulate it before wallet approval`,
             },
           },
           {
@@ -446,7 +454,8 @@ export const NETWORKS = {
             feature: "arcContracts",
             action: {
               type: "prompt",
-              prompt: "Add USDC and KLET liquidity to the Kletia pool",
+              prompt:
+                "Add 1 native USDC liquidity to the KLET/USDC pool on Arc Testnet and spend at most 10 KLET; calculate and show the live requirement and enforce that hard cap before wallet approval",
             },
           },
         ],

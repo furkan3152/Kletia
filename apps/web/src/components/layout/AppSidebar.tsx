@@ -1,4 +1,5 @@
 import React from "react";
+import { useAccount } from "wagmi";
 import {
   Briefcase,
   ChevronRight,
@@ -21,6 +22,10 @@ import {
   type NavigationIcon,
   type NetworkNavigationItem,
 } from "../../config/networks";
+import {
+  materializeIntentExample,
+  requiresActiveWalletAddress,
+} from "../../config/intentExamples";
 import { useNetwork } from "../../hooks/useNetwork";
 import { useAppStore } from "../../store/useAppStore";
 import { NetworkSwitcher } from "./NetworkSwitcher";
@@ -62,6 +67,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onWidgetClick,
 }) => {
   const { isDarkMode, toggleTheme, clearMessages } = useAppStore();
+  const { address } = useAccount();
   const { networkMode, network, toggleNetwork, isSwitching, switchError } =
     useNetwork();
 
@@ -104,7 +110,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     if (item.action.type === "tab") {
       setActiveTab(item.action.tab);
     } else {
-      onWidgetClick(item.action.prompt);
+      const prompt = materializeIntentExample(item.action.prompt, address);
+      if (!prompt) return;
+      onWidgetClick(prompt);
     }
 
     if (window.innerWidth < 768) {
@@ -197,13 +205,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   item.action.type === "tab" &&
                   activeTab === item.action.tab &&
                   !isPortfolioOpen;
+                const needsWallet =
+                  item.action.type === "prompt" &&
+                  requiresActiveWalletAddress(item.action.prompt);
+                const isDisabled = needsWallet && !address;
 
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => handleNavigation(item)}
-                    className={navItemClass(isActive)}
+                    disabled={isDisabled}
+                    title={
+                      isDisabled
+                        ? "Connect a wallet to insert its address into this editable example."
+                        : undefined
+                    }
+                    className={`${navItemClass(isActive)} disabled:cursor-not-allowed disabled:translate-x-0 disabled:opacity-55 disabled:shadow-none`}
                     style={
                       isActive ? { backgroundColor: network.color } : undefined
                     }

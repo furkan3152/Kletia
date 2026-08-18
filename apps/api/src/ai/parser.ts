@@ -2569,6 +2569,32 @@ export function parseDeterministicArcIntent(
   }
 
   match = new RegExp(
+    `^Repay ${ARC_WIDGET_AMOUNT} native USDC to Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval$`,
+    "i",
+  ).exec(prompt);
+  if (match) {
+    return deterministicIntent({
+      action: "lending_repay",
+      tokenIn: "USDC",
+      amount: match[1],
+      message: "Preparing the Arc native USDC repayment.",
+    });
+  }
+
+  match = new RegExp(
+    `^Withdraw ${ARC_WIDGET_AMOUNT} KLET collateral from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval$`,
+    "i",
+  ).exec(prompt);
+  if (match) {
+    return deterministicIntent({
+      action: "lending_withdraw",
+      tokenIn: "KLET",
+      amount: match[1],
+      message: "Preparing the Arc KLET collateral withdrawal.",
+    });
+  }
+
+  match = new RegExp(
     `^Swap ${ARC_WIDGET_AMOUNT} (native USDC|KLET) to (KLET|native USDC) on Arc Testnet using the live on-chain Kletia route; simulate it before wallet approval$`,
     "i",
   ).exec(prompt);
@@ -2827,6 +2853,18 @@ export function parseDeterministicArcIntent(
       action: "portfolio",
       amount: "0",
       message: "Reading the Arc portfolio and route availability.",
+    });
+  }
+
+  if (
+    /^Show my Arc staking, vault and lending positions using live onchain data$/i.test(
+      prompt,
+    )
+  ) {
+    return deterministicIntent({
+      action: "portfolio",
+      amount: "0",
+      message: "Reading the live Arc staking, vault, and lending positions.",
     });
   }
 

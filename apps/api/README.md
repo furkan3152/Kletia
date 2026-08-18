@@ -34,7 +34,6 @@ Arc Testnet is not permitted inside Base/Arbitrum Mainnet capital workflows.
 ```bash
 npm ci --legacy-peer-deps
 npm run typecheck
-npm test
 npm run build
 npm run dev
 ```

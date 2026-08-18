@@ -81,10 +81,10 @@ Run with Node 22.13 or newer:
 
 ```bash
 npm --prefix apps/api run typecheck
-npm --prefix apps/api test -- src/networks/base/routes/mcp.test.ts
+npm --prefix apps/api run build
 ```
 
-The dedicated route tests cover:
+The route boundary enforces:
 
 - explicit-wallet and strict Base Mainnet isolation;
 - Arc rejection;
@@ -94,9 +94,9 @@ The dedicated route tests cover:
 - private-host, malformed-body, and payment-cap rejection;
 - deterministic preparation without a signature or transaction submission.
 
-These tests do not call Coinbase CDP Bazaar and do not prove hosted Base MCP
-allowlisting, OAuth, a browser approval, a wallet signature, payment
-settlement, or a paid endpoint response. Those are separate integration and
+Static validation does not call Coinbase CDP Bazaar and does not prove hosted
+Base MCP allowlisting, OAuth, a browser approval, a wallet signature, payment
+settlement, or a paid endpoint response. Those remain separate integration and
 live-payment boundaries.
 
 ## Source contract

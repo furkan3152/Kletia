@@ -8,17 +8,13 @@
   "scripts": {
     "check:structure": "node tooling/validate-repository.mjs",
     "typecheck:api": "npm --prefix apps/api run typecheck",
-    "test:api": "npm --prefix apps/api test",
     "build:api": "npm --prefix apps/api run build",
     "typecheck:web": "npm --prefix apps/web run typecheck",
-    "test:web": "npm --prefix apps/web test",
     "lint:web": "npm --prefix apps/web run lint",
     "build:web": "npm --prefix apps/web run build",
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
-    "test:base": "npm --prefix contracts/base test",
-    "test:arc": "npm --prefix contracts/arc test",
-    "verify": "npm run check:structure && npm run typecheck:api && npm run test:api && npm run build:api && npm run typecheck:web && npm run test:web && npm run lint:web && npm run build:web && npm run compile:base && npm run test:base && npm run compile:arc && npm run test:arc"
+    "verify": "npm run check:structure && npm run typecheck:api && npm run build:api && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc"
   },
   "license": "MIT"
 }

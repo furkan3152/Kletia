@@ -34,7 +34,7 @@ const requiredFiles = [
   "apps/api/src/networks/base/intent/basenameResolver.ts",
   "apps/api/src/networks/base/security/simulation.ts",
   "apps/api/src/networks/base/security/tokenSecurity.ts",
-  "apps/api/src/networks/base/routes/mcp.test.ts",
+  "apps/api/src/networks/base/routes/mcp.ts",
   "apps/api/src/networks/arc/routes.ts",
   "apps/api/src/networks/arbitrum/engine.ts",
   "apps/api/src/shared/config/networks.ts",

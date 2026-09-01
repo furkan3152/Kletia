@@ -4,6 +4,7 @@ import { readStellarPathQuote, readStellarPortfolio, readStellarReadiness } from
 import { STELLAR_TESTNET } from "./config.js";
 import {
   readArchivedTransactionEvents,
+  readStellarArchiveCoverage,
   readStellarEventArchiveStatus,
 } from "./eventArchive.js";
 import { readStellarProtocolManifest } from "./protocolManifest.js";
@@ -444,6 +445,19 @@ router.get("/protocol-manifest", async (_req, res) => {
 router.get("/archive/status", async (_req, res) => {
   try {
     return res.json({ success: true, archive: await readStellarEventArchiveStatus() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+router.get("/archive/coverage", async (_req, res) => {
+  try {
+    const readiness = await readStellarReadiness();
+    const archiveCoverage = await readStellarArchiveCoverage({
+      rpcOldestLedger: readiness.rpcOldestLedger,
+      rpcLatestLedger: readiness.rpcLatestLedger,
+    });
+    return res.json({ success: true, archiveCoverage });
   } catch (error) {
     return sendError(res, error);
   }

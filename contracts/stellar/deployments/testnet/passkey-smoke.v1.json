@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "kletia_stellar_passkey_smoke_v1",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "observedAt": "2026-09-01T22:31:07Z",
+  "origin": "http://localhost:5174",
+  "account": {
+    "contractId": "CDBOXDLFV35X6YIKVH2KPZM7A7QHLUBWKGAZ4RL4DNUWDNYG3SROG47Q",
+    "accountWasmHash": "1b5f4534a76322da2ad7c745f6900857a6802b0ca79850c35a03561df997785a",
+    "webauthnVerifierAddress": "CC7EKIHQP3TN4CARQDND6CEOY2UXLWWC2X5GHTD5NLAT7BG5GPZIOM3F",
+    "nativeTokenContract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+    "smartAccountKitVersion": "0.6.2"
+  },
+  "transactions": {
+    "create": {
+      "hash": "83656719db364369f5d5752d31fb794184949b7965f421c8b4fc54f9b8b0e274",
+      "ledger": 4455650,
+      "status": "SUCCESS"
+    },
+    "fund": {
+      "hash": "7884ae58bfa8af375006d675ca311434a9ba5ad4dfd5b2ff816782866c99cec2",
+      "ledger": 4455653,
+      "status": "SUCCESS",
+      "observedBalanceXlm": "9995.0000000"
+    },
+    "transfer": {
+      "hash": "7785435a9e561ee51ded66bde6d2da51fe02f20dd559db7cb9c8c1ec22d5e0f4",
+      "ledger": 4455656,
+      "status": "SUCCESS",
+      "assetContract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      "asset": "XLM",
+      "amount": "0.1000000",
+      "amountAtomic": "1000000",
+      "recipient": "GBRBZ3MFLRUHYXBAADPYLU3OHFK7BY27FP7XN5PEEW43BMONNY7I7GIV",
+      "observedSenderBalanceXlm": "9994.9000000",
+      "observedRecipientBalanceXlm": "10000.1000000"
+    }
+  },
+  "authenticatorEvidence": {
+    "algorithm": "secp256r1",
+    "webauthnCredentialCount": 1,
+    "virtualAuthenticator": true,
+    "physicalUserVerificationObserved": false,
+    "credentialMaterialCommitted": false
+  },
+  "claimBoundary": {
+    "realTestnetContractDeployment": true,
+    "realTestnetFunding": true,
+    "realTestnetPasskeyAuthorizedTransfer": true,
+    "browserIntentPathUsed": true,
+    "humanBiometricCeremony": false,
+    "publicHttpsDeployment": false,
+    "mainnet": false,
+    "productionReady": false
+  }
+}

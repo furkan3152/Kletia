@@ -145,6 +145,51 @@ assert.deepEqual(
   ],
   "Arc dependency and exact-action mapping",
 );
+const privateArcWorkflow = parseDeterministicArcIntent(
+  "swap [[private amount]] USDC to KLET after this lend [[private amount]] KLET",
+);
+expectIntent(privateArcWorkflow, {
+  action: "workflow",
+  complete: false,
+  amount: "0",
+  steps: ["swap", "lend"],
+}, "Arc private-field workflow stays deterministic");
+assert.deepEqual(
+  privateArcWorkflow?.workflowSteps?.map((step) => step.amount),
+  ["0", "0"],
+  "Arc private values must never be replaced by executable parser sentinels",
+);
+const privateArcTransfer = parseDeterministicArcIntent(
+  "send [[private amount]] USDC to [[private recipient]]",
+);
+expectIntent(privateArcTransfer, {
+  action: "appkit_send",
+  complete: false,
+  amount: "0",
+}, "Arc private transfer stays deterministic");
+assert.equal(privateArcTransfer?.recipient, undefined, "Private recipient remains device-local");
+const privateArcLiquidity = parseDeterministicArcIntent(
+  "Add [[private amount]] native USDC liquidity to the KLET/USDC pool on Arc Testnet and spend at most [[private amount]] KLET; calculate and show the live requirement and enforce that hard cap before wallet approval",
+);
+expectIntent(privateArcLiquidity, {
+  action: "add_liquidity",
+  complete: false,
+  amount: "0",
+}, "Arc private two-amount liquidity intent stays non-executable");
+assert.equal(privateArcLiquidity?.secondaryAmount, "0", "Private liquidity cap remains device-local");
+const privateArcPayout = parseDeterministicArcIntent(
+  "Atomically pay [[private amount]] native USDC to [[private recipient]] on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval",
+);
+expectIntent(privateArcPayout, {
+  action: "atomic_payout",
+  complete: false,
+  amount: "0",
+}, "Arc private payout stays non-executable");
+assert.deepEqual(
+  privateArcPayout?.transfers,
+  [{ amount: "0", recipient: "" }],
+  "Private payout fields must never be replaced by executable parser sentinels",
+);
 expectIntent(
   parseDeterministicArcIntent("sell 1.25 million KLET then lend 5 USDC"),
   { action: "workflow", complete: false },
@@ -194,6 +239,18 @@ expectIntent(arbitrumWorkflow, {
 }, "Arbitrum three-step workflow");
 expectIntent(
   parseDeterministicArbitrumIntent(
+    "swap [[private amount]] USDC to WETH after this lend it then borrow [[private amount]] USDC",
+  ),
+  {
+    action: "workflow",
+    complete: false,
+    amount: "0",
+    steps: ["swap", "lend", "borrow"],
+  },
+  "Arbitrum private-field workflow stays deterministic",
+);
+expectIntent(
+  parseDeterministicArbitrumIntent(
     "swap 5 USDC to WETH, then lend the WETH on Aave",
   ),
   { action: "workflow", steps: ["swap", "lend"] },
@@ -225,6 +282,18 @@ for (const network of ["base", "arc", "arbitrum"] as const) {
     `${network}: unmatched wording requires explicit semantic consent`,
   );
 }
+
+const privateBaseWorkflow = await parseUserIntent(
+  "swap [[private amount]] USDC to WETH then bridge it to Arbitrum then lend it on Aave",
+  [],
+  "base",
+);
+expectIntent(privateBaseWorkflow, {
+  action: "workflow",
+  complete: false,
+  amount: "0",
+  steps: ["swap", "bridge", "lend"],
+}, "Private Base-to-Arbitrum workflow does not request semantic AI consent");
 
 // Exercise the AI response boundary without external network calls. The model
 // supplies semantics only; prompt-bound actions, assets and amounts are still

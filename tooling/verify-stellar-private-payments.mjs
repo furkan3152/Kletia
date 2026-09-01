@@ -55,10 +55,11 @@ expect(
   "the shielded intent surface lost its local-only compiler or indeterminate-submission lock",
 );
 expect(
-  stageScript.includes("source-bundle.tar.gz") &&
+    stageScript.includes("source-bundle.tar.gz") &&
     stageScript.includes("circuits/NOTICE.txt") &&
     stageScript.includes("licenses/LGPL-3.0.txt") &&
-    webPackage.scripts?.build?.includes("stage-stellar-private-payments.mjs"),
+    webPackage.scripts?.["build:labs"]?.includes("stage-stellar-private-payments.mjs") &&
+    !webPackage.scripts?.build?.includes("stage-stellar-private-payments.mjs"),
   "the distributed circuit artifacts lost their notices, corresponding source or build staging gate",
 );
 

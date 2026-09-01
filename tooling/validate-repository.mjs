@@ -59,6 +59,7 @@ const requiredFiles = [
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
   "contracts/stellar/deployments/testnet/release-operator.v1.json",
+  "contracts/stellar/deployments/testnet/passkey-smoke.v1.json",
   "render.yaml",
   "attachments/GASOK_Team_Archial.md",
   "attachments/Kletia_Arc_Submission.pdf",
@@ -248,6 +249,12 @@ const stellarReleaseOperator = JSON.parse(
     "utf8",
   ),
 );
+const stellarPasskeySmoke = JSON.parse(
+  readFileSync(
+    "contracts/stellar/deployments/testnet/passkey-smoke.v1.json",
+    "utf8",
+  ),
+);
 if (
   stellarReleaseOperator.schemaVersion !==
     "kletia_stellar_release_operator_v1" ||
@@ -267,6 +274,26 @@ if (
   stellarReleaseOperator.roleBoundary?.mainnetAuthority !== false
 ) {
   fail("the Stellar Testnet release-operator boundary is invalid");
+}
+if (
+  stellarPasskeySmoke.schemaVersion !== "kletia_stellar_passkey_smoke_v1" ||
+  stellarPasskeySmoke.network !== "stellar_testnet" ||
+  !/^C[A-Z2-7]{55}$/u.test(stellarPasskeySmoke.account?.contractId || "") ||
+  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.create?.hash || "") ||
+  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.fund?.hash || "") ||
+  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.transfer?.hash || "") ||
+  stellarPasskeySmoke.transactions?.transfer?.amountAtomic !== "1000000" ||
+  stellarPasskeySmoke.authenticatorEvidence?.algorithm !== "secp256r1" ||
+  stellarPasskeySmoke.authenticatorEvidence?.virtualAuthenticator !== true ||
+  stellarPasskeySmoke.authenticatorEvidence?.physicalUserVerificationObserved !== false ||
+  stellarPasskeySmoke.authenticatorEvidence?.credentialMaterialCommitted !== false ||
+  stellarPasskeySmoke.claimBoundary?.realTestnetPasskeyAuthorizedTransfer !== true ||
+  stellarPasskeySmoke.claimBoundary?.humanBiometricCeremony !== false ||
+  stellarPasskeySmoke.claimBoundary?.publicHttpsDeployment !== false ||
+  stellarPasskeySmoke.claimBoundary?.mainnet !== false ||
+  stellarPasskeySmoke.claimBoundary?.productionReady !== false
+) {
+  fail("the Stellar Testnet passkey smoke boundary is invalid");
 }
 
 const coreMvpRunner = readFileSync("apps/api/scripts/run-mvp-local.mjs", "utf8");

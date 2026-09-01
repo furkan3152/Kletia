@@ -2394,6 +2394,104 @@ function splitOrderedIntentClauses(prompt: string): string[] {
     .filter(Boolean);
 }
 
+const PRIVATE_AMOUNT_SLOT = /\[\[\s*private\s+amount\s*\]\]/iu;
+const PRIVATE_AMOUNT_SLOT_GLOBAL = /\[\[\s*private\s+amount\s*\]\]/giu;
+const PRIVATE_RECIPIENT_SLOT = /\[\[\s*private\s+recipient\s*\]\]/iu;
+const PRIVATE_RECIPIENT_SLOT_GLOBAL = /\[\[\s*private\s+recipient\s*\]\]/giu;
+const PRIVATE_AMOUNT_PARSE_SENTINEL = "0.000001";
+const PRIVATE_RECIPIENT_PARSE_SENTINEL =
+  "0x000000000000000000000000000000000000dEaD";
+
+/**
+ * Private composer placeholders describe the transaction structure without
+ * disclosing the economic value. Feed non-executable sentinels through the
+ * ordinary deterministic grammar, then remove them before returning the
+ * intent. This keeps ordered actions out of the semantic-model fallback while
+ * making it impossible to compile a money-moving route before the browser
+ * supplies the private fields.
+ */
+function preparePrivateFieldSlots(prompt: string): string {
+  return prompt
+    .replace(PRIVATE_AMOUNT_SLOT_GLOBAL, PRIVATE_AMOUNT_PARSE_SENTINEL)
+    .replace(PRIVATE_RECIPIENT_SLOT_GLOBAL, PRIVATE_RECIPIENT_PARSE_SENTINEL);
+}
+
+function bindPrivateFieldSlots(
+  intent: ParsedIntent | null,
+  originalPrompt: string,
+): ParsedIntent | null {
+  if (!intent) return null;
+  const hasPrivateAmount = PRIVATE_AMOUNT_SLOT.test(originalPrompt);
+  const hasPrivateRecipient = PRIVATE_RECIPIENT_SLOT.test(originalPrompt);
+  if (!hasPrivateAmount && !hasPrivateRecipient) return intent;
+
+  const sourceClauses = splitOrderedIntentClauses(originalPrompt);
+  const workflowSteps = intent.workflowSteps?.map((step, index) => {
+    const sourceClause = sourceClauses[index] || originalPrompt;
+    if (
+      step.amountSource === "explicit" &&
+      PRIVATE_AMOUNT_SLOT.test(sourceClause)
+    ) {
+      return { ...step, amount: "0" };
+    }
+    return step;
+  });
+  const missing = [
+    hasPrivateAmount ? "amount" : undefined,
+    hasPrivateRecipient ? "recipient" : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const slotQuestion = `Enter the private ${missing.join(
+    " and ",
+  )} in the secure local field before route compilation.`;
+  const existingQuestion = intent.isComplete ? "" : intent.question?.trim();
+
+  return IntentSchema.parse({
+    ...intent,
+    isComplete: false,
+    amount: hasPrivateAmount
+      ? workflowSteps?.[0]?.amount || "0"
+      : intent.amount,
+    secondaryAmount:
+      hasPrivateAmount && intent.secondaryAmount === PRIVATE_AMOUNT_PARSE_SENTINEL
+        ? "0"
+        : intent.secondaryAmount,
+    minimumOutput:
+      hasPrivateAmount && intent.minimumOutput === PRIVATE_AMOUNT_PARSE_SENTINEL
+        ? "0"
+        : intent.minimumOutput,
+    maxPayment:
+      hasPrivateAmount && intent.maxPayment === PRIVATE_AMOUNT_PARSE_SENTINEL
+        ? "0"
+        : intent.maxPayment,
+    recipient: hasPrivateRecipient ? undefined : intent.recipient,
+    tokenOut:
+      hasPrivateRecipient && intent.tokenOut === PRIVATE_RECIPIENT_PARSE_SENTINEL
+        ? undefined
+        : intent.tokenOut,
+    transfers: hasPrivateAmount || hasPrivateRecipient
+      ? intent.transfers?.map((transfer) => ({
+          ...transfer,
+          amount:
+            hasPrivateAmount &&
+            transfer.amount === PRIVATE_AMOUNT_PARSE_SENTINEL
+              ? "0"
+              : transfer.amount,
+          recipient:
+            hasPrivateRecipient &&
+            transfer.recipient === PRIVATE_RECIPIENT_PARSE_SENTINEL
+              ? ""
+              : transfer.recipient,
+        }))
+      : intent.transfers,
+    workflowSteps,
+    question: existingQuestion
+      ? `${slotQuestion} ${existingQuestion}`
+      : slotQuestion,
+    message:
+      "The ordered intent was resolved locally. Private fields remain on this device and no transaction is prepared until they are entered.",
+  });
+}
+
 function hasOrderedIntentConnector(prompt: string): boolean {
   return splitOrderedIntentClauses(prompt).length > 1;
 }
@@ -2757,22 +2855,27 @@ function parseRawDeterministicBaseIntent(
 export function parseDeterministicBaseIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  if (baseExecutionConstraintFailure(userPrompt)) return null;
-  const workflow = parseDeterministicBaseWorkflowIntent(userPrompt);
+  const parserPrompt = preparePrivateFieldSlots(userPrompt);
+  if (baseExecutionConstraintFailure(parserPrompt)) return null;
+  const workflow = parseDeterministicBaseWorkflowIntent(parserPrompt);
   if (workflow) {
-    return workflow.isComplete
-      ? attachExplicitBaseExecutionConstraints(workflow, userPrompt)
+    const constrained = workflow.isComplete
+      ? attachExplicitBaseExecutionConstraints(workflow, parserPrompt)
       : workflow;
+    return bindPrivateFieldSlots(constrained, userPrompt);
   }
-  if (conflictingBaseActions(userPrompt).length > 1) {
+  if (conflictingBaseActions(parserPrompt).length > 1) {
     return promptBindingFailure(
       "I found multiple money-moving actions, but not a complete reviewed Base to Arbitrum sequence. State the steps in order and include an explicit bridge, or send the Base actions separately.",
     );
   }
-  const intent = parseRawDeterministicBaseIntent(userPrompt);
-  return intent
-    ? attachExplicitBaseExecutionConstraints(intent, userPrompt)
-    : null;
+  const intent = parseRawDeterministicBaseIntent(parserPrompt);
+  return bindPrivateFieldSlots(
+    intent
+      ? attachExplicitBaseExecutionConstraints(intent, parserPrompt)
+      : null,
+    userPrompt,
+  );
 }
 
 const ARC_WIDGET_AMOUNT = "(\\d+(?:\\.\\d+)?)";
@@ -3038,18 +3141,23 @@ function parseDeterministicArcWorkflowIntent(
  * Matching is deliberately anchored: edited or ambiguous natural language
  * continues through the normal model/schema path instead of being guessed.
  */
-export function parseDeterministicArcIntent(
+function parsePreparedDeterministicArcIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  const prompt = userPrompt.trim().replace(/[.!]+$/u, "");
+  const prompt = preparePrivateFieldSlots(userPrompt)
+    .trim()
+    .replace(/[.!]+$/u, "");
   if (!prompt || prompt.length > 2_000) return null;
 
+  const finish = (intent: ParsedIntent | null): ParsedIntent | null =>
+    bindPrivateFieldSlots(intent, userPrompt);
+
   if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "portfolio",
       amount: "0",
       message: "Reading the live Arc wallet and protocol positions.",
-    });
+    }));
   }
 
   const naturalSend = new RegExp(
@@ -3057,13 +3165,13 @@ export function parseDeterministicArcIntent(
     "iu",
   ).exec(prompt);
   if (naturalSend) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "appkit_send",
       tokenIn: naturalSend[3].toUpperCase(),
       amount: normalizeScaledArcAmount(naturalSend[1], naturalSend[2]),
       recipient: naturalSend[5],
       message: "Preparing the reviewed Arc App Kit transfer.",
-    });
+    }));
   }
 
   const incompleteNaturalSend = new RegExp(
@@ -3075,14 +3183,14 @@ export function parseDeterministicArcIntent(
       incompleteNaturalSend[1],
       incompleteNaturalSend[2],
     );
-    return IntentSchema.parse({
+    return finish(IntentSchema.parse({
       isComplete: false,
       action: "appkit_send",
       tokenIn: incompleteNaturalSend[3].toUpperCase(),
       amount,
       question: "Which EVM address should receive this Arc transfer?",
       message: "Add the recipient address to continue.",
-    });
+    }));
   }
 
   const naturalBridge = new RegExp(
@@ -3100,7 +3208,7 @@ export function parseDeterministicArcIntent(
     );
     const recipient = naturalBridge[5];
     if (!recipient) {
-      return IntentSchema.parse({
+      return finish(IntentSchema.parse({
         isComplete: false,
         action: "appkit_bridge",
         tokenIn: "USDC",
@@ -3109,9 +3217,9 @@ export function parseDeterministicArcIntent(
         transferSpeed: "SLOW",
         question: "Which EVM address should receive the bridged USDC?",
         message: "Add the destination EVM address to prepare the Arc App Kit bridge.",
-      });
+      }));
     }
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "appkit_bridge",
       tokenIn: "USDC",
       amount,
@@ -3119,23 +3227,23 @@ export function parseDeterministicArcIntent(
       recipient,
       transferSpeed: "SLOW",
       message: "Preparing the Arc App Kit testnet bridge.",
-    });
+    }));
   }
 
   const workflow = parseDeterministicArcWorkflowIntent(prompt);
-  if (workflow) return workflow;
+  if (workflow) return finish(workflow);
 
   if (hasOrderedIntentConnector(prompt)) return null;
 
   const naturalAction = parseArcNaturalClause(prompt);
   if (naturalAction.status === "invalid") {
-    return IntentSchema.parse({
+    return finish(IntentSchema.parse({
       isComplete: false,
       action: "unknown",
       amount: "0",
       question: naturalAction.question,
       message: naturalAction.question,
-    });
+    }));
   }
   if (naturalAction.status === "matched") {
     const step = naturalAction.step;
@@ -3144,7 +3252,7 @@ export function parseDeterministicArcIntent(
       borrow: "lending_borrow",
       repay: "lending_repay",
     } as Record<string, string>)[step.action] || step.action;
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action,
       tokenIn: step.tokenIn,
       tokenOut: step.tokenOut,
@@ -3153,7 +3261,7 @@ export function parseDeterministicArcIntent(
       objective: step.action === "swap" ? "best_output" : undefined,
       slippage: step.action === "swap" ? "1" : undefined,
       message: `Preparing the reviewed Arc ${action.replace(/_/gu, " ")} route.`,
-    });
+    }));
   }
 
   let match =
@@ -3164,7 +3272,7 @@ export function parseDeterministicArcIntent(
     const tokenIn = match[2].toUpperCase();
     const tokenOut = match[3].toUpperCase();
     if (tokenIn === tokenOut) return null;
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "swap",
       tokenIn,
       tokenOut,
@@ -3172,7 +3280,7 @@ export function parseDeterministicArcIntent(
       objective: "best_output",
       slippage: "1",
       message: "Preparing the live Arc Kletia swap route.",
-    });
+    }));
   }
 
   match =
@@ -3180,12 +3288,12 @@ export function parseDeterministicArcIntent(
       prompt,
     );
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "lending_deposit",
       tokenIn: match[2].toUpperCase(),
       amount: match[1].replace(",", "."),
       message: "Preparing the Arc lending collateral route for validation.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3193,12 +3301,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "lending_deposit",
       tokenIn: "KLET",
       amount: match[1],
       message: "Preparing the Arc KLET collateral deposit.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3206,12 +3314,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "lending_borrow",
       tokenIn: "USDC",
       amount: match[1],
       message: "Preparing the Arc native USDC borrow.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3219,12 +3327,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "lending_repay",
       tokenIn: "USDC",
       amount: match[1],
       message: "Preparing the Arc native USDC repayment.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3232,12 +3340,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "lending_withdraw",
       tokenIn: "KLET",
       amount: match[1],
       message: "Preparing the Arc KLET collateral withdrawal.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3248,7 +3356,7 @@ export function parseDeterministicArcIntent(
     const tokenIn = match[2].toLowerCase() === "native usdc" ? "USDC" : "KLET";
     const tokenOut = match[3].toLowerCase() === "native usdc" ? "USDC" : "KLET";
     if (tokenIn === tokenOut) return null;
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "swap",
       tokenIn,
       tokenOut,
@@ -3256,7 +3364,7 @@ export function parseDeterministicArcIntent(
       objective: "best_output",
       slippage: "1",
       message: "Preparing the live Arc Kletia swap route.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3264,12 +3372,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "vault_deposit",
       tokenIn: "USDC",
       amount: match[1],
       message: "Preparing the Arc vault deposit.",
-    });
+    }));
   }
 
   if (
@@ -3303,12 +3411,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "stake",
       tokenIn: "USDC",
       amount: match[1],
       message: "Preparing the Arc native USDC stake.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3316,12 +3424,12 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "unstake",
       tokenIn: "USDC",
       amount: match[1],
       message: "Preparing the Arc unstake cooldown request.",
-    });
+    }));
   }
 
   if (
@@ -3353,14 +3461,14 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "add_liquidity",
       tokenIn: "USDC",
       tokenOut: "KLET",
       amount: match[1],
       secondaryAmount: match[2],
       message: "Preparing the live-reserve Arc liquidity route.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3381,7 +3489,7 @@ export function parseDeterministicArcIntent(
     ) {
       return null;
     }
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "memo_send",
       tokenIn: "USDC",
       tokenOut: match[2],
@@ -3389,7 +3497,7 @@ export function parseDeterministicArcIntent(
       amount: match[1],
       name: memo.trim(),
       message: "Preparing the Arc memo transfer.",
-    });
+    }));
   }
 
   const atomicPrefix = "Atomically pay ";
@@ -3414,13 +3522,13 @@ export function parseDeterministicArcIntent(
         transfers.map(({ recipient }) => recipient.toLowerCase()),
       );
       if (uniqueRecipients.size === transfers.length) {
-        return deterministicIntent({
+        return finish(deterministicIntent({
           action: "atomic_payout",
           tokenIn: "USDC",
           amount: "0",
           transfers,
           message: "Preparing the official Arc atomic payout.",
-        });
+        }));
       }
     }
   }
@@ -3434,7 +3542,7 @@ export function parseDeterministicArcIntent(
     const tokenOut = canonicalArcAppKitToken(match[3]);
     const minimumToken = canonicalArcAppKitToken(match[6]);
     if (tokenIn === tokenOut || tokenOut !== minimumToken) return null;
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "stable_swap",
       tokenIn,
       tokenOut,
@@ -3442,7 +3550,7 @@ export function parseDeterministicArcIntent(
       slippage: match[4],
       minimumOutput: match[5],
       message: "Preparing the Arc App Kit stable swap.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3450,7 +3558,7 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "appkit_bridge",
       tokenIn: "USDC",
       amount: match[1],
@@ -3458,7 +3566,7 @@ export function parseDeterministicArcIntent(
       recipient: match[3],
       transferSpeed: match[4].toUpperCase(),
       message: "Preparing the Arc App Kit testnet bridge.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3466,13 +3574,13 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "appkit_send",
       tokenIn: match[2].toUpperCase(),
       amount: match[1],
       recipient: match[3],
       message: "Preparing the Arc App Kit transfer.",
-    });
+    }));
   }
 
   match = new RegExp(
@@ -3480,14 +3588,14 @@ export function parseDeterministicArcIntent(
     "i",
   ).exec(prompt);
   if (match) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "official_memo_send",
       tokenIn: "USDC",
       amount: match[1],
       recipient: match[2],
       memo: match[3],
       message: "Preparing the official Arc memo payment.",
-    });
+    }));
   }
 
   if (
@@ -3515,6 +3623,16 @@ export function parseDeterministicArcIntent(
   }
 
   return null;
+}
+
+export function parseDeterministicArcIntent(
+  userPrompt: string,
+): ParsedIntent | null {
+  const parserPrompt = preparePrivateFieldSlots(userPrompt);
+  return bindPrivateFieldSlots(
+    parsePreparedDeterministicArcIntent(parserPrompt),
+    userPrompt,
+  );
 }
 
 type ArbitrumNaturalClause =
@@ -3899,21 +4017,26 @@ function parseDeterministicBaseWorkflowIntent(prompt: string): ParsedIntent | nu
 }
 
 /** High-confidence Arbitrum grammar for ordinary and staged user goals. */
-export function parseDeterministicArbitrumIntent(
+function parsePreparedDeterministicArbitrumIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  const prompt = userPrompt.trim().replace(/[.!]+$/u, "");
+  const prompt = preparePrivateFieldSlots(userPrompt)
+    .trim()
+    .replace(/[.!]+$/u, "");
   if (!prompt || prompt.length > 2_000) return null;
   if (hasExplicitTransactionNegation(prompt) || hasNonExecutionSpeechAct(prompt)) {
     return null;
   }
 
+  const finish = (intent: ParsedIntent | null): ParsedIntent | null =>
+    bindPrivateFieldSlots(intent, userPrompt);
+
   if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "portfolio",
       amount: "0",
       message: "Reading the live Arbitrum portfolio.",
-    });
+    }));
   }
 
   const transfer = new RegExp(
@@ -3921,13 +4044,13 @@ export function parseDeterministicArbitrumIntent(
     "iu",
   ).exec(prompt);
   if (transfer) {
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: "transfer",
       tokenIn: transfer[3].toUpperCase(),
       amount: normalizeScaledArcAmount(transfer[1], transfer[2]),
       recipient: transfer[5],
       message: "Preparing the reviewed Arbitrum transfer.",
-    });
+    }));
   }
 
   const incompleteTransfer = new RegExp(
@@ -3935,33 +4058,33 @@ export function parseDeterministicArbitrumIntent(
     "iu",
   ).exec(prompt);
   if (incompleteTransfer) {
-    return IntentSchema.parse({
+    return finish(IntentSchema.parse({
       isComplete: false,
       action: "transfer",
       tokenIn: incompleteTransfer[3].toUpperCase(),
       amount: normalizeScaledArcAmount(incompleteTransfer[1], incompleteTransfer[2]),
       question: "Which EVM address should receive this Arbitrum transfer?",
       message: "Add the recipient address to continue.",
-    });
+    }));
   }
 
   const workflow = parseDeterministicArbitrumWorkflowIntent(prompt);
-  if (workflow) return workflow;
+  if (workflow) return finish(workflow);
   if (hasOrderedIntentConnector(prompt)) return null;
 
   const natural = parseArbitrumNaturalClause(prompt);
   if (natural.status === "invalid") {
-    return IntentSchema.parse({
+    return finish(IntentSchema.parse({
       isComplete: false,
       action: "chat",
       amount: "0",
       question: natural.question,
       message: natural.question,
-    });
+    }));
   }
   if (natural.status === "matched") {
     const step = natural.step;
-    return deterministicIntent({
+    return finish(deterministicIntent({
       action: step.action,
       tokenIn: step.tokenIn,
       tokenOut: step.tokenOut,
@@ -3977,7 +4100,7 @@ export function parseDeterministicArbitrumIntent(
       riskTolerance: detectRiskTolerance(prompt),
       slippage: step.action === "swap" ? extractSlippagePercent(prompt) || "1" : undefined,
       message: `Preparing the reviewed Arbitrum ${step.action.replace(/_/gu, " ")} route.`,
-    });
+    }));
   }
 
   if (/\b(?:compare|best\s+(?:yield|rate)|yield|apy|apr|rates?|karşılaştır|karsilastir|getiri|faiz)\b/iu.test(prompt)) {
@@ -3996,6 +4119,16 @@ export function parseDeterministicArbitrumIntent(
   }
 
   return null;
+}
+
+export function parseDeterministicArbitrumIntent(
+  userPrompt: string,
+): ParsedIntent | null {
+  const parserPrompt = preparePrivateFieldSlots(userPrompt);
+  return bindPrivateFieldSlots(
+    parsePreparedDeterministicArbitrumIntent(parserPrompt),
+    userPrompt,
+  );
 }
 
 function buildSystemPrompt(network: NetworkId): string {

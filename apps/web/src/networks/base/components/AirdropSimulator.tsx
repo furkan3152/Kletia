@@ -1000,7 +1000,7 @@ export const AirdropSimulator: React.FC = () => {
                   {visibleResult.address}. Neither score predicts airdrop
                   eligibility, identity, misconduct or future rewards.
                   Unavailable prices and provider scores remain unavailable; no
-                  mock value is inserted.
+                  synthetic value is inserted.
                 </p>
                 <p className="text-xs font-black text-[#1A1A1A] mt-2">
                   Snapshot:{" "}

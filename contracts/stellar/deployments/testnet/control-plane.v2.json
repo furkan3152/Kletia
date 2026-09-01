@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "kletia_stellar_control_plane_deployment_v2",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "deploymentProfile": "testnet_development_single_contributor",
+  "productionReady": false,
+  "deployedAt": "2026-08-24",
+  "deployer": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+  "toolchain": {
+    "stellarCli": "27.1.0",
+    "stellarXdr": "27.0.0",
+    "license": "MIT"
+  },
+  "artifacts": {
+    "policyVerifierRegistry": {
+      "contractId": "CBA7BHTD7VFKQZ72CISEBFQLDQSAYDHKPRVAQH6LRNHM6KRGP5KUJ34Z",
+      "releaseWasmSha256": "c41a359868affc11f094390fe67faeb5711d767657ab5ec37932184b7f061114",
+      "administrator": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+      "deployTransaction": "da7921da6fef6a0f7c830642a1e26665319cce359ff185a6fab194e132949b7b",
+      "initializeTransaction": "17630e955d8556910140e623ece75a55a12bd5cace1ccba283209448e58b15aa",
+      "registerVerifierTransaction": "f4e592eafd5887b2be6d21777d213eab9ef81569a78bb34fdce5270c801e20e4"
+    },
+    "policyGroth16Verifier": {
+      "contractId": "CAULJTGFMAT6WVYWWMM57CQGDATHUYCNWIVAMEYW44SFA7TAB2DZX7SD",
+      "releaseWasmSha256": "fb6bcb8fc8492e38b31da3318fb48bcb3a1291bafb83ca201f894a4ee9f5a138",
+      "deployTransaction": "00bce5e0aced7bd2e1def3ea2c989d49ca3afd780fb4fe7d69114d2d9fa78a93"
+    },
+    "intentControlPlaneV2": {
+      "contractId": "CC5QBK4D6I44UYDRDNP7XV26NVPQ62ISJ4GUPH6GPCTBO57N622RCBL3",
+      "releaseWasmSha256": "865c18119424356c42b35301bbb9b926e24c15fc44956c08853a929245f87249",
+      "verifierRegistry": "CBA7BHTD7VFKQZ72CISEBFQLDQSAYDHKPRVAQH6LRNHM6KRGP5KUJ34Z",
+      "uploadTransaction": "493cf66848b1b0c82563a5c817bc986eaf6854cd28e6461a19546ab3cf3b63be",
+      "deployTransaction": "06b4bcb1a048410c8228d8b26a221d62f50ad67aa279e6ba2e307e67d284bae8"
+    }
+  },
+  "policyCircuit": {
+    "version": 2,
+    "source": "circuits/stellar-policy/KletiaPolicyV2.circom",
+    "sourceSha256": "6dbb3e6247265135e66e7614c1fbac2ace437928c07abbd8fd9fe8a402e4eb70",
+    "publicInputManifestSha256": "db64a625e6d7b8b89deee9b8b0aa606d1f054b5b71b5f40c27234c66142f1866",
+    "publicInputCount": 12,
+    "verificationKeySha256": "c4b6f6eb1a6b845c587cb3481461d0a710cac76702265fc2608ff94ad61a78f8",
+    "finalZkeySha256": "797054251bab3165a7cdc868d81027b306462e9e181c97db8ec4238344d2b52a",
+    "trustedSetupProfile": "testnet_development_single_contributor",
+    "trustedSetupProductionSafe": false
+  },
+  "liveSmokeEvidence": {
+    "owner": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+    "workflowNonce": "0",
+    "workflowRoot": "10f6e01bd27d301682f4a6448be396dc30734e9e850e3ee865b7baff07f57bbf",
+    "publicInputsSha256": "ee7bc36620fb1da8d2c874afb6306051dc6f4fd7f4caa6d941112ead0e45190c",
+    "proofAcceptedAndCommittedTransaction": "6d5c36c74128b1da5461d4fbfa24a68c8acd4676f37ac056ce6bbfacf3d4a633",
+    "finalizeTransaction": "5173fc233cae6df0e7541ff209eb52d236f4dfb6ea8462e9d4567c68598e8633",
+    "receiptRoot": "dd91a4712144878fa87ef24e6aa6e220f74c3fa736107df00096e4cebe50dd3f",
+    "nullifierConsumed": true,
+    "finalStatus": "finalized",
+    "provesForeignChainExecution": false
+  },
+  "liveReadinessEvidence": {
+    "observedAtLedger": 4315385,
+    "status": "ready",
+    "allExecutableHashesMatched": true,
+    "registryRecordMatched": true,
+    "immutableVerifierMetadataMatched": true,
+    "controlPlaneRegistryBindingMatched": true
+  },
+  "claimBoundary": {
+    "realStellarTestnetDeployment": true,
+    "realGroth16ProofVerifiedOnStellarTestnet": true,
+    "realCommitAndFinalizeLifecycle": true,
+    "storesFunds": false,
+    "grantsAgentSpendingAuthority": false,
+    "provesForeignChainExecution": false,
+    "providesLedgerConfidentiality": false,
+    "productionTrustedSetup": false,
+    "audited": false
+  }
+}

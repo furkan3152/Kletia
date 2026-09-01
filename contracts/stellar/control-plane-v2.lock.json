@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "kletia_stellar_control_plane_v2_release_lock_v1",
+  "network": "stellar_testnet",
+  "deploymentProfile": "testnet_development_single_contributor",
+  "productionReady": false,
+  "verifierVersion": 2,
+  "artifacts": {
+    "policyGroth16Verifier": {
+      "source": "contracts/stellar/policy-groth16-verifier",
+      "releaseWasmSha256": "fb6bcb8fc8492e38b31da3318fb48bcb3a1291bafb83ca201f894a4ee9f5a138"
+    },
+    "policyVerifierRegistry": {
+      "source": "contracts/stellar/policy-verifier-registry",
+      "releaseWasmSha256": "c41a359868affc11f094390fe67faeb5711d767657ab5ec37932184b7f061114"
+    },
+    "intentControlPlaneV2": {
+      "source": "contracts/stellar/intent-control-plane-v2",
+      "releaseWasmSha256": "865c18119424356c42b35301bbb9b926e24c15fc44956c08853a929245f87249"
+    }
+  },
+  "policyCircuit": {
+    "source": "circuits/stellar-policy/KletiaPolicyV2.circom",
+    "sourceSha256": "6dbb3e6247265135e66e7614c1fbac2ace437928c07abbd8fd9fe8a402e4eb70",
+    "publicInputManifest": "circuits/stellar-policy/public-inputs.v2.json",
+    "publicInputManifestSha256": "db64a625e6d7b8b89deee9b8b0aa606d1f054b5b71b5f40c27234c66142f1866",
+    "publicInputCount": 12,
+    "laneInputIndex": 8,
+    "expiryLedgerInputIndex": 9,
+    "r1csSha256": "fe7e0cafdda02d637c0852a94708b11fc6a7f051d6a563519a85a9640cac8495",
+    "proverWasmSha256": "f13d9dc4e1ee86fd432a45d9696c91122d8beef3906687acb6a84d1b311115a5",
+    "finalZkeySha256": "797054251bab3165a7cdc868d81027b306462e9e181c97db8ec4238344d2b52a",
+    "snarkjsVerificationKeySha256": "11b38778422edcd0c73966a72008e312e065eedd359d4d76cbd5a98fd190e702",
+    "constructorSha256": "a90d9745c1d15e5f31fe3b1773b5b491a836ddc7cae9d1cd370cea2394e716fe",
+    "verificationKeySha256": "c4b6f6eb1a6b845c587cb3481461d0a710cac76702265fc2608ff94ad61a78f8"
+  },
+  "claimBoundary": {
+    "storesFunds": false,
+    "grantsAgentSpendingAuthority": false,
+    "provesForeignChainExecution": false,
+    "providesLedgerConfidentiality": false,
+    "productionTrustedSetup": false,
+    "audited": false
+  }
+}

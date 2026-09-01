@@ -23,6 +23,26 @@ interface ControlledErrorDefinition {
 const CONTROLLED_CODE_ERRORS: Readonly<
   Record<string, ControlledErrorDefinition>
 > = {
+  AI_SEMANTIC_CONSENT_INVALID: {
+    message:
+      "Review the AI disclosure choice again before semantic interpretation.",
+    statusCode: 409,
+  },
+  AI_SEMANTIC_CONSENT_BINDING_MISMATCH: {
+    message:
+      "The AI disclosure choice does not match this prompt, wallet, network, or chain.",
+    statusCode: 409,
+  },
+  AI_SEMANTIC_CONSENT_EXPIRED: {
+    message:
+      "The AI disclosure choice expired; review it again before continuing.",
+    statusCode: 409,
+  },
+  INTENT_CONSENT_CONFIGURATION_REQUIRED: {
+    message:
+      "AI disclosure consent is not configured on this deployment, so semantic interpretation remains disabled.",
+    statusCode: 503,
+  },
   ACROSS_CONFIGURATION_REQUIRED: {
     message:
       "Across production API key and Kletia integrator ID are not configured on the server; secure bridge route not prepared.",
@@ -61,6 +81,11 @@ const CONTROLLED_CODE_ERRORS: Readonly<
   },
   BASE_RPC_CHAIN_MISMATCH: {
     message: "Base RPC does not match the expected Base Mainnet chain.",
+    statusCode: 503,
+  },
+  ARBITRUM_SWAP_LIQUIDITY_UNAVAILABLE: {
+    message:
+      "No reviewed live Arbitrum Uniswap V3 pool returned a usable quote for this asset pair and amount.",
     statusCode: 503,
   },
   FEE_ROUTER_ROUTE_REQUIRED: {
@@ -243,6 +268,12 @@ export function resolveIntentPublicError(
           message: "Arc transaction plan could not be safely prepared.",
           statusCode: 502,
         }
+      : network === "arbitrum"
+        ? {
+            code: "ARBITRUM_ENGINE_ERROR",
+            message: "Arbitrum transaction plan could not be safely prepared.",
+            statusCode: 502,
+          }
       : {
           code: "ENGINE_ERROR",
           message: "Base transaction plan could not be safely prepared.",

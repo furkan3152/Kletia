@@ -1,0 +1,5 @@
+[toolchain]
+channel = "1.91.0"
+components = ["clippy", "rustfmt"]
+targets = ["wasm32v1-none"]
+profile = "minimal"

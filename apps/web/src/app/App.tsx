@@ -9,7 +9,12 @@ import {
   CreditCard,
   Bot,
 } from "lucide-react";
-import { NETWORKS, type AppTab, type NetworkMode } from "../shared/config/networks";
+import {
+  NETWORKS,
+  STELLAR_WORKSPACE_ENABLED,
+  type AppTab,
+  type NetworkMode,
+} from "../shared/config/networks";
 import { BACKEND_URL } from "../shared/config/runtime";
 import {
   hasBaseIntentV2Marker,
@@ -32,6 +37,7 @@ import {
   type IntentResponse,
   type PortfolioData,
   type RouteData,
+  type ChatMessage,
   type WidgetId,
 } from "../shared/types";
 import { ArcAppKitRouteCard } from "../networks/arc/components/ArcAppKitRouteCard";
@@ -40,11 +46,14 @@ import { LaunchTokenPreviewCard } from "../networks/base/components/LaunchTokenP
 import { BaseMcpX402PlanCard } from "../networks/base/components/x402/BaseMcpX402PlanCard";
 import { X402DiscoveryCard } from "../networks/base/components/x402/X402DiscoveryCard";
 import { Navbar } from "../shared/components/layout/Navbar";
+import type { WorkspaceMode } from "../shared/components/layout/NetworkSwitcher";
 import { Sidebar } from "../shared/components/layout/Sidebar";
 import { AppSidebar } from "../shared/components/layout/AppSidebar";
 import { ChatInput } from "../shared/components/chat/ChatInput";
 import { IntentStarter } from "../shared/components/chat/IntentStarter";
 import { AssetClarificationCard } from "../shared/components/chat/AssetClarificationCard";
+import { IntentPrivacyDecisionCard } from "../shared/components/chat/IntentPrivacyDecisionCard";
+import { IntentPrivacyTraceCard } from "../shared/components/chat/IntentPrivacyTraceCard";
 import { EntityResolutionEvidenceCard } from "../shared/components/chat/EntityResolutionEvidenceCard";
 import { TerminalLogs } from "../shared/components/chat/TerminalLogs";
 import { useNetwork } from "../shared/hooks/useNetwork";
@@ -75,6 +84,19 @@ import { resolveIntentHttpResponseBoundary } from "../shared/security/intentHttp
 import { isWorkflowPlanV1, isWorkflowToken } from "../shared/security/workflowBoundary";
 import { WorkflowTimeline } from "../cross-chain/components/WorkflowTimeline";
 import { PolicyAgentCard } from "../shared/components/policy/PolicyAgentCard";
+import { requestsFinancialPrivacy } from "../shared/privacy/intentPrivacy";
+import {
+  isIntentPrivacyDecision,
+  redactIntentForPersistentHistory,
+  type IntentPrivacyDecisionOptionV1,
+  type IntentPrivacyDecisionV1,
+  type IntentSemanticPlannerMode,
+} from "../shared/privacy/defaultIntentPrivacy";
+import { isIntentPrivacyTrace } from "../shared/privacy/intentPrivacyTrace";
+import {
+  resolveStellarWorkspaceIntent,
+  type StellarWorkspaceIntentResolution,
+} from "../networks/stellar/runtime/intentWorkspace";
 
 const BASE_SWAP_EXECUTION_POLICY_SETTING = import.meta.env
   .VITE_BASE_SWAP_EXECUTION_MODE;
@@ -113,10 +135,21 @@ const ArcLendingDashboard = React.lazy(() =>
     default: module.ArcLendingDashboard,
   })),
 );
+const StellarPaymentCenter = React.lazy(() =>
+  import("../networks/stellar/components/StellarPaymentCenter").then((module) => ({
+    default: module.StellarPaymentCenter,
+  })),
+);
+const StellarIntentCard = React.lazy(() =>
+  import("../networks/stellar/components/StellarIntentCard").then((module) => ({
+    default: module.StellarIntentCard,
+  })),
+);
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APP_TABS: readonly AppTab[] = [
   "chat",
+  "stellar",
   "basename",
   "allora",
   "airdrop",
@@ -144,6 +177,7 @@ type ConversationContext = {
   sourceMessageId: string;
   expiresAt: number;
   clarification?: EntityClarification;
+  semanticPlanner: IntentSemanticPlannerMode;
 };
 
 type SubmitIntentOptions = {
@@ -151,6 +185,24 @@ type SubmitIntentOptions = {
   conversation?: ConversationContext;
   clarificationSelection?: { optionId: string };
   clarificationSourceMessageId?: string;
+  semanticPlanner?: IntentSemanticPlannerMode;
+  semanticPlannerConsentToken?: string;
+};
+
+type PendingPrivacyDecision = {
+  readonly prompt: string;
+  readonly network: NetworkMode;
+  readonly chainId: number;
+  readonly walletAddress: string;
+  readonly decision: IntentPrivacyDecisionV1;
+};
+
+type SemanticAiSession = {
+  readonly token: string;
+  readonly network: NetworkMode;
+  readonly chainId: number;
+  readonly walletAddress: string;
+  readonly expiresAt: number;
 };
 
 const isAppTab = (value: unknown): value is AppTab =>
@@ -284,7 +336,21 @@ export default function App() {
   const [activeArcWidget, setActiveArcWidget] = useState<WidgetId>(null);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isAppSidebarOpen, setIsAppSidebarOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(() => {
+    const savedWorkspace = localStorage.getItem("kletia-workspace-mode");
+    if (STELLAR_WORKSPACE_ENABLED && savedWorkspace === "stellar") {
+      return "stellar";
+    }
+    return networkMode;
+  });
   const [input, setInput] = useState("");
+  const [stellarPrivateIntentDraft, setStellarPrivateIntentDraft] = useState("");
+  const [stellarMessages, setStellarMessages] = useState<ChatMessage[]>([]);
+  const [stellarClassicAddress, setStellarClassicAddress] = useState("");
+  const [pendingPrivacyDecision, setPendingPrivacyDecision] =
+    useState<PendingPrivacyDecision | null>(null);
+  const [semanticAiSession, setSemanticAiSession] =
+    useState<SemanticAiSession | null>(null);
   const activeRequestRef = useRef<ActiveRequest | null>(null);
   const conversationContextRef = useRef<ConversationContext | null>(null);
   const clarificationSubmissionRef = useRef<string | null>(null);
@@ -311,6 +377,43 @@ export default function App() {
         : [],
     [activeWalletOwner, historyOwner, storedMessages],
   );
+  const activeChatMessages =
+    workspaceMode === "stellar" ? stellarMessages : messages;
+  const activeSemanticAiSession =
+    semanticAiSession &&
+    semanticAiSession.network === networkMode &&
+    semanticAiSession.chainId === network.chainId &&
+    semanticAiSession.walletAddress.toLowerCase() === address?.toLowerCase() &&
+    semanticAiSession.expiresAt > currentEpochMs()
+      ? semanticAiSession
+      : null;
+
+  useEffect(() => {
+    if (workspaceMode !== "stellar" && workspaceMode !== networkMode) {
+      setWorkspaceMode(networkMode);
+      localStorage.setItem("kletia-workspace-mode", networkMode);
+    }
+  }, [networkMode, workspaceMode]);
+
+  const selectWorkspace = async (selected: WorkspaceMode) => {
+    if (selected === "stellar") {
+      if (!STELLAR_WORKSPACE_ENABLED) return false;
+      activeRequestRef.current?.controller.abort();
+      setPendingPrivacyDecision(null);
+      setActiveTab("chat");
+      setIsPortfolioOpen(false);
+      setWorkspaceMode("stellar");
+      localStorage.setItem("kletia-workspace-mode", "stellar");
+      return true;
+    }
+    const switched = await switchNetwork(selected);
+    if (switched) {
+      setPendingPrivacyDecision(null);
+      setWorkspaceMode(selected);
+      localStorage.setItem("kletia-workspace-mode", selected);
+    }
+    return switched;
+  };
 
   useEffect(() => {
     if (accountStatus === "connected" && address) {
@@ -507,9 +610,9 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (activeChatMessages.length === 0) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [activeChatMessages]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -560,7 +663,17 @@ export default function App() {
     setActiveTab("chat");
     setActiveArcWidget(null);
     setIsPortfolioOpen(false);
-  }, [address, networkMode, updateMessageForNetwork]);
+    setPendingPrivacyDecision(null);
+    if (
+      semanticAiSession &&
+      (semanticAiSession.network !== networkMode ||
+        semanticAiSession.chainId !== network.chainId ||
+        semanticAiSession.walletAddress.toLowerCase() !== address?.toLowerCase() ||
+        semanticAiSession.expiresAt <= currentEpochMs())
+    ) {
+      setSemanticAiSession(null);
+    }
+  }, [address, chainId, network.chainId, networkMode, semanticAiSession, updateMessageForNetwork]);
 
   useEffect(
     () => () => {
@@ -591,6 +704,7 @@ export default function App() {
   };
 
   const handleWidgetClick = (prompt: string) => {
+    setPendingPrivacyDecision(null);
     const conversationContext = conversationContextRef.current;
     if (conversationContext) {
       updateMessageForNetwork(
@@ -600,6 +714,15 @@ export default function App() {
       );
       conversationContextRef.current = null;
       clarificationSubmissionRef.current = null;
+    }
+    if (workspaceMode === "stellar") {
+      setInput(prompt);
+      setActiveTab("chat");
+      setIsPortfolioOpen(false);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
+      return;
     }
     setInput(prompt);
     setActiveTab("chat");
@@ -615,6 +738,15 @@ export default function App() {
   ) => {
     const userText = rawUserText.trim();
     if (!userText) return;
+    setPendingPrivacyDecision(null);
+    const semanticPlanner =
+      options.semanticPlanner ??
+      options.conversation?.semanticPlanner ??
+      (activeSemanticAiSession ? "ai_assisted" : "deterministic_only");
+    const semanticPlannerConsentToken =
+      options.semanticPlannerConsentToken ?? activeSemanticAiSession?.token;
+    const persistentDisplayText =
+      options.displayText || redactIntentForPersistentHistory(userText);
     const blockStructuredSelection = () => {
       if (options.clarificationSourceMessageId) {
         updateMessageForNetwork(
@@ -631,6 +763,29 @@ export default function App() {
         id: createRequestId(),
         role: "kletia",
         text: "🚨 Private key, seed phrase, or API credentials cannot be sent here. Message not saved for security.",
+        network: networkMode,
+        chainId: network.chainId,
+      });
+      blockStructuredSelection();
+      return;
+    }
+    if (requestsFinancialPrivacy(userText)) {
+      setInput("");
+      if (STELLAR_WORKSPACE_ENABLED) {
+        // Ephemeral React state only: this is consumed by the local composer
+        // and is never written to chat history or browser storage.
+        setStellarPrivateIntentDraft(userText);
+        setWorkspaceMode("stellar");
+        setActiveTab("stellar");
+        setIsPortfolioOpen(false);
+        localStorage.setItem("kletia-workspace-mode", "stellar");
+      }
+      addMessage({
+        id: createRequestId(),
+        role: "kletia",
+        text: STELLAR_WORKSPACE_ENABLED
+          ? "Privacy request detected locally. Your raw prompt was not sent or saved. Kletia opened the Private Intent Composer; enter exact amounts only in its local field. CCTP and all ledger settlement remain public."
+          : "Privacy request detected locally, so the raw prompt was not sent or saved. The Private Intent workspace is unavailable on this deployment; public-chain activity cannot be presented as confidential.",
         network: networkMode,
         chainId: network.chainId,
       });
@@ -750,7 +905,7 @@ export default function App() {
     addMessage({
       id: userMsgId,
       role: "user",
-      text: options.displayText || userText,
+      text: persistentDisplayText,
       network: networkMode,
       chainId: network.chainId,
       walletAddress: address,
@@ -786,6 +941,12 @@ export default function App() {
                 clarificationSelection: options.clarificationSelection,
               }
             : {}),
+          semanticPlanner,
+          ...(semanticPlannerConsentToken
+            ? {
+                semanticPlannerConsentToken,
+              }
+            : {}),
           network: networkMode,
           chainId: network.chainId,
         }),
@@ -799,6 +960,51 @@ export default function App() {
         throw new Error(
           `Intent service returned HTTP ${response.status} without a valid response.`,
         );
+      }
+
+      const privacyTraceRequired =
+        data.status === "success" ||
+        data.status === "question" ||
+        data.code === "AI_SEMANTIC_CONSENT_REQUIRED";
+      if (
+        privacyTraceRequired &&
+        !isIntentPrivacyTrace(data.privacyTrace, {
+          requestId,
+          network: networkMode,
+          chainId: network.chainId,
+        })
+      ) {
+        throw new Error(
+          "Intent response did not include a valid privacy boundary receipt.",
+        );
+      }
+
+      if (
+        response.status === 409 &&
+        data.code === "AI_SEMANTIC_CONSENT_REQUIRED" &&
+        data.network === networkMode &&
+        data.chainId === network.chainId &&
+        data.requestId === requestId &&
+        typeof data.userAddress === "string" &&
+        isAddress(data.userAddress) &&
+        getAddress(data.userAddress) === getAddress(address) &&
+        isIntentPrivacyDecision(data.privacyDecision, networkMode)
+      ) {
+        updateRequestMessage(request, {
+          isLoading: false,
+          text:
+            "This wording needs smart intent interpretation. Turn it on once for this browser session or edit the request.",
+          intentData: data,
+        });
+        setPendingPrivacyDecision({
+          prompt: userText,
+          network: networkMode,
+          chainId: network.chainId,
+          walletAddress: address,
+          decision: data.privacyDecision,
+        });
+        activeRequestRef.current = null;
+        return;
       }
 
       const responseBoundary = resolveIntentHttpResponseBoundary(
@@ -824,7 +1030,6 @@ export default function App() {
 
       if (data.action === "workflow") {
         if (
-          networkMode !== "base" ||
           data.executionKind !== "workflow_plan_v1" ||
           !data.workflowToken ||
           !isWorkflowToken(data.workflowToken) ||
@@ -832,10 +1037,11 @@ export default function App() {
             requestId,
             userAddress: address,
             nowMs: currentEpochMs(),
-          })
+          }) ||
+          data.workflowPlan.steps[0]?.network !== networkMode
         ) {
           throw new Error(
-            "Cross-chain workflow was not bound to the active Base wallet and request.",
+            "Staged workflow was not bound to the active network, wallet and request.",
           );
         }
         setWorkflowResume({
@@ -935,10 +1141,12 @@ export default function App() {
           sourceMessageId: kletiaMsgId,
           expiresAt: conversationExpiresAt,
           clarification,
+          semanticPlanner,
         };
         updateRequestMessage(request, {
           isLoading: false,
           text: data.message || "More information is required.",
+          intentData: data,
           clarification,
           conversationId: data.conversationId,
           conversationExpiresAt,
@@ -1339,7 +1547,7 @@ export default function App() {
       if ((error as Error).name !== "AbortError") {
         updateRequestMessage(request, {
           isLoading: false,
-          text: `❌ System error: ${getErrorMessage(error)}`,
+          text: `🛑 Action stopped safely: ${getErrorMessage(error)}`,
         });
       }
     } finally {
@@ -1355,7 +1563,179 @@ export default function App() {
     }
   };
 
+  const handlePrivacyDecisionSelection = (
+    option: IntentPrivacyDecisionOptionV1,
+  ) => {
+    const pending = pendingPrivacyDecision;
+    if (!pending) return;
+
+    const stillBoundToActiveContext =
+      pending.network === networkMode &&
+      pending.chainId === network.chainId &&
+      chainId === network.chainId &&
+      pending.walletAddress.toLowerCase() === address?.toLowerCase() &&
+      pending.decision.expiresAt > currentEpochMs();
+
+    setPendingPrivacyDecision(null);
+    if (!stillBoundToActiveContext) {
+      addMessage({
+        id: createRequestId(),
+        role: "kletia",
+        text: "This disclosure decision expired or the wallet/network context changed. Review and resend the intent before Kletia shares it with an AI provider.",
+        network: networkMode,
+        chainId: network.chainId,
+        ...(address ? { walletAddress: address } : {}),
+      });
+      return;
+    }
+
+    if (option.id === "allow_ai_for_this_intent") {
+      void submitIntent(pending.prompt, {
+        displayText: "Allow AI semantic parsing for this intent only.",
+        semanticPlanner: "ai_assisted",
+        semanticPlannerConsentToken: pending.decision.decisionToken,
+      });
+      return;
+    }
+
+    if (option.id === "allow_ai_for_session") {
+      const session: SemanticAiSession = {
+        token: pending.decision.sessionDecisionToken,
+        network: pending.network,
+        chainId: pending.chainId,
+        walletAddress: pending.walletAddress,
+        expiresAt: pending.decision.sessionExpiresAt,
+      };
+      setSemanticAiSession(session);
+      void submitIntent(pending.prompt, {
+        displayText: "Smart intent interpretation enabled for this browser session.",
+        semanticPlanner: "ai_assisted",
+        semanticPlannerConsentToken: session.token,
+      });
+      return;
+    }
+
+    if (option.id === "open_private_composer") {
+      if (!STELLAR_WORKSPACE_ENABLED) {
+        setInput(pending.prompt);
+        requestAnimationFrame(() => inputRef.current?.focus());
+        return;
+      }
+      // The raw prompt stays in ephemeral React state and is handed directly
+      // to the device-private composer; it is never persisted as chat history.
+      setStellarPrivateIntentDraft(pending.prompt);
+      void selectWorkspace("stellar").then((selected) => {
+        if (selected) setActiveTab("stellar");
+      });
+      return;
+    }
+
+    setInput(pending.prompt);
+    setActiveTab("chat");
+    setIsPortfolioOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const handleSend = () => {
+    if (workspaceMode === "stellar") {
+      const intent = input.trim();
+      if (!intent) return;
+      setPendingPrivacyDecision(null);
+      if (containsSensitivePromptMaterial(intent)) {
+        setStellarMessages((current) => [
+          ...current,
+          {
+            id: createRequestId(),
+            role: "kletia",
+            text: "Private keys, seed phrases, and API credentials are blocked and were not added to chat.",
+          },
+        ]);
+        setInput("");
+        return;
+      }
+      const resolution = resolveStellarWorkspaceIntent(intent);
+      const userMessage: ChatMessage = {
+        id: createRequestId(),
+        role: "user",
+        text: redactIntentForPersistentHistory(intent),
+      };
+      const actionMessage: ChatMessage = {
+        id: createRequestId(),
+        role: "kletia",
+        text:
+          resolution.kind === "unknown"
+            ? "I stopped before preparing a Stellar transaction because the asset or action is not fully supported."
+            : resolution.kind === "payout"
+              ? "I mapped this to the Stellar Payment Center. Compare only live anchor routes here; bank and KYC details stay out of chat."
+            : resolution.kind === "cross_chain"
+              ? resolution.scenarioId
+                ? "I mapped this request to the reviewed Arc → Arbitrum Sepolia workflow. Enter the private amount and complete every checkpoint here in chat."
+                : "I recognized a multichain goal, but no complete reviewed route is bound yet."
+            : "I mapped this request locally to a reviewed Stellar action. Quote and transaction preparation remain deterministic.",
+        widgetType: "stellar_intent",
+        widgetData: resolution,
+      };
+      setStellarMessages((current) => [
+        ...current,
+        userMessage,
+        actionMessage,
+      ]);
+      if (
+        resolution.kind === "unknown" &&
+        sessionStorage.getItem("kletia-stellar-smart-parser-consent") === "true"
+      ) {
+        void (async () => {
+          try {
+            const response = await fetch(`${BACKEND_URL}/api/stellar/intent/interpret`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Kletia-Chain-Ref": "stellar:testnet",
+              },
+              body: JSON.stringify({ prompt: intent, semanticConsent: true }),
+            });
+            const body = (await response.json().catch(() => null)) as {
+              success?: unknown;
+              intent?: unknown;
+            } | null;
+            if (
+              !response.ok ||
+              body?.success !== true ||
+              !body.intent ||
+              typeof body.intent !== "object" ||
+              Array.isArray(body.intent)
+            ) {
+              return;
+            }
+            const interpreted = {
+              ...(body.intent as StellarWorkspaceIntentResolution),
+              sourcePrompt: intent,
+              semanticModelUsed: true,
+            };
+            setStellarMessages((current) =>
+              current.map((candidate) =>
+                candidate.id === actionMessage.id
+                  ? {
+                      ...candidate,
+                      text: interpreted.readyToPrepare
+                        ? "I understood the goal and prepared the reviewed action in chat."
+                        : "I understood the goal, but one required detail is still missing.",
+                      widgetData: interpreted,
+                    }
+                  : candidate,
+              ),
+            );
+          } catch {
+            // The existing unknown card remains available; no route is guessed.
+          }
+        })();
+      }
+      setInput("");
+      setActiveTab("chat");
+      setIsPortfolioOpen(false);
+      return;
+    }
+    if (input.trim()) setPendingPrivacyDecision(null);
     void submitIntent(input);
   };
 
@@ -2036,8 +2416,8 @@ export default function App() {
         address={address}
         handleFundClick={handleFundClick}
         onMenuClick={() => setIsAppSidebarOpen(!isAppSidebarOpen)}
-        networkMode={networkMode}
-        onNetworkSelect={switchNetwork}
+        networkMode={workspaceMode}
+        onNetworkSelect={selectWorkspace}
         isNetworkSwitching={isSwitching}
         networkSwitchError={switchError}
       />
@@ -2051,6 +2431,13 @@ export default function App() {
           isOpen={isAppSidebarOpen}
           setIsOpen={setIsAppSidebarOpen}
           onWidgetClick={handleWidgetClick}
+          workspaceMode={workspaceMode}
+          onWorkspaceSelect={selectWorkspace}
+          onClearHistory={
+            workspaceMode === "stellar"
+              ? () => setStellarMessages([])
+              : undefined
+          }
         />
 
         <div className="grid grid-rows-[1fr_auto] flex-1 overflow-hidden relative w-full h-full min-h-0 min-w-0">
@@ -2064,7 +2451,19 @@ export default function App() {
               </div>
             }
           >
-          {networkMode === "base" && activeTab === "allora" ? (
+          {workspaceMode === "stellar" && activeTab === "stellar" ? (
+            <div className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">
+              <StellarPaymentCenter
+                evmAddress={address}
+                initialIntent={stellarPrivateIntentDraft}
+                onIntentConsumed={() => setStellarPrivateIntentDraft("")}
+                onIntentSelect={(prompt) => {
+                  setActiveTab("chat");
+                  handleWidgetClick(prompt);
+                }}
+              />
+            </div>
+          ) : networkMode === "base" && activeTab === "allora" ? (
             <AlloraDashboard
               isDarkMode={isDarkMode}
               onActionClick={handleWidgetClick}
@@ -2110,15 +2509,15 @@ export default function App() {
                 id="chat-container"
               >
                 <div className="relative mx-auto w-full max-w-4xl min-w-0 pr-1 md:pr-0">
-                  {messages.length === 0 && (
+                  {activeChatMessages.length === 0 && (
                     <IntentStarter
-                      networkMode={networkMode}
+                      networkMode={workspaceMode === "stellar" ? "stellar" : networkMode}
                       walletAddress={address}
                       onSelect={handleWidgetClick}
                     />
                   )}
                   <div className="space-y-5 sm:space-y-6 md:space-y-8">
-                    {messages.map((msg) => (
+                    {activeChatMessages.map((msg) => (
                       <div
                         key={msg.id}
                         className={`flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
@@ -2150,6 +2549,41 @@ export default function App() {
                           {msg.role === "kletia" ? (
                             <div>
                               <div>{renderSafeMessage(msg.text)}</div>
+                              {workspaceMode === "stellar" &&
+                              msg.widgetType === "stellar_intent" &&
+                              msg.widgetData ? (
+                                <StellarIntentCard
+                                  key={`${msg.id}:${(msg.widgetData as StellarWorkspaceIntentResolution).semanticModelUsed ? "smart" : "local"}:${(msg.widgetData as StellarWorkspaceIntentResolution).kind}`}
+                                  resolution={
+                                    msg.widgetData as StellarWorkspaceIntentResolution
+                                  }
+                                  evmAddress={address}
+                                  stellarAddress={stellarClassicAddress}
+                                  onStellarAddressChange={setStellarClassicAddress}
+                                  onResolutionChange={(resolution) => {
+                                    setStellarMessages((current) =>
+                                      current.map((candidate) =>
+                                        candidate.id === msg.id
+                                          ? { ...candidate, widgetData: resolution }
+                                          : candidate,
+                                      ),
+                                    );
+                                  }}
+                                  onOpenWorkspace={(resolution) => {
+                                    setStellarPrivateIntentDraft(resolution.sourcePrompt);
+                                    setActiveTab("stellar");
+                                    setIsPortfolioOpen(false);
+                                  }}
+                                />
+                              ) : null}
+                              {msg.intentData?.privacyTrace &&
+                              msg.intentData.requestId === msg.requestId &&
+                              msg.intentData.network === msg.network &&
+                              msg.intentData.chainId === msg.chainId ? (
+                                <IntentPrivacyTraceCard
+                                  trace={msg.intentData.privacyTrace}
+                                />
+                              ) : null}
                               {msg.clarification &&
                                 msg.conversationExpiresAt !== undefined &&
                                 msg.clarificationStatus && (
@@ -2809,12 +3243,37 @@ export default function App() {
                 </div>
               </div>
 
+              {pendingPrivacyDecision ? (
+                <div className="shrink-0 px-2.5 pt-2 sm:px-4 md:px-6">
+                  <IntentPrivacyDecisionCard
+                    decision={pendingPrivacyDecision.decision}
+                    busy={false}
+                    onSelect={handlePrivacyDecisionSelection}
+                  />
+                </div>
+              ) : null}
+
+              {workspaceMode !== "stellar" && activeSemanticAiSession ? (
+                <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-2.5 pt-2 text-[10px] font-black uppercase sm:px-4 md:px-6">
+                  <span className="border-2 border-[#1A1A1A] bg-[#EDE7FF] px-2 py-1 text-[#4F2A9B] dark:border-[#64748B] dark:bg-[#231C3D] dark:text-[#D8CCFF]">
+                    Natural language on · this tab · expires automatically
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSemanticAiSession(null)}
+                    className="min-h-8 border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#1A2841] dark:text-white dark:shadow-[2px_2px_0_#475569]"
+                  >
+                    Turn off
+                  </button>
+                </div>
+              ) : null}
+
               <ChatInput
                 inputRef={inputRef}
                 input={input}
                 setInput={setInput}
                 handleSend={handleSend}
-                networkMode={networkMode}
+                networkMode={workspaceMode === "stellar" ? "stellar" : networkMode}
               />
             </>
           )}

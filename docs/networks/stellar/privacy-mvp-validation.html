@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kletia Stellar Privacy Architecture Validation</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, system-ui, sans-serif; }
+    body { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; line-height: 1.55; }
+    h1, h2 { line-height: 1.15; }
+    .verdict { border: 3px solid currentColor; padding: 16px; box-shadow: 6px 6px 0 #8b5cf6; }
+    .warning { border-left: 5px solid #eab308; padding: 8px 14px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid currentColor; padding: 10px; text-align: left; vertical-align: top; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>Kletia + Stellar Privacy — Architecture Validation</h1>
+  <p><strong>Date:</strong> 21 August 2026. <strong>Status:</strong> validated product direction, not shipped privacy functionality.</p>
+  <div class="verdict">
+    <strong>Verdict: pivot from mandatory privacy transit to a disclosure-aware privacy control plane and confidential treasury.</strong>
+    A four-week Stellar Testnet prototype is credible. Sending every Base-to-Arbitrum route through Stellar is not: a short, same-amount round trip is publicly linkable and adds cost and failure surfaces without meaningful privacy.
+  </div>
+
+  <h2>The product boundary</h2>
+  <p>Kletia should optimize three independent outcomes: economic result, execution risk, and disclosure. Stellar is used continuously to verify private-policy commitments and, when the user chooses, to hold capital inside a confidential treasury. Funds enter Stellar only when that creates a measurable privacy benefit; otherwise Base and Arbitrum execution remains direct.</p>
+
+  <table>
+    <tr><th>Mode</th><th>What Stellar does</th><th>What remains public</th><th>Decision</th></tr>
+    <tr><td>Private policy control plane</td><td>Verifies a client-generated proof that a route satisfies a hidden budget, allowlist, risk limit and deadline.</td><td>The Base or Arbitrum transaction, amount and account remain public.</td><td>Recommended first layer.</td></tr>
+    <tr><td>Confidential treasury</td><td>Confidential Token protects internal balances and transfer amounts; the client keeps proof secrets and disclosure keys.</td><td>Account addresses plus wrapper deposit and withdrawal amounts remain public.</td><td>Recommended Testnet MVP.</td></tr>
+    <tr><td>Privacy-pool transit</td><td>A shared pool can hide internal sender, recipient and amount relationships.</td><td>Deposits and withdrawals remain public; timing and unique amounts can still correlate them.</td><td>Research-only until audited, liquid and operationally mature.</td></tr>
+    <tr><td>Mandatory Stellar hop</td><td>Moves public USDC Base → Stellar → Arbitrum without a durable private state.</td><td>Both CCTP legs and the destination DeFi position are publicly linkable.</td><td>Reject as privacy theater.</td></tr>
+  </table>
+
+  <h2>Example: Base ETH to an Arbitrum lending position</h2>
+  <ol>
+    <li>Base ETH is swapped to native Base USDC. The swap and output are public.</li>
+    <li>A direct route can bridge to Arbitrum and supply to the selected protocol. It is the default when privacy is not requested.</li>
+    <li>If only the user's strategy or private cap must be hidden, the exact policy stays on the device. Stellar verifies a proof of policy compliance; the funds still take the direct route.</li>
+    <li>If the user already holds capital in the Stellar confidential treasury, Kletia can reveal and withdraw only the required amount. The remaining treasury balance and internal allocations stay confidential; the EVM exit and lending position become public.</li>
+    <li>A one-user, immediate Base → Stellar → Arbitrum round trip must never be labelled private. Its amount and timing are easy to correlate.</li>
+  </ol>
+
+  <h2>Current network truth</h2>
+  <p>Circle CCTP V2 now supports Base Mainnet, Stellar Mainnet and Arbitrum One, so public native-USDC transport is technically available. Stellar inbound transfers require the official <code>CctpForwarder</code>; Stellar does not support Circle's destination Forwarding Service, so Kletia needs an XLM-funded relayer for <code>mint_and_forward</code>. CCTP amount fields use six decimals while Stellar USDC uses seven. None of this transport is private or globally atomic.</p>
+  <p class="warning"><strong>Real-value privacy remains blocked:</strong> OpenZeppelin Confidential Tokens are an unaudited Testnet developer preview, and Nethermind Stellar Private Payments is a work-in-progress, unaudited research implementation. Mainnet CCTP availability does not make these privacy contracts safe for mainnet funds.</p>
+
+  <h2>Four-week proof of concept</h2>
+  <ul>
+    <li>An isolated client-side private intent composer that sends only opaque slots to the language model; exact amount, balance, recipient secret, witness and viewing key never enter Kletia API, chat history, logs or analytics.</li>
+    <li>A Stellar Testnet Confidential Token flow for one demo asset: register, deposit, confidential transfer, selective disclosure and withdrawal, with browser-local proving.</li>
+    <li><code>DisclosurePolicyV1</code> and <code>DisclosureReceiptV1</code>: list which parties saw each field, where confidentiality begins and ends, and whether the route materially improved privacy.</li>
+    <li>A proof-control-plane demo in which Stellar verifies that a public Base/Arbitrum candidate route satisfies a committed private cap and allowlist, without claiming that Stellar verified external-chain finality.</li>
+    <li>An optional Arc Testnet → Stellar Testnet public CCTP ingress, explicitly showing the transition from public transport into the confidential zone.</li>
+  </ul>
+
+  <h2>Go / no-go gates</h2>
+  <ul>
+    <li>Network capture confirms no confidential plaintext reaches OpenRouter, the API, telemetry, persisted history or a remote prover.</li>
+    <li>The UI labels every visible address, amount, timing and public ingress/egress boundary; it never says anonymous, untraceable, private bridge or globally atomic.</li>
+    <li>Wrong proof, nullifier, recipient, expiry, verifier, network, wrapper, CCTP domain, forwarder or decimal mapping fails closed.</li>
+    <li>Stellar is selected as a fund route only when a deterministic privacy-gain check shows more than a cosmetic hidden hop.</li>
+    <li>Mainnet privacy remains disabled until the upstream implementation is audited and the Kletia integration has an independent security review.</li>
+  </ul>
+
+  <h2>Positioning</h2>
+  <p><strong>Kletia is a disclosure-aware multichain intent system: Stellar is its confidential treasury and proof-verification domain, while Base, Arbitrum and other networks remain liquidity and execution domains.</strong> The defensible behavior is not “Stellar makes every route private.” It is that Kletia can prove a route respects a private policy, explain every disclosure boundary, preserve confidential treasury state, and refuse a route whose claimed privacy cannot actually be delivered.</p>
+</body>
+</html>

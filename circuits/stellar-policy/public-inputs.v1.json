@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "kletia_policy_public_inputs_v1",
+  "circuit": "KletiaPolicyV1",
+  "curve": "bn128",
+  "proofSystem": "groth16",
+  "merkleDepth": 16,
+  "publicInputs": [
+    "workflowRoot",
+    "policyRoot",
+    "protocolRegistryRoot",
+    "assetRegistryRoot",
+    "recipientPolicyRoot",
+    "environmentLane",
+    "executionExpiresAtLedger",
+    "nullifier",
+    "executionContextCommitment"
+  ],
+  "claims": [
+    "amount_within_private_policy_floor_and_cap",
+    "environment_lane_bound_into_policy_root",
+    "protocol_membership",
+    "asset_membership",
+    "recipient_allowlist_membership",
+    "expiry_value_bound_into_policy_root_and_checked_against_current_ledger_by_registry",
+    "workflow_scoped_nullifier_derivation",
+    "hidden_amount_asset_protocol_recipient_and_workflow_bound_into_execution_context_commitment"
+  ],
+  "notClaimed": [
+    "foreign_chain_execution_truth",
+    "denylist_non_membership_without_a_pinned_snapshot",
+    "ledger_anonymity",
+    "bridge_atomicity",
+    "safe_ai_reasoning",
+    "foreign_transaction_amount_matches_execution_context_without_independent_receipt_verification"
+  ],
+  "artifactStatus": "source_compiled_constraints_tested_no_setup_no_verifier"
+}

@@ -37,16 +37,28 @@ const requiredFiles = [
   "apps/api/src/networks/base/routes/mcp.ts",
   "apps/api/src/networks/arc/routes.ts",
   "apps/api/src/networks/arbitrum/engine.ts",
+  "apps/api/src/networks/arbitrum-sepolia/config.ts",
+  "apps/api/src/networks/stellar/config.ts",
+  "apps/api/src/networks/stellar/lastMile.ts",
+  "apps/api/src/networks/stellar/payment-center/stellarTransferEvidence.ts",
+  "apps/api/src/release/mvpReadiness.ts",
+  "apps/api/scripts/run-mvp-local.mjs",
+  "apps/api/src/cross-chain/v2/compiler.ts",
   "apps/api/src/shared/config/networks.ts",
   "apps/api/src/cross-chain/workflow.ts",
   "apps/web/src/networks/base/x402/baseX402Buyer.ts",
   "apps/web/src/networks/arc/config.ts",
   "apps/web/src/networks/arbitrum/components/ArbitrumPortfolioViewer.tsx",
+  "apps/web/src/networks/stellar/components/StellarPaymentCenter.tsx",
+  "apps/web/src/networks/stellar/components/StellarPayoutIntentCard.tsx",
+  "apps/web/src/networks/stellar/runtime/lastMile.ts",
+  "apps/web/src/cross-chain/v2/types.ts",
   "apps/web/src/shared/components/layout/NetworkSwitcher.tsx",
   "apps/web/src/cross-chain/components/WorkflowTimeline.tsx",
   "apps/web/public/kletia-logo.png",
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
+  "contracts/stellar/deployments/testnet/release-operator.v1.json",
   "render.yaml",
   "attachments/GASOK_Team_Archial.md",
   "attachments/Kletia_Arc_Submission.pdf",
@@ -139,7 +151,12 @@ for (const file of trackedFiles) {
 
 const multilingualIntentSources = new Set([
   "apps/api/src/shared/ai/parser.ts",
+  "apps/api/src/shared/privacy/intentPrivacyTrace.ts",
   "apps/api/src/networks/base/intent/x402.ts",
+  "apps/web/src/networks/stellar/runtime/intentWorkspace.ts",
+  "apps/web/src/networks/stellar/runtime/privateIntent.ts",
+  "apps/web/src/shared/privacy/defaultIntentPrivacy.ts",
+  "apps/web/src/shared/privacy/intentPrivacy.ts",
 ]);
 const turkishApplicationCopy =
   /\b(?:aktif pozisyonlar|ana para|bakiye|bekleyen|bilinmeyen|blok|desteklenmiyor|dilim|durdu|edilen|faiz|girdi|hedef|hesap|incelendi|izin verilmeyen|orta vade|pozisyonu|risk etiketleri|saat|sorgu|tahakkuk|tahmin|tahmini|teminat|tespit edilen|toplam|veya|zaman)\b/iu;
@@ -203,7 +220,7 @@ for (const file of trackedFiles) {
   }
 }
 
-const networkSourceRoot = /^(apps\/(?:api|web)\/src\/networks\/(base|arc|arbitrum))\//u;
+const networkSourceRoot = /^(apps\/(?:api|web)\/src\/networks\/(base|arc|arbitrum|arbitrum-sepolia|stellar))\//u;
 const relativeImportPattern =
   /(?:from\s*|import\s*\()\s*["'](\.\.?\/[^"']+)["']/gu;
 for (const file of trackedFiles) {
@@ -225,6 +242,68 @@ for (const file of trackedFiles) {
 }
 
 const renderConfig = readFileSync("render.yaml", "utf8");
+const stellarReleaseOperator = JSON.parse(
+  readFileSync(
+    "contracts/stellar/deployments/testnet/release-operator.v1.json",
+    "utf8",
+  ),
+);
+if (
+  stellarReleaseOperator.schemaVersion !==
+    "kletia_stellar_release_operator_v1" ||
+  stellarReleaseOperator.network !== "stellar_testnet" ||
+  !/^G[A-Z2-7]{55}$/u.test(stellarReleaseOperator.publicKey || "") ||
+  !/^[a-f0-9]{64}$/u.test(
+    stellarReleaseOperator.friendbotFundingEvidence?.transactionHash || "",
+  ) ||
+  stellarReleaseOperator.friendbotFundingEvidence?.successful !== true ||
+  stellarReleaseOperator.keyStorage?.type !==
+    "operating_system_secure_store" ||
+  stellarReleaseOperator.keyStorage?.secretCommittedToRepository !== false ||
+  stellarReleaseOperator.keyStorage?.secretUsedByApiRuntime !== false ||
+  stellarReleaseOperator.keyStorage?.secretUsedByWebRuntime !== false ||
+  stellarReleaseOperator.roleBoundary?.endUserPasskeyAccount !== false ||
+  stellarReleaseOperator.roleBoundary?.paymentProvider !== false ||
+  stellarReleaseOperator.roleBoundary?.mainnetAuthority !== false
+) {
+  fail("the Stellar Testnet release-operator boundary is invalid");
+}
+
+const coreMvpRunner = readFileSync("apps/api/scripts/run-mvp-local.mjs", "utf8");
+const liveMvpReadiness = readFileSync(
+  "apps/api/src/release/mvpReadiness.ts",
+  "utf8",
+);
+for (const forbidden of [
+  "STELLAR_SOLVER_MARKET_ENABLED",
+  "STELLAR_INTENT_CONTROL_PLANE_V2_ENABLED",
+  "STELLAR_POLICY_V2_ARTIFACTS_READY",
+]) {
+  if (coreMvpRunner.includes(forbidden)) {
+    fail(`the core MVP runner must not activate the Stellar lab flag ${forbidden}`);
+  }
+}
+for (const forbiddenImport of [
+  "controlPlaneV2Readiness",
+  "privatePaymentsManifest",
+  "solverMarketReadiness",
+  "cross-chain/v3/store",
+  "cross-chain/v4/store",
+]) {
+  if (liveMvpReadiness.includes(forbiddenImport)) {
+    fail(`live MVP readiness still depends on a disabled lab: ${forbiddenImport}`);
+  }
+}
+for (const requiredFragment of [
+  "stellar_passkey_payment_identity",
+  "stellar_payment_center_core",
+  "stellar_reviewed_payment_provider",
+  "readPaymentCenterStoreReadiness",
+]) {
+  if (!liveMvpReadiness.includes(requiredFragment)) {
+    fail(`live MVP readiness is missing Payment Center core binding ${requiredFragment}`);
+  }
+}
 for (const root of ["rootDir: apps/api", "rootDir: apps/web"]) {
   if (!renderConfig.includes(root)) fail(`Render root is missing: ${root}`);
 }
@@ -242,10 +321,23 @@ const renderRequiredFragments = [
   "autoDeployTrigger: checksPass",
   "value: https://api.kletiaai.xyz",
   "value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com",
+  "value: https://testanchor.stellar.org",
 ];
 for (const fragment of renderRequiredFragments) {
   if (!renderConfig.includes(fragment)) {
     fail(`Render release boundary is missing: ${fragment}`);
+  }
+}
+const labsWebEnvironment = readFileSync("apps/web/.env.labs.example", "utf8");
+for (const fragment of [
+  "STELLAR_POLICY_V2_PROVER_WASM_RELEASE_URL",
+  "STELLAR_POLICY_V2_PROVING_KEY_RELEASE_URL",
+]) {
+  if (!labsWebEnvironment.includes(fragment)) {
+    fail(`Stellar labs web environment is missing: ${fragment}`);
+  }
+  if (renderConfig.includes(fragment)) {
+    fail(`core Render release must not stage Stellar lab artifact: ${fragment}`);
   }
 }
 if ((renderConfig.match(/branch: main/gu) ?? []).length !== 2) {

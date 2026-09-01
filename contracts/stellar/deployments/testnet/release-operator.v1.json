@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "kletia_stellar_release_operator_v1",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "alias": "kletia-release-deployer-20260901",
+  "publicKey": "GBRBZ3MFLRUHYXBAADPYLU3OHFK7BY27FP7XN5PEEW43BMONNY7I7GIV",
+  "createdAt": "2026-09-01T15:11:12Z",
+  "keyStorage": {
+    "type": "operating_system_secure_store",
+    "secretCommittedToRepository": false,
+    "secretUsedByApiRuntime": false,
+    "secretUsedByWebRuntime": false
+  },
+  "friendbotFundingEvidence": {
+    "transactionHash": "22e28259373166cf2e9c114ba763ad61bc22ec2741f05bbdec9a82ed9465a82a",
+    "ledger": 4450377,
+    "successful": true,
+    "startingBalanceXlm": "10000.0000000"
+  },
+  "toolchain": {
+    "createdWithStellarCli": "27.1.0",
+    "revalidatedWithStellarCli": "28.0.0"
+  },
+  "roleBoundary": {
+    "testnetReleaseOperator": true,
+    "endUserPasskeyAccount": false,
+    "paymentProvider": false,
+    "custodyAccount": false,
+    "mainnetAuthority": false,
+    "productionReady": false
+  },
+  "note": "This funded Testnet identity is reserved for explicit Kletia release operations. End-user secp256r1 accounts remain self-custodial Stellar contract accounts created through WebAuthn."
+}

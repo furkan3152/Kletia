@@ -58,6 +58,18 @@ const nativeSwap = resolveStellarWorkspaceIntent(
 assert.equal(nativeSwap.kind, "swap");
 assert.equal(nativeSwap.readyToPrepare, true);
 
+const passkeyTransfer = resolveStellarWorkspaceIntent(
+  "Send 0.1 XLM to GBRBZ3MFLRUHYXBAADPYLU3OHFK7BY27FP7XN5PEEW43BMONNY7I7GIV on Stellar Testnet",
+);
+assert.equal(passkeyTransfer.kind, "transfer");
+assert.equal(passkeyTransfer.amount, "0.1");
+assert.equal(passkeyTransfer.assetIn, "XLM");
+assert.equal(
+  passkeyTransfer.recipient,
+  "GBRBZ3MFLRUHYXBAADPYLU3OHFK7BY27FP7XN5PEEW43BMONNY7I7GIV",
+);
+assert.match(passkeyTransfer.nextStep, /passkey account is the default/iu);
+
 const anchorAccount =
   "GBANAGOAXH5ONSBI2I6I5LHP2TCRHWMZIAMGUQH2TNKQNCOGJ7GC3ZOL";
 const muxedAnchor = new MuxedAccount(

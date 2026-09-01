@@ -24,6 +24,7 @@
     "check:stellar-payment-center": "npm --prefix apps/api run verify:stellar-payment-center",
     "check:stellar-reference-anchor-live": "npm --prefix apps/api run verify:stellar-reference-anchor-live",
     "verify:stellar-release-operator-live": "node tooling/verify-stellar-release-operator-live.mjs",
+    "verify:stellar-passkey-smoke-live": "node tooling/verify-stellar-passkey-smoke-live.mjs",
     "check:policy-merkle-browser": "npm --prefix apps/web run verify:policy-merkle",
     "check:policy-v4-browser": "npm --prefix apps/web run verify:policy-v4",
     "check:stellar-policy-v2-proof": "node circuits/stellar-policy/verify-proof-v2.mjs",

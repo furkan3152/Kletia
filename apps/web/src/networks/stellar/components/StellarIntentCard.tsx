@@ -191,6 +191,7 @@ export function StellarIntentCard({
   const [notice, setNotice] = React.useState<string | null>(null);
   const [txHash, setTxHash] = React.useState<string | null>(null);
   const [showPasskey, setShowPasskey] = React.useState(false);
+  const [transferSigner, setTransferSigner] = React.useState<"passkey" | "freighter">("passkey");
   const [swapSource, setSwapSource] = React.useState<"XLM" | "USDC">(
     resolution.assetIn === "USDC" ? "USDC" : "XLM",
   );
@@ -613,30 +614,52 @@ export function StellarIntentCard({
 
       {resolution.kind === "transfer" ? (
         <div className="mt-3 grid gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            {(["XLM", "USDC"] as const).map((symbol) => (
-              <button key={symbol} type="button" className={transferSymbol === symbol ? primaryButtonClass : buttonClass} onClick={() => setTransferSymbol(symbol)}>
-                {symbol}
-              </button>
-            ))}
-          </div>
-          <label className="grid gap-1 text-[10px] font-black uppercase tracking-wider">
-            Amount
-            <input className={inputClass} value={transferAmount} inputMode="decimal" autoComplete="off" onChange={(event) => setTransferAmount(event.target.value)} />
-          </label>
-          <label className="grid gap-1 text-[10px] font-black uppercase tracking-wider">
-            Destination G-address
-            <input className={inputClass} value={recipient} placeholder="G…" spellCheck={false} autoComplete="off" onChange={(event) => setRecipient(event.target.value.trim())} />
-          </label>
-          {!stellarAddress ? (
-            <button type="button" className={buttonClass} disabled={busy !== null} onClick={() => void connect()}>
-              <Wallet className="h-4 w-4" /> Connect Freighter
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Stellar payment signer">
+            <button type="button" className={transferSigner === "passkey" ? primaryButtonClass : buttonClass} onClick={() => setTransferSigner("passkey")}>
+              <Fingerprint className="h-4 w-4" /> Passkey account
             </button>
-          ) : null}
-          <button type="button" className={positiveButtonClass} disabled={busy !== null || !stellarAddress || !validTransferAmount || !validRecipient} onClick={() => void executeTransfer()}>
-            {busy === "transfer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Review and sign payment
-          </button>
+            <button type="button" className={transferSigner === "freighter" ? primaryButtonClass : buttonClass} onClick={() => setTransferSigner("freighter")}>
+              <Wallet className="h-4 w-4" /> Classic account
+            </button>
+          </div>
+          {transferSigner === "passkey" ? (
+            <PasskeyAccountCard
+              evmAddress={evmAddress}
+              initialRecipient={recipient}
+              initialAmount={transferAmount || "1"}
+              initialSymbol={transferSymbol}
+            />
+          ) : (
+            <>
+              <p className="text-xs font-bold">
+                Use Freighter only for an existing Classic G-account. The passkey account above is the seedless default.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["XLM", "USDC"] as const).map((symbol) => (
+                  <button key={symbol} type="button" className={transferSymbol === symbol ? primaryButtonClass : buttonClass} onClick={() => setTransferSymbol(symbol)}>
+                    {symbol}
+                  </button>
+                ))}
+              </div>
+              <label className="grid gap-1 text-[10px] font-black uppercase tracking-wider">
+                Amount
+                <input className={inputClass} value={transferAmount} inputMode="decimal" autoComplete="off" onChange={(event) => setTransferAmount(event.target.value)} />
+              </label>
+              <label className="grid gap-1 text-[10px] font-black uppercase tracking-wider">
+                Destination G-address
+                <input className={inputClass} value={recipient} placeholder="G…" spellCheck={false} autoComplete="off" onChange={(event) => setRecipient(event.target.value.trim())} />
+              </label>
+              {!stellarAddress ? (
+                <button type="button" className={buttonClass} disabled={busy !== null} onClick={() => void connect()}>
+                  <Wallet className="h-4 w-4" /> Connect Freighter
+                </button>
+              ) : null}
+              <button type="button" className={positiveButtonClass} disabled={busy !== null || !stellarAddress || !validTransferAmount || !validRecipient} onClick={() => void executeTransfer()}>
+                {busy === "transfer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Review and sign payment
+              </button>
+            </>
+          )}
         </div>
       ) : null}
 

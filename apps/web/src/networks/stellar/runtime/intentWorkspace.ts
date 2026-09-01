@@ -410,7 +410,7 @@ export function resolveStellarWorkspaceIntent(
       "transfer",
       "Prepare a Stellar payment",
       "Kletia will validate the destination, asset identity, balance, and trustline before signing.",
-      "Review the populated payment form; sending still requires Freighter approval.",
+      "Review the populated payment form. The seedless passkey account is the default; an existing Classic account can still use Freighter.",
       source,
     );
     if (base.assetIn === "EURC") {
@@ -445,7 +445,7 @@ export function resolveStellarWorkspaceIntent(
       "portfolio",
       "Read your Stellar balances",
       "Kletia will read live XLM and reviewed Circle Testnet USDC balances from Horizon.",
-      "Connect Freighter to load the account; no transaction is created.",
+      "Use the seedless passkey account, or connect Freighter for an existing Classic account. No transaction is created.",
       source,
     );
   }

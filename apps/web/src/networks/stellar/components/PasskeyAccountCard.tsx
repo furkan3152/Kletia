@@ -38,10 +38,16 @@ export function PasskeyAccountCard({
   evmAddress,
   onSessionChange,
   showTransferTools = true,
+  initialRecipient = "",
+  initialAmount = "1",
+  initialSymbol = "XLM",
 }: {
   evmAddress?: `0x${string}`;
   onSessionChange?: (session: StellarPasskeySession | null) => void;
   showTransferTools?: boolean;
+  initialRecipient?: string;
+  initialAmount?: string;
+  initialSymbol?: "XLM" | "USDC";
 }) {
   const browserSupport = React.useMemo(() => readStellarPasskeyBrowserSupport(), []);
   const [readiness, setReadiness] = React.useState<StellarPasskeyReadiness | null>(null);
@@ -50,9 +56,9 @@ export function PasskeyAccountCard({
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [transactionHash, setTransactionHash] = React.useState<string | null>(null);
-  const [recipient, setRecipient] = React.useState("");
-  const [amount, setAmount] = React.useState("1");
-  const [sendSymbol, setSendSymbol] = React.useState<"XLM" | "USDC">("XLM");
+  const [recipient, setRecipient] = React.useState(initialRecipient);
+  const [amount, setAmount] = React.useState(initialAmount);
+  const [sendSymbol, setSendSymbol] = React.useState<"XLM" | "USDC">(initialSymbol);
 
   const applySession = React.useCallback((next: StellarPasskeySession | null) => {
     setSession(next);
@@ -250,11 +256,11 @@ export function PasskeyAccountCard({
           {showTransferTools ? <form className="stellar-passkey-send" onSubmit={(event) => { event.preventDefault(); void send(); }}>
             <label>
               Send with passkey
-              <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="G... or C... recipient" autoComplete="off" />
+              <input aria-label="Passkey payment recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="G... or C... recipient" autoComplete="off" />
             </label>
             <label>
               Asset
-              <select value={sendSymbol} onChange={(event) => setSendSymbol(event.target.value as "XLM" | "USDC")}>
+              <select aria-label="Passkey payment asset" value={sendSymbol} onChange={(event) => setSendSymbol(event.target.value as "XLM" | "USDC")}>
                 <option value="XLM">XLM</option>
                 <option value="USDC">Circle Testnet USDC</option>
               </select>

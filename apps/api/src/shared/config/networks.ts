@@ -195,6 +195,7 @@ const ARC_ACTIONS = [
   "appkit_bridge",
   "add_liquidity",
   "remove_liquidity",
+  "workflow",
 ] as const;
 
 const ARBITRUM_ACTIONS = [
@@ -209,6 +210,7 @@ const ARBITRUM_ACTIONS = [
   "borrow_capacity",
   "repay",
   "yield_compare",
+  "workflow",
   "policy_agent",
 ] as const;
 

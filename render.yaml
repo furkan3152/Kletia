@@ -37,6 +37,42 @@ services:
         sync: false
       - key: ARBITRUM_MVP_ENABLED
         value: "false"
+      - key: STELLAR_MVP_ENABLED
+        value: "true"
+      - key: STELLAR_HORIZON_URL
+        value: https://horizon-testnet.stellar.org
+      - key: STELLAR_RPC_URL
+        value: https://soroban-testnet.stellar.org
+      - key: STELLAR_PASSKEY_ACCOUNTS_ENABLED
+        value: "true"
+      - key: STELLAR_PASSKEY_RELAYER_UPSTREAM_URL
+        value: https://smart-account-relayer-proxy.sdf-ecosystem.workers.dev
+      - key: STELLAR_LAST_MILE_ENABLED
+        value: "true"
+      - key: STELLAR_ANCHOR_ALLOWLIST
+        value: https://testanchor.stellar.org
+      - key: STELLAR_ANCHOR_ENDPOINT_HOST_ALLOWLIST
+        value: https://testanchor.stellar.org
+      - key: STELLAR_ANCHOR_TIMEOUT_MS
+        value: "8000"
+      - key: STELLAR_PAYMENT_CENTER_DATABASE_URL
+        fromDatabase:
+          name: kletia-stellar-event-archive
+          property: connectionString
+      - key: PAYMENT_CENTER_SIGNING_SECRET
+        generateValue: true
+      - key: STELLAR_PAYMENT_CENTER_ENCRYPTION_KEY
+        generateValue: true
+      - key: STELLAR_LABS_ENABLED
+        value: "false"
+      - key: ARBITRUM_SEPOLIA_RPC_URL
+        sync: false
+      - key: ARBITRUM_SEPOLIA_MVP_ENABLED
+        value: "true"
+      - key: WORKFLOW_V2_DATABASE_URL
+        fromDatabase:
+          name: kletia-stellar-event-archive
+          property: connectionString
       - key: WORKFLOW_SIGNING_SECRET
         generateValue: true
       - key: ARC_VAULT_EXECUTION_MODE
@@ -159,8 +195,14 @@ services:
         value: https://rpc.testnet.arc.network
       - key: VITE_ARBITRUM_RPC_URL
         value: https://arb1.arbitrum.io/rpc
+      - key: VITE_ARBITRUM_SEPOLIA_RPC_URL
+        sync: false
       - key: VITE_ARBITRUM_MVP_ENABLED
         value: "false"
+      # UI discoverability mirrors the server gate. Both must be enabled only
+      # after the public Stellar/CCTP/Aave lifecycle gates pass.
+      - key: VITE_STELLAR_MVP_ENABLED
+        value: "true"
       - key: VITE_ARC_VAULT_EXECUTION_MODE
         value: vault_v2
       - key: VITE_ARC_VAULT_V2_ADDRESS
@@ -171,3 +213,11 @@ services:
         value: "false"
       - key: VITE_WALLETCONNECT_PROJECT_ID
         sync: false
+
+databases:
+  - name: kletia-stellar-event-archive
+    plan: free
+    region: frankfurt
+    databaseName: kletia_stellar_events
+    user: kletia_stellar_archive
+    ipAllowList: []

@@ -378,6 +378,7 @@ const NON_ASSET_ACTIONS: Readonly<Record<NetworkId, ReadonlySet<string>>> = {
     "open_widget",
     "claim_rewards",
     "claim_unstaked",
+    "workflow",
   ]),
   arbitrum: new Set([
     "chat",

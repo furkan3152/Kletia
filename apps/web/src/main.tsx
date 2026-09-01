@@ -1,3 +1,8 @@
+// Must stay the first import: it installs EgressGuardV1 over the browser's
+// outbound surfaces before any wallet SDK, transport or telemetry module can
+// capture an unwrapped native reference.
+import "./shared/privacy/bootstrapEgressGuard";
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import {
@@ -13,11 +18,13 @@ import {
 import "@rainbow-me/rainbowkit/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fallback, http } from "viem";
+import { arbitrumSepolia } from "viem/chains";
 import { createConfig, WagmiProvider } from "wagmi";
 
 import App from "./app/App.tsx";
 import {
   ALLOW_PUBLIC_BASE_RPC_FALLBACK,
+  ARBITRUM_SEPOLIA_RPC_URL,
   NETWORKS,
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
@@ -72,6 +79,7 @@ const config = createConfig({
       ).map((url) => http(url)),
     ),
     [NETWORKS.arbitrum.chainId]: http(NETWORKS.arbitrum.rpcUrl),
+    [arbitrumSepolia.id]: http(ARBITRUM_SEPOLIA_RPC_URL),
   },
   ssr: false,
 });

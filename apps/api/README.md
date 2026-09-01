@@ -1,43 +1,44 @@
-# Kletia API
+# Kletia API (@kletia/api)
 
-The canonical intent API for the unified Kletia application. It serves Base
-Mainnet, Arc Testnet and the capability-gated Arbitrum One Public Beta through
-one HTTP boundary while preserving independent chain identity, assets,
-protocol targets, transaction builders, and runtime validation.
+The canonical intent-driven API for the unified Kletia application. It converts natural language into structured execution plans and serves Base Mainnet, Arc Testnet, capability-gated Arbitrum One, and the Stellar-centered Testnet lane through a single HTTP boundary. It maintains independent chain identity, assets, protocol targets, transaction builders, and runtime validation.
 
-The committed `.npmrc` keeps TypeScript and declaration packages available in
-production-mode CI builds. They compile `src` into `dist`; the runtime still
-starts only the emitted `dist/index.js` with `npm start`.
+## Architecture Overview
 
-## Source ownership
+- **`src/networks/`**: Independent chain handlers.
+  - `base`: Base DeFi, Basenames, token launch, paymaster, and x402 micropayments.
+  - `arc`: Arc programmable money intents, contracts, and Circle App Kit integration.
+  - `arbitrum`: Reviewed Arbitrum assets, Uniswap V3, Aave V3 actions.
+  - `stellar`: Native Testnet tools, passkey Payment Center (SEP-38/24/45).
+- **`src/cross-chain/`**: V2, V3, and V4 compilers managing heterogeneous CCTP workflows with exact lane, wallet, asset, and privacy bindings.
+- **`src/shared/`**: Parsing, entity resolution, HTTP middleware, response envelopes, observability, and safety gates.
+- **`src/integrations/`**: Bounded HTTP routes for external providers like Allora and Webacy.
+- **`src/scripts/`**: Operator-only verification, evidence, cleanup, and reserve commands (excluded from production builds).
 
-- `src/networks/base`: Base DeFi, Basenames, bridging, token launch, paymaster,
-  x402, protocol registries, and Base-only routes.
-- `src/networks/arc`: Arc contract ABIs, programmable-money intents, Circle App
-  Kit integration, and Arc-only routes.
-- `src/networks/arbitrum`: reviewed Arbitrum assets, Uniswap V3 routing, Aave
-  V3 position actions, and chain/protocol attestation.
-- `src/shared`: parsing, entity resolution, chain registry, HTTP middleware,
-  response envelopes, policy agents, observability, and common safety gates.
-- `src/cross-chain`: sealed Base-to-Arbitrum workflow plans, Across quote and
-  checkpoint handling, resume/advance routes, and gas-acquisition policy.
-- `src/integrations`: bounded external-provider HTTP routes such as Allora and
-  Webacy. Provider errors never become invented financial data.
-- `src/scripts`: operator-only verification, evidence, cleanup, and reserve
-  funding commands; scripts are excluded from the production build.
-
-Network-owned transaction construction must never be added to a shared folder.
-Arc Testnet is not permitted inside Base/Arbitrum Mainnet capital workflows.
-
-## Commands
+## Setup Instructions
 
 ```bash
 npm ci --legacy-peer-deps
-npm run typecheck
-npm run build
-npm run dev
 ```
 
-Copy `.env.example` to `.env` for local development. Private keys are not API
-runtime configuration; deployment and reserve-funding credentials belong only
-to the relevant ignored contract-operator environment.
+## Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the development server using `tsx`. |
+| `npm run build` | Clean `dist` and compile the TypeScript source. |
+| `npm start` | Run the compiled output in `dist/index.js`. |
+| `npm run typecheck` | Verify types across the package. |
+| `npm run release:preflight` | Typecheck, build, and verify the Base registry. |
+| `npm run solver:testnet` | Run the Testnet reference solver. |
+
+## Key Environment Variables
+
+Please see `.env.example` for the complete list of environment variables. Environment configuration drives network readiness, execution limits, and external service bindings. Private keys are deliberately isolated from the runtime configuration and belong only to operator-specific environments.
+
+## Deployment Information
+
+This package operates as a Node.js (Express 5) service. The committed `.npmrc` ensures that TypeScript remains available for production CI builds, yet the runtime itself only launches the emitted output inside the `dist` folder. 
+
+## License
+
+MIT

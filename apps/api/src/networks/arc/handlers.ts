@@ -62,6 +62,8 @@ export interface ArcRoutePlan {
   calldata: Hex;
   value: string;
   expectedOutput: string;
+  expectedOutputAtomic?: string;
+  outputTokenAddress?: Address;
   primaryTokenAddress?: Address;
   primaryAmountInWei?: string;
   secondaryTokenAddress?: Address;
@@ -76,6 +78,8 @@ export interface ArcTransactionResult {
   winner: string;
   winnerMessage: string;
   expectedOutput: string;
+  expectedOutputAtomic?: string;
+  outputTokenAddress?: Address;
   targetContract: Address;
   calldata: Hex;
   value: string;
@@ -230,6 +234,8 @@ function transactionResult(
     calldata: route.calldata,
     value: route.value,
     expectedOutput: route.expectedOutput,
+    expectedOutputAtomic: route.expectedOutputAtomic,
+    outputTokenAddress: route.outputTokenAddress,
     primaryTokenAddress: route.primaryTokenAddress,
     primaryAmountInWei: route.primaryAmountInWei,
     secondaryTokenAddress: route.secondaryTokenAddress,
@@ -243,6 +249,8 @@ function transactionResult(
     winner: route.name,
     winnerMessage: `Arc Testnet transaction ready: ${route.expectedOutput}.`,
     expectedOutput: route.expectedOutput,
+    expectedOutputAtomic: route.expectedOutputAtomic,
+    outputTokenAddress: route.outputTokenAddress,
     targetContract: route.router,
     calldata: route.calldata,
     value: route.value,
@@ -390,6 +398,8 @@ async function handleSwap(intent: ParsedIntent, user: Address) {
     approvals: isUsdcToKlet
       ? []
       : [createApproval(ARC_CONTRACTS.Token, ARC_CONTRACTS.Swap, amount)],
+    expectedOutputAtomic: output.toString(),
+    outputTokenAddress: isUsdcToKlet ? ARC_CONTRACTS.Token : undefined,
     expectedOutput: `${formatUnits(output, 18)} ${isUsdcToKlet ? "KLET" : "USDC"}`,
   });
 }
@@ -765,7 +775,7 @@ async function handleAddLiquidity(intent: ParsedIntent) {
   if (userMaxKlet < requiredKlet) {
     throw new ArcPlanError(
       "ARC_LIQUIDITY_KLET_CAP_EXCEEDED",
-      `Live reserves require at least ${formatUnits(requiredKlet, 18)} KLET; user's ${formatUnits(userMaxKlet, 18)} KLET cap not exceeded and route not prepared.`,
+      `Live reserves require at least ${formatUnits(requiredKlet, 18)} KLET, which would exceed the user's ${formatUnits(userMaxKlet, 18)} KLET cap. No route was prepared.`,
     );
   }
 

@@ -2,7 +2,12 @@ import express from "express";
 import cors, { type CorsOptions } from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { parseUserIntent, type ParsedIntent } from "./shared/ai/parser.js";
+import {
+  IntentDisclosureConsentRequiredError,
+  parseUserIntent,
+  type IntentSemanticPlannerMode,
+  type ParsedIntent,
+} from "./shared/ai/parser.js";
 import {
   resolveIntentEntities,
   type EntityClarification,
@@ -12,7 +17,23 @@ import { executeKletiaEngine } from "./networks/base/engine.js";
 import { executeArcEngine } from "./networks/arc/engine.js";
 import { executeArbitrumEngine } from "./networks/arbitrum/engine.js";
 import workflowRoutes from "./cross-chain/routes.js";
+import { compileWorkflow } from "./cross-chain/workflow.js";
+import workflowV2Routes, { planWorkflowV2Handler } from "./cross-chain/v2/routes.js";
+import workflowV3Routes, {
+  capabilitiesV3Handler,
+  compileWorkflowV3Handler,
+} from "./cross-chain/v3/routes.js";
+import workflowV4Routes, {
+  capabilitiesV4Handler,
+  compileWorkflowV4Handler,
+} from "./cross-chain/v4/routes.js";
 import { createVerifiedIntentResultEnvelope } from "./shared/intent/responseEnvelope.js";
+import {
+  issueSemanticConsentToken,
+  issueSemanticSessionConsentToken,
+  verifySemanticConsentToken,
+} from "./shared/intent/semanticConsent.js";
+import { createIntentPrivacyTrace } from "./shared/privacy/intentPrivacyTrace.js";
 import {
   RequestIdValidationError,
   requireIntentRequestId,
@@ -30,10 +51,13 @@ import arcRoutes from "./networks/arc/routes.js";
 import baseRoutes from "./networks/base/routes/protocols.js";
 import baseMcpRoutes from "./networks/base/routes/mcp.js";
 import baseX402BuyerRoutes from "./networks/base/routes/x402Buyer.js";
+import stellarRoutes from "./networks/stellar/routes.js";
+import arbitrumSepoliaRoutes from "./networks/arbitrum-sepolia/routes.js";
+import releaseRoutes from "./release/routes.js";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { pathToFileURL } from "url";
-import { getAddress, zeroAddress } from "viem";
+import { getAddress, isAddress, zeroAddress } from "viem";
 import { resolveBasenameEvidence } from "./networks/base/intent/basenameResolver.js";
 import {
   NETWORKS,
@@ -55,6 +79,25 @@ import "./shared/config/productionEnvironment.js";
 };
 
 const app = express();
+const stellarLabsEnabled =
+  process.env.STELLAR_LABS_ENABLED?.trim().toLowerCase() === "true";
+
+function requireStellarLabs(
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) {
+  if (!stellarLabsEnabled) {
+    return res.status(404).json({
+      success: false,
+      code: "STELLAR_LAB_DISABLED",
+      message:
+        "This research workflow is not part of the default Kletia product.",
+    });
+  }
+  return next();
+}
+
 const parsedPort = Number(process.env.PORT || 3001);
 if (
   !Number.isSafeInteger(parsedPort) ||
@@ -78,23 +121,58 @@ const trustProxyHops = resolveTrustProxyHops();
 app.set("trust proxy", trustProxyHops === 0 ? false : trustProxyHops);
 
 app.use(helmet());
-const builtInOrigins = [
+const productionOrigins = [
   "https://kletia.com",
   "https://www.kletia.com",
   "https://kletiaai.xyz",
   "https://www.kletiaai.xyz",
   "https://kletia-frontend.onrender.com",
+];
+const developmentOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5174",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+  "http://localhost:10000",
+  "http://127.0.0.1:10000",
 ];
+const builtInOrigins = [
+  ...productionOrigins,
+  ...(process.env.NODE_ENV === "production" ? [] : developmentOrigins),
+];
+function normalizeCorsOrigin(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("CORS_ORIGINS contains an invalid origin.");
+  }
+  const isLocalDevelopmentOrigin =
+    process.env.NODE_ENV !== "production" &&
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+  if (
+    parsed.origin !== value ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.protocol !== "https:" && !isLocalDevelopmentOrigin)
+  ) {
+    throw new Error(
+      "CORS_ORIGINS entries must be exact HTTPS origins; local HTTP is development-only.",
+    );
+  }
+  return parsed.origin;
+}
 const configuredOrigins = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map(normalizeCorsOrigin);
 export const allowedOrigins = [
   ...new Set([...builtInOrigins, ...configuredOrigins]),
 ];
@@ -118,13 +196,20 @@ const corsOptions: CorsOptions = {
     "Access-Control-Expose-Headers",
     "X-Kletia-Network",
     "X-Kletia-Chain-Id",
+    "X-Kletia-Chain-Ref",
+    "X-Kletia-Intent-Version",
+    "X-Kletia-Payment-Session",
     "X-Request-Id",
+    "X-Client-Name",
+    "X-Client-Version",
   ],
   exposedHeaders: [
     "WWW-Authenticate",
+    "Payment-Receipt",
     "PAYMENT-REQUIRED",
     "PAYMENT-RESPONSE",
     "X-PAYMENT-RESPONSE",
+    "X-Kletia-Payment-Session",
   ],
 };
 app.use(cors(corsOptions));
@@ -133,6 +218,12 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  // The read-only solver feed has its own tighter V3 limiter. Counting the
+  // local worker here would exhaust the shared user-facing API budget.
+  skip: (req) =>
+    req.method === "GET" &&
+    req.originalUrl.split("?", 1)[0] ===
+      "/api/workflows/v3/solver-market/opportunities",
   message: {
     status: "error",
     message: "Too many requests. Please try again later.",
@@ -167,7 +258,17 @@ app.use("/api/allora", requireBaseNetwork, alloraRoutes);
 app.use("/api/paymaster", requireFixedBaseNetwork, paymasterRoutes);
 app.use("/api/webacy", webacyRoutes);
 app.use("/api/arc", requireArcNetwork, arcRoutes);
+app.use("/api/workflows/v2", workflowV2Routes);
+app.use("/api/workflows/v3", requireStellarLabs, workflowV3Routes);
+app.use("/api/intents/v3", requireStellarLabs, workflowV3Routes);
+app.get("/api/capabilities", requireStellarLabs, capabilitiesV3Handler);
+app.use("/api/workflows/v4", requireStellarLabs, workflowV4Routes);
+app.use("/api/intents/v4", requireStellarLabs, workflowV4Routes);
+app.get("/api/capabilities/v4", requireStellarLabs, capabilitiesV4Handler);
 app.use("/api/workflows", workflowRoutes);
+app.use("/api/stellar", stellarRoutes);
+app.use("/api/arbitrum-sepolia", arbitrumSepoliaRoutes);
+app.use("/api/release", releaseRoutes);
 app.use("/api/base/x402-buyer", requireBaseNetwork, baseX402BuyerRoutes);
 app.use("/api/base", requireBaseNetwork, baseRoutes);
 app.use("/api/base-mcp", requireBaseNetwork, baseMcpRoutes);
@@ -324,6 +425,43 @@ app.get("/api/health", async (_req, res) => {
   });
 });
 
+app.post("/api/intent", (req, res, next) => {
+  const requestedVersion = String(
+    req.header("X-Kletia-Intent-Version") || req.body?.schemaVersion || "",
+  )
+    .trim()
+    .toLowerCase();
+  if (
+    requestedVersion === "4" ||
+    requestedVersion === "v4" ||
+    requestedVersion === "kletia_intent_compile_v4"
+  ) {
+    return void compileWorkflowV4Handler(req, res);
+  }
+  if (
+    requestedVersion === "3" ||
+    requestedVersion === "v3" ||
+    requestedVersion === "kletia_intent_compile_v3"
+  ) {
+    return void compileWorkflowV3Handler(req, res);
+  }
+  const network = String(req.header("X-Kletia-Network") || req.body?.network || "")
+    .trim()
+    .toLowerCase();
+  const chainRef = String(req.header("X-Kletia-Chain-Ref") || req.body?.chainRef || "")
+    .trim()
+    .toLowerCase();
+  if (network !== "stellar" && chainRef !== "stellar:testnet") return next();
+  if (network !== "stellar" || chainRef !== "stellar:testnet") {
+    return res.status(400).json({
+      success: false,
+      code: "NETWORK_CHAIN_MISMATCH",
+      message: "Stellar intents require network stellar and chainRef stellar:testnet.",
+    });
+  }
+  return void planWorkflowV2Handler(req, res);
+});
+
 app.post(
   "/api/intent/revalidate-recipient",
   requireIntentNetwork,
@@ -466,10 +604,20 @@ interface ConversationSession {
   userAddress: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   lastAccess: number;
+  semanticPlanner: IntentSemanticPlannerMode;
+  semanticModelInfluencedPlan: boolean;
+  aiConsentExpiresAt?: number;
   pendingResolution?: {
     intent: ParsedIntent;
     originalPrompt: string;
     clarification: EntityClarification;
+    expiresAt: number;
+  };
+  pendingCompletion?: {
+    intent: ParsedIntent;
+    originalPrompt: string;
+    field: "recipient" | "tokenOut" | "amount";
+    question: string;
     expiresAt: number;
   };
 }
@@ -480,6 +628,156 @@ const PENDING_RESOLUTION_TTL_MS = 5 * 60 * 1000;
 const MAX_CONVERSATION_SESSIONS = 1_000;
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function pendingIntentCompletion(
+  intent: ParsedIntent,
+): ConversationSession["pendingCompletion"] | undefined {
+  const action = String(intent.action || "").trim().toLowerCase();
+  const question =
+    intent.question || intent.message || "A little more information is required.";
+  const recipientActions = new Set([
+    "appkit_bridge",
+    "appkit_send",
+    "memo_send",
+    "official_memo_send",
+  ]);
+  const field = recipientActions.has(action) && !intent.recipient
+    ? "recipient"
+    : action === "swap" && !intent.tokenOut
+      ? "tokenOut"
+      : (!intent.amount || intent.amount === "0") &&
+          /\b(?:amount|miktar|how much)\b/iu.test(question)
+        ? "amount"
+        : undefined;
+  if (!field) return undefined;
+  return {
+    intent,
+    originalPrompt: "",
+    field,
+    question,
+    expiresAt: Date.now() + PENDING_RESOLUTION_TTL_MS,
+  };
+}
+
+function applyPendingIntentCompletion(
+  pending: NonNullable<ConversationSession["pendingCompletion"]>,
+  reply: string,
+): ParsedIntent | null {
+  const value = reply.trim();
+  if (pending.field === "recipient") {
+    if (!isAddress(value) && !/^[^\s.]+\.base(?:\.eth)?$/iu.test(value)) {
+      return null;
+    }
+  } else if (pending.field === "amount") {
+    if (!/^\d+(?:[.,]\d+)?$/u.test(value) || Number(value.replace(",", ".")) <= 0) {
+      return null;
+    }
+  } else if (!/^[a-z][a-z0-9]{1,23}$/iu.test(value)) {
+    return null;
+  }
+  const completed = {
+    ...pending.intent,
+    [pending.field]: pending.field === "amount"
+      ? value.replace(",", ".")
+      : pending.field === "tokenOut"
+        ? value.toUpperCase()
+        : value,
+    isComplete: true,
+    question: "",
+    message: "The missing field was added to the existing wallet-bound intent.",
+  };
+  if (completed.action === "appkit_bridge" && completed.destinationChain) {
+    const destinationKey = completed.destinationChain
+      .trim()
+      .toLowerCase()
+      .replace(/[_\s]+/gu, "-");
+    const supportedDestination = ({
+      base: "base-sepolia",
+      "base-sepolia": "base-sepolia",
+      ethereum: "ethereum-sepolia",
+      "ethereum-sepolia": "ethereum-sepolia",
+      arbitrum: "arbitrum-sepolia",
+      "arbitrum-sepolia": "arbitrum-sepolia",
+      optimism: "optimism-sepolia",
+      "optimism-sepolia": "optimism-sepolia",
+      avalanche: "avalanche-fuji",
+      "avalanche-fuji": "avalanche-fuji",
+    } as Readonly<Record<string, string>>)[destinationKey];
+    if (!supportedDestination) return null;
+    completed.destinationChain = supportedDestination;
+  }
+  return completed;
+}
+
+function resolveIntentSemanticPlanner(
+  value: unknown,
+): IntentSemanticPlannerMode {
+  const mode = String(value ?? "deterministic_only").trim();
+  if (mode === "deterministic_only" || mode === "ai_assisted") return mode;
+  throw Object.assign(new Error("Unsupported semantic planner mode."), {
+    code: "INTENT_SEMANTIC_PLANNER_INVALID",
+    statusCode: 400,
+  });
+}
+
+function privacyDecisionContract(input: {
+  network: NetworkId;
+  chainId: number;
+  userAddress: string;
+  prompt: string;
+}) {
+  const consent = issueSemanticConsentToken(input);
+  const sessionConsent = issueSemanticSessionConsentToken(input);
+  return {
+    schemaVersion: "kletia_intent_decision_v1" as const,
+    questionId: "semantic-planner-consent" as const,
+    kind: "privacy" as const,
+    blockingField: "semanticPlanner" as const,
+    sensitivity: "public_semantics_may_include_private_values" as const,
+    whyAsked:
+      "This wording needs Kletia's semantic model. Transaction building and wallet approval remain deterministic.",
+    question:
+      "Turn on smart intent interpretation for this browser session?",
+    options: [
+      {
+        id: "allow_ai_for_this_intent" as const,
+        label: "Allow AI for this intent",
+        description:
+          "Allow semantic-model interpretation for this intent; transaction construction and signing remain deterministic and wallet-controlled.",
+        impact:
+          "The model provider can observe the prompt and recent conversation context for this intent.",
+      },
+      {
+        id: "allow_ai_for_session" as const,
+        label: "Turn on smart parsing",
+        description:
+          "Understand natural language for this wallet and network during the current workday.",
+        impact:
+          "For up to 8 hours, unmatched prompts may be sent to the configured model provider without asking again.",
+      },
+      {
+        id: "open_private_composer" as const,
+        label: "Keep fields local",
+        description:
+          "Use the protected composer for supported private fields and commitments.",
+        impact:
+          "Unsupported operations will remain blocked instead of being downgraded to public or AI-assisted planning.",
+      },
+      {
+        id: "edit_intent" as const,
+        label: "Edit intent",
+        description:
+          "Rewrite the request with a supported explicit action, asset, network and constraints.",
+        impact: "No semantic-model request is made.",
+      },
+    ],
+    network: input.network,
+    decisionToken: consent.token,
+    sessionDecisionToken: sessionConsent.token,
+    expiresAt: consent.expiresAt,
+    sessionExpiresAt: sessionConsent.expiresAt,
+  };
+}
 
 const memoryCleanupTimer = setInterval(
   () => {
@@ -680,6 +978,18 @@ app.post(
       chainId: network.chainId,
       requestId,
     };
+    let semanticPlanner: IntentSemanticPlannerMode;
+    try {
+      semanticPlanner = resolveIntentSemanticPlanner(req.body?.semanticPlanner);
+    } catch (error) {
+      const candidate = error as { code?: string; statusCode?: number; message?: string };
+      return res.status(candidate.statusCode || 400).json({
+        success: false,
+        code: candidate.code || "INTENT_SEMANTIC_PLANNER_INVALID",
+        message: candidate.message || "Unsupported semantic planner mode.",
+        ...responseMetadata,
+      });
+    }
 
     if (!prompt || !userAddress) {
       return res.status(400).json({
@@ -690,6 +1000,28 @@ app.post(
         ...responseMetadata,
       });
     }
+
+    let semanticProviderRequestAttempted = false;
+    let semanticModelInfluencedPlan = false;
+    const privacyTrace = (
+      stage: Parameters<typeof createIntentPrivacyTrace>[0]["stage"],
+      options: {
+        readonly intent?: Pick<ParsedIntent, "action">;
+        readonly clarificationStored?: boolean;
+      } = {},
+    ) =>
+      createIntentPrivacyTrace({
+        requestId,
+        network: network.id,
+        chainId: network.chainId,
+        prompt: String(prompt),
+        stage,
+        semanticPlanner,
+        semanticProviderRequestAttempted,
+        semanticModelInfluencedPlan,
+        intent: options.intent,
+        clarificationStored: options.clarificationStored === true,
+      });
 
     const suppliedConversationId = req.body.conversationId;
     if (
@@ -747,12 +1079,16 @@ app.post(
         (Date.now() - session.lastAccess > CONVERSATION_TTL_MS ||
           (session.pendingResolution !== undefined &&
             Date.now() > session.pendingResolution.expiresAt) ||
+          (session.pendingCompletion !== undefined &&
+            Date.now() > session.pendingCompletion.expiresAt) ||
           session.network !== network.id ||
           session.userAddress !== String(userAddress).toLowerCase())
       ) {
         conversationSessions.delete(conversationId!);
         session = undefined;
       }
+      semanticModelInfluencedPlan =
+        session?.semanticModelInfluencedPlan === true;
       if (conversationId && !session) {
         return res.status(409).json({
           success: false,
@@ -766,9 +1102,36 @@ app.post(
       }
 
       const history = session ? [...session.history] : [];
+      let aiConsentExpiresAt = session?.aiConsentExpiresAt;
       let parsedIntent: ParsedIntent;
       let resolutionPrompt = String(prompt);
-      if (session?.pendingResolution) {
+      if (session?.pendingCompletion) {
+        const pending = session.pendingCompletion;
+        const completed = applyPendingIntentCompletion(pending, String(prompt));
+        if (!completed) {
+          session.lastAccess = Date.now();
+          conversationSessions.set(conversationId!, session);
+          return res.json({
+            success: false,
+            status: "question",
+            requiresInput: true,
+            question: pending.question,
+            message: pending.question,
+            conversationId,
+            conversationExpiresAt: pending.expiresAt,
+            privacyTrace: privacyTrace("clarification", {
+              intent: pending.intent,
+              clarificationStored: true,
+            }),
+            userAddress: getAddress(userAddress),
+            ...responseMetadata,
+          });
+        }
+        parsedIntent = completed;
+        resolutionPrompt = `${pending.originalPrompt}\n${pending.field}: ${String(prompt).trim()}`;
+        conversationSessions.delete(conversationId!);
+        session = undefined;
+      } else if (session?.pendingResolution) {
         const pending = session.pendingResolution;
         const field = pending.clarification.field;
         if (!field) {
@@ -850,7 +1213,57 @@ app.post(
             ...responseMetadata,
           });
         }
-        parsedIntent = await parseUserIntent(prompt, history, network.id);
+        if (semanticPlanner === "ai_assisted") {
+          const existingConsentIsActive =
+            session?.semanticPlanner === "ai_assisted" &&
+            typeof session.aiConsentExpiresAt === "number" &&
+            session.aiConsentExpiresAt > Date.now();
+          if (!existingConsentIsActive) {
+            const consent = verifySemanticConsentToken(
+              req.body?.semanticPlannerConsentToken,
+              {
+                network: network.id,
+                chainId: network.chainId,
+                userAddress: getAddress(userAddress),
+                prompt: String(prompt),
+              },
+            );
+            aiConsentExpiresAt = consent.expiresAt;
+          }
+        }
+        try {
+          parsedIntent = await parseUserIntent(prompt, history, network.id, {
+            semanticPlanner,
+            onSemanticProviderRequest: () => {
+              semanticProviderRequestAttempted = true;
+            },
+          });
+          if (semanticProviderRequestAttempted) {
+            semanticModelInfluencedPlan = true;
+          }
+        } catch (error) {
+          if (error instanceof IntentDisclosureConsentRequiredError) {
+            const privacyDecision = privacyDecisionContract({
+              network: network.id,
+              chainId: network.chainId,
+              userAddress: getAddress(userAddress),
+              prompt: String(prompt),
+            });
+            return res.status(error.statusCode).json({
+              success: false,
+              status: "question",
+              requiresInput: true,
+              code: error.code,
+              question: privacyDecision.question,
+              message: error.message,
+              privacyDecision,
+              privacyTrace: privacyTrace("semantic_consent"),
+              userAddress: getAddress(userAddress),
+              ...responseMetadata,
+            });
+          }
+          throw error;
+        }
       }
 
       history.push({ role: "user", content: prompt });
@@ -870,12 +1283,28 @@ app.post(
           }
           conversationId = randomUUID();
         }
+        const completion = pendingIntentCompletion(parsedIntent);
         conversationSessions.set(conversationId, {
           network: network.id,
           userAddress: String(userAddress).toLowerCase(),
           history: history.slice(-6),
           lastAccess: Date.now(),
+          semanticPlanner,
+          semanticModelInfluencedPlan,
+          ...(semanticPlanner === "ai_assisted" && aiConsentExpiresAt
+            ? { aiConsentExpiresAt }
+            : {}),
+          ...(completion
+            ? {
+                pendingCompletion: {
+                  ...completion,
+                  originalPrompt: String(prompt),
+                },
+              }
+            : {}),
         });
+        const conversationExpiresAt = completion?.expiresAt ||
+          Date.now() + CONVERSATION_TTL_MS;
         return res.json({
           success: false,
           status: "question",
@@ -886,7 +1315,11 @@ app.post(
             "A little more information is required.",
           message: parsedIntent.message,
           conversationId,
-          conversationExpiresAt: Date.now() + CONVERSATION_TTL_MS,
+          conversationExpiresAt,
+          privacyTrace: privacyTrace("clarification", {
+            intent: parsedIntent,
+            clarificationStored: true,
+          }),
           userAddress: getAddress(userAddress),
           ...responseMetadata,
         });
@@ -912,6 +1345,11 @@ app.post(
           userAddress: String(userAddress).toLowerCase(),
           history: [],
           lastAccess: Date.now(),
+          semanticPlanner,
+          semanticModelInfluencedPlan,
+          ...(semanticPlanner === "ai_assisted" && aiConsentExpiresAt
+            ? { aiConsentExpiresAt }
+            : {}),
           pendingResolution: {
             intent: parsedIntent,
             originalPrompt: resolutionPrompt,
@@ -928,6 +1366,10 @@ app.post(
           clarification: entityResolution.clarification,
           conversationId,
           conversationExpiresAt,
+          privacyTrace: privacyTrace("clarification", {
+            intent: parsedIntent,
+            clarificationStored: true,
+          }),
           userAddress: getAddress(userAddress),
           ...responseMetadata,
         });
@@ -939,7 +1381,16 @@ app.post(
         entityResolution.evidence;
 
       const rawResult =
-        network.id === "arc"
+        executableIntent.action === "workflow"
+          ? await compileWorkflow(
+              executableIntent,
+              userAddress,
+              requestId,
+              resolutionPrompt,
+              req.kletiaBaseX402Challenge,
+              network.id,
+            )
+        : network.id === "arc"
           ? await executeArcEngine(
               executableIntent,
               userAddress,
@@ -980,7 +1431,15 @@ app.post(
               resolutionEvidence,
             );
 
-      return res.json({ success: true, result, ...result });
+      const resultWithPrivacy = {
+        ...result,
+        privacyTrace: privacyTrace("planned", { intent: executableIntent }),
+      };
+      return res.json({
+        success: true,
+        result: resultWithPrivacy,
+        ...resultWithPrivacy,
+      });
     } catch (error: any) {
       const publicError = resolveIntentPublicError(error, network.id);
       console.log(
@@ -993,6 +1452,7 @@ app.post(
         code: publicError.code,
         error: publicError.message,
         message: publicError.message,
+        privacyTrace: privacyTrace("rejected"),
         ...responseMetadata,
       });
     }

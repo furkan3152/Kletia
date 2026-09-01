@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "kletia_policy_public_inputs_v2",
+  "circuit": "KletiaPolicyV2",
+  "count": 12,
+  "encoding": "canonical_bn254_scalar_be_32",
+  "inputs": [
+    "workflowRoot",
+    "policyRoot",
+    "protocolRegistryRoot",
+    "assetRegistryRoot",
+    "recipientPolicyRoot",
+    "selectedProtocolLeaf",
+    "selectedAssetLeaf",
+    "selectedRecipientLeaf",
+    "environmentLane",
+    "executionExpiresAtLedger",
+    "nullifier",
+    "executionContextCommitment"
+  ],
+  "securityBoundary": {
+    "policyAuthorizedBeforeRouteSelection": true,
+    "selectedLeavesArePublicAndServerRecomputed": true,
+    "foreignChainExecutionProven": false,
+    "transactionHashAloneIsSuccess": false
+  }
+}

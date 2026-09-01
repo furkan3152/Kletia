@@ -31,7 +31,7 @@ export function ArbitrumPortfolioViewer({ data }: { data: ArbitrumPortfolioData 
           <p>Health factor: {data.aave.healthFactor ?? "No debt"}</p>
         </div>
       </div>
-      <p className="text-[9px] font-bold">RPC block {data.observedAtBlock}. No mock data or estimated USD valuation.</p>
+      <p className="text-[9px] font-bold">Live RPC block {data.observedAtBlock}. USD valuation is not inferred.</p>
     </div>
   );
 }

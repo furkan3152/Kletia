@@ -1,0 +1,28 @@
+[package]
+name = "kletia-route-auction"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+license = "MIT"
+publish = false
+description = "Commit-reveal solver route auction for Kletia multichain workflows"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "=27.0.6"
+
+[dev-dependencies]
+kletia-solver-bond-vault = { path = "../solver-bond-vault" }
+soroban-sdk = { version = "=27.0.6", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true

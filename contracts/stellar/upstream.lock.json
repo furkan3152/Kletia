@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "kletia_stellar_confidential_upstream_lock_v2",
+  "repository": "https://github.com/OpenZeppelin/stellar-contracts",
+  "license": "MIT",
+  "securityStatus": "experimental_unaudited_testnet_developer_preview",
+  "mainlineReference": {
+    "commit": "fbfde388e1b72afa93d6b1c922067879b20e81db",
+    "sourcePaths": [
+      "packages/tokens/src/confidential",
+      "packages/cryptography"
+    ],
+    "defaultVerifierStatus": "unfinished_interface_at_pin",
+    "purpose": "Kletia's reviewed mainline API and source-layout reference; it is not the working developer-preview verifier implementation."
+  },
+  "officialDeveloperPreviewReference": {
+    "status": "working_unaudited_stellar_testnet_reference",
+    "announcement": "https://stellar.org/blog/developers/developer-preview-confidential-tokens-on-stellar",
+    "privacyDocumentation": "https://developers.stellar.org/docs/build/apps/privacy",
+    "demoRepository": "https://github.com/brozorec/stellar-confidential-token-demo",
+    "demoCommit": "9500ed774b13b08b5fe99370b60de3479edb492b",
+    "openZeppelinFeatureBranch": "feat/confidential-verifier-ultrahonk",
+    "openZeppelinFeatureTipObserved": "98090b3e59785454f55b3617992c2f84250c7173",
+    "openZeppelinCommitPinnedByDemo": "539968f158e0d779f584de2821090f715a3b25e1",
+    "nethermindUltraHonkCommitPinnedByDemo": "661db07200f890b1bd9a7349ed787c70a706dd12",
+    "referenceDeployment": {
+      "network": "stellar_testnet",
+      "underlyingAsset": "native_xlm",
+      "confidentialTokenContractId": "CBF64DEOVQAXJFBSNGFEUT2AH4H7K5JBY3ZYJ5GVEINMNSDISWRG5N3F",
+      "verifierContractId": "CDCET36PIS44DWJM5UQSSI4ZHGRDSBIIQW4G4ALPYK3Y6FEQGY5ZWFXL",
+      "auditorContractId": "CA4II62E35TQKPGHCPBD6EBAS732GSGS6H37UUWKEDHR4YTBVMPHVY4L",
+      "underlyingSacContractId": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+      "declaredAtLedger": 3013364,
+      "identityStatus": "reference_declared_not_kletia_runtime_pin"
+    },
+    "claimBoundary": {
+      "workingReferenceExists": true,
+      "audited": false,
+      "mainnetReady": false,
+      "productionReady": false,
+      "realAssetSecurityClaim": false,
+      "kletiaExecutable": false
+    },
+    "limitations": [
+      "The linked deployment is an upstream developer demo for native XLM, not a Kletia USDC confidential treasury.",
+      "The demo's intentionally published auditor material must never be reused by Kletia.",
+      "Reference contract IDs can become stale after a Stellar Testnet reset and are not Kletia protocol pins."
+    ]
+  },
+  "kletiaIntegration": {
+    "status": "integration_incomplete_non_signable",
+    "testnetEvaluationAllowed": true,
+    "deploymentAllowed": false,
+    "signableRuntimeAllowed": false,
+    "blockers": [
+      "Pin, vendor or reproducibly fetch the exact holder SDK and browser proving artifacts without exposing witness material.",
+      "Produce reproducible Kletia-specific verifier, auditor and Circle Testnet USDC wrapper WASM artifacts with source, circuit and verification-key hashes.",
+      "Generate Kletia-specific auditor keys and document immutable or explicitly governed administration; never reuse demo secrets.",
+      "Implement canonical event archival, gap detection, encrypted holder recovery and clean-device commitment reconstruction.",
+      "Pass invalid-proof, replay, stale-state, recipient separation, recovery and private-field-egress tests plus a real user-signed Stellar Testnet lifecycle."
+    ],
+    "reason": "An official working Testnet reference now exists, so the blocker is no longer upstream availability. Kletia remains fail-closed because its exact proof SDK, deployment identities, auditor policy, recovery path and end-to-end evidence are not integrated or validated."
+  }
+}

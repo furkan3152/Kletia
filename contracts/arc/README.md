@@ -1,45 +1,41 @@
-# Kletia Contracts — Arc Testnet
+# Kletia Contracts — Arc Testnet (@kletia/contracts-arc)
 
-Arc-only Solidity workspace for contracts deployed on Arc Testnet (`5042002`).
-The application-routed surface includes native-USDC swap, vault, staking,
-lending, memo, batch-payment and agent-registry contracts. KLET is the Arc
-application token and `KletiaArcForwarder` is the shared ERC-2771 trust root.
+The Arc-specific Solidity workspace for contracts deployed on Arc Testnet (`5042002`). This includes the Kletia application token (KLET), solvency-guaranteed savings (KletiaArcVaultV2), and Arc-native DeFi primitives (Swap, Lending, Staking). The network leverages `KletiaArcForwarder` as a shared ERC-2771 trust root for gasless operations.
 
-Canonical addresses and live explorer verification state are recorded in
-[`deployments/arc-testnet.json`](deployments/arc-testnet.json). The historical
-OTC contract is retained under `contracts/legacy` for deployment provenance;
-it is deliberately absent from the API and web runtime registries.
+## Architecture Overview
 
-`KletiaArcVaultV2` is the active new-deposit Vault at
-`0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d`. Its Solidity 0.8.24 source and
-constructor arguments are exact-verified on ArcScan, and the API pins runtime
-codehash `0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f`
-before producing a plan. Aggregate principal and interest liabilities are
-enforced inside every normal withdrawal, and an emergency withdrawal can
-return only the caller's principal. The immutable legacy Vault remains enabled
-only for each depositor's explicit self-custodial migration withdrawal; new
-deposits never route to it. The full evidence and migration state are recorded
-in the manifest and [`VAULT_V2_MIGRATION.md`](VAULT_V2_MIGRATION.md).
+- **`KletiaArcVaultV2`**: Active new-deposit Vault that enforces aggregate principal and interest liabilities.
+- **Arc DeFi Suite**: Contracts including `KletiaArcSwap`, `KletiaArcLending`, and `KletiaArcStaking`.
+- **Payment Primitives**: `KletiaArcBatchPay`, `KletiaArcMemoTransfer`, and `KletiaArcAgentRegistry`.
+- **`contracts/legacy/`**: Historic OTC contracts preserved solely for deployment provenance.
+
+## Setup Instructions
 
 ```bash
 npm ci --legacy-peer-deps
 npm run compile
-npm test
-npm run reserves:status
-# Owner-only write path; recalculates at the latest block before sending:
-npm run reconcile:reserves
-# Deployment reproduction only; the active V2 address is already deployed:
-npm run deploy:vault-v2 -- --network arc
 ```
+*Note: Contracts are compiled using Hardhat and Solidity 0.8.24 with `evmVersion: cancun`.*
 
-`reserves:status` is read-only and deliberately does not require a signer. The
-funding command requires `ARC_PRIVATE_KEY`, proves that the derived account is
-the exact Vault and Staking owner, simulates each owner-only call, and
-recalculates liabilities immediately before submission. Deployment and
-verification credentials are local-only. Use `ARC_PRIVATE_KEY` and
-`ARCSCAN_API_KEY` only in this package's ignored `.env`; never expose them to
-the web application or API runtime.
+## Available Scripts
 
-Arc production deployments were compiled with Solidity 0.8.24/0.8.20,
-`evmVersion: cancun`, and optimizer disabled. Keep those settings unchanged
-when reproducing explorer verification.
+| Command | Description |
+|---------|-------------|
+| `npm run compile` | Compile the Solidity contracts. |
+| `npm test` | Run the test suite. |
+| `npm run reserves:status` | Read-only check to calculate Arc reserves without a signer. |
+| `npm run reconcile:reserves` | Write-path operation to recalculate and fund liabilities. |
+| `npm run deploy:vault-v2` | Reproduce the Vault V2 deployment on Arc Testnet. |
+
+## Key Environment Variables
+
+- `ARC_PRIVATE_KEY`: Required for funding commands (e.g., `reconcile:reserves`) and acts as the Vault/Staking owner. This must never be exposed to the web application.
+- `ARCSCAN_API_KEY`: Used to verify exact source and constructor arguments on ArcScan.
+
+## Deployment Information
+
+Contracts are deployed to the **Arc Testnet (Chain ID 5042002)**. Canonical contract addresses, runtime code hashes, and live explorer verification states are recorded in `deployments/arc-testnet.json`. Migration paths for the Vault are detailed in `VAULT_V2_MIGRATION.md`.
+
+## License
+
+MIT

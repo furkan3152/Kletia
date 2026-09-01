@@ -50,6 +50,18 @@ export function isWorkflowPlanV1(
           step.action === "bridge" ||
           step.action === "data_purchase" ||
           step.action === "gas_acquire")) ||
+      (step.network === "arc" &&
+        [
+          "swap",
+          "stake",
+          "unstake",
+          "vault_deposit",
+          "vault_withdraw",
+          "lending_deposit",
+          "lending_withdraw",
+          "lending_borrow",
+          "lending_repay",
+        ].includes(step.action)) ||
       (step.network === "arbitrum" &&
         step.action !== "bridge" &&
         step.action !== "data_purchase" &&
@@ -58,7 +70,12 @@ export function isWorkflowPlanV1(
       step.id === `step-${index + 1}` &&
       step.order === index + 1 &&
       validNetwork &&
-      step.chainId === (step.network === "base" ? 8453 : 42161) &&
+      step.chainId ===
+        (step.network === "base"
+          ? 8453
+          : step.network === "arc"
+            ? 5042002
+            : 42161) &&
       typeof step.action === "string" &&
       /^[a-z][a-z0-9_]{0,63}$/u.test(step.action) &&
       typeof step.amount === "string" &&

@@ -2,16 +2,24 @@ import { CheckCircle2, CircleDashed, Loader2, ShieldAlert } from "lucide-react";
 import type { WorkflowPlanV1 } from "../../shared/types";
 
 export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
+  const crossChain = new Set(plan.steps.map((step) => step.network)).size > 1;
+  const hasBorrowing = plan.steps.some((step) =>
+    ["borrow", "lending_borrow", "borrow_capacity"].includes(step.action),
+  );
   return (
     <section className="mt-4 w-full border-[3px] border-[#1A1A1A] bg-[#DDF5FF] p-3 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] sm:p-4">
       <div className="flex items-center justify-between gap-3 border-b-[3px] border-[#1A1A1A] pb-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.18em]">WorkflowPlanV1</p>
-          <h3 className="text-sm font-black uppercase">Staged cross-chain execution</h3>
+          <h3 className="text-sm font-black uppercase">
+            {crossChain ? "Staged cross-chain execution" : "Staged execution"}
+          </h3>
         </div>
-        <span className="border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[9px] font-black uppercase">
-          HF floor 1.5
-        </span>
+        {hasBorrowing && (
+          <span className="border-2 border-[#1A1A1A] bg-white px-2 py-1 text-[9px] font-black uppercase">
+            HF floor 1.5
+          </span>
+        )}
       </div>
       <div className="mt-3 space-y-2">
         {plan.steps.map((step, index) => {
@@ -49,7 +57,9 @@ export function WorkflowTimeline({ plan }: { plan: WorkflowPlanV1 }) {
         })}
       </div>
       <p className="mt-3 text-[9px] font-bold leading-relaxed">
-        Same-chain wallet batches may be atomic. Cross-chain steps are checkpointed and have no global rollback. Every financial step requires a fresh wallet approval.
+        {crossChain
+          ? "Cross-chain steps are checkpointed and have no global rollback. Each financial step needs wallet approval."
+          : "The next step is prepared only after the previous receipt is verified. Each financial step needs wallet approval."}
       </p>
     </section>
   );

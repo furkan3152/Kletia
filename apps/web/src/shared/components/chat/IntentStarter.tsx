@@ -9,7 +9,7 @@ import {
 import type { NetworkMode } from "../../config/networks";
 
 interface IntentStarterProps {
-  networkMode: NetworkMode;
+  networkMode: NetworkMode | "stellar";
   walletAddress?: Address;
   onSelect: (prompt: string) => void;
 }
@@ -75,6 +75,26 @@ const STARTERS = {
         "Create a planning-only policy agent named Arbitrum Yield Scout that may compare USDC opportunities on Arbitrum through Aave V3, may plan at most 25 USDC, uses balanced risk, and expires in 24 hours; it must never move funds without a separate wallet approval",
     },
   ],
+  stellar: [
+    {
+      label: "Pay local currency",
+      detail: "Compare live Stellar anchor routes without sharing bank details in chat.",
+      prompt:
+        "Pay 100 TRY to a bank account from Stellar USDC and compare live providers before any approval",
+    },
+    {
+      label: "Show live balances",
+      detail: "Read XLM and USDC directly from Stellar Testnet.",
+      prompt:
+        "Show my live XLM and USDC balances on Stellar Testnet without preparing a transaction",
+    },
+    {
+      label: "Compare a swap",
+      detail: "Check the best reviewed Stellar path before approval.",
+      prompt:
+        "Swap 5 XLM to USDC using the best live reviewed Stellar Testnet route and show the expected output before approval",
+    },
+  ],
 } as const;
 
 export function IntentStarter({
@@ -84,6 +104,12 @@ export function IntentStarter({
 }: IntentStarterProps) {
   const isArc = networkMode === "arc";
   const isArbitrum = networkMode === "arbitrum";
+  const isStellar = networkMode === "stellar";
+  const accentClass = isArc || isStellar
+    ? "bg-[#8B5CF6]"
+    : isArbitrum
+      ? "bg-[#28A0F0]"
+      : "bg-[#0052FF]";
   const items = STARTERS[networkMode];
 
   return (
@@ -91,13 +117,15 @@ export function IntentStarter({
       <div className="w-full border-[3px] border-[#1A1A1A] bg-white p-3 text-[#1A1A1A] shadow-[5px_5px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[5px_5px_0_#475569] sm:p-6 md:p-8">
         <div className="flex items-start gap-3 border-b-[3px] border-[#1A1A1A] pb-3 dark:border-[#4B5563] sm:pb-4">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-white shadow-[2px_2px_0_#1A1A1A] ${isArc ? "bg-[#8B5CF6]" : isArbitrum ? "bg-[#28A0F0]" : "bg-[#0052FF]"}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-white shadow-[2px_2px_0_#1A1A1A] ${accentClass}`}
           >
             <Route className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 dark:text-slate-300">
-              {isArc
+              {isStellar
+                ? "Stellar Testnet workspace"
+                : isArc
                 ? "Arc Testnet workspace"
                 : isArbitrum
                   ? "Arbitrum One public beta"
@@ -130,7 +158,7 @@ export function IntentStarter({
                 className="group flex min-h-[72px] items-start gap-2.5 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-2.5 text-left shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#EAF0FF] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#233554] sm:min-h-24 sm:gap-3 sm:p-3"
               >
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] font-mono text-xs font-black text-white sm:h-10 sm:w-10 sm:text-sm ${isArc ? "bg-[#8B5CF6]" : isArbitrum ? "bg-[#28A0F0]" : "bg-[#0052FF]"}`}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] font-mono text-xs font-black text-white sm:h-10 sm:w-10 sm:text-sm ${accentClass}`}
                 >
                   0{index + 1}
                 </span>

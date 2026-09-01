@@ -1,0 +1,276 @@
+{
+  "schemaVersion": "kletia_stellar_protocol_lock_v1",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "reason": "Kletia pins the Stellar Testnet execution surface so a silently upgraded contract cannot inherit a previous release claim. The Circle identities come from Circle's official deployment reference and their live bytecode was observed at the recorded Testnet ledger. A recorded WASM hash is bytecode identity evidence, not source review or a security audit.",
+  "invariants": {
+    "usdcSacExecutableMustBeStellarAsset": true,
+    "usdcSacMustDeriveFromClassicAsset": true,
+    "wasmContractsMustExposeWasmExecutable": true,
+    "driftQuarantinesExecutionCapability": true
+  },
+  "sourceArtifacts": {
+    "policyReceiptRegistry": {
+      "role": "opaque_owner_authorized_commitment_registry",
+      "sourcePackage": "contracts/stellar/policy-receipt-registry",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "723d052be3e3f2585050337607fc3c010f18395825bf434693e863a81d27319d",
+      "deploymentStatus": "stellar_testnet_deployed_and_smoke_finalized",
+      "contractId": "CD6NBBBMZJBJUZ6ZCZNCE4IDMQTJC3CKDWVPRWMVGP4DDVRTZLA3JCZQ",
+      "capabilityEnvironmentVariable": "STELLAR_POLICY_REGISTRY_ENABLED",
+      "contractIdEnvironmentVariable": "STELLAR_POLICY_RECEIPT_REGISTRY_TESTNET_CONTRACT_ID",
+      "claimBoundary": {
+        "custody": false,
+        "ownerAuthorizationRequired": true,
+        "provesReceiptPreimage": false,
+        "provesExternalExecution": false,
+        "providesConfidentiality": false
+      }
+    },
+    "intentControlPlane": {
+      "role": "workflow_policy_nullifier_and_receipt_root_control_plane",
+      "sourcePackage": "contracts/stellar/intent-control-plane",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "7aa98ece040fb218b1ae2f3c700b56a7a9148cc2df16bdb71e583033517a86cc",
+      "deploymentStatus": "stellar_testnet_deployed_and_smoke_finalized",
+      "contractId": "CCFY5ZJJ5CILIOPD7LUYRRQ3XCO2OUUL3ZMZQER4IWQ6XO7ZLVWBBP5D",
+      "capabilityEnvironmentVariable": "STELLAR_INTENT_CONTROL_PLANE_ENABLED",
+      "contractIdEnvironmentVariable": "STELLAR_INTENT_CONTROL_PLANE_TESTNET_CONTRACT_ID",
+      "claimBoundary": {
+        "custody": false,
+        "ownerAuthorizationRequired": true,
+        "verifierRegistryPinnedAtConstruction": true,
+        "policyProofRequiredAtCommit": true,
+        "publicInputsConstructedByControlPlane": true,
+        "workflowAndNullifierReservedBeforeVerifierCallWithAtomicRollback": true,
+        "preventsKletiaNullifierReplay": true,
+        "preventsForeignChainReplay": false,
+        "provesExternalExecution": false,
+        "providesConfidentiality": false
+      }
+    },
+    "intentControlPlaneV2": {
+      "role": "policy_v2_workflow_selected_route_nullifier_and_receipt_root_control_plane",
+      "sourcePackage": "contracts/stellar/intent-control-plane-v2",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "865c18119424356c42b35301bbb9b926e24c15fc44956c08853a929245f87249",
+      "deploymentStatus": "stellar_testnet_deployed_and_live_smoke_verified",
+      "contractId": "CC5QBK4D6I44UYDRDNP7XV26NVPQ62ISJ4GUPH6GPCTBO57N622RCBL3",
+      "verifierRegistryContractId": "CBA7BHTD7VFKQZ72CISEBFQLDQSAYDHKPRVAQH6LRNHM6KRGP5KUJ34Z",
+      "verifierContractId": "CAULJTGFMAT6WVYWWMM57CQGDATHUYCNWIVAMEYW44SFA7TAB2DZX7SD",
+      "deploymentManifest": "contracts/stellar/deployments/testnet/control-plane.v2.json",
+      "capabilityEnvironmentVariable": "STELLAR_INTENT_CONTROL_PLANE_V2_ENABLED",
+      "contractIdEnvironmentVariable": "STELLAR_INTENT_CONTROL_PLANE_V2_TESTNET_CONTRACT_ID",
+      "claimBoundary": {
+        "custody": false,
+        "ownerAuthorizationRequired": true,
+        "verifierRegistryPinnedAtConstruction": true,
+        "policyProofRequiredAtCommit": true,
+        "publicInputsConstructedByControlPlane": true,
+        "selectedRouteLeavesBound": true,
+        "workflowAndNullifierReservedBeforeVerifierCallWithAtomicRollback": true,
+        "preventsKletiaNullifierReplay": true,
+        "preventsForeignChainReplay": false,
+        "provesExternalExecution": false,
+        "providesConfidentiality": false,
+        "deployed": true,
+        "realTestnetGroth16CommitFinalizeSmoke": true,
+        "productionReady": false
+      }
+    },
+    "policyVerifierRegistry": {
+      "role": "versioned_policy_verifier_dispatch_and_artifact_lock",
+      "sourcePackage": "contracts/stellar/policy-verifier-registry",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "c41a359868affc11f094390fe67faeb5711d767657ab5ec37932184b7f061114",
+      "deploymentStatus": "stellar_testnet_deployed_and_smoke_verified",
+      "contractId": "CCJCT35VD66GJDURAA7MDD7HJWQZB453UXAMEQTN5QLYTSDU2P3LE5QY",
+      "capabilityEnvironmentVariable": "STELLAR_INTENT_CONTROL_PLANE_ENABLED",
+      "contractIdEnvironmentVariable": "STELLAR_POLICY_VERIFIER_REGISTRY_TESTNET_CONTRACT_ID",
+      "policyCircuit": {
+        "source": "circuits/stellar-policy/KletiaPolicyV1.circom",
+        "publicInputManifest": "circuits/stellar-policy/public-inputs.v1.json",
+        "sourceSha256": "32743de76874a5d2c0c38ed5b338ae2230678f7c42a98874bd49b46436384272",
+        "publicInputManifestSha256": "97956c27bb4e05410cfa933375241d9db7e0c3e429cf13eb67ffa94b3f81b143",
+        "publicInputCount": 9,
+        "artifactStatus": "testnet_development_setup_deployed_not_production",
+        "verifierSourcePackage": "contracts/stellar/policy-groth16-verifier",
+        "verifierReleaseWasmSha256": "fb6bcb8fc8492e38b31da3318fb48bcb3a1291bafb83ca201f894a4ee9f5a138",
+        "generatedVerifierContractId": "CBRC2RZQKVW4D4UNUTYGVK2VDJPGHEPNXNWFTEQIZHFHA3U2LLVWOG32",
+        "verificationKeyHash": "e5df288a729f0ebed5187cfe58bbd529512b433dd102cfafe556350e503687e6",
+        "deploymentManifest": "contracts/stellar/deployments/testnet/control-plane.v1.json"
+      },
+      "claimBoundary": {
+        "ownerAuthorizationRequired": true,
+        "checksInvocationLedgerExpiry": true,
+        "dispatchesPinnedVerifier": true,
+        "verifierSourceAndPairingVectorTested": true,
+        "testnetDevelopmentSetupAndVerifierDeploymentPresent": true,
+        "productionSetupAndVerifierDeploymentPresent": false,
+        "provesExternalExecution": false
+      }
+    },
+    "policyGroth16Verifier": {
+      "role": "immutable_circuit_bound_bn254_groth16_verifier",
+      "sourcePackage": "contracts/stellar/policy-groth16-verifier",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "fb6bcb8fc8492e38b31da3318fb48bcb3a1291bafb83ca201f894a4ee9f5a138",
+      "deploymentStatus": "stellar_testnet_deployed_with_testnet_development_setup",
+      "contractId": "CBRC2RZQKVW4D4UNUTYGVK2VDJPGHEPNXNWFTEQIZHFHA3U2LLVWOG32",
+      "contractIdEnvironmentVariable": "STELLAR_POLICY_GENERATED_VERIFIER_TESTNET_CONTRACT_ID",
+      "claimBoundary": {
+        "verificationKeyImmutableAfterConstruction": true,
+        "canonicalPublicInputsRequired": true,
+        "exactProofLengthRequired": true,
+        "realBn254PairingVectorTested": true,
+        "testSetupSafeForDeployment": false,
+        "testnetDevelopmentSetupDeployed": true,
+        "trustedSetupProductionSafe": false,
+        "productionVerificationKeyPresent": false,
+        "deployed": true,
+        "deploymentProfile": "testnet_development",
+        "liveProofAccepted": true
+      }
+    },
+    "solverBondVault": {
+      "role": "asset_backed_solver_participation_and_workflow_bond_vault",
+      "sourcePackage": "contracts/stellar/solver-bond-vault",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "413d9273a59c834e70e667fd25b444c9ff2b1b1bf30ca00b5381a4c54b77dddf",
+      "deploymentStatus": "testnet_deployed_runtime_attested",
+      "contractId": "CC5FPF3MW6XHVYRVCXA3LK43J2MLDY3WKHCIF5BXG7FC26D7O5FJYK5H",
+      "contractIdEnvironmentVariable": "STELLAR_SOLVER_BOND_VAULT_TESTNET_CONTRACT_ID",
+      "deploymentManifest": "contracts/stellar/deployments/testnet/solver-market.v1.json",
+      "claimBoundary": {
+        "assetBacked": true,
+        "bondAssetPinnedAtConstruction": true,
+        "workflowScopedLocks": true,
+        "coordinatorPinnedAtConstruction": true,
+        "automaticTimeoutSlashing": false,
+        "indeterminateResultSlashing": false,
+        "expiredBondHasSolverRecoveryPath": true,
+        "deployed": true,
+        "runtimeAttestedAtLedger": "4308608",
+        "liveBondLifecycleTested": true,
+        "audited": false,
+        "stellarValidatorStake": false
+      }
+    },
+    "routeAuction": {
+      "role": "bounded_commit_reveal_solver_route_auction",
+      "sourcePackage": "contracts/stellar/route-auction",
+      "license": "MIT",
+      "expectedExecutable": "wasm",
+      "releaseWasmSha256": "84f95aeedfb048539e441634a4abed5ea94ef5963a19fb1e970840532cca50e2",
+      "deploymentStatus": "testnet_deployed_runtime_attested",
+      "contractId": "CCCZV5WEQUJFY3KMHO6TFSNP2K7PFJ3OCEWG3JS432KTTQKQS5JTDXFB",
+      "contractIdEnvironmentVariable": "STELLAR_ROUTE_AUCTION_TESTNET_CONTRACT_ID",
+      "deploymentManifest": "contracts/stellar/deployments/testnet/solver-market.v1.json",
+      "claimBoundary": {
+        "commitReveal": true,
+        "exactWorkflowBondChecked": true,
+        "staleQuoteRejectedAtFinalization": true,
+        "bidCommitmentProvesQuoteTruth": false,
+        "provesForeignExecution": false,
+        "abandonedSettlementBecomesIndeterminateNotFault": true,
+        "deployed": true,
+        "runtimeAttestedAtLedger": "4308608",
+        "liveAuctionLifecycleTested": true,
+        "foreignChainExecutionTested": false,
+        "audited": false
+      }
+    }
+  },
+  "contracts": {
+    "usdcSac": {
+      "contractId": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "role": "stellar_asset_contract",
+      "expectedExecutable": "stellar_asset",
+      "derivedFrom": {
+        "assetCode": "USDC",
+        "assetIssuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+      },
+      "pinnedWasmHash": null,
+      "pinStatus": "not_applicable_stellar_asset_executable",
+      "provenance": {
+        "identitySource": "deterministic SAC derived from Circle Testnet USDC code and issuer",
+        "observedAtLedger": null,
+        "observedAt": null,
+        "reviewStatus": "deterministic_stellar_asset",
+        "sourceCodeReviewed": false
+      }
+    },
+    "aquariusRouter": {
+      "contractId": "CBCFTQSPDBAIZ6R6PJQKSQWKNKWH2QIV3I4J72SHWBIK3ADRRAM5A6GD",
+      "role": "read_only_quote_comparison",
+      "expectedExecutable": "wasm",
+      "pinnedWasmHash": null,
+      "pinStatus": "unpinned_observed_only",
+      "executionEnabled": false,
+      "provenance": {
+        "identitySource": "https://docs.aqua.network/developers/code-examples/prerequisites-and-basics",
+        "observedAtLedger": "4273629",
+        "observedAt": "2026-08-22T09:27:16.620Z",
+        "reviewStatus": "unreviewed_observation_only",
+        "sourceCodeReviewed": false
+      }
+    },
+    "cctpTokenMessengerMinter": {
+      "contractId": "CDNG7HXAPBWICI2E3AUBP3YZWZELJLYSB6F5CC7WLDTLTHVM74SLRTHP",
+      "role": "official_circle_cctp_v2",
+      "expectedExecutable": "wasm",
+      "pinnedWasmHash": "a04c09f4bf064cfafb7e4e931752de15a216af1d59373bdd9d53908e7d29a9fe",
+      "pinStatus": "operator_observed_bytecode_pin",
+      "executionEnabled": true,
+      "provenance": {
+        "identitySource": "https://developers.circle.com/cctp/references/stellar-contracts",
+        "observedAtLedger": "4273629",
+        "observedAt": "2026-08-22T09:27:16.620Z",
+        "reviewStatus": "operator_observed_bytecode_pin",
+        "sourceCodeReviewed": false
+      }
+    },
+    "cctpMessageTransmitter": {
+      "contractId": "CBJ6MTCKKZG73PMDZCJMSFRD7DQEMI4FKDH7CGDSV4W6FHCRBCQAVVJY",
+      "role": "official_circle_cctp_v2",
+      "expectedExecutable": "wasm",
+      "pinnedWasmHash": "8927f7389410044b35b1d3d0d7d42ea4ed0677dea18cb1bd89be4a980566c614",
+      "pinStatus": "operator_observed_bytecode_pin",
+      "executionEnabled": true,
+      "provenance": {
+        "identitySource": "https://developers.circle.com/cctp/references/stellar-contracts",
+        "observedAtLedger": "4273629",
+        "observedAt": "2026-08-22T09:27:16.620Z",
+        "reviewStatus": "operator_observed_bytecode_pin",
+        "sourceCodeReviewed": false
+      }
+    },
+    "cctpForwarder": {
+      "contractId": "CA66Q2WFBND6V4UEB7RD4SAXSVIWMD6RA4X3U32ELVFGXV5PJK4T4VSZ",
+      "role": "official_circle_cctp_v2_forwarder",
+      "expectedExecutable": "wasm",
+      "pinnedWasmHash": "caa4d100b5d102c07db3ff08d4c53f1f89562e8bbbf45e8bab593b1d99c1dec5",
+      "pinStatus": "operator_observed_bytecode_pin",
+      "executionEnabled": true,
+      "provenance": {
+        "identitySource": "https://developers.circle.com/cctp/references/stellar-contracts",
+        "observedAtLedger": "4273629",
+        "observedAt": "2026-08-22T09:27:16.620Z",
+        "reviewStatus": "operator_observed_bytecode_pin",
+        "sourceCodeReviewed": false
+      }
+    }
+  },
+  "limitations": [
+    "The deployed Groth16 verification key was produced for a Testnet development release with one Kletia contribution. It is not a production multiparty trusted setup and must never be promoted to Mainnet.",
+    "A matching WASM hash proves the deployed bytecode did not change; it does not prove the bytecode is safe, audited or economically correct.",
+    "Stellar Testnet is periodically reset. After a reset every contract identity and observed hash must be re-verified before any release claim is renewed.",
+    "An unpinned contract is reported as observed_unpinned. Kletia does not present an unpinned observation as a verified pin."
+  ]
+}

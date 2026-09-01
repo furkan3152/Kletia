@@ -197,7 +197,7 @@ export default function ArcPortfolioViewer({
           Chain Source Verified</div>
         <p className="mt-1 text-xs font-bold text-emerald-900/80 dark:text-emerald-100/80">
           Balances and positions have been read from Kletia contracts via Arc
-          Testnet RPC. Chain ID: {data.chainId}. Mock data and estimated USD
+          Live Testnet RPC. Chain ID: {data.chainId}. Estimated USD
           value are not used.
         </p>
         <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-emerald-900/70 dark:text-emerald-200/70">

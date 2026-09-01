@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "kletia_stellar_private_payments_lock_v1",
+  "network": "stellar_testnet",
+  "upstream": {
+    "repository": "https://github.com/NethermindEth/stellar-private-payments",
+    "sdkVersion": "0.1.0-alpha.1",
+    "sdkGitHead": "9e40585d28cd733a928b026539f6a45cef8b5dba",
+    "npmIntegrity": "sha512-1+BKGXMuimRT3BsMW1u2IkcjkdFsEy/O6zf9xwkxFK04XW+y4giOay8WGys70nVOMepKL5t8oSIitOcZxVWW1w==",
+    "maturity": "unaudited_research_alpha"
+  },
+  "deployment": {
+    "deployer": "GCBU2YCJGVLRSPPFK3ADYNUEH2W6ZFNNJLX6IHCEZT54VOHZZNYNHXDG",
+    "admin": "GCBU2YCJGVLRSPPFK3ADYNUEH2W6ZFNNJLX6IHCEZT54VOHZZNYNHXDG",
+    "aspMembership": "CDEFDJPNVWDWUUHGHGGZ56FEPSSJHQLGRKS6OWIRKGRYRWSBNMLW7J5K",
+    "aspNonMembership": "CBEPJBHP6X4K7KWLRPFUGPRS3OM6HWXTWIVN3M2LCGZZHCCTHHSYAAF3",
+    "verifierB": "CCNOLQUUPEZTPNZ7LMS3PYE5NVYNNTKTHJP7HDK4NJMH4JPKFP7HOHD4",
+    "verifierAB": "CACW63UB56MYFBPEOU2HSWLUH6ZME3CGFIZNK6AZYGVUHDNR3Q3TTK3L",
+    "publicKeyRegistry": "CDK75EQA2G4EDN34CWY7ALJ4EIQMNVBOFMHAVIF3BBY7IUDNHKHNDA36",
+    "pools": [
+      {
+        "asset": "XLM",
+        "poolContractId": "CAWCZ6EO4PM5EZOH5K7XSW3R46DGLOT3XSEH36OA5EOZUSJ5XS7BX6XI",
+        "tokenContractId": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "policy": ["blocklist"]
+      },
+      {
+        "asset": "EURC",
+        "poolContractId": "CAJJT5YV4BMFTHEOO5FGO2G56TEJKM4G4FW7FS4DYBLLLLHSAYUZWT74",
+        "tokenContractId": "CCUUDM434BMZMYWYDITHFXHDMIVTGGD6T2I5UKNX5BSLXLW7HVR4MCGZ",
+        "policy": ["allowlist", "blocklist"]
+      }
+    ]
+  },
+  "claimBoundary": {
+    "inPoolAmountAndBalancePrivacy": true,
+    "recipientLinkPrivacy": true,
+    "depositAndWithdrawalPublic": true,
+    "submitterOrAuthorizationMayBePublic": true,
+    "privateBridge": false,
+    "privateEvmExecution": false,
+    "usdcPoolDeployed": false,
+    "audited": false,
+    "productionReady": false
+  },
+  "licenses": {
+    "source": "Apache-2.0",
+    "circuitsBuildException": "LGPL-3.0",
+    "distributionRequiresNoticesAndCorrespondingSource": true
+  }
+}

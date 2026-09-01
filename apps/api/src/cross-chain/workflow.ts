@@ -10,6 +10,7 @@ import {
 } from "viem";
 import type { ParsedIntent } from "../shared/ai/parser.js";
 import {
+  ARC_CONTRACTS,
   isNetworkTargetAllowed,
   NETWORKS,
   NETWORK_CLIENTS,
@@ -22,10 +23,12 @@ import {
   type BaseX402ChallengeEvidence,
 } from "../networks/base/intent/x402.js";
 import { executeArbitrumEngine } from "../networks/arbitrum/engine.js";
+import { executeArcEngine } from "../networks/arc/engine.js";
 import { ARBITRUM_TOKENS } from "../networks/arbitrum/contracts.js";
 import { TOKENS } from "../networks/base/contracts.js";
 import { resolveIntentEntities } from "../shared/assets/resolver.js";
 import { createVerifiedIntentResultEnvelope } from "../shared/intent/responseEnvelope.js";
+import { decodeCanonicalBase64Url } from "../shared/security/canonicalBase64Url.js";
 import { getAcrossGasAcquisitionRoute } from "./acrossSwap.js";
 import { resolveConfiguredBaseSwapExecution } from "../networks/base/config/intentRouterV2Environment.js";
 import { executeBaseIntentV2Swap } from "../networks/base/intent/routerV2Integration.js";
@@ -45,8 +48,8 @@ export interface WorkflowSemanticStep {
   readonly id: string;
   readonly order: number;
   readonly action: string;
-  readonly network: "base" | "arbitrum";
-  readonly chainId: 8453 | 42161;
+  readonly network: NetworkId;
+  readonly chainId: 8453 | 5042002 | 42161;
   readonly tokenIn?: string;
   readonly tokenOut?: string;
   readonly amount: string;
@@ -116,6 +119,26 @@ type MutableWorkflowPlan = Omit<WorkflowPlanV1, "steps" | "currentStepIndex"> & 
   steps: WorkflowSemanticStep[];
 };
 
+const ARC_WORKFLOW_ACTIONS = new Set([
+  "swap",
+  "stake",
+  "unstake",
+  "vault_deposit",
+  "vault_withdraw",
+  "lending_deposit",
+  "lending_withdraw",
+  "lending_borrow",
+  "lending_repay",
+]);
+
+function workflowActionAllowed(network: NetworkId, action: string): boolean {
+  if (network === "base") {
+    return ["swap", "bridge", "data_purchase", "gas_acquire"].includes(action);
+  }
+  if (network === "arc") return ARC_WORKFLOW_ACTIONS.has(action);
+  return !["bridge", "data_purchase", "gas_acquire"].includes(action);
+}
+
 // Cross-chain fills can legitimately take longer than an individual route quote.
 // The workflow remains resumable for one day, while every executable step keeps
 // its own much shorter quote deadline and must be refreshed before signing.
@@ -163,7 +186,7 @@ export function openWorkflowToken(token: unknown): WorkflowPlanV1 {
     .digest();
   let supplied: Buffer;
   try {
-    supplied = Buffer.from(suppliedSignature, "base64url");
+    supplied = decodeCanonicalBase64Url(suppliedSignature);
   } catch {
     throw controlled("WORKFLOW_TOKEN_INVALID", "Workflow token is invalid.");
   }
@@ -172,7 +195,7 @@ export function openWorkflowToken(token: unknown): WorkflowPlanV1 {
   }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    parsed = JSON.parse(decodeCanonicalBase64Url(payload).toString("utf8"));
   } catch {
     throw controlled("WORKFLOW_TOKEN_INVALID", "Workflow token payload is invalid.");
   }
@@ -217,25 +240,14 @@ export function assertWorkflowPlan(value: unknown): asserts value is WorkflowPla
     throw controlled("WORKFLOW_PLAN_INVALID", "Workflow wallet is invalid.");
   }
   plan.steps.forEach((step, index) => {
-    const expectedChainId = step.network === "base"
-      ? NETWORKS.base.chainId
-      : step.network === "arbitrum"
-        ? NETWORKS.arbitrum.chainId
-        : undefined;
-    const actionNetworkValid =
-      (step.network === "base" &&
-        (step.action === "swap" ||
-          step.action === "bridge" ||
-          step.action === "data_purchase" ||
-          step.action === "gas_acquire")) ||
-      (step.network === "arbitrum" &&
-        step.action !== "bridge" &&
-        step.action !== "data_purchase" &&
-        step.action !== "gas_acquire");
+    const stepNetwork = String(step.network) as NetworkId;
+    const knownNetwork = ["base", "arc", "arbitrum"].includes(stepNetwork);
+    const expectedChainId = knownNetwork ? NETWORKS[stepNetwork].chainId : undefined;
+    const actionNetworkValid = knownNetwork && workflowActionAllowed(stepNetwork, step.action);
     if (
       step.id !== `step-${index + 1}` ||
       step.order !== index + 1 ||
-      (step.network !== "base" && step.network !== "arbitrum") ||
+      !knownNetwork ||
       !actionNetworkValid ||
       step.chainId !== expectedChainId ||
       !Array.isArray(step.dependsOn) ||
@@ -327,7 +339,9 @@ export function assertWorkflowPlan(value: unknown): asserts value is WorkflowPla
           ? ARBITRUM_TOKENS[symbol as keyof typeof ARBITRUM_TOKENS]?.address
           : step.network === "base"
             ? TOKENS[symbol]
-            : ARBITRUM_TOKENS[symbol as keyof typeof ARBITRUM_TOKENS]?.address;
+            : step.network === "arc"
+              ? symbol === "KLET" ? ARC_CONTRACTS.Token : undefined
+              : ARBITRUM_TOKENS[symbol as keyof typeof ARBITRUM_TOKENS]?.address;
         if (!expected || getAddress(expected) !== actual) {
           throw new Error("output mismatch");
         }
@@ -349,7 +363,111 @@ export function assertWorkflowPlan(value: unknown): asserts value is WorkflowPla
   });
 }
 
-export function normalizeWorkflowSteps(intent: ParsedIntent): WorkflowSemanticStep[] {
+function normalizeSameChainWorkflowSteps(
+  intent: ParsedIntent,
+  activeNetwork: "arc" | "arbitrum",
+): WorkflowSemanticStep[] {
+  if (!intent.workflowSteps || intent.workflowSteps.length < 2) {
+    throw controlled(
+      "WORKFLOW_STEPS_REQUIRED",
+      "A multi-step workflow requires at least two explicitly ordered actions.",
+    );
+  }
+  const actionForNetwork = (action: string) => {
+    if (activeNetwork !== "arc") return action;
+    return ({
+      lend: "lending_deposit",
+      withdraw: "lending_withdraw",
+      borrow: "lending_borrow",
+      repay: "lending_repay",
+    } as Record<string, string>)[action] || action;
+  };
+  const requested = intent.workflowSteps.map((step) => ({
+    ...step,
+    network: step.network || activeNetwork,
+    action: actionForNetwork(step.action),
+    tokenIn: step.tokenIn?.toUpperCase(),
+    tokenOut: step.tokenOut?.toUpperCase(),
+  }));
+  if (requested.some((step) => step.network !== activeNetwork)) {
+    throw controlled(
+      "WORKFLOW_LANE_MISMATCH",
+      `A ${NETWORKS[activeNetwork].displayName} workflow cannot silently execute a step on another network.`,
+    );
+  }
+  return requested.map((step, index) => {
+    if (!workflowActionAllowed(activeNetwork, step.action)) {
+      throw controlled(
+        "WORKFLOW_STEP_UNSUPPORTED",
+        `${step.action} is not available in reviewed ${NETWORKS[activeNetwork].displayName} staged execution.`,
+        409,
+      );
+    }
+    if (!step.amount && step.action !== "borrow_capacity") {
+      throw controlled("WORKFLOW_AMOUNT_REQUIRED", `Amount is missing for ${step.action}.`);
+    }
+    const previous = index > 0 ? requested[index - 1] : undefined;
+    const previousAsset = String(previous?.tokenOut || "").toUpperCase();
+    const inputAsset = String(step.tokenIn || "").toUpperCase();
+    const requestedPreviousOutput =
+      step.amountSource === "previous_output" ||
+      (String(step.amount || "").toUpperCase() === "MAX" && previousAsset === inputAsset);
+    if (index === 0 && requestedPreviousOutput) {
+      throw controlled(
+        "WORKFLOW_PREVIOUS_OUTPUT_INVALID",
+        "The first workflow step cannot consume a previous output.",
+      );
+    }
+    if (requestedPreviousOutput && (!previousAsset || previousAsset !== inputAsset)) {
+      throw controlled(
+        "WORKFLOW_PREVIOUS_ASSET_MISMATCH",
+        "A workflow step may consume the preceding output only when both assets match exactly.",
+        409,
+      );
+    }
+    const amountSource = requestedPreviousOutput
+      ? "previous_output"
+      : step.amountSource ||
+        (String(step.amount || "").toUpperCase() === "MAX"
+          ? "wallet_balance"
+          : "explicit");
+    if (
+      activeNetwork === "arc" &&
+      step.action === "lending_deposit" &&
+      inputAsset !== "KLET"
+    ) {
+      throw controlled(
+        "WORKFLOW_ARC_LENDING_ASSET_INVALID",
+        "Arc staged lending collateral deposits require KLET; the workflow will not substitute another asset.",
+        409,
+      );
+    }
+    return {
+      id: `step-${index + 1}`,
+      order: index + 1,
+      action: step.action,
+      network: activeNetwork,
+      chainId: NETWORKS[activeNetwork].chainId,
+      tokenIn: step.tokenIn,
+      tokenOut: step.tokenOut,
+      amount: requestedPreviousOutput ? "MAX" : step.amount || "0",
+      amountSource,
+      protocol: step.protocol,
+      destinationChain: step.destinationChain,
+      objective: step.objective,
+      dependsOn: index === 0 ? [] : [`step-${index}`],
+      status: index === 0 ? "awaiting_signature" : "planned",
+    } satisfies WorkflowSemanticStep;
+  });
+}
+
+export function normalizeWorkflowSteps(
+  intent: ParsedIntent,
+  activeNetwork: NetworkId = "base",
+): WorkflowSemanticStep[] {
+  if (activeNetwork === "arc" || activeNetwork === "arbitrum") {
+    return normalizeSameChainWorkflowSteps(intent, activeNetwork);
+  }
   if (!intent.workflowSteps || intent.workflowSteps.length < 2) {
     throw controlled(
       "WORKFLOW_STEPS_REQUIRED",
@@ -525,7 +643,7 @@ export function normalizeWorkflowSteps(intent: ParsedIntent): WorkflowSemanticSt
 
 function stampRoute(
   rawResult: Record<string, any>,
-  network: "base" | "arbitrum",
+  network: NetworkId,
   action: string,
   requestId: string,
   userAddress: Address,
@@ -885,10 +1003,51 @@ export async function compileWorkflow(
   requestId: string,
   originalPrompt = "",
   baseX402Challenge?: BaseX402ChallengeEvidence,
+  activeNetwork: NetworkId = "base",
 ) {
   const userAddress = getAddress(userAddressInput);
-  const steps = normalizeWorkflowSteps(intent);
+  const steps = normalizeWorkflowSteps(intent, activeNetwork);
   const first = steps[0];
+  if (activeNetwork === "arc" || activeNetwork === "arbitrum") {
+    const plan: MutableWorkflowPlan = {
+      version: 1,
+      workflowId: randomUUID(),
+      requestId,
+      userAddress,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + WORKFLOW_TTL_MS,
+      objective: "risk_adjusted_net_return",
+      atomicity: {
+        sameChain: "wallet_batch_when_verified",
+        crossChain: "staged_checkpointed_no_global_rollback",
+      },
+      hardPolicies: {
+        minimumHealthFactor: "1.5",
+        requiresPerStepWalletApproval: true,
+        mockDataAllowed: false,
+      },
+      currentStepIndex: 0,
+      steps,
+    };
+    const execution = await prepareWorkflowExecution(plan, first, userAddress);
+    if (!execution || typeof execution !== "object" || "readOnlyResult" in execution) {
+      throw controlled(
+        "WORKFLOW_ENTRY_UNSUPPORTED",
+        "A staged workflow must begin with a reviewed value-moving action.",
+        409,
+      );
+    }
+    return {
+      ...(execution as Record<string, any>),
+      action: "workflow",
+      actionType: first.action,
+      executionKind: "workflow_plan_v1",
+      winnerMessage:
+        `Step 1 of ${steps.length} is ready. Each later step is prepared only after the preceding onchain receipt is verified.`,
+      workflowPlan: plan,
+      workflowToken: sealWorkflowPlan(plan),
+    };
+  }
   if (
     first.action !== "swap" &&
     first.action !== "bridge" &&
@@ -998,7 +1157,7 @@ async function readAcrossStatus(transactionHash: Hex) {
 }
 
 async function verifyTransaction(
-  network: "base" | "arbitrum",
+  network: NetworkId,
   txHash: Hex,
   step: WorkflowSemanticStep,
   userAddress: Address,
@@ -1193,6 +1352,114 @@ export function assertDataPurchaseReceiptEvidence(input: {
   }
 }
 
+async function compileArcStep(
+  step: WorkflowSemanticStep,
+  plan: WorkflowPlanV1,
+) {
+  let amount = step.amount;
+  if (step.amountSource === "previous_output") {
+    const previous = plan.steps[step.order - 2];
+    const previousOutput = previous?.actualOutputAtomic || previous?.expectedOutputAtomic;
+    if (!previousOutput || !/^\d+$/u.test(previousOutput)) {
+      throw controlled(
+        "WORKFLOW_PREVIOUS_OUTPUT_INVALID",
+        "The preceding Arc step has no verified token output to consume.",
+        409,
+      );
+    }
+    if (
+      String(step.tokenIn || "").toUpperCase() !== "KLET" ||
+      !previous.outputTokenAddress ||
+      getAddress(previous.outputTokenAddress) !== getAddress(ARC_CONTRACTS.Token)
+    ) {
+      throw controlled(
+        "WORKFLOW_PREVIOUS_ASSET_MISMATCH",
+        "The preceding Arc output is not the exact KLET input required by this step.",
+        409,
+      );
+    }
+    const balance = await NETWORK_CLIENTS.arc.readContract({
+      address: ARC_CONTRACTS.Token,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [plan.userAddress],
+    });
+    if (balance < BigInt(previousOutput)) {
+      throw controlled(
+        "WORKFLOW_DESTINATION_BALANCE_INSUFFICIENT",
+        "The Arc wallet balance does not cover the preceding verified KLET output.",
+        409,
+      );
+    }
+    amount = formatAtomic(previousOutput, 18);
+  }
+  const intent: ParsedIntent = {
+    isComplete: true,
+    action: step.action,
+    message: `Preparing Arc workflow step ${step.order}.`,
+    amount,
+    tokenIn: step.tokenIn,
+    tokenOut: step.tokenOut,
+    protocol: step.protocol,
+    objective: step.objective as ParsedIntent["objective"],
+    riskTolerance: "balanced",
+    durationInDays: 0,
+    slippage: "1",
+  };
+  const resolution = await resolveIntentEntities(intent, {
+    network: "arc",
+    userAddress: plan.userAddress,
+    originalPrompt: `${step.action} ${amount} ${step.tokenIn || ""} ${step.tokenOut || ""}`,
+    requestId: plan.requestId,
+  });
+  if (resolution.status !== "resolved") {
+    throw controlled(
+      "WORKFLOW_ENTITY_CLARIFICATION_REQUIRED",
+      `Arc workflow step ${step.order} requires an explicit reviewed asset selection.`,
+      409,
+    );
+  }
+  const raw = await executeArcEngine(
+    resolution.intent,
+    plan.userAddress,
+    "",
+    plan.requestId,
+  ) as Record<string, any>;
+  const quoteExpiresAt = Date.now() + 60_000;
+  const stamped = stampRoute(
+    {
+      ...raw,
+      quoteExpiresAt,
+      allRoutes: (raw.allRoutes || []).map((route: Record<string, any>) => ({
+        ...route,
+        quoteExpiresAt,
+      })),
+    },
+    "arc",
+    step.action,
+    plan.requestId,
+    plan.userAddress,
+  );
+  const execution = createVerifiedIntentResultEnvelope(
+    stamped,
+    "arc",
+    plan.requestId,
+    plan.userAddress,
+    resolution.evidence,
+  ) as Record<string, any>;
+  return {
+    execution,
+    expectedOutputAtomic:
+      typeof raw.expectedOutputAtomic === "string"
+        ? raw.expectedOutputAtomic
+        : undefined,
+    outputTokenAddress:
+      typeof raw.outputTokenAddress === "string"
+        ? getAddress(raw.outputTokenAddress)
+        : undefined,
+  };
+}
+
 async function compileArbitrumStep(
   step: WorkflowSemanticStep,
   plan: WorkflowPlanV1,
@@ -1377,6 +1644,21 @@ async function prepareWorkflowExecution(
     );
     bindCurrentExecution(plan, execution);
     return execution;
+  }
+
+  if (step.network === "arc") {
+    const prepared = await compileArcStep(step, plan);
+    plan.steps[plan.currentStepIndex] = {
+      ...step,
+      ...(prepared.expectedOutputAtomic
+        ? { expectedOutputAtomic: prepared.expectedOutputAtomic }
+        : {}),
+      ...(prepared.outputTokenAddress
+        ? { outputTokenAddress: prepared.outputTokenAddress }
+        : {}),
+    };
+    bindCurrentExecution(plan, prepared.execution);
+    return prepared.execution;
   }
 
   const prepared = await compileArbitrumStep(step, plan);

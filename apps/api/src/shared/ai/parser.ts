@@ -132,6 +132,14 @@ export const IntentSchema = z.object({
             "borrow_capacity",
             "repay",
             "transfer",
+            "stake",
+            "unstake",
+            "vault_deposit",
+            "vault_withdraw",
+            "lending_deposit",
+            "lending_withdraw",
+            "lending_borrow",
+            "lending_repay",
             "gas_acquire",
             "x402_request",
             "data_purchase",
@@ -188,6 +196,30 @@ export class IntentParserError extends Error {
   ) {
     super(message);
     this.name = "IntentParserError";
+  }
+}
+
+export type IntentSemanticPlannerMode =
+  | "deterministic_only"
+  | "ai_assisted";
+
+/**
+ * A consent boundary, not a provider failure. The deterministic parser raises
+ * this before any model request when an intent needs semantic interpretation.
+ * The HTTP layer can then ask the user whether the additional disclosure is
+ * acceptable instead of silently falling back to AI.
+ */
+export class IntentDisclosureConsentRequiredError extends Error {
+  readonly code = "AI_SEMANTIC_CONSENT_REQUIRED";
+  readonly statusCode = 409;
+  readonly network: NetworkId;
+
+  constructor(network: NetworkId) {
+    super(
+      "The deterministic intent parser could not resolve this request without semantic AI interpretation.",
+    );
+    this.name = "IntentDisclosureConsentRequiredError";
+    this.network = network;
   }
 }
 
@@ -829,11 +861,12 @@ const LLM_EXECUTABLE_ACTIONS = new Set([
   "appkit_bridge",
   "atomic_payout",
   "x402_request",
+  "workflow",
 ]);
 
 function hasPromptBoundAction(action: string, text: string): boolean {
   const rules: Record<string, RegExp> = {
-    swap: /\b(?:swap|swapp?ing|trade|exchange|convert|buy|sell|takas|değiştir|degistir|çevir|cevir|satın\s+al|spend\b[^,;:.!?\n]{0,80}\b(?:receive|get|buy))\b/iu,
+    swap: /\b(?:swap|swapp?ing|trade|exchange|convert|transform|change|turn|switch|buy|sell|takas|değiştir|degistir|dönüştür|donustur|çevir|cevir|satın\s+al|spend\b[^,;:.!?\n]{0,80}\b(?:receive|get|buy))\b/iu,
     stable_swap: /\b(?:swap|swapp?ing|exchange|convert|takas|çevir|cevir)\b/iu,
     add_liquidity:
       /(?:\b(?:add|provide|deposit)\b[^,;:.!?\n]{0,48}\bliquidity\b|\blikidite\b[^,;:.!?\n]{0,48}\b(?:ekle|sağla|yatır))/iu,
@@ -856,7 +889,7 @@ function hasPromptBoundAction(action: string, text: string): boolean {
     lend: /\b(?:lend|supply|deposit|earn|borç\s+ver|faize\s+yatır|mevduat(?:a)?\s+yatır)\b/iu,
     repay: /\b(?:repay|pay\s+back|borç\s+öde|borcu\s+öde|geri\s+öde)\b/iu,
     withdraw: /\b(?:withdraw|redeem|exit|geri\s+çek|mevduat(?:ı|i)?\s+çek)\b/iu,
-    bridge: /\b(?:bridge|köprüle|koprule)\b/iu,
+    bridge: /\b(?:bridge|move|köprüle|koprule)\b/iu,
     deploy_token:
       /\b(?:create|deploy|launch|oluştur|olustur)\b[^,;:.!?\n]{0,48}\b(?:token|coin)\b/iu,
     mint_nft: /\b(?:mint|bas)\b[^,;:.!?\n]{0,32}\bnft\b/iu,
@@ -904,6 +937,61 @@ function hasPromptBoundAction(action: string, text: string): boolean {
       /\b(?:create|build|configure|set up|oluştur|olustur|kur)\b[^,;:.!?\n]{0,64}\b(?:policy\s+agent|sub[- ]?agent|alt\s+ajan|strategy\s+agent)\b/iu,
   };
   return rules[action]?.test(text) === true;
+}
+
+function hasPromptBoundWorkflowAction(
+  action: string,
+  text: string,
+): boolean {
+  const canonical = new Map<string, string>([
+    ["lending_deposit", "lend"],
+    ["lending_withdraw", "withdraw"],
+    ["lending_borrow", "borrow"],
+    ["lending_repay", "repay"],
+  ]).get(action) || action;
+  return hasPromptBoundAction(canonical, text);
+}
+
+function hasPromptBoundWorkflow(
+  intent: ParsedIntent,
+  text: string,
+  network: NetworkId,
+): boolean {
+  const steps = intent.workflowSteps;
+  if (!steps || steps.length < 2 || !hasPromptBoundAction("workflow", text)) {
+    return false;
+  }
+  return steps.every((step) => {
+    if (!hasPromptBoundWorkflowAction(step.action, text)) return false;
+    for (const asset of [step.tokenIn, step.tokenOut]) {
+      if (
+        asset &&
+        !hasPromptBoundAsset(
+          asset,
+          text,
+          (step.network || network) as NetworkId,
+          asset === step.tokenIn ? "tokenIn" : "tokenOut",
+          { ...intent, action: step.action, tokenIn: step.tokenIn, tokenOut: step.tokenOut, amount: step.amount || "0" },
+        )
+      ) {
+        return false;
+      }
+    }
+    if (
+      step.amountSource === "explicit" &&
+      step.amount &&
+      step.tokenIn &&
+      !hasPromptBoundAmountForAsset(
+        step.amount,
+        step.tokenIn,
+        text,
+        (step.network || network) as NetworkId,
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function hasPromptBoundBaseAction(action: string, text: string): boolean {
@@ -1526,7 +1614,16 @@ function enforcePromptBoundIntent(
       "x402_discover",
     ]).has(intent.action);
   if (
+    intent.action === "workflow" &&
+    !hasPromptBoundWorkflow(intent, bindingText, network)
+  ) {
+    return promptBindingFailure(
+      "The ordered workflow could not be matched step-by-step to the actions, assets and explicit amounts in this message. State each step in execution order without adding an unsupported operation.",
+    );
+  }
+  if (
     actionNeedsBinding &&
+    intent.action !== "workflow" &&
     !(network === "base"
       ? hasPromptBoundBaseAction(intent.action, bindingText)
       : hasPromptBoundAction(intent.action, bindingText))
@@ -1928,9 +2025,8 @@ function enforcePromptBoundIntent(
   }
   if (
     intent.allowMultiStep === true &&
-    !/\b(?:multi[-\s]?step|multiple\s+steps|çok\s+adımlı|cok\s+adimli)\b/iu.test(
-      bindingText,
-    )
+    !hasOrderedIntentConnector(bindingText) &&
+    !/\b(?:multi[-\s]?step|multiple\s+steps|çok\s+adımlı|cok\s+adimli)\b/iu.test(bindingText)
   ) {
     return promptBindingFailure(
       "Multi-step route authorization must be explicitly granted in the user message.",
@@ -2282,6 +2378,26 @@ function deterministicIntent(
   });
 }
 
+type NaturalWorkflowStep = NonNullable<ParsedIntent["workflowSteps"]>[number];
+
+/**
+ * Keep ordered intent wording consistent across Base, Arc and Arbitrum. A
+ * connector is a security boundary: once the user writes one, no network
+ * parser may silently prepare only the first clause.
+ */
+function splitOrderedIntentClauses(prompt: string): string[] {
+  return prompt
+    .split(
+      /\s*(?:,\s*(?=(?:swap|convert|exchange|trade|buy|sell|bridge|move|send|lend|deposit|supply|borrow|repay|stake|unstake|withdraw)\b)|,?\s*\b(?:and\s+then|then|after\s+that|after\s+this|afterwards|next)\b|,?\s*\bafter\b(?=\s+(?:swap|convert|exchange|trade|buy|sell|bridge|move|send|lend|deposit|supply|borrow|repay|stake|unstake|withdraw)\b)|,?\s*\bafter\s+(?:buying|selling|swapping|bridging|moving|sending|supplying|lending|depositing|staking|withdrawing|borrowing|repaying)\b|,?\s*(?:sonra|ardından|ardindan))\s*/iu,
+    )
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+}
+
+function hasOrderedIntentConnector(prompt: string): boolean {
+  return splitOrderedIntentClauses(prompt).length > 1;
+}
+
 function extractDurationInDays(prompt: string): number | undefined {
   const match =
     /(\d+)\s*(days?|months?|years?|gün(?:lük|lüğüne)?|ay(?:lık|lığına)?|yıl(?:lık|lığına)?)(?![a-zçğıöşü])/iu.exec(
@@ -2347,6 +2463,39 @@ function parseRawDeterministicBaseIntent(
   if (!prompt || prompt.length > 2_000) return null;
   const lower = prompt.toLocaleLowerCase("tr-TR");
   if (/\barc(?:\s+testnet)?\b/i.test(lower)) return null;
+
+  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+    return deterministicIntent({
+      action: "portfolio",
+      amount: "0",
+      message: "Reading the live Base portfolio and reviewed positions.",
+    });
+  }
+
+  const directBridge = /^(?:bridge|move|köprüle|koprule)\s+(\d+(?:[.,]\d+)?)\s+(USDC|WETH|ETH)\s+(?:from\s+Base\s+)?to\s+Arbitrum(?:\s+One)?(?:\s+using\s+Across)?$/iu.exec(
+    prompt,
+  );
+  if (directBridge) {
+    const requestedAsset = directBridge[2].toUpperCase();
+    if (requestedAsset === "ETH") {
+      return IntentSchema.parse({
+        isComplete: false,
+        action: "bridge",
+        amount: directBridge[1].replace(",", "."),
+        tokenIn: "ETH",
+        question: "The reviewed Base to Arbitrum bridge uses WETH or USDC. Use WETH instead of native ETH?",
+        message: "The reviewed Base to Arbitrum bridge uses WETH or USDC. Use WETH instead of native ETH?",
+      });
+    }
+    return deterministicIntent({
+      action: "bridge",
+      tokenIn: requestedAsset,
+      amount: directBridge[1].replace(",", "."),
+      destinationChain: "arbitrum",
+      protocol: "across",
+      message: "Preparing the reviewed Base to Arbitrum Across route.",
+    });
+  }
 
   const deployIdentity = explicitDeployTokenIdentity(prompt);
   const deploySupply = explicitDeployTokenSupply(prompt);
@@ -2608,11 +2757,17 @@ function parseRawDeterministicBaseIntent(
 export function parseDeterministicBaseIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  if (
-    baseExecutionConstraintFailure(userPrompt) ||
-    conflictingBaseActions(userPrompt).length > 1
-  ) {
-    return null;
+  if (baseExecutionConstraintFailure(userPrompt)) return null;
+  const workflow = parseDeterministicBaseWorkflowIntent(userPrompt);
+  if (workflow) {
+    return workflow.isComplete
+      ? attachExplicitBaseExecutionConstraints(workflow, userPrompt)
+      : workflow;
+  }
+  if (conflictingBaseActions(userPrompt).length > 1) {
+    return promptBindingFailure(
+      "I found multiple money-moving actions, but not a complete reviewed Base to Arbitrum sequence. State the steps in order and include an explicit bridge, or send the Base actions separately.",
+    );
   }
   const intent = parseRawDeterministicBaseIntent(userPrompt);
   return intent
@@ -2622,9 +2777,260 @@ export function parseDeterministicBaseIntent(
 
 const ARC_WIDGET_AMOUNT = "(\\d+(?:\\.\\d+)?)";
 const ARC_WIDGET_ADDRESS = "(0x[0-9a-fA-F]{40})";
+const ARC_NATURAL_AMOUNT = "(\\d+(?:[.,]\\d+)?)(?:\\s*(thousand|million|billion|bin|milyon|milyar))?";
 
 function canonicalArcAppKitToken(token: string): string {
   return token.toUpperCase() === "CIRBTC" ? "cirBTC" : token.toUpperCase();
+}
+
+function normalizeScaledArcAmount(raw: string, scale?: string): string {
+  const normalized = raw.replace(",", ".");
+  const [wholeRaw, fractionRaw = ""] = normalized.split(".");
+  const zeros = (() => {
+    switch (String(scale || "").toLowerCase()) {
+      case "thousand":
+      case "bin":
+        return 3;
+      case "million":
+      case "milyon":
+        return 6;
+      case "billion":
+      case "milyar":
+        return 9;
+      default:
+        return 0;
+    }
+  })();
+  const digits = `${wholeRaw}${fractionRaw}`.replace(/^0+(?=\d)/u, "") || "0";
+  const shift = zeros - fractionRaw.length;
+  const expanded = shift >= 0
+    ? `${digits}${"0".repeat(shift)}`
+    : `${digits.slice(0, Math.max(0, digits.length + shift)) || "0"}.${digits
+        .slice(digits.length + shift)
+        .padStart(Math.max(0, -shift), "0")}`;
+  const [whole, fraction = ""] = expanded.split(".");
+  const trimmedFraction = fraction.replace(/0+$/u, "");
+  return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
+}
+
+type ArcNaturalClause =
+  | { readonly status: "matched"; readonly step: NaturalWorkflowStep }
+  | { readonly status: "invalid"; readonly question: string }
+  | { readonly status: "unmatched" };
+
+function parseArcNaturalClause(
+  clause: string,
+  previousOutput?: string,
+): ArcNaturalClause {
+  if (
+    /(?:\b(?:how\s+much|maximum|max|capacity|available|safe(?:ly)?)\b[^,;:.!?\n]{0,100}\b(?:borrow|loan)\b|\b(?:borrow|loan)\b[^,;:.!?\n]{0,100}\b(?:capacity|maximum|max|available|safe(?:ly)?))\b/iu.test(
+      clause,
+    )
+  ) {
+    return {
+      status: "invalid",
+      question:
+        "Arc Kletia Lending does not expose a reviewed read-only safe borrow limit yet. Enter an exact USDC borrow amount, or stop the workflow after supplying KLET collateral.",
+    };
+  }
+
+  let match = new RegExp(
+    `^(?:buy|satın\\s+al|satin\\s+al)\\s+(?:native\\s+)?(USDC|KLET)\\s+(?:with|using|for|ile)\\s+${ARC_NATURAL_AMOUNT}\\s+(?:native\\s+)?(USDC|KLET)(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const tokenOut = match[1].toUpperCase();
+    const tokenIn = match[4].toUpperCase();
+    if (tokenIn === tokenOut) {
+      return {
+        status: "invalid",
+        question: "Arc swap input and output assets must be different.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "swap",
+        network: "arc",
+        tokenIn,
+        tokenOut,
+        amount: normalizeScaledArcAmount(match[2], match[3]),
+        amountSource: "explicit",
+      },
+    };
+  }
+
+  match = new RegExp(
+    `^(swap|convert|exchange|trade|takasla|çevir|cevir|sell|sat)\\s+${ARC_NATURAL_AMOUNT}\\s+(?:native\\s+)?(USDC|KLET)(?:\\s+(?:to|into|for|->)\\s+(?:native\\s+)?(USDC|KLET))?(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const verb = match[1].toLowerCase();
+    const tokenIn = match[4].toUpperCase();
+    const explicitTokenOut = match[5]?.toUpperCase();
+    const tokenOut = explicitTokenOut ||
+      (["sell", "sat"].includes(verb)
+        ? tokenIn === "KLET" ? "USDC" : "KLET"
+        : undefined);
+    if (!tokenOut) {
+      return {
+        status: "invalid",
+        question: "Which Arc asset should the swap receive: USDC or KLET?",
+      };
+    }
+    if (tokenIn === tokenOut) {
+      return {
+        status: "invalid",
+        question: "Arc swap input and output assets must be different.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "swap",
+        network: "arc",
+        tokenIn,
+        tokenOut,
+        amount: normalizeScaledArcAmount(match[2], match[3]),
+        amountSource: "explicit",
+      },
+    };
+  }
+
+  match = new RegExp(
+    `^(lend|deposit|supply|put|place|yatır|yatir)(?:\\s+${ARC_NATURAL_AMOUNT})?\\s+(?:(?:all|the|resulting|received|output|swapped)\\s+)*(?:native\\s+)?(USDC|KLET)(?:\\s+as\\s+collateral)?(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const tokenIn = match[4].toUpperCase();
+    if (tokenIn !== "KLET") {
+      return {
+        status: "invalid",
+        question:
+          "Arc Kletia Lending accepts KLET as collateral, not USDC. Swap USDC to KLET first or choose a different Arc action.",
+      };
+    }
+    const hasExplicitAmount = Boolean(match[2]);
+    if (!hasExplicitAmount && previousOutput !== "KLET") {
+      return {
+        status: "invalid",
+        question: "Enter the exact KLET amount to supply as Arc lending collateral.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "lend",
+        network: "arc",
+        tokenIn,
+        amount: hasExplicitAmount
+          ? normalizeScaledArcAmount(match[2], match[3])
+          : "MAX",
+        amountSource: hasExplicitAmount ? "explicit" : "previous_output",
+        protocol: "kletia",
+      },
+    };
+  }
+
+  if (
+    /^(?:lend|deposit|supply|put|place|yatır|yatir)\s+(?:it|all(?:\s+of\s+it)?|the\s+(?:result|output))$/iu.test(
+      clause,
+    )
+  ) {
+    if (previousOutput !== "KLET") {
+      return {
+        status: "invalid",
+        question:
+          "The previous Arc step must produce KLET before its output can be supplied as lending collateral.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "lend",
+        network: "arc",
+        tokenIn: "KLET",
+        amount: "MAX",
+        amountSource: "previous_output",
+        protocol: "kletia",
+      },
+    };
+  }
+
+  const financialActions = [
+    { pattern: "borrow|borç\\s+al", action: "borrow", asset: "USDC" },
+    { pattern: "repay|borç\\s+öde|geri\\s+öde", action: "repay", asset: "USDC" },
+    { pattern: "stake", action: "stake", asset: "USDC" },
+    { pattern: "unstake", action: "unstake", asset: "USDC" },
+  ] as const;
+  for (const definition of financialActions) {
+    match = new RegExp(
+      `^(?:${definition.pattern})\\s+${ARC_NATURAL_AMOUNT}\\s+(?:native\\s+)?(USDC|KLET)(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?$`,
+      "iu",
+    ).exec(clause);
+    if (!match) continue;
+    const tokenIn = match[3].toUpperCase();
+    if (tokenIn !== definition.asset) {
+      return {
+        status: "invalid",
+        question: `${definition.action} on Arc requires ${definition.asset}; ${tokenIn} was not substituted automatically.`,
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: definition.action,
+        network: "arc",
+        tokenIn,
+        amount: normalizeScaledArcAmount(match[1], match[2]),
+        amountSource: "explicit",
+        protocol: "kletia",
+      },
+    };
+  }
+  return { status: "unmatched" };
+}
+
+/**
+ * Compose an unambiguous Arc swap followed by a collateral deposit without
+ * sending the user's prompt to a semantic provider. The second step is bound
+ * to the first step's exact output asset; a mismatched or omitted economic
+ * dependency remains on the clarification path.
+ */
+function parseDeterministicArcWorkflowIntent(
+  prompt: string,
+): ParsedIntent | null {
+  const clauses = splitOrderedIntentClauses(prompt);
+  if (clauses.length < 2 || clauses.length > 8) return null;
+
+  const steps: NaturalWorkflowStep[] = [];
+  let previousOutput: string | undefined;
+  for (const clause of clauses) {
+    const parsed = parseArcNaturalClause(clause, previousOutput);
+    if (parsed.status === "unmatched") return null;
+    if (parsed.status === "invalid") {
+      return IntentSchema.parse({
+        isComplete: false,
+        action: "workflow",
+        amount: "0",
+        question: parsed.question,
+        message: parsed.question,
+      });
+    }
+    steps.push(parsed.step);
+    previousOutput = parsed.step.tokenOut;
+  }
+  const first = steps[0];
+  return deterministicIntent({
+    action: "workflow",
+    tokenIn: first.tokenIn,
+    tokenOut: first.tokenOut,
+    amount: first.amount || "0",
+    allowMultiStep: true,
+    workflowSteps: steps,
+    message:
+      `Preparing ${steps.length} ordered Arc checkpoints. Every money-moving step requires a separate wallet approval.`,
+  });
 }
 
 /**
@@ -2635,8 +3041,120 @@ function canonicalArcAppKitToken(token: string): string {
 export function parseDeterministicArcIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  const prompt = userPrompt.trim();
+  const prompt = userPrompt.trim().replace(/[.!]+$/u, "");
   if (!prompt || prompt.length > 2_000) return null;
+
+  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+    return deterministicIntent({
+      action: "portfolio",
+      amount: "0",
+      message: "Reading the live Arc wallet and protocol positions.",
+    });
+  }
+
+  const naturalSend = new RegExp(
+    `^(?:send|pay|transfer|gönder|gonder|öde|ode|aktar)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|EURC)(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?\\s+(?:to|->)\\s*(${ARC_WIDGET_ADDRESS})$`,
+    "iu",
+  ).exec(prompt);
+  if (naturalSend) {
+    return deterministicIntent({
+      action: "appkit_send",
+      tokenIn: naturalSend[3].toUpperCase(),
+      amount: normalizeScaledArcAmount(naturalSend[1], naturalSend[2]),
+      recipient: naturalSend[5],
+      message: "Preparing the reviewed Arc App Kit transfer.",
+    });
+  }
+
+  const incompleteNaturalSend = new RegExp(
+    `^(?:send|pay|transfer|gönder|gonder|öde|ode|aktar)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|EURC)(?:\\s+on\\s+Arc(?:\\s+Testnet)?)?$`,
+    "iu",
+  ).exec(prompt);
+  if (incompleteNaturalSend) {
+    const amount = normalizeScaledArcAmount(
+      incompleteNaturalSend[1],
+      incompleteNaturalSend[2],
+    );
+    return IntentSchema.parse({
+      isComplete: false,
+      action: "appkit_send",
+      tokenIn: incompleteNaturalSend[3].toUpperCase(),
+      amount,
+      question: "Which EVM address should receive this Arc transfer?",
+      message: "Add the recipient address to continue.",
+    });
+  }
+
+  const naturalBridge = new RegExp(
+    `^(?:bridge|move)\\s+${ARC_NATURAL_AMOUNT}\\s+(?:native\\s+)?USDC(?:\\s+from\\s+Arc(?:\\s+Testnet)?)?\\s+to\\s+((?:Base|Ethereum|Arbitrum|Optimism)\\s+Sepolia|Avalanche\\s+Fuji)(?:\\s+(?:for|to)\\s+(${ARC_WIDGET_ADDRESS}))?$`,
+    "iu",
+  ).exec(prompt);
+  if (naturalBridge) {
+    const destination = naturalBridge[3]
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/gu, "-");
+    const amount = normalizeScaledArcAmount(
+      naturalBridge[1],
+      naturalBridge[2],
+    );
+    const recipient = naturalBridge[5];
+    if (!recipient) {
+      return IntentSchema.parse({
+        isComplete: false,
+        action: "appkit_bridge",
+        tokenIn: "USDC",
+        amount,
+        destinationChain: destination,
+        transferSpeed: "SLOW",
+        question: "Which EVM address should receive the bridged USDC?",
+        message: "Add the destination EVM address to prepare the Arc App Kit bridge.",
+      });
+    }
+    return deterministicIntent({
+      action: "appkit_bridge",
+      tokenIn: "USDC",
+      amount,
+      destinationChain: destination,
+      recipient,
+      transferSpeed: "SLOW",
+      message: "Preparing the Arc App Kit testnet bridge.",
+    });
+  }
+
+  const workflow = parseDeterministicArcWorkflowIntent(prompt);
+  if (workflow) return workflow;
+
+  if (hasOrderedIntentConnector(prompt)) return null;
+
+  const naturalAction = parseArcNaturalClause(prompt);
+  if (naturalAction.status === "invalid") {
+    return IntentSchema.parse({
+      isComplete: false,
+      action: "unknown",
+      amount: "0",
+      question: naturalAction.question,
+      message: naturalAction.question,
+    });
+  }
+  if (naturalAction.status === "matched") {
+    const step = naturalAction.step;
+    const action = ({
+      lend: "lending_deposit",
+      borrow: "lending_borrow",
+      repay: "lending_repay",
+    } as Record<string, string>)[step.action] || step.action;
+    return deterministicIntent({
+      action,
+      tokenIn: step.tokenIn,
+      tokenOut: step.tokenOut,
+      amount: step.amount || "0",
+      protocol: step.protocol,
+      objective: step.action === "swap" ? "best_output" : undefined,
+      slippage: step.action === "swap" ? "1" : undefined,
+      message: `Preparing the reviewed Arc ${action.replace(/_/gu, " ")} route.`,
+    });
+  }
 
   let match =
     /(?:^|\b)(\d+(?:[.,]\d+)?)\s+(?:native\s+)?(USDC|KLET)\s+(?:ile|to|into|for|->)\s+(?:native\s+)?(USDC|KLET)(?:['’]?(?:yi|yı|yu|yü|i|ı|u|ü))?\s+(?:al|satın\s+al|satin\s+al|swap(?:la)?|takasla|çevir|cevir|convert|buy|sell)\b/iu.exec(
@@ -2999,48 +3517,485 @@ export function parseDeterministicArcIntent(
   return null;
 }
 
-/**
- * High-confidence read-only Arbitrum intents. Keeping this tiny grammar outside
- * the model guarantees that a capacity question can never be turned into a
- * borrow transaction while still requiring the requested debt asset to appear
- * explicitly in the user's current message.
- */
+type ArbitrumNaturalClause =
+  | { readonly status: "matched"; readonly step: NaturalWorkflowStep }
+  | { readonly status: "invalid"; readonly question: string }
+  | { readonly status: "unmatched" };
+
+function parseArbitrumNaturalClause(
+  clause: string,
+  previousOutput?: string,
+): ArbitrumNaturalClause {
+  const capacityRequest =
+    /(?:\b(?:how\s+much|maximum|max|capacity|available|safe(?:ly)?)\b[^,;:.!?\n]{0,100}\b(?:borrow|loan)\b|\b(?:borrow|loan)\b[^,;:.!?\n]{0,100}\b(?:capacity|maximum|max|available|safe(?:ly)?))\b/iu.test(
+      clause,
+    );
+  const mentionedAssets = [
+    ...new Set(
+      Array.from(
+        clause.matchAll(/(?:^|[^\p{L}\p{N}_])(USDC|WETH|ETH|ARB)(?=$|[^\p{L}\p{N}_])/giu),
+        (match) => match[1].toUpperCase(),
+      ),
+    ),
+  ];
+  if (capacityRequest) {
+    if (mentionedAssets.length !== 1) {
+      return {
+        status: "invalid",
+        question: "Which Arbitrum asset should I use for the read-only borrow-capacity calculation: USDC, WETH, ETH, or ARB?",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "borrow_capacity",
+        network: "arbitrum",
+        tokenIn: mentionedAssets[0],
+        amount: "0",
+        protocol: "aave-v3",
+      },
+    };
+  }
+
+  let match = new RegExp(
+    `^(?:buy|satın\\s+al|satin\\s+al)\\s+(USDC|WETH|ETH|ARB)\\s+(?:with|using|for|ile)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|WETH|ETH|ARB)(?:\\s+on\\s+Arbitrum(?:\\s+One)?)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const tokenOut = match[1].toUpperCase();
+    const tokenIn = match[4].toUpperCase();
+    if (tokenIn === tokenOut) {
+      return { status: "invalid", question: "Arbitrum swap input and output assets must be different." };
+    }
+    if (tokenIn === "ETH" || tokenOut === "ETH") {
+      return {
+        status: "invalid",
+        question: "Arbitrum swaps use WETH rather than native ETH. Replace ETH with WETH to continue.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "swap",
+        network: "arbitrum",
+        tokenIn,
+        tokenOut,
+        amount: normalizeScaledArcAmount(match[2], match[3]),
+        amountSource: "explicit",
+        protocol: "uniswap-v3",
+      },
+    };
+  }
+
+  match = new RegExp(
+    `^(?:swap|convert|exchange|trade|takasla|çevir|cevir|sell|sat)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|WETH|ETH|ARB)\\s+(?:to|into|for|->)\\s+(USDC|WETH|ETH|ARB)(?:\\s+on\\s+Arbitrum(?:\\s+One)?)?(?:\\s+with\\s+(?:maximum\\s+)?\\d+(?:[.,]\\d+)?%\\s+slippage)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const tokenIn = match[3].toUpperCase();
+    const tokenOut = match[4].toUpperCase();
+    if (tokenIn === tokenOut) {
+      return { status: "invalid", question: "Arbitrum swap input and output assets must be different." };
+    }
+    if (tokenIn === "ETH" || tokenOut === "ETH") {
+      return {
+        status: "invalid",
+        question: "Arbitrum swaps use WETH rather than native ETH. Replace ETH with WETH to continue.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "swap",
+        network: "arbitrum",
+        tokenIn,
+        tokenOut,
+        amount: normalizeScaledArcAmount(match[1], match[2]),
+        amountSource: "explicit",
+        protocol: "uniswap-v3",
+      },
+    };
+  }
+
+  match = /^(?:swap|convert|exchange|trade|takasla|çevir|cevir)\s+(?:it|all(?:\s+of\s+it)?|the\s+(?:result|output))\s+(?:to|into|for|->)\s+(USDC|WETH|ETH|ARB)(?:\s+on\s+Arbitrum(?:\s+One)?)?$/iu.exec(
+    clause,
+  );
+  if (match) {
+    const tokenOut = match[1].toUpperCase();
+    if (!previousOutput) {
+      return { status: "invalid", question: "The preceding step must produce an asset before its output can be swapped." };
+    }
+    if (previousOutput === "ETH" || tokenOut === "ETH") {
+      return {
+        status: "invalid",
+        question: "Arbitrum swaps use WETH rather than native ETH. Replace ETH with WETH to continue.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "swap",
+        network: "arbitrum",
+        tokenIn: previousOutput,
+        tokenOut,
+        amount: "MAX",
+        amountSource: "previous_output",
+        protocol: "uniswap-v3",
+      },
+    };
+  }
+
+  match = new RegExp(
+    `^(lend|supply|deposit|withdraw|borrow|repay)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|WETH|ETH|ARB)(?:\\s+(?:to|from|on|in)\\s+(Aave(?:\\s+V3)?|Compound(?:\\s+(?:III|V3))?|Comet))?(?:\\s+on\\s+Arbitrum(?:\\s+One)?)?$`,
+    "iu",
+  ).exec(clause);
+  if (match) {
+    const requested = match[1].toLowerCase();
+    const action = (
+      requested === "supply" || requested === "deposit" ? "lend" : requested
+    ) as NaturalWorkflowStep["action"];
+    const tokenIn = match[4].toUpperCase();
+    const compound = /\b(?:compound|comet)\b/iu.test(match[5] || clause);
+    if (tokenIn === "ETH") {
+      return {
+        status: "invalid",
+        question: "Use WETH for reviewed Arbitrum DeFi execution; native ETH is not substituted silently.",
+      };
+    }
+    if (compound && action === "borrow") {
+      return {
+        status: "invalid",
+        question: "Compound III borrow execution is not reviewed in this release. Use Aave V3 or request read-only capacity.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action,
+        network: "arbitrum",
+        tokenIn,
+        amount: normalizeScaledArcAmount(match[2], match[3]),
+        amountSource: "explicit",
+        protocol: compound ? "compound-v3" : "aave-v3",
+      },
+    };
+  }
+
+  match = /^(?:lend|supply|deposit|put|place|yatır|yatir)\s+(?:it|all(?:\s+of\s+it)?|the\s+(?:result|output)|(?:all|the)\s+(?:resulting|received|output|swapped)\s+(USDC|WETH|ARB))(?:\s+(?:to|on|in)\s+(?:Aave(?:\s+V3)?))?(?:\s+on\s+Arbitrum(?:\s+One)?)?$/iu.exec(
+    clause,
+  );
+  if (match) {
+    const explicitAsset = match[1]?.toUpperCase();
+    if (!previousOutput || (explicitAsset && explicitAsset !== previousOutput)) {
+      return {
+        status: "invalid",
+        question: "The Aave supply asset must exactly match the immediately preceding workflow output.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "lend",
+        network: "arbitrum",
+        tokenIn: previousOutput,
+        amount: "MAX",
+        amountSource: "previous_output",
+        protocol: "aave-v3",
+      },
+    };
+  }
+
+  match = /^(?:lend|supply|deposit|put|place|yatır|yatir)\s+(?:the\s+)?(USDC|WETH|ARB)(?:\s+(?:to|on|in)\s+(?:Aave(?:\s+V3)?))?(?:\s+on\s+Arbitrum(?:\s+One)?)?$/iu.exec(
+    clause,
+  );
+  if (match) {
+    const tokenIn = match[1].toUpperCase();
+    if (!previousOutput) {
+      return {
+        status: "invalid",
+        question: `Enter the exact ${tokenIn} amount to supply to Aave.`,
+      };
+    }
+    if (previousOutput !== tokenIn) {
+      return {
+        status: "invalid",
+        question:
+          "The Aave supply asset must exactly match the immediately preceding workflow output.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "lend",
+        network: "arbitrum",
+        tokenIn,
+        amount: "MAX",
+        amountSource: "previous_output",
+        protocol: "aave-v3",
+      },
+    };
+  }
+
+  return { status: "unmatched" };
+}
+
+function parseDeterministicArbitrumWorkflowIntent(prompt: string): ParsedIntent | null {
+  const clauses = splitOrderedIntentClauses(prompt);
+  if (clauses.length < 2 || clauses.length > 8) return null;
+  const steps: NaturalWorkflowStep[] = [];
+  let previousOutput: string | undefined;
+  for (const clause of clauses) {
+    const parsed = parseArbitrumNaturalClause(clause, previousOutput);
+    if (parsed.status === "unmatched") return null;
+    if (parsed.status === "invalid") {
+      return IntentSchema.parse({
+        isComplete: false,
+        action: "workflow",
+        amount: "0",
+        question: parsed.question,
+        message: parsed.question,
+      });
+    }
+    steps.push(parsed.step);
+    previousOutput = parsed.step.tokenOut;
+  }
+  const first = steps[0];
+  return deterministicIntent({
+    action: "workflow",
+    tokenIn: first.tokenIn,
+    tokenOut: first.tokenOut,
+    amount: first.amount || "0",
+    allowMultiStep: true,
+    workflowSteps: steps,
+    message: `Preparing ${steps.length} ordered Arbitrum checkpoints. Each money-moving step remains separately approved.`,
+  });
+}
+
+function parseBaseBridgeWorkflowClause(
+  clause: string,
+  previousOutput?: string,
+): ArbitrumNaturalClause {
+  let match = /^(?:bridge|move|köprüle|koprule)\s+(\d+(?:[.,]\d+)?)\s+(USDC|WETH|ETH)(?:\s+from\s+Base)?\s+to\s+Arbitrum(?:\s+One)?(?:\s+using\s+Across)?$/iu.exec(
+    clause,
+  );
+  if (match) {
+    return {
+      status: "matched",
+      step: {
+        action: "bridge",
+        network: "base",
+        tokenIn: match[2].toUpperCase(),
+        amount: match[1].replace(",", "."),
+        amountSource: "explicit",
+        destinationChain: "arbitrum",
+        protocol: "across",
+      },
+    };
+  }
+  match = /^(?:bridge|move|köprüle|koprule)\s+(?:it|all(?:\s+of\s+it)?|the\s+(?:result|output))\s+to\s+Arbitrum(?:\s+One)?(?:\s+using\s+Across)?$/iu.exec(
+    clause,
+  );
+  if (match) {
+    if (!previousOutput || !["USDC", "WETH", "ETH"].includes(previousOutput)) {
+      return {
+        status: "invalid",
+        question: "The reviewed bridge must immediately follow a Base step that produces USDC, WETH, or ETH.",
+      };
+    }
+    return {
+      status: "matched",
+      step: {
+        action: "bridge",
+        network: "base",
+        tokenIn: previousOutput,
+        amount: "MAX",
+        amountSource: "previous_output",
+        destinationChain: "arbitrum",
+        protocol: "across",
+      },
+    };
+  }
+  return { status: "unmatched" };
+}
+
+function parseDeterministicBaseWorkflowIntent(prompt: string): ParsedIntent | null {
+  const clauses = splitOrderedIntentClauses(prompt);
+  if (clauses.length < 2 || clauses.length > 8) return null;
+  const steps: NaturalWorkflowStep[] = [];
+  let previousOutput: string | undefined;
+  let crossedToArbitrum = false;
+
+  for (const clause of clauses) {
+    if (!crossedToArbitrum) {
+      const bridge = parseBaseBridgeWorkflowClause(clause, previousOutput);
+      if (bridge.status === "invalid") {
+        return IntentSchema.parse({
+          isComplete: false,
+          action: "workflow",
+          amount: "0",
+          question: bridge.question,
+          message: bridge.question,
+        });
+      }
+      if (bridge.status === "matched") {
+        steps.push(bridge.step);
+        previousOutput = bridge.step.tokenIn;
+        crossedToArbitrum = true;
+        continue;
+      }
+
+      const baseIntent = parseRawDeterministicBaseIntent(clause);
+      if (!baseIntent || !baseIntent.isComplete) return null;
+      if (baseIntent.action !== "swap") {
+        return promptBindingFailure(
+          "Reviewed Base staged execution currently supports a Base swap followed by an explicit Arbitrum bridge. Run other same-chain Base actions separately.",
+        );
+      }
+      const step: NaturalWorkflowStep = {
+        action: "swap",
+        network: "base",
+        tokenIn: baseIntent.tokenIn,
+        tokenOut: baseIntent.tokenOut,
+        amount: baseIntent.amount,
+        amountSource: baseIntent.amount === "MAX" ? "wallet_balance" : "explicit",
+        protocol: baseIntent.protocol,
+        objective: baseIntent.objective,
+      };
+      steps.push(step);
+      previousOutput = step.tokenOut;
+      continue;
+    }
+
+    const downstream = parseArbitrumNaturalClause(clause, previousOutput);
+    if (downstream.status === "unmatched") return null;
+    if (downstream.status === "invalid") {
+      return IntentSchema.parse({
+        isComplete: false,
+        action: "workflow",
+        amount: "0",
+        question: downstream.question,
+        message: downstream.question,
+      });
+    }
+    steps.push(downstream.step);
+    previousOutput = downstream.step.tokenOut;
+  }
+
+  if (!crossedToArbitrum) {
+    return promptBindingFailure(
+      "Multiple Base actions are not yet one reviewed staged executor. Run them separately, or add an explicit Base to Arbitrum bridge when that is your intended route.",
+    );
+  }
+  if (steps.length < 2) return null;
+  const first = steps[0];
+  return deterministicIntent({
+    action: "workflow",
+    tokenIn: first.tokenIn,
+    amount: first.amount || "0",
+    allowMultiStep: true,
+    workflowSteps: steps,
+    message: `Preparing ${steps.length} reviewed Base to Arbitrum checkpoints. Cross-chain execution is staged, not globally atomic.`,
+  });
+}
+
+/** High-confidence Arbitrum grammar for ordinary and staged user goals. */
 export function parseDeterministicArbitrumIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  const prompt = userPrompt.trim();
+  const prompt = userPrompt.trim().replace(/[.!]+$/u, "");
   if (!prompt || prompt.length > 2_000) return null;
-  const capacityRequest =
-    /(?:\b(?:how\s+much|maximum|max|capacity|available|safe(?:ly)?)\b[^,;:.!?\n]{0,80}\b(?:borrow|loan)\b|\b(?:borrow|loan)\b[^,;:.!?\n]{0,80}\b(?:capacity|maximum|max|available|safe(?:ly)?))\b/iu.test(
-      prompt,
-    );
-  if (!capacityRequest) return null;
+  if (hasExplicitTransactionNegation(prompt) || hasNonExecutionSpeechAct(prompt)) {
+    return null;
+  }
 
-  const tokenMatches = Array.from(
-    prompt.matchAll(/(?:^|[^\p{L}\p{N}_])(USDC|WETH|ETH|ARB)(?=$|[^\p{L}\p{N}_])/giu),
-    (match) => match[1].toUpperCase(),
-  );
-  const uniqueTokens = [...new Set(tokenMatches)];
-  if (uniqueTokens.length !== 1) {
-    return {
+  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+    return deterministicIntent({
+      action: "portfolio",
+      amount: "0",
+      message: "Reading the live Arbitrum portfolio.",
+    });
+  }
+
+  const transfer = new RegExp(
+    `^(?:send|pay|transfer|gönder|gonder|öde|ode|aktar)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|WETH|ETH|ARB)(?:\\s+on\\s+Arbitrum(?:\\s+One)?)?\\s+(?:to|->)\\s*(${ARC_WIDGET_ADDRESS})$`,
+    "iu",
+  ).exec(prompt);
+  if (transfer) {
+    return deterministicIntent({
+      action: "transfer",
+      tokenIn: transfer[3].toUpperCase(),
+      amount: normalizeScaledArcAmount(transfer[1], transfer[2]),
+      recipient: transfer[5],
+      message: "Preparing the reviewed Arbitrum transfer.",
+    });
+  }
+
+  const incompleteTransfer = new RegExp(
+    `^(?:send|pay|transfer|gönder|gonder|öde|ode|aktar)\\s+${ARC_NATURAL_AMOUNT}\\s+(USDC|WETH|ETH|ARB)(?:\\s+on\\s+Arbitrum(?:\\s+One)?)?$`,
+    "iu",
+  ).exec(prompt);
+  if (incompleteTransfer) {
+    return IntentSchema.parse({
+      isComplete: false,
+      action: "transfer",
+      tokenIn: incompleteTransfer[3].toUpperCase(),
+      amount: normalizeScaledArcAmount(incompleteTransfer[1], incompleteTransfer[2]),
+      question: "Which EVM address should receive this Arbitrum transfer?",
+      message: "Add the recipient address to continue.",
+    });
+  }
+
+  const workflow = parseDeterministicArbitrumWorkflowIntent(prompt);
+  if (workflow) return workflow;
+  if (hasOrderedIntentConnector(prompt)) return null;
+
+  const natural = parseArbitrumNaturalClause(prompt);
+  if (natural.status === "invalid") {
+    return IntentSchema.parse({
       isComplete: false,
       action: "chat",
       amount: "0",
-      durationInDays: 0,
-      message:
-        "Which supported Arbitrum asset should I use for the read-only borrow-capacity calculation: USDC, WETH, ETH, or ARB?",
-      question:
-        "Which supported Arbitrum asset should I use for the read-only borrow-capacity calculation: USDC, WETH, ETH, or ARB?",
-    };
+      question: natural.question,
+      message: natural.question,
+    });
   }
-  return deterministicIntent({
-    action: "borrow_capacity",
-    tokenIn: uniqueTokens[0],
-    amount: "0",
-    protocol: "aave-v3",
-    riskTolerance: "balanced",
-    message: "Calculating the live risk-adjusted Aave V3 borrow capacity.",
-  });
+  if (natural.status === "matched") {
+    const step = natural.step;
+    return deterministicIntent({
+      action: step.action,
+      tokenIn: step.tokenIn,
+      tokenOut: step.tokenOut,
+      amount: step.amount || "0",
+      protocol: step.protocol,
+      objective: step.action === "swap"
+        ? "best_output"
+        : step.action === "borrow"
+          ? "lowest_borrow_cost"
+          : step.action === "lend"
+            ? "best_rate"
+            : undefined,
+      riskTolerance: detectRiskTolerance(prompt),
+      slippage: step.action === "swap" ? extractSlippagePercent(prompt) || "1" : undefined,
+      message: `Preparing the reviewed Arbitrum ${step.action.replace(/_/gu, " ")} route.`,
+    });
+  }
+
+  if (/\b(?:compare|best\s+(?:yield|rate)|yield|apy|apr|rates?|karşılaştır|karsilastir|getiri|faiz)\b/iu.test(prompt)) {
+    const assets = Array.from(
+      prompt.matchAll(/(?:^|[^\p{L}\p{N}_])(USDC|WETH|ARB)(?=$|[^\p{L}\p{N}_])/giu),
+      (match) => match[1].toUpperCase(),
+    );
+    return deterministicIntent({
+      action: "yield_compare",
+      tokenIn: [...new Set(assets)][0] || "USDC",
+      amount: "0",
+      objective: "best_rate",
+      riskTolerance: detectRiskTolerance(prompt),
+      message: "Comparing live reviewed Arbitrum lending rates.",
+    });
+  }
+
+  return null;
 }
 
 function buildSystemPrompt(network: NetworkId): string {
@@ -3091,6 +4046,7 @@ Arc action semantics:
 - atomic_payout: atomic Arc USDC payroll through the official Multicall3From extension. transfers contains 1 to 25 unique recipient/amount entries.
 - add_liquidity: amount is native USDC and tokenIn should be USDC.
 - remove_liquidity: amount is the LP token amount.
+- workflow: preserve two or more explicitly ordered Arc actions in workflowSteps. Every step network is arc. Use canonical action lend for a KLET lending collateral deposit; the deterministic compiler maps it to the exact Arc contract action. If a later step consumes the immediately preceding token output, use amount MAX and amountSource previous_output. Otherwise preserve its explicit amount and use amountSource explicit.
 - portfolio: return the Arc wallet and protocol overview.
 
 Do not prefix action names with "arc_".
@@ -3100,6 +4056,8 @@ User: "Swap 5 USDC to KLET"
 {"isComplete":true,"action":"swap","tokenIn":"USDC","tokenOut":"KLET","amount":"5","message":"Preparing the Arc swap."}
 User: "Deposit 20 USDC to the vault"
 {"isComplete":true,"action":"vault_deposit","amount":"20","message":"Preparing the Arc vault deposit."}
+User: "Swap 5 USDC to KLET, then lend the received KLET"
+{"isComplete":true,"action":"workflow","tokenIn":"USDC","tokenOut":"KLET","amount":"5","workflowSteps":[{"action":"swap","network":"arc","tokenIn":"USDC","tokenOut":"KLET","amount":"5","amountSource":"explicit"},{"action":"lend","network":"arc","tokenIn":"KLET","amount":"MAX","amountSource":"previous_output","protocol":"kletia"}],"message":"Preparing a checkpointed Arc swap followed by a separately approved KLET collateral deposit."}
 User: "Swap 25 USDC to EURC but do not accept less than 22 EURC"
 {"isComplete":true,"action":"stable_swap","tokenIn":"USDC","tokenOut":"EURC","amount":"25","minimumOutput":"22","slippage":"1","message":"Preparing an Arc App Kit stable swap quote."}
 For every transfer, bridge, memo or atomic payout, copy each recipient
@@ -3116,6 +4074,7 @@ Arbitrum One beta semantics:
 - lend / withdraw / borrow / repay: use the reviewed Aave V3 Arbitrum market. Never invent collateral, debt, amount or a MAX borrow amount.
 - yield_compare: read-only Aave V3 supply and variable borrow rates; amount is "0" and no transaction is created.
 - borrow_capacity: read-only Aave V3 calculation after collateral changes. tokenIn is the asset the user may borrow, amount is "0", and no transaction or approval is created.
+- workflow: preserve two or more explicitly ordered Arbitrum actions in workflowSteps. Every step network is arbitrum. Bind a downstream previous_output only when its input asset exactly matches the preceding output; otherwise retain the user's explicit amount.
 - policy_agent: create a non-custodial planning policy. It cannot authorize token approvals or transactions; every financial step remains separately wallet-approved.
 - portfolio: return live Arbitrum balances and Aave account data.
 
@@ -3124,6 +4083,8 @@ User: "Swap 10 USDC to WETH on Arbitrum"
 {"isComplete":true,"action":"swap","tokenIn":"USDC","tokenOut":"WETH","amount":"10","protocol":"uniswap-v3","slippage":"1","message":"Preparing a reviewed Arbitrum Uniswap V3 route."}
 User: "Supply 25 USDC to Aave on Arbitrum"
 {"isComplete":true,"action":"lend","tokenIn":"USDC","amount":"25","protocol":"aave-v3","riskTolerance":"balanced","message":"Preparing the Aave V3 supply route."}
+User: "Swap 10 USDC to WETH, then lend the received WETH on Aave"
+{"isComplete":true,"action":"workflow","tokenIn":"USDC","tokenOut":"WETH","amount":"10","workflowSteps":[{"action":"swap","network":"arbitrum","tokenIn":"USDC","tokenOut":"WETH","amount":"10","amountSource":"explicit","protocol":"uniswap-v3"},{"action":"lend","network":"arbitrum","tokenIn":"WETH","amount":"MAX","amountSource":"previous_output","protocol":"aave-v3"}],"message":"Preparing a checkpointed Arbitrum swap followed by a separately approved Aave supply."}
 If a request starts from Base and continues on Arbitrum, ask the user to switch to the Base workspace; cross-chain workflows are compiled only from their source network.`;
   }
 
@@ -3177,6 +4138,261 @@ User: "Use all my Base USDC to buy ETH, bridge the output to Arbitrum, lend it a
 {"isComplete":true,"action":"workflow","tokenIn":"USDC","amount":"MAX","workflowSteps":[{"action":"swap","network":"base","tokenIn":"USDC","tokenOut":"ETH","amount":"MAX","amountSource":"wallet_balance","objective":"best_output"},{"action":"bridge","network":"base","tokenIn":"ETH","amount":"MAX","amountSource":"previous_output","destinationChain":"arbitrum","protocol":"across"},{"action":"lend","network":"arbitrum","tokenIn":"ETH","amount":"MAX","amountSource":"previous_output","objective":"best_rate"},{"action":"borrow_capacity","network":"arbitrum","tokenIn":"USDC","amount":"0","protocol":"aave-v3"}],"message":"Preparing a wallet-balance-bound Base swap, checkpointed bridge, reviewed Arbitrum lending route, and final read-only borrow-capacity result."}
 User: "Spend at most 0.08 USDC to acquire exactly 0.00002 ETH gas on Arbitrum, then lend 10 USDC on Aave"
 {"isComplete":true,"action":"workflow","tokenIn":"USDC","amount":"0.00002","workflowSteps":[{"action":"gas_acquire","network":"base","tokenIn":"USDC","tokenOut":"ETH","amount":"0.00002","maxPayment":"0.08","destinationChain":"arbitrum","protocol":"across"},{"action":"lend","network":"arbitrum","tokenIn":"USDC","amount":"10","protocol":"aave-v3"}],"message":"Preparing capped Arbitrum gas acquisition followed by a separately signed Aave supply."}`;
+}
+
+const STRUCTURED_STEP_ACTIONS = [
+  "bridge",
+  "swap",
+  "lend",
+  "withdraw",
+  "borrow",
+  "borrow_capacity",
+  "repay",
+  "transfer",
+  "stake",
+  "unstake",
+  "vault_deposit",
+  "vault_withdraw",
+  "lending_deposit",
+  "lending_withdraw",
+  "lending_borrow",
+  "lending_repay",
+  "gas_acquire",
+  "x402_request",
+  "data_purchase",
+] as const;
+
+const nullableString = { type: ["string", "null"] } as const;
+const nullableNumber = { type: ["number", "null"] } as const;
+const nullableBoolean = { type: ["boolean", "null"] } as const;
+
+/**
+ * OpenRouter is asked to satisfy this schema before Kletia applies its own
+ * Zod and prompt-binding gates. The model still performs semantics only: it
+ * cannot choose a target, calldata, quote, receipt or success state.
+ *
+ * Every property is required because strict structured-output providers use
+ * `null` for fields that are not relevant to the selected action.
+ */
+export function structuredIntentResponseFormat(network: NetworkId) {
+  const stepProperties = {
+    action: { type: "string", enum: [...STRUCTURED_STEP_ACTIONS] },
+    network: {
+      anyOf: [
+        { type: "string", enum: ["base", "arc", "arbitrum"] },
+        { type: "null" },
+      ],
+    },
+    tokenIn: nullableString,
+    tokenOut: nullableString,
+    amount: nullableString,
+    amountSource: {
+      anyOf: [
+        {
+          type: "string",
+          enum: ["explicit", "wallet_balance", "previous_output"],
+        },
+        { type: "null" },
+      ],
+    },
+    protocol: nullableString,
+    destinationChain: nullableString,
+    objective: {
+      anyOf: [
+        {
+          type: "string",
+          enum: [
+            "best_output",
+            "best_rate",
+            "lowest_borrow_cost",
+            "lowest_risk",
+          ],
+        },
+        { type: "null" },
+      ],
+    },
+    url: nullableString,
+    method: {
+      anyOf: [
+        { type: "string", enum: ["GET"] },
+        { type: "null" },
+      ],
+    },
+    maxPayment: nullableString,
+  } as const;
+  const stepRequired = Object.keys(stepProperties);
+  const properties = {
+    isComplete: { type: "boolean" },
+    question: { type: "string" },
+    message: { type: "string" },
+    action: { type: "string", enum: [...NETWORKS[network].intentActions] },
+    tokenIn: nullableString,
+    tokenOut: nullableString,
+    amount: { type: "string" },
+    secondaryAmount: nullableString,
+    protocol: nullableString,
+    objective: {
+      anyOf: [
+        {
+          type: "string",
+          enum: [
+            "best_output",
+            "best_rate",
+            "lowest_borrow_cost",
+            "lowest_risk",
+          ],
+        },
+        { type: "null" },
+      ],
+    },
+    riskTolerance: {
+      anyOf: [
+        {
+          type: "string",
+          enum: ["conservative", "balanced", "aggressive"],
+        },
+        { type: "null" },
+      ],
+    },
+    timeHorizonDays: nullableNumber,
+    maxGas: nullableString,
+    maxPriceImpactBps: nullableNumber,
+    excludedProtocols: { type: "array", items: { type: "string" } },
+    collateralToken: nullableString,
+    borrowToken: nullableString,
+    allowMultiStep: nullableBoolean,
+    destinationChain: nullableString,
+    durationInDays: { type: "number" },
+    name: nullableString,
+    symbol: nullableString,
+    launchId: nullableString,
+    slippage: nullableString,
+    recipient: nullableString,
+    memo: nullableString,
+    minimumOutput: nullableString,
+    maxFee: nullableString,
+    transferSpeed: {
+      anyOf: [
+        { type: "string", enum: ["FAST", "SLOW"] },
+        { type: "null" },
+      ],
+    },
+    serviceQuery: nullableString,
+    url: nullableString,
+    method: {
+      anyOf: [
+        { type: "string", enum: ["GET", "POST"] },
+        { type: "null" },
+      ],
+    },
+    maxPayment: nullableString,
+    requestBodyJson: nullableString,
+    curatedOnly: nullableBoolean,
+    transfers: {
+      type: "array",
+      maxItems: 25,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          recipient: { type: "string" },
+          amount: { type: "string" },
+        },
+        required: ["recipient", "amount"],
+      },
+    },
+    workflowSteps: {
+      type: "array",
+      maxItems: 8,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: stepProperties,
+        required: stepRequired,
+      },
+    },
+    policyAgent: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            name: { type: "string" },
+            objective: { type: "string" },
+            allowedNetworks: {
+              type: "array",
+              items: { type: "string", enum: ["base", "arbitrum"] },
+            },
+            allowedProtocols: { type: "array", items: { type: "string" } },
+            allowedAssets: { type: "array", items: { type: "string" } },
+            maxSpendUsdc: { type: "string" },
+            riskTolerance: {
+              type: "string",
+              enum: ["conservative", "balanced", "aggressive"],
+            },
+            expiresInHours: { type: "number" },
+          },
+          required: [
+            "name",
+            "objective",
+            "allowedNetworks",
+            "allowedProtocols",
+            "allowedAssets",
+            "maxSpendUsdc",
+            "riskTolerance",
+            "expiresInHours",
+          ],
+        },
+        { type: "null" },
+      ],
+    },
+  } as const;
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: `kletia_${network}_intent_v2`,
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties,
+        required: Object.keys(properties),
+      },
+    },
+  } as const;
+}
+
+function compactStructuredIntent(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Structured intent output was not an object.");
+  }
+  const source = value as Record<string, unknown>;
+  const compacted = Object.fromEntries(
+    Object.entries(source).filter(([, entry]) => entry !== null),
+  );
+  for (const listField of ["excludedProtocols", "transfers", "workflowSteps"] as const) {
+    if (Array.isArray(compacted[listField]) && compacted[listField].length === 0) {
+      delete compacted[listField];
+    }
+  }
+  if (Array.isArray(compacted.workflowSteps)) {
+    compacted.workflowSteps = compacted.workflowSteps.map((step) =>
+      step && typeof step === "object" && !Array.isArray(step)
+        ? Object.fromEntries(
+            Object.entries(step as Record<string, unknown>).filter(([, entry]) => entry !== null),
+          )
+        : step,
+    );
+  }
+  if (typeof compacted.requestBodyJson === "string" && compacted.requestBodyJson.trim()) {
+    const parsed = JSON.parse(compacted.requestBodyJson) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Structured x402 requestBodyJson must contain one JSON object.");
+    }
+    compacted.requestBody = parsed;
+  }
+  delete compacted.requestBodyJson;
+  return compacted;
 }
 
 // ✨ AI ERROR TRANSLATOR
@@ -3250,6 +4466,16 @@ export async function parseUserIntent(
   userPrompt: string,
   conversationHistory: any[] = [],
   network: NetworkId = "base",
+  options: {
+    readonly semanticPlanner?: IntentSemanticPlannerMode;
+    /**
+     * Emitted immediately before a semantic-provider request is started. The
+     * caller uses this to report actual prompt disclosure instead of assuming
+     * every `ai_assisted` request reached the provider. No prompt value is
+     * passed to the callback.
+     */
+    readonly onSemanticProviderRequest?: () => void;
+  } = {},
 ): Promise<ParsedIntent> {
   const originalUserPrompt = userPrompt;
   const bindingText = buildPromptBindingText(
@@ -3324,6 +4550,9 @@ export async function parseUserIntent(
     const deterministic = parseDeterministicArcIntent(userPrompt);
     if (deterministic) return deterministic;
   }
+  if ((options.semanticPlanner ?? "deterministic_only") === "deterministic_only") {
+    throw new IntentDisclosureConsentRequiredError(network);
+  }
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new IntentParserError("Intent parsing service is not configured.");
@@ -3373,11 +4602,7 @@ export async function parseUserIntent(
           if (prevLc.includes("moonwell")) protocolMatch = " from moonwell";
         }
         userPrompt = `${userPrompt}${protocolMatch} borrow`;
-      } else if (
-        lc.includes("lend") ||
-        lc.includes("lend") ||
-        lc.includes("lend")
-      ) {
+      } else if (lc.includes("lend")) {
         const prevUserMsg = conversationHistory
           .slice()
           .reverse()
@@ -3402,6 +4627,7 @@ export async function parseUserIntent(
   ];
 
   try {
+    options.onSemanticProviderRequest?.();
     const response = await fetch(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -3413,9 +4639,16 @@ export async function parseUserIntent(
           "X-Title": "Kletia Omni-Engine",
         },
         body: JSON.stringify({
-          model: "openai/gpt-4o-2024-08-06",
+          model:
+            process.env.OPENROUTER_INTENT_MODEL?.trim() ||
+            "openai/gpt-4o-2024-08-06",
           messages: messages,
-          temperature: 0.3,
+          temperature: 0.1,
+          max_tokens: 1_800,
+          response_format: structuredIntentResponseFormat(network),
+          provider: {
+            require_parameters: true,
+          },
         }),
         signal: AbortSignal.timeout(20_000),
       },
@@ -3435,22 +4668,25 @@ export async function parseUserIntent(
       .replace(/```/g, "")
       .trim();
 
-    let parsedJson;
+    // Provider output remains untrusted until the final IntentSchema.parse.
+    // `any` is intentionally confined to this compatibility-normalization
+    // block because legacy action handlers still mutate individual fields.
+    let parsedJson: any;
     try {
       // Accept only one complete JSON object.
       const jsonMatch = cleanContent.match(/^\{[\s\S]*\}$/);
       if (jsonMatch) {
-        parsedJson = JSON.parse(jsonMatch[0]);
+        parsedJson = compactStructuredIntent(JSON.parse(jsonMatch[0]));
       } else {
         // If the model wrapped JSON in prose, inspect the outermost braces once.
         const firstBrace = cleanContent.indexOf("{");
         const lastBrace = cleanContent.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          parsedJson = JSON.parse(
-            cleanContent.substring(firstBrace, lastBrace + 1),
+          parsedJson = compactStructuredIntent(
+            JSON.parse(cleanContent.substring(firstBrace, lastBrace + 1)),
           );
         } else {
-          parsedJson = JSON.parse(cleanContent);
+          parsedJson = compactStructuredIntent(JSON.parse(cleanContent));
         }
       }
     } catch (e) {
@@ -3579,6 +4815,37 @@ export async function parseUserIntent(
     }
 
     if (
+      parsedJson.isComplete &&
+      parsedJson.action === "workflow" &&
+      Array.isArray(parsedJson.workflowSteps) &&
+      parsedJson.workflowSteps.length > 0
+    ) {
+      const fundingStep = parsedJson.workflowSteps.find(
+        (step: { tokenIn?: unknown; amount?: unknown }) =>
+          typeof step.tokenIn === "string" &&
+          step.tokenIn.trim().length > 0 &&
+          typeof step.amount === "string" &&
+          step.amount.trim().length > 0,
+      );
+      parsedJson.tokenIn = fundingStep?.tokenIn;
+      parsedJson.amount = fundingStep?.amount;
+      parsedJson.tokenOut = parsedJson.workflowSteps.find(
+        (step: { tokenOut?: unknown }) =>
+          typeof step.tokenOut === "string" && step.tokenOut.trim().length > 0,
+      )?.tokenOut;
+      // The Base workflow resolver treats the top-level asset as funding
+      // metadata. Per-step outputs remain exact inside workflowSteps; copying
+      // one to the top level creates a contradictory, unused asset role.
+      if (network === "base") delete parsedJson.tokenOut;
+      if (!fundingStep || parsedJson.workflowSteps.length < 2) {
+        parsedJson.isComplete = false;
+        parsedJson.question =
+          "A staged intent requires at least two ordered steps and an explicit source asset and amount.";
+        parsedJson.message = parsedJson.question;
+      }
+    }
+
+    if (
       network === "arc" &&
       parsedJson.isComplete &&
       String(parsedJson.amount || "").toUpperCase() === "MAX" &&
@@ -3629,21 +4896,6 @@ export async function parseUserIntent(
     }
 
     if (network === "base" && parsedJson.isComplete) {
-      if (
-        parsedJson.action === "workflow" &&
-        Array.isArray(parsedJson.workflowSteps) &&
-        parsedJson.workflowSteps.length > 0
-      ) {
-        const fundingStep = parsedJson.workflowSteps.find(
-          (step: { tokenIn?: unknown; amount?: unknown }) =>
-            typeof step.tokenIn === "string" &&
-            step.tokenIn.trim().length > 0 &&
-            typeof step.amount === "string" &&
-            step.amount.trim().length > 0,
-        );
-        parsedJson.tokenIn = fundingStep?.tokenIn;
-        parsedJson.amount = fundingStep?.amount;
-      }
       const missingField =
         parsedJson.action === "x402_discover" &&
         (!parsedJson.serviceQuery || !parsedJson.maxPayment)

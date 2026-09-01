@@ -21,6 +21,7 @@ import {
   type AppTab,
   type NavigationIcon,
   type NetworkNavigationItem,
+  type NetworkNavigationSection,
 } from "../../config/networks";
 import {
   materializeIntentExample,
@@ -29,6 +30,7 @@ import {
 import { useNetwork } from "../../hooks/useNetwork";
 import { useAppStore } from "../../state/useAppStore";
 import { NetworkSwitcher } from "./NetworkSwitcher";
+import type { WorkspaceMode } from "./NetworkSwitcher";
 
 interface AppSidebarProps {
   activeTab: string;
@@ -38,6 +40,9 @@ interface AppSidebarProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   onWidgetClick: (prompt: string) => void;
+  workspaceMode?: WorkspaceMode;
+  onWorkspaceSelect?: (network: WorkspaceMode) => void | Promise<unknown>;
+  onClearHistory?: () => void;
 }
 
 const NAVIGATION_ICONS: Record<NavigationIcon, LucideIcon> = {
@@ -57,6 +62,63 @@ const NAVIGATION_ICONS: Record<NavigationIcon, LucideIcon> = {
   liquidity: TrendingUp,
 };
 
+const STELLAR_NAVIGATION: readonly NetworkNavigationSection[] = [
+  {
+    id: "stellar-intents",
+    label: "Intent Center",
+    items: [
+      {
+        id: "stellar-chat",
+        label: "Ask Kletia",
+        icon: "chat",
+        action: { type: "tab", tab: "chat" },
+      },
+      {
+        id: "stellar-dashboard",
+        label: "Payment Center",
+        icon: "dashboard",
+        action: { type: "tab", tab: "stellar" },
+      },
+      {
+        id: "stellar-payout",
+        label: "Pay Worldwide",
+        icon: "memo",
+        action: {
+          type: "prompt",
+          prompt: "Pay 100 TRY to a bank account from Stellar USDC",
+        },
+      },
+      {
+        id: "stellar-balances",
+        label: "Show Balances",
+        icon: "dashboard",
+        action: {
+          type: "prompt",
+          prompt: "Show my live XLM and USDC balances on Stellar",
+        },
+      },
+      {
+        id: "stellar-send",
+        label: "Send Payment",
+        icon: "memo",
+        action: {
+          type: "prompt",
+          prompt: "Send 5 USDC to a Stellar address",
+        },
+      },
+      {
+        id: "stellar-swap",
+        label: "Swap Assets",
+        icon: "swap",
+        action: {
+          type: "prompt",
+          prompt: "Swap 5 XLM to USDC using the best live Stellar route",
+        },
+      },
+    ],
+  },
+] as const;
+
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   activeTab,
   setActiveTab,
@@ -65,15 +127,25 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   isOpen,
   setIsOpen,
   onWidgetClick,
+  workspaceMode,
+  onWorkspaceSelect,
+  onClearHistory,
 }) => {
   const { isDarkMode, toggleTheme, clearMessages } = useAppStore();
   const { address } = useAccount();
   const { networkMode, network, switchNetwork, isSwitching, switchError } =
     useNetwork();
+  const effectiveWorkspace = workspaceMode ?? networkMode;
+  const selectWorkspace =
+    onWorkspaceSelect ??
+    ((selected: WorkspaceMode) =>
+      selected === "stellar" ? Promise.resolve(false) : switchNetwork(selected));
+  const isStellarWorkspace = effectiveWorkspace === "stellar";
+  const workspaceAccent = isStellarWorkspace ? "#8B5CF6" : network.color;
 
   const availableSections = React.useMemo(
     () =>
-      network.navigation
+      (isStellarWorkspace ? STELLAR_NAVIGATION : network.navigation)
         .map((section) => ({
           ...section,
           items: section.items.filter(
@@ -81,10 +153,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           ),
         }))
         .filter((section) => section.items.length > 0),
-    [network],
+    [isStellarWorkspace, network],
   );
 
   React.useEffect(() => {
+    if (isStellarWorkspace) return;
     const supportedTabs = availableSections.flatMap((section) =>
       section.items.flatMap((item) =>
         item.action.type === "tab" ? [item.action.tab] : [],
@@ -95,7 +168,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       setActiveTab("chat");
       setIsPortfolioOpen(false);
     }
-  }, [activeTab, availableSections, setActiveTab, setIsPortfolioOpen]);
+  }, [activeTab, availableSections, isStellarWorkspace, setActiveTab, setIsPortfolioOpen]);
 
   const navItemClass = (isActive: boolean) =>
     `group flex min-h-12 w-full items-center justify-between border-[3px] border-[#1A1A1A] px-4 py-3 font-black transition-[transform,box-shadow,background-color] duration-100 ease-out focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] ${
@@ -177,14 +250,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </h3>
                 <p
                   className="text-[10px] font-black uppercase truncate"
-                  style={{ color: network.color }}
+                  style={{ color: workspaceAccent }}
                 >
-                  {network.name}
+                  {isStellarWorkspace ? "Stellar Payment Center" : network.name}
                 </p>
               </div>
               <NetworkSwitcher
-                networkMode={networkMode}
-                onSelect={switchNetwork}
+                networkMode={effectiveWorkspace}
+                onSelect={selectWorkspace}
                 isSwitching={isSwitching}
                 error={switchError}
                 className="w-full"
@@ -220,14 +293,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     }
                     className={navItemClass(isActive)}
                     style={
-                      isActive ? { backgroundColor: network.color } : undefined
+                      isActive ? { backgroundColor: workspaceAccent } : undefined
                     }
                   >
                     <div className="flex items-center gap-3">
                       <Icon
                         size={18}
                         className={isActive ? "text-white" : undefined}
-                        style={isActive ? undefined : { color: network.color }}
+                        style={isActive ? undefined : { color: workspaceAccent }}
                       />
                       <span>{item.label}</span>
                     </div>
@@ -268,7 +341,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </div>
           <button
             type="button"
-            onClick={clearMessages}
+            onClick={onClearHistory ?? clearMessages}
             className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border-[2px] border-[#1A1A1A] bg-[#FF3B30] p-2 font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]"
           >
             <MessageSquare className="w-4 h-4" /> CLEAR HISTORY
@@ -276,7 +349,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <div>
             Kletia Omni Engine V2.0
             <br />
-            Powered by {network.shortName}
+            Powered by {isStellarWorkspace ? "Stellar Testnet" : network.shortName}
           </div>
         </div>
       </aside>

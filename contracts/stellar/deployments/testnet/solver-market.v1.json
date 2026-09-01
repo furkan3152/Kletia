@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "kletia_stellar_solver_market_deployment_v1",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "deploymentProfile": "testnet_development",
+  "productionReady": false,
+  "deploymentStatus": "deployed_runtime_attested",
+  "deployedAt": "2026-08-24",
+  "deployer": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+  "observedAtLedger": "4308608",
+  "liveLifecycleEvidence": {
+    "workflowRoot": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "solver": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+    "registerTransaction": "bd717300acfde8d49506f1400e45ce81ced283e2a0ad8eba5f780fb8f44db1ec",
+    "auctionOpenTransaction": "43414ec24d6a2d89d33c7e3f532bbc77559ad3b192c82f704286dc901274ed7f",
+    "bondLockTransaction": "2ff46a8558e5f6d715c4d103ab25d3ecd045e85efe4a7bdcaeac32b36cd1f9af",
+    "bidCommitTransaction": "3853b15c7f4a372d73705f6205ef081debec8dba91fab0d30c6b6ed3af518eb2",
+    "bidRevealTransaction": "d0684955f0f319c82fd132117ca19d8cea107e8ef4cec80d0276f071798ae7bc",
+    "auctionFinalizeTransaction": "c638efcffb660e3bbdd071469a35f74b25d7270c3483c7d32788e57ecee6882b",
+    "auctionSettlementTransaction": "e54b28f77c4d75def977011af504ed06b9bd9f57fb8dcad8cccebcd1f51f8eff",
+    "bondReleaseTransaction": "261a2d85fd472e88910829b037eecd057a91dd82bf72c6fa493f3cb714f2a2ab",
+    "finalAuctionStatus": "Succeeded",
+    "finalBondStatus": "Released",
+    "finalLockedBondAtomic": "0",
+    "foreignChainExecutionIncluded": false
+  },
+  "artifacts": {
+    "solverBondVault": {
+      "sourcePackage": "contracts/stellar/solver-bond-vault",
+      "license": "MIT",
+      "releaseWasmSha256": "413d9273a59c834e70e667fd25b444c9ff2b1b1bf30ca00b5381a4c54b77dddf",
+      "observedWasmSha256": "413d9273a59c834e70e667fd25b444c9ff2b1b1bf30ca00b5381a4c54b77dddf",
+      "contractId": "CC5FPF3MW6XHVYRVCXA3LK43J2MLDY3WKHCIF5BXG7FC26D7O5FJYK5H",
+      "uploadTransaction": "9719ddcc511575e31460e9328a620817abcff88c5afbb0084510121dccf94eda",
+      "deployTransaction": "01136a1bde8e31a638b9ad8729a3bea3c9825e393e896085c4c122aa6a689832",
+      "deploymentLedger": "4308596",
+      "constructor": {
+        "administrator": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+        "coordinator": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+        "treasury": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+        "bondAsset": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "minimumBondAtomic": "100000000",
+        "resolutionGraceLedgers": 17280
+      }
+    },
+    "routeAuction": {
+      "sourcePackage": "contracts/stellar/route-auction",
+      "license": "MIT",
+      "releaseWasmSha256": "84f95aeedfb048539e441634a4abed5ea94ef5963a19fb1e970840532cca50e2",
+      "observedWasmSha256": "84f95aeedfb048539e441634a4abed5ea94ef5963a19fb1e970840532cca50e2",
+      "contractId": "CCCZV5WEQUJFY3KMHO6TFSNP2K7PFJ3OCEWG3JS432KTTQKQS5JTDXFB",
+      "uploadTransaction": "2e8d363b7d373a0210cb157d02bdec38217557205ed6cff46089c2e09d310cd7",
+      "deployTransaction": "3d5b99844883a97f33f587c7a256bac20a0e2d1166c91eaa69ace8901bb1f603",
+      "deploymentLedger": "4308598",
+      "constructor": {
+        "bondVault": "CC5FPF3MW6XHVYRVCXA3LK43J2MLDY3WKHCIF5BXG7FC26D7O5FJYK5H",
+        "settlementAuthority": "GAM23DM4HM2IFSBB4CHXH5AZWFMPB553PYUIHPG4NEFGPNJX7VDHID22",
+        "maximumBids": 32
+      }
+    }
+  },
+  "claimBoundary": {
+    "sourceAndHostTestsPresent": true,
+    "deployed": true,
+    "runtimeWasmAndBindingsAttested": true,
+    "liveAuctionTested": true,
+    "liveBondReleaseTested": true,
+    "foreignChainSolverExecutionTested": false,
+    "audited": false,
+    "solverBondIsStellarValidatorStake": false,
+    "bidCommitmentProvesQuoteTruth": false,
+    "stellarProvesForeignExecutionByItself": false,
+    "timeoutOrIndeterminateAutomaticallySlashed": false,
+    "expiredBondHasSolverRecoveryPath": true
+  }
+}

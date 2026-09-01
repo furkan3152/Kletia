@@ -1729,8 +1729,8 @@ export type WorkflowPlanV1 = {
     id: string;
     order: number;
     action: string;
-    network: "base" | "arbitrum";
-    chainId: 8453 | 42161;
+    network: "base" | "arc" | "arbitrum";
+    chainId: 8453 | 5042002 | 42161;
     tokenIn?: string;
     tokenOut?: string;
     amount: string;
@@ -1793,6 +1793,8 @@ export type PolicyAgentV1 = {
 };
 
 export type IntentResponse = {
+  success?: boolean;
+  code?: string;
   status: string;
   message?: string;
   question?: string;
@@ -1805,6 +1807,8 @@ export type IntentResponse = {
   conversationId?: string;
   conversationExpiresAt?: number;
   clarification?: EntityClarification;
+  privacyDecision?: import("./privacy/defaultIntentPrivacy").IntentPrivacyDecisionV1;
+  privacyTrace?: import("./privacy/intentPrivacyTrace").IntentPrivacyTraceV1;
   entityResolution?: IntentEntityResolution;
   quoteExpiresAt?: number | string;
   userAddress?: string;
@@ -2121,6 +2125,9 @@ export const hasExecutableIntentActionBinding = (
   response: IntentResponse,
   route: RouteData,
 ): boolean => {
+  const workflowExecution =
+    response.executionKind === "workflow_plan_v1" &&
+    response.action?.trim() === "workflow";
   const action = (
     typeof response.actionType === "string" &&
     response.actionType.trim().length > 0
@@ -2130,6 +2137,7 @@ export const hasExecutableIntentActionBinding = (
 
   if (!action || route.action !== action) return false;
   if (
+    !workflowExecution &&
     typeof response.action === "string" &&
     response.action.trim().length > 0 &&
     response.action.trim() !== action

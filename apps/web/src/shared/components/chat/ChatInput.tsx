@@ -6,7 +6,7 @@ interface ChatInputProps {
   input: string;
   setInput: (val: string) => void;
   handleSend: () => void;
-  networkMode: NetworkMode;
+  networkMode: NetworkMode | "stellar";
   inputRef?: React.Ref<HTMLTextAreaElement>;
 }
 
@@ -32,6 +32,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       placeholder: "Arbitrum One: E.g., swap 10 USDC to WETH or compare Aave rates",
       focus: "focus:border-[#28A0F0] focus:shadow-[3px_3px_0_#28A0F0] focus-visible:outline-[#28A0F0]",
       notice: "Arbitrum One is a mainnet Public Beta. Quotes expire; verify the route, recipient, amount, and ETH gas before signing.",
+    },
+    stellar: {
+      placeholder: "Stellar Testnet: E.g., swap 5 XLM to USDC or show my balances",
+      focus: "focus:border-[#8B5CF6] focus:shadow-[3px_3px_0_#8B5CF6] focus-visible:outline-[#8B5CF6]",
+      notice: "Stellar-native and reviewed multichain goals stay in chat. Every public transaction still requires its exact network wallet.",
     },
   }[networkMode];
 

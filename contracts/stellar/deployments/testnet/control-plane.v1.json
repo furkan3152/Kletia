@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "kletia_stellar_control_plane_deployment_v1",
+  "network": "stellar_testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "deploymentProfile": "testnet_development",
+  "productionReady": false,
+  "deployedAt": "2026-08-22",
+  "deployer": "GDKHTBTURCFYXVNBRIXTUFGIS76TOZGBOA52VAYFKTMWXELDBGA4E5CN",
+  "toolchain": {
+    "stellarCli": "27.1.0",
+    "stellarXdr": "27.0.0",
+    "license": "MIT"
+  },
+  "artifacts": {
+    "policyGroth16Verifier": {
+      "contractId": "CBRC2RZQKVW4D4UNUTYGVK2VDJPGHEPNXNWFTEQIZHFHA3U2LLVWOG32",
+      "releaseWasmSha256": "fb6bcb8fc8492e38b31da3318fb48bcb3a1291bafb83ca201f894a4ee9f5a138",
+      "uploadTransaction": "6b40a520a1816c7b15fd63a6428f8db8433a2c8355b14c789757d0cc8decb554",
+      "deployTransaction": "b4555ece7d8acde876ad35ef24aec0eb72dc31b1c9b1675037bd19bcacbde1a1"
+    },
+    "policyVerifierRegistry": {
+      "contractId": "CCJCT35VD66GJDURAA7MDD7HJWQZB453UXAMEQTN5QLYTSDU2P3LE5QY",
+      "releaseWasmSha256": "c41a359868affc11f094390fe67faeb5711d767657ab5ec37932184b7f061114",
+      "uploadTransaction": "29f64debb5b6ef5f5b7da4a153ddbc1205f36508d571a32c7d119e43168ec32d",
+      "deployTransaction": "5aef5287d18f13bfd4ee672a8d83619135d57d1f4e861ea5bba767cb34423560",
+      "initializeTransaction": "c6b3be1f4e233539daec8551279ae14b3a2a5c39956ebfe9942c9b8e9dfe6d10",
+      "registerVerifierTransaction": "5931e1868f970f1c623a58f3febafbd534186d0f9c8f806f970399e7cad6b13d"
+    },
+    "policyReceiptRegistry": {
+      "contractId": "CD6NBBBMZJBJUZ6ZCZNCE4IDMQTJC3CKDWVPRWMVGP4DDVRTZLA3JCZQ",
+      "releaseWasmSha256": "723d052be3e3f2585050337607fc3c010f18395825bf434693e863a81d27319d",
+      "uploadTransaction": "fe8a54592eb08894e4852228c60dcfd36affa981958a1a554160b22fc92da56b",
+      "deployTransaction": "adc184a53914da1fd7a35b53c04a0a88418aded047a5f7c8696507f9ca84cfe2"
+    },
+    "intentControlPlane": {
+      "contractId": "CCFY5ZJJ5CILIOPD7LUYRRQ3XCO2OUUL3ZMZQER4IWQ6XO7ZLVWBBP5D",
+      "releaseWasmSha256": "7aa98ece040fb218b1ae2f3c700b56a7a9148cc2df16bdb71e583033517a86cc",
+      "verifierRegistry": "CCJCT35VD66GJDURAA7MDD7HJWQZB453UXAMEQTN5QLYTSDU2P3LE5QY",
+      "uploadTransaction": "b2bf06f1e13224f9f1c0d745cd52b98f10956772a89875d665d2180cea12a86b",
+      "deployTransaction": "c760c0c38c9ada67a305364915bf5066b6b56f34e99f993798baa52538798b1f"
+    }
+  },
+  "policyCircuit": {
+    "version": 1,
+    "source": "circuits/stellar-policy/KletiaPolicyV1.circom",
+    "sourceSha256": "32743de76874a5d2c0c38ed5b338ae2230678f7c42a98874bd49b46436384272",
+    "publicInputManifestSha256": "97956c27bb4e05410cfa933375241d9db7e0c3e429cf13eb67ffa94b3f81b143",
+    "publicInputCount": 9,
+    "verificationKeySha256": "e5df288a729f0ebed5187cfe58bbd529512b433dd102cfafe556350e503687e6",
+    "snarkjsVerificationKeyFileSha256": "3b7c4769dd81043911946ed1e673502718a3283c62e2d753a6e86d71118cf708",
+    "finalZkeySha256": "bfa4570c88e05ac9d1146983e8cd84bf9ac7a378d9d2914a1b0975382bf8ee56",
+    "registeredAtLedger": 4279085,
+    "trustedSetupProfile": "testnet_development_single_kletia_contribution",
+    "trustedSetupProductionSafe": false
+  },
+  "liveSmokeEvidence": {
+    "proofAcceptedTransaction": "969e2c454f57f3e703f75591beeb5d8c0579b26a0926bcd8bc429674566cf8f9",
+    "publicInputsSha256": "d47a62654d585975d8fe495e0ecb4a00007467c1dd86358d628d357d169f2ffa",
+    "controlPlaneCommitTransaction": "bd0367e70bb93623a95264a65850272894acb2aeb9780f2d61eb75897708aa6c",
+    "receiptRegistryCommitTransaction": "0aebacb3407d1d159100cbfb0e91784a88db2a666cafc52a299611d926af2316",
+    "receiptRegistryFinalizeTransaction": "ef26a3f2913d216cde6c9cbb7b6eef4de0f627b5be9edf775f90074db770d470",
+    "controlPlaneFinalizeTransaction": "3be46ccf859409290b67639e502cc63813ab7b9e4cfc14a26f8f65b69121a076",
+    "workflowNonce": "0",
+    "receiptRoot": "46b20b0df2084c5174c18505f1c245f5010c5c2adfcfd4263934acb8be3c4a3b",
+    "nullifierConsumed": true,
+    "finalStatus": "finalized"
+  },
+  "claimBoundary": {
+    "realStellarTestnetDeployment": true,
+    "realGroth16ProofVerifiedOnStellarTestnet": true,
+    "realCommitAndFinalizeLifecycle": true,
+    "storesFunds": false,
+    "grantsAgentSpendingAuthority": false,
+    "provesForeignChainExecution": false,
+    "providesLedgerConfidentiality": false,
+    "productionTrustedSetup": false,
+    "audited": false
+  }
+}

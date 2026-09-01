@@ -392,10 +392,20 @@ const isRecipientEvidence = (value: unknown): boolean => {
 };
 
 export const responseIntentAction = (
-  response: Pick<IntentResponse, "action" | "actionType">,
+  response: Pick<
+    IntentResponse,
+    "action" | "actionType" | "executionKind"
+  >,
 ): string | undefined => {
   const action = response.action?.trim();
   const actionType = response.actionType?.trim();
+  if (
+    response.executionKind === "workflow_plan_v1" &&
+    action === "workflow" &&
+    actionType
+  ) {
+    return actionType;
+  }
   if (action && actionType && action !== actionType) return undefined;
   return actionType || action;
 };

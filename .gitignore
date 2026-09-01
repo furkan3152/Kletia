@@ -1,5 +1,6 @@
 # Dependencies and package-manager state
 node_modules/
+circuits/stellar-policy/build/
 .npm/
 .pnp.*
 .yarn/*
@@ -27,6 +28,8 @@ coverage/
 .nyc_output/
 **/artifacts/
 **/cache/
+target/
+**/test_snapshots/
 *.tsbuildinfo
 
 # Framework and tooling caches
@@ -45,6 +48,7 @@ vite.config.ts.timestamp-*
 
 # Local runtime state and tool configuration
 .local/
+.kletia/
 apps/api/data/
 apps/api/wallets/
 .agents/
@@ -61,6 +65,22 @@ pids/
 report.*.*.*.*.json
 last_commit*.diff
 recent_changes*.diff
+
+# SQLite database files
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# ZK ceremony artifacts (large binaries, not source)
+*.zkey
+*.wtns
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
 # Operating-system files
 .DS_Store

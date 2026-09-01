@@ -1,0 +1,212 @@
+.stellar-passkey-card {
+  display: grid;
+  gap: 0.875rem;
+  margin: 0;
+  width: 100%;
+  border: 4px solid var(--stellar-border);
+  background: var(--stellar-panel);
+  box-shadow: 6px 6px 0 var(--stellar-shadow);
+  padding: 1rem;
+}
+
+.stellar-passkey-card > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.875rem;
+}
+
+.stellar-passkey-card h2,
+.stellar-passkey-card p {
+  margin: 0;
+}
+
+.stellar-passkey-card h2 {
+  margin-top: 0.1rem;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  font-weight: 950;
+  letter-spacing: -0.025em;
+}
+
+.stellar-passkey-card header p {
+  margin-top: 0.25rem;
+  color: var(--stellar-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.stellar-passkey-icon {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  place-items: center;
+  border: 2px solid var(--stellar-border);
+  background: var(--stellar-accent);
+  box-shadow: 3px 3px 0 var(--stellar-shadow);
+  color: var(--stellar-accent-ink);
+}
+
+.stellar-passkey-icon svg { width: 1.35rem; height: 1.35rem; }
+
+.stellar-passkey-kicker,
+.stellar-passkey-network {
+  font-size: 0.65rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.stellar-passkey-kicker { color: var(--stellar-accent-strong); }
+
+.stellar-passkey-network {
+  border: 2px solid var(--stellar-border);
+  background: var(--stellar-warning-bg);
+  padding: 0.35rem 0.5rem;
+}
+
+.stellar-passkey-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px solid var(--stellar-border);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.stellar-passkey-message[data-tone="info"] { background: var(--stellar-info-bg); }
+.stellar-passkey-message[data-tone="danger"] { background: var(--stellar-danger-bg); color: var(--stellar-danger); }
+.stellar-passkey-message[data-tone="success"] { background: var(--stellar-positive-bg); color: var(--stellar-positive); }
+.stellar-passkey-message svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.stellar-passkey-message a {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: inherit;
+  font-weight: 950;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.stellar-passkey-onboarding,
+.stellar-passkey-session {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.stellar-passkey-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.stellar-passkey-benefits > span {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.45rem;
+  align-items: center;
+  border: 2px solid var(--stellar-border);
+  background: var(--stellar-panel-muted);
+  padding: 0.65rem;
+}
+
+.stellar-passkey-benefits svg { grid-row: span 2; width: 1.15rem; height: 1.15rem; }
+.stellar-passkey-benefits strong { font-size: 0.76rem; font-weight: 950; }
+.stellar-passkey-benefits small { color: var(--stellar-muted); font-size: 0.65rem; font-weight: 700; line-height: 1.35; }
+
+.stellar-passkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.stellar-passkey-actions .stellar-button,
+.stellar-passkey-send .stellar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.stellar-passkey-actions svg,
+.stellar-passkey-send button svg { width: 1rem; height: 1rem; }
+
+.stellar-passkey-boundary {
+  border-left: 4px solid var(--stellar-accent);
+  background: var(--stellar-panel-muted);
+  color: var(--stellar-muted);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.stellar-passkey-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 2px solid var(--stellar-border);
+  background: var(--stellar-positive-bg);
+  padding: 0.75rem;
+}
+
+.stellar-passkey-account-row div { display: grid; gap: 0.15rem; min-width: 0; }
+.stellar-passkey-account-row span { font-size: 0.62rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.stellar-passkey-account-row strong { overflow-wrap: anywhere; font-size: 0.9rem; font-weight: 950; }
+.stellar-passkey-account-row small { color: var(--stellar-positive); font-size: 0.72rem; font-weight: 850; }
+.stellar-passkey-account-row a,
+.stellar-passkey-tx {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--stellar-ink);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stellar-passkey-account-row a svg,
+.stellar-passkey-tx svg { width: 0.85rem; height: 0.85rem; }
+
+.stellar-passkey-send {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.35fr) minmax(7rem, 0.25fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+  border-top: 2px solid var(--stellar-border);
+  padding-top: 0.75rem;
+}
+
+.stellar-passkey-send label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stellar-passkey-send input,
+.stellar-passkey-send select {
+  min-width: 0;
+  height: 2.7rem;
+  border: 2px solid var(--stellar-border);
+  background: var(--stellar-panel);
+  color: var(--stellar-ink);
+  padding: 0 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.stellar-passkey-tx { width: fit-content; }
+
+@media (max-width: 720px) {
+  .stellar-passkey-benefits,
+  .stellar-passkey-send { grid-template-columns: 1fr; }
+  .stellar-passkey-card > header { grid-template-columns: auto 1fr; }
+  .stellar-passkey-network { grid-column: 2; width: fit-content; }
+  .stellar-passkey-actions .stellar-button { flex: 1 1 11rem; }
+}

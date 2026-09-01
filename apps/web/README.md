@@ -1,38 +1,41 @@
-# Kletia Web
+# Kletia Web (@kletia/web)
 
-The canonical Kletia browser application. One React shell hosts three isolated
-execution profiles: Base Mainnet, Arc Testnet, and the capability-gated
-Arbitrum One Public Beta.
+The official Kletia browser application. A unified React SPA that serves a multi-chain dashboard, natural-language intent chat, token launching, portfolio management, an x402 console, and client-side ZK proof generation (via Web Workers and snarkjs). It bridges production profiles on Base/Arbitrum with a Stellar-centered Testnet lane connecting Arc Testnet and Arbitrum Sepolia.
 
-## Source ownership
+## Architecture Overview
 
-- `src/app`: the application composition root and global theme stylesheet.
-- `src/networks/base`, `src/networks/arc`, `src/networks/arbitrum`: network-owned
-  UI, runtime bindings, transaction policies, and wallet-facing evidence.
-- `src/shared`: reusable chat, layout, state, configuration, hooks, types,
-  validation, and utility code. Shared code may coordinate profiles but may not
-  construct an unscoped transaction.
-- `src/cross-chain`: the staged workflow timeline. Cross-chain plans are not
-  represented as globally atomic.
-- `src/integrations`: external provider interfaces such as Allora and Webacy.
+- **`src/app/`**: Application composition root and global Tailwind theme stylesheets.
+- **`src/networks/`**: Network-specific UI, policies, runtime bindings, and wallet-facing evidence (segmented into `base`, `arc`, `arbitrum`, and `stellar`).
+- **`src/shared/`**: Reusable components, chat logic, layout, validation, state management (zustand), hooks, and types.
+- **`src/cross-chain/`**: Staged cross-chain workflow timelines and progress visualizers.
+- **`src/integrations/`**: Integrations with external services, such as Allora and Webacy.
 
-## Commands
+## Setup Instructions
 
 ```bash
 npm ci --legacy-peer-deps
-npm run dev
-npm run lint
-npm run build
 ```
 
-Render publishes `dist` as a Static Site, so the production service has no
-start command. `npm start` is retained only for an intentional local or
-self-hosted Node preview of an already-built bundle.
+## Available Scripts
 
-Configuration is documented in [`.env.example`](.env.example). Browser-facing
-`VITE_*` values are public and must never contain private keys or server API
-secrets.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the Vite development server. |
+| `npm run build` | Compile TypeScript and build the core production bundle. |
+| `npm run build:labs` | Build the experimental bundle, including ZK prover artifacts and Stellar testnet proofs. |
+| `npm run lint` | Run ESLint checks across the codebase. |
+| `npm run preview` | Serve the production `dist` directory locally for preview. |
 
-Arbitrum remains hidden unless `VITE_ARBITRUM_MVP_ENABLED=true`. The matching
-API capability must also be enabled and attested; the browser flag alone does
-not authorize an Arbitrum route.
+## Key Environment Variables
+
+Refer to `.env.example` for all configurable values. 
+- **`VITE_*`**: Browser-facing variables are public. These must **never** contain private keys or API secrets.
+- **`VITE_ARBITRUM_MVP_ENABLED`**: When set to `true` (and matched by API attestation), unlocks Arbitrum routes.
+
+## Deployment Information
+
+The application is deployed as a Static Site via Render. Production runs simply by serving the `dist` folder; `npm start` is only retained for local or self-hosted Node preview configurations of the static bundle.
+
+## License
+
+Private (Internal Monorepo Use)

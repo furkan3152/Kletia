@@ -25,6 +25,9 @@ import {
 } from "./contracts.js";
 import { buildPolicyAgent } from "../../shared/policies/policyAgent.js";
 import { isAddressEqual } from "viem";
+import { calculateSafeBorrowCapacity } from "../../shared/protocols/aave/risk.js";
+import { prepareCompoundV3Intent } from "./compound.js";
+export { calculateSafeBorrowCapacity } from "../../shared/protocols/aave/risk.js";
 
 const QUOTE_TTL_MS = 2 * 60 * 1_000;
 const RAY = 10n ** 27n;
@@ -32,56 +35,6 @@ const HEALTH_FACTOR_SCALE = 10n ** 18n;
 const UNISWAP_FEES = [500, 3_000, 10_000] as const;
 
 type Erc20ArbitrumToken = Exclude<ArbitrumTokenSymbol, "ETH">;
-
-export interface SafeBorrowCapacityInput {
-  readonly totalCollateralBase: bigint;
-  readonly totalDebtBase: bigint;
-  readonly availableBorrowsBase: bigint;
-  readonly liquidationThresholdBps: bigint;
-  readonly assetPriceBase: bigint;
-  readonly assetDecimals: number;
-  readonly availableLiquidityAtomic: bigint;
-  readonly targetHealthFactorScaled: bigint;
-}
-
-export function calculateSafeBorrowCapacity(
-  input: SafeBorrowCapacityInput,
-): {
-  readonly safeAdditionalBase: bigint;
-  readonly safeAmountAtomic: bigint;
-} {
-  if (
-    input.totalCollateralBase <= 0n ||
-    input.liquidationThresholdBps <= 0n ||
-    input.assetPriceBase <= 0n ||
-    input.targetHealthFactorScaled < 150n * 10n ** 16n ||
-    !Number.isInteger(input.assetDecimals) ||
-    input.assetDecimals < 0 ||
-    input.assetDecimals > 36
-  ) {
-    return { safeAdditionalBase: 0n, safeAmountAtomic: 0n };
-  }
-  const liquidationAdjustedCollateral =
-    (input.totalCollateralBase * input.liquidationThresholdBps) / 10_000n;
-  const maximumDebtAtTarget =
-    (liquidationAdjustedCollateral * HEALTH_FACTOR_SCALE) /
-    input.targetHealthFactorScaled;
-  const targetAdditionalBase = maximumDebtAtTarget > input.totalDebtBase
-    ? maximumDebtAtTarget - input.totalDebtBase
-    : 0n;
-  const safeAdditionalBase = targetAdditionalBase < input.availableBorrowsBase
-    ? targetAdditionalBase
-    : input.availableBorrowsBase;
-  const rawAmount =
-    (safeAdditionalBase * 10n ** BigInt(input.assetDecimals)) /
-    input.assetPriceBase;
-  return {
-    safeAdditionalBase,
-    safeAmountAtomic: rawAmount < input.availableLiquidityAtomic
-      ? rawAmount
-      : input.availableLiquidityAtomic,
-  };
-}
 
 function controlled(code: string, message: string, statusCode = 400): Error {
   return Object.assign(new Error(message), { code, statusCode });
@@ -744,6 +697,81 @@ async function withGasReadiness(
   };
 }
 
+function routeSupplyApy(result: Record<string, any>): number {
+  const direct = Number(result?.yieldComparison?.supplyApyBps);
+  if (Number.isFinite(direct)) return direct;
+  const nested = Number(result?.allRoutes?.[0]?.economics?.supplyApyBps);
+  return Number.isFinite(nested) ? nested : -1;
+}
+
+async function compareArbitrumLending(
+  intent: ParsedIntent,
+  owner: Address,
+) {
+  const results = await Promise.allSettled([
+    aave(intent, owner),
+    prepareCompoundV3Intent(intent, owner),
+  ]);
+  const eligible: Record<string, any>[] = results
+    .flatMap<Record<string, any>>((result) =>
+      result.status === "fulfilled" ? [result.value as Record<string, any>] : [],
+    )
+    .sort((left, right) => routeSupplyApy(right) - routeSupplyApy(left));
+  if (eligible.length === 0) {
+    throw controlled(
+      "ARBITRUM_LENDING_ROUTES_UNAVAILABLE",
+      "No reviewed Arbitrum lending protocol returned a live route.",
+      503,
+    );
+  }
+  const failures = results.flatMap((result, index) =>
+    result.status === "rejected"
+      ? [{
+          protocolId: index === 0 ? "aave-v3" : "compound-v3",
+          reason: result.reason instanceof Error
+            ? result.reason.message
+            : "Live protocol read failed.",
+        }]
+      : [],
+  );
+  if (intent.action === "yield_compare") {
+    const comparisons = eligible.map((candidate) => candidate.yieldComparison);
+    const winner = comparisons[0]!;
+    return {
+      status: "success",
+      action: "yield_compare",
+      readOnly: true,
+      winner: winner.protocolId,
+      winnerMessage: `Best live reviewed USDC supply rate: ${winner.protocolId} at approximately ${(winner.supplyApyBps / 100).toFixed(2)}% APY.`,
+      yieldComparisons: comparisons,
+      unavailableRoutes: failures,
+      rankingEvidence: {
+        policyVersion: "arbitrum_multi_protocol_live_yield_v1",
+        primaryMetric: "live_supply_apy_bps",
+        eligibleRouteCount: eligible.length,
+        mockData: false,
+      },
+    };
+  }
+  const winner = eligible[0]!;
+  const allRoutes: Record<string, any>[] = eligible.flatMap<Record<string, any>>(
+    (candidate) => Array.isArray(candidate.allRoutes) ? candidate.allRoutes : [],
+  );
+  return {
+    ...winner,
+    allRoutes,
+    unavailableRoutes: failures,
+    winnerMessage: `${winner.winnerMessage} ${eligible.length} reviewed live lending routes were compared by supply APY before wallet approval.`,
+    yieldRankingEvidence: {
+      policyVersion: "arbitrum_multi_protocol_live_yield_v1",
+      primaryMetric: "live_supply_apy_bps",
+      eligibleRouteCount: eligible.length,
+      selectedProtocol: winner.allRoutes?.[0]?.protocolId,
+      mockData: false,
+    },
+  };
+}
+
 export async function executeArbitrumEngine(
   intent: ParsedIntent,
   userAddress: string,
@@ -759,9 +787,69 @@ export async function executeArbitrumEngine(
   }
   if (intent.action === "portfolio") return portfolio(owner);
   if (intent.action === "policy_agent") return buildPolicyAgent(intent, owner, "arbitrum");
-  if (intent.action === "swap") return withGasReadiness(await swap(intent, owner), owner, "swap");
+  if (intent.action === "swap") {
+    const requestedProtocol = String(intent.protocol || "").trim().toLowerCase();
+    if (["camelot", "camelot-v3", "camelot-v4"].includes(requestedProtocol)) {
+      throw controlled(
+        "CAMELOT_ADAPTER_UNAVAILABLE",
+        "Camelot is recognized, but its exact quote, calldata and simulation adapter is not ready. Kletia will not silently replace the requested protocol with Uniswap.",
+        409,
+      );
+    }
+    if (requestedProtocol && !["uniswap", "uniswap-v3"].includes(requestedProtocol)) {
+      throw controlled(
+        "ARBITRUM_SWAP_PROTOCOL_UNSUPPORTED",
+        `The requested Arbitrum swap protocol ${requestedProtocol} is not executable.`,
+        409,
+      );
+    }
+    return withGasReadiness(await swap(intent, owner), owner, "swap");
+  }
   if (["lend", "withdraw", "borrow", "borrow_capacity", "repay", "yield_compare"].includes(intent.action)) {
-    const result = await aave(intent, owner);
+    const requestedProtocol = String(intent.protocol || "").trim().toLowerCase();
+    const compoundRequested = ["compound", "compound-v3", "comet"].includes(requestedProtocol);
+    if (
+      requestedProtocol &&
+      !compoundRequested &&
+      !["aave", "aave-v3"].includes(requestedProtocol)
+    ) {
+      throw controlled(
+        "ARBITRUM_LENDING_PROTOCOL_UNSUPPORTED",
+        `The requested Arbitrum lending protocol ${requestedProtocol} is not executable.`,
+        409,
+      );
+    }
+    if (
+      !requestedProtocol &&
+      (intent.action === "withdraw" || intent.action === "repay")
+    ) {
+      return {
+        status: "question",
+        requiresInput: true,
+        question: "Which reviewed Arbitrum lending position should Kletia use?",
+        options: [
+          {
+            id: "aave-v3",
+            label: "Aave V3",
+            effect: "Uses the live Aave position and its separate approval/risk rules.",
+          },
+          {
+            id: "compound-v3",
+            label: "Compound III",
+            effect: "Uses the native-USDC Comet position; Compound borrowing remains disabled.",
+          },
+        ],
+      };
+    }
+    const compare =
+      !requestedProtocol &&
+      (intent.action === "lend" || intent.action === "yield_compare") &&
+      String(intent.tokenIn || "USDC").trim().toUpperCase() === "USDC";
+    const result = compare
+      ? await compareArbitrumLending(intent, owner)
+      : compoundRequested
+        ? await prepareCompoundV3Intent(intent, owner)
+        : await aave(intent, owner);
     return intent.action === "yield_compare" || intent.action === "borrow_capacity"
       ? result
       : withGasReadiness(result, owner, intent.action);

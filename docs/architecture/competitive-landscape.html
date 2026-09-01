@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kletia Competitive Landscape — August 2026</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #f7f2e8;
+        --ink: #171717;
+        --muted: #5b574f;
+        --blue: #5e81ff;
+        --yellow: #ffd84d;
+        --green: #8ce99a;
+        --red: #ff7f72;
+        --border: 3px solid var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--paper); color: var(--ink); }
+      main { width: min(1180px, calc(100% - 32px)); margin: 32px auto 72px; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { max-width: 900px; font-size: clamp(2.5rem, 7vw, 5.8rem); line-height: .92; letter-spacing: -.06em; }
+      h2 { margin-top: 48px; font-size: clamp(1.7rem, 4vw, 3rem); letter-spacing: -.035em; }
+      h3 { margin-bottom: 8px; }
+      p, li { line-height: 1.58; }
+      a { color: inherit; font-weight: 800; }
+      .eyebrow { display: inline-block; padding: 7px 10px; border: var(--border); background: var(--yellow); box-shadow: 4px 4px 0 var(--ink); font-weight: 900; text-transform: uppercase; }
+      .lead { max-width: 850px; font-size: 1.22rem; }
+      .verdict { margin: 30px 0; padding: 22px; border: var(--border); background: var(--green); box-shadow: 8px 8px 0 var(--ink); }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+      .card { padding: 20px; border: var(--border); background: white; color: #171717; box-shadow: 6px 6px 0 var(--ink); }
+      .card.high { border-top: 12px solid var(--red); }
+      .card.medium { border-top: 12px solid var(--yellow); }
+      .tag { display: inline-block; margin: 0 6px 8px 0; padding: 4px 8px; border: 2px solid var(--ink); font-size: .78rem; font-weight: 900; text-transform: uppercase; }
+      table { width: 100%; border-collapse: collapse; background: white; color: #171717; }
+      th, td { padding: 12px; border: 2px solid var(--ink); text-align: left; vertical-align: top; }
+      th { background: var(--blue); color: white; }
+      .axis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: var(--border); background: var(--ink); gap: 3px; }
+      .quadrant { min-height: 180px; padding: 18px; background: var(--paper); }
+      .note { color: var(--muted); font-size: .92rem; }
+      .warning { padding: 18px; border: var(--border); background: var(--yellow); }
+      footer { margin-top: 56px; border-top: var(--border); padding-top: 20px; }
+      @media (max-width: 760px) {
+        .grid, .axis { grid-template-columns: 1fr; }
+        main { width: min(100% - 20px, 1180px); margin-top: 18px; }
+        th, td { padding: 9px; }
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --paper: #161616; --ink: #f5f0e6; --muted: #bbb4a7; }
+        .card, table { background: #f7f2e8; color: #171717; }
+        .quadrant { background: #272727; }
+        .eyebrow, .verdict, .warning { color: #171717; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">Independent product view · 21 August 2026</span>
+      <h1>Kletia is differentiated, but not yet defensible.</h1>
+      <p class="lead">Natural-language DeFi, multichain routing and AI agents are crowded categories. Kletia should not compete on “chat to swap,” passkeys, x402 or the number of connected DEXs. Its credible opportunity is a Stellar-centered constraint compiler and evidence layer that can show which part of a user’s intent is enforced by the ledger, a smart-account policy, the wallet or Kletia—and refuse routes that silently weaken those guarantees.</p>
+
+      <section class="verdict">
+        <h2 style="margin-top:0">Verdict</h2>
+        <p><strong>Crowdedness: crowded, not saturated.</strong> Several products already have more chains, protocols, users or integrations. Stellar itself now has mature passkey tooling, policy accounts, agent-payment rails, agent infrastructure and multiple funded liquidity aggregators. Those primitives are inputs to Kletia, not originality claims.</p>
+        <p><strong>Originality today: architectural, not categorical.</strong> Kletia’s network isolation, deterministic transaction boundaries, explicit ambiguity handling, exact settlement checks and checkpointed workflows are meaningful. The underrepresented opportunity is to turn them into a public constraint-and-evidence contract shared by the consumer app and external integrators. This is not yet a moat: Kletia has no released external SDK, external adoption, solver liquidity or long production security record.</p>
+      </section>
+
+      <h2>Direct competitors</h2>
+      <div class="grid">
+        <article class="card high">
+          <span class="tag">High threat</span><span class="tag">Consumer + infra</span>
+          <h3><a href="https://heyanon.ai/">HeyAnon</a></h3>
+          <p>Natural-language DeFi, automation, cross-chain actions, research, CEX integrations and a broad module system. Its published surface is much broader than Kletia’s.</p>
+          <p><strong>Kletia can differ:</strong> make manifest/receipt evidence and chain-native policy enforcement the product, not merely another orchestration module.</p>
+        </article>
+        <article class="card high">
+          <span class="tag">High threat</span><span class="tag">Agent runtime</span>
+          <h3><a href="https://docs.bankr.bot/agent/overview/">Bankr</a></h3>
+          <p>Persistent wallet-backed agent runtime with memory, scheduled automation, x402, security screening and multi-surface distribution.</p>
+          <p><strong>Kletia can differ:</strong> remain non-custodial and evidence-first, then use Stellar policy accounts for bounded rather than general wallet autonomy.</p>
+        </article>
+        <article class="card high">
+          <span class="tag">High threat</span><span class="tag">Intent protocol</span>
+          <h3><a href="https://docs.near.org/chain-abstraction/intents/overview">NEAR Intents</a></h3>
+          <p>Solver competition and multichain settlement with strong integration distribution. It is already an infrastructure product, not only an application.</p>
+          <p><strong>Kletia can differ:</strong> focus on multi-step application workflows, explicit per-chain receipts, data payments and user-defined policy rather than universal swap settlement alone.</p>
+        </article>
+        <article class="card medium">
+          <span class="tag">Medium threat</span><span class="tag">Prompt API</span>
+          <h3><a href="https://docs.brianknows.org/">Brian</a></h3>
+          <p>Prompt-to-transaction API and SDK across many EVM networks, Solana and Starknet, with multiple routing solvers and DeFi actions.</p>
+          <p><strong>Kletia can differ:</strong> expose verified intent objects and receipts as a stable integration contract rather than competing on transaction-generation breadth.</p>
+        </article>
+        <article class="card medium">
+          <span class="tag">Medium threat</span><span class="tag">Open source</span>
+          <h3><a href="https://github.com/chainclaw-xyz/chainclaw">ChainClaw</a></h3>
+          <p>Self-hosted agent with DeFi skills, simulation, guardrails, risk checks and automation. It proves that generic “safe agent pipeline” claims are reproducible.</p>
+          <p><strong>Kletia can differ:</strong> define a cross-application evidence protocol and Stellar-native asset/policy model that other systems integrate.</p>
+        </article>
+        <article class="card medium">
+          <span class="tag">Medium threat</span><span class="tag">Developer substitute</span>
+          <h3><a href="https://github.com/coinbase/agentkit">Coinbase AgentKit</a></h3>
+          <p>Official developer toolkit for wallet-backed agent actions with CDP distribution. Its own security guidance states that transfer caps, destination allowlists and human approval are not intrinsic SDK guarantees, but teams can add middleware and assemble their own agent instead of integrating Kletia.</p>
+          <p><strong>Kletia can differ:</strong> make those guarantees explicit in a constraint compiler and enforcement map rather than expose another collection of wallet actions.</p>
+        </article>
+      </div>
+
+      <h2>Stellar-specific reality</h2>
+      <div class="grid">
+        <article class="card high">
+          <span class="tag">High overlap</span><span class="tag">Policy treasury</span>
+          <h3><a href="https://github.com/eunomia-finance/eunomia">Eunomia</a></h3>
+          <p>A non-custodial Soroban treasury with passkey onboarding, scoped agent sessions, payee and rolling spend limits, x402, escrow, receipts and testnet evidence. It already owns a stronger “the agent cannot drain the wallet” story than Kletia can currently prove.</p>
+          <p><strong>Implication:</strong> Kletia must not present a passkey Policy Account or bounded agent wallet as its unique product. Use established smart-account primitives to enforce a broader multichain intent manifest.</p>
+        </article>
+        <article class="card high">
+          <span class="tag">High overlap</span><span class="tag">DEX aggregation</span>
+          <h3><a href="https://communityfund.stellar.org/submissions/recFRG56TbGtuXbMt">LumAgg</a> and <a href="https://communityfund.stellar.org/submissions/recYYnklyzTFFvASl">WOWMAX</a></h3>
+          <p>Both target Stellar liquidity fragmentation across Classic SDEX and Soroban venues. LumAgg reports mainnet quote/build endpoints, split routing and multi-DEX execution; WOWMAX proposes gas- and price-impact-aware multi-hop routing across SDEX, Soroswap, Phoenix and Aquarius.</p>
+          <p><strong>Implication:</strong> Horizon plus Aquarius is a valid Testnet baseline, not a defensible “best Stellar route” claim. Kletia should consume competitive quote sources and reject those that cannot preserve the intent’s guarantees.</p>
+        </article>
+        <article class="card medium">
+          <span class="tag">Platform primitive</span><span class="tag">Wallet</span>
+          <h3><a href="https://github.com/stellar/smart-account-kit">Stellar Smart Account Kit</a> + <a href="https://docs.openzeppelin.com/stellar-contracts/accounts/context-rules">OpenZeppelin Accounts</a></h3>
+          <p>Passkeys, multiple signer types, context rules, spending policies, rule expiry and fee-sponsored submission are maintained ecosystem infrastructure. Rebuilding a generic wallet would add risk without creating differentiation.</p>
+          <p><strong>Implication:</strong> compile Kletia constraints into reviewed policies and invocation scopes; build only a narrow Kletia policy module if an enforceable manifest binding is genuinely missing.</p>
+        </article>
+        <article class="card medium">
+          <span class="tag">Developer substitute</span><span class="tag">AI infra</span>
+          <h3><a href="https://developers.stellar.org/docs/build/building-with-ai">Raven and Stellar AI tooling</a></h3>
+          <p>Raven already gives agents official documentation plus live ecosystem discovery through MCP. SDF also reports more than 260 projects from a single x402/MPP-focused agent hackathon.</p>
+          <p><strong>Implication:</strong> a generic Stellar assistant, MCP wrapper, x402 buyer or MPP demo is not a viable wedge. Raven is an ecosystem comparator and optional developer research tool; Kletia does not depend on it for planning, quoting or execution. Runtime truth must come from pinned protocol manifests plus ledger-bound evidence.</p>
+        </article>
+      </div>
+
+      <h2>Positioning matrix</h2>
+      <div class="axis">
+        <section class="quadrant"><h3>Consumer · broad platform</h3><p>HeyAnon, Bankr</p></section>
+        <section class="quadrant"><h3>Consumer · bounded tool</h3><p>Brian App, wallet/CEX assistants</p></section>
+        <section class="quadrant"><h3>Developer · broad infrastructure</h3><p>NEAR Intents, Coinbase AgentKit, LI.FI, Enso</p></section>
+        <section class="quadrant"><h3>Developer + consumer integrity layer</h3><p><strong>Kletia’s target:</strong> one superapp and, later, one API/SDK using the same constraint compiler, enforcement map, capability graph and proof-carrying receipt.</p></section>
+      </div>
+
+      <h2>What is and is not original</h2>
+      <table>
+        <thead><tr><th>Claim</th><th>Assessment</th><th>Recommended wording</th></tr></thead>
+        <tbody>
+          <tr><td>Natural-language transactions</td><td>Not original</td><td>A user interface, not the moat</td></tr>
+          <tr><td>Multichain DeFi aggregation</td><td>Not original</td><td>Necessary market baseline</td></tr>
+          <tr><td>Cross-chain atomic execution</td><td>Misleading for Kletia’s staged model</td><td>Checkpointed workflow with fill, refund and indeterminate states</td></tr>
+          <tr><td>Network-isolated intent compilation</td><td>Meaningful architectural differentiation</td><td>Each profile changes identity, assets, gas, targets and execution together</td></tr>
+          <tr><td>Constraint compiler + enforcement map</td><td>Underrepresented and coherent with current architecture</td><td>Show whether each limit is enforced by ledger, account policy, wallet, Kletia or only estimated</td></tr>
+          <tr><td>Semantic-loss detection</td><td>Potentially strong differentiation</td><td>Reject or disclose routes that cannot preserve the source intent’s guarantees on the next network</td></tr>
+          <tr><td>Portable Intent Manifest + proof-carrying Execution Receipt</td><td>Potentially original composition</td><td>Bind approved constraints to chain-native operations, auth context and observed settlement; then version and expose the schema</td></tr>
+          <tr><td>Capability Graph</td><td>Infrastructure opportunity, not shipped</td><td>Adapters declare supported assets, actions, constraint coverage, freshness, authorization and receipt evidence</td></tr>
+          <tr><td>Stellar standards support</td><td>Not original by itself</td><td>Use standards only where they remove a concrete interoperability or fund-loss risk</td></tr>
+          <tr><td>Passkey Policy Account</td><td>Established ecosystem primitive; not original</td><td>Use Smart Account Kit/OpenZeppelin as one enforcement backend for a Kletia manifest</td></tr>
+          <tr><td>Horizon/Aquarius aggregation</td><td>Narrow MVP baseline; established competitors are broader</td><td>Call it two-source Testnet comparison, not the best route across Stellar</td></tr>
+          <tr><td>Stellar MPP + Base x402</td><td>Crowded payment rails; not original</td><td>Use as an explicit data-purchase step with cap, payee and exact settlement evidence</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Realistic moat</h2>
+      <p>Kletia’s near-term moat cannot be proprietary AI, passkeys, payment protocols, DEX count or contract complexity. The realistic path is <strong>distribution and integration switching cost</strong>: dApps and wallets adopt the same versioned manifest/receipt schema; a capability graph accumulates protocol-specific enforcement and failure knowledge; execution evidence improves policy and risk decisions; and users trust Kletia’s transaction review because it has a public history of correct settlement.</p>
+      <p>The moat remains weak until external consumers exist. A strong open-source team could reproduce the current architecture. The largest threats are a better-distributed agent adding equivalent evidence boundaries, the project expanding faster than it can verify integrations, and cross-chain/provider dependencies causing failures outside Kletia’s control.</p>
+
+      <h2>Privacy-first identity hypotheses — not a product decision</h2>
+      <table>
+        <thead><tr><th>Hypothesis</th><th>What would be new for the user</th><th>Why Stellar matters</th><th>Hard limit</th></tr></thead>
+        <tbody>
+          <tr><td>Private Intent Constitution</td><td>Budget, risk and counterparty rules stay private while a proof shows that a proposed multichain route satisfies them.</td><td>Poseidon commitments, BN254/UltraHonk verification, Soroban policy state and passkey authorization.</td><td>The proof establishes compliance with a formal policy; it cannot prove that an LLM correctly understood ambiguous natural language.</td></tr>
+          <tr><td>Confidential Agent Treasury</td><td>Sub-agents can buy services and spend within a private cumulative budget without learning or publishing the user's complete balance.</td><td>Confidential Token balances, optional auditor access, contract-account policy and a future confidential payment adapter.</td><td>Stellar Confidential Tokens are an unaudited developer preview, and current x402/MPP facilitator compatibility is not proven.</td></tr>
+          <tr><td>Private Solver Market</td><td>Solvers compete without seeing the user's full reservation price, recipient or strategy; objective failures may be bonded.</td><td>Soroban commitment, auction and bond state plus on-chain ZK verification.</td><td>ZK alone does not let a solver calculate a route over a fully hidden intent; threshold encryption, MPC, FHE or TEE is still required.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="warning" style="margin-top:18px">
+        <p><strong>Privacy stack maturity matters.</strong> Stellar documents Privacy Pools as a research prototype and Confidential Tokens as an unaudited developer preview. Confidential Tokens hide balances and amounts while addresses remain visible; they do not hide arbitrary intent text or provide private price discovery. CCTP and public-chain exits create explicit privacy boundaries rather than automatic private-to-private bridging.</p>
+      </div>
+
+      <h2>Failure lessons</h2>
+      <div class="grid">
+        <article class="card"><h3>Lilypad</h3><p>The decentralized AI compute project closed in 2025 despite shipping real technology. Lesson: technical novelty without sustainable demand and distribution is not defensibility.</p></article>
+        <article class="card"><h3>K9 Finance / Agent IX</h3><p>The feature became deprecated when the broader Shibarium-dependent operation shut down after a security incident. Lesson: chain and protocol dependencies expand the product’s blast radius.</p></article>
+      </div>
+
+      <h2>Recommendation</h2>
+      <div class="warning">
+        <p><strong>Do not pitch Kletia as the agent that does everything, and do not freeze its identity prematurely.</strong> The next discovery step is to prototype one user-visible interaction from each viable hypothesis and test whether users value private policy, confidential agent budgets or private solver competition enough to justify the cryptographic and operational complexity.</p>
+        <p>A grant-sized Stellar build should choose one hypothesis, one real asset flow and one adversarial failure demonstration. Listing Confidential Tokens, Privacy Pools, ZK, passkeys, x402, MPP, CCTP and anchors in one MVP would be an architecture collage rather than a product.</p>
+      </div>
+
+      <footer>
+        <p><strong>Research note:</strong> the local solana-new repo/skill/MCP catalogs required by the landscape method were not installed, so no catalog-entry count is claimed. This report used fresh official product documentation and direct project sources instead.</p>
+        <p class="note">Primary references: <a href="https://heyanon.ai/">HeyAnon</a>, <a href="https://docs.bankr.bot/agent/overview/">Bankr</a>, <a href="https://docs.near.org/chain-abstraction/intents/overview">NEAR Intents</a>, <a href="https://docs.brianknows.org/">Brian</a>, <a href="https://github.com/coinbase/agentkit">Coinbase AgentKit</a>, <a href="https://github.com/chainclaw-xyz/chainclaw">ChainClaw</a>, <a href="https://developers.stellar.org/meetings/2026/04/23">Stellar agent ecosystem review</a>, <a href="https://developers.stellar.org/docs/build/building-with-ai">Raven</a>, <a href="https://github.com/stellar/smart-account-kit">Smart Account Kit</a>, <a href="https://github.com/eunomia-finance/eunomia">Eunomia</a>, <a href="https://communityfund.stellar.org/submissions/recFRG56TbGtuXbMt">LumAgg</a>, <a href="https://communityfund.stellar.org/submissions/recYYnklyzTFFvASl">WOWMAX</a>, <a href="https://blog.lilypad.tech/lilypad-announces-closure">Lilypad closure</a>, <a href="https://www.k9finance.com/">K9 Finance</a>.</p>
+      </footer>
+    </main>
+  </body>
+</html>

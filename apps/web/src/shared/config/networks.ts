@@ -1,13 +1,17 @@
 import { defineChain, type Address, type Chain } from "viem";
-import { arbitrum, base } from "viem/chains";
+import { arbitrum, arbitrumSepolia, base } from "viem/chains";
 import { ARC_CONTRACTS } from "../../networks/arc/config";
 import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
 import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
 export type NetworkMode = "base" | "arc" | "arbitrum";
 
+export const STELLAR_WORKSPACE_ENABLED =
+  import.meta.env.VITE_STELLAR_MVP_ENABLED === "true";
+
 export type AppTab =
   | "chat"
+  | "stellar"
   | "basename"
   | "allora"
   | "airdrop"
@@ -160,6 +164,9 @@ const ARC_RPC_URL =
   import.meta.env.VITE_ARC_RPC_URL || "https://rpc.testnet.arc.network";
 const ARBITRUM_RPC_URL =
   import.meta.env.VITE_ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
+export const ARBITRUM_SEPOLIA_RPC_URL =
+  import.meta.env.VITE_ARBITRUM_SEPOLIA_RPC_URL ||
+  "https://sepolia-rollup.arbitrum.io/rpc";
 const ARBITRUM_USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as const;
 
 export const NETWORKS = {
@@ -564,6 +571,7 @@ export const SUPPORTED_CHAINS = [
   NETWORKS.base.chain,
   NETWORKS.arc.chain,
   NETWORKS.arbitrum.chain,
+  arbitrumSepolia,
 ] as const;
 
 export const getNetwork = (mode: NetworkMode): NetworkDefinition =>

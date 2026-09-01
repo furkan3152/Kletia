@@ -1,0 +1,5 @@
+{
+  "schemaVersion": "kletia_stellar_groth16_constructor_v1",
+  "publicInputCount": 12,
+  "verificationKeySha256": "c4b6f6eb1a6b845c587cb3481461d0a710cac76702265fc2608ff94ad61a78f8"
+}

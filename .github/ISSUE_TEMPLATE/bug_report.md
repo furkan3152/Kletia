@@ -1,33 +1,50 @@
 ---
 name: Bug report
-description: Create a report to help us improve
-title: "[BUG] "
-labels: bug, needs triage
-assignees: ''
+description: Report a reproducible Kletia product or developer issue
+title: "[Bug]: "
+labels: [bug, needs-triage]
+assignees: []
 ---
 
-## Description
-A clear and concise description of what the bug is.
+<!-- Security or privacy vulnerability? Stop here and follow SECURITY.md. Never post keys, seeds, passkey material, KYC data, provider credentials, or unredacted private logs. -->
 
-## Steps to Reproduce
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Summary
 
-## Expected vs Actual Behavior
-**Expected behavior:**
-A clear and concise description of what you expected to happen.
+What happened, and what did you expect instead?
 
-**Actual behavior:**
-A clear and concise description of what actually happened.
+## Affected boundary
 
-## Environment
-- **Node Version:** [e.g. 22.23.1]
-- **OS:** [e.g. Ubuntu 22.04, macOS 14]
-- **Browser:** [e.g. Chrome, Safari]
-- **Network:** [e.g. Base Mainnet, Stellar Testnet]
+- Network: <!-- Base Mainnet / Arc Testnet / Arbitrum One / Arbitrum Sepolia / Stellar Testnet / network-independent -->
+- Lane: <!-- production / testnet / not applicable -->
+- Surface: <!-- intent chat / dashboard / API / wallet / passkey / contract / bridge / provider / labs -->
+- Core or labs:
 
-## Additional Context
-Add any other context about the problem here (screenshots, logs, etc.).
+## Reproduction
+
+1.
+2.
+3.
+
+Minimal intent or request body (redact private values):
+
+```text
+
+```
+
+## Evidence
+
+- Kletia commit:
+- Node version:
+- Browser and OS:
+- Connected wallet type and network (no secrets):
+- Request ID, public transaction hash, or block/ledger if applicable:
+- Receipt/provider state actually observed:
+- Exact error:
+
+## Recovery behavior
+
+Did the application preserve and recheck an existing transaction, request a new signature, resend, or lose the workflow state?
+
+## Additional context
+
+Screenshots and sanitized logs are useful. Confirm that every attachment has been checked for credentials, addresses you consider private, and personal data.

@@ -29,7 +29,7 @@ dependencies and cannot make the Payment Center release pass.
 Use the pinned Node version:
 
 ```bash
-export PATH=/home/technopc/.nvm/versions/node/v22.23.1/bin:$PATH
+nvm use
 npm run verify
 ```
 
@@ -67,7 +67,7 @@ off-chain rail, so it must never satisfy the real-provider release gate.
 ## 3. Live no-mock preflight
 
 ```bash
-export PATH=/home/technopc/.nvm/versions/node/v22.23.1/bin:$PATH
+nvm use
 npm run verify:mvp-live
 ```
 

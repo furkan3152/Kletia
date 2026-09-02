@@ -28,7 +28,7 @@ npm ci --legacy-peer-deps
 
 ## Key Environment Variables
 
-Refer to `.env.example` for all configurable values. 
+Refer to [`.env.example`](.env.example) for all configurable values.
 - **`VITE_*`**: Browser-facing variables are public. These must **never** contain private keys or API secrets.
 - **`VITE_ARBITRUM_MVP_ENABLED`**: When set to `true` (and matched by API attestation), unlocks Arbitrum routes.
 
@@ -38,4 +38,4 @@ The application is deployed as a Static Site via Render. Production runs simply 
 
 ## License
 
-Private (Internal Monorepo Use)
+MIT

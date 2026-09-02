@@ -1,20 +1,41 @@
 ---
 name: Feature request
-description: Suggest an idea for Kletia
-title: "[FEATURE] "
-labels: enhancement
-assignees: ''
+description: Propose a user outcome or protocol integration
+title: "[Feature]: "
+labels: [enhancement, needs-triage]
+assignees: []
 ---
 
-## Problem Description
-Is your feature request related to a problem? Please describe.
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## User problem
 
-## Proposed Solution
-Describe the solution you'd like to see implemented.
+Who needs this, what outcome are they trying to reach, and why is the current flow insufficient?
 
-## Alternatives Considered
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed experience
 
-## Additional Context
-Add any other context or screenshots about the feature request here.
+Describe the intent, review, signature, confirmation, and recovery experience. Include a compact example if useful.
+
+## Network ownership
+
+- Network(s) and lane(s):
+- Core product or research labs:
+- Assets/protocols/providers involved:
+- Wallet or passkey authority:
+
+## Trust and failure boundaries
+
+- Which identities and live data must be verified?
+- What information is disclosed to API, model, provider, RPC, and ledger?
+- What must happen when discovery, quote, simulation, finality, or recovery is unavailable?
+- What evidence proves completion beyond a transaction hash?
+
+## Alternatives and scope
+
+What simpler approach was considered? Which adjacent features are explicitly out of scope?
+
+## Acceptance criteria
+
+- [ ] No mock success or silent fallback
+- [ ] Wrong network/account/asset is rejected
+- [ ] User authorization is explicit
+- [ ] Submitted and indeterminate operations recover safely
+- [ ] Documentation, readiness, and tests define the honest claim boundary

@@ -1,18 +1,48 @@
-## Description
-Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
+## Summary
 
-## Type of change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
+Explain the user or operator outcome and the smallest coherent change that delivers it.
 
-## Checklist:
-- [ ] I have read the `CONTRIBUTING.md` guidelines.
-- [ ] My code passes tests locally (`npm run verify`).
-- [ ] I have updated the documentation accordingly.
-- [ ] I have ensured no secrets or sensitive data are committed.
-- [ ] Any breaking changes are clearly noted in the description.
+## Affected boundaries
 
-## Related Issues
-Fixes # (issue number)
+- Networks and lanes:
+- Core / labs / both:
+- API, web, contract, circuit, provider, deployment, or documentation:
+- Wallet/passkey/custody impact:
+
+## Trust and failure model
+
+Describe changes to identities, assets, targets, spenders, quotes, simulation, privacy disclosure, durable state, finality, or recovery. State how unavailable and indeterminate results behave.
+
+## Evidence
+
+List commands run and their results. Separate static checks, live readiness, Testnet/Mainnet transactions, and provider completion evidence.
+
+```text
+npm run verify:core
+```
+
+Public transaction or manifest references, if applicable:
+
+## Screenshots
+
+Required for user-visible changes. Include desktop and mobile states plus loading, error, unavailable, signature, and recovery states when affected.
+
+## Checklist
+
+- [ ] I read `CONTRIBUTING.md` and preserved network/lane ownership.
+- [ ] I did not commit secrets, wallet material, personal data, databases, or generated output.
+- [ ] Model/provider output cannot select trusted execution identities or fabricate success.
+- [ ] Value-moving paths bind the exact account, network, asset, target, spender, amount, deadline, and transaction body.
+- [ ] Submitted operations are verified or recovered without silent resubmission.
+- [ ] Tests cover the happy path and relevant unavailable, stale, wrong-network, wrong-account, and recovery paths.
+- [ ] I updated environment templates, manifests, readiness, and documentation when their contract changed.
+- [ ] `npm run verify:core` passes; applicable labs/live results and honest blockers are recorded above.
+- [ ] Breaking changes and migrations are explained below.
+
+## Breaking changes and migration
+
+Write “None” or explain operator/user action, compatibility duration, rollback, and deployment order.
+
+## Related issues
+
+Closes #

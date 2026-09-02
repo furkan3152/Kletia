@@ -22,7 +22,6 @@ npm run compile
 | Command | Description |
 |---------|-------------|
 | `npm run compile` | Compile the Solidity contracts. |
-| `npm test` | Run the test suite. |
 | `npm run reserves:status` | Read-only check to calculate Arc reserves without a signer. |
 | `npm run reconcile:reserves` | Write-path operation to recalculate and fund liabilities. |
 | `npm run deploy:vault-v2` | Reproduce the Vault V2 deployment on Arc Testnet. |
@@ -34,7 +33,9 @@ npm run compile
 
 ## Deployment Information
 
-Contracts are deployed to the **Arc Testnet (Chain ID 5042002)**. Canonical contract addresses, runtime code hashes, and live explorer verification states are recorded in `deployments/arc-testnet.json`. Migration paths for the Vault are detailed in `VAULT_V2_MIGRATION.md`.
+Contracts are deployed to the **Arc Testnet (Chain ID 5042002)**. Canonical contract addresses, runtime code hashes, and explorer verification states are recorded in [`deployments/arc-testnet.json`](deployments/arc-testnet.json). Migration paths for the Vault are detailed in [`VAULT_V2_MIGRATION.md`](VAULT_V2_MIGRATION.md).
+
+Compilation and Testnet deployment evidence do not establish audit or Mainnet readiness. `reserves:status` reports observed coverage at the queried block; it is not a future funding guarantee.
 
 ## License
 

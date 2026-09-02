@@ -4,7 +4,7 @@ The canonical intent-driven API for the unified Kletia application. It converts 
 
 ## Architecture Overview
 
-- **`src/networks/`**: Independent chain handlers.
+- **`src/networks/`**: Independent chain handlers and readiness boundaries.
   - `base`: Base DeFi, Basenames, token launch, paymaster, and x402 micropayments.
   - `arc`: Arc programmable money intents, contracts, and Circle App Kit integration.
   - `arbitrum`: Reviewed Arbitrum assets, Uniswap V3, Aave V3 actions.
@@ -24,20 +24,23 @@ npm ci --legacy-peer-deps
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start the development server using `tsx`. |
+| `npm run dev` | Start the package development server using `tsx`. |
+| `npm run dev:mvp` | Start the fail-closed local MVP profile used by the root `dev:mvp:api` command. |
 | `npm run build` | Clean `dist` and compile the TypeScript source. |
 | `npm start` | Run the compiled output in `dist/index.js`. |
 | `npm run typecheck` | Verify types across the package. |
 | `npm run release:preflight` | Typecheck, build, and verify the Base registry. |
 | `npm run solver:testnet` | Run the Testnet reference solver. |
 
+The reference solver belongs to the opt-in Stellar labs profile. It observes and submits bounded auction coordination records; it does not hold an Arc/EVM key or execute a user's cross-chain transaction.
+
 ## Key Environment Variables
 
-Please see `.env.example` for the complete list of environment variables. Environment configuration drives network readiness, execution limits, and external service bindings. Private keys are deliberately isolated from the runtime configuration and belong only to operator-specific environments.
+Please see [`.env.example`](.env.example) for the complete list of environment variables. Environment configuration drives network readiness, execution limits, and external service bindings. `OPENROUTER_API_KEY` is optional; deterministic parsing remains available without semantic-model fallback. Private keys are deliberately isolated from the runtime configuration and belong only to operator-specific environments.
 
 ## Deployment Information
 
-This package operates as a Node.js (Express 5) service. The committed `.npmrc` ensures that TypeScript remains available for production CI builds, yet the runtime itself only launches the emitted output inside the `dist` folder. 
+This package operates as a Node.js (Express 5) service. The committed [`.npmrc`](.npmrc) keeps build dependencies available during package-local CI installation; production starts only the emitted `dist/index.js` output. The default public profile keeps `STELLAR_LABS_ENABLED=false`.
 
 ## License
 

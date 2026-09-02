@@ -7,6 +7,7 @@
   },
   "scripts": {
     "check:structure": "node tooling/validate-repository.mjs",
+    "check:docs": "node tooling/verify-documentation.mjs",
     "check:stellar-mvp": "node tooling/verify-stellar-mvp.mjs",
     "check:stellar-runtime": "node tooling/verify-stellar-runtime-boundaries.mjs",
     "check:privacy-egress": "node tooling/verify-privacy-egress-guard.mjs",
@@ -49,7 +50,7 @@
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
     "verify": "npm run verify:core",
-    "verify:core": "npm run check:structure && npm run check:stellar-last-mile && npm run check:stellar-payment-center && npm run check:stellar-payment-intents && npm run check:privacy-egress && npm run typecheck:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:cctp-v2-binding && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
+    "verify:core": "npm run check:structure && npm run check:docs && npm run check:stellar-last-mile && npm run check:stellar-payment-center && npm run check:stellar-payment-intents && npm run check:privacy-egress && npm run typecheck:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:cctp-v2-binding && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
     "verify:labs": "npm run check:stellar-mvp && npm run check:stellar-policy-contract && npm run check:stellar-policy-circuit && npm run check:stellar-private-payments && npm run check:workflow-v3 && npm run check:workflow-v3-store && npm run check:workflow-v4 && npm run check:stellar-mpp && npm run check:policy-merkle-browser && npm run check:policy-v4-browser && npm run check:solver-market-browser && npm run check:privacy-surfaces && npm run check:stellar-runtime && npm run check:stellar-policy-workflow && npm run build:web:labs",
     "verify:all": "npm run verify:core && npm run verify:labs"
   },

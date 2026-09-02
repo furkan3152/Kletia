@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import type { Store } from "mppx/server";
 
 const connectionString =
@@ -10,6 +10,20 @@ const connectionString =
 let pool: Pool | null = null;
 let initialized: Promise<void> | null = null;
 
+function postgresConfig(): PoolConfig {
+  const url = new URL(connectionString);
+  const sslMode = url.searchParams.get("sslmode");
+  return {
+    connectionString,
+    max: 4,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    ...(sslMode === "require" || sslMode === "verify-full"
+      ? { ssl: { rejectUnauthorized: sslMode === "verify-full" } }
+      : {}),
+  };
+}
+
 function database(): Pool {
   if (!connectionString) {
     throw Object.assign(
@@ -17,15 +31,7 @@ function database(): Pool {
       { code: "STELLAR_MPP_STORE_UNAVAILABLE", statusCode: 503 },
     );
   }
-  pool ??= new Pool({
-    connectionString,
-    max: 4,
-    connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 30_000,
-    ...(new URL(connectionString).searchParams.get("sslmode") === "require"
-      ? { ssl: { rejectUnauthorized: false } }
-      : {}),
-  });
+  pool ??= new Pool(postgresConfig());
   return pool;
 }
 

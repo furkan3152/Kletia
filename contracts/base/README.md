@@ -22,7 +22,7 @@ npm run compile
 
 | Command | Description |
 |---------|-------------|
-| `npm run compile` | Compile contracts using Hardhat and Solidity 0.8.20. |
+| `npm run compile` | Compile contracts with pinned Solidity 0.8.24 and 0.8.20 profiles. |
 | `npm run verify:x402-factory` | Perform read-only exact match verification of the deployed Factory. |
 | `npm run verify:v2:blockscout` | Verify active V2 Router runtime against Blockscout. |
 | `npm run deploy:v2:direct-safe` | Deploy the active Intent Router V2 through the direct Safe. |
@@ -35,7 +35,9 @@ npm run compile
 
 ## Deployment Information
 
-Contracts in this workspace target **Base Mainnet (Chain ID 8453)** and are governed by a 2-of-2 Gnosis Safe multisig. Active public identities and canonical contract addresses are maintained in `deployments/base-mainnet-v2.json`.
+Contracts in this workspace target **Base Mainnet (Chain ID 8453)** and are governed by a 2-of-2 Safe multisig. Most active sources compile with Solidity 0.8.24/Cancun; the x402 Factory and Gateway retain their exact Solidity 0.8.20/Paris deployment profile. Active public identities and canonical contract addresses are maintained in [`deployments/base-mainnet-v2.json`](deployments/base-mainnet-v2.json).
+
+Deployment and codehash evidence establish exact observed identity, not an independent security audit. Legacy sources remain for provenance and are not silent runtime fallbacks.
 
 ## License
 

@@ -36,6 +36,7 @@
     "check:cctp-v2-binding": "npm --prefix apps/api run verify:cctp-v2-binding",
     "verify:mvp-live": "npm --prefix apps/api run verify:mvp-live",
     "dev:mvp:api": "npm --prefix apps/api run dev:mvp",
+    "dev:labs:api": "STELLAR_LABS_ENABLED=true npm --prefix apps/api run dev:mvp",
     "dev:mvp:solver": "npm --prefix apps/api run solver:testnet",
     "dev:mvp:web": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 npm --prefix apps/web run dev -- --host 127.0.0.1 --port 5174 --strictPort",
     "benchmark:solver:testnet": "node tooling/benchmark-testnet-solver.mjs",

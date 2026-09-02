@@ -24,6 +24,8 @@ const trackedFiles = gitFilesResult.stdout
   .filter((file) => file && existsSync(file));
 const tracked = new Set(trackedFiles);
 const requiredFiles = [
+  "docs/README.md",
+  "tooling/verify-documentation.mjs",
   "apps/api/package.json",
   "apps/web/package.json",
   "contracts/base/package.json",

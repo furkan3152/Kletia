@@ -144,8 +144,11 @@ agreements. Never expose the official quick-start defaults publicly.
 Run with the repository-pinned Node version:
 
 ```bash
-export PATH=/home/technopc/.nvm/versions/node/v22.23.1/bin:$PATH
-npm ci --include=dev
+nvm use
+npm --prefix apps/api ci --include=dev --legacy-peer-deps
+npm --prefix apps/web ci --include=dev --legacy-peer-deps
+npm --prefix contracts/base ci --include=dev --legacy-peer-deps
+npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 npm run verify:core
 npm run verify:stellar-release-operator-live
 npm run verify:mvp-live

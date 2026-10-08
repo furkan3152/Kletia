@@ -8,7 +8,6 @@ export interface IntentPrivacyDecisionOptionV1 {
   readonly id:
     | "allow_ai_for_this_intent"
     | "allow_ai_for_session"
-    | "open_private_composer"
     | "edit_intent";
   readonly label: string;
   readonly description: string;
@@ -36,7 +35,12 @@ const FINANCIAL_ACTION =
   /\b(?:swap|buy|sell|send|transfer|bridge|lend|supply|borrow|repay|withdraw|stake|unstake|vault|liquidity|payment|pay|x402|takas|al|sat|gönder|gonder|köprü|kopru|borç|borc|yatır|yatir|çek|cek|öde|ode)\b/iu;
 
 const EVM_ADDRESS = /0x[a-f\d]{40}/giu;
-const STELLAR_ADDRESS = /\b[GC][A-Z2-7]{55}\b/gu;
+/**
+ * Solana base58 account or program address (32-44 characters). The lookarounds
+ * bound it by non-base58 characters so it cannot match inside a longer token.
+ */
+const SOLANA_ADDRESS =
+  /(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/gu;
 const FINANCIAL_NUMBER =
   /(?<![\p{L}\p{N}_])\d+(?:[.,]\d+)?(?![\p{L}\p{N}_])/gu;
 const MAX_OR_BALANCE =
@@ -57,7 +61,7 @@ export function redactIntentForPersistentHistory(value: string): string {
   return value
     .normalize("NFKC")
     .replace(EVM_ADDRESS, "[[private recipient]]")
-    .replace(STELLAR_ADDRESS, "[[private recipient]]")
+    .replace(SOLANA_ADDRESS, "[[private recipient]]")
     .replace(FINANCIAL_NUMBER, "[[private amount]]")
     .replace(MAX_OR_BALANCE, "[[private balance rule]]")
     .replace(/\s{2,}/gu, " ")
@@ -70,7 +74,6 @@ function isDecisionOption(value: unknown): value is IntentPrivacyDecisionOptionV
   return (
     (option.id === "allow_ai_for_this_intent" ||
       option.id === "allow_ai_for_session" ||
-      option.id === "open_private_composer" ||
       option.id === "edit_intent") &&
     typeof option.label === "string" &&
     option.label.length > 0 &&
@@ -116,8 +119,8 @@ export function isIntentPrivacyDecision(
     decision.question.length > 0 &&
     decision.question.length <= 500 &&
     Array.isArray(decision.options) &&
-    decision.options.length === 4 &&
+    decision.options.length === 3 &&
     decision.options.every(isDecisionOption) &&
-    new Set(decision.options.map((option) => option.id)).size === 4
+    new Set(decision.options.map((option) => option.id)).size === 3
   );
 }

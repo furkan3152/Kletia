@@ -27,28 +27,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const networkController = useNetwork();
   const effectiveNetworkMode = networkMode ?? networkController.networkMode;
-  const isStellarWorkspace = effectiveNetworkMode === "stellar";
-  const activeNetwork = isStellarWorkspace
-    ? networkController.network
-    : getNetwork(effectiveNetworkMode);
-  const activeColor = isStellarWorkspace ? "#8B5CF6" : activeNetwork.color;
-  const activeBadge = isStellarWorkspace ? "BUILT ON STELLAR" : activeNetwork.badge;
+  const activeNetwork = getNetwork(effectiveNetworkMode);
+  const activeColor = activeNetwork.color;
+  const activeBadge = activeNetwork.badge;
   const selectNetwork =
     onNetworkSelect ??
-    ((selected: WorkspaceMode) =>
-      selected === "stellar"
-        ? Promise.resolve(false)
-        : networkController.switchNetwork(selected));
+    ((selected: WorkspaceMode) => networkController.switchNetwork(selected));
   const networkIsSwitching =
     isNetworkSwitching ?? networkController.isSwitching;
   const networkError = networkSwitchError ?? networkController.switchError;
-  const baseMcpHandoffEnabled =
-    !isStellarWorkspace && activeNetwork.features.baseMcpHandoff;
+  const baseMcpHandoffEnabled = activeNetwork.features.baseMcpHandoff;
   const handleFunding = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (isStellarWorkspace) {
-      window.open("https://faucet.circle.com/", "_blank", "noopener,noreferrer");
-      return;
-    }
     if (activeNetwork.funding.kind === "faucet") {
       window.open(activeNetwork.funding.url, "_blank", "noopener,noreferrer");
       return;
@@ -122,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
         )}
-        {Boolean(address) && !isStellarWorkspace && (
+        {Boolean(address) && (
           <button
             type="button"
             onClick={handleFunding}
@@ -174,12 +163,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                           type="button"
                           className="min-h-11 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none sm:px-4 sm:text-xs md:text-sm"
                         >
-                          <span className="sm:hidden">
-                            {isStellarWorkspace ? "EVM" : "Connect"}
-                          </span>
-                          <span className="hidden sm:inline">
-                            {isStellarWorkspace ? "Connect EVM" : "Connect Wallet"}
-                          </span>
+                          <span className="sm:hidden">Connect</span>
+                          <span className="hidden sm:inline">Connect Wallet</span>
                         </button>
                       );
                     }

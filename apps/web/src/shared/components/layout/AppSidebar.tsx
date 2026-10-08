@@ -21,7 +21,6 @@ import {
   type AppTab,
   type NavigationIcon,
   type NetworkNavigationItem,
-  type NetworkNavigationSection,
 } from "../../config/networks";
 import {
   materializeIntentExample,
@@ -62,63 +61,6 @@ const NAVIGATION_ICONS: Record<NavigationIcon, LucideIcon> = {
   liquidity: TrendingUp,
 };
 
-const STELLAR_NAVIGATION: readonly NetworkNavigationSection[] = [
-  {
-    id: "stellar-intents",
-    label: "Intent Center",
-    items: [
-      {
-        id: "stellar-chat",
-        label: "Ask Kletia",
-        icon: "chat",
-        action: { type: "tab", tab: "chat" },
-      },
-      {
-        id: "stellar-dashboard",
-        label: "Payment Center",
-        icon: "dashboard",
-        action: { type: "tab", tab: "stellar" },
-      },
-      {
-        id: "stellar-payout",
-        label: "Pay Worldwide",
-        icon: "memo",
-        action: {
-          type: "prompt",
-          prompt: "Pay 100 TRY to a bank account from Stellar USDC",
-        },
-      },
-      {
-        id: "stellar-balances",
-        label: "Show Balances",
-        icon: "dashboard",
-        action: {
-          type: "prompt",
-          prompt: "Show my live XLM and USDC balances on Stellar",
-        },
-      },
-      {
-        id: "stellar-send",
-        label: "Send Payment",
-        icon: "memo",
-        action: {
-          type: "prompt",
-          prompt: "Send 5 USDC to a Stellar address",
-        },
-      },
-      {
-        id: "stellar-swap",
-        label: "Swap Assets",
-        icon: "swap",
-        action: {
-          type: "prompt",
-          prompt: "Swap 5 XLM to USDC using the best live Stellar route",
-        },
-      },
-    ],
-  },
-] as const;
-
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   activeTab,
   setActiveTab,
@@ -138,14 +80,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const effectiveWorkspace = workspaceMode ?? networkMode;
   const selectWorkspace =
     onWorkspaceSelect ??
-    ((selected: WorkspaceMode) =>
-      selected === "stellar" ? Promise.resolve(false) : switchNetwork(selected));
-  const isStellarWorkspace = effectiveWorkspace === "stellar";
-  const workspaceAccent = isStellarWorkspace ? "#8B5CF6" : network.color;
+    ((selected: WorkspaceMode) => switchNetwork(selected));
+  const workspaceAccent = network.color;
 
   const availableSections = React.useMemo(
     () =>
-      (isStellarWorkspace ? STELLAR_NAVIGATION : network.navigation)
+      network.navigation
         .map((section) => ({
           ...section,
           items: section.items.filter(
@@ -153,11 +93,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           ),
         }))
         .filter((section) => section.items.length > 0),
-    [isStellarWorkspace, network],
+    [network],
   );
 
   React.useEffect(() => {
-    if (isStellarWorkspace) return;
     const supportedTabs = availableSections.flatMap((section) =>
       section.items.flatMap((item) =>
         item.action.type === "tab" ? [item.action.tab] : [],
@@ -168,7 +107,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       setActiveTab("chat");
       setIsPortfolioOpen(false);
     }
-  }, [activeTab, availableSections, isStellarWorkspace, setActiveTab, setIsPortfolioOpen]);
+  }, [activeTab, availableSections, setActiveTab, setIsPortfolioOpen]);
 
   const navItemClass = (isActive: boolean) =>
     `group flex min-h-12 w-full items-center justify-between border-[3px] border-[#1A1A1A] px-4 py-3 font-black transition-[transform,box-shadow,background-color] duration-100 ease-out focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] ${
@@ -252,7 +191,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   className="text-[10px] font-black uppercase truncate"
                   style={{ color: workspaceAccent }}
                 >
-                  {isStellarWorkspace ? "Stellar Payment Center" : network.name}
+                  {network.name}
                 </p>
               </div>
               <NetworkSwitcher
@@ -349,7 +288,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <div>
             Kletia Omni Engine V2.0
             <br />
-            Powered by {isStellarWorkspace ? "Stellar Testnet" : network.shortName}
+            Powered by {network.shortName}
           </div>
         </div>
       </aside>

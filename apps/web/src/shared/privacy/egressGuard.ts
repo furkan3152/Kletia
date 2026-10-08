@@ -1,11 +1,10 @@
 /**
  * EgressGuardV1
  *
- * WorkflowPlanV2 measures "zero registered private-field egress" for an
- * observed browser session. Before this guard, that bounded claim rested on the
- * *shape* of the redacted semantic envelope: the allowlist in
- * `privateIntent.ts` and the server-side workflow parser. Those checks cover the
- * intended V2 path, but not other Kletia surfaces or an unobserved code path.
+ * A browser flow that keeps a value private ("zero registered private-field
+ * egress" for an observed session) cannot rest that claim on the *shape* of the
+ * payloads it builds: shape checks cover the intended path, but not other
+ * Kletia surfaces, third-party SDKs or an unobserved code path.
  *
  * This module turns the claim into a measurement. Private field values are
  * registered in a module-local closure, then every outbound browser surface is
@@ -73,49 +72,6 @@ export interface EgressViolation {
   readonly observedAt: string;
 }
 
-export interface ApprovedCheckpointCommitmentDisclosure {
-  readonly schemaVersion: typeof EGRESS_GUARD_SCHEMA;
-  readonly kind: "public_checkpoint_commitment_opening";
-  /** The private value is deliberately omitted; only its protocol field is named. */
-  readonly binding: "amountCommitmentSalt" | "recipientCommitmentSalt";
-  readonly field: "opening";
-  readonly surface: "fetch";
-  readonly location: "fetch:body";
-  readonly destinationOrigin: string;
-  readonly destinationPath: "/api/workflows/v2/advance";
-  readonly observer: "kletia_api";
-  readonly workflowId: string;
-  readonly stepId: string;
-  readonly requestId: string;
-  readonly transactionHash: string;
-  readonly irreversible: true;
-  readonly reason: string;
-  readonly observedAt: string;
-}
-
-export interface ApprovedRouteHydrationDisclosure {
-  readonly schemaVersion: typeof EGRESS_GUARD_SCHEMA;
-  readonly kind: "public_route_hydration_opening";
-  readonly binding: "amount" | "amountSalt";
-  readonly field: "amount" | "opening";
-  readonly surface: "fetch";
-  readonly location: "fetch:body";
-  readonly destinationOrigin: string;
-  readonly destinationPath: string;
-  readonly observer: "kletia_api";
-  readonly workflowId: string;
-  readonly stepId: string;
-  readonly requestId: string;
-  readonly transactionHash: null;
-  readonly irreversible: true;
-  readonly reason: string;
-  readonly observedAt: string;
-}
-
-export type ApprovedCommitmentDisclosure =
-  | ApprovedCheckpointCommitmentDisclosure
-  | ApprovedRouteHydrationDisclosure;
-
 export type EgressGuardCoverage =
   | "inactive"
   | "complete"
@@ -135,8 +91,6 @@ export interface EgressGuardReport {
   readonly needleCount: number;
   readonly inspectedOperations: number;
   readonly violations: readonly EgressViolation[];
-  /** Deliberate public-checkpoint openings. No private value is included. */
-  readonly approvedDisclosures: readonly ApprovedCommitmentDisclosure[];
   /** Whether every registered field can actually be measured by this guard. */
   readonly coverage: EgressGuardCoverage;
   /** True when the observed operations produced no blocked leak. */
@@ -171,11 +125,8 @@ const needles: Needle[] = [];
 const guardedFields = new Set<PrivateFieldName>();
 const unguardableFields = new Set<PrivateFieldName>();
 const violations: EgressViolation[] = [];
-const approvedDisclosures: ApprovedCommitmentDisclosure[] = [];
-const consumedOpeningDisclosureKeys = new Set<string>();
 let inspectedOperations = 0;
 let installed = false;
-let nativeFetchForApprovedDisclosure: typeof fetch | null = null;
 
 /**
  * Encodings a value can legitimately pass through on its way out of the browser.
@@ -242,11 +193,10 @@ export function resetPrivateFields(): void {
   unguardableFields.clear();
 }
 
-/** Starts a fresh, per-workflow measurement without weakening replay memory. */
+/** Starts a fresh, per-workflow measurement: clears needles, violations and counters. */
 export function beginEgressGuardObservation(): void {
   resetPrivateFields();
   violations.length = 0;
-  approvedDisclosures.length = 0;
   inspectedOperations = 0;
 }
 
@@ -288,8 +238,6 @@ function assertNoEgress(input: {
   surface: EgressSurface;
   location: string;
   destinationOrigin: string | null;
-  /** Exact encoded private needles allowed for one reviewed disclosure call. */
-  allowedPrivateNeedles?: ReadonlySet<string>;
 }): void {
   if (needles.length === 0 || !input.haystack) return;
   const haystack =
@@ -298,9 +246,6 @@ function assertNoEgress(input: {
       : input.haystack;
   const lowered = haystack.toLowerCase();
   for (const needle of needles) {
-    if (input.allowedPrivateNeedles?.has(needle.value)) {
-      continue;
-    }
     const found =
       needle.encoding === "lowercase"
         ? lowered.includes(needle.value)
@@ -392,7 +337,6 @@ export function installEgressGuard(): void {
 
   if (typeof scope.fetch === "function") {
     const nativeFetch = scope.fetch.bind(scope);
-    nativeFetchForApprovedDisclosure = nativeFetch;
     scope.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       inspectedOperations += 1;
       const destinationOrigin = originOf(input);
@@ -568,376 +512,6 @@ export function installEgressGuard(): void {
   }
 }
 
-export interface CommitmentOpeningFetchInput {
-  readonly url: string;
-  readonly workflowId: string;
-  readonly stepId: string;
-  readonly requestId: string;
-  readonly transactionHash: string;
-  readonly body: Readonly<Record<string, unknown>>;
-  readonly openings: readonly {
-    readonly binding: "amountCommitmentSalt" | "recipientCommitmentSalt";
-    readonly value: `0x${string}`;
-  }[];
-  readonly headers?: HeadersInit;
-  readonly signal?: AbortSignal;
-}
-
-/**
- * Sends the commitment salts only at the exact public checkpoint that opens the
- * already-public transaction amount. This is intentionally not a general
- * allowlist escape hatch: it only accepts the workflow advance endpoint, the
- * two reviewed JSON property names, one POST body, and 32-byte salts.
- *
- * Every other registered value, including the raw amount, is still scanned and
- * blocked. The approved opening is recorded without retaining the value.
- */
-export function fetchWithCommitmentOpeningDisclosure(
-  input: CommitmentOpeningFetchInput,
-): Promise<Response> {
-  if (!nativeFetchForApprovedDisclosure || !installed) {
-    throw new Error(
-      "The privacy guard must be installed before a commitment opening can be disclosed.",
-    );
-  }
-  const destination = new URL(input.url, globalThis.location?.href);
-  if (
-    destination.pathname !== "/api/workflows/v2/advance" ||
-    destination.search.length > 0 ||
-    destination.hash.length > 0
-  ) {
-    throw new Error(
-      "A commitment opening may only be disclosed to the exact workflow advance endpoint.",
-    );
-  }
-  if (input.openings.length === 0 || input.openings.length > 2) {
-    throw new Error("The public checkpoint opening set is invalid.");
-  }
-  if (
-    !input.workflowId.trim() ||
-    input.stepId !== "step-1" ||
-    !input.requestId.trim() ||
-    input.body.requestId !== input.requestId ||
-    input.body.txHash !== input.transactionHash ||
-    typeof input.body.workflowToken !== "string" ||
-    !input.body.workflowToken.startsWith("v2.") ||
-    !/^(?:0x[a-f\d]{64}|[a-f\d]{64})$/iu.test(input.transactionHash)
-  ) {
-    throw new Error(
-      "The public checkpoint opening is not bound to an exact workflow, step, request, token and transaction.",
-    );
-  }
-  const disclosureKey = [
-    input.workflowId,
-    input.stepId,
-    input.requestId,
-    input.transactionHash.toLowerCase(),
-  ].join(":");
-  if (consumedOpeningDisclosureKeys.has(disclosureKey)) {
-    throw new Error(
-      "This commitment opening was already disclosed for the sealed checkpoint. Recover status without replaying it.",
-    );
-  }
-  const seenBindings = new Set<string>();
-  const allowedOpeningNeedles = new Set<string>();
-  const allowedBodyKeys = new Set([
-    "workflowToken",
-    "requestId",
-    "txHash",
-    "manifestAuthorization",
-    "amountCommitmentSalt",
-    "recipientCommitmentSalt",
-  ]);
-  if (Object.keys(input.body).some((key) => !allowedBodyKeys.has(key))) {
-    throw new Error(
-      "The public checkpoint opening body contains an unreviewed field.",
-    );
-  }
-  for (const opening of input.openings) {
-    if (
-      seenBindings.has(opening.binding) ||
-      !/^0x[a-f\d]{64}$/iu.test(opening.value) ||
-      input.body[opening.binding] !== opening.value
-    ) {
-      throw new Error("A public checkpoint commitment opening is malformed.");
-    }
-    seenBindings.add(opening.binding);
-    for (const encoded of encodingsOf(opening.value)) {
-      allowedOpeningNeedles.add(encoded.value);
-    }
-    for (const [key, value] of Object.entries(input.body)) {
-      if (key === opening.binding) continue;
-      const serialized = stringify(value);
-      if (
-        encodingsOf(opening.value).some((encoded) =>
-          serialized.includes(encoded.value),
-        )
-      ) {
-        throw new Error(
-          "A commitment opening may appear only in its exact reviewed binding.",
-        );
-      }
-    }
-  }
-  const body = JSON.stringify(input.body);
-  inspectedOperations += 1;
-  assertNoEgress({
-    haystack: destination.href,
-    surface: "fetch",
-    location: "fetch:url",
-    destinationOrigin: destination.origin,
-  });
-  inspectHeaders(
-    input.headers,
-    "fetch",
-    "fetch:headers",
-    destination.origin,
-  );
-  assertNoEgress({
-    haystack: body,
-    surface: "fetch",
-    location: "fetch:body",
-    destinationOrigin: destination.origin,
-    allowedPrivateNeedles: allowedOpeningNeedles,
-  });
-  // Consume before handing control to the network. A timeout is indeterminate,
-  // not permission to replay the opening under the same checkpoint identity.
-  consumedOpeningDisclosureKeys.add(disclosureKey);
-  const observedAt = new Date().toISOString();
-  for (const opening of input.openings) {
-    approvedDisclosures.push({
-      schemaVersion: EGRESS_GUARD_SCHEMA,
-      kind: "public_checkpoint_commitment_opening",
-      binding: opening.binding,
-      field: "opening",
-      surface: "fetch",
-      location: "fetch:body",
-      destinationOrigin: destination.origin,
-      destinationPath: "/api/workflows/v2/advance",
-      observer: "kletia_api",
-      workflowId: input.workflowId,
-      stepId: input.stepId,
-      requestId: input.requestId,
-      transactionHash: input.transactionHash,
-      irreversible: true,
-      reason:
-        "The public transaction already reveals the bound value. Kletia API receives this one-time opening only to verify the exact calldata against the user-signed plan.",
-      observedAt,
-    });
-  }
-  return nativeFetchForApprovedDisclosure(destination.href, {
-    method: "POST",
-    headers: input.headers,
-    body,
-    signal: input.signal,
-  });
-}
-
-export interface RouteHydrationFetchInput {
-  readonly url: string;
-  readonly workflowId: string;
-  readonly routeId: string;
-  readonly requestId: string;
-  readonly body: {
-    readonly amount: string;
-    readonly amountSalt: `0x${string}`;
-    readonly acknowledgePublicExecution: true;
-  };
-  readonly headers: HeadersInit;
-  readonly signal?: AbortSignal;
-}
-
-/**
- * Opens the protected amount only for the exact V3 live-route hydration call.
- * This is the explicit boundary where the user requests amount-dependent
- * balance, allowance, bridge-fee and APY evidence. It cannot be reused as a
- * general privacy-guard bypass.
- */
-export function fetchWithRouteHydrationDisclosure(
-  input: RouteHydrationFetchInput,
-): Promise<Response> {
-  if (!nativeFetchForApprovedDisclosure || !installed) {
-    throw new Error(
-      "The privacy guard must be installed before route hydration can disclose private fields.",
-    );
-  }
-  const destination = new URL(input.url, globalThis.location?.href);
-  const expectedPath = `/api/workflows/v3/${encodeURIComponent(input.workflowId)}/routes/${encodeURIComponent(input.routeId)}/hydrate`;
-  if (
-    destination.pathname !== expectedPath ||
-    destination.search.length > 0 ||
-    destination.hash.length > 0 ||
-    !/^[0-9a-f-]{36}$/iu.test(input.workflowId) ||
-    !/^[0-9a-f-]{36}$/iu.test(input.requestId) ||
-    !/^[a-z0-9][a-z0-9-]{2,127}$/u.test(input.routeId) ||
-    !/^(?:\d+\.?\d*|\.\d+)$/u.test(input.body.amount) ||
-    (input.body.amount.split(".")[1]?.length ?? 0) > 6 ||
-    !/^0x[a-f\d]{64}$/iu.test(input.body.amountSalt) ||
-    input.body.acknowledgePublicExecution !== true
-  ) {
-    throw new Error(
-      "The V3 route-hydration disclosure is not bound to an exact reviewed workflow request.",
-    );
-  }
-  const headers = new Headers(input.headers);
-  const authorization = headers.get("Authorization") ?? "";
-  if (!authorization.startsWith("Bearer ") || authorization.length < 88) {
-    throw new Error(
-      "The route-hydration disclosure requires the exact sealed Workflow V3 token.",
-    );
-  }
-  const body = JSON.stringify(input.body);
-  const allowedPrivateNeedles = new Set<string>();
-  for (const value of [input.body.amount, input.body.amountSalt]) {
-    for (const encoded of encodingsOf(value)) {
-      allowedPrivateNeedles.add(encoded.value);
-    }
-  }
-  inspectedOperations += 1;
-  assertNoEgress({
-    haystack: destination.href,
-    surface: "fetch",
-    location: "fetch:url",
-    destinationOrigin: destination.origin,
-  });
-  inspectHeaders(headers, "fetch", "fetch:headers", destination.origin);
-  assertNoEgress({
-    haystack: body,
-    surface: "fetch",
-    location: "fetch:body",
-    destinationOrigin: destination.origin,
-    allowedPrivateNeedles,
-  });
-  const observedAt = new Date().toISOString();
-  for (const entry of [
-    { binding: "amount" as const, field: "amount" as const },
-    { binding: "amountSalt" as const, field: "opening" as const },
-  ]) {
-    approvedDisclosures.push({
-      schemaVersion: EGRESS_GUARD_SCHEMA,
-      kind: "public_route_hydration_opening",
-      binding: entry.binding,
-      field: entry.field,
-      surface: "fetch",
-      location: "fetch:body",
-      destinationOrigin: destination.origin,
-      destinationPath: expectedPath,
-      observer: "kletia_api",
-      workflowId: input.workflowId,
-      stepId: input.routeId,
-      requestId: input.requestId,
-      transactionHash: null,
-      irreversible: true,
-      reason:
-        "User approved an amount-bound live route quote before public execution.",
-      observedAt,
-    });
-  }
-  return nativeFetchForApprovedDisclosure(destination.href, {
-    method: "POST",
-    headers,
-    body,
-    signal: input.signal,
-  });
-}
-
-/**
- * Opens the protected amount at the equivalent canonical V4 boundary.
- *
- * V4 has already required a device proof and an owner-authorized Stellar
- * control-plane commitment before this call can succeed. Keeping a separate,
- * exact-path helper prevents that stronger workflow token from becoming a
- * general bypass for the browser egress guard.
- */
-export function fetchWithCanonicalRouteHydrationDisclosure(
-  input: RouteHydrationFetchInput,
-): Promise<Response> {
-  if (!nativeFetchForApprovedDisclosure || !installed) {
-    throw new Error(
-      "The privacy guard must be installed before canonical route hydration can disclose private fields.",
-    );
-  }
-  const destination = new URL(input.url, globalThis.location?.href);
-  const expectedPath = `/api/intents/v4/${encodeURIComponent(input.workflowId)}/hydrate`;
-  if (
-    destination.pathname !== expectedPath ||
-    destination.search.length > 0 ||
-    destination.hash.length > 0 ||
-    !/^[0-9a-f-]{36}$/iu.test(input.workflowId) ||
-    !/^[0-9a-f-]{36}$/iu.test(input.requestId) ||
-    input.routeId !== "arc-arbitrum-direct-cctp" ||
-    !/^(?:\d+\.?\d*|\.\d+)$/u.test(input.body.amount) ||
-    (input.body.amount.split(".")[1]?.length ?? 0) > 6 ||
-    !/^0x[a-f\d]{64}$/iu.test(input.body.amountSalt) ||
-    input.body.acknowledgePublicExecution !== true
-  ) {
-    throw new Error(
-      "The V4 route-hydration disclosure is not bound to an exact reviewed workflow request.",
-    );
-  }
-  const headers = new Headers(input.headers);
-  const authorization = headers.get("Authorization") ?? "";
-  if (!authorization.startsWith("Bearer ") || authorization.length < 88) {
-    throw new Error(
-      "The route-hydration disclosure requires the exact sealed Workflow V4 token.",
-    );
-  }
-  const body = JSON.stringify({
-    routeId: input.routeId,
-    ...input.body,
-  });
-  const allowedPrivateNeedles = new Set<string>();
-  for (const value of [input.body.amount, input.body.amountSalt]) {
-    for (const encoded of encodingsOf(value)) allowedPrivateNeedles.add(encoded.value);
-  }
-  inspectedOperations += 1;
-  assertNoEgress({
-    haystack: destination.href,
-    surface: "fetch",
-    location: "fetch:url",
-    destinationOrigin: destination.origin,
-  });
-  inspectHeaders(headers, "fetch", "fetch:headers", destination.origin);
-  assertNoEgress({
-    haystack: body,
-    surface: "fetch",
-    location: "fetch:body",
-    destinationOrigin: destination.origin,
-    allowedPrivateNeedles,
-  });
-  const observedAt = new Date().toISOString();
-  for (const entry of [
-    { binding: "amount" as const, field: "amount" as const },
-    { binding: "amountSalt" as const, field: "opening" as const },
-  ]) {
-    approvedDisclosures.push({
-      schemaVersion: EGRESS_GUARD_SCHEMA,
-      kind: "public_route_hydration_opening",
-      binding: entry.binding,
-      field: entry.field,
-      surface: "fetch",
-      location: "fetch:body",
-      destinationOrigin: destination.origin,
-      destinationPath: expectedPath,
-      observer: "kletia_api",
-      workflowId: input.workflowId,
-      stepId: input.routeId,
-      requestId: input.requestId,
-      transactionHash: null,
-      irreversible: true,
-      reason:
-        "The owner explicitly opened the sealed amount after Policy V2 proof and Stellar commitment so Kletia can bind live public execution evidence.",
-      observedAt,
-    });
-  }
-  return nativeFetchForApprovedDisclosure(destination.href, {
-    method: "POST",
-    headers,
-    body,
-    signal: input.signal,
-  });
-}
-
 export function readEgressGuardReport(): EgressGuardReport {
   const hasRegisteredFields =
     guardedFields.size > 0 || unguardableFields.size > 0;
@@ -955,7 +529,6 @@ export function readEgressGuardReport(): EgressGuardReport {
     needleCount: needles.length,
     inspectedOperations,
     violations: [...violations],
-    approvedDisclosures: [...approvedDisclosures],
     coverage,
     observedNoViolation,
     zeroPrivateFieldEgress:
@@ -990,7 +563,5 @@ export function recordExternalEgressViolation(
 export function resetEgressGuardStateForTests(): void {
   resetPrivateFields();
   violations.length = 0;
-  approvedDisclosures.length = 0;
-  consumedOpeningDisclosureKeys.clear();
   inspectedOperations = 0;
 }

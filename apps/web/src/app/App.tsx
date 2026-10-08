@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import {
   NETWORKS,
-  STELLAR_WORKSPACE_ENABLED,
   type AppTab,
   type NetworkMode,
 } from "../shared/config/networks";
@@ -37,7 +36,6 @@ import {
   type IntentResponse,
   type PortfolioData,
   type RouteData,
-  type ChatMessage,
   type WidgetId,
 } from "../shared/types";
 import { ArcAppKitRouteCard } from "../networks/arc/components/ArcAppKitRouteCard";
@@ -84,7 +82,6 @@ import { resolveIntentHttpResponseBoundary } from "../shared/security/intentHttp
 import { isWorkflowPlanV1, isWorkflowToken } from "../shared/security/workflowBoundary";
 import { WorkflowTimeline } from "../cross-chain/components/WorkflowTimeline";
 import { PolicyAgentCard } from "../shared/components/policy/PolicyAgentCard";
-import { requestsFinancialPrivacy } from "../shared/privacy/intentPrivacy";
 import {
   isIntentPrivacyDecision,
   redactIntentForPersistentHistory,
@@ -93,10 +90,6 @@ import {
   type IntentSemanticPlannerMode,
 } from "../shared/privacy/defaultIntentPrivacy";
 import { isIntentPrivacyTrace } from "../shared/privacy/intentPrivacyTrace";
-import {
-  resolveStellarWorkspaceIntent,
-  type StellarWorkspaceIntentResolution,
-} from "../networks/stellar/runtime/intentWorkspace";
 
 const BASE_SWAP_EXECUTION_POLICY_SETTING = import.meta.env
   .VITE_BASE_SWAP_EXECUTION_MODE;
@@ -135,21 +128,10 @@ const ArcLendingDashboard = React.lazy(() =>
     default: module.ArcLendingDashboard,
   })),
 );
-const StellarPaymentCenter = React.lazy(() =>
-  import("../networks/stellar/components/StellarPaymentCenter").then((module) => ({
-    default: module.StellarPaymentCenter,
-  })),
-);
-const StellarIntentCard = React.lazy(() =>
-  import("../networks/stellar/components/StellarIntentCard").then((module) => ({
-    default: module.StellarIntentCard,
-  })),
-);
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APP_TABS: readonly AppTab[] = [
   "chat",
-  "stellar",
   "basename",
   "allora",
   "airdrop",
@@ -336,17 +318,10 @@ export default function App() {
   const [activeArcWidget, setActiveArcWidget] = useState<WidgetId>(null);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isAppSidebarOpen, setIsAppSidebarOpen] = useState(false);
-  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(() => {
-    const savedWorkspace = localStorage.getItem("kletia-workspace-mode");
-    if (STELLAR_WORKSPACE_ENABLED && savedWorkspace === "stellar") {
-      return "stellar";
-    }
-    return networkMode;
-  });
+  // Every workspace is currently a wallet-switchable network, so the active
+  // workspace is derived from the wallet network rather than stored separately.
+  const workspaceMode: WorkspaceMode = networkMode;
   const [input, setInput] = useState("");
-  const [stellarPrivateIntentDraft, setStellarPrivateIntentDraft] = useState("");
-  const [stellarMessages, setStellarMessages] = useState<ChatMessage[]>([]);
-  const [stellarClassicAddress, setStellarClassicAddress] = useState("");
   const [pendingPrivacyDecision, setPendingPrivacyDecision] =
     useState<PendingPrivacyDecision | null>(null);
   const [semanticAiSession, setSemanticAiSession] =
@@ -377,8 +352,6 @@ export default function App() {
         : [],
     [activeWalletOwner, historyOwner, storedMessages],
   );
-  const activeChatMessages =
-    workspaceMode === "stellar" ? stellarMessages : messages;
   const activeSemanticAiSession =
     semanticAiSession &&
     semanticAiSession.network === networkMode &&
@@ -388,29 +361,10 @@ export default function App() {
       ? semanticAiSession
       : null;
 
-  useEffect(() => {
-    if (workspaceMode !== "stellar" && workspaceMode !== networkMode) {
-      setWorkspaceMode(networkMode);
-      localStorage.setItem("kletia-workspace-mode", networkMode);
-    }
-  }, [networkMode, workspaceMode]);
-
   const selectWorkspace = async (selected: WorkspaceMode) => {
-    if (selected === "stellar") {
-      if (!STELLAR_WORKSPACE_ENABLED) return false;
-      activeRequestRef.current?.controller.abort();
-      setPendingPrivacyDecision(null);
-      setActiveTab("chat");
-      setIsPortfolioOpen(false);
-      setWorkspaceMode("stellar");
-      localStorage.setItem("kletia-workspace-mode", "stellar");
-      return true;
-    }
     const switched = await switchNetwork(selected);
     if (switched) {
       setPendingPrivacyDecision(null);
-      setWorkspaceMode(selected);
-      localStorage.setItem("kletia-workspace-mode", selected);
     }
     return switched;
   };
@@ -610,9 +564,9 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (activeChatMessages.length === 0) return;
+    if (messages.length === 0) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChatMessages]);
+  }, [messages]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -715,15 +669,6 @@ export default function App() {
       conversationContextRef.current = null;
       clarificationSubmissionRef.current = null;
     }
-    if (workspaceMode === "stellar") {
-      setInput(prompt);
-      setActiveTab("chat");
-      setIsPortfolioOpen(false);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 10);
-      return;
-    }
     setInput(prompt);
     setActiveTab("chat");
     setIsPortfolioOpen(false);
@@ -763,29 +708,6 @@ export default function App() {
         id: createRequestId(),
         role: "kletia",
         text: "🚨 Private key, seed phrase, or API credentials cannot be sent here. Message not saved for security.",
-        network: networkMode,
-        chainId: network.chainId,
-      });
-      blockStructuredSelection();
-      return;
-    }
-    if (requestsFinancialPrivacy(userText)) {
-      setInput("");
-      if (STELLAR_WORKSPACE_ENABLED) {
-        // Ephemeral React state only: this is consumed by the local composer
-        // and is never written to chat history or browser storage.
-        setStellarPrivateIntentDraft(userText);
-        setWorkspaceMode("stellar");
-        setActiveTab("stellar");
-        setIsPortfolioOpen(false);
-        localStorage.setItem("kletia-workspace-mode", "stellar");
-      }
-      addMessage({
-        id: createRequestId(),
-        role: "kletia",
-        text: STELLAR_WORKSPACE_ENABLED
-          ? "Privacy request detected locally. Your raw prompt was not sent or saved. Kletia opened the Private Intent Composer; enter exact amounts only in its local field. CCTP and all ledger settlement remain public."
-          : "Privacy request detected locally, so the raw prompt was not sent or saved. The Private Intent workspace is unavailable on this deployment; public-chain activity cannot be presented as confidential.",
         network: networkMode,
         chainId: network.chainId,
       });
@@ -1615,21 +1537,6 @@ export default function App() {
       return;
     }
 
-    if (option.id === "open_private_composer") {
-      if (!STELLAR_WORKSPACE_ENABLED) {
-        setInput(pending.prompt);
-        requestAnimationFrame(() => inputRef.current?.focus());
-        return;
-      }
-      // The raw prompt stays in ephemeral React state and is handed directly
-      // to the device-private composer; it is never persisted as chat history.
-      setStellarPrivateIntentDraft(pending.prompt);
-      void selectWorkspace("stellar").then((selected) => {
-        if (selected) setActiveTab("stellar");
-      });
-      return;
-    }
-
     setInput(pending.prompt);
     setActiveTab("chat");
     setIsPortfolioOpen(false);
@@ -1637,104 +1544,6 @@ export default function App() {
   };
 
   const handleSend = () => {
-    if (workspaceMode === "stellar") {
-      const intent = input.trim();
-      if (!intent) return;
-      setPendingPrivacyDecision(null);
-      if (containsSensitivePromptMaterial(intent)) {
-        setStellarMessages((current) => [
-          ...current,
-          {
-            id: createRequestId(),
-            role: "kletia",
-            text: "Private keys, seed phrases, and API credentials are blocked and were not added to chat.",
-          },
-        ]);
-        setInput("");
-        return;
-      }
-      const resolution = resolveStellarWorkspaceIntent(intent);
-      const userMessage: ChatMessage = {
-        id: createRequestId(),
-        role: "user",
-        text: redactIntentForPersistentHistory(intent),
-      };
-      const actionMessage: ChatMessage = {
-        id: createRequestId(),
-        role: "kletia",
-        text:
-          resolution.kind === "unknown"
-            ? "I stopped before preparing a Stellar transaction because the asset or action is not fully supported."
-            : resolution.kind === "payout"
-              ? "I mapped this to the Stellar Payment Center. Compare only live anchor routes here; bank and KYC details stay out of chat."
-            : resolution.kind === "cross_chain"
-              ? resolution.scenarioId
-                ? "I mapped this request to the reviewed Arc → Arbitrum Sepolia workflow. Enter the private amount and complete every checkpoint here in chat."
-                : "I recognized a multichain goal, but no complete reviewed route is bound yet."
-            : "I mapped this request locally to a reviewed Stellar action. Quote and transaction preparation remain deterministic.",
-        widgetType: "stellar_intent",
-        widgetData: resolution,
-      };
-      setStellarMessages((current) => [
-        ...current,
-        userMessage,
-        actionMessage,
-      ]);
-      if (
-        resolution.kind === "unknown" &&
-        sessionStorage.getItem("kletia-stellar-smart-parser-consent") === "true"
-      ) {
-        void (async () => {
-          try {
-            const response = await fetch(`${BACKEND_URL}/api/stellar/intent/interpret`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Kletia-Chain-Ref": "stellar:testnet",
-              },
-              body: JSON.stringify({ prompt: intent, semanticConsent: true }),
-            });
-            const body = (await response.json().catch(() => null)) as {
-              success?: unknown;
-              intent?: unknown;
-            } | null;
-            if (
-              !response.ok ||
-              body?.success !== true ||
-              !body.intent ||
-              typeof body.intent !== "object" ||
-              Array.isArray(body.intent)
-            ) {
-              return;
-            }
-            const interpreted = {
-              ...(body.intent as StellarWorkspaceIntentResolution),
-              sourcePrompt: intent,
-              semanticModelUsed: true,
-            };
-            setStellarMessages((current) =>
-              current.map((candidate) =>
-                candidate.id === actionMessage.id
-                  ? {
-                      ...candidate,
-                      text: interpreted.readyToPrepare
-                        ? "I understood the goal and prepared the reviewed action in chat."
-                        : "I understood the goal, but one required detail is still missing.",
-                      widgetData: interpreted,
-                    }
-                  : candidate,
-              ),
-            );
-          } catch {
-            // The existing unknown card remains available; no route is guessed.
-          }
-        })();
-      }
-      setInput("");
-      setActiveTab("chat");
-      setIsPortfolioOpen(false);
-      return;
-    }
     if (input.trim()) setPendingPrivacyDecision(null);
     void submitIntent(input);
   };
@@ -2433,11 +2242,6 @@ export default function App() {
           onWidgetClick={handleWidgetClick}
           workspaceMode={workspaceMode}
           onWorkspaceSelect={selectWorkspace}
-          onClearHistory={
-            workspaceMode === "stellar"
-              ? () => setStellarMessages([])
-              : undefined
-          }
         />
 
         <div className="grid grid-rows-[1fr_auto] flex-1 overflow-hidden relative w-full h-full min-h-0 min-w-0">
@@ -2451,19 +2255,7 @@ export default function App() {
               </div>
             }
           >
-          {workspaceMode === "stellar" && activeTab === "stellar" ? (
-            <div className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">
-              <StellarPaymentCenter
-                evmAddress={address}
-                initialIntent={stellarPrivateIntentDraft}
-                onIntentConsumed={() => setStellarPrivateIntentDraft("")}
-                onIntentSelect={(prompt) => {
-                  setActiveTab("chat");
-                  handleWidgetClick(prompt);
-                }}
-              />
-            </div>
-          ) : networkMode === "base" && activeTab === "allora" ? (
+          {networkMode === "base" && activeTab === "allora" ? (
             <AlloraDashboard
               isDarkMode={isDarkMode}
               onActionClick={handleWidgetClick}
@@ -2509,15 +2301,15 @@ export default function App() {
                 id="chat-container"
               >
                 <div className="relative mx-auto w-full max-w-4xl min-w-0 pr-1 md:pr-0">
-                  {activeChatMessages.length === 0 && (
+                  {messages.length === 0 && (
                     <IntentStarter
-                      networkMode={workspaceMode === "stellar" ? "stellar" : networkMode}
+                      networkMode={workspaceMode}
                       walletAddress={address}
                       onSelect={handleWidgetClick}
                     />
                   )}
                   <div className="space-y-5 sm:space-y-6 md:space-y-8">
-                    {activeChatMessages.map((msg) => (
+                    {messages.map((msg) => (
                       <div
                         key={msg.id}
                         className={`flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
@@ -2549,33 +2341,6 @@ export default function App() {
                           {msg.role === "kletia" ? (
                             <div>
                               <div>{renderSafeMessage(msg.text)}</div>
-                              {workspaceMode === "stellar" &&
-                              msg.widgetType === "stellar_intent" &&
-                              msg.widgetData ? (
-                                <StellarIntentCard
-                                  key={`${msg.id}:${(msg.widgetData as StellarWorkspaceIntentResolution).semanticModelUsed ? "smart" : "local"}:${(msg.widgetData as StellarWorkspaceIntentResolution).kind}`}
-                                  resolution={
-                                    msg.widgetData as StellarWorkspaceIntentResolution
-                                  }
-                                  evmAddress={address}
-                                  stellarAddress={stellarClassicAddress}
-                                  onStellarAddressChange={setStellarClassicAddress}
-                                  onResolutionChange={(resolution) => {
-                                    setStellarMessages((current) =>
-                                      current.map((candidate) =>
-                                        candidate.id === msg.id
-                                          ? { ...candidate, widgetData: resolution }
-                                          : candidate,
-                                      ),
-                                    );
-                                  }}
-                                  onOpenWorkspace={(resolution) => {
-                                    setStellarPrivateIntentDraft(resolution.sourcePrompt);
-                                    setActiveTab("stellar");
-                                    setIsPortfolioOpen(false);
-                                  }}
-                                />
-                              ) : null}
                               {msg.intentData?.privacyTrace &&
                               msg.intentData.requestId === msg.requestId &&
                               msg.intentData.network === msg.network &&
@@ -3253,7 +3018,7 @@ export default function App() {
                 </div>
               ) : null}
 
-              {workspaceMode !== "stellar" && activeSemanticAiSession ? (
+              {activeSemanticAiSession ? (
                 <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-2.5 pt-2 text-[10px] font-black uppercase sm:px-4 md:px-6">
                   <span className="border-2 border-[#1A1A1A] bg-[#EDE7FF] px-2 py-1 text-[#4F2A9B] dark:border-[#64748B] dark:bg-[#231C3D] dark:text-[#D8CCFF]">
                     Natural language on · this tab · expires automatically
@@ -3273,7 +3038,7 @@ export default function App() {
                 input={input}
                 setInput={setInput}
                 handleSend={handleSend}
-                networkMode={workspaceMode === "stellar" ? "stellar" : networkMode}
+                networkMode={workspaceMode}
               />
             </>
           )}

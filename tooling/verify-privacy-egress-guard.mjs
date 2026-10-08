@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Executable measurement gate for registered WorkflowPlanV2 private fields.
+ * Executable measurement gate for registered private intent fields.
  *
  * Every other gate in this repository checks that the *source* is shaped
  * correctly. This one exercises EgressGuardV1 as a running program and asserts
@@ -40,18 +40,8 @@ const {
   registerPrivateField,
   readEgressGuardReport,
   resetEgressGuardStateForTests,
-  fetchWithRouteHydrationDisclosure,
   PrivateFieldEgressBlockedError,
 } = guard;
-
-const { redactSemanticContext } = await import(
-  pathToFileURL(
-    new URL(
-      "../apps/web/src/shared/privacy/semanticRedaction.ts",
-      import.meta.url,
-    ).pathname,
-  ).href
-);
 
 const failures = [];
 const expect = (condition, message) => {
@@ -74,20 +64,6 @@ globalThis.fetch = async () => new Response("{}", { status: 200 });
 installEgressGuard();
 expect(readEgressGuardReport().installed, "the guard did not report itself installed");
 
-const RAW_CONTEXT =
-  "Move 12.345678 USDC from 0x1111111111111111111111111111111111111111 to GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5 via Aave V3.";
-const REDACTED_CONTEXT = redactSemanticContext(RAW_CONTEXT);
-expect(
-  !REDACTED_CONTEXT.includes("12.345678") &&
-    !REDACTED_CONTEXT.includes("0x1111111111111111111111111111111111111111") &&
-    !REDACTED_CONTEXT.includes("GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5") &&
-    !/\p{Number}/u.test(REDACTED_CONTEXT) &&
-    REDACTED_CONTEXT.includes("[[redacted:number]]") &&
-    REDACTED_CONTEXT.includes("[[redacted:evm_address]]") &&
-    REDACTED_CONTEXT.includes("[[redacted:stellar_address]]"),
-  "natural-language context did not remove every numeric and wallet identity before semantic planning",
-);
-
 // A second install must be a no-op. Double-wrapping would nest the guard inside
 // itself and make a violation report attribute the leak to the wrong surface.
 installEgressGuard();
@@ -100,7 +76,7 @@ const PRIVATE_HYDRATION_AMOUNT = "9876.543210";
 const PRIVATE_OPENING = `0x${"ab".repeat(32)}`;
 // An unrelated value that must never be treated as private, so a passing test
 // cannot be explained by the guard blocking everything.
-const PUBLIC_VALUE = "arc_testnet_usdc_to_arbitrum_sepolia_aave_supply";
+const PUBLIC_VALUE = "base_usdc_to_arbitrum_aave_supply";
 
 resetEgressGuardStateForTests();
 expect(
@@ -139,29 +115,6 @@ expect(
 );
 
 const ORIGIN = "https://api.kletia.invalid";
-const approvedHydration = await fetchWithRouteHydrationDisclosure({
-  url: `${ORIGIN}/api/workflows/v3/8ab4ac15-9f8d-4b35-bcfe-4dc0c6d72347/routes/arc-arbitrum-direct-cctp/hydrate`,
-  workflowId: "8ab4ac15-9f8d-4b35-bcfe-4dc0c6d72347",
-  routeId: "arc-arbitrum-direct-cctp",
-  requestId: "12d6e887-92ce-49b0-a0b7-b3d37f62561d",
-  body: {
-    amount: PRIVATE_HYDRATION_AMOUNT,
-    amountSalt: PRIVATE_OPENING,
-    acknowledgePublicExecution: true,
-  },
-  headers: {
-    Authorization: `Bearer ${"v3."}${"a".repeat(120)}`,
-    "Content-Type": "application/json",
-  },
-});
-expect(approvedHydration.ok, "the exact reviewed V3 hydration disclosure was blocked");
-expect(
-  readEgressGuardReport().approvedDisclosures.filter(
-    (entry) => entry.kind === "public_route_hydration_opening",
-  ).length === 2,
-  "the approved V3 amount and opening disclosures were not recorded without their values",
-);
-
 // Each case names the exact channel a private value could realistically escape
 // through. `location` covers query strings, referrers and server access logs.
 const blockedCases = [

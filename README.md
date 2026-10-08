@@ -27,7 +27,7 @@
 ## What Kletia does
 
 - Interprets simple and staged intents while keeping contract identities, calldata, XDR, quotes, and success decisions deterministic.
-- Resolves assets by network-specific identity: EVM chain and contract, or Stellar network, code, issuer, and SAC.
+- Resolves assets by network-specific identity: EVM chain and contract, or Solana mint and token program.
 - Compares reviewed routes using output, gas, fees, slippage, time, risk, and disclosure cost.
 - Presents approvals, bridge checkpoints, protocol actions, and recovery as explicit user-authorized steps.
 - Treats `indeterminate` as a real state: an uncertain transaction is recovered by its existing hash or nonce, never silently resent.
@@ -47,15 +47,12 @@ flowchart LR
     G --> B[Base Mainnet]
     G --> A[Arc Testnet]
     G --> R[Arbitrum One / Sepolia]
-    G --> S[Stellar Testnet]
 
     B --> E[EVM wallet approval]
     A --> E
     R --> E
-    S --> K[Passkey C-account or Freighter]
 
     E --> V[Receipt and protocol verification]
-    K --> V
     V --> T[Timeline, evidence, recovery]
 
     subgraph Optional research labs
@@ -102,7 +99,6 @@ Cross-chain workflows are checkpointed, not globally atomic. A later step is pre
 | **Base Mainnet** (`8453`) | Production capital lane | Portfolio, reviewed swap execution through Intent Router V2, lending/vault discovery, token launch, Basenames, x402, security integrations | Contracts are publicly deployed and identity-pinned; this is not an audit or a guarantee that every discovered protocol route is executable |
 | **Arbitrum One** (`42161`) | Production capital lane | Uniswap V3 and Aave V3 adapters, portfolio and risk reads, staged Base-to-Arbitrum workflows | Public Beta behind independent API and web capability gates |
 | **Arc Testnet** (`5042002`) | Testnet lane | Native-USDC swap, lending, staking, Vault V2, memo and batch payments, Circle/App Kit planning | Testnet-only deployed contracts; native-value and ERC-20 USDC decimal rails remain distinct |
-| **Stellar Testnet** | Testnet lane | XLM/USDC balances, trustlines, Classic payments, SDEX, secp256r1 WebAuthn C-accounts, Payment Center orchestration | Passkey flow has real Testnet transaction evidence; no reviewed real-world payout provider currently satisfies the full release gate |
 | **Arbitrum Sepolia** (`421614`) | Testnet endpoint | Circle Testnet USDC and reviewed Aave supply workflow | Used by the Arc/CCTP test corridor; borrowing remains read-only capacity in the MVP |
 
 Production and Testnet capital never share one workflow. A registry entry means “known identity,” not automatic support for every action.
@@ -128,8 +124,6 @@ apps/
 contracts/
   base/                   Base Mainnet Solidity contracts and deployment evidence
   arc/                    Arc Testnet Solidity contracts and migration evidence
-  stellar/                Soroban contracts and Testnet deployment manifests
-circuits/stellar-policy/  Circom policy circuits and reproducible development artifacts
 docs/                     Architecture, network, deployment, runbook, and research records
 tooling/                  Repository, privacy, workflow, circuit, and release gates
 attachments/              Path- and hash-stable submission material
@@ -143,10 +137,7 @@ See the [documentation index](docs/README.md) and [repository ownership rules](d
 
 - Node.js **22.23.1** (`.nvmrc`)
 - npm shipped with that Node release
-- A modern WebAuthn browser on `localhost` or HTTPS for Stellar passkeys
 - An EVM wallet for Base, Arc, and Arbitrum value-moving tests
-- Freighter only for Classic Stellar flows that explicitly require it
-- Rust, Cargo, and the Stellar CLI only for Soroban labs and contract work
 
 ### Install
 
@@ -161,10 +152,7 @@ npm --prefix contracts/base ci --include=dev --legacy-peer-deps
 npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 ```
 
-The repository intentionally has no root workspace lockfile. Each JavaScript package owns its lockfile and must be installed independently. Labs that exercise the Circom workspace also require:
-
-```bash
-npm --prefix circuits/stellar-policy ci --include=dev
+The repository intentionally has no root workspace lockfile. Each JavaScript package owns its lockfile and must be installed independently. ```bash
 ```
 
 ### Configure
@@ -223,8 +211,6 @@ The end-to-end operator procedure is in the [real-data MVP runbook](docs/runbook
 
 - Base V2 identities: [`contracts/base/deployments/base-mainnet-v2.json`](contracts/base/deployments/base-mainnet-v2.json)
 - Arc Testnet identities: [`contracts/arc/deployments/arc-testnet.json`](contracts/arc/deployments/arc-testnet.json)
-- Stellar passkey smoke evidence: [`contracts/stellar/deployments/testnet/passkey-smoke.v1.json`](contracts/stellar/deployments/testnet/passkey-smoke.v1.json)
-- Stellar control-plane and solver research manifests: [`contracts/stellar/deployments/testnet`](contracts/stellar/deployments/testnet/control-plane.v2.json)
 - Render service definition: [`render.yaml`](render.yaml)
 
 The public application is [kletiaai.xyz](https://kletiaai.xyz) and the API is [api.kletiaai.xyz](https://api.kletiaai.xyz). A public deployment can lag the repository; verify its readiness endpoints and deployed commit before treating it as evidence for `main`.
@@ -248,8 +234,6 @@ Start with [docs/README.md](docs/README.md). The main technical entry points are
 - [Repository structure and ownership](docs/architecture/repository-structure.md)
 - [Base DeFi registry](docs/networks/base-defi-registry.md)
 - [Arbitrum workflow](docs/networks/arbitrum-workflow.md)
-- [Stellar system guide](docs/networks/stellar/system-guide.md)
-- [Stellar Payment Center architecture](docs/networks/stellar/payment-center-architecture.md)
 - [Render release runbook](docs/deployment/render.md)
 - [MVP live-test runbook](docs/runbooks/mvp-live-test.md)
 

@@ -8,8 +8,6 @@ import {
   structuredIntentResponseFormat,
 } from "../shared/ai/parser.js";
 import { normalizeWorkflowSteps } from "../cross-chain/workflow.js";
-import { enforceReviewedStellarIntent } from "../networks/stellar/intentParser.js";
-import { computeSolverBidCommitment } from "../networks/stellar/solverBidCommitment.js";
 
 const format = structuredIntentResponseFormat("base");
 assert.equal(format.type, "json_schema");
@@ -252,80 +250,6 @@ assert.throws(
   /cannot silently execute a step on another network/u,
 );
 
-const validCorridor = enforceReviewedStellarIntent({
-  kind: "cross_chain",
-  title: "Move and supply USDC",
-  summary: "Move Arc USDC to Arbitrum Sepolia and supply it.",
-  nextStep: "Review the stages.",
-  amount: "25",
-  assetIn: "USDC",
-  assetOut: "USDC",
-  recipient: "0x1111111111111111111111111111111111111111",
-  strictReceive: false,
-  readyToPrepare: true,
-  blockingReason: null,
-  stages: [
-    {
-      action: "bridge",
-      network: "arc_testnet",
-      assetIn: "USDC",
-      assetOut: "USDC",
-      amountSource: "explicit",
-    },
-    {
-      action: "supply",
-      network: "arbitrum_sepolia",
-      assetIn: "USDC",
-      assetOut: null,
-      amountSource: "previous_output",
-    },
-    {
-      action: "borrow_capacity",
-      network: "arbitrum_sepolia",
-      assetIn: "USDC",
-      assetOut: null,
-      amountSource: "not_required",
-    },
-  ],
-  missingFields: [],
-});
-assert.equal(validCorridor.readyToPrepare, false);
-assert.match(validCorridor.blockingReason || "", /source-network workspace/u);
-
-const hallucinatedCorridor = enforceReviewedStellarIntent({
-  ...validCorridor,
-  stages: [
-    {
-      action: "bridge",
-      network: "stellar_testnet",
-      assetIn: "EURC",
-      assetOut: "XLM",
-      amountSource: "explicit",
-    },
-  ],
-});
-assert.equal(hallucinatedCorridor.readyToPrepare, false);
-assert.match(hallucinatedCorridor.blockingReason || "", /source-network workspace/u);
-
-const releaseVector = {
-  schemaVersion: "kletia_solver_bid_secret_v1",
-  auctionContract: "CCFY5ZJJ5CILIOPD7LUYRRQ3XCO2OUUL3ZMZQER4IWQ6XO7ZLVWBBP5D",
-  workflowRoot: `0x${"11".repeat(32)}`,
-  solver: "GDKHTBTURCFYXVNBRIXTUFGIS76TOZGBOA52VAYFKTMWXELDBGA4E5CN",
-  routeHash: `0x${"22".repeat(32)}`,
-  quoteEvidenceHash: `0x${"33".repeat(32)}`,
-  promisedOutputAtomic: "1234567",
-  solverFeeAtomic: "1234",
-  durationSeconds: 321,
-  quoteExpiresAtLedger: 987654,
-  salt: `0x${"44".repeat(32)}`,
-} as const;
-assert.equal(
-  computeSolverBidCommitment(releaseVector),
-  "0x46f4ff28bb98647369cc77c774828e163b9414108035752867bbd3cdff2c82af",
-  "The API-side reference solver commitment must match the Rust and browser vector.",
-);
-
 console.log(
-  "Structured staged intent schema, reviewed Stellar stage gates, and solver commitment vector verified.",
+  "Structured staged intent schema and grounded multi-step workflow gates verified.",
 );

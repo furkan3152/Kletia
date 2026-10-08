@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 services:
-  # Unified Base Mainnet + Arc Testnet + capability-gated Arbitrum backend
+  # Kletia API: app routes (/api) and the public platform API (/v1)
   - type: web
     name: kletia-backend
     runtime: node
@@ -36,43 +36,28 @@ services:
       - key: ARBITRUM_RPC_URL
         sync: false
       - key: ARBITRUM_MVP_ENABLED
-        value: "false"
-      - key: STELLAR_MVP_ENABLED
         value: "true"
-      - key: STELLAR_HORIZON_URL
-        value: https://horizon-testnet.stellar.org
-      - key: STELLAR_RPC_URL
-        value: https://soroban-testnet.stellar.org
-      - key: STELLAR_PASSKEY_ACCOUNTS_ENABLED
-        value: "true"
-      - key: STELLAR_PASSKEY_RELAYER_UPSTREAM_URL
-        value: https://smart-account-relayer-proxy.sdf-ecosystem.workers.dev
-      - key: STELLAR_LAST_MILE_ENABLED
-        value: "true"
-      - key: STELLAR_ANCHOR_ALLOWLIST
-        value: https://testanchor.stellar.org
-      - key: STELLAR_ANCHOR_ENDPOINT_HOST_ALLOWLIST
-        value: https://testanchor.stellar.org
-      - key: STELLAR_ANCHOR_TIMEOUT_MS
-        value: "8000"
-      - key: STELLAR_PAYMENT_CENTER_DATABASE_URL
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: SOLANA_DEVNET_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: JUPITER_API_KEY
+        sync: false
+      # Durable store for platform intents, API keys and webhooks. The
+      # database keeps its original resource name so the existing instance
+      # is reused instead of provisioning a new one.
+      - key: KLETIA_DATABASE_URL
         fromDatabase:
           name: kletia-stellar-event-archive
           property: connectionString
-      - key: PAYMENT_CENTER_SIGNING_SECRET
+      - key: KLETIA_PLATFORM_SECRET
         generateValue: true
-      - key: STELLAR_PAYMENT_CENTER_ENCRYPTION_KEY
-        generateValue: true
-      - key: STELLAR_LABS_ENABLED
-        value: "false"
+      - key: KLETIA_OPERATOR_API_KEYS
+        sync: false
       - key: ARBITRUM_SEPOLIA_RPC_URL
         sync: false
       - key: ARBITRUM_SEPOLIA_MVP_ENABLED
         value: "true"
-      - key: WORKFLOW_V2_DATABASE_URL
-        fromDatabase:
-          name: kletia-stellar-event-archive
-          property: connectionString
       - key: WORKFLOW_SIGNING_SECRET
         generateValue: true
       - key: ARC_VAULT_EXECUTION_MODE
@@ -143,7 +128,7 @@ services:
       - key: KLETIA_INTENT_ROUTER_V2_EVIDENCE_JSON
         value: '{"schemaVersion":"kletia_base_intent_v2_deployment_v1","validationStatus":"validated","chainId":8453,"observedAtBlock":"49936501","router":"0xf9BaA05c71c2078A43f6831Eca88220b42932413","routerCodehash":"0x9341d0e8f68d7de4273a47b6f495f4b99335fa9d851bafa3204a91dc3ae2fb52","wrappedNative":"0x4200000000000000000000000000000000000006","wrappedNativeCodehash":"0x8a3a1f6a9f9dce633117adee5b458245835a8645a8c8726a26382a4622508b1c","feeBps":10,"adapters":[{"kind":"uniswap_v2_compatible","reviewStatus":"reviewed","protocolId":"uniswap","enabled":true,"adapter":"0xb21C455ceE9ECb4BD0cf19A88d771065db45592b","target":"0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24","spender":"0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24","factory":"0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6","adapterCodehash":"0x0fb7c899f3f97856ee6a83f8e7eb5ede10c341f52e64e92658b35471d3a1dbd7","targetCodehash":"0xec2a9bc649a4a1f23eee18c570628b28c03c665cdd7ebbdb3c46a6c4007959c1","spenderCodehash":"0xec2a9bc649a4a1f23eee18c570628b28c03c665cdd7ebbdb3c46a6c4007959c1","factoryCodehash":"0xbab145d02e7005f0d84c6c1639d39b799b0ea16df99ebbdaf5a14d9da820b4e0","adapterConfigurationHash":"0xfbaf94530df666febfb537d12153342f741a4786b39a99cafd708e12a4de6d36","adapterConfigHash":"0x56c6c7092dc5af58ddc28ad856ae4cd369b41960ff6d5f5d3a73fa34a6f3c6ad"}]}'
 
-  # Unified Base Mainnet + Arc Testnet + capability-gated Arbitrum frontend
+  # Kletia web: home, console, studio and developer portal
   - type: web
     name: kletia-frontend
     runtime: static
@@ -198,10 +183,6 @@ services:
       - key: VITE_ARBITRUM_SEPOLIA_RPC_URL
         sync: false
       - key: VITE_ARBITRUM_MVP_ENABLED
-        value: "false"
-      # UI discoverability mirrors the server gate. Both must be enabled only
-      # after the public Stellar/CCTP/Aave lifecycle gates pass.
-      - key: VITE_STELLAR_MVP_ENABLED
         value: "true"
       - key: VITE_ARC_VAULT_EXECUTION_MODE
         value: vault_v2

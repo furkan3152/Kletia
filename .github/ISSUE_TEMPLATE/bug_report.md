@@ -6,7 +6,7 @@ labels: [bug, needs-triage]
 assignees: []
 ---
 
-<!-- Security or privacy vulnerability? Stop here and follow SECURITY.md. Never post keys, seeds, passkey material, KYC data, provider credentials, or unredacted private logs. -->
+<!-- Security or privacy vulnerability? Stop here and follow SECURITY.md. Never post keys, seeds, API keys, webhook secrets, KYC data, provider credentials, or unredacted private logs. -->
 
 ## Summary
 
@@ -14,9 +14,9 @@ What happened, and what did you expect instead?
 
 ## Affected boundary
 
-- Network: <!-- Base Mainnet / Arc Testnet / Arbitrum One / Arbitrum Sepolia / Stellar Testnet / network-independent -->
+- Network: <!-- Base Mainnet / Arbitrum One / Solana / Arc Testnet / Arbitrum Sepolia / Solana Devnet / network-independent -->
 - Lane: <!-- production / testnet / not applicable -->
-- Surface: <!-- intent chat / dashboard / API / wallet / passkey / contract / bridge / provider / labs -->
+- Surface: <!-- home / intent console / intent studio / developer API (v1) / SDK / widget / wallet / contract / bridge / provider -->
 - Core or labs:
 
 ## Reproduction

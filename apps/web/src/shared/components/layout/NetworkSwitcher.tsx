@@ -1,12 +1,12 @@
 import React from "react";
-import { Box, CircleDot, Loader2, Orbit, Sparkles, type LucideIcon } from "lucide-react";
-import {
-  getNetwork,
-  STELLAR_WORKSPACE_ENABLED,
-  type NetworkMode,
-} from "../../config/networks";
+import { Box, CircleDot, Loader2, Orbit, type LucideIcon } from "lucide-react";
+import { getNetwork, type NetworkMode } from "../../config/networks";
 
-export type WorkspaceMode = NetworkMode | "stellar";
+/**
+ * A selectable chat workspace. Today every workspace is a wallet-switchable
+ * network; the alias keeps the selector shape open for non-EVM workspaces.
+ */
+export type WorkspaceMode = NetworkMode;
 
 type LaneOption = {
   readonly id: string;
@@ -39,7 +39,6 @@ const NETWORK_PRESENTATION: Record<
   base: { label: "Base", status: "Mainnet", icon: Box, name: "Base Mainnet", color: "#0052FF", enabled: true },
   arc: { label: "Arc", status: "Testnet", icon: CircleDot, name: "Arc Testnet", color: "#F59E0B", enabled: true },
   arbitrum: { label: "Arb", status: "Mainnet", icon: Orbit, name: "Arbitrum One", color: "#28A0F0", enabled: getNetwork("arbitrum").enabled, beta: true },
-  stellar: { label: "Stellar", status: "Payments", icon: Sparkles, name: "Stellar Payment Center", color: "#8B5CF6", enabled: STELLAR_WORKSPACE_ENABLED, beta: true },
 };
 
 const LANE_OPTIONS: readonly {
@@ -57,7 +56,6 @@ const LANE_OPTIONS: readonly {
   {
     label: "Testnet",
     options: [
-      { id: "stellar", workspace: "stellar", presentation: NETWORK_PRESENTATION.stellar },
       { id: "arc", workspace: "arc", presentation: NETWORK_PRESENTATION.arc },
     ],
   },
@@ -74,14 +72,14 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
 }) => {
   const currentNetwork = NETWORK_PRESENTATION[networkMode];
   if (compact) {
-    const workspaces = ["base", "arbitrum", "stellar", "arc"] as const;
+    const workspaces = ["base", "arbitrum", "arc"] as const;
     return (
       <div className={`flex min-w-0 flex-col gap-1.5 ${className}`} title={error ?? currentNetwork.name}>
         <div
           role="group"
           aria-label="Select network workspace"
           aria-busy={isSwitching}
-          className="grid grid-cols-4 gap-1 border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-1 shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0F172A] dark:shadow-[3px_3px_0_#475569]"
+          className="grid grid-cols-3 gap-1 border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-1 shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0F172A] dark:shadow-[3px_3px_0_#475569]"
         >
           {workspaces.map((workspace) => {
             const definition = NETWORK_PRESENTATION[workspace];
@@ -140,7 +138,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
               <p className="mb-1 truncate px-1 text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 dark:text-slate-300">
                 {lane.label}
               </p>
-              <div className="grid grid-cols-2 gap-1">
+              <div className={`grid gap-1 ${lane.options.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
           {lane.options.map((option) => {
             const definition = option.presentation;
             const active = option.workspace === networkMode;

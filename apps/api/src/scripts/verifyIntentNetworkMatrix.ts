@@ -9,7 +9,6 @@ import {
   type ParsedIntent,
 } from "../shared/ai/parser.js";
 import { normalizeWorkflowSteps } from "../cross-chain/workflow.js";
-import { interpretStellarIntent } from "../networks/stellar/intentParser.js";
 import { resolveIntentEntities } from "../shared/assets/resolver.js";
 
 function expectIntent(
@@ -339,46 +338,23 @@ try {
     assert.equal(providerRequests, 2, `${testCase.network}: exactly one provider boundary and one fetch`);
   }
 
-  const stellarResponse = {
-    kind: "swap",
-    title: "Compare a Stellar swap",
-    summary: "Compare the reviewed live pair.",
-    nextStep: "Review the quote.",
-    amount: "5",
-    assetIn: "XLM",
-    assetOut: "USDC",
-    recipient: null,
-    strictReceive: false,
-    readyToPrepare: true,
-    blockingReason: null,
-    stages: [],
-    missingFields: [],
-  };
-  globalThis.fetch = async () => new Response(
-    JSON.stringify({ choices: [{ message: { content: JSON.stringify(stellarResponse) } }] }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
-  const stellarInterpreted = await interpretStellarIntent(
-    "Transform 5 XLM into USDC on Stellar",
-  );
-  assert.equal(stellarInterpreted.kind, "swap", "Stellar: smart semantic action");
-  assert.equal(stellarInterpreted.readyToPrepare, true, "Stellar: exact amount and assets remain prompt-bound");
-
-  globalThis.fetch = async () => new Response(
-    JSON.stringify({
-      choices: [{
-        message: {
-          content: JSON.stringify({ ...stellarResponse, amount: "99" }),
-        },
-      }],
-    }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
-  const inventedStellarAmount = await interpretStellarIntent(
-    "Transform 5 XLM into USDC on Stellar",
-  );
-  assert.equal(inventedStellarAmount.readyToPrepare, false, "Stellar: model cannot invent an amount");
-  assert.match(inventedStellarAmount.blockingReason || "", /amount could not be matched/iu);
+  for (const testCase of aiCases) {
+    globalThis.fetch = async () => new Response(
+      JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({ ...testCase.response, amount: "99" }),
+          },
+        }],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+    const inventedAmount = await parseUserIntent(testCase.prompt, [], testCase.network, {
+      semanticPlanner: "ai_assisted",
+    });
+    assert.equal(inventedAmount.isComplete, false, `${testCase.network}: model cannot invent an amount`);
+    assert.match(inventedAmount.question || "", /amount could not be verified/iu);
+  }
 } finally {
   globalThis.fetch = originalFetch;
   if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;

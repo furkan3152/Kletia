@@ -9,7 +9,7 @@ import {
 import type { NetworkMode } from "../../config/networks";
 
 interface IntentStarterProps {
-  networkMode: NetworkMode | "stellar";
+  networkMode: NetworkMode;
   walletAddress?: Address;
   onSelect: (prompt: string) => void;
 }
@@ -75,26 +75,6 @@ const STARTERS = {
         "Create a planning-only policy agent named Arbitrum Yield Scout that may compare USDC opportunities on Arbitrum through Aave V3, may plan at most 25 USDC, uses balanced risk, and expires in 24 hours; it must never move funds without a separate wallet approval",
     },
   ],
-  stellar: [
-    {
-      label: "Pay local currency",
-      detail: "Compare live Stellar anchor routes without sharing bank details in chat.",
-      prompt:
-        "Pay 100 TRY to a bank account from Stellar USDC and compare live providers before any approval",
-    },
-    {
-      label: "Show live balances",
-      detail: "Read XLM and USDC directly from Stellar Testnet.",
-      prompt:
-        "Show my live XLM and USDC balances on Stellar Testnet without preparing a transaction",
-    },
-    {
-      label: "Compare a swap",
-      detail: "Check the best reviewed Stellar path before approval.",
-      prompt:
-        "Swap 5 XLM to USDC using the best live reviewed Stellar Testnet route and show the expected output before approval",
-    },
-  ],
 } as const;
 
 export function IntentStarter({
@@ -104,8 +84,7 @@ export function IntentStarter({
 }: IntentStarterProps) {
   const isArc = networkMode === "arc";
   const isArbitrum = networkMode === "arbitrum";
-  const isStellar = networkMode === "stellar";
-  const accentClass = isArc || isStellar
+  const accentClass = isArc
     ? "bg-[#8B5CF6]"
     : isArbitrum
       ? "bg-[#28A0F0]"
@@ -123,9 +102,7 @@ export function IntentStarter({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 dark:text-slate-300">
-              {isStellar
-                ? "Stellar Testnet workspace"
-                : isArc
+              {isArc
                 ? "Arc Testnet workspace"
                 : isArbitrum
                   ? "Arbitrum One public beta"

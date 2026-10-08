@@ -31,7 +31,7 @@ export interface IntentPrivacyTraceV1 {
     readonly detectedFieldClasses: readonly (
       | "numeric_value"
       | "evm_address"
-      | "stellar_address"
+      | "solana_address"
       | "url"
       | "portfolio_scope"
     )[];
@@ -118,7 +118,7 @@ export function isIntentPrivacyTrace(
   const fieldClasses = new Set([
     "numeric_value",
     "evm_address",
-    "stellar_address",
+    "solana_address",
     "url",
     "portfolio_scope",
   ]);

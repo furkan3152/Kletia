@@ -15,6 +15,15 @@ behind the app, a public API, an SDK and an embeddable widget.
 - Solana network: portfolio, Jupiter swaps, liquid staking, SOL/SPL/Token-2022 transfers, Relay settlement to and from Base and Arbitrum, Kamino rate discovery.
 - Web: product home page, developer portal, network status page, Intent Studio with wallet execution, `/embed`, a chain-agnostic wallet layer (EVM and Solana connected together), a Solana console workspace and a cross-feature event bus with a shared activity feed.
 - `GET /api/capabilities` reporting each feature as live, needs configuration or disabled.
+- Resumable wallet execution in Studio, `/embed` and the Solana Ask tab: every prepared transaction is checked against its step (VM, network, chain, sender or fee payer) before a wallet sees it, an unknown wallet outcome pauses for confirmation instead of signing again, and broadcast references are resubmitted rather than re-signed.
+
+### Security
+
+- Solana transfers and Relay bridges refuse a token account, mint or program account as recipient; Token-2022 mints with transfer fees are refused.
+- Re-prepares are compared with the planned price floor; earlier valid Jupiter payloads still verify after a re-prepare.
+- Per-API-key webhook queues with in-flight and retry caps and paused failing endpoints; uncached key lookups are throttled per IP before the store is queried; streams opened with a key also count against the client IP.
+- `clientReference` idempotency is enforced by a unique database index across instances.
+- Only `/embed` may be framed by other sites; other pages also refuse to render inside a cross-origin frame.
 
 ### Changed
 
@@ -25,6 +34,8 @@ behind the app, a public API, an SDK and an embeddable widget.
 - The API entry point is split into focused HTTP modules; `/v1` has its own CORS policy for browser integrators.
 - Wallet SDKs load only on wallet routes; the web entry bundle drops from 1.24 MB to about 160 KB.
 - Security updates for axios, fast-uri, toml, `@coinbase/cdp-sdk` and `@x402/*`.
+- The settlement poller rotates fairly across active intents; steps whose provider reads keep failing move to manual review after their deadline.
+- Self-hosted production starts without optional x402 configuration; the affected endpoints answer 503 and report `needs_configuration`.
 
 ### Removed
 

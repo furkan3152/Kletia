@@ -4,6 +4,8 @@ The intent API behind the Kletia app. It turns natural language into structured 
 
 ## Layout
 
+- `src/index.ts`, `src/http/`: entry point, Express composition (helmet, CORS, `/v1` mount, `/api` limiters) and server lifecycle (startup attestation, degraded mode, shutdown).
+- `src/platform/`: the cross-network intent engine (grammar, planner, Jupiter / Relay / Aave V3 / transfer adapters, on-chain and settlement verification, Postgres or memory store, settlement poller) and the public Platform API v1 (`/v1`: keys, tier limits, intents, Server-Sent Events, signed webhooks, OpenAPI). See [`docs/platform/api-v1.md`](../../docs/platform/api-v1.md).
 - `src/networks/`: chain handlers and readiness checks, one folder per network.
   - `base`: Base DeFi through Intent Router V2, lending, Basenames, token launch, portfolio, paymaster, and x402 micropayments.
   - `arc`: Arc programmable money intents (dashboard, lending, swap, vault, staking, batch, memo) and Circle App Kit integration.
@@ -18,8 +20,11 @@ The intent API behind the Kletia app. It turns natural language into structured 
 
 ## Setup
 
+The API is part of the root npm workspace. Install once from the repository root:
+
 ```bash
-npm ci --legacy-peer-deps
+npm ci                 # from the repository root; also builds @kletia/core, sdk and widget
+npm run dev:api        # from the root, or `npm run dev` here
 ```
 
 ## Scripts
@@ -31,6 +36,7 @@ npm ci --legacy-peer-deps
 | `npm run build` | Clean `dist` and compile the TypeScript source. |
 | `npm start` | Run the compiled output in `dist/index.js`. |
 | `npm run typecheck` | Verify types across the package. |
+| `npm test` | Run the platform engine and Platform API tests (`test:platform`). Set `KLETIA_TEST_DATABASE_URL` to also run the PostgreSQL store contract. |
 | `npm run release:preflight` | Typecheck, build, and verify the Base registry. |
 | `npm run verify:intent-schema-planner` | Verify the structured intent schema and multi-step workflow gates. |
 | `npm run verify:intent-network-matrix` | Verify deterministic and prompt-bound AI intent parsing across Base, Arc, and Arbitrum. |
@@ -42,7 +48,7 @@ npm ci --legacy-peer-deps
 
 ## Deployment
 
-This package operates as a Node.js (Express 5) service. The committed [`.npmrc`](.npmrc) keeps build dependencies available during package-local CI installation; production starts only the emitted `dist/index.js` output.
+The package runs as a Node.js (Express 5) service built from the workspace root (`npm run build:api`, `npm run start:api`). Production starts only the emitted `dist/index.js` output; settlement polling and webhook delivery run in that long-lived process. See [Render](../../docs/deployment/render.md) and [Vercel](../../docs/deployment/vercel.md).
 
 ## License
 

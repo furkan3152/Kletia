@@ -8,6 +8,7 @@
 import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { PlatformError, toPlatformError, type PlatformIssue } from "../errors.js";
+import { INTENT_ID_PATTERN, MAX_STEP_TRANSACTIONS, STEP_ID_PATTERN } from "../index.js";
 
 export type ApiTier = "public" | "developer" | "operator";
 
@@ -77,6 +78,8 @@ function state(req: Request): RequestState {
 export const requestContext: RequestHandler = (req, res, next) => {
   res.setHeader("X-Request-Id", state(req).requestId);
   res.setHeader("Cache-Control", "no-store");
+  // JSON and event streams only: never let a browser sniff a response into HTML.
+  res.setHeader("X-Content-Type-Options", "nosniff");
   next();
 };
 
@@ -102,9 +105,22 @@ export interface ErrorBody {
   readonly requestId: string;
 }
 
+/**
+ * Client errors raised by Express itself (e.g. a path parameter with broken
+ * percent-encoding) carry a 4xx `status`. They become a generic 400 without
+ * echoing the framework message.
+ */
+function frameworkClientError(error: unknown): HttpError | null {
+  if (typeof error !== "object" || error === null) return null;
+  const status = (error as { status?: unknown; statusCode?: unknown }).status ?? (error as { statusCode?: unknown }).statusCode;
+  if (typeof status !== "number" || status < 400 || status > 499) return null;
+  if (error instanceof URIError) return new HttpError(400, "INVALID_REQUEST", "The request path contains malformed percent-encoding.");
+  return new HttpError(400, "INVALID_REQUEST", "The request could not be processed.");
+}
+
 function normalize(error: unknown): HttpError | PlatformError {
   if (error instanceof HttpError || error instanceof PlatformError) return error;
-  return toPlatformError(error);
+  return frameworkClientError(error) ?? toPlatformError(error);
 }
 
 /** Writes the v1 error envelope. Safe to call after headers were sent (the socket is closed instead). */
@@ -137,11 +153,12 @@ export function invalidRequest(message: string, issues: readonly PlatformIssue[]
   return new PlatformError("INVALID_REQUEST", message, 400, issues);
 }
 
-export const INTENT_ID_PATTERN = /^int_[0-9a-f]{32}$/u;
-export const STEP_ID_PATTERN = /^s\d{1,2}$/u;
+/** Intent and step id formats come from the engine so both layers accept exactly the same ids. */
+export { INTENT_ID_PATTERN, STEP_ID_PATTERN };
 export const EVENT_ID_PATTERN = /^evt_[0-9a-f]{32}$/u;
 export const WEBHOOK_ID_PATTERN = /^wh_[0-9a-f]{24}$/u;
-export const MAX_REFERENCES = 8;
+/** One reference per prepared transaction; the engine prepares at most this many per step. */
+export const MAX_REFERENCES = MAX_STEP_TRANSACTIONS;
 export const MAX_REFERENCE_LENGTH = 128;
 
 /** A single path parameter as a string (Express 5 may also yield arrays for wildcards). */

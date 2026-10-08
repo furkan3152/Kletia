@@ -112,3 +112,8 @@ export function acquireStreamSlot(req: Request): (() => void) | null {
     else openStreams.set(client, remaining);
   };
 }
+
+/** Open SSE streams in this process (observability and tests). */
+export function openStreamCount(): number {
+  return totalStreams;
+}

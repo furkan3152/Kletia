@@ -16,7 +16,8 @@ export {
   type PlatformRouterOptions,
 } from "./router.js";
 export { buildOpenApiDocument, openApiJson } from "./openapi.js";
-export { readPlatformHealth, PLATFORM_API_VERSION, type PlatformHealth } from "./health.js";
+export { configureHealthProbe, readPlatformHealth, PLATFORM_API_VERSION, type NetworkHealth, type PlatformHealth } from "./health.js";
+export { openStreamCount, TIER_LIMITS } from "./limits.js";
 export { networkCapabilities, protocolRegistry, assetRegistry, type NetworkCapabilities } from "./catalog.js";
 export { issueDeveloperKey, type IssuedApiKey } from "./auth.js";
 export { WebhookDispatcher, httpsTransport, webhookDispatcherStats, type WebhookTransport, type DispatcherStats } from "./dispatcher.js";

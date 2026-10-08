@@ -5,8 +5,9 @@
  * handlers in router.ts and the types in @kletia/core.
  */
 import { CHAINS, INTENT_SPEC_VERSION, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
+import { REJECTION_CODES } from "../index.js";
 import { ACTION_KINDS } from "./catalog.js";
-import { MAX_REFERENCE_LENGTH, MAX_REFERENCES } from "./context.js";
+import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
 import { PLATFORM_API_VERSION } from "./health.js";
 import { KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
@@ -52,8 +53,9 @@ function schemas(): JsonObject {
     IntentActionKind: str({ enum: [...ACTION_KINDS] }),
     IntentStatus: str({ enum: INTENT_STATUSES }),
     StepStatus: str({ enum: STEP_STATUSES }),
-    IntentId: str({ pattern: "^int_[0-9a-f]{32}$" }),
-    EventId: str({ pattern: "^evt_[0-9a-f]{32}$" }),
+    IntentId: str({ pattern: INTENT_ID_PATTERN.source }),
+    StepId: str({ pattern: STEP_ID_PATTERN.source }),
+    EventId: str({ pattern: EVENT_ID_PATTERN.source }),
 
     Error: obj(
       {
@@ -162,7 +164,7 @@ function schemas(): JsonObject {
     ),
     IntentStep: obj(
       {
-        id: str({ pattern: "^s[0-9]{1,3}$" }),
+        id: ref("StepId"),
         index: int({ minimum: 0 }),
         kind: ref("IntentActionKind"),
         title: str(),
@@ -412,8 +414,23 @@ function schemas(): JsonObject {
         ),
         obj(
           {
-            from: obj({ network: ref("NetworkKey"), asset: str({ maxLength: 128 }), amount: ref("DecimalAmount") }, ["network", "asset", "amount"]),
-            to: obj({ network: ref("NetworkKey"), asset: str({ maxLength: 128 }) }, ["network", "asset"]),
+            from: obj(
+              {
+                network: ref("NetworkKey"),
+                asset: str({ maxLength: 128 }),
+                amount: ref("DecimalAmount"),
+                account: str({ maxLength: 128, description: "Sender address or CAIP-10 account (overrides top-level `account`)." }),
+              },
+              ["network", "asset", "amount"],
+            ),
+            to: obj(
+              {
+                network: { ...ref("NetworkKey"), description: "Defaults to `from.network`." },
+                asset: str({ maxLength: 128 }),
+                recipient: str({ maxLength: 128, description: "Recipient address or CAIP-10 account (overrides top-level `recipient`)." }),
+              },
+              ["asset"],
+            ),
             account: str({ maxLength: 128 }),
             recipient: str({ maxLength: 128 }),
             slippageBps: int({ minimum: 1, maximum: 1000 }),
@@ -501,6 +518,10 @@ function schemas(): JsonObject {
         webhooks: obj(
           {
             status: str({ enum: ["enabled", "needs_configuration"] }),
+            sealing: str({
+              enum: ["configured", "development_fallback", "missing"],
+              description: "`development_fallback` (a published key) is only used by development processes with in-memory stores.",
+            }),
             dispatcher: {
               oneOf: [
                 obj(
@@ -725,10 +746,10 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Submit transaction hashes / signatures for on-chain verification",
         description:
-          "A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become `settled`; cross-network steps become `settling` until the settlement network reports the destination fill.",
+          `A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become \`settled\`; cross-network steps become \`settling\` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (${[...REJECTION_CODES].join(", ")}) and leave the step unchanged. References not yet visible on-chain are stored (\`submitted\`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them.`,
         parameters: [intentIdParam, stepIdParam],
         requestBody: jsonBody("SubmitRequest"),
-        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "409", "413", "415", "502", "503") },
+        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "409", "413", "415", "422", "502", "503") },
       },
     },
     "/v1/intents/{id}/refresh": {
@@ -754,7 +775,7 @@ function paths(): JsonObject {
         operationId: "streamIntentEvents",
         tags: ["Events"],
         summary: "Server-Sent Events stream of intent events",
-        description: `Starts with \`retry: ${SSE_RETRY_MS}\`, replays buffered events after \`Last-Event-ID\` (or \`?since=\`; the whole buffer when absent), then streams live events. Each frame is \`id: <event id>\`, \`event: <type>\`, \`data: <KletiaEvent JSON>\`. A comment heartbeat is sent every ${SSE_HEARTBEAT_MS / 1000} s and the stream ends after ${SSE_MAX_DURATION_MS / 60_000} minutes.`,
+        description: `Starts with \`retry: ${SSE_RETRY_MS}\`, replays buffered events after \`Last-Event-ID\` (or \`?since=\`; the whole buffer when absent, or when the id is no longer buffered, so de-duplicate by event id), then streams live events. Each frame is \`id: <event id>\`, \`event: <type>\`, \`data: <KletiaEvent JSON>\`. A comment heartbeat is sent every ${SSE_HEARTBEAT_MS / 1000} s and the stream ends after ${SSE_MAX_DURATION_MS / 60_000} minutes.`,
         parameters: [
           intentIdParam,
           { name: "Last-Event-ID", in: "header", required: false, schema: ref("EventId") },
@@ -799,7 +820,7 @@ function paths(): JsonObject {
         tags: ["Webhooks"],
         summary: "Delete a webhook",
         security: KEY_REQUIRED,
-        parameters: [{ name: "id", in: "path", required: true, schema: str({ pattern: "^wh_[0-9a-f]{24}$" }) }],
+        parameters: [{ name: "id", in: "path", required: true, schema: str({ pattern: WEBHOOK_ID_PATTERN.source }) }],
         responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("401", "404", "503") },
       },
     },
@@ -890,7 +911,7 @@ export function buildOpenApiDocument(): JsonObject {
       },
       parameters: {
         IntentId: { name: "id", in: "path", required: true, schema: ref("IntentId") },
-        StepId: { name: "stepId", in: "path", required: true, schema: str({ pattern: "^s[0-9]{1,2}$" }) },
+        StepId: { name: "stepId", in: "path", required: true, schema: ref("StepId") },
       },
       headers: {
         "X-Request-Id": { description: "Request id (echoes a valid incoming UUID).", schema: str({ format: "uuid" }) },
@@ -899,15 +920,15 @@ export function buildOpenApiDocument(): JsonObject {
         "Retry-After": { description: "Seconds until a retry may succeed.", schema: int() },
       },
       responses: {
-        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, ...)."),
+        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
         NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, NOT_FOUND)."),
         MethodNotAllowed: errorResponse("Method not allowed on this path."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, QUOTE_MOVED, INTENT_CONFLICT, REFERENCE_ALREADY_USED, ...)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse("Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, WEBHOOK_URL_FORBIDDEN, ...)."),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },

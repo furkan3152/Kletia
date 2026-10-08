@@ -79,6 +79,23 @@ export async function startServer() {
   return httpServer;
 }
 
+const shutdownHooks: Array<() => void | Promise<void>> = [];
+
+/** Registers work to stop on shutdown (pollers, dispatchers, pools). */
+export function onShutdown(hook: () => void | Promise<void>): void {
+  shutdownHooks.push(hook);
+}
+
+function runShutdownHooks(): void {
+  for (const hook of shutdownHooks.splice(0)) {
+    try {
+      void Promise.resolve(hook()).catch(() => undefined);
+    } catch {
+      // A failing hook must not block the remaining shutdown steps.
+    }
+  }
+}
+
 let shutdownStarted = false;
 export function shutdownProcess(
   exitCode: number,
@@ -95,11 +112,16 @@ export function shutdownProcess(
         : undefined,
   });
 
+  runShutdownHooks();
   const exit = () => process.exit(exitCode);
   const forceExitTimer = setTimeout(exit, 5_000);
   forceExitTimer.unref();
   if (httpServer.listening) {
     httpServer.close(exit);
+    httpServer.closeIdleConnections();
+    // Long-lived responses (SSE streams) never finish on their own; give
+    // in-flight requests a short grace period, then close what remains.
+    setTimeout(() => httpServer.closeAllConnections(), 2_000).unref();
   } else {
     exit();
   }

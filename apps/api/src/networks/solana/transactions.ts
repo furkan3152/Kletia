@@ -28,7 +28,7 @@ import {
 } from "@solana-program/token";
 import { isBaseUnitAmount, isSolanaAddress, WRAPPED_SOL_MINT } from "@kletia/core";
 import { SOLANA_PROGRAMS, type SolanaNetworkKey } from "./config.js";
-import { SolanaProviderError } from "./http.js";
+import { SolanaProviderError, describeRpcError } from "./http.js";
 import { rpcAbortSignal, solanaRpc } from "./rpc.js";
 
 export interface PreparedSolanaTransaction {
@@ -100,7 +100,7 @@ async function finalize(
       unitsConsumed: result.value.unitsConsumed === undefined || result.value.unitsConsumed === null
         ? null
         : Number(result.value.unitsConsumed),
-      error: result.value.err === null ? null : JSON.stringify(result.value.err).slice(0, 200),
+      error: result.value.err === null ? null : describeRpcError(result.value.err),
     }))
     .catch(() => ({ ok: false, unitsConsumed: null, error: "Simulation unavailable" }));
   return {

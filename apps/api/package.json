@@ -13,6 +13,8 @@
     "dev": "tsx src/index.ts",
     "dev:mvp": "node scripts/run-mvp-local.mjs",
     "start": "node dist/index.js",
+    "test": "npm run test:platform",
+    "test:platform": "node --import tsx --test src/platform/engine/__tests__/*.test.ts src/platform/http/__tests__/*.test.ts",
     "verify:base-registry": "tsx src/scripts/base/verifyProtocolRegistry.ts",
     "evidence:launch-factory-v2": "tsx src/scripts/base/exportLaunchFactoryV2Evidence.ts",
     "plan:fee-router-cleanup": "tsx src/scripts/base/planFeeRouterCleanup.ts",

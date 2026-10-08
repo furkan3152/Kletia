@@ -20,7 +20,7 @@ import {
   type StepExecutionPayload,
   type StepStatus,
 } from "@kletia/core";
-import { PlatformError, toPlatformError } from "../errors.js";
+import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
 import { adapterForStep, configureAdapters } from "./adapters/registry.js";
 import type { PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
 import { isReferenceRejection, referenceFormatValid, referenceKey } from "./adapters/verification.js";
@@ -37,7 +37,9 @@ import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./u
 export const PAYLOAD_TTL_SECONDS = 90;
 /** Cross-network steps unresolved this long become indeterminate (manual review, never auto-retried). */
 const SETTLEMENT_TIMEOUT_MS = 3 * 60 * 60 * 1000;
-const MAX_REFERENCES = 4;
+/** Most wallet transactions one step may need (and so most references one submit may carry). */
+export const MAX_STEP_TRANSACTIONS = 4;
+const MAX_REFERENCES = MAX_STEP_TRANSACTIONS;
 
 let store: IntentStore | null = null;
 
@@ -183,25 +185,52 @@ export interface CreateIntentOptions {
   readonly dryRun?: boolean;
 }
 
-export async function createIntent(request: unknown, options: CreateIntentOptions = {}): Promise<IntentGraph> {
+export interface CreatedIntent {
+  readonly intent: IntentGraph;
+  /** True when a repeated `clientReference` returned the intent created by an earlier request. */
+  readonly replayed: boolean;
+}
+
+/** Plans (and unless `dryRun`, stores) an intent, reporting whether it was an idempotent replay. */
+export async function createIntentDetailed(request: unknown, options: CreateIntentOptions = {}): Promise<CreatedIntent> {
   try {
     const clientReference =
       typeof request === "object" && request !== null && "clientReference" in request &&
         typeof (request as { clientReference: unknown }).clientReference === "string"
         ? (request as { clientReference: string }).clientReference
         : undefined;
-    if (!options.dryRun && options.ownerKeyId && clientReference) {
-      const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
-      if (existing) return existing;
-    }
-    const graph = await planIntent(request);
-    if (options.dryRun) return graph;
-    await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
-    emitGraphChanges(null, graph);
-    return graph;
+    const create = async (): Promise<CreatedIntent> => {
+      if (!options.dryRun && options.ownerKeyId && clientReference) {
+        const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
+        if (existing) return { intent: existing, replayed: true };
+      }
+      const graph = await planIntent(request);
+      if (options.dryRun) return { intent: graph, replayed: false };
+      try {
+        await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      } catch (error) {
+        // Another instance won the race for this clientReference: replay its intent.
+        if (options.ownerKeyId && clientReference && isPlatformError(error) && error.code === "CLIENT_REFERENCE_EXISTS") {
+          const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
+          if (existing) return { intent: existing, replayed: true };
+        }
+        throw error;
+      }
+      emitGraphChanges(null, graph);
+      return { intent: graph, replayed: false };
+    };
+    // Concurrent retries of one clientReference must not create two intents: the lock covers
+    // this process, the store's unique (owner, clientReference) constraint covers instances.
+    return options.ownerKeyId && clientReference && !options.dryRun
+      ? await withIntentLock(`client:${options.ownerKeyId}:${clientReference}`, create)
+      : await create();
   } catch (error) {
     throw toPlatformError(error);
   }
+}
+
+export async function createIntent(request: unknown, options: CreateIntentOptions = {}): Promise<IntentGraph> {
+  return (await createIntentDetailed(request, options)).intent;
 }
 
 /* ------------------------------------------------------------------ read */
@@ -227,8 +256,21 @@ export async function getIntent(id: string): Promise<IntentGraph> {
 
 export async function listIntents(ownerKeyId: string, limit = 50): Promise<IntentGraph[]> {
   try {
-    if (!ownerKeyId) throw new PlatformError("AUTH_REQUIRED", "Listing intents requires an API key.", 401);
+    if (!ownerKeyId) throw new PlatformError("API_KEY_REQUIRED", "Listing intents requires an API key.", 401);
     return await getIntentStore().listByOwner(ownerKeyId, limit);
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/**
+ * The API key id that created an intent (webhook routing): null for intents
+ * created without a key, undefined when no such intent is stored.
+ */
+export async function getIntentOwner(id: string): Promise<string | null | undefined> {
+  try {
+    if (typeof id !== "string" || !INTENT_ID_PATTERN.test(id)) return undefined;
+    return await getIntentStore().ownerOf(id);
   } catch (error) {
     throw toPlatformError(error);
   }

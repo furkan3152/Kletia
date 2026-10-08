@@ -324,6 +324,8 @@ describe("service lifecycle", () => {
     assert.equal(again.id, first.id);
     const otherKey = await createIntent(request, { ownerKeyId: "key_b" });
     assert.notEqual(otherKey.id, first.id);
+    const concurrent = await Promise.all([1, 2, 3].map(() => createIntent({ ...SWAP, clientReference: "order-43" }, { ownerKeyId: "key_a" })));
+    assert.equal(new Set(concurrent.map((graph) => graph.id)).size, 1, "concurrent retries create one intent");
   });
 
   it("serialises concurrent mutations of one intent", async () => {

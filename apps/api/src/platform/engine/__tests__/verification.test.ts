@@ -4,7 +4,7 @@ import { applySlippage, CHAINS, type EvmTransactionRequest, type IntentStep } fr
 import { PlatformError } from "../../errors.js";
 import { jupiterAdapter } from "../adapters/jupiter.js";
 import { relayAdapter, relayRequestIds } from "../adapters/relay.js";
-import { fetchRelayQuote } from "../adapters/relay-client.js";
+import { fetchRelayQuote } from "../adapters/relayClient.js";
 import type { VerificationResult } from "../adapters/types.js";
 import {
   effectiveSolDelta,
@@ -29,7 +29,7 @@ import {
   SOL_ADDRESS,
   unsignedSolanaTransaction,
 } from "./helpers.js";
-import { installRpcMock, preparedStep, type RpcMock } from "./rpc-mock.js";
+import { installRpcMock, preparedStep, type RpcMock } from "./rpcMock.js";
 
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const USDC_SOL = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

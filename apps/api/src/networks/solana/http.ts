@@ -59,3 +59,18 @@ export async function fetchProviderJson<T = unknown>(
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+/**
+ * Short, JSON-safe description of an RPC error value. Solana transaction
+ * errors can carry bigint fields (for example custom program error codes),
+ * which plain JSON.stringify rejects.
+ */
+export function describeRpcError(value: unknown, maxLength = 200): string {
+  try {
+    return JSON.stringify(value, (_key, item) =>
+      typeof item === "bigint" ? item.toString() : item,
+    ).slice(0, maxLength);
+  } catch {
+    return String(value).slice(0, maxLength);
+  }
+}

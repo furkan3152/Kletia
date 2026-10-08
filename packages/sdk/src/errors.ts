@@ -8,6 +8,8 @@ export class KletiaApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly issues: readonly ApiIssue[];
+  /** Guidance from the API, e.g. supported example phrases on INTENT_UNSUPPORTED. */
+  readonly hints: readonly string[];
   readonly requestId: string | null;
 
   constructor(input: {
@@ -15,6 +17,7 @@ export class KletiaApiError extends Error {
     message: string;
     status: number;
     issues?: readonly ApiIssue[];
+    hints?: readonly string[];
     requestId?: string | null;
   }) {
     super(input.message);
@@ -22,6 +25,7 @@ export class KletiaApiError extends Error {
     this.code = input.code;
     this.status = input.status;
     this.issues = input.issues ?? [];
+    this.hints = input.hints ?? [];
     this.requestId = input.requestId ?? null;
   }
 

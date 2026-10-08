@@ -12,6 +12,14 @@ async function graph(): Promise<IntentGraph> {
   return planIntent({ text: "swap 1 SOL to USDC", accounts: ACCOUNTS, clientReference: "ref-1" });
 }
 
+// Durable stores share one database across tests and runs: owner keys are unique per call.
+let ownerSequence = 0;
+const ownerRun = `${process.pid.toString(36)}${Date.now().toString(36)}`;
+function owner(name: string): string {
+  ownerSequence += 1;
+  return `${name}_${ownerRun}_${ownerSequence}`;
+}
+
 async function code(promise: Promise<unknown>): Promise<string> {
   try {
     await promise;
@@ -27,11 +35,26 @@ function contract(name: string, make: () => Promise<IntentStore>): void {
     it("creates once and reads back a copy", async () => {
       const store = await make();
       const intent = await graph();
-      await store.create(intent, { ownerKeyId: "key_1" });
+      await store.create(intent, { ownerKeyId: owner("key") });
       assert.equal(await code(store.create(intent, {})), "INTENT_EXISTS");
       const read = await store.get(intent.id);
       assert.deepEqual(read, intent);
       assert.equal(await store.get("int_00000000000000000000000000000000"), null);
+    });
+
+    it("refuses a second intent with the same clientReference for one key", async () => {
+      const store = await make();
+      const keyRef = owner("key_ref");
+      const first = await graph();
+      await store.create(first, { ownerKeyId: keyRef });
+      const second = await graph();
+      assert.notEqual(second.id, first.id);
+      assert.equal(await code(store.create(second, { ownerKeyId: keyRef })), "CLIENT_REFERENCE_EXISTS");
+      // Another key (or a keyless intent) may reuse the same reference.
+      await store.create(second, { ownerKeyId: owner("key_other") });
+      const third = await graph();
+      await store.create(third, {});
+      assert.equal((await store.findByClientReference(keyRef, "ref-1"))?.id, first.id);
     });
 
     it("updates with optimistic concurrency (409 on a stale token, 404 when missing)", async () => {
@@ -53,13 +76,19 @@ function contract(name: string, make: () => Promise<IntentStore>): void {
 
     it("lists by owner, finds by client reference and lists active intents", async () => {
       const store = await make();
+      const keyList = owner("key_list");
       const mine = await graph();
       const other = await graph();
-      await store.create(mine, { ownerKeyId: "key_list" });
-      await store.create(other, { ownerKeyId: "key_other" });
-      assert.deepEqual((await store.listByOwner("key_list", 10)).map((entry) => entry.id), [mine.id]);
-      assert.equal((await store.findByClientReference("key_list", "ref-1"))?.id, mine.id);
-      assert.equal(await store.findByClientReference("key_list", "nope"), null);
+      await store.create(mine, { ownerKeyId: keyList });
+      await store.create(other, { ownerKeyId: owner("key_other") });
+      assert.deepEqual((await store.listByOwner(keyList, 10)).map((entry) => entry.id), [mine.id]);
+      assert.equal((await store.findByClientReference(keyList, "ref-1"))?.id, mine.id);
+      assert.equal(await store.findByClientReference(keyList, "nope"), null);
+      assert.equal(await store.ownerOf(mine.id), keyList);
+      const keyless = await graph();
+      await store.create(keyless, {});
+      assert.equal(await store.ownerOf(keyless.id), null, "keyless intents have a null owner");
+      assert.equal(await store.ownerOf("int_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"), undefined, "unknown intents are undefined");
       const [s1] = mine.steps;
       assert.ok(s1);
       const active: IntentGraph = { ...mine, status: "executing", updatedAt: nextTimestamp(mine.updatedAt), steps: [{ ...s1, status: "submitted" }] };

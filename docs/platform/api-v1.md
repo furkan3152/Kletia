@@ -34,6 +34,15 @@ this same API for Solana and cross-network flows.
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
 hash). It is rate-limited per IP.
 
+Intent ids (`int_` + 128 random bits) are capabilities: whoever holds an id can
+read, prepare, submit, refresh and cancel that intent, so share it only with
+the user who signs it. This is safe for funds because preparation only builds
+transactions for the step's bound account, verification only accepts
+transactions sent by that account, and cancellation is refused once a step has
+been submitted. API keys control rate limits, listing and webhook routing; keep
+`kl_dev_` keys on your server and proxy browser calls, or call the public tier
+from the browser.
+
 ## Errors
 
 ```json
@@ -44,13 +53,13 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every response carries `X-Request-Id` (
 
 | Status | When |
 |---|---|
-| 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCE_COUNT_MISMATCH`, …) |
+| 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
 | 404 | Unknown intent, step, webhook or path |
 | 405 | Wrong method (with an `Allow` header) |
 | 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
-| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `WEBHOOK_URL_FORBIDDEN`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
 | 502 / 503 | Upstream provider unavailable, or a feature not configured (`WEBHOOKS_NOT_CONFIGURED`) |
 
@@ -114,8 +123,15 @@ previous step". Response: `201 { "intent": IntentGraph }`. A dry run returns `20
 ### `POST /v1/quotes`
 
 ```json
-{ "from": { "network": "base", "asset": "USDC", "amount": "25" }, "to": { "network": "solana", "asset": "USDC" } }
+{
+  "from": { "network": "base", "asset": "USDC", "amount": "25", "account": "eip155:8453:0x1111111111111111111111111111111111111111" },
+  "to": { "network": "solana", "asset": "USDC", "recipient": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM" },
+  "slippageBps": 50
+}
 ```
+
+`from.account` and `to.recipient` are optional. Without them Kletia quotes with
+neutral stand-in accounts, which is accurate for pricing but not executable.
 
 Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protocol`, `input`, `output`, `minimumOutput`, `feesUsd`, `estimatedSeconds`, `transactionCount` and `settlement`; `unavailable` lists venues that could not quote with the reason. A flat body (`network`, `from`, `to`, `toNetwork`, `amount`) is also accepted.
 
@@ -130,9 +146,25 @@ Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protoco
      (`solana:signAndSendTransaction`).
 3. `POST …/steps/{stepId}/submit` with `{ "references": ["0x…" | "<base58 signature>"] }`,
    one reference per transaction, in order.
+   A step takes at most 4 references.
 4. Kletia verifies each reference on-chain. Same-network steps become
    `settled`; cross-network steps become `settling` until the settlement network
    reports a destination fill, then `settled` (or `failed` on refund/expiry).
+
+Submission outcomes:
+
+| Outcome | Step | Response |
+|---|---|---|
+| Verified on-chain | `settled` (same network) or `settling` (cross-network) | `200` |
+| Not yet visible on-chain | `submitted`; re-verified by refresh and the settlement poller | `200` |
+| Provably not this step's transactions (`REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_STALE`, `REFERENCE_ALREADY_USED`) | unchanged | `422` |
+| Landed but failed (`TRANSACTION_FAILED` on Solana, `TRANSACTION_REVERTED` on EVM) or never landed before its blockhash expired (`TRANSACTION_EXPIRED`) | `failed`, with `step.failure` | `200` |
+| Destination fill does not match the quoted route (`SETTLEMENT_MISMATCH`) | `failed`, with `step.failure` | via refresh / events |
+
+While a step's stored references have produced no on-chain evidence, a new
+submission replaces them (for example after a wallet speed-up or a resend with
+a fresh blockhash). Once a reference is verified, it is bound to the step and
+cannot be reused by any other step.
 
 A payload expires at `payload.expiresAt`; prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
 
@@ -148,7 +180,7 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 
 Types: `intent.created`, `intent.status_changed`, `intent.step_updated`.
 
-The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each client may hold 10 streams; a stream closes after 30 minutes.
+The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each client may hold 10 streams; a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
 Webhook deliveries are `POST` with header
 `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
@@ -157,8 +189,13 @@ Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries also carry
 `Kletia-Delivery-Attempt`, and retry up to 3 times (1 s, 5 s, 25 s); redirects
 are never followed. Webhook URLs must be public HTTPS; private, loopback,
 link-local and metadata addresses are refused at registration and again at
-every delivery. A key may register 10 webhooks. Webhooks need
-`KLETIA_PLATFORM_SECRET` on the server (secrets are encrypted at rest).
+every delivery. A key may register 10 webhooks.
+
+Webhook secrets are encrypted at rest with `KLETIA_PLATFORM_SECRET` (at least
+32 characters). It is required whenever `KLETIA_DATABASE_URL` is set; with the
+in-memory store a development key is used and `GET /v1/health` reports
+`webhooks.sealing: "development_fallback"`. `webhooks.dispatcher` reports the
+delivery queue of the answering API process.
 
 ## Supported intents (v1)
 

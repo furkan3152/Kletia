@@ -15,16 +15,29 @@ import {
   assertRuntimeNetworkAttestation,
   httpServer,
   installProcessHandlers,
+  onShutdown,
   shutdownProcess,
   startServer,
 } from "./http/server.js";
+import {
+  closePlatformDatabase,
+  startPlatformBackground,
+} from "./platform/http/index.js";
 import { allowedOrigins } from "./shared/http/cors.js";
 
 const isDirectExecution =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectExecution) {
   installProcessHandlers();
-  startServer().catch((error) => shutdownProcess(1, "STARTUP_FAILED", error));
+  startServer()
+    .then(() => {
+      // Settlement poller and webhook delivery need a long-running process;
+      // serverless hosts settle through POST /v1/intents/:id/refresh, which
+      // the SDK calls while it waits for a step.
+      onShutdown(startPlatformBackground());
+      onShutdown(closePlatformDatabase);
+    })
+    .catch((error) => shutdownProcess(1, "STARTUP_FAILED", error));
 }
 
 // Vercel's Express runtime discovers a default-exported application. The

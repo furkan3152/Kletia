@@ -13,7 +13,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fallback, http } from "viem";
 import { arbitrumSepolia } from "viem/chains";
-import { createConfig, WagmiProvider } from "wagmi";
+import { createConfig, createStorage, WagmiProvider } from "wagmi";
 
 import {
   ALLOW_PUBLIC_BASE_RPC_FALLBACK,
@@ -22,6 +22,7 @@ import {
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
 } from "../shared/config/networks";
+import { readStorage, removeStorage, writeStorage } from "../shared/state/safeStorage";
 import { WalletSyncBridge } from "../shared/sync/WalletSyncBridge";
 import { SolanaWalletProvider } from "../shared/wallet/solana/SolanaWalletProvider";
 
@@ -76,6 +77,12 @@ const config = createConfig({
     [arbitrumSepolia.id]: http(ARBITRUM_SEPOLIA_RPC_URL),
   },
   ssr: false,
+  // wagmi's default storage reads `window.localStorage` eagerly, which throws
+  // when site data is blocked (e.g. /embed in a third-party iframe). The
+  // guarded helpers fall back to "nothing remembered" instead.
+  storage: createStorage({
+    storage: { getItem: readStorage, setItem: writeStorage, removeItem: removeStorage },
+  }),
 });
 
 const queryClient = new QueryClient();

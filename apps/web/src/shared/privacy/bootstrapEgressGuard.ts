@@ -10,6 +10,9 @@
  * Importing this module as the very first import in the entrypoint installs the
  * guard during module evaluation, ahead of the rest of the import graph.
  */
+import { installMemoryStorageFallback } from "../state/safeStorage";
 import { installEgressGuard } from "./egressGuard";
 
+// Blocked site data must not break boot; the guard then wraps the fallback too.
+installMemoryStorageFallback();
 installEgressGuard();

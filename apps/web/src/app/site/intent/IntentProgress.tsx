@@ -123,7 +123,7 @@ export function IntentProgress({
                 <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
                   {String(step.index + 1).padStart(2, "0")}
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-bold">{step.title}</span>
+                <span className="min-w-[9rem] flex-1 text-sm font-bold">{step.title}</span>
                 <Badge tone={presentation.tone}>{presentation.label}</Badge>
               </div>
               <p className={cx("flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-black uppercase tracking-[0.12em]", TEXT_MUTED)}>

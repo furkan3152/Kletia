@@ -553,6 +553,25 @@ assert.deepEqual(walletCalls, [], "A stopped run never opens a wallet prompt.");
 allowSigning = true;
 assert.equal(await guarded.solana!.signAndSendTransaction(solanaTx), "5".repeat(87));
 assert.deepEqual(walletCalls, ["request", "sign"]);
+const lease = binding.leaseSigners({
+  solana: {
+    address: SOLANA_RECIPIENT,
+    signAndSendTransaction: async () => {
+      walletCalls.push("leased-sign");
+      return "6".repeat(87);
+    },
+  },
+});
+await assert.rejects(lease.signers.solana!.signAndSendTransaction(solanaTx), { name: "AbortError" });
+const release = lease.activate();
+assert.equal(await lease.signers.solana!.signAndSendTransaction(solanaTx), "6".repeat(87));
+release();
+await assert.rejects(
+  lease.signers.solana!.signAndSendTransaction(solanaTx),
+  { name: "AbortError" },
+  "A replaced widget's signers never reach the wallet.",
+);
+assert.equal(walletCalls.filter((call) => call === "leased-sign").length, 1);
 
 console.log(
   "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync, step phases and signing guards (preview accounts, step-bound accounts and transactions, stopped runs, unknown signing outcomes, third-party recipients).",

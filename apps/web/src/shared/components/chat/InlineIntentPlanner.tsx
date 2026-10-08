@@ -81,7 +81,7 @@ export default function InlineIntentPlanner({ prompt }: InlineIntentPlannerProps
         </div>
       ) : null}
       {status === "planning" && !intent ? (
-        <p role="status" className="flex items-center gap-2 text-sm font-bold">
+        <p className="flex items-center gap-2 text-sm font-bold">
           <LoaderCircle className="h-4 w-4 animate-spin text-[#0052FF]" aria-hidden="true" />
           Planning with your accounts…
         </p>

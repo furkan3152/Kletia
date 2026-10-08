@@ -28,6 +28,7 @@ export function ExecutionErrorPanel({
       <ApiErrorPanel
         error={{ ...error.platform, retryable: error.retryable }}
         title={title}
+        message={error.message}
         {...(onRetry ? { onRetry } : {})}
       />
     );
@@ -106,10 +107,12 @@ export function IntentExecutionFlow({
   );
 
   if (!intent) {
+    const failed = status === "failed" && error;
     return (
-      <div ref={rootRef} className={className}>
+      // Nothing visible yet: `contents` keeps the live region without adding a box (or a flex gap).
+      <div ref={rootRef} className={failed ? className : "contents"}>
         {region}
-        {status === "failed" && error ? (
+        {failed ? (
           <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
             <ExecutionErrorPanel error={error} title="Planning failed" {...(onReplan ? { onRetry: onReplan } : {})} />
           </div>
@@ -157,7 +160,11 @@ export function IntentExecutionFlow({
           <p className="text-sm font-semibold">{execution.pauseReason ?? "Execution is paused."}</p>
           <div className="flex flex-wrap gap-2">
             {execution.reconfirmStepIds.length > 0 ? (
-              <Button size="sm" onClick={() => void execution.resume(intent.id, { confirmResign: true })}>
+              <Button
+                size="sm"
+                onClick={() => void execution.resume(intent.id, { confirmResign: true })}
+                className="max-w-full !whitespace-normal text-left"
+              >
                 <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
                 I checked my wallet — sign again
               </Button>

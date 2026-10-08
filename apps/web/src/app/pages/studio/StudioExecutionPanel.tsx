@@ -255,7 +255,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
           ) : null}
 
           {status === "planning" && !intent ? (
-            <p role="status" className={cx("flex items-center gap-2 p-5 text-sm font-bold", INK_BORDER, SURFACE)}>
+            <p className={cx("flex items-center gap-2 p-5 text-sm font-bold", INK_BORDER, SURFACE)}>
               <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
               Planning with your accounts…
             </p>

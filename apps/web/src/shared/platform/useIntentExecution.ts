@@ -204,11 +204,33 @@ function walletMessage(message: string): string {
   return message;
 }
 
+/** References the SDK reports as broadcast but not yet recorded by Kletia (newer SDKs only). */
+function unreportedReferences(error: KletiaExecutionError): readonly string[] {
+  const references = (error as { references?: unknown }).references;
+  return Array.isArray(references) ? references.filter((item): item is string => typeof item === "string") : [];
+}
+
 function toExecutionError(error: unknown): IntentExecutionError {
   if (error instanceof KletiaExecutionError) {
     const cause = error.cause;
+    const unreported = unreportedReferences(error).length;
     if (cause instanceof KletiaApiError) {
       const platform = toPlatformError(cause);
+      if (unreported > 0) {
+        const what = unreported === 1 ? "this step's transaction" : `${unreported} transactions for this step`;
+        const it = unreported === 1 ? "it" : "them";
+        const reason = describePlatformError(platform).replace(/\.$/u, "");
+        return {
+          code: platform.code,
+          message: platform.retryable
+            ? `Your wallet already sent ${what}, but Kletia could not record ${it} yet (${reason}). Retrying reports ${it} without signing again.`
+            : `Your wallet already sent ${what}, but Kletia did not accept ${it}: ${describePlatformError(platform)} This step will not be signed again; check your wallet's activity.`,
+          stepId: error.stepId,
+          // Only a retryable API failure can still record the references.
+          retryable: platform.retryable,
+          platform,
+        };
+      }
       return {
         code: platform.code,
         message: describePlatformError(platform),
@@ -651,6 +673,9 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         onRequest: () => {
           const step = runStep;
           if (!step) return;
+          // A "sign again" confirmation covers one new request only: if this
+          // one also ends without a known outcome, the user is asked again.
+          allowResignRef.current.delete(markKey(step.id));
           marksRef.current.set(markKey(step.id), "requested");
           if (sessionKey) markStepSigning(sessionKey, intentId, step.id, "requested");
           if (isCurrent()) setPhase(step.id, "signing");

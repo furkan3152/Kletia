@@ -209,7 +209,7 @@ export default function SolanaAsk() {
 
       <div className="flex min-w-0 flex-col gap-5">
         {status === "planning" && !intent ? (
-          <p role="status" className={`${ui.card} text-sm font-black uppercase`}>
+          <p className={`${ui.card} text-sm font-black uppercase`}>
             Planning “{lastPlanned}” with your accounts…
           </p>
         ) : null}

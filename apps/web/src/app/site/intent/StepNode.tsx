@@ -33,13 +33,15 @@ function Row({ label, value, strong = false }: { label: string; value: React.Rea
 
 export interface StepNodeProps {
   readonly step: IntentStep;
+  /** Extra content at the bottom of the node (links, execution details). */
+  readonly footer?: React.ReactNode;
   readonly className?: string;
   readonly style?: React.CSSProperties;
 }
 
 /** One intent step: network, protocol, amounts, fees, timing and warnings. */
 export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function StepNode(
-  { step, className, style },
+  { step, footer, className, style },
   ref,
 ) {
   const color = networkColor(step.network);
@@ -108,6 +110,12 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
             ))}
           </ul>
         ) : null}
+        {step.failure ? (
+          <p className="border-2 border-[#1A1A1A] bg-[#FFE4E4] p-2.5 text-xs font-semibold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+            {step.failure.message}
+          </p>
+        ) : null}
+        {footer}
       </div>
     </article>
   );

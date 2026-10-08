@@ -1,0 +1,55 @@
+import { useMemo } from "react";
+import { useAccount } from "wagmi";
+import type { AccountId } from "@kletia/core";
+import type { IntentSigners } from "@kletia/sdk";
+
+import { useSolanaWallet } from "../wallet/solana/solanaWalletContext";
+import type { ConnectedAccount } from "../wallet/types";
+import { useWallets } from "../wallet/useWallets";
+import { lazyEip1193Signer, walletStandardIntentSigner } from "./intentSigners";
+
+export interface ConnectedIntentSigners {
+  /** Signers for each connected namespace (empty when nothing is connected). */
+  readonly signers: IntentSigners;
+  /** CAIP-10 ids of the connected accounts (real wallets only). */
+  readonly accounts: readonly AccountId[];
+  readonly evm: ConnectedAccount | null;
+  readonly solana: ConnectedAccount | null;
+  /** True when at least one wallet can sign. */
+  readonly canSign: boolean;
+}
+
+/**
+ * SDK signers for the wallets the user connected. Must render inside
+ * `WalletProviders` (wagmi + RainbowKit + Solana Wallet Standard).
+ */
+export function useIntentSigners(): ConnectedIntentSigners {
+  const { connector } = useAccount();
+  const { wallet: solanaWallet, account: solanaAccount } = useSolanaWallet();
+  const { evm, solana, accounts } = useWallets();
+
+  const evmAddress = evm?.address ?? null;
+  const evmSigner = useMemo(() => {
+    if (!evmAddress || !connector || typeof connector.getProvider !== "function") return undefined;
+    return lazyEip1193Signer(evmAddress, () => connector.getProvider());
+  }, [connector, evmAddress]);
+
+  const solanaSigner = useMemo(() => {
+    if (!solanaWallet || !solanaAccount || !solana) return undefined;
+    return walletStandardIntentSigner(solanaWallet, solanaAccount);
+  }, [solana, solanaAccount, solanaWallet]);
+
+  return useMemo(() => {
+    const signers: IntentSigners = {
+      ...(evmSigner ? { evm: evmSigner } : {}),
+      ...(solanaSigner ? { solana: solanaSigner } : {}),
+    };
+    return {
+      signers,
+      accounts,
+      evm,
+      solana,
+      canSign: Boolean(evmSigner || solanaSigner),
+    };
+  }, [accounts, evm, evmSigner, solana, solanaSigner]);
+}

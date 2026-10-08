@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Landmark,
   LayoutDashboard,
+  MessageSquare,
   RefreshCw,
   Send,
 } from "lucide-react";
@@ -24,6 +25,7 @@ interface SolanaOverviewProps {
 }
 
 const QUICK_ACTIONS: readonly { tab: SolanaTab; label: string; Icon: typeof Send }[] = [
+  { tab: "ask", label: "Ask", Icon: MessageSquare },
   { tab: "swap", label: "Swap", Icon: ArrowLeftRight },
   { tab: "send", label: "Send", Icon: Send },
   { tab: "stake", label: "Stake", Icon: Landmark },

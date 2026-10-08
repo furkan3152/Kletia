@@ -4,10 +4,14 @@
  *
  * Marketing routes (`kind: "site"`) must never pull wallet SDKs: they render
  * inside the site shell and import only @kletia/core, @kletia/sdk and UI code.
+ * Wallet code reaches a site page only through a lazily loaded panel.
+ *
+ * `kind: "embed"` renders without the site shell so it can live in a
+ * third-party iframe (see EmbedPage for the parameters it accepts).
  */
 import type { ComponentType } from "react";
 
-export type RouteId = "home" | "developers" | "networks" | "studio" | "console" | "notFound";
+export type RouteId = "home" | "developers" | "networks" | "studio" | "embed" | "console" | "notFound";
 
 type PageModule = { default: ComponentType };
 
@@ -15,7 +19,7 @@ export interface RouteDefinition {
   readonly id: RouteId;
   /** Canonical path (used for sitemap, canonical URL and active-link state). */
   readonly path: string;
-  readonly kind: "site" | "console";
+  readonly kind: "site" | "console" | "embed";
   readonly title: string;
   readonly description: string;
   readonly load: () => Promise<PageModule>;
@@ -57,8 +61,17 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     kind: "site",
     title: "Intent Studio — Kletia",
     description:
-      "Type an outcome and preview the intent graph Kletia compiles: network-bound steps, protocols, quotes, fees and warnings.",
+      "Type an outcome, preview the intent graph Kletia compiles (network-bound steps, protocols, quotes, fees and warnings) and execute it with your own wallets.",
     load: () => import("../pages/studio/StudioPage"),
+  },
+  embed: {
+    id: "embed",
+    path: "/embed",
+    kind: "embed",
+    title: "Kletia intent widget",
+    description:
+      "Embeddable Kletia intent widget: plan cross-network intents and execute them with your own EVM and Solana wallets.",
+    load: () => import("../pages/embed/EmbedPage"),
   },
   console: {
     id: "console",
@@ -84,6 +97,7 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/developers": "developers",
   "/networks": "networks",
   "/studio": "studio",
+  "/embed": "embed",
   "/app": "console",
 });
 

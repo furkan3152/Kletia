@@ -6,6 +6,8 @@ import { Link } from "../../routes/Link";
 import { API_DOC_URL, BASE_MCP_DOC_URL, SDK_PACKAGE_URL } from "../../site/siteLinks";
 import {
   AGENT_REST_SNIPPET,
+  EMBED_PARAMS,
+  EMBED_PATH,
   EVENT_ENVELOPE,
   IFRAME_SNIPPET,
   MCP_CONTEXT_SNIPPET,
@@ -279,18 +281,34 @@ export default function DevelopersPage() {
             id="embed"
             index={7}
             title="Widget & embed"
-            badge={<Badge tone="yellow">Preview</Badge>}
-            intro="A drop-in React widget plans, reviews and (with signers) executes intents inside your app. Without signers it is a read-only planner."
+            intro="Drop the React widget into your app, or embed the hosted page in an iframe. Both plan, review and, once the visitor connects wallets, execute intents with their own signatures. Without wallets they are read-only planners."
           >
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
               <CodeBlock code={WIDGET_SNIPPET} language="tsx" label="React widget" filename="IntentPanel.tsx" />
-              <div className="flex flex-col gap-6">
-                <CodeBlock code={IFRAME_SNIPPET} language="tsx" label="Iframe embed" filename="index.html" />
-                <p className={cx("text-sm", TEXT_MUTED)}>
-                  <strong className="text-[#1A1A1A] dark:text-white">Preview:</strong> the widget package is
-                  pre-release and its props may change. Hosted iframe embedding is not enabled for third-party
-                  origins yet.
-                </p>
+              <div className="flex min-w-0 flex-col gap-6">
+                <CodeBlock code={IFRAME_SNIPPET} language="text" label="Iframe embed" filename="index.html" />
+                <div className={cx("p-4", INK_BORDER, SURFACE)}>
+                  <p className={LABEL}>/embed parameters</p>
+                  <dl className="mt-3 flex flex-col gap-3 text-sm">
+                    {EMBED_PARAMS.map((param) => (
+                      <div key={param.name} className="grid gap-1 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3">
+                        <dt className="font-code text-[13px] font-bold">{param.name}</dt>
+                        <dd className={TEXT_MUTED}>
+                          <span className="font-code text-xs text-[#1A1A1A] dark:text-white">{param.values}</span>
+                          <span className="block">{param.description}</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className={cx("mt-4 text-sm", TEXT_MUTED)}>
+                    The embed never reads an API key from its URL: it always uses the public tier. Visitors connect
+                    their own EVM and Solana wallets inside the frame; nothing is signed without their confirmation.
+                  </p>
+                  <ButtonLink to={EMBED_PATH} external size="sm" variant="secondary" className="mt-4">
+                    Open the embed
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </ButtonLink>
+                </div>
               </div>
             </div>
           </DocSection>

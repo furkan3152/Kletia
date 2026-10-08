@@ -98,10 +98,10 @@ function SolanaPill() {
           ? `Solana wallet ${shortenAddress(account.address)}. Open wallet options`
           : "Connect a Solana wallet"
       }
-      className={`${pillBase} max-w-[8.5rem] focus-visible:outline-[#9945FF] sm:max-w-[10rem] ${
+      className={`${pillBase} focus-visible:outline-[#9945FF] ${
         connected
-          ? "bg-white text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white"
-          : "bg-[#9945FF] text-white"
+          ? "max-w-[8.5rem] bg-white text-[#1A1A1A] dark:bg-[#1A2841] dark:text-white sm:max-w-[10rem]"
+          : "whitespace-nowrap bg-[#9945FF] text-white"
       }`}
     >
       {status === "connecting" ? (

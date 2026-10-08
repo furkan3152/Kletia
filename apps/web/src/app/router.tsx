@@ -46,7 +46,11 @@ function applyDocumentMeta(route: RouteDefinition, pathname: string) {
   const url = `${SITE_ORIGIN}${canonicalPath}`;
   document.title = route.title;
   setMeta("name", "description", route.description);
-  setMeta("name", "robots", route.id === "notFound" ? "noindex,follow" : "index,follow");
+  setMeta(
+    "name",
+    "robots",
+    route.id === "notFound" ? "noindex,follow" : route.kind === "embed" ? "noindex,nofollow" : "index,follow",
+  );
   setMeta("property", "og:title", route.title);
   setMeta("property", "og:description", route.description);
   setMeta("property", "og:url", url);
@@ -115,6 +119,16 @@ function ConsoleBootFallback() {
   );
 }
 
+function EmbedBootFallback() {
+  return (
+    <div className="flex min-h-[12rem] items-center justify-center" role="status">
+      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.24em] text-[#1A1A1A]">
+        Loading Kletia
+      </span>
+    </div>
+  );
+}
+
 function PendingBar({ pending }: { pending: boolean }) {
   return (
     <div
@@ -177,22 +191,30 @@ export function AppRouter() {
 
   const Page = PAGES[route.id];
   const content =
-    route.kind === "console" ? (
-      <Page />
-    ) : (
+    route.kind === "site" ? (
       <SiteLayout>
         <Page />
       </SiteLayout>
+    ) : (
+      <Page />
     );
 
   return (
     <RouterContext.Provider value={state}>
-      <PendingBar pending={pending} />
+      {route.kind === "embed" ? null : <PendingBar pending={pending} />}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {pending ? "Loading page" : announcement}
       </div>
       <React.Suspense
-        fallback={route.kind === "console" ? <ConsoleBootFallback /> : <SiteBootFallback />}
+        fallback={
+          route.kind === "console" ? (
+            <ConsoleBootFallback />
+          ) : route.kind === "embed" ? (
+            <EmbedBootFallback />
+          ) : (
+            <SiteBootFallback />
+          )
+        }
       >
         {content}
       </React.Suspense>

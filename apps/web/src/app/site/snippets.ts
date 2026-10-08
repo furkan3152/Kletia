@@ -87,32 +87,49 @@ export const REST_STRUCTURED = `{
   "accounts": ["eip155:8453:0x…", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:…"]
 }`;
 
-export const WIDGET_SNIPPET = `import { KletiaIntentWidget } from "@kletia/widget"; // preview
+export const WIDGET_SNIPPET = `import { KletiaIntentWidget } from "@kletia/widget";
 import { eip1193Signer, formatAccountId, walletStandardSolanaSigner } from "@kletia/sdk";
 
-export function IntentPanel() {
+// Public tier: no API key in browser code. Pass the wallets your app already connected.
+export function IntentPanel({ evm, solana }: ConnectedWallets) {
   return (
     <KletiaIntentWidget
-      clientOptions={{ apiKey: "kl_dev_…" }}
-      accounts={[formatAccountId("base", evmAddress), formatAccountId("solana", solanaAddress)]}
+      accounts={[
+        formatAccountId("base", evm.address),
+        formatAccountId("solana", solana.account.address),
+      ]}
       signers={{
-        evm: eip1193Signer(window.ethereum, evmAddress),
-        solana: walletStandardSolanaSigner(wallet, account, "solana:mainnet"),
+        evm: eip1193Signer(evm.provider, evm.address),
+        solana: walletStandardSolanaSigner(solana.wallet, solana.account, "solana:mainnet"),
       }}
+      defaultText="swap 1 SOL to USDC"
       theme="auto"
       onComplete={(intent) => console.log(intent.status)}
     />
   );
 }`;
 
-export const IFRAME_SNIPPET = `<!-- Preview: the hosted /embed route is not live yet
-     and kletiaai.xyz sends X-Frame-Options: SAMEORIGIN.
-     Use the SDK or the widget today. -->
-<iframe
-  src="https://kletiaai.xyz/embed"
+/** Query parameters accepted by the hosted /embed page. */
+export const EMBED_PARAMS: readonly { name: string; values: string; description: string }[] = [
+  { name: "theme", values: "light | dark | auto", description: "Widget and wallet bar theme. Defaults to auto (follows the visitor's OS)." },
+  { name: "text", values: "string, max 500", description: "Prompt pre-filled in the widget." },
+  { name: "examples", values: "comma separated, max 6", description: "Example chips under the prompt." },
+  { name: "bg", values: "transparent", description: "Drops the page background so the widget sits on your page." },
+];
+
+/** Example /embed path (relative, so it also opens on preview deployments). */
+export const EMBED_PATH =
+  "/embed?theme=auto&text=swap%201%20SOL%20to%20USDC&examples=swap%201%20SOL%20to%20USDC,stake%202%20SOL%20with%20jito,bridge%2025%20USDC%20from%20base%20to%20solana";
+
+export const EMBED_URL = `https://kletiaai.xyz${EMBED_PATH}`;
+
+export const IFRAME_SNIPPET = `<iframe
+  src="${EMBED_URL}"
   title="Kletia intents"
-  width="480"
-  height="640"
+  width="492"
+  height="720"
+  style="border:0;max-width:100%"
+  loading="lazy"
 ></iframe>`;
 
 export const WEBHOOK_VERIFY = `import { verifyWebhookSignature, WEBHOOK_SIGNATURE_HEADER } from "@kletia/sdk";

@@ -55,7 +55,7 @@ export function Section({
       <div className={cx(CONTAINER, containerClassName)}>
         {title || eyebrow || intro || actions ? (
           <header className="mb-10 flex flex-col gap-6 lg:mb-14 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
+            <div className="max-w-4xl">
               {eyebrow ? (
                 <p
                   className={cx(
@@ -71,7 +71,7 @@ export function Section({
               {title ? (
                 <h2
                   id={headingId}
-                  className="font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-[3.5rem]"
+                  className="text-balance font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-[3.5rem]"
                 >
                   {title}
                 </h2>

@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd ../.. && npm ci",
   "rewrites": [
     {
       "source": "/(.*)",
@@ -34,10 +35,28 @@
         {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
-        },
+        }
+      ]
+    },
+    {
+      "source": "/((?!embed(?:/|$)).*)",
+      "headers": [
         {
           "key": "X-Frame-Options",
           "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'"
+        }
+      ]
+    },
+    {
+      "source": "/embed(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors *"
         }
       ]
     }

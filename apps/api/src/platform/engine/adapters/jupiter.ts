@@ -16,7 +16,7 @@ import { assertSolanaTransactionOwner, SOLANA_PROGRAM_IDS } from "../chains/sola
 import { nativeUsdPrice } from "../prices.js";
 import { decodeStepRef } from "../stepRef.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, VerificationResult } from "./types.js";
-import { stepOwner, verifySolanaReferences } from "./verification.js";
+import { effectiveSolDelta, SOL_RENT_TOLERANCE_LAMPORTS, stepOwner, tokenDelta, verifySolanaReferences } from "./verification.js";
 
 const MAX_PRICE_IMPACT = 0.05;
 const WARN_PRICE_IMPACT = 0.01;
@@ -164,24 +164,32 @@ export const jupiterAdapter: ProtocolAdapter = {
   },
 
   async verify(context): Promise<VerificationResult> {
-    const output = context.step.minimumOutput ? assetFromRef(context.step.minimumOutput) : null;
-    const owner = stepOwner(context.step);
+    const { step } = context;
+    const input = step.input ? assetFromRef(step.input) : null;
+    const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
+    const owner = stepOwner(step);
     const observed: { actual?: AssetAmount } = {};
     const { result } = await verifySolanaReferences(context, (observations) => {
-      if (!output || output.isNative || !context.step.minimumOutput) return;
-      const delta = observations.reduce(
-        (total, observation) => total + (observation.tokenDeltas.get(`${owner}:${output.address}`) ?? 0n),
-        0n,
-      );
-      if (delta < BigInt(context.step.minimumOutput.amount)) {
-        return {
-          failure: {
-            code: "REFERENCE_MISMATCH",
-            message: `The transaction did not credit at least ${context.step.minimumOutput.formatted} ${output.symbol} to the step account.`,
-          },
-        };
+      if (!input || !output || !step.input || !step.minimumOutput) {
+        return { failure: { code: "STEP_INVALID", message: "The swap step has no recorded amounts." } };
       }
-      observed.actual = assetAmount(output, delta.toString());
+      const mismatch = (message: string) => ({ failure: { code: "REFERENCE_MISMATCH", message } });
+      // Input: the swap must have spent the step amount from the step account.
+      const spent = input.isNative
+        ? -effectiveSolDelta(observations, owner) + SOL_RENT_TOLERANCE_LAMPORTS
+        : -tokenDelta(observations, owner, input.address as string);
+      if (spent < BigInt(step.input.amount)) {
+        return mismatch(`The transaction did not spend ${step.input.formatted} ${input.symbol} from the step account.`);
+      }
+      // Output: at least the guaranteed minimum must have reached the step account.
+      const received = output.isNative
+        ? effectiveSolDelta(observations, owner)
+        : tokenDelta(observations, owner, output.address as string);
+      const floor = BigInt(step.minimumOutput.amount) - (output.isNative ? SOL_RENT_TOLERANCE_LAMPORTS : 0n);
+      if (received < floor || received <= 0n) {
+        return mismatch(`The transaction did not credit at least ${step.minimumOutput.formatted} ${output.symbol} to the step account.`);
+      }
+      observed.actual = assetAmount(output, received.toString());
     });
     if (result.status === "confirmed" && observed.actual) return { ...result, actualOutput: observed.actual };
     return result;

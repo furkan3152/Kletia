@@ -265,8 +265,8 @@ for (const removedPrefix of [
   const stale = trackedFiles.find((file) => file.startsWith(removedPrefix));
   if (stale) fail(`removed subsystem is still tracked: ${stale}`);
 }
-for (const root of ["rootDir: apps/api", "rootDir: apps/web"]) {
-  if (!renderConfig.includes(root)) fail(`Render root is missing: ${root}`);
+if (/rootDir:/u.test(renderConfig)) {
+  fail("Render services build from the npm workspace root and must not set rootDir");
 }
 if (!renderConfig.includes("runtime: static")) {
   fail("Render frontend must remain a Static Site");
@@ -275,9 +275,10 @@ const renderRequiredFragments = [
   "branch: main",
   "plan: free",
   "region: frankfurt",
-  "buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build",
-  "startCommand: npm start",
-  "staticPublishPath: ./dist",
+  "buildCommand: npm ci --include=dev && npm run build:api",
+  "buildCommand: npm ci --include=dev && npm run build:web",
+  "startCommand: npm run start:api",
+  "staticPublishPath: ./apps/web/dist",
   "healthCheckPath: /health",
   "autoDeployTrigger: checksPass",
   "value: https://api.kletiaai.xyz",

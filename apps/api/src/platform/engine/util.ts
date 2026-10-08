@@ -75,25 +75,3 @@ export function finiteNumber(value: unknown): number | null {
   const parsed = typeof value === "string" && value.trim() !== "" ? Number(value) : typeof value === "number" ? value : Number.NaN;
   return Number.isFinite(parsed) ? parsed : null;
 }
-
-export async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  task: (item: T) => Promise<R>,
-): Promise<PromiseSettledResult<R>[]> {
-  const results: PromiseSettledResult<R>[] = new Array(items.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      try {
-        results[index] = { status: "fulfilled", value: await task(items[index] as T) };
-      } catch (reason) {
-        results[index] = { status: "rejected", reason };
-      }
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}

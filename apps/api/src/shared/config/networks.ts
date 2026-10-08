@@ -1,6 +1,7 @@
 import * as dotenv from "dotenv";
 import {
   createPublicClient,
+  fallback,
   getAddress,
   http,
   type Address,
@@ -127,17 +128,16 @@ const baseRpcUrl =
 
 const arcRpcUrl = process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network";
 const configuredArbitrumRpcUrl = process.env.ARBITRUM_RPC_URL?.trim();
+// Arbitrum One is enabled by default; operators opt out with ARBITRUM_MVP_ENABLED=false.
 export const ARBITRUM_MVP_ENABLED =
-  process.env.ARBITRUM_MVP_ENABLED?.trim() === "true" ||
-  (process.env.NODE_ENV !== "production" &&
-    process.env.ARBITRUM_MVP_ENABLED?.trim() !== "false");
+  process.env.ARBITRUM_MVP_ENABLED?.trim() !== "false";
 if (
   process.env.NODE_ENV === "production" &&
   ARBITRUM_MVP_ENABLED &&
   !configuredArbitrumRpcUrl
 ) {
-  throw new Error(
-    "ARBITRUM_RPC_URL is required when the Arbitrum Mainnet beta is enabled in production.",
+  console.warn(
+    "[config] ARBITRUM_RPC_URL is not set; using the rate-limited public Arbitrum RPC.",
   );
 }
 const arbitrumRpcUrl =
@@ -272,9 +272,19 @@ export const basePublicClient = createPublicClient({
   batch: { multicall: true },
 });
 
+// Arc Testnet has several public RPC operators; fall back across them so one
+// unavailable edge does not take the network offline.
+const ARC_PUBLIC_RPC_FALLBACKS = [
+  "https://rpc.drpc.testnet.arc.network",
+  "https://rpc.blockdaemon.testnet.arc.network",
+];
 export const arcPublicClient = createPublicClient({
   chain: arcTestnet,
-  transport: http(arcRpcUrl),
+  transport: fallback(
+    [...new Set([arcRpcUrl, ...ARC_PUBLIC_RPC_FALLBACKS])].map((url) =>
+      http(url, { timeout: 8_000 }),
+    ),
+  ),
   batch: { multicall: true },
 });
 

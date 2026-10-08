@@ -1,4 +1,4 @@
-import { BrainCircuit, ChevronDown, PencilLine, ShieldCheck } from "lucide-react";
+import { BrainCircuit, ChevronDown, PencilLine } from "lucide-react";
 import type {
   IntentPrivacyDecisionOptionV1,
   IntentPrivacyDecisionV1,
@@ -7,7 +7,6 @@ import type {
 const ICONS = {
   allow_ai_for_this_intent: BrainCircuit,
   allow_ai_for_session: BrainCircuit,
-  open_private_composer: ShieldCheck,
   edit_intent: PencilLine,
 } as const;
 
@@ -25,9 +24,7 @@ export function IntentPrivacyDecisionCard({
   );
   const editOption = decision.options.find((option) => option.id === "edit_intent");
   const advancedOptions = decision.options.filter(
-    (option) =>
-      option.id === "allow_ai_for_this_intent" ||
-      option.id === "open_private_composer",
+    (option) => option.id === "allow_ai_for_this_intent",
   );
   return (
     <section
@@ -85,7 +82,7 @@ export function IntentPrivacyDecisionCard({
         <p className="mt-2 text-[10px] font-bold leading-relaxed text-gray-700 dark:text-slate-300">
           {decision.whyAsked}
         </p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid gap-2">
           {advancedOptions.map((option) => {
             const Icon = ICONS[option.id];
             return (

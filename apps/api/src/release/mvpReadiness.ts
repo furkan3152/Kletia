@@ -1,19 +1,8 @@
 import { keccak256 } from "viem";
 
-import { readWorkflowCheckpointStoreReadiness } from "../cross-chain/v2/checkpointStore.js";
 import { assertArbitrumSepoliaReadiness, ARBITRUM_SEPOLIA, arbitrumSepoliaPublicClient } from "../networks/arbitrum-sepolia/config.js";
 import { resolveConfiguredBaseSwapExecution } from "../networks/base/config/intentRouterV2Environment.js";
 import { validateBaseIntentV2Runtime } from "../networks/base/intent/routerV2Runtime.js";
-import {
-  discoverConfiguredPaymentCenterProvider,
-  normalizeAnchorOrigin,
-  quoteConfiguredStellarPaymentProvider,
-  readStellarLastMileReadiness,
-} from "../networks/stellar/lastMile.js";
-import { readStellarPasskeyAccountReadiness } from "../networks/stellar/passkeyAccounts.js";
-import { readPaymentCenterStoreReadiness } from "../networks/stellar/payment-center/store.js";
-import { readStellarPaymentCenterProviderManifests } from "../networks/stellar/paymentCenterProviders.js";
-import { readStellarReadiness } from "../networks/stellar/service.js";
 import {
   ARC_CONTRACTS,
   ARC_VAULT_EXECUTION_MODE,
@@ -171,163 +160,6 @@ async function arcProtocolCheck(): Promise<Readonly<Record<string, unknown>>> {
   });
 }
 
-async function stellarExecutionCheck(): Promise<Readonly<Record<string, unknown>>> {
-  const readiness = await readStellarReadiness();
-  if (readiness.status !== "ready") {
-    throw Object.assign(new Error("Stellar Testnet execution is not ready."), {
-      code: "STELLAR_EXECUTION_UNAVAILABLE",
-    });
-  }
-  return Object.freeze({
-    network: readiness.network,
-    latestLedger: readiness.latestLedger,
-    rpcLatestLedger: readiness.rpcLatestLedger,
-    reviewedContractsAttested: readiness.reviewedContractsAttested,
-  });
-}
-
-async function stellarPasskeyCheck(): Promise<Readonly<Record<string, unknown>>> {
-  const readiness = await readStellarPasskeyAccountReadiness();
-  if (!readiness.ready) {
-    throw Object.assign(new Error(readiness.reason), {
-      code: `STELLAR_PASSKEY_${readiness.status.toUpperCase()}`,
-    });
-  }
-  return Object.freeze({
-    network: readiness.network,
-    release: readiness.release,
-    capability: readiness.capability,
-    observations: readiness.observations,
-  });
-}
-
-function configuredAnchorDomains(): readonly string[] {
-  return Object.freeze(
-    [...new Set(
-      (process.env.STELLAR_ANCHOR_ALLOWLIST || "")
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .map((value) => new URL(normalizeAnchorOrigin(value)).hostname),
-    )],
-  );
-}
-
-async function paymentCenterCoreCheck(): Promise<Readonly<Record<string, unknown>>> {
-  const readiness = readStellarLastMileReadiness();
-  if (readiness.paymentCore !== "discovery_configured") {
-    throw Object.assign(new Error(readiness.reason), {
-      code: "STELLAR_PAYMENT_CENTER_DISCOVERY_UNAVAILABLE",
-    });
-  }
-  const store = await readPaymentCenterStoreReadiness();
-  return Object.freeze({
-    configuredAnchors: readiness.configuredAnchors,
-    identity: readiness.identity,
-    settlement: readiness.settlement,
-    execution: readiness.execution,
-    store,
-    mockData: readiness.mockData,
-  });
-}
-
-async function reviewedPaymentProviderCheck(): Promise<Readonly<Record<string, unknown>>> {
-  const configured = new Set(configuredAnchorDomains());
-  const providers = readStellarPaymentCenterProviderManifests().filter(
-    (provider) => configured.has(provider.domain),
-  );
-  const settlementProviders = providers.filter(
-    (provider) =>
-      provider.role === "reviewed_anchor" &&
-      !provider.referenceOnly &&
-      provider.realWorldSettlement,
-  );
-  if (settlementProviders.length === 0) {
-    throw Object.assign(
-      new Error(
-        "No configured provider is reviewed for real-world settlement; reference anchors cannot satisfy the payout release gate.",
-      ),
-      { code: "STELLAR_PAYMENT_PROVIDER_NOT_CONFIGURED" },
-    );
-  }
-  const discoveries = await Promise.all(
-    settlementProviders.map(async (provider) => {
-      if (!provider.releaseProbe) {
-        throw Object.assign(
-          new Error(
-            `${provider.domain} has no operator-reviewed live release probe.`,
-          ),
-          { code: "STELLAR_PAYMENT_PROVIDER_PROBE_MISSING" },
-        );
-      }
-      const discovery = await discoverConfiguredPaymentCenterProvider(
-        provider.domain,
-      );
-      if (
-        !discovery.transferServerSep24 ||
-        !discovery.anchorQuoteServer ||
-        !discovery.sep45Advertised ||
-        !discovery.webAuthForContractsEndpoint ||
-        !discovery.webAuthContractId ||
-        !discovery.signingKey
-      ) {
-        throw Object.assign(
-          new Error(
-            `${provider.domain} does not currently advertise the reviewed SEP-24, SEP-38 and SEP-45 identity surface.`,
-          ),
-          { code: "STELLAR_PAYMENT_PROVIDER_CAPABILITY_MISMATCH" },
-        );
-      }
-      const quote = await quoteConfiguredStellarPaymentProvider(
-        provider.domain,
-        provider.releaseProbe,
-      );
-      if (
-        quote.provider !== provider.domain ||
-        quote.realWorldSettlement !== true ||
-        !quote.sep24 ||
-        !quote.sep38 ||
-        !quote.sep45Advertised ||
-        quote.mockData
-      ) {
-        throw Object.assign(
-          new Error(
-            `${provider.domain} failed the exact live payout release probe.`,
-          ),
-          { code: "STELLAR_PAYMENT_PROVIDER_PROBE_FAILED" },
-        );
-      }
-      return {
-        domain: provider.domain,
-        networkPassphrase: discovery.networkPassphrase,
-        sep24: true,
-        sep38: true,
-        sep45: true,
-        probe: {
-          destinationCountry: quote.destinationCountry,
-          destinationCurrency: quote.destinationCurrency,
-          deliveryMethod: quote.deliveryMethod,
-          quoteType: quote.quoteType,
-          observedAt: quote.observedAt,
-          mockData: quote.mockData,
-        },
-      };
-    }),
-  );
-  return Object.freeze({
-    providers: settlementProviders.map((provider) => ({
-      domain: provider.domain,
-      reviewedAt: provider.reviewedAt,
-      expectedCapabilities: provider.expectedCapabilities,
-      realWorldSettlement: provider.realWorldSettlement,
-    })),
-    discoveries,
-    referenceAnchorsExcluded: providers
-      .filter((provider) => provider.referenceOnly)
-      .map((provider) => provider.domain),
-  });
-}
-
 async function arbitrumSepoliaCheck(): Promise<Readonly<Record<string, unknown>>> {
   await assertArbitrumSepoliaReadiness();
   const blockNumber = await arbitrumSepoliaPublicClient.getBlockNumber();
@@ -339,23 +171,9 @@ async function arbitrumSepoliaCheck(): Promise<Readonly<Record<string, unknown>>
   });
 }
 
-async function workflowStoresCheck(): Promise<Readonly<Record<string, unknown>>> {
-  const v2 = await readWorkflowCheckpointStoreReadiness();
-  if (v2.status !== "ready") {
-    throw Object.assign(new Error("The reviewed multichain workflow store is unavailable."), {
-      code: "WORKFLOW_STORE_UNAVAILABLE",
-    });
-  }
-  return Object.freeze({ reviewedWorkflow: "v2", v2 });
-}
-
 async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
-  // Public Stellar Testnet RPC is deliberately not fanned out here. Each
-  // Stellar readiness probe already performs parallel contract observations;
-  // running all of those probes at once can trigger provider throttling and
-  // turn a healthy release into a false negative. Independent EVM/store checks
-  // remain parallel, while the Stellar groups execute in a bounded sequence.
-  const [base, arc, arbitrumSepolia, stores] = await Promise.all([
+  // Every check targets an independent EVM RPC, so they run in parallel.
+  const checks = Object.freeze(await Promise.all([
     checked({
       id: "base_intent_router_v2",
       label: "Base Mainnet Intent Router V2",
@@ -377,52 +195,7 @@ async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
       operation: arbitrumSepoliaCheck,
       readyReason: "The live chain, Circle USDC/CCTP and Aave provider bindings match the reviewed Testnet manifest.",
     }),
-    checked({
-      id: "durable_workflow_stores",
-      label: "Reviewed multichain workflow durable state",
-      required: true,
-      operation: workflowStoresCheck,
-      readyReason: "The reviewed V2 checkpoint store is durable and responds to a real database read.",
-    }),
-  ]);
-  const stellarExecution = await checked({
-      id: "stellar_execution",
-      label: "Stellar Testnet native execution",
-      required: true,
-      operation: stellarExecutionCheck,
-      readyReason: "Horizon, Soroban RPC and reviewed Stellar execution contracts are live-attested.",
-    });
-  const stellarPasskey = await checked({
-    id: "stellar_passkey_payment_identity",
-    label: "Stellar secp256r1 passkey payment identity",
-    required: true,
-    operation: stellarPasskeyCheck,
-    readyReason: "The account WASM, WebAuthn verifier, Circle USDC SAC and fee-sponsoring Testnet relayer match the pinned passkey profile.",
-  });
-  const paymentCenter = await checked({
-    id: "stellar_payment_center_core",
-    label: "Stellar Payment Center session and provider boundary",
-    required: true,
-    operation: paymentCenterCoreCheck,
-    readyReason: "Allowlisted anchor discovery and durable Payment Center session storage are configured without mock data.",
-  });
-  const paymentProvider = await checked({
-    id: "stellar_reviewed_payment_provider",
-    label: "Reviewed Stellar payout provider",
-    required: true,
-    operation: reviewedPaymentProviderCheck,
-    readyReason: "At least one configured non-reference provider is reviewed and currently advertises the required SEP-24, SEP-38 and SEP-45 surface.",
-  });
-  const checks = Object.freeze([
-    base,
-    arc,
-    stellarExecution,
-    stellarPasskey,
-    paymentCenter,
-    paymentProvider,
-    arbitrumSepolia,
-    stores,
-  ]);
+  ]));
   const ready = checks.every((check) => !check.required || check.status === "ready");
   return Object.freeze({
     schemaVersion: "kletia_live_mvp_readiness_v1",
@@ -434,29 +207,20 @@ async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
     checks: Object.freeze(checks),
     requiredActions: Object.freeze([
       {
-        id: "payment_center_user_signed_lifecycle",
-        actor: "user" as const,
-        reason: "A real passkey SEP-45 authentication, firm quote, SEP-24 withdrawal, exact USDC transfer, delivery and refund/recovery drill must be funded and approved by the user.",
-        automaticSuccessClaimAllowed: false as const,
-      },
-      {
         id: "base_x402_funded_payment",
         actor: "user" as const,
         reason: "A real Base USDC EIP-3009 payment must be signed; success requires both the exact AuthorizationUsed nonce and Transfer evidence.",
         automaticSuccessClaimAllowed: false as const,
       },
       {
-        id: "payment_center_provider_integration",
-        actor: "operator" as const,
-        reason: "A reviewed provider must support the exact Circle USDC, SEP-24, SEP-38 context=sep24 and SEP-45 contract-account combination; the SDF reference anchor does not satisfy this production-facing gate.",
+        id: "cross_chain_across_workflow",
+        actor: "user" as const,
+        reason: "A real Base to Arbitrum Across workflow must be signed; success requires a destination fill receipt that delivers the sealed minimum token output.",
         automaticSuccessClaimAllowed: false as const,
       },
     ]),
     intentionallyUnavailable: Object.freeze([
       { capability: "private_evm_or_private_bridge", reason: "No reviewed private Base/Arbitrum bridge or execution rail exists in this MVP." },
-      { capability: "stellar_usdc_private_pool", reason: "The pinned Stellar private-payment release supports XLM/EURC, not USDC." },
-      { capability: "soroswap_blend_defindex_execution", reason: "Exact live Testnet deployment identities and reviewed adapters are not available, so these remain fail-closed." },
-      { capability: "stellar_solver_policy_private_payment_labs_as_core", reason: "Solver auctions, Policy V2/control-plane and shielded-payment experiments are reproducible labs, not dependencies of the default Stellar Payment Center release." },
     ]),
   });
 }

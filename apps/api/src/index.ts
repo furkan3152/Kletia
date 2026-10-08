@@ -18,15 +18,6 @@ import { executeArcEngine } from "./networks/arc/engine.js";
 import { executeArbitrumEngine } from "./networks/arbitrum/engine.js";
 import workflowRoutes from "./cross-chain/routes.js";
 import { compileWorkflow } from "./cross-chain/workflow.js";
-import workflowV2Routes, { planWorkflowV2Handler } from "./cross-chain/v2/routes.js";
-import workflowV3Routes, {
-  capabilitiesV3Handler,
-  compileWorkflowV3Handler,
-} from "./cross-chain/v3/routes.js";
-import workflowV4Routes, {
-  capabilitiesV4Handler,
-  compileWorkflowV4Handler,
-} from "./cross-chain/v4/routes.js";
 import { createVerifiedIntentResultEnvelope } from "./shared/intent/responseEnvelope.js";
 import {
   issueSemanticConsentToken,
@@ -51,8 +42,8 @@ import arcRoutes from "./networks/arc/routes.js";
 import baseRoutes from "./networks/base/routes/protocols.js";
 import baseMcpRoutes from "./networks/base/routes/mcp.js";
 import baseX402BuyerRoutes from "./networks/base/routes/x402Buyer.js";
-import stellarRoutes from "./networks/stellar/routes.js";
 import arbitrumSepoliaRoutes from "./networks/arbitrum-sepolia/routes.js";
+import solanaRoutes from "./networks/solana/routes.js";
 import releaseRoutes from "./release/routes.js";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
@@ -79,24 +70,6 @@ import "./shared/config/productionEnvironment.js";
 };
 
 const app = express();
-const stellarLabsEnabled =
-  process.env.STELLAR_LABS_ENABLED?.trim().toLowerCase() === "true";
-
-function requireStellarLabs(
-  _req: express.Request,
-  res: express.Response,
-  next: express.NextFunction,
-) {
-  if (!stellarLabsEnabled) {
-    return res.status(404).json({
-      success: false,
-      code: "STELLAR_LAB_DISABLED",
-      message:
-        "This research workflow is not part of the default Kletia product.",
-    });
-  }
-  return next();
-}
 
 const parsedPort = Number(process.env.PORT || 3001);
 if (
@@ -198,18 +171,14 @@ const corsOptions: CorsOptions = {
     "X-Kletia-Chain-Id",
     "X-Kletia-Chain-Ref",
     "X-Kletia-Intent-Version",
-    "X-Kletia-Payment-Session",
     "X-Request-Id",
     "X-Client-Name",
     "X-Client-Version",
   ],
   exposedHeaders: [
-    "WWW-Authenticate",
-    "Payment-Receipt",
     "PAYMENT-REQUIRED",
     "PAYMENT-RESPONSE",
     "X-PAYMENT-RESPONSE",
-    "X-Kletia-Payment-Session",
   ],
 };
 app.use(cors(corsOptions));
@@ -218,12 +187,6 @@ app.use(express.json());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  // The read-only solver feed has its own tighter V3 limiter. Counting the
-  // local worker here would exhaust the shared user-facing API budget.
-  skip: (req) =>
-    req.method === "GET" &&
-    req.originalUrl.split("?", 1)[0] ===
-      "/api/workflows/v3/solver-market/opportunities",
   message: {
     status: "error",
     message: "Too many requests. Please try again later.",
@@ -258,16 +221,9 @@ app.use("/api/allora", requireBaseNetwork, alloraRoutes);
 app.use("/api/paymaster", requireFixedBaseNetwork, paymasterRoutes);
 app.use("/api/webacy", webacyRoutes);
 app.use("/api/arc", requireArcNetwork, arcRoutes);
-app.use("/api/workflows/v2", workflowV2Routes);
-app.use("/api/workflows/v3", requireStellarLabs, workflowV3Routes);
-app.use("/api/intents/v3", requireStellarLabs, workflowV3Routes);
-app.get("/api/capabilities", requireStellarLabs, capabilitiesV3Handler);
-app.use("/api/workflows/v4", requireStellarLabs, workflowV4Routes);
-app.use("/api/intents/v4", requireStellarLabs, workflowV4Routes);
-app.get("/api/capabilities/v4", requireStellarLabs, capabilitiesV4Handler);
 app.use("/api/workflows", workflowRoutes);
-app.use("/api/stellar", stellarRoutes);
 app.use("/api/arbitrum-sepolia", arbitrumSepoliaRoutes);
+app.use("/api/solana", solanaRoutes);
 app.use("/api/release", releaseRoutes);
 app.use("/api/base/x402-buyer", requireBaseNetwork, baseX402BuyerRoutes);
 app.use("/api/base", requireBaseNetwork, baseRoutes);
@@ -423,43 +379,6 @@ app.get("/api/health", async (_req, res) => {
     service: "kletia-omni-engine",
     checks,
   });
-});
-
-app.post("/api/intent", (req, res, next) => {
-  const requestedVersion = String(
-    req.header("X-Kletia-Intent-Version") || req.body?.schemaVersion || "",
-  )
-    .trim()
-    .toLowerCase();
-  if (
-    requestedVersion === "4" ||
-    requestedVersion === "v4" ||
-    requestedVersion === "kletia_intent_compile_v4"
-  ) {
-    return void compileWorkflowV4Handler(req, res);
-  }
-  if (
-    requestedVersion === "3" ||
-    requestedVersion === "v3" ||
-    requestedVersion === "kletia_intent_compile_v3"
-  ) {
-    return void compileWorkflowV3Handler(req, res);
-  }
-  const network = String(req.header("X-Kletia-Network") || req.body?.network || "")
-    .trim()
-    .toLowerCase();
-  const chainRef = String(req.header("X-Kletia-Chain-Ref") || req.body?.chainRef || "")
-    .trim()
-    .toLowerCase();
-  if (network !== "stellar" && chainRef !== "stellar:testnet") return next();
-  if (network !== "stellar" || chainRef !== "stellar:testnet") {
-    return res.status(400).json({
-      success: false,
-      code: "NETWORK_CHAIN_MISMATCH",
-      message: "Stellar intents require network stellar and chainRef stellar:testnet.",
-    });
-  }
-  return void planWorkflowV2Handler(req, res);
 });
 
 app.post(
@@ -754,14 +673,6 @@ function privacyDecisionContract(input: {
           "Understand natural language for this wallet and network during the current workday.",
         impact:
           "For up to 8 hours, unmatched prompts may be sent to the configured model provider without asking again.",
-      },
-      {
-        id: "open_private_composer" as const,
-        label: "Keep fields local",
-        description:
-          "Use the protected composer for supported private fields and commitments.",
-        impact:
-          "Unsupported operations will remain blocked instead of being downgraded to public or AI-assisted planning.",
       },
       {
         id: "edit_intent" as const,
@@ -1470,7 +1381,15 @@ export async function assertRuntimeNetworkAttestation() {
       readNetworkHealth(network, true),
     ),
   );
-  const failed = checks.filter((check) => check.status !== "ok");
+  // A chain-id mismatch means an RPC is pointed at the wrong network and is
+  // always fatal. An unreachable RPC only degrades that network unless strict
+  // startup is requested, so one provider outage cannot take the API down.
+  const strict = process.env.KLETIA_STRICT_NETWORK_ATTESTATION?.trim() === "true";
+  const failed = checks.filter(
+    (check) =>
+      check.status === "chain_mismatch" ||
+      (strict && check.status !== "ok"),
+  );
   if (failed.length > 0) {
     throw Object.assign(
       new Error(
@@ -1479,6 +1398,14 @@ export async function assertRuntimeNetworkAttestation() {
           .join(", ")}.`,
       ),
       { code: "RPC_CHAIN_ATTESTATION_FAILED" },
+    );
+  }
+  const degraded = checks.filter((check) => check.status === "unreachable");
+  if (degraded.length > 0) {
+    console.warn(
+      `[startup] RPC unreachable, serving in degraded mode for: ${degraded
+        .map(({ network }) => network)
+        .join(", ")}.`,
     );
   }
   return checks;
@@ -1506,6 +1433,7 @@ export async function startServer() {
   console.log(`Kletia API listening on port ${PORT}.`);
   console.log(
     `Attested networks: ${checks
+      .filter(({ status }) => status === "ok")
       .map(({ network, chainId }) => `${network}:${chainId}`)
       .join(", ")}`,
   );

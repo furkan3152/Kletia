@@ -19,7 +19,7 @@ Describe the intent, review, signature, confirmation, and recovery experience. I
 - Network(s) and lane(s):
 - Core product or research labs:
 - Assets/protocols/providers involved:
-- Wallet or passkey authority:
+- Wallet authority (EVM / Solana):
 
 ## Trust and failure boundaries
 

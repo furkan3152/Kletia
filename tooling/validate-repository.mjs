@@ -40,28 +40,21 @@ const requiredFiles = [
   "apps/api/src/networks/arc/routes.ts",
   "apps/api/src/networks/arbitrum/engine.ts",
   "apps/api/src/networks/arbitrum-sepolia/config.ts",
-  "apps/api/src/networks/stellar/config.ts",
-  "apps/api/src/networks/stellar/lastMile.ts",
-  "apps/api/src/networks/stellar/payment-center/stellarTransferEvidence.ts",
+  "apps/api/src/networks/solana/index.ts",
+  "packages/core/package.json",
+  "packages/core/src/index.ts",
   "apps/api/src/release/mvpReadiness.ts",
   "apps/api/scripts/run-mvp-local.mjs",
-  "apps/api/src/cross-chain/v2/compiler.ts",
   "apps/api/src/shared/config/networks.ts",
   "apps/api/src/cross-chain/workflow.ts",
   "apps/web/src/networks/base/x402/baseX402Buyer.ts",
   "apps/web/src/networks/arc/config.ts",
   "apps/web/src/networks/arbitrum/components/ArbitrumPortfolioViewer.tsx",
-  "apps/web/src/networks/stellar/components/StellarPaymentCenter.tsx",
-  "apps/web/src/networks/stellar/components/StellarPayoutIntentCard.tsx",
-  "apps/web/src/networks/stellar/runtime/lastMile.ts",
-  "apps/web/src/cross-chain/v2/types.ts",
   "apps/web/src/shared/components/layout/NetworkSwitcher.tsx",
   "apps/web/src/cross-chain/components/WorkflowTimeline.tsx",
   "apps/web/public/kletia-logo.png",
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
-  "contracts/stellar/deployments/testnet/release-operator.v1.json",
-  "contracts/stellar/deployments/testnet/passkey-smoke.v1.json",
   "render.yaml",
   "attachments/GASOK_Team_Archial.md",
   "attachments/Kletia_Arc_Submission.pdf",
@@ -156,8 +149,6 @@ const multilingualIntentSources = new Set([
   "apps/api/src/shared/ai/parser.ts",
   "apps/api/src/shared/privacy/intentPrivacyTrace.ts",
   "apps/api/src/networks/base/intent/x402.ts",
-  "apps/web/src/networks/stellar/runtime/intentWorkspace.ts",
-  "apps/web/src/networks/stellar/runtime/privateIntent.ts",
   "apps/web/src/shared/privacy/defaultIntentPrivacy.ts",
   "apps/web/src/shared/privacy/intentPrivacy.ts",
 ]);
@@ -196,6 +187,7 @@ const packageNames = [
   "apps/web/package.json",
   "contracts/base/package.json",
   "contracts/arc/package.json",
+  ...trackedFiles.filter((file) => /^packages\/[^/]+\/package\.json$/u.test(file)),
 ].map((file) => JSON.parse(readFileSync(file, "utf8")).name);
 if (new Set(packageNames).size !== packageNames.length) {
   fail("package names must be unique");
@@ -223,7 +215,7 @@ for (const file of trackedFiles) {
   }
 }
 
-const networkSourceRoot = /^(apps\/(?:api|web)\/src\/networks\/(base|arc|arbitrum|arbitrum-sepolia|stellar))\//u;
+const networkSourceRoot = /^(apps\/(?:api|web)\/src\/networks\/(base|arc|arbitrum|arbitrum-sepolia|solana))\//u;
 const relativeImportPattern =
   /(?:from\s*|import\s*\()\s*["'](\.\.?\/[^"']+)["']/gu;
 for (const file of trackedFiles) {
@@ -245,93 +237,33 @@ for (const file of trackedFiles) {
 }
 
 const renderConfig = readFileSync("render.yaml", "utf8");
-const stellarReleaseOperator = JSON.parse(
-  readFileSync(
-    "contracts/stellar/deployments/testnet/release-operator.v1.json",
-    "utf8",
-  ),
-);
-const stellarPasskeySmoke = JSON.parse(
-  readFileSync(
-    "contracts/stellar/deployments/testnet/passkey-smoke.v1.json",
-    "utf8",
-  ),
-);
-if (
-  stellarReleaseOperator.schemaVersion !==
-    "kletia_stellar_release_operator_v1" ||
-  stellarReleaseOperator.network !== "stellar_testnet" ||
-  !/^G[A-Z2-7]{55}$/u.test(stellarReleaseOperator.publicKey || "") ||
-  !/^[a-f0-9]{64}$/u.test(
-    stellarReleaseOperator.friendbotFundingEvidence?.transactionHash || "",
-  ) ||
-  stellarReleaseOperator.friendbotFundingEvidence?.successful !== true ||
-  stellarReleaseOperator.keyStorage?.type !==
-    "operating_system_secure_store" ||
-  stellarReleaseOperator.keyStorage?.secretCommittedToRepository !== false ||
-  stellarReleaseOperator.keyStorage?.secretUsedByApiRuntime !== false ||
-  stellarReleaseOperator.keyStorage?.secretUsedByWebRuntime !== false ||
-  stellarReleaseOperator.roleBoundary?.endUserPasskeyAccount !== false ||
-  stellarReleaseOperator.roleBoundary?.paymentProvider !== false ||
-  stellarReleaseOperator.roleBoundary?.mainnetAuthority !== false
-) {
-  fail("the Stellar Testnet release-operator boundary is invalid");
-}
-if (
-  stellarPasskeySmoke.schemaVersion !== "kletia_stellar_passkey_smoke_v1" ||
-  stellarPasskeySmoke.network !== "stellar_testnet" ||
-  !/^C[A-Z2-7]{55}$/u.test(stellarPasskeySmoke.account?.contractId || "") ||
-  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.create?.hash || "") ||
-  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.fund?.hash || "") ||
-  !/^[a-f0-9]{64}$/u.test(stellarPasskeySmoke.transactions?.transfer?.hash || "") ||
-  stellarPasskeySmoke.transactions?.transfer?.amountAtomic !== "1000000" ||
-  stellarPasskeySmoke.authenticatorEvidence?.algorithm !== "secp256r1" ||
-  stellarPasskeySmoke.authenticatorEvidence?.virtualAuthenticator !== true ||
-  stellarPasskeySmoke.authenticatorEvidence?.physicalUserVerificationObserved !== false ||
-  stellarPasskeySmoke.authenticatorEvidence?.credentialMaterialCommitted !== false ||
-  stellarPasskeySmoke.claimBoundary?.realTestnetPasskeyAuthorizedTransfer !== true ||
-  stellarPasskeySmoke.claimBoundary?.humanBiometricCeremony !== false ||
-  stellarPasskeySmoke.claimBoundary?.publicHttpsDeployment !== false ||
-  stellarPasskeySmoke.claimBoundary?.mainnet !== false ||
-  stellarPasskeySmoke.claimBoundary?.productionReady !== false
-) {
-  fail("the Stellar Testnet passkey smoke boundary is invalid");
-}
-
 const coreMvpRunner = readFileSync("apps/api/scripts/run-mvp-local.mjs", "utf8");
 const liveMvpReadiness = readFileSync(
   "apps/api/src/release/mvpReadiness.ts",
   "utf8",
 );
-for (const forbidden of [
-  "STELLAR_SOLVER_MARKET_ENABLED",
-  "STELLAR_INTENT_CONTROL_PLANE_V2_ENABLED",
-  "STELLAR_POLICY_V2_ARTIFACTS_READY",
-]) {
-  if (coreMvpRunner.includes(forbidden)) {
-    fail(`the core MVP runner must not activate the Stellar lab flag ${forbidden}`);
-  }
+if (/stellar/iu.test(coreMvpRunner) || /stellar/iu.test(liveMvpReadiness)) {
+  fail("Stellar was removed; the MVP runner and readiness must not reference it");
 }
-for (const forbiddenImport of [
-  "controlPlaneV2Readiness",
-  "privatePaymentsManifest",
-  "solverMarketReadiness",
-  "cross-chain/v3/store",
-  "cross-chain/v4/store",
-]) {
+for (const forbiddenImport of ["cross-chain/v2/", "cross-chain/v3/", "cross-chain/v4/"]) {
   if (liveMvpReadiness.includes(forbiddenImport)) {
-    fail(`live MVP readiness still depends on a disabled lab: ${forbiddenImport}`);
+    fail(`live MVP readiness depends on a removed workflow engine: ${forbiddenImport}`);
   }
 }
-for (const requiredFragment of [
-  "stellar_passkey_payment_identity",
-  "stellar_payment_center_core",
-  "stellar_reviewed_payment_provider",
-  "readPaymentCenterStoreReadiness",
+for (const removedPrefix of [
+  "contracts/stellar/",
+  "circuits/",
+  "apps/api/src/networks/stellar/",
+  "apps/web/src/networks/stellar/",
+  "apps/api/src/cross-chain/v2/",
+  "apps/api/src/cross-chain/v3/",
+  "apps/api/src/cross-chain/v4/",
+  "apps/web/src/cross-chain/v2/",
+  "apps/web/src/cross-chain/v3/",
+  "apps/web/src/cross-chain/v4/",
 ]) {
-  if (!liveMvpReadiness.includes(requiredFragment)) {
-    fail(`live MVP readiness is missing Payment Center core binding ${requiredFragment}`);
-  }
+  const stale = trackedFiles.find((file) => file.startsWith(removedPrefix));
+  if (stale) fail(`removed subsystem is still tracked: ${stale}`);
 }
 for (const root of ["rootDir: apps/api", "rootDir: apps/web"]) {
   if (!renderConfig.includes(root)) fail(`Render root is missing: ${root}`);
@@ -350,23 +282,10 @@ const renderRequiredFragments = [
   "autoDeployTrigger: checksPass",
   "value: https://api.kletiaai.xyz",
   "value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com",
-  "value: https://testanchor.stellar.org",
 ];
 for (const fragment of renderRequiredFragments) {
   if (!renderConfig.includes(fragment)) {
     fail(`Render release boundary is missing: ${fragment}`);
-  }
-}
-const labsWebEnvironment = readFileSync("apps/web/.env.labs.example", "utf8");
-for (const fragment of [
-  "STELLAR_POLICY_V2_PROVER_WASM_RELEASE_URL",
-  "STELLAR_POLICY_V2_PROVING_KEY_RELEASE_URL",
-]) {
-  if (!labsWebEnvironment.includes(fragment)) {
-    fail(`Stellar labs web environment is missing: ${fragment}`);
-  }
-  if (renderConfig.includes(fragment)) {
-    fail(`core Render release must not stage Stellar lab artifact: ${fragment}`);
   }
 }
 if ((renderConfig.match(/branch: main/gu) ?? []).length !== 2) {
@@ -377,13 +296,8 @@ const navbarSource = readFileSync(
   "apps/web/src/shared/components/layout/Navbar.tsx",
   "utf8",
 );
-if (
-  !navbarSource.includes('src="/kletia-logo.png"') ||
-  !navbarSource.includes("BASE AGENT") ||
-  !navbarSource.includes("SOON") ||
-  !navbarSource.includes("disabled")
-) {
-  fail("Navbar must keep the local Kletia logo and disabled Base Agent SOON state");
+if (!navbarSource.includes('src="/kletia-logo.png"')) {
+  fail("Navbar must keep the local Kletia logo");
 }
 
 if (!process.exitCode) {

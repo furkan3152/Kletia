@@ -77,3 +77,46 @@ export function removeSessionStorage(key: string): void {
     // See writeStorage.
   }
 }
+
+function createMemoryStorage(): Storage {
+  const items = new Map<string, string>();
+  return {
+    get length() {
+      return items.size;
+    },
+    clear: () => items.clear(),
+    getItem: (key: string) => items.get(String(key)) ?? null,
+    key: (index: number) => [...items.keys()][index] ?? null,
+    removeItem: (key: string) => void items.delete(String(key)),
+    setItem: (key: string, value: string) => void items.set(String(key), String(value)),
+  };
+}
+
+/**
+ * When the browser refuses site data (a third-party /embed iframe with
+ * third-party cookies blocked, or "block all cookies"), merely reading
+ * `window.localStorage` throws a SecurityError. Wallet libraries read it
+ * directly while rendering, so the page would fail to load its wallets.
+ * Replace each refused storage with an in-memory one for this page load:
+ * nothing persists, which is exactly what the user asked the browser for.
+ */
+export function installMemoryStorageFallback(): void {
+  if (typeof window === "undefined") return;
+  for (const name of ["localStorage", "sessionStorage"] as const) {
+    try {
+      void window[name];
+      continue;
+    } catch {
+      // Refused by the browser: fall through to the in-memory replacement.
+    }
+    try {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        enumerable: true,
+        value: createMemoryStorage(),
+      });
+    } catch {
+      // Not configurable here; callers keep using the guarded helpers above.
+    }
+  }
+}

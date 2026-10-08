@@ -270,3 +270,32 @@ export function observeSigners(signers: IntentSigners, observer: SignerObserver)
   }
   return observed;
 }
+
+export interface SignerLease {
+  readonly signers: IntentSigners;
+  /** Start accepting wallet requests; the returned function stops it again. */
+  activate: () => () => void;
+}
+
+/**
+ * Signers that only reach the wallet while the lease is active. For callers
+ * whose executor cannot stop a step mid-flight (e.g. the widget package):
+ * once the owner unmounts or is replaced, a late request fails with an
+ * AbortError instead of opening a wallet prompt.
+ */
+export function leaseSigners(signers: IntentSigners): SignerLease {
+  let active = false;
+  return {
+    signers: observeSigners(signers, {
+      beforeRequest: () => {
+        if (!active) throw new DOMException("This plan was replaced before signing. Nothing was sent.", "AbortError");
+      },
+    }),
+    activate: () => {
+      active = true;
+      return () => {
+        active = false;
+      };
+    },
+  };
+}

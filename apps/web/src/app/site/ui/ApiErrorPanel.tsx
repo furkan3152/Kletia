@@ -7,12 +7,14 @@ import { cx, LABEL } from "./styles";
 export interface ApiErrorPanelProps {
   readonly error: PlatformError;
   readonly title?: string;
+  /** Replaces the default explanation (e.g. when the caller knows more context). */
+  readonly message?: string;
   readonly onRetry?: () => void;
   readonly className?: string;
 }
 
 /** Renders a Kletia API error: code, status, explanation, validation issues and request id. */
-export function ApiErrorPanel({ error, title = "Request failed", onRetry, className }: ApiErrorPanelProps) {
+export function ApiErrorPanel({ error, title = "Request failed", message, onRetry, className }: ApiErrorPanelProps) {
   return (
     <div
       role="alert"
@@ -26,7 +28,7 @@ export function ApiErrorPanel({ error, title = "Request failed", onRetry, classN
           <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-[#B91C1C] dark:text-[#FCA5A5]" aria-hidden="true" />
           <div className="min-w-0">
             <p className="font-display text-lg font-bold leading-tight">{title}</p>
-            <p className="mt-1 text-sm">{describePlatformError(error)}</p>
+            <p className="mt-1 text-sm">{message ?? describePlatformError(error)}</p>
           </div>
         </div>
         <p className="flex flex-wrap gap-1.5 font-code text-[11px]">

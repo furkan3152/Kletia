@@ -5,7 +5,7 @@ import { DEFAULT_WIDGET_EXAMPLES, KletiaIntentWidget } from "@kletia/widget";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
-import { externalRecipients, PREVIEW_ACCOUNTS } from "../../../shared/platform/intentBinding";
+import { externalRecipients, leaseSigners, PREVIEW_ACCOUNTS } from "../../../shared/platform/intentBinding";
 import { syncIntentActivity } from "../../../shared/platform/intentActivity";
 import { useRoute } from "../../routes/useRoute";
 import { createEmbedClient } from "./embedClient";
@@ -109,6 +109,13 @@ export default function EmbedPage() {
 
   const live = wallet.accounts.length > 0 && wallet.signers !== undefined;
   const accountsKey = wallet.accounts.join(",");
+
+  // The widget's executor checks for cancellation only between steps, so a
+  // step being prepared when the widget remounts (wallet switched or
+  // disconnected) or the page unmounts would still open a wallet prompt.
+  // Signers handed to one widget instance stop working once it is replaced.
+  const lease = useMemo(() => (live && wallet.signers ? leaseSigners(wallet.signers) : null), [live, wallet.signers]);
+  useEffect(() => lease?.activate(), [lease]);
   const client = useMemo(() => createEmbedClient(live ? "live" : "plan"), [live]);
   const accounts = live ? wallet.accounts : PREVIEW_ACCOUNT_LIST;
 
@@ -145,7 +152,7 @@ export default function EmbedPage() {
         key={widgetKey}
         client={client}
         accounts={accounts}
-        {...(live && wallet.signers ? { signers: wallet.signers } : {})}
+        {...(lease ? { signers: lease.signers } : {})}
         defaultText={lastText}
         examples={params.examples ?? DEFAULT_WIDGET_EXAMPLES}
         theme={params.theme}

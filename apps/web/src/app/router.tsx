@@ -130,6 +130,48 @@ function EmbedBootFallback() {
   );
 }
 
+/**
+ * True when this document is framed by another origin. Only `/embed` may be
+ * framed there; hosting headers enforce that on the first request, but a
+ * client-side navigation (pushState) inside the frame never re-checks them.
+ */
+function isCrossOriginFramed(): boolean {
+  try {
+    if (window.self === window.top) return false;
+  } catch {
+    return true;
+  }
+  try {
+    return window.top?.location.origin !== window.location.origin;
+  } catch {
+    return true;
+  }
+}
+
+const CROSS_ORIGIN_FRAMED = typeof window !== "undefined" && isCrossOriginFramed();
+
+function FramedRouteNotice({ href }: { href: string }) {
+  return (
+    <main id="main-content" className="flex min-h-[100dvh] items-center justify-center bg-[#F4F1EA] p-4">
+      <div className="flex max-w-md flex-col items-start gap-3 border-[3px] border-[#1A1A1A] bg-white p-5 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]">
+        <h1 className="font-display text-xl font-bold">Kletia opens in its own tab</h1>
+        <p className="text-sm font-semibold">
+          For your safety this page cannot run inside another website. Open it directly to continue.
+        </p>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#0052FF] px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]"
+        >
+          Open Kletia
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      </div>
+    </main>
+  );
+}
+
 function RouteLoadFailed({ reload }: { reload: () => void }) {
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6" role="alert">
@@ -208,7 +250,9 @@ export function AppRouter() {
 
   const Page = PAGES[route.id];
   const content =
-    route.kind === "site" ? (
+    CROSS_ORIGIN_FRAMED && route.kind !== "embed" ? (
+      <FramedRouteNotice href={`${window.location.origin}${location.pathname}${location.search}`} />
+    ) : route.kind === "site" ? (
       <SiteLayout>
         <Page />
       </SiteLayout>

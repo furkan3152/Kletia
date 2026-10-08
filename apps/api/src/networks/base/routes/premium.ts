@@ -799,24 +799,6 @@ router.get("/alpha-signals", (_req, res) => {
   });
 });
 
-router.get("/optimal-routes", (_req, res) => {
-  res.status(501).json({
-    status: "unavailable",
-    code: "LIVE_QUOTE_REQUIRED",
-    message:
-      "No live quote provider was configured for this endpoint. Kletia will not return a fabricated route.",
-  });
-});
-
-router.get("/route-solver", (_req, res) => {
-  res.status(501).json({
-    status: "unavailable",
-    code: "VERIFIED_ARBITRAGE_REQUIRED",
-    message:
-      "No atomic, simulated arbitrage opportunity is currently available. Kletia will not return placeholder calldata or guaranteed-profit claims.",
-  });
-});
-
 router.get("/yield-strategy", (_req, res) => {
   return res.json({
     status: "success",

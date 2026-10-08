@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as dotenv from "dotenv";
+import "../config/environment.js";
 import { NETWORKS, type NetworkId } from "../config/networks.js";
 import {
   BASE_PROTOCOL_ALIASES,
@@ -11,7 +11,6 @@ import {
   normalizeAssetReference,
 } from "../assets/catalog.js";
 
-dotenv.config();
 
 export const IntentSchema = z.object({
   isComplete: z.boolean().catch(false),

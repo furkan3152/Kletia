@@ -246,6 +246,59 @@ async function scanArbitrumTarget(address: Address, action?: string) {
   };
 }
 
+/**
+ * Keyless pre-sign verification for Base. Used only for action-bound scans
+ * when Webacy is not configured: the target must already be in the reviewed
+ * Base manifest (or a provenance-verified Kletia x402 gateway), the RPC must
+ * attest Base mainnet and the target must have deployed bytecode. General
+ * address risk lookups still require Webacy.
+ */
+async function scanBaseManifestTarget(
+  address: Address,
+  action: string,
+  provenanceVerified: boolean,
+) {
+  const allowlisted =
+    provenanceVerified || isNetworkTargetAllowed("base", address, action);
+  const [chainId, bytecode] = await Promise.all([
+    withTimeout(basePublicClient.getChainId(), 8_000),
+    withTimeout(basePublicClient.getCode({ address }), 8_000),
+  ]);
+  if (chainId !== NETWORKS.base.chainId) {
+    throw new ControlledRouteError(
+      "BASE_RPC_CHAIN_MISMATCH",
+      "Base RPC does not match the expected Base Mainnet chain.",
+      503,
+    );
+  }
+  const hasBytecode =
+    Boolean(bytecode && bytecode !== "0x") &&
+    !isEip7702DelegationDesignator(bytecode);
+  return {
+    success: true,
+    status: "success",
+    address,
+    isContract: hasBytecode,
+    allowlisted,
+    bytecodeVerified: hasBytecode,
+    bytecodeBytes: hasBytecode ? (bytecode!.length - 2) / 2 : 0,
+    riskScore: null,
+    riskLevel: null,
+    decision: allowlisted && hasBytecode ? "approved" : "blocked",
+    source: "base_manifest+rpc_bytecode",
+    tags: [
+      provenanceVerified
+        ? "Kletia x402 gateway provenance"
+        : allowlisted
+          ? "Base reviewed manifest"
+          : "Not in Base reviewed manifest",
+      hasBytecode ? "RPC bytecode verified" : "No RPC bytecode",
+    ],
+    network: "base",
+    chainId: NETWORKS.base.chainId,
+  };
+}
+
 async function scanBaseAddress(address: Address) {
   if (!webacyClient) {
     throw new ControlledRouteError(
@@ -384,6 +437,12 @@ async function handleScan(req: Request, res: Response) {
     if (network === "arbitrum") {
       return res.json({
         ...(await scanArbitrumTarget(address, action)),
+        ...actionEvidence,
+      });
+    }
+    if (!webacyClient && action) {
+      return res.json({
+        ...(await scanBaseManifestTarget(address, action, dynamicBaseX402Action)),
         ...actionEvidence,
       });
     }

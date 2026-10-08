@@ -6,13 +6,17 @@ export default defineConfig({
   optimizeDeps: {
     include: ["buffer"],
   },
-  // The entry includes the audited wallet-connector runtime. A separate
-  // post-build budget checks both raw and gzip size; this limit keeps Vite's
-  // generic warning aligned with that explicit release gate.
+  // Wallet runtimes load lazily with the console route. A separate
+  // post-build budget checks both raw and gzip size of the entry; this limit
+  // keeps Vite's generic warning aligned with that explicit release gate.
   build: {
     chunkSizeWarningLimit: 1_200,
   },
   server: {
     port: 5174,
+    fs: {
+      // Workspace packages (@kletia/core, @kletia/sdk) are linked from ../../packages.
+      allow: [".", "../../packages"],
+    },
   },
 });

@@ -9,6 +9,7 @@ import {
   assertStepTransition,
   CHAINS,
   deriveIntentStatus,
+  fromBaseUnits,
   isBaseUnitAmount,
   isEvmAddress,
   isStepDone,
@@ -23,13 +24,13 @@ import {
 import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
 import { adapterForStep, configureAdapters } from "./adapters/registry.js";
 import type { PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
-import { isReferenceRejection, referenceFormatValid, referenceKey } from "./adapters/verification.js";
+import { isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
 import { quoteBindingFor } from "./binding.js";
 import { evmChainId, isEvmNetwork } from "./chains/evm.js";
 import { assertSolanaTransactionOwner } from "./chains/solana.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
 import { actionForStep, planIntent, summarize } from "./planner.js";
-import { decodeStepRef, encodeStepRef } from "./stepRef.js";
+import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
 
@@ -339,11 +340,34 @@ function validatePayload(step: IntentStep, prepared: PreparedPayload): void {
   }
 }
 
-function priceMoved(step: IntentStep, prepared: PreparedPayload): boolean {
-  if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit") return false;
-  const plannedInput = BigInt(step.input.amount);
-  const plannedMinimum = BigInt(step.minimumOutput.amount);
-  return BigInt(prepared.expectedOutput.amount) * plannedInput < plannedMinimum * BigInt(prepared.input.amount);
+interface PriceFloor {
+  readonly input: bigint;
+  readonly minimum: bigint;
+  /** The guaranteed minimum as shown to users ("149.25 USDC"). */
+  readonly label: string;
+}
+
+/**
+ * The rate every prepare is held to: the planned input and minimum recorded
+ * in the step ref, never the previous prepare's (re-prepares must not erode
+ * it). Legacy steps without a recorded plan use their current amounts.
+ */
+function plannedFloor(step: IntentStep): PriceFloor | null {
+  if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit") return null;
+  const ref = decodeStepRef(step.quoteRef);
+  const planned = ref?.plannedInput && ref.plannedMinimum
+    ? { input: ref.plannedInput, minimum: ref.plannedMinimum }
+    : { input: step.input.amount, minimum: step.minimumOutput.amount };
+  return {
+    input: BigInt(planned.input),
+    minimum: BigInt(planned.minimum),
+    label: `${fromBaseUnits(planned.minimum, step.minimumOutput.decimals)} ${step.minimumOutput.symbol}`,
+  };
+}
+
+function priceMoved(floor: PriceFloor | null, prepared: PreparedPayload): boolean {
+  if (!floor) return false;
+  return BigInt(prepared.expectedOutput.amount) * floor.input < floor.minimum * BigInt(prepared.input.amount);
 }
 
 export async function prepareStep(intentId: string, stepId: string): Promise<PreparedStepResult> {
@@ -371,11 +395,12 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
       // Quote-specific warnings are replaced by the fresh quote's; static ones (token verification, rent) persist.
       const quoteSpecific = /^(?:Route:|Price |Fees and price impact|Slippage capped|Simulation was unavailable)/u;
       const warnings = [...(step.warnings ?? []).filter((warning) => !quoteSpecific.test(warning)), ...prepared.warnings];
-      if (priceMoved(step, prepared)) {
+      const floor = plannedFloor(step);
+      if (priceMoved(floor, prepared)) {
         if (!funded) {
           throw new PlatformError(
             "QUOTE_MOVED",
-            `The price moved beyond the slippage limit since planning (now ${prepared.expectedOutput.formatted} ${prepared.expectedOutput.symbol}, plan guaranteed ${step.minimumOutput?.formatted}). Create a new intent to re-quote.`,
+            `The price moved beyond the slippage limit since planning (now ${prepared.expectedOutput.formatted} ${prepared.expectedOutput.symbol}, plan guaranteed ${floor?.label}). Create a new intent to re-quote.`,
             409,
           );
         }
@@ -412,7 +437,16 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
           : {}),
         prepared: { quoteBinding, preparedAt, expiresAt, transactions: prepared.records },
         evidence: appendEvidence(step, [evidence, ...tracking]),
-        ...(ref ? { quoteRef: encodeStepRef({ ...ref, ...(prepared.quoteId ? { quote: prepared.quoteId } : {}) }) } : {}),
+        ...(ref
+          ? {
+              quoteRef: encodeStepRef({
+                ...ref,
+                ...(prepared.quoteId ? { quote: prepared.quoteId } : {}),
+                // Each payload's own guarantee: an earlier payload that lands after this re-prepare still verifies.
+                floors: [...(ref.floors ?? []), { at: Math.floor(now / 1000), min: prepared.minimumOutput.amount }].slice(-MAX_PREPARED_FLOORS),
+              }),
+            }
+          : {}),
         ...(warnings.length > 0 ? { warnings: [...new Set(warnings)].slice(0, 12) } : {}),
       };
       const next = withSteps(graph, replaceStep(graph.steps, nextStep), now);
@@ -446,16 +480,19 @@ function appendEvidence(step: IntentStep, evidence: readonly StepEvidence[]): St
   return [...step.evidence, ...evidence].slice(-50);
 }
 
+/** Moves a step to manual review (never auto-retried) with a note saying why. */
+function toIndeterminate(step: IntentStep, now: number, detail: string): IntentStep {
+  return {
+    ...step,
+    status: transition(step, "indeterminate"),
+    evidence: appendEvidence(step, [{ kind: "note", network: step.network, observedAt: new Date(now).toISOString(), detail }]),
+  };
+}
+
 function applyVerification(step: IntentStep, result: VerificationResult, now: number): IntentStep {
   if (result.status === "pending") {
     if (!result.stale || step.status === "indeterminate") return step;
-    return {
-      ...step,
-      status: transition(step, "indeterminate"),
-      evidence: appendEvidence(step, [
-        { kind: "note", network: step.network, observedAt: new Date(now).toISOString(), detail: "Submitted transactions were not observed for over an hour; manual review needed." },
-      ]),
-    };
+    return toIndeterminate(step, now, "Submitted transactions were not observed for over an hour; manual review needed.");
   }
   if (result.status === "failed") {
     return {
@@ -491,15 +528,26 @@ function applySettlement(step: IntentStep, result: SettlementResult, now: number
     next = { ...next, settlement: { ...step.settlement, trackingId: result.trackingId } };
   }
   if (now - submittedAt(step) > SETTLEMENT_TIMEOUT_MS && step.status !== "indeterminate") {
-    next = {
-      ...next,
-      status: transition(step, "indeterminate"),
-      evidence: appendEvidence(step, [
-        { kind: "note", network: step.network, observedAt: new Date(now).toISOString(), detail: "Settlement has not completed within 3 hours; manual review needed." },
-      ]),
-    };
+    next = toIndeterminate(next, now, "Settlement has not completed within 3 hours; manual review needed.");
   }
   return next;
+}
+
+/**
+ * Verification or settlement reads keep failing (chain RPC or provider down,
+ * throttled or retired). The deadlines of a successful read still apply, so a
+ * step past them goes to manual review instead of staying active forever;
+ * before them the error propagates and the refresh is deferred.
+ */
+function overdueAfterError(step: IntentStep, now: number): IntentStep | null {
+  const elapsed = now - submittedAt(step);
+  if (step.status === "settling" && elapsed > SETTLEMENT_TIMEOUT_MS) {
+    return toIndeterminate(step, now, "Settlement could not be confirmed within 3 hours (status reads failing); manual review needed.");
+  }
+  if (step.status === "submitted" && elapsed > REFERENCE_STALE_MS) {
+    return toIndeterminate(step, now, "Submitted transactions could not be verified for over an hour (reads failing); manual review needed.");
+  }
+  return null;
 }
 
 /**
@@ -575,6 +623,16 @@ async function settleNow(step: IntentStep, now: number): Promise<IntentStep> {
 
 /** Advances one step by re-reading the chain or the settlement network. */
 async function progressStep(intentId: string, step: IntentStep, now: number): Promise<IntentStep> {
+  try {
+    return await readProgress(intentId, step, now);
+  } catch (error) {
+    const overdue = overdueAfterError(step, now);
+    if (overdue) return overdue;
+    throw error;
+  }
+}
+
+async function readProgress(intentId: string, step: IntentStep, now: number): Promise<IntentStep> {
   const adapter = adapterForStep(step);
   const references = step.references ?? [];
   const settlingLike = step.status === "settling" ||
@@ -788,8 +846,10 @@ export function startSettlementPoller(options: SettlementPollerOptions = {}): ()
   const tick = async () => {
     if (running || stopped) return;
     running = true;
+    const intents = getIntentStore();
+    const polled: string[] = [];
     try {
-      const active = await getIntentStore().listActive(batchSize);
+      const active = await intents.listActive(batchSize);
       let cursor = 0;
       const workers = Array.from({ length: Math.min(concurrency, active.length) }, async () => {
         while (!stopped && cursor < active.length) {
@@ -799,12 +859,20 @@ export function startSettlementPoller(options: SettlementPollerOptions = {}): ()
           await refreshIntent(graph.id).catch((error: unknown) => {
             console.warn(`[platform] poll ${graph.id} failed:`, toPlatformError(error).message);
           });
+          polled.push(graph.id);
         }
       });
       await Promise.all(workers);
     } catch (error) {
       console.warn("[platform] settlement poller tick failed:", toPlatformError(error).message);
     } finally {
+      // A refresh that changes nothing keeps updatedAt; the polled marker moves the intent
+      // behind the others so every active intent gets its turn, however many stay unchanged.
+      if (polled.length > 0) {
+        await intents.markPolled(polled).catch((error: unknown) => {
+          console.warn("[platform] settlement poller could not record polled intents:", toPlatformError(error).message);
+        });
+      }
       running = false;
     }
   };

@@ -17,7 +17,7 @@ import {
   type TransactionRequest,
   WRAPPED_SOL_MINT,
 } from "@kletia/core";
-import { assembleSolanaTransaction, isSolanaNetworkKey } from "../../../networks/solana/index.js";
+import { assembleSolanaTransaction, assertSolanaWalletRecipient, isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef, providerCurrency, sameAsset, type ResolvedAsset } from "../assets.js";
 import { erc20CreditFromLogs, evmChainId, isEvmNetwork, observeEvmTransaction, readEvmReceiptStatus } from "../chains/evm.js";
@@ -75,6 +75,10 @@ function title(action: Pick<AdapterAction, "kind" | "network" | "destinationNetw
 }
 
 async function quote(action: AdapterAction, slippageBps: number): Promise<RelayQuote> {
+  // Relay pays a Solana recipient's token account; a token account, mint or program vault there strands the output.
+  if (isSolanaNetworkKey(action.destinationNetwork)) {
+    await assertSolanaWalletRecipient(action.destinationNetwork, action.recipient.address);
+  }
   return fetchRelayQuote({
     user: action.account.address,
     recipient: action.recipient.address,

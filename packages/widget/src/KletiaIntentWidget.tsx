@@ -10,6 +10,7 @@ import {
 import {
   KletiaApiError,
   KletiaClient,
+  KletiaExecutionError,
   executeIntent,
   type IntentSigners,
   type KletiaClientOptions,
@@ -70,6 +71,14 @@ function useResolvedTheme(theme: KletiaIntentWidgetProps["theme"]): "light" | "d
 }
 
 function describeError(error: unknown): string {
+  if (error instanceof KletiaExecutionError && error.references) {
+    const count = error.references.length;
+    const them = count === 1 ? "it" : "them";
+    const sent = `Your wallet already sent ${count} transaction${count === 1 ? "" : "s"} for this step, but Kletia has not recorded ${them}`;
+    return error.cause instanceof KletiaApiError && !error.cause.retryable
+      ? `${sent}: ${error.cause.message} This step will not be signed again; check your wallet's activity and plan a new intent if needed.`
+      : `${sent} yet. Resubmit reports ${them} without signing again.`;
+  }
   if (error instanceof KletiaApiError) {
     const issue = error.issues[0];
     const message = issue ? `${error.message} (${issue.path || "request"}: ${issue.message})` : error.message;
@@ -157,6 +166,8 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const [intent, setIntent] = useState<IntentGraph | null>(null);
   const [phase, setPhase] = useState<"idle" | "planning" | "executing">("idle");
   const [error, setError] = useState<string | null>(null);
+  /** Broadcast references Kletia has not accepted yet, by step id: resubmitted, never signed again. */
+  const [unreported, setUnreported] = useState<Readonly<Record<string, readonly string[]>>>({});
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -169,6 +180,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     setPhase("planning");
     setError(null);
     setIntent(null);
+    setUnreported({});
     try {
       const created = await client.intents.create({
         text: text.trim(),
@@ -195,14 +207,22 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     try {
       const final = await executeIntent(client, intent, signers, {
         signal: controller.signal,
+        pendingReferences: unreported,
         onUpdate: (next) => {
           setIntent(next);
           onUpdate?.(next);
         },
       });
+      setUnreported({});
       setIntent(final);
       onComplete?.(final);
     } catch (caught) {
+      // Keep only what this failure left unreported; the next Execute resubmits it.
+      setUnreported(
+        caught instanceof KletiaExecutionError && caught.references && caught.intentId === intent.id
+          ? { [caught.stepId]: caught.references }
+          : {},
+      );
       setError(describeError(caught));
       onError?.(caught);
       void client.intents.get(intent.id).then(setIntent).catch(() => undefined);
@@ -213,6 +233,11 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
 
   const busy = phase !== "idle";
   const finished = intent ? ["completed", "failed", "partially_completed", "cancelled", "expired"].includes(intent.status) : false;
+  const resubmit = intent
+    ? intent.steps.some(
+        (step) => unreported[step.id] && (step.status === "ready" || step.status === "awaiting_signature"),
+      )
+    : false;
 
   return (
     <section
@@ -263,7 +288,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           onClick={() => void execute()}
           title={signers ? undefined : "Connect wallets to execute"}
         >
-          {phase === "executing" ? "Executing…" : "Execute"}
+          {phase === "executing" ? "Executing…" : resubmit ? "Resubmit" : "Execute"}
         </button>
       </div>
       <div aria-live="polite">

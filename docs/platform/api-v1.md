@@ -32,7 +32,10 @@ this same API for Solana and cross-network flows.
 | Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above |
 
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
-hash). It is rate-limited per IP.
+hash). It is rate-limited per IP. Requests with an unknown or revoked key count
+against the caller's IP at the public limit, and an IP is allowed 30 checks of
+unrecognised keys per minute: after that, keys that are not already verified
+get `429 RATE_LIMITED` (with `Retry-After`) without being looked up.
 
 Intent ids (`int_` + 128 random bits) are capabilities: whoever holds an id can
 read, prepare, submit, refresh and cancel that intent, so share it only with
@@ -180,7 +183,7 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 
 Types: `intent.created`, `intent.status_changed`, `intent.step_updated`.
 
-The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each client may hold 10 streams; a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
+The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
 Webhook deliveries are `POST` with header
 `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
@@ -190,6 +193,12 @@ Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries also carry
 are never followed. Webhook URLs must be public HTTPS; private, loopback,
 link-local and metadata addresses are refused at registration and again at
 every delivery. A key may register 10 webhooks.
+
+Each key's deliveries are queued separately and served in turn with other
+keys: at most 200 wait per key (beyond that the key's oldest delivery is
+dropped), at most 2 are in flight per key and a webhook receives one delivery
+at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling
+up to 5 minutes while it keeps failing; its deliveries wait during the pause.
 
 Webhook secrets are encrypted at rest with `KLETIA_PLATFORM_SECRET` (at least
 32 characters). It is required whenever `KLETIA_DATABASE_URL` is set; with the

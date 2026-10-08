@@ -55,6 +55,8 @@ export interface WebhookDispatcherStats {
   readonly delivered: number;
   readonly failed: number;
   readonly dropped: number;
+  /** Webhooks paused after consecutive delivery failures (absent on older API versions). */
+  readonly pausedWebhooks?: number;
 }
 
 export interface QuoteRequest {

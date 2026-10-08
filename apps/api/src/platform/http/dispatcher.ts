@@ -8,8 +8,20 @@
  *
  * Delivery rules: 5 s timeout, redirects are never followed (3xx is a
  * failure), every socket lookup re-checks that the host is public, a failed
- * delivery is retried up to 3 times after 1 s, 5 s and 25 s. The queue is
- * bounded (1000); when full the oldest pending delivery is dropped and logged.
+ * delivery is retried up to 3 times after 1 s, 5 s and 25 s.
+ *
+ * Isolation between API keys (one key's slow or failing endpoints must not
+ * delay or drop another key's deliveries):
+ * - each owner key has its own FIFO queue and owners are served round-robin;
+ * - an owner holds at most 200 queued deliveries (beyond that its own oldest
+ *   is dropped), 2 deliveries in flight and 200 pending retries, and a
+ *   webhook has at most one delivery in flight;
+ * - the process-wide bound of 1000 queued deliveries is only a backstop and
+ *   drops from the owner with the longest queue;
+ * - a webhook whose last 5 attempts failed is paused for 30 s, doubling up to
+ *   5 min while the probe after each pause fails; its deliveries wait in the
+ *   owner's queue meanwhile.
+ * Every drop is counted and logged.
  */
 import https from "node:https";
 import { isIP } from "node:net";
@@ -22,8 +34,17 @@ import { webhookSecret, webhooksForOwner } from "./webhooks.js";
 
 export const WEBHOOK_RETRY_DELAYS_MS: readonly number[] = Object.freeze([1_000, 5_000, 25_000]);
 export const WEBHOOK_TIMEOUT_MS = 5_000;
+/** Process-wide bound on queued deliveries (and on pending retry timers). */
 export const WEBHOOK_MAX_QUEUE = 1_000;
+export const WEBHOOK_MAX_QUEUED_PER_OWNER = 200;
+export const WEBHOOK_MAX_IN_FLIGHT_PER_OWNER = 2;
+export const WEBHOOK_MAX_RETRIES_PER_OWNER = 200;
+/** Consecutive failed attempts after which a webhook is paused. */
+export const WEBHOOK_PAUSE_AFTER_FAILURES = 5;
+export const WEBHOOK_PAUSE_MS = 30_000;
+export const WEBHOOK_MAX_PAUSE_MS = 5 * 60_000;
 const CONCURRENCY = 8;
+const MAX_TRACKED_WEBHOOKS = 10_000;
 /** The owner of a just-created intent is recorded right after the engine emits `intent.created`. */
 const OWNER_RETRY_DELAYS_MS: readonly number[] = [0, 250, 1_000];
 const USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
@@ -35,6 +56,13 @@ interface Delivery {
   readonly event: IntentEvent;
   readonly body: string;
   readonly attempt: number;
+}
+
+/** Consecutive failures of one webhook and the pause they caused. */
+interface Breaker {
+  failures: number;
+  trips: number;
+  pausedUntil: number;
 }
 
 /** Posts one signed body; resolves with the HTTP status code. */
@@ -81,12 +109,23 @@ export interface DispatcherStats {
   readonly delivered: number;
   readonly failed: number;
   readonly dropped: number;
+  /** Webhooks currently paused after consecutive failures. */
+  readonly pausedWebhooks: number;
 }
 
 export class WebhookDispatcher {
-  private queue: Delivery[] = [];
+  /** Queued deliveries per owner key, oldest first; map order is the round-robin order. */
+  private readonly queues = new Map<string, Delivery[]>();
+  private queued = 0;
   private active = 0;
+  private readonly activeByOwner = new Map<string, number>();
+  private readonly busyWebhooks = new Set<string>();
   private readonly timers = new Set<NodeJS.Timeout>();
+  /** Delivery retries waiting for their timer, per owner, oldest first. */
+  private readonly retries = new Map<string, Map<NodeJS.Timeout, Delivery>>();
+  private readonly breakers = new Map<string, Breaker>();
+  /** Timers that resume the queue when a paused webhook may be probed again. */
+  private readonly wakeups = new Set<NodeJS.Timeout>();
   private unsubscribe: (() => void) | null = null;
   private delivered = 0;
   private failed = 0;
@@ -110,27 +149,36 @@ export class WebhookDispatcher {
   stop(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
-    for (const timer of this.timers) clearTimeout(timer);
+    for (const timer of [...this.timers, ...this.wakeups]) clearTimeout(timer);
     this.timers.clear();
-    this.queue = [];
+    this.wakeups.clear();
+    this.retries.clear();
+    this.queues.clear();
+    this.queued = 0;
+    this.breakers.clear();
   }
 
   stats(): DispatcherStats {
+    const now = Date.now();
+    let pausedWebhooks = 0;
+    for (const breaker of this.breakers.values()) if (breaker.pausedUntil > now) pausedWebhooks += 1;
     return {
       running: this.unsubscribe !== null,
-      queued: this.queue.length,
+      queued: this.queued,
       inFlight: this.active,
       scheduledRetries: this.timers.size,
       delivered: this.delivered,
       failed: this.failed,
       dropped: this.dropped,
+      pausedWebhooks,
     };
   }
 
-  private later(delayMs: number, task: () => Promise<void> | void): void {
-    if (this.timers.size >= WEBHOOK_MAX_QUEUE) {
+  /** Runs `task` after `delayMs`; returns null (and counts a drop) when no timer can be scheduled. */
+  private later(delayMs: number, task: () => Promise<void> | void): NodeJS.Timeout | null {
+    if (this.timers.size >= WEBHOOK_MAX_QUEUE && !this.evictRetry()) {
       this.drop("too many pending retries");
-      return;
+      return null;
     }
     const timer = setTimeout(() => {
       this.timers.delete(timer);
@@ -142,6 +190,7 @@ export class WebhookDispatcher {
     }, delayMs);
     timer.unref?.();
     this.timers.add(timer);
+    return timer;
   }
 
   private drop(reason: string): void {
@@ -171,35 +220,97 @@ export class WebhookDispatcher {
   }
 
   private enqueue(delivery: Delivery): void {
-    this.queue.push(delivery);
-    while (this.queue.length > WEBHOOK_MAX_QUEUE) {
-      const oldest = this.queue.shift();
-      if (oldest) this.drop(`queue full; oldest was ${oldest.event.type} ${oldest.event.id} for ${oldest.webhookId}`);
+    const owner = delivery.ownerKeyId;
+    let queue = this.queues.get(owner);
+    if (!queue) {
+      queue = [];
+      this.queues.set(owner, queue);
+    }
+    queue.push(delivery);
+    this.queued += 1;
+    if (queue.length > WEBHOOK_MAX_QUEUED_PER_OWNER) this.evictOldest(owner, "queue full for this key");
+    while (this.queued > WEBHOOK_MAX_QUEUE) {
+      const longest = this.longestQueue();
+      if (longest === null) break;
+      this.evictOldest(longest, "queue full");
     }
     this.pump();
   }
 
-  private pump(): void {
-    while (this.active < CONCURRENCY && this.queue.length > 0) {
-      const next = this.queue.shift();
-      if (!next) break;
-      this.active += 1;
-      void this.deliver(next).finally(() => {
-        this.active -= 1;
-        this.pump();
-      });
+  private evictOldest(owner: string, reason: string): void {
+    const queue = this.queues.get(owner);
+    const oldest = queue?.shift();
+    if (!queue || !oldest) return;
+    this.queued -= 1;
+    if (queue.length === 0) this.queues.delete(owner);
+    this.drop(`${reason}; oldest was ${oldest.event.type} ${oldest.event.id} for ${oldest.webhookId}`);
+  }
+
+  private longestQueue(): string | null {
+    let longest: string | null = null;
+    let length = 0;
+    for (const [owner, queue] of this.queues) {
+      if (queue.length > length) {
+        longest = owner;
+        length = queue.length;
+      }
     }
+    return longest;
+  }
+
+  private pump(): void {
+    while (this.active < CONCURRENCY) {
+      const next = this.takeNext();
+      if (!next) return;
+      this.startDelivery(next);
+    }
+  }
+
+  /** Next delivery to start: owners in round-robin order, skipping busy owners and busy or paused webhooks. */
+  private takeNext(): Delivery | null {
+    const now = Date.now();
+    for (const [owner, queue] of this.queues) {
+      if ((this.activeByOwner.get(owner) ?? 0) >= WEBHOOK_MAX_IN_FLIGHT_PER_OWNER) continue;
+      const index = queue.findIndex(
+        (delivery) => !this.busyWebhooks.has(delivery.webhookId) && !((this.breakers.get(delivery.webhookId)?.pausedUntil ?? 0) > now),
+      );
+      if (index === -1) continue;
+      const [next] = queue.splice(index, 1);
+      this.queued -= 1;
+      // The served owner moves to the back of the round-robin order.
+      this.queues.delete(owner);
+      if (queue.length > 0) this.queues.set(owner, queue);
+      return next ?? null;
+    }
+    return null;
+  }
+
+  private startDelivery(delivery: Delivery): void {
+    const owner = delivery.ownerKeyId;
+    this.active += 1;
+    this.activeByOwner.set(owner, (this.activeByOwner.get(owner) ?? 0) + 1);
+    this.busyWebhooks.add(delivery.webhookId);
+    void this.deliver(delivery).finally(() => {
+      this.active -= 1;
+      const remaining = (this.activeByOwner.get(owner) ?? 1) - 1;
+      if (remaining <= 0) this.activeByOwner.delete(owner);
+      else this.activeByOwner.set(owner, remaining);
+      this.busyWebhooks.delete(delivery.webhookId);
+      this.pump();
+    });
   }
 
   private async deliver(delivery: Delivery): Promise<void> {
     if (!this.unsubscribe || !sealingAvailable()) return;
     let status = 0;
     let reason = "";
+    let attempted = false;
     try {
       // The webhook may have been deleted since the event was queued.
       const hook = (await webhooksForOwner(delivery.ownerKeyId)).find((entry) => entry.id === delivery.webhookId);
       if (!hook) return;
       const signature = await signWebhookPayload(webhookSecret(hook), delivery.body);
+      attempted = true;
       status = await this.transport(new URL(hook.url), delivery.body, {
         "content-type": "application/json",
         "user-agent": USER_AGENT,
@@ -211,19 +322,94 @@ export class WebhookDispatcher {
       });
       if (status >= 200 && status < 300) {
         this.delivered += 1;
+        this.breakers.delete(delivery.webhookId);
         return;
       }
       reason = `HTTP ${status}`;
     } catch (error) {
       reason = error instanceof Error ? error.message.slice(0, 120) : "delivery error";
     }
+    // Only the endpoint's own failures count towards pausing it (not storage or signing errors).
+    if (attempted) this.recordFailure(delivery.webhookId);
     const delay = WEBHOOK_RETRY_DELAYS_MS[delivery.attempt - 1];
     if (delay === undefined) {
       this.failed += 1;
       console.warn(`[platform] webhook ${delivery.webhookId} gave up on ${delivery.event.id} after ${delivery.attempt} attempts (${reason}).`);
       return;
     }
-    this.later(delay, () => this.enqueue({ ...delivery, attempt: delivery.attempt + 1 }));
+    this.retry(delivery, delay);
+  }
+
+  private recordFailure(webhookId: string): void {
+    const breaker = this.breakers.get(webhookId) ?? { failures: 0, trips: 0, pausedUntil: 0 };
+    breaker.failures += 1;
+    if (breaker.failures >= WEBHOOK_PAUSE_AFTER_FAILURES) {
+      const pauseMs = Math.min(WEBHOOK_PAUSE_MS * 2 ** breaker.trips, WEBHOOK_MAX_PAUSE_MS);
+      breaker.trips += 1;
+      // Half-open after the pause: the next failure pauses the webhook again, for longer.
+      breaker.failures = WEBHOOK_PAUSE_AFTER_FAILURES - 1;
+      breaker.pausedUntil = Date.now() + pauseMs;
+      const wakeup = setTimeout(() => {
+        this.wakeups.delete(wakeup);
+        this.pump();
+      }, pauseMs);
+      wakeup.unref?.();
+      this.wakeups.add(wakeup);
+      console.warn(`[platform] webhook ${webhookId} paused for ${pauseMs / 1000}s after repeated delivery failures.`);
+    }
+    this.breakers.delete(webhookId);
+    this.breakers.set(webhookId, breaker);
+    while (this.breakers.size > MAX_TRACKED_WEBHOOKS) {
+      const oldest = this.breakers.keys().next().value;
+      if (oldest === undefined) break;
+      this.breakers.delete(oldest);
+    }
+  }
+
+  private retry(delivery: Delivery, delayMs: number): void {
+    const owner = delivery.ownerKeyId;
+    if ((this.retries.get(owner)?.size ?? 0) >= WEBHOOK_MAX_RETRIES_PER_OWNER) {
+      this.drop(`too many pending retries for this key; ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`);
+      return;
+    }
+    const timer = this.later(delayMs, () => {
+      if (timer) this.forgetRetry(owner, timer);
+      this.enqueue({ ...delivery, attempt: delivery.attempt + 1 });
+    });
+    if (!timer) return;
+    let pending = this.retries.get(owner);
+    if (!pending) {
+      pending = new Map();
+      this.retries.set(owner, pending);
+    }
+    pending.set(timer, delivery);
+  }
+
+  private forgetRetry(owner: string, timer: NodeJS.Timeout): void {
+    const pending = this.retries.get(owner);
+    if (!pending) return;
+    pending.delete(timer);
+    if (pending.size === 0) this.retries.delete(owner);
+  }
+
+  /** Backstop when the process-wide timer bound is hit: cancels the oldest retry of the owner with the most. */
+  private evictRetry(): boolean {
+    let owner: string | null = null;
+    let most = 0;
+    for (const [candidate, pending] of this.retries) {
+      if (pending.size > most) {
+        owner = candidate;
+        most = pending.size;
+      }
+    }
+    const oldest = owner === null ? undefined : this.retries.get(owner)?.entries().next().value;
+    if (owner === null || !oldest) return false;
+    const [timer, delivery] = oldest;
+    clearTimeout(timer);
+    this.timers.delete(timer);
+    this.forgetRetry(owner, timer);
+    this.drop(`too many pending retries; cancelled ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`);
+    return true;
   }
 }
 

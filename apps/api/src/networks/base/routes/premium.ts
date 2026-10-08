@@ -30,7 +30,14 @@ router.use((_req, res, next) => {
 const configuredX402Treasury =
   process.env.X402_TREASURY_ADDRESS?.trim() ||
   process.env.KLETIA_FEE_RECIPIENT?.trim();
-if (process.env.NODE_ENV === "production" && !configuredX402Treasury) {
+const requireAllFeatures =
+  process.env.KLETIA_REQUIRE_ALL_FEATURES?.trim() === "true";
+// Without a configured treasury, production never falls back to a default
+// payee: the Kletia-priced endpoints answer 503 until one is set. Hosted
+// deployments that require every feature refuse to start instead.
+const x402TreasuryMissing =
+  process.env.NODE_ENV === "production" && !configuredX402Treasury;
+if (x402TreasuryMissing && requireAllFeatures) {
   throw new Error(
     "X402_TREASURY_ADDRESS or KLETIA_FEE_RECIPIENT is required in production.",
   );
@@ -102,7 +109,9 @@ export function assertProductionX402Configuration(
   }
 }
 
-assertProductionX402Configuration();
+// Requests already answer 503 without facilitator credentials; only a
+// deployment that requires every feature refuses to start without them.
+if (requireAllFeatures) assertProductionX402Configuration();
 
 let resourceServer: x402ResourceServer | undefined;
 
@@ -397,6 +406,13 @@ const dynamicX402Middleware = async (
       message: "x402 facilitator credentials are not configured.",
     });
   }
+  if (x402TreasuryMissing && req.path !== GATEWAY_DEMO_PATH) {
+    return res.status(503).json({
+      status: "unavailable",
+      code: "X402_TREASURY_NOT_CONFIGURED",
+      message: "The x402 payment recipient is not configured.",
+    });
+  }
   if (req.query.price !== undefined) {
     return res.status(400).json({
       status: "error",
@@ -465,7 +481,7 @@ router.get("/x402-config", (req, res) => {
       network: "eip155:8453",
       networkName: "Base Mainnet",
       scheme: "exact",
-      defaultPayTo: X402_PAYMENT_ADDRESS,
+      defaultPayTo: x402TreasuryMissing ? null : X402_PAYMENT_ADDRESS,
       defaultPrice: DEFAULT_PRICE,
       facilitator: CDP_FACILITATOR_URL,
       facilitatorClient: "official_coinbase_cdp_sdk",
@@ -708,6 +724,13 @@ router.use((req, res, next) => {
       status: "unavailable",
       code: "X402_FACILITATOR_NOT_CONFIGURED",
       message: "x402 facilitator credentials are not configured.",
+    });
+  }
+  if (x402TreasuryMissing && req.path !== GATEWAY_DEMO_PATH) {
+    return res.status(503).json({
+      status: "unavailable",
+      code: "X402_TREASURY_NOT_CONFIGURED",
+      message: "The x402 payment recipient is not configured.",
     });
   }
   if (req.query.price !== undefined) {

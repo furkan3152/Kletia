@@ -310,6 +310,142 @@ assert.equal(
   "A bridge step must only target a reviewed destination chain.",
 );
 
+// ---------------------------------------------------------------------------
+// Platform execution surfaces (Studio, /embed, Solana Ask, chat handoff).
+// Browser storage is replaced by in-memory stand-ins before those modules load.
+// ---------------------------------------------------------------------------
+const memoryStorage = () => {
+  const map = new Map<string, string>();
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => void map.set(key, String(value)),
+    removeItem: (key: string) => void map.delete(key),
+    clear: () => map.clear(),
+    key: (index: number) => [...map.keys()][index] ?? null,
+    get length() {
+      return map.size;
+    },
+  };
+};
+(globalThis as unknown as { window: unknown }).window = {
+  localStorage: memoryStorage(),
+  sessionStorage: memoryStorage(),
+  addEventListener: () => undefined,
+  removeEventListener: () => undefined,
+};
+// The cross-tab relay would keep Node's event loop alive; tabs do not exist here.
+delete (globalThis as { BroadcastChannel?: unknown }).BroadcastChannel;
+
+const { detectCrossNetworkPrompt } = await import("../src/shared/platform/crossNetworkPrompt");
+assert.equal(detectCrossNetworkPrompt("bridge 20 USDC from solana to base")?.reason, "route");
+assert.equal(detectCrossNetworkPrompt("move 0.01 ETH from arbitrum to sol")?.reason, "route");
+assert.ok(detectCrossNetworkPrompt("stake 2 SOL with jito"), "SOL amounts belong to Solana.");
+assert.equal(
+  detectCrossNetworkPrompt(`send 5 USDC to ${SOLANA_RECIPIENT}`)?.reason,
+  "solana-address",
+  "A base58 Solana address routes the prompt to the platform planner.",
+);
+assert.equal(detectCrossNetworkPrompt("swap 1 ETH to USDC on solana")?.reason, "solana-network");
+for (const evmOnly of [
+  "swap 10 USDC to ETH on base",
+  "bridge 25 USDC from base to arbitrum",
+  `Send 25.5 USDC to ${EVM_RECIPIENT} on Base`,
+  "What can Kletia do on Base?",
+  "show my portfolio solutions",
+]) {
+  assert.equal(detectCrossNetworkPrompt(evmOnly), null, `EVM chat keeps handling: ${evmOnly}`);
+}
+
+const { readEmbedParams } = await import("../src/app/pages/embed/embedParams");
+const embed = readEmbedParams(
+  "?theme=dark&text=swap%201%20SOL%20to%20USDC&examples=a,%20b%20,,A&bg=transparent&apiKey=kl_dev_secret",
+);
+assert.deepEqual(embed, {
+  theme: "dark",
+  text: "swap 1 SOL to USDC",
+  examples: ["a", "b"],
+  transparent: true,
+});
+assert.equal(JSON.stringify(embed).includes("kl_dev"), false, "The embed never reads an API key from its URL.");
+assert.equal(readEmbedParams("?theme=neon").theme, "auto");
+assert.equal(readEmbedParams(`?text=${"x".repeat(900)}`).text.length, 500);
+assert.equal(readEmbedParams("?examples=,,").examples, null);
+
+const session = await import("../src/shared/platform/intentSession");
+const SIGNATURE = "5".repeat(87);
+session.markStepSigning(session.STUDIO_INTENT_SESSION_KEY, "int_resume", "s1", "requested");
+session.appendStepReference(session.STUDIO_INTENT_SESSION_KEY, "int_resume", "s1", SIGNATURE);
+session.appendStepReference(session.STUDIO_INTENT_SESSION_KEY, "int_resume", "s1", "not a reference");
+const stored = session.readIntentSession(session.STUDIO_INTENT_SESSION_KEY);
+assert.equal(stored?.intentId, "int_resume");
+assert.deepEqual(stored?.references, { s1: [SIGNATURE] }, "Only well-formed references are kept for a resume.");
+assert.equal(stored?.signing.s1, "requested");
+session.forgetSteps(session.STUDIO_INTENT_SESSION_KEY, "int_resume", ["s1"]);
+assert.deepEqual(session.readIntentSession(session.STUDIO_INTENT_SESSION_KEY)?.references, {});
+session.clearIntentSession(session.STUDIO_INTENT_SESSION_KEY);
+assert.equal(session.readIntentSession(session.STUDIO_INTENT_SESSION_KEY), null);
+
+const { syncIntentActivity } = await import("../src/shared/platform/intentActivity");
+const { useActivityStore } = await import("../src/shared/sync/activityStore");
+const { kletiaBus } = await import("../src/shared/sync/bus");
+const invalidated: string[] = [];
+kletiaBus.on("portfolio.invalidated", (event) => invalidated.push(`${event.network}:${event.account}`));
+const EVM_ACCOUNT = `eip155:8453:${EVM_RECIPIENT}` as const;
+const SOLANA_ACCOUNT = `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOLANA_RECIPIENT}` as const;
+const TX_HASH = `0x${"ab".repeat(32)}`;
+const bridgeStep = {
+  id: "s1",
+  index: 0,
+  kind: "bridge",
+  title: "Bridge 25 USDC from Base to Solana",
+  network: "base",
+  chain: "eip155:8453",
+  account: EVM_ACCOUNT,
+  protocol: "relay",
+  mode: "wallet",
+  dependsOn: [],
+  settlement: { kind: "cross-network", destinationNetwork: "solana" },
+  status: "settling",
+  evidence: [],
+  references: [TX_HASH],
+};
+const bridgeIntent = {
+  id: "int_bridge",
+  status: "settling",
+  request: { text: "bridge 25 USDC from base to solana", accounts: [EVM_ACCOUNT, SOLANA_ACCOUNT] },
+  steps: [bridgeStep],
+} as unknown as Parameters<typeof syncIntentActivity>[0];
+syncIntentActivity(bridgeIntent);
+let entry = useActivityStore.getState().entries.find((item) => item.id === "intent:int_bridge:s1");
+assert.equal(entry?.status, "pending", "A submitted step shows as pending activity.");
+assert.equal(invalidated.length, 0, "Balances are only invalidated once a step settles or fails.");
+const settledIntent = {
+  ...bridgeIntent,
+  status: "completed",
+  steps: [{ ...bridgeStep, status: "settled" }],
+} as unknown as Parameters<typeof syncIntentActivity>[0];
+syncIntentActivity(settledIntent);
+syncIntentActivity(settledIntent);
+entry = useActivityStore.getState().entries.find((item) => item.id === "intent:int_bridge:s1");
+assert.equal(entry?.status, "confirmed");
+assert.equal(entry?.reference, TX_HASH);
+assert.equal(entry?.url, `https://basescan.org/tx/${TX_HASH}`);
+assert.deepEqual(
+  invalidated,
+  [`base:${EVM_ACCOUNT}`, `solana:${SOLANA_ACCOUNT}`],
+  "A settled cross-network step invalidates the source and destination portfolios exactly once.",
+);
+
+const { stepDisplayPhase, withLocalPhases } = await import("../src/app/site/intent/stepPhase");
+const readyStep = { ...bridgeStep, status: "ready" } as unknown as Parameters<typeof stepDisplayPhase>[0];
+assert.equal(stepDisplayPhase(readyStep), "ready");
+assert.equal(stepDisplayPhase(readyStep, "signing"), "awaiting_signature");
+assert.equal(stepDisplayPhase({ ...readyStep, status: "confirmed" }), "settling");
+assert.equal(
+  withLocalPhases({ ...bridgeIntent, steps: [readyStep] }, { s1: "confirming" }).steps[0]?.status,
+  "submitted",
+);
+
 console.log(
-  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration and wallet-bound Arc and Base to Arbitrum workflow plans.",
+  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync and step phases.",
 );

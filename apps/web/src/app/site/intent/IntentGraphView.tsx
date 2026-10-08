@@ -1,4 +1,4 @@
-import type { IntentGraph } from "@kletia/core";
+import type { IntentGraph, IntentStep } from "@kletia/core";
 import { Sparkles, TriangleAlert, Wand2 } from "lucide-react";
 import React, { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -22,6 +22,8 @@ export interface IntentGraphViewProps {
   readonly intent: IntentGraph;
   /** Optional slot rendered under the summary (e.g. an execute panel). */
   readonly actions?: React.ReactNode;
+  /** Optional content rendered at the bottom of each step node (e.g. explorer links). */
+  readonly stepFooter?: (step: IntentStep) => React.ReactNode;
   readonly className?: string;
 }
 
@@ -46,7 +48,7 @@ function SummaryItem({ label, value }: { label: string; value: React.ReactNode }
  * the steps as nodes grouped into network lanes with dependency edges.
  * Read-only; pass `actions` to attach controls (e.g. wallet execution).
  */
-export function IntentGraphView({ intent, actions, className }: IntentGraphViewProps) {
+export function IntentGraphView({ intent, actions, stepFooter, className }: IntentGraphViewProps) {
   const markerId = useId().replace(/:/gu, "");
   const containerRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLElement>());
@@ -263,6 +265,7 @@ export function IntentGraphView({ intent, actions, className }: IntentGraphViewP
               <StepNode
                 key={step.id}
                 step={step}
+                footer={stepFooter?.(step)}
                 ref={(element) => {
                   if (element) nodeRefs.current.set(step.id, element);
                   else nodeRefs.current.delete(step.id);

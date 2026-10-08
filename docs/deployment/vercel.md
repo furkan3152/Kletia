@@ -35,6 +35,12 @@ VITE_BASE_PAYMASTER_ENABLED=false
 The three public RPC URLs above avoid embedding a private Alchemy key in the
 browser. A domain-restricted browser RPC can replace them later.
 
+`apps/web/vercel.json` sets the framing policy: every path except `/embed` and
+`/embed/*` gets `X-Frame-Options: SAMEORIGIN` and
+`Content-Security-Policy: frame-ancestors 'self'`; only the embeddable widget
+page sends `frame-ancestors *`. After a deploy, `curl -sI <domain>/embed` must
+show no `X-Frame-Options`.
+
 ## Backend project
 
 - Root Directory: `apps/api`

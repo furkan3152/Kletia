@@ -157,9 +157,9 @@ services:
       - path: /
         name: X-Frame-Options
         value: SAMEORIGIN
-      - path: /index.html
-        name: X-Frame-Options
-        value: SAMEORIGIN
+      # No X-Frame-Options rule on /index.html: SPA routes are rewritten to it,
+      # and the header must never reach /embed. Unlisted paths are covered by
+      # the app's own cross-origin frame guard.
       - path: /app
         name: X-Frame-Options
         value: SAMEORIGIN

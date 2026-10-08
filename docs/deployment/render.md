@@ -84,11 +84,12 @@ After CI succeeds and Render deploys the exact commit:
 4. `/api/capabilities` lists every feature as `live` (hosted deployment).
 5. `/v1/health`, `/v1/networks` and `/v1/openapi.json` respond; a dry-run `POST /v1/intents` plans an example intent.
 6. `/api/release/mvp-readiness` reports every check without turning an unavailable dependency green.
-7. `https://kletiaai.xyz`, `/developers`, `/networks`, `/studio` and `/app` load without localhost requests.
-8. Switching Base → Arbitrum → Solana → Arc in the console clears stale executable state; EVM and Solana wallets stay connected independently.
-9. Test one read-only intent on every enabled network before a value-bearing intent.
-10. Verify value-bearing operations by receipt, settlement and protocol state, not only by a hash.
-11. Confirm no server secret appears in the static bundle.
+7. `https://kletiaai.xyz`, `/developers`, `/networks`, `/studio`, `/embed` and `/app` load without localhost requests.
+8. `curl -sI https://kletiaai.xyz/embed` shows `Content-Security-Policy: frame-ancestors *` and no `X-Frame-Options`; `curl -sI https://kletiaai.xyz/app` shows `X-Frame-Options: SAMEORIGIN`. Only `/embed` may be framed by other sites; the app also refuses to render any other page inside a cross-origin frame.
+9. Switching Base → Arbitrum → Solana → Arc in the console clears stale executable state; EVM and Solana wallets stay connected independently.
+10. Test one read-only intent on every enabled network before a value-bearing intent.
+11. Verify value-bearing operations by receipt, settlement and protocol state, not only by a hash.
+12. Confirm no server secret appears in the static bundle.
 
 ## Evidence language
 

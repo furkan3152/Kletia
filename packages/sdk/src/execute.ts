@@ -98,6 +98,25 @@ function signerAddressMatches(step: IntentStep, address: string): boolean {
   );
 }
 
+/**
+ * A prepared transaction must belong to the step it was prepared for: same VM,
+ * network and EVM chain, sent or fee-paid by the step account. Anything else
+ * is refused before a wallet sees it.
+ */
+function transactionBindingProblem(step: IntentStep, transaction: TransactionRequest): string | null {
+  const chain = CHAINS[step.network];
+  const expectedVm = chain.vm === "evm" ? "evm" : "svm";
+  if (transaction.vm !== expectedVm || transaction.network !== step.network) {
+    return `a ${transaction.vm} transaction on ${transaction.network} does not belong to a ${chain.name} step`;
+  }
+  if (transaction.vm === "evm" && transaction.chainId !== chain.evmChainId) {
+    return `chain ${transaction.chainId} does not match ${chain.name}`;
+  }
+  const sender = transaction.vm === "evm" ? transaction.from : transaction.feePayer;
+  if (!signerAddressMatches(step, sender)) return `it is not sent by ${step.account}`;
+  return null;
+}
+
 /** An ERC-20 approval moves no funds, so signing it again is harmless. */
 function isTokenApproval(transaction: TransactionRequest): boolean {
   return (
@@ -205,9 +224,17 @@ async function executeStep(
   const prepared = await client.intents.prepareStep(intent.id, step.id);
   const { payload } = prepared;
   const deadline = signingDeadline(prepared, step.id, requestedAt);
+  for (const [index, transaction] of payload.transactions.entries()) {
+    const problem = transactionBindingProblem(step, transaction);
+    if (problem) {
+      throw new KletiaExecutionError(`Refused to sign transaction ${index + 1} of step ${step.id}: ${problem}.`, intent.id, step.id);
+    }
+  }
   const references: string[] = [];
   for (const transaction of payload.transactions) {
     try {
+      // Stopping between prepare and a wallet prompt must never open the prompt.
+      if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
       if (Date.now() > deadline) throw new Error("Prepared transactions expired before signing.");
       if (transaction.vm === "evm") {
         const evm = signers.evm as EvmSigner;

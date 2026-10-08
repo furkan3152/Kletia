@@ -52,7 +52,16 @@
       ]
     },
     {
-      "source": "/embed(.*)",
+      "source": "/embed",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors *"
+        }
+      ]
+    },
+    {
+      "source": "/embed/:path*",
       "headers": [
         {
           "key": "Content-Security-Policy",

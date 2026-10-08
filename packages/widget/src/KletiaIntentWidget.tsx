@@ -88,9 +88,18 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function StepRow({ step }: { step: IntentStep }) {
   const chain = CHAINS[step.network];
-  const evidence = [...step.evidence].reverse().find((item) => item.url);
+  // Only https explorer links are rendered; anything else (e.g. javascript:) is dropped.
+  const evidence = [...step.evidence].reverse().find((item) => item.url && isHttpsUrl(item.url));
   return (
     <li className="kw-step">
       <div className="kw-step-top">

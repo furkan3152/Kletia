@@ -5,10 +5,13 @@ import {
   type IntentGraph,
   type IntentStatus,
   type IntentStep,
+  type StepStatus,
+  type TransactionRequest,
 } from "@kletia/core";
 import type { KletiaClient } from "./client.js";
-import { KletiaExecutionError } from "./errors.js";
+import { KletiaApiError, KletiaExecutionError } from "./errors.js";
 import type { EvmSigner, SolanaSigner } from "./signers.js";
+import type { PreparedStep } from "./types.js";
 
 export interface IntentSigners {
   readonly evm?: EvmSigner;
@@ -25,6 +28,12 @@ export interface ExecuteIntentOptions {
   readonly pollIntervalMs?: number;
   /** Overall deadline (default 20 minutes). */
   readonly timeoutMs?: number;
+  /**
+   * References an earlier run broadcast but could not report, by step id
+   * (`KletiaExecutionError.references`). They are submitted instead of
+   * preparing that step again, so the wallet never signs it twice.
+   */
+  readonly pendingReferences?: Readonly<Record<string, readonly string[]>>;
 }
 
 const TERMINAL: readonly IntentStatus[] = [
@@ -35,8 +44,40 @@ const TERMINAL: readonly IntentStatus[] = [
   "cancelled",
 ];
 
+/** Attempts per submit while the API error is retryable (network, timeout, 429, 5xx). */
+const SUBMIT_ATTEMPTS = 3;
+const SUBMIT_BACKOFF_MS = 1_000;
+const MAX_RETRY_AFTER_MS = 60_000;
+const APPROVE_SELECTOR = "0x095ea7b3";
+
+/**
+ * References broadcast for a step that Kletia has not accepted yet, per
+ * `intentId:stepId`. While an entry exists `executeIntent` resubmits it and
+ * never prepares (and so never signs) that step again; it is removed once
+ * a submit succeeds or Kletia shows the step's references accepted.
+ */
+const unsubmitted = new Map<string, readonly string[]>();
+const unsubmittedKey = (intentId: string, stepId: string) => `${intentId}:${stepId}`;
+
+/** Step states that mean Kletia accepted references for the step. */
+const ACCEPTED: readonly StepStatus[] = ["submitted", "confirmed", "settling", "settled", "indeterminate"];
+
+/**
+ * Drops held references once a fresh response from Kletia shows it accepted
+ * references for the step (never on the caller's possibly stale intent).
+ */
+function forgetAccepted(intent: IntentGraph): void {
+  for (const step of intent.steps) {
+    if (ACCEPTED.includes(step.status)) unsubmitted.delete(unsubmittedKey(intent.id, step.id));
+  }
+}
+
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("Aborted"));
+      return;
+    }
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener(
       "abort",
@@ -57,12 +98,93 @@ function signerAddressMatches(step: IntentStep, address: string): boolean {
   );
 }
 
+/** An ERC-20 approval moves no funds, so signing it again is harmless. */
+function isTokenApproval(transaction: TransactionRequest): boolean {
+  return (
+    transaction.vm === "evm" &&
+    transaction.data.slice(0, 10).toLowerCase() === APPROVE_SELECTOR &&
+    /^0*$/u.test(transaction.value)
+  );
+}
+
+/**
+ * Local deadline (ms) for signing a prepared payload. `expiresAt` is server
+ * time, so the TTL is measured on the server's clock (`expiresAt` minus the
+ * step's `preparedAt`) and applied from when prepare was requested; a device
+ * clock that is off does not expire every payload.
+ */
+function signingDeadline(prepared: PreparedStep, stepId: string, requestedAt: number): number {
+  const preparedAt = prepared.intent.steps.find((candidate) => candidate.id === stepId)?.prepared?.preparedAt;
+  const issuedAt = preparedAt ? Date.parse(preparedAt) : Number.NaN;
+  // Without the server's prepare time, fall back to the absolute timestamp.
+  if (Number.isNaN(issuedAt)) return prepared.payload.expiresAt * 1000;
+  return requestedAt + (prepared.payload.expiresAt * 1000 - issuedAt);
+}
+
+/**
+ * Submits references, retrying a bounded number of times while the API error
+ * is retryable. Resubmitting identical references is idempotent on the
+ * server, so a retry after a lost response is safe.
+ */
+async function submitWithRetry(
+  client: KletiaClient,
+  intentId: string,
+  stepId: string,
+  references: readonly string[],
+  signal?: AbortSignal,
+): Promise<IntentGraph> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await client.intents.submitStep(intentId, stepId, references);
+    } catch (error) {
+      if (!(error instanceof KletiaApiError) || !error.retryable || attempt >= SUBMIT_ATTEMPTS) throw error;
+      const delay =
+        error.retryAfterSeconds !== null
+          ? Math.min(error.retryAfterSeconds * 1000, MAX_RETRY_AFTER_MS)
+          : SUBMIT_BACKOFF_MS * 2 ** (attempt - 1);
+      // Stopped while waiting: report the submit failure, not the abort.
+      await sleep(delay, signal).catch(() => {
+        throw error;
+      });
+    }
+  }
+}
+
+/** Submits references the wallet already broadcast; on failure the error carries them. */
+async function submitBroadcast(
+  client: KletiaClient,
+  intentId: string,
+  stepId: string,
+  references: readonly string[],
+  signal?: AbortSignal,
+): Promise<IntentGraph> {
+  try {
+    const next = await submitWithRetry(client, intentId, stepId, references, signal);
+    unsubmitted.delete(unsubmittedKey(intentId, stepId));
+    return next;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Kletia did not respond.";
+    throw new KletiaExecutionError(
+      `Transactions for step ${stepId} were broadcast but could not be reported to Kletia (${reason}). Resubmit error.references instead of signing again; executeIntent does this on its next run.`,
+      intentId,
+      stepId,
+      error,
+      references,
+    );
+  }
+}
+
 async function executeStep(
   client: KletiaClient,
   intent: IntentGraph,
   step: IntentStep,
   signers: IntentSigners,
+  signal?: AbortSignal,
 ): Promise<IntentGraph> {
+  const key = unsubmittedKey(intent.id, step.id);
+  const held = unsubmitted.get(key);
+  // Already broadcast: report it, never prepare and sign the step again.
+  if (held) return submitBroadcast(client, intent.id, step.id, held, signal);
   const vm = CHAINS[step.network].vm;
   const signer = vm === "evm" ? signers.evm : signers.solana;
   if (!signer) {
@@ -79,13 +201,14 @@ async function executeStep(
       step.id,
     );
   }
-  const { payload } = await client.intents.prepareStep(intent.id, step.id);
+  const requestedAt = Date.now();
+  const prepared = await client.intents.prepareStep(intent.id, step.id);
+  const { payload } = prepared;
+  const deadline = signingDeadline(prepared, step.id, requestedAt);
   const references: string[] = [];
   for (const transaction of payload.transactions) {
-    if (Date.now() / 1000 > payload.expiresAt) {
-      throw new KletiaExecutionError("Prepared transactions expired before signing.", intent.id, step.id);
-    }
     try {
+      if (Date.now() > deadline) throw new Error("Prepared transactions expired before signing.");
       if (transaction.vm === "evm") {
         const evm = signers.evm as EvmSigner;
         const hash = await evm.sendTransaction(transaction);
@@ -96,19 +219,33 @@ async function executeStep(
         references.push(await solana.signAndSendTransaction(transaction));
       }
     } catch (error) {
-      if (references.length > 0) {
-        // Report what already landed so Kletia can recover the step state.
-        await client.intents.submitStep(intent.id, step.id, references).catch(() => undefined);
+      const message = error instanceof Error ? error.message : "Wallet rejected the transaction.";
+      if (references.length === 0) throw new KletiaExecutionError(message, intent.id, step.id, error);
+      // Something already landed. Unless it is only approvals of a step that
+      // stopped part-way, hold it so the step is never signed again.
+      const broadcast = payload.transactions.slice(0, references.length);
+      const hold = references.length === payload.transactions.length || !broadcast.every(isTokenApproval);
+      if (hold) unsubmitted.set(key, [...references]);
+      // Report what already landed so Kletia can recover the step state.
+      let reported = false;
+      try {
+        await submitWithRetry(client, intent.id, step.id, references, signal);
+        unsubmitted.delete(key);
+        reported = true;
+      } catch {
+        // Kept on the error (and held above) for the caller to resubmit.
       }
       throw new KletiaExecutionError(
-        error instanceof Error ? error.message : "Wallet rejected the transaction.",
+        message,
         intent.id,
         step.id,
         error,
+        reported || !hold ? undefined : [...references],
       );
     }
   }
-  return client.intents.submitStep(intent.id, step.id, references);
+  unsubmitted.set(key, [...references]);
+  return submitBroadcast(client, intent.id, step.id, references, signal);
 }
 
 /**
@@ -125,6 +262,10 @@ export async function executeIntent(
   const pollIntervalMs = options.pollIntervalMs ?? 4_000;
   const deadline = Date.now() + (options.timeoutMs ?? 20 * 60_000);
   let intent = typeof intentOrId === "string" ? await client.intents.get(intentOrId) : intentOrId;
+  for (const [stepId, references] of Object.entries(options.pendingReferences ?? {})) {
+    if (references.length > 0) unsubmitted.set(unsubmittedKey(intent.id, stepId), [...references]);
+  }
+  if (typeof intentOrId === "string") forgetAccepted(intent);
   options.onUpdate?.(intent);
   while (!TERMINAL.includes(intent.status)) {
     if (options.signal?.aborted) throw options.signal.reason ?? new Error("Aborted");
@@ -133,7 +274,8 @@ export async function executeIntent(
     if (ready.length > 0) {
       const step = ready[0] as IntentStep;
       if (options.beforeStep && !(await options.beforeStep(step, intent))) return intent;
-      intent = await executeStep(client, intent, step, signers);
+      intent = await executeStep(client, intent, step, signers, options.signal);
+      forgetAccepted(intent);
       options.onUpdate?.(intent);
       continue;
     }
@@ -147,6 +289,7 @@ export async function executeIntent(
     if (!inFlight) return intent;
     await sleep(pollIntervalMs, options.signal);
     intent = await client.intents.refresh(intent.id);
+    forgetAccepted(intent);
     options.onUpdate?.(intent);
   }
   return intent;

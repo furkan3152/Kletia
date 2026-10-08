@@ -98,6 +98,51 @@ function contract(name: string, make: () => Promise<IntentStore>): void {
       assert.ok(!(await store.listActive(50)).some((entry) => entry.id === other.id));
     });
 
+    it("rotates active intents by poll time without touching the graph", async () => {
+      const store = await make();
+      // Durable stores keep earlier runs' rows: mark every active intent polled first, so
+      // this test's intents are the only never-polled ones.
+      const seen = new Set<string>();
+      for (let round = 0; round < 20; round += 1) {
+        const batch = (await store.listActive(500)).map((entry) => entry.id);
+        if (batch.every((id) => seen.has(id))) break;
+        batch.forEach((id) => seen.add(id));
+        await store.markPolled(batch);
+      }
+      const intents: IntentGraph[] = [];
+      for (let index = 0; index < 3; index += 1) {
+        const intent = await graph();
+        await store.create(intent, {});
+        const [s1] = intent.steps;
+        assert.ok(s1);
+        // Strictly increasing update times: a, then b, then c.
+        const previous = intents.at(-1)?.updatedAt ?? intent.updatedAt;
+        const updatedAt = nextTimestamp(previous > intent.updatedAt ? previous : intent.updatedAt);
+        const active: IntentGraph = { ...intent, status: "executing", updatedAt, steps: [{ ...s1, status: "submitted" }] };
+        await store.update(intent.id, active, intent.updatedAt);
+        intents.push(active);
+      }
+      const [a, b, c] = intents as [IntentGraph, IntentGraph, IntentGraph];
+      // Never polled first, oldest update first.
+      assert.deepEqual((await store.listActive(2)).map((entry) => entry.id), [a.id, b.id]);
+      await store.markPolled([a.id, b.id]);
+      assert.deepEqual(await store.get(a.id), a, "polling does not change the graph");
+      // c was starved before: unchanged a and b no longer hold the head of the list.
+      assert.equal((await store.listActive(1))[0]?.id, c.id);
+      await store.markPolled([c.id]);
+      assert.notEqual((await store.listActive(1))[0]?.id, c.id, "the most recently polled intent goes last");
+      await store.markPolled([]);
+      await store.markPolled(["int_dddddddddddddddddddddddddddddddd"]);
+      // The optimistic concurrency token is still the graph's own.
+      const done: IntentGraph = { ...a, status: "completed", updatedAt: nextTimestamp(a.updatedAt), steps: a.steps.map((entry) => ({ ...entry, status: "settled" })) };
+      await store.update(a.id, done, a.updatedAt);
+      for (const entry of [b, c]) {
+        await store.update(entry.id, { ...entry, status: "completed", updatedAt: nextTimestamp(entry.updatedAt), steps: entry.steps.map((item) => ({ ...item, status: "settled" })) }, entry.updatedAt);
+      }
+      const remaining = new Set((await store.listActive(500)).map((entry) => entry.id));
+      assert.ok(![a.id, b.id, c.id].some((id) => remaining.has(id)));
+    });
+
     it("claims references atomically and refuses reuse by another step", async () => {
       const store = await make();
       const key = `eip155:8453:0x${Math.random().toString(16).slice(2).padEnd(64, "0")}`;

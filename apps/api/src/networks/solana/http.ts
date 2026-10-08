@@ -11,6 +11,41 @@ export class SolanaProviderError extends Error {
   }
 }
 
+function providerCode(provider: string, suffix: string): string {
+  return `${provider.toUpperCase().replace(/\W+/gu, "_")}_${suffix}`;
+}
+
+/** Reads a response body, aborting as soon as it exceeds `maxBytes` (never buffers more). */
+async function readBounded(response: Response, provider: string, maxBytes: number): Promise<string> {
+  const tooLarge = () => new SolanaProviderError(`${provider} response exceeded the size limit.`, "PROVIDER_RESPONSE_TOO_LARGE");
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw tooLarge();
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw tooLarge();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch (error) {
+    if (error instanceof SolanaProviderError) throw error;
+    throw new SolanaProviderError(`${provider} response was interrupted.`, providerCode(provider, "UNAVAILABLE"));
+  }
+  return text + decoder.decode();
+}
+
 /** JSON fetch with a hard timeout and a bounded response size. */
 export async function fetchProviderJson<T = unknown>(
   url: string,
@@ -27,13 +62,10 @@ export async function fetchProviderJson<T = unknown>(
   } catch (error) {
     throw new SolanaProviderError(
       `${provider} is unreachable: ${(error as Error).name === "TimeoutError" ? "timeout" : "network error"}.`,
-      `${provider.toUpperCase().replace(/\W+/gu, "_")}_UNAVAILABLE`,
+      providerCode(provider, "UNAVAILABLE"),
     );
   }
-  const text = await response.text();
-  if (text.length > maxBytes) {
-    throw new SolanaProviderError(`${provider} response exceeded the size limit.`, "PROVIDER_RESPONSE_TOO_LARGE");
-  }
+  const text = await readBounded(response, provider, maxBytes);
   let body: unknown;
   try {
     body = text ? JSON.parse(text) : null;
@@ -49,7 +81,7 @@ export async function fetchProviderJson<T = unknown>(
           : `HTTP ${response.status}`;
     throw new SolanaProviderError(
       `${provider} rejected the request: ${message.slice(0, 200)}`,
-      `${provider.toUpperCase().replace(/\W+/gu, "_")}_REJECTED`,
+      providerCode(provider, "REJECTED"),
       response.status >= 500 ? 502 : 422,
     );
   }

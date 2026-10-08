@@ -2,7 +2,7 @@
  * Jupiter adapter: Solana swaps and liquid staking (SOL -> JitoSOL / mSOL /
  * JupSOL executed as a Jupiter route into the LST).
  */
-import { fromBaseUnits, formatAmount, type AssetAmount } from "@kletia/core";
+import { fromBaseUnits, formatAmount, type AssetAmount, type IntentStep } from "@kletia/core";
 import {
   buildJupiterSwapTransaction,
   quoteJupiterSwap,
@@ -22,6 +22,10 @@ const MAX_PRICE_IMPACT = 0.05;
 const WARN_PRICE_IMPACT = 0.01;
 /** Typical base + priority fee for one Jupiter swap, in SOL. */
 const ESTIMATED_NETWORK_FEE_SOL = 0.0001;
+/** Clock skew tolerated between prepare time (server clock) and block time. */
+const CLOCK_SKEW_SECONDS = 300;
+/** A prepared payload lands within this long or never: payload TTL (90 s) plus blockhash expiry grace. */
+const PAYLOAD_LANDING_SECONDS = 90 + 180;
 
 function clampSlippage(requested: number, warnings: string[]): number {
   if (requested > SOLANA_MAX_SLIPPAGE_BPS) {
@@ -84,6 +88,22 @@ function title(action: Pick<AdapterAction, "kind" | "input" | "output" | "amount
   return action.kind === "stake"
     ? `Stake ${amount} SOL as ${action.output.symbol} (${action.provider ?? "liquid staking"} via Jupiter)`
     : `Swap ${amount} ${action.input.symbol} for ${action.output.symbol} on Solana`;
+}
+
+/**
+ * Output floor (base units) for a swap that landed at `blockTime` (unix s):
+ * the lowest guarantee among the payloads prepared for this step that could
+ * have landed then, so an earlier payload landing after a re-prepare raised
+ * the floor still verifies against its own on-chain minimum. Steps without
+ * recorded floors (or none in the window) use the current minimum.
+ */
+function outputFloor(step: IntentStep, minimum: AssetAmount, blockTime: number | null): bigint {
+  const eligible = blockTime === null
+    ? []
+    : (decodeStepRef(step.quoteRef)?.floors ?? [])
+        .filter((floor) => floor.at - CLOCK_SKEW_SECONDS <= blockTime && blockTime <= floor.at + PAYLOAD_LANDING_SECONDS + CLOCK_SKEW_SECONDS)
+        .map((floor) => BigInt(floor.min));
+  return eligible.length > 0 ? eligible.reduce((low, value) => (value < low ? value : low)) : BigInt(minimum.amount);
 }
 
 async function feeUsd(): Promise<number | undefined> {
@@ -181,13 +201,14 @@ export const jupiterAdapter: ProtocolAdapter = {
       if (spent < BigInt(step.input.amount)) {
         return mismatch(`The transaction did not spend ${step.input.formatted} ${input.symbol} from the step account.`);
       }
-      // Output: at least the guaranteed minimum must have reached the step account.
+      // Output: at least the landed payload's guaranteed minimum must have reached the step account.
       const received = output.isNative
         ? effectiveSolDelta(observations, owner)
         : tokenDelta(observations, owner, output.address as string);
-      const floor = BigInt(step.minimumOutput.amount) - (output.isNative ? SOL_RENT_TOLERANCE_LAMPORTS : 0n);
+      const guaranteed = outputFloor(step, step.minimumOutput, observations[0]?.blockTime ?? null);
+      const floor = guaranteed - (output.isNative ? SOL_RENT_TOLERANCE_LAMPORTS : 0n);
       if (received < floor || received <= 0n) {
-        return mismatch(`The transaction did not credit at least ${step.minimumOutput.formatted} ${output.symbol} to the step account.`);
+        return mismatch(`The transaction did not credit at least ${fromBaseUnits(guaranteed, output.decimals)} ${output.symbol} to the step account.`);
       }
       observed.actual = assetAmount(output, received.toString());
     });

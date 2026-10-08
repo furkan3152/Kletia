@@ -419,6 +419,9 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
       ...(planned.quoteId ? { quote: planned.quoteId } : {}),
       ...(draft.portionBps !== undefined ? { portionBps: draft.portionBps } : {}),
       ...(action.provider ? { provider: action.provider } : {}),
+      // Every prepare is held to this floor (QUOTE_MOVED), not to the previous prepare's.
+      plannedInput: planned.input.amount,
+      plannedMinimum: planned.minimumOutput.amount,
     }),
     ...(planned.warnings.length > 0 ? { warnings: planned.warnings } : {}),
   };

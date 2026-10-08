@@ -325,13 +325,24 @@ function parseRequest(request: Record<string, unknown>): RelayRequestState | nul
   };
 }
 
-/** Looks up the Relay requests a deposit transaction created (usually one). */
+/**
+ * Looks up the Relay requests a deposit transaction created (usually one).
+ * The by-hash index is best effort (throttled, and deprecated by Relay): any
+ * failure reads as "not indexed", so callers fall back to the status of the
+ * request ids quoted for the step, which binds a deposit only on positive proof.
+ */
 export async function fetchRelayRequestsByHash(hash: string): Promise<RelayRequestState[]> {
-  const body = await fetchProviderJson(`${RELAY_API_URL}/requests/v2?hash=${encodeURIComponent(hash)}`, {
-    provider: "Relay",
-    headers: headers(),
-    allowStatus: [404],
-  });
+  let body: unknown;
+  try {
+    body = await fetchProviderJson(`${RELAY_API_URL}/requests/v2?hash=${encodeURIComponent(hash)}`, {
+      provider: "Relay",
+      headers: headers(),
+      allowStatus: [404],
+    });
+  } catch (error) {
+    console.warn("[platform] Relay request lookup by hash failed; using request status:", error instanceof Error ? error.message : error);
+    return [];
+  }
   if (!isRecord(body) || !Array.isArray(body.requests)) return [];
   return body.requests
     .slice(0, 8)

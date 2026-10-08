@@ -53,12 +53,18 @@ export interface WebhookVerification {
   readonly timestamp?: number;
 }
 
+/**
+ * Verifies a `Kletia-Signature` header against the raw request body. `header`
+ * accepts a Fetch `headers.get(...)` result or a Node/Express header value
+ * (`string | string[]`; the first value is used).
+ */
 export async function verifyWebhookSignature(
   secret: string,
   rawBody: string,
-  header: string | null | undefined,
+  headerValue: string | readonly string[] | null | undefined,
   options: { toleranceSeconds?: number; now?: number } = {},
 ): Promise<WebhookVerification> {
+  const header = typeof headerValue === "string" ? headerValue : headerValue?.[0];
   if (!header) return { valid: false, reason: "malformed" };
   const parts = Object.fromEntries(
     header.split(",").map((part) => {

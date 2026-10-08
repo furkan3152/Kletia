@@ -15,6 +15,7 @@ import type { RequestHandler } from "express";
 import { PlatformError } from "../errors.js";
 import { authOf, HttpError, invalidRequest, isRecord, sendError, setAuth, type ApiTier } from "./context.js";
 import { dbQuery, platformDatabaseUrl } from "./db.js";
+import { clientIp, TIER_LIMITS } from "./limits.js";
 import { randomBase62, randomHex, sha256Hex } from "./secrets.js";
 
 export type KeyTier = Exclude<ApiTier, "public">;
@@ -200,25 +201,75 @@ export async function issueDeveloperKey(name: string): Promise<IssuedApiKey> {
 /* --------------------------------------------------------------- lookup */
 
 interface CachedLookup {
-  readonly record: ApiKeyRecord | null;
+  readonly record: ApiKeyRecord;
   readonly expiresAt: number;
 }
 
 const POSITIVE_TTL_MS = 60_000;
 const NEGATIVE_TTL_MS = 30_000;
 const MAX_CACHED = 10_000;
+/** Issued keys (valid or revoked). */
 const lookupCache = new Map<string, CachedLookup>();
+/** Unknown keys -> expiry, kept apart so random keys cannot evict issued ones. */
+const unknownKeys = new Map<string, number>();
 
-async function findDeveloperKey(keyHash: string, now: number): Promise<ApiKeyRecord | null> {
+function remember<V>(cache: Map<string, V>, key: string, value: V): void {
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > MAX_CACHED) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
+
+/*
+ * Store lookups for uncached developer keys, per client IP and 1-minute
+ * window, at the public tier limit. The budget is taken before the store is
+ * queried and given back when the key turns out to be valid, so cache hits and
+ * valid keys cost nothing while unknown keys (or a failing store) cannot push
+ * more than the limit of queries per IP into the shared pool.
+ */
+const LOOKUP_WINDOW_MS = 60_000;
+
+interface LookupBudget {
+  used: number;
+  readonly windowStart: number;
+}
+
+const lookupBudgets = new Map<string, LookupBudget>();
+
+/** Takes one lookup from the client's budget; throws 429 when it is spent. */
+function reserveLookup(client: string, now: number): LookupBudget {
+  let budget = lookupBudgets.get(client);
+  if (!budget || now - budget.windowStart >= LOOKUP_WINDOW_MS) {
+    budget = { used: 0, windowStart: now };
+    remember(lookupBudgets, client, budget);
+  }
+  if (budget.used >= TIER_LIMITS.public) {
+    const seconds = Math.max(1, Math.ceil((budget.windowStart + LOOKUP_WINDOW_MS - now) / 1000));
+    throw new HttpError(429, "RATE_LIMITED", `Too many unrecognised API keys from this address. Retry in ${seconds}s.`, {
+      headers: { "Retry-After": String(seconds) },
+    });
+  }
+  budget.used += 1;
+  return budget;
+}
+
+async function findDeveloperKey(keyHash: string, client: string, now: number): Promise<ApiKeyRecord | null> {
   const cached = lookupCache.get(keyHash);
   if (cached && cached.expiresAt > now) return cached.record;
+  const unknownUntil = unknownKeys.get(keyHash);
+  if (unknownUntil !== undefined && unknownUntil > now) return null;
+  const budget = reserveLookup(client, now);
   const record = await apiKeyStore().findByHash(keyHash);
-  lookupCache.delete(keyHash);
-  lookupCache.set(keyHash, { record, expiresAt: now + (record ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS) });
-  while (lookupCache.size > MAX_CACHED) {
-    const oldest = lookupCache.keys().next().value;
-    if (oldest === undefined) break;
-    lookupCache.delete(oldest);
+  if (record) {
+    if (!record.revokedAt) budget.used = Math.max(0, budget.used - 1);
+    unknownKeys.delete(keyHash);
+    remember(lookupCache, keyHash, { record, expiresAt: now + POSITIVE_TTL_MS });
+  } else {
+    lookupCache.delete(keyHash);
+    remember(unknownKeys, keyHash, now + NEGATIVE_TTL_MS);
   }
   return record;
 }
@@ -249,7 +300,9 @@ function presentedKey(authorization: string | undefined, headerKey: string | und
 /**
  * Resolves the caller's tier. Never responds itself: a failed credential is
  * recorded on the request and rejected by `enforceAuthentication` after the
- * rate limiter has counted it against the caller's IP.
+ * rate limiter has counted it against the caller's IP. An uncached key is
+ * looked up in the store only while the IP has lookup budget left (429
+ * otherwise), so throttled requests never reach Postgres.
  */
 export const authenticate: RequestHandler = (req, _res, next) => {
   void (async () => {
@@ -266,7 +319,7 @@ export const authenticate: RequestHandler = (req, _res, next) => {
         setAuth(req, { tier: "public", rejection: invalidKey() });
         return;
       }
-      const record = await findDeveloperKey(hash, Date.now());
+      const record = await findDeveloperKey(hash, clientIp(req), Date.now());
       if (!record || record.revokedAt) {
         setAuth(req, { tier: "public", rejection: invalidKey() });
         return;

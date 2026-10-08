@@ -3,9 +3,10 @@
  *
  * - MemoryIntentStore: bounded LRU (default 5000 intents) for development and
  *   single-instance deployments.
- * - PostgresIntentStore: `kletia_intents` (graph as jsonb) plus
- *   `kletia_intent_references`, a global claim table that stops one on-chain
- *   transaction from completing two steps or two intents.
+ * - PostgresIntentStore: `kletia_intents` (graph as jsonb, plus `polled_at`
+ *   for settlement-poller rotation) and `kletia_intent_references`, a global
+ *   claim table that stops one on-chain transaction from completing two steps
+ *   or two intents.
  *
  * `update(id, graph, expectedUpdatedAt)` succeeds only when the stored graph
  * still carries `expectedUpdatedAt`; otherwise it throws 409 INTENT_CONFLICT.
@@ -32,8 +33,13 @@ export interface IntentStore {
   /** Replaces the graph when the stored `updatedAt` equals `expectedUpdatedAt`; 409 otherwise. */
   update(id: string, graph: IntentGraph, expectedUpdatedAt: string): Promise<void>;
   listByOwner(ownerKeyId: string, limit: number): Promise<IntentGraph[]>;
-  /** Intents with steps awaiting on-chain verification or settlement, oldest update first. */
+  /**
+   * Intents with steps awaiting on-chain verification or settlement: never
+   * polled first, then least recently polled, then oldest update.
+   */
   listActive(limit: number): Promise<IntentGraph[]>;
+  /** Records that the settlement poller just refreshed these intents; never changes the graph or its `updatedAt`. */
+  markPolled(ids: readonly string[]): Promise<void>;
   findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null>;
   /** API key id that created the intent: null for keyless intents, undefined when the intent is unknown. */
   ownerOf(id: string): Promise<string | null | undefined>;
@@ -81,6 +87,9 @@ export class MemoryIntentStore implements IntentStore {
   readonly kind = "memory" as const;
   private readonly records = new Map<string, MemoryRecord>();
   private readonly claims = new Map<string, { intentId: string; stepId: string }>();
+  /** Poll round in which each intent was last polled (markPolled). */
+  private readonly polled = new Map<string, number>();
+  private pollRound = 0;
 
   constructor(
     private readonly maxIntents = 5_000,
@@ -94,6 +103,7 @@ export class MemoryIntentStore implements IntentStore {
       const oldest = this.records.keys().next().value;
       if (oldest === undefined) break;
       this.records.delete(oldest);
+      this.polled.delete(oldest);
     }
   }
 
@@ -128,12 +138,21 @@ export class MemoryIntentStore implements IntentStore {
   }
 
   async listActive(limit: number): Promise<IntentGraph[]> {
+    const round = (graph: IntentGraph) => this.polled.get(graph.id) ?? 0;
     return [...this.records.values()]
       .map((record) => record.graph)
       .filter(isActiveGraph)
-      .sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : 1))
+      .sort((a, b) => round(a) - round(b) || (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0))
       .slice(0, clampLimit(limit, 500))
       .map((graph) => structuredClone(graph));
+  }
+
+  async markPolled(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    this.pollRound += 1;
+    for (const id of ids) {
+      if (this.records.has(id)) this.polled.set(id, this.pollRound);
+    }
   }
 
   async findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null> {
@@ -168,6 +187,7 @@ export class MemoryIntentStore implements IntentStore {
   async close(): Promise<void> {
     this.records.clear();
     this.claims.clear();
+    this.polled.clear();
   }
 }
 
@@ -186,6 +206,8 @@ ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS client_reference text;
 CREATE UNIQUE INDEX IF NOT EXISTS kletia_intents_client_reference_idx
   ON kletia_intents (owner_key_id, client_reference)
   WHERE owner_key_id IS NOT NULL AND client_reference IS NOT NULL;
+ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS polled_at timestamptz;
+CREATE INDEX IF NOT EXISTS kletia_intents_poll_idx ON kletia_intents (status, polled_at NULLS FIRST, updated_at);
 CREATE TABLE IF NOT EXISTS kletia_intent_references (
   reference text PRIMARY KEY,
   intent_id text NOT NULL,
@@ -275,10 +297,15 @@ export class PostgresIntentStore implements IntentStore {
       `SELECT graph FROM kletia_intents
        WHERE status = ANY($1::text[])
          AND EXISTS (SELECT 1 FROM jsonb_array_elements(graph->'steps') AS step WHERE step->>'status' = ANY($2::text[]))
-       ORDER BY updated_at ASC LIMIT $3`,
+       ORDER BY polled_at ASC NULLS FIRST, updated_at ASC LIMIT $3`,
       [ACTIVE_INTENT_STATUSES, ACTIVE_STEP_STATUSES, clampLimit(limit, 500)],
     );
     return result.rows.map((row) => PostgresIntentStore.parse(row)).filter((graph): graph is IntentGraph => graph !== null);
+  }
+
+  async markPolled(ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.query("UPDATE kletia_intents SET polled_at = now() WHERE id = ANY($1::text[])", [[...ids]]);
   }
 
   async findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null> {

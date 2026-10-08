@@ -3,7 +3,12 @@
  * with idempotent recipient token-account creation, on mainnet and devnet.
  */
 import { CHAINS, formatAmount, fromBaseUnits } from "@kletia/core";
-import { buildSolanaTransfer, isSolanaNetworkKey } from "../../../networks/solana/index.js";
+import {
+  assertSolanaWalletRecipient,
+  buildSolanaTransfer,
+  isSolanaNetworkKey,
+  readMintProgram,
+} from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef, sameAsset } from "../assets.js";
 import { assertSolanaTransactionOwner, confirmSimulation, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
@@ -39,6 +44,14 @@ export const solanaTransferAdapter: ProtocolAdapter = {
   },
 
   async plan(action): Promise<PlannedStep> {
+    if (!isSolanaNetworkKey(action.network)) {
+      throw new PlatformError("NETWORK_UNSUPPORTED", "Solana transfers run on solana or solana-devnet.", 422);
+    }
+    // Refuse non-wallet recipients and fee-charging mints at planning, not only at prepare.
+    await Promise.all([
+      assertSolanaWalletRecipient(action.network, action.recipient.address),
+      action.input.isNative ? null : readMintProgram(action.network, action.input.address as string),
+    ]);
     const amount = assetAmount(action.input, action.amount);
     const fees = await feeUsd(action);
     const warnings = action.input.isNative

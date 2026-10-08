@@ -126,6 +126,16 @@ test("webhook signatures verify and reject tampering", async () => {
   assert.equal(expired.reason, "expired");
 });
 
+test("webhook verification accepts Node/Express header values (string | string[])", async () => {
+  const body = JSON.stringify({ type: "intent.created" });
+  const header = await signWebhookPayload("whsec_test", body, 1_700_000_000);
+  const options = { now: 1_700_000_010_000 };
+  assert.equal((await verifyWebhookSignature("whsec_test", body, [header], options)).valid, true);
+  assert.equal((await verifyWebhookSignature("whsec_test", body, [header, "t=1,v1=00"], options)).valid, true);
+  assert.equal((await verifyWebhookSignature("whsec_test", body, [], options)).reason, "malformed");
+  assert.equal((await verifyWebhookSignature("whsec_test", body, undefined, options)).reason, "malformed");
+});
+
 test("event bus isolates listener failures", () => {
   const errors = [];
   const bus = createEventBus((error) => errors.push(error));

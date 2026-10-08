@@ -53,7 +53,9 @@ npm install @kletia/sdk
 ```ts
 import { KletiaClient, executeIntent, eip1193Signer, walletStandardSolanaSigner, formatAccountId } from "@kletia/sdk";
 
-const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
+// Browser code: keyless public tier (or a `baseUrl` proxied through your server).
+// `apiKey` (kl_dev_…) is for server-side code only; never ship it in a bundle.
+const kletia = new KletiaClient();
 
 const intent = await kletia.intents.create({
   text: "bridge 25 USDC from base to solana then swap half to JitoSOL",
@@ -78,7 +80,7 @@ curl -X POST https://api.kletiaai.xyz/v1/intents?dryRun=true \
 Or as a component:
 
 ```tsx
-<KletiaIntentWidget clientOptions={{ apiKey }} accounts={accounts} signers={signers} />
+<KletiaIntentWidget accounts={accounts} signers={signers} />
 ```
 
 | Package | What it is |

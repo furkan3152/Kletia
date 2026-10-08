@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import type { IntentGraph, IntentStep, StepStatus } from "@kletia/core";
+import { applySlippage, type IntentGraph, type IntentStep, type StepStatus } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { subscribeIntentEvents, type IntentEvent } from "../events.js";
 import {
@@ -13,6 +13,7 @@ import {
   submitStep,
 } from "../service.js";
 import type { MemoryIntentStore } from "../store.js";
+import { nextTimestamp } from "../util.js";
 import {
   ACCOUNTS,
   OTHER_EVM_ADDRESS,
@@ -46,6 +47,19 @@ function step(graph: IntentGraph, id: string): IntentStep {
 
 function statuses(graph: IntentGraph): string {
   return `${graph.status}:${graph.steps.map((entry) => `${entry.id}=${entry.status}`).join(",")}`;
+}
+
+/** Moves a step's latest submission `ms` into the past (what the 1 h / 3 h deadlines measure from). */
+async function backdateSubmission(intentId: string, stepId: string, ms: number): Promise<void> {
+  const stored = await store.get(intentId);
+  assert.ok(stored);
+  const steps = stored.steps.map((entry) => entry.id !== stepId ? entry : {
+    ...entry,
+    evidence: entry.evidence.map((item) => item.kind === "note" && item.detail === "References submitted."
+      ? { ...item, observedAt: new Date(Date.parse(item.observedAt) - ms).toISOString() }
+      : item),
+  });
+  await store.update(intentId, { ...stored, steps, updatedAt: nextTimestamp(stored.updatedAt) }, stored.updatedAt);
 }
 
 const SWAP = { text: "swap 1 SOL to USDC", accounts: ACCOUNTS };
@@ -179,6 +193,40 @@ describe("service lifecycle", () => {
     assert.equal(statuses(await submitStep(created.id, "s1", [randomEvmHash()])), "completed:s1=settled");
   });
 
+  it("applies the 1 h and 3 h deadlines when verification or settlement reads keep failing", async () => {
+    // Settling bridge whose settlement provider errors on every poll.
+    const bridge = await createIntent({ text: "bridge 25 USDC from base to solana", accounts: ACCOUNTS });
+    await prepareStep(bridge.id, "s1");
+    stub.poll = () => ({ status: "settling", evidence: [] });
+    await submitStep(bridge.id, "s1", [randomEvmHash(), randomEvmHash()]);
+    stub.poll = () => {
+      throw new PlatformError("RELAY_UNAVAILABLE", "Relay is temporarily unavailable.", 502);
+    };
+    assert.equal(statuses(await refreshIntent(bridge.id)), "settling:s1=settling", "deferred before the deadline");
+    await backdateSubmission(bridge.id, "s1", 3 * 3_600_000 + 60_000);
+    const timedOut = await refreshIntent(bridge.id);
+    assert.equal(statuses(timedOut), "indeterminate:s1=indeterminate");
+    assert.match(step(timedOut, "s1").evidence.at(-1)?.detail ?? "", /within 3 hours.*manual review/u);
+    assert.equal(step(timedOut, "s1").actualOutput, undefined, "never settled");
+
+    // Submitted swap whose verification reads fail on every attempt.
+    const swap = await createIntent(SWAP);
+    await prepareStep(swap.id, "s1");
+    stub.verify = () => {
+      throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "Solana RPC is unavailable.", 502);
+    };
+    assert.equal(statuses(await submitStep(swap.id, "s1", [randomSolanaSignature()])), "executing:s1=submitted");
+    await backdateSubmission(swap.id, "s1", 30 * 60_000);
+    assert.equal(statuses(await refreshIntent(swap.id)), "executing:s1=submitted", "deferred before the deadline");
+    await backdateSubmission(swap.id, "s1", 31 * 60_000);
+    const stale = await refreshIntent(swap.id);
+    assert.equal(statuses(stale), "indeterminate:s1=indeterminate");
+    assert.match(step(stale, "s1").evidence.at(-1)?.detail ?? "", /over an hour.*manual review/u);
+    // Still reviewable: once reads recover, a replacement reference can be submitted.
+    stub.verify = () => ({ status: "confirmed", evidence: [] });
+    assert.equal(statuses(await submitStep(swap.id, "s1", [randomSolanaSignature()])), "completed:s1=settled");
+  });
+
   it("drops references rejected during refresh and returns the step to awaiting_signature", async () => {
     const created = await createIntent(SWAP);
     await prepareStep(created.id, "s1");
@@ -289,6 +337,31 @@ describe("service lifecycle", () => {
     assert.equal(moved.status, 409);
   });
 
+  it("holds every re-prepare to the planned floor, not to the previous prepare's", async () => {
+    const created = await createIntent(SWAP);
+    const planned = step(created, "s1");
+    assert.equal(planned.minimumOutput?.amount, "149250000", "150 USDC expected, 50 bps floor");
+    // Each re-quote is 0.4% below the previous one: within slippage of the last prepare every time.
+    let expected = 150_000_000n;
+    stub.tamper = (payload) => {
+      expected = (expected * 996n) / 1000n;
+      const amount = expected.toString();
+      const minimum = applySlippage(amount, 50);
+      return {
+        ...payload,
+        expectedOutput: { ...payload.expectedOutput, amount, formatted: amount },
+        minimumOutput: { ...payload.minimumOutput, amount: minimum, formatted: minimum },
+      };
+    };
+    const first = await prepareStep(created.id, "s1");
+    assert.equal(step(first.intent, "s1").expectedOutput?.amount, "149400000", "still above the planned 149.25 floor");
+    const moved = await failure(prepareStep(created.id, "s1"));
+    assert.equal(moved.code, "QUOTE_MOVED", "148.80 is below the planned floor although within slippage of the last prepare");
+    assert.match(moved.message, /plan guaranteed 149\.25 USDC/u);
+    const current = step(await getIntent(created.id), "s1");
+    assert.equal(current.expectedOutput?.amount, "149400000", "the refused quote was not persisted");
+  });
+
   it("cancels only before anything was submitted", async () => {
     const created = await createIntent(BRIDGE_THEN_SWAP);
     await prepareStep(created.id, "s1");
@@ -371,5 +444,35 @@ describe("settlement poller", () => {
     assert.deepEqual(unhandled, []);
     const graph = await getIntent(created.id);
     assert.equal(step(graph, "s1").status satisfies StepStatus, "settling");
+  });
+
+  it("rotates through active intents when refreshes change nothing", async () => {
+    const send = { text: `send 0.001 ETH to ${OTHER_EVM_ADDRESS} on arbitrum`, accounts: ACCOUNTS };
+    const stuck = await createIntent(send);
+    const landed = await createIntent(send);
+    await prepareStep(stuck.id, "s1");
+    await prepareStep(landed.id, "s1");
+    stub.verify = () => ({ status: "pending", evidence: [], reason: "not visible", stale: false });
+    const stuckHash = randomEvmHash();
+    await submitStep(stuck.id, "s1", [stuckHash]);
+    await submitStep(landed.id, "s1", [randomEvmHash()]);
+    // The older intent never changes; the newer one has landed and only needs a poll.
+    const verified: string[] = [];
+    stub.verify = (context) => {
+      verified.push(context.references[0] as string);
+      return context.references[0] === stuckHash
+        ? { status: "pending", evidence: [], reason: "not visible", stale: false }
+        : { status: "confirmed", evidence: [] };
+    };
+    const stop = startSettlementPoller({ intervalMs: 2_000, batchSize: 1 });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 4_400));
+    } finally {
+      stop();
+    }
+    assert.equal(verified.length, 2, "two ticks of one intent each");
+    assert.equal(statuses(await getIntent(landed.id)), "completed:s1=settled", "the newer intent got its turn");
+    assert.equal(statuses(await getIntent(stuck.id)), "executing:s1=submitted");
+    assert.equal((await store.listActive(1))[0]?.id, stuck.id);
   });
 });

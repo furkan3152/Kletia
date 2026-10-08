@@ -1,3 +1,4 @@
+import "./shared/config/environment.js";
 import express from "express";
 import cors, { type CorsOptions } from "cors";
 import helmet from "helmet";
@@ -32,7 +33,6 @@ import {
 } from "./shared/security/requestId.js";
 import { resolveIntentPublicError } from "./shared/security/intentError.js";
 import premiumRoutes from "./networks/base/routes/premium.js";
-import { agentRoutes } from "./networks/base/routes/agent.js";
 import { validateAddress, sanitizePrompt } from "./shared/http/security.js";
 import jwt, { type JwtHeader } from "jsonwebtoken";
 import alloraRoutes from "./integrations/allora/routes.js";
@@ -45,6 +45,7 @@ import baseX402BuyerRoutes from "./networks/base/routes/x402Buyer.js";
 import arbitrumSepoliaRoutes from "./networks/arbitrum-sepolia/routes.js";
 import solanaRoutes from "./networks/solana/routes.js";
 import releaseRoutes from "./release/routes.js";
+import { readFeatureCapabilities } from "./release/capabilities.js";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { pathToFileURL } from "url";
@@ -216,7 +217,6 @@ const onrampLimiter = rateLimit({
 
 app.use("/api/", limiter);
 app.use("/api/premium", premiumLimiter, requireFixedBaseNetwork, premiumRoutes);
-app.use("/api/agent", requireBaseNetwork, agentRoutes);
 app.use("/api/allora", requireBaseNetwork, alloraRoutes);
 app.use("/api/paymaster", requireFixedBaseNetwork, paymasterRoutes);
 app.use("/api/webacy", webacyRoutes);
@@ -228,6 +228,11 @@ app.use("/api/release", releaseRoutes);
 app.use("/api/base/x402-buyer", requireBaseNetwork, baseX402BuyerRoutes);
 app.use("/api/base", requireBaseNetwork, baseRoutes);
 app.use("/api/base-mcp", requireBaseNetwork, baseMcpRoutes);
+
+app.get("/api/capabilities", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=30");
+  res.json({ success: true, ...readFeatureCapabilities() });
+});
 
 app.get("/api/networks", (_req, res) => {
   res.json({

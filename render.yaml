@@ -27,6 +27,10 @@ services:
         value: "10000"
       - key: NODE_ENV
         value: production
+      # The hosted deployment promises every integration; self-hosted
+      # deployments may omit optional keys and run in degraded mode.
+      - key: KLETIA_REQUIRE_ALL_FEATURES
+        value: "true"
       - key: CORS_ORIGINS
         value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com
       - key: BASE_RPC_URL
@@ -94,8 +98,6 @@ services:
         value: "false"
       - key: TRUST_PROXY_HOPS
         value: "1"
-      - key: X402_FACTORY_DEPLOYMENT_BLOCK
-        value: "48037476"
       - key: X402_MAX_PRICE_ATOMIC
         value: "100000000"
       - key: X402_DEFAULT_PRICE_USDC

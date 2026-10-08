@@ -1,6 +1,4 @@
-import * as dotenv from "dotenv";
-
-dotenv.config();
+import "../shared/config/environment.js";
 
 const { readKletiaMvpReadiness } = await import("../release/mvpReadiness.js");
 const report = await readKletiaMvpReadiness(true);

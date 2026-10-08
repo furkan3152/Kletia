@@ -1,4 +1,4 @@
-import * as dotenv from "dotenv";
+import "./environment.js";
 import {
   createPublicClient,
   fallback,
@@ -24,7 +24,6 @@ import {
 import { configuredBaseIntentV2AddressManifest } from "../../networks/base/config/intentRouterV2Environment.js";
 import { configuredBaseTokenDeploymentTarget } from "../../networks/base/config/launchFactoryV2Environment.js";
 
-dotenv.config();
 
 export type NetworkId = "base" | "arc" | "arbitrum";
 
@@ -116,8 +115,8 @@ if (
   !configuredBaseRpcUrl &&
   !cdpNodeKey
 ) {
-  throw new Error(
-    "BASE_RPC_URL or CDP_NODE_API_KEY is required in production; the public Base RPC is rate-limited.",
+  console.warn(
+    "[config] BASE_RPC_URL or CDP_NODE_API_KEY is not set; using the rate-limited public Base RPC.",
   );
 }
 const baseRpcUrl =

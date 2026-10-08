@@ -1,10 +1,10 @@
 # Security policy
 
-Kletia handles transaction preparation, wallet authorization, passkey accounts, external providers, and cross-network recovery. Please report a suspected vulnerability privately before publishing details.
+Kletia handles transaction preparation, wallet authorization, the public platform API (keys, webhooks, event streams), external providers, and cross-network recovery. Please report a suspected vulnerability privately before publishing details.
 
 ## Supported version
 
-Security fixes target the current `main` branch and the public deployment built from it. Historical tags, grant artifacts, legacy contracts, and superseded deployments may remain for provenance but are not assumed to receive fixes. Deployment manifests identify which contracts are active, legacy, or labs.
+Security fixes target the current `main` branch and the public deployment built from it. Historical tags, grant artifacts, legacy contracts, and superseded deployments may remain for provenance but are not assumed to receive fixes. Deployment manifests identify which contracts are active or legacy.
 
 ## Reporting a vulnerability
 
@@ -17,23 +17,23 @@ Email **security@kletiaai.xyz** with:
 - whether funds, credentials, privacy, availability, or integrity are at risk;
 - a safe way to contact you.
 
-Do not include private keys, seed phrases, passkey credentials, recovery material, provider secrets, personally identifiable KYC data, or unredacted production database content. Onchain identifiers are public, but explain why each one is relevant.
+Do not include private keys, seed phrases, API keys, webhook secrets, recovery material, provider secrets, personally identifiable KYC data, or unredacted production database content. Onchain identifiers are public, but explain why each one is relevant.
 
 We aim to acknowledge a complete report within 48 hours and provide an initial triage within seven days. Complex cross-network or upstream issues may require additional validation. Please allow a reasonable remediation and deployment window before disclosure.
 
 ## In scope
 
-- Base, Arc, Arbitrum, Arbitrum Sepolia, and Stellar application modules;
+- Base, Arbitrum, Arc, Arbitrum Sepolia, and Solana application modules;
+- the platform API (`/v1`), `@kletia/core`, `@kletia/sdk`, and `@kletia/widget`;
 - active, migration, and Testnet contracts where Kletia source or configuration creates the issue;
-- intent parsing, entity resolution, transaction/XDR preparation, simulation, evidence, and recovery;
-- EVM wallets, Stellar passkey C-accounts, Freighter integration, and session binding;
-- cross-chain checkpoints, CCTP/Across integration, replay and nonce handling;
-- Payment Center provider validation, SEP flows, durable stores, and credential encryption;
+- intent parsing and planning, entity resolution, transaction preparation (EVM calldata and Solana transactions), simulation, evidence verification, and recovery;
+- EVM and Solana (Wallet Standard) wallet bindings and session handling;
+- cross-network settlement (Relay, Across, CCTP), replay, and nonce or signature handling;
+- API keys, webhook signing and delivery (including SSRF), server-sent events, durable stores, and secret encryption;
 - browser privacy/egress controls, API authorization, CORS, rate limiting, and secret handling;
-- ZK circuits, Soroban control plane, route auction, private payments, and MPP labs when the vulnerability is reproducible in this repository;
 - CI, build, and deployment configuration that can affect a Kletia release.
 
-Testnet and labs status lowers financial exposure; it does not make authentication, privacy, replay, or supply-chain vulnerabilities irrelevant.
+Testnet status lowers financial exposure; it does not make authentication, privacy, replay, or supply-chain vulnerabilities irrelevant.
 
 ## Generally out of scope
 
@@ -57,8 +57,8 @@ If an upstream dependency is affected through Kletia's configuration, report the
 
 ## Security boundaries
 
-- Kletia is non-custodial: users approve value-moving actions in their wallet or passkey account.
-- Model, quote, RPC, relayer, anchor, x402, and paid-response data are untrusted inputs.
+- Kletia is non-custodial: users approve every value-moving transaction in their own EVM or Solana wallet.
+- Model, quote, RPC, relayer, solver, x402, and paid-response data are untrusted inputs.
 - Cross-chain execution is checkpointed and has no global rollback.
 - Codehash and deployment identity checks do not constitute a contract audit.
 - Test, build, live readiness, and funded execution evidence are separate.

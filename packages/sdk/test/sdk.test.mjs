@@ -166,7 +166,7 @@ test("intents.stream surfaces the API error envelope", async () => {
 });
 
 /** Mock API for one Solana or EVM step whose server state is kept in memory. */
-function executionHarness({ intentId, transactions = 1, vm = "svm", submitFailures = [], preparedAt, expiresAt, evmData }) {
+function executionHarness({ intentId, transactions = 1, vm = "svm", submitFailures = [], preparedAt, expiresAt, evmData, tamper, onPrepare }) {
   const account = vm === "svm" ? `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOL}` : `eip155:8453:${EVM}`;
   const counts = { prepare: 0, submit: 0, send: 0 };
   const submitted = [];
@@ -191,7 +191,9 @@ function executionHarness({ intentId, transactions = 1, vm = "svm", submitFailur
       if (url.endsWith("/prepare")) {
         counts.prepare += 1;
         stepStatus = "awaiting_signature";
-        return jsonResponse(200, { intent: graph(), payload: { vm, transactions: payloadTransactions(), expiresAt: expiresAt ?? Math.floor(Date.now() / 1000) + 60, quoteBinding: "x" } });
+        onPrepare?.();
+        const prepared = tamper ? payloadTransactions().map(tamper) : payloadTransactions();
+        return jsonResponse(200, { intent: graph(), payload: { vm, transactions: prepared, expiresAt: expiresAt ?? Math.floor(Date.now() / 1000) + 60, quoteBinding: "x" } });
       }
       if (url.endsWith("/submit")) {
         counts.submit += 1;
@@ -324,4 +326,31 @@ test("executeIntent measures payload expiry on the server's clock", async () => 
   });
   await assert.rejects(executeIntent(stale.client, stale.graph(), { solana: stale.solana }), /expired before signing/u);
   assert.equal(stale.counts.send, 0);
+});
+
+test("executeIntent refuses prepared transactions that do not belong to the step", async () => {
+  const cases = [
+    { name: "fee payer", tamper: (tx) => ({ ...tx, feePayer: "11111111111111111111111111111111" }) },
+    { name: "network", tamper: (tx) => ({ ...tx, network: "solana-devnet" }) },
+    { name: "vm", tamper: () => ({ vm: "evm", network: "base", chainId: 8453, from: EVM, to: EVM, data: "0x", value: "0", description: "x" }) },
+  ];
+  for (const { name, tamper } of cases) {
+    const h = executionHarness({ intentId: `int_bind_${name.replace(/\W/gu, "")}`, tamper });
+    await assert.rejects(
+      executeIntent(h.client, h.graph(), { solana: h.solana }),
+      (error) => error instanceof KletiaExecutionError && /Refused to sign transaction 1/u.test(error.message),
+      name,
+    );
+    assert.equal(h.counts.send, 0, `${name}: no wallet prompt`);
+  }
+  const evm = executionHarness({ intentId: "int_bind_chain", vm: "evm", tamper: (tx) => ({ ...tx, chainId: 1 }) });
+  const evmSigner = { address: EVM, async sendTransaction() { throw new Error("must not sign"); }, async waitForTransaction() {} };
+  await assert.rejects(executeIntent(evm.client, evm.graph(), { evm: evmSigner }), /does not match Base/u);
+});
+
+test("executeIntent never opens a wallet prompt after it was stopped during prepare", async () => {
+  const controller = new AbortController();
+  const h = executionHarness({ intentId: "int_abort", onPrepare: () => controller.abort(new Error("stopped")) });
+  await assert.rejects(executeIntent(h.client, h.graph(), { solana: h.solana }, { signal: controller.signal }), /stopped/u);
+  assert.deepEqual(h.counts, { prepare: 1, submit: 0, send: 0 });
 });

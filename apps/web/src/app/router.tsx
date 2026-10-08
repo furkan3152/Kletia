@@ -14,6 +14,7 @@ import {
   type RouteId,
 } from "./routes/routeTable";
 import { RouterContext, type RouterState } from "./routes/routerContext";
+import { LazyBoundary } from "../shared/components/LazyBoundary";
 
 installHistoryListener();
 
@@ -129,6 +130,22 @@ function EmbedBootFallback() {
   );
 }
 
+function RouteLoadFailed({ reload }: { reload: () => void }) {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center p-6" role="alert">
+      <div className="flex max-w-md flex-col items-start gap-4 border-[3px] border-[#1A1A1A] bg-white p-6 text-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#111827] dark:text-white dark:shadow-[6px_6px_0_#475569]">
+        <p className="font-display text-2xl font-bold">This page could not load</p>
+        <p className="text-sm font-semibold">
+          Part of Kletia failed to download, usually because of a lost connection or a new release. Reload to try again.
+        </p>
+        <button type="button" onClick={reload} className="inline-flex min-h-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none">
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PendingBar({ pending }: { pending: boolean }) {
   return (
     <div
@@ -216,7 +233,9 @@ export function AppRouter() {
           )
         }
       >
-        {content}
+        <LazyBoundary resetKey={location.pathname} fallback={(reload) => <RouteLoadFailed reload={reload} />}>
+          {content}
+        </LazyBoundary>
       </React.Suspense>
     </RouterContext.Provider>
   );

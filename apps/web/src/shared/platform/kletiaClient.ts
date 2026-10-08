@@ -95,8 +95,4 @@ export function describePlatformError(error: PlatformError): string {
 }
 
 /** Demo CAIP-10 accounts used by read-only previews (dry-run planning never moves funds). */
-export const PREVIEW_ACCOUNTS = Object.freeze({
-  evm: "eip155:8453:0x000000000000000000000000000000000000dEaD",
-  solana:
-    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
-} as const);
+export { PREVIEW_ACCOUNTS } from "./previewAccounts";

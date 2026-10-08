@@ -62,7 +62,7 @@ export default function InlineIntentPlanner({ prompt }: InlineIntentPlannerProps
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 text-sm font-normal leading-normal" aria-live="polite">
+    <div className="flex min-w-0 flex-col gap-4 text-sm font-normal leading-normal">
       {!solanaConnected ? (
         <div className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#F3E8FF] p-3 text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#1C1433] dark:text-white">
           <p className="text-sm font-bold">
@@ -87,7 +87,7 @@ export default function InlineIntentPlanner({ prompt }: InlineIntentPlannerProps
         </p>
       ) : null}
       {!intent && execution.error?.code === "ACCOUNT_REQUIRED" && solanaConnected && !execution.evm ? (
-        <p className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-3 text-sm font-bold text-[#1A1A1A] dark:border-[#4B5563]">
+        <p role="status" className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-3 text-sm font-bold text-[#1A1A1A] dark:border-[#4B5563]">
           This route also needs an EVM account (it receives on an EVM network). Connect an EVM wallet with the button at
           the top; Kletia plans again as soon as it is connected.
         </p>

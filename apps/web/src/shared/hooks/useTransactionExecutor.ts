@@ -392,15 +392,20 @@ export function useTransactionExecutor() {
           );
         }
 
-        const expectedSource = network === "arc"
-          ? "arc_manifest+rpc_bytecode"
+        // Base uses Webacy risk scoring when the API has a key, and otherwise
+        // the reviewed manifest plus RPC bytecode attestation; the keyless
+        // source is only valid for action-bound scans.
+        const acceptedSources = network === "arc"
+          ? ["arc_manifest+rpc_bytecode"]
           : network === "arbitrum"
-            ? "arbitrum_manifest+rpc_bytecode"
-            : "webacy";
+            ? ["arbitrum_manifest+rpc_bytecode"]
+            : normalizedAction
+              ? ["webacy", "base_manifest+rpc_bytecode"]
+              : ["webacy"];
         if (
           result.network !== network ||
           result.chainId !== expectedNetwork.chainId ||
-          result.source !== expectedSource ||
+          !acceptedSources.includes(result.source) ||
           !result.address ||
           getAddress(result.address) !== getAddress(target) ||
           (result.isContract !== true &&
@@ -435,6 +440,7 @@ export function useTransactionExecutor() {
 
         if (
           network === "base" &&
+          result.source === "webacy" &&
           (!Number.isFinite(result.riskScore) ||
             result.riskScore > SECURITY_BLOCK_THRESHOLD)
         ) {

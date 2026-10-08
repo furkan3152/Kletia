@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { formatUnits, getAddress, isAddress, type Address, type Hex } from "viem";
+import { explorerTxUrl, formatAccountId } from "@kletia/core";
 import {
   Loader2,
   Zap,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import {
   NETWORKS,
+  getNetwork,
+  getWorkspacePresentation,
   type AppTab,
   type NetworkMode,
 } from "../shared/config/networks";
@@ -47,6 +50,16 @@ import { Navbar } from "../shared/components/layout/Navbar";
 import type { WorkspaceMode } from "../shared/components/layout/NetworkSwitcher";
 import { Sidebar } from "../shared/components/layout/Sidebar";
 import { AppSidebar } from "../shared/components/layout/AppSidebar";
+import { ActivityDrawer } from "../shared/components/layout/ActivityDrawer";
+import { AgentsHandoffCard } from "../shared/components/chat/AgentsHandoffCard";
+import {
+  AGENTS_HANDOFF_MESSAGE,
+  AGENTS_HANDOFF_WIDGET,
+} from "../shared/components/chat/agentsHandoff";
+import { readStorage, writeStorage } from "../shared/state/safeStorage";
+import { recordActivity } from "../shared/sync/activityStore";
+import { emitNetworkSelected, emitPortfolioInvalidated } from "../shared/sync/bus";
+import type { SolanaTab } from "../networks/solana/solanaTabs";
 import { ChatInput } from "../shared/components/chat/ChatInput";
 import { IntentStarter } from "../shared/components/chat/IntentStarter";
 import { AssetClarificationCard } from "../shared/components/chat/AssetClarificationCard";
@@ -91,8 +104,10 @@ import {
 } from "../shared/privacy/defaultIntentPrivacy";
 import { isIntentPrivacyTrace } from "../shared/privacy/intentPrivacyTrace";
 
-const BASE_SWAP_EXECUTION_POLICY_SETTING = import.meta.env
-  .VITE_BASE_SWAP_EXECUTION_MODE;
+// The API defaults to the public Intent Router V2 deployment; keep both sides
+// aligned unless an operator overrides VITE_BASE_SWAP_EXECUTION_MODE.
+const BASE_SWAP_EXECUTION_POLICY_SETTING =
+  import.meta.env.VITE_BASE_SWAP_EXECUTION_MODE?.trim() || "intent_v2";
 const X402ServiceRouter = React.lazy(() =>
   import("../networks/base/components/x402/X402ServiceRouter").then((module) => ({
     default: module.X402ServiceRouter,
@@ -123,11 +138,15 @@ const ArcDashboardWidget = React.lazy(() =>
     default: module.ArcDashboardWidget,
   })),
 );
+const SolanaWorkspace = React.lazy(
+  () => import("../networks/solana/components/SolanaWorkspace"),
+);
 const ArcLendingDashboard = React.lazy(() =>
   import("../networks/arc/components/ArcLendingDashboard").then((module) => ({
     default: module.ArcLendingDashboard,
   })),
 );
+const WORKSPACE_STORAGE_KEY = "kletia-workspace";
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APP_TABS: readonly AppTab[] = [
@@ -247,6 +266,43 @@ const isCalldata = (value: unknown): value is Hex =>
 const isUnsignedIntegerString = (value: unknown): value is string =>
   typeof value === "string" && /^\d+$/.test(value);
 
+const describeAction = (action: string | undefined): string => {
+  const normalized = (action ?? "").trim().replace(/_/gu, " ");
+  return normalized
+    ? `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}`
+    : "Transaction";
+};
+
+/**
+ * Record a confirmed EVM execution in the shared activity feed and ask every
+ * balance view for this account to re-read.
+ */
+const recordEvmActivity = ({
+  network,
+  hash,
+  title,
+  walletAddress,
+}: {
+  network: NetworkMode;
+  hash: string;
+  title: string;
+  walletAddress: string;
+}) => {
+  try {
+    recordActivity({
+      id: hash,
+      network,
+      title,
+      status: "confirmed",
+      reference: hash,
+      url: explorerTxUrl(network, hash),
+    });
+    emitPortfolioInvalidated(formatAccountId(network, walletAddress), network, title);
+  } catch {
+    // Activity is a convenience; it must never interrupt a confirmed execution.
+  }
+};
+
 const renderSafeMessage = (text: string) => {
   const cleanText = text.replace(/\[SHOW_ONRAMP\]/g, "");
   const sections = cleanText.split(/(\*\*[^*]+\*\*)/g);
@@ -317,10 +373,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>("chat");
   const [activeArcWidget, setActiveArcWidget] = useState<WidgetId>(null);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isAppSidebarOpen, setIsAppSidebarOpen] = useState(false);
-  // Every workspace is currently a wallet-switchable network, so the active
-  // workspace is derived from the wallet network rather than stored separately.
-  const workspaceMode: WorkspaceMode = networkMode;
+  // EVM workspaces follow the wallet network (useNetwork). The Solana
+  // workspace is stored separately and never asks the EVM wallet to switch.
+  const [isSolanaWorkspace, setIsSolanaWorkspace] = useState(
+    () => readStorage(WORKSPACE_STORAGE_KEY) === "solana",
+  );
+  const [solanaTab, setSolanaTab] = useState<SolanaTab>("overview");
+  const workspaceMode: WorkspaceMode = isSolanaWorkspace ? "solana" : networkMode;
   const [input, setInput] = useState("");
   const [pendingPrivacyDecision, setPendingPrivacyDecision] =
     useState<PendingPrivacyDecision | null>(null);
@@ -362,12 +423,45 @@ export default function App() {
       : null;
 
   const selectWorkspace = async (selected: WorkspaceMode) => {
+    if (selected === "solana") {
+      setIsSolanaWorkspace(true);
+      writeStorage(WORKSPACE_STORAGE_KEY, "solana");
+      setPendingPrivacyDecision(null);
+      setIsPortfolioOpen(false);
+      return true;
+    }
     const switched = await switchNetwork(selected);
     if (switched) {
+      setIsSolanaWorkspace(false);
+      writeStorage(WORKSPACE_STORAGE_KEY, selected);
       setPendingPrivacyDecision(null);
     }
     return switched;
   };
+
+  const closeActivity = useCallback(() => setIsActivityOpen(false), []);
+  const openActivity = useCallback(() => {
+    setIsPortfolioOpen(false);
+    setIsActivityOpen(true);
+  }, []);
+  const setPortfolioDrawerOpen = useCallback((open: boolean) => {
+    if (open) setIsActivityOpen(false);
+    setIsPortfolioOpen(open);
+  }, []);
+  const selectAppTab = useCallback((tab: AppTab) => {
+    setIsActivityOpen(false);
+    setActiveTab(tab);
+  }, []);
+  const selectSolanaTab = useCallback((tab: SolanaTab) => {
+    setIsActivityOpen(false);
+    setSolanaTab(tab);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.network = workspaceMode;
+    document.documentElement.classList.toggle("arc-mode", workspaceMode === "arc");
+    emitNetworkSelected(workspaceMode);
+  }, [workspaceMode]);
 
   useEffect(() => {
     if (accountStatus === "connected" && address) {
@@ -571,10 +665,10 @@ export default function App() {
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("kletia-theme", "dark");
+      writeStorage("kletia-theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("kletia-theme", "light");
+      writeStorage("kletia-theme", "light");
     }
   }, [isDarkMode]);
 
@@ -608,11 +702,6 @@ export default function App() {
       clarificationSubmissionRef.current = null;
     }
 
-    document.documentElement.dataset.network = networkMode;
-    document.documentElement.classList.toggle(
-      "arc-mode",
-      networkMode === "arc",
-    );
     setInput("");
     setActiveTab("chat");
     setActiveArcWidget(null);
@@ -1016,7 +1105,8 @@ export default function App() {
           conversationContextRef.current = null;
           updateRequestMessage(request, {
             isLoading: false,
-            text: "Base Agent Mode is in development and will be available soon.",
+            text: AGENTS_HANDOFF_MESSAGE,
+            widgetType: AGENTS_HANDOFF_WIDGET,
           });
           return;
         }
@@ -1254,14 +1344,15 @@ export default function App() {
           intentData: portfolioResponse,
           terminalLogs: [],
         });
-        setIsPortfolioOpen(true);
+        setPortfolioDrawerOpen(true);
         return;
       }
 
       if (data.action === "agent_action") {
         updateRequestMessage(request, {
           isLoading: false,
-          text: "Base Agent Mode is in development and will be available soon.",
+          text: AGENTS_HANDOFF_MESSAGE,
+          widgetType: AGENTS_HANDOFF_WIDGET,
           terminalLogs: [],
         });
         return;
@@ -2182,6 +2273,12 @@ export default function App() {
           "✅ Base Mainnet transaction included on-chain with a successful receipt; this does not imply additional L1 finality.",
         );
       }
+      recordEvmActivity({
+        network: originNetwork,
+        hash: result.hash,
+        title: `${describeAction(data.actionType || data.action)} via ${activeRoute.name || "Kletia route"}`,
+        walletAddress: address,
+      });
       if (data.workflowPlan && data.workflowToken) {
         addOriginLog("🔎 Advancing only after the submitted transaction matches the sealed workflow step.");
         await advanceWorkflowForMessage(msgId, result.hash);
@@ -2197,13 +2294,26 @@ export default function App() {
     targetAddress: string,
     event: React.MouseEvent,
   ) => {
-    if (network.funding.kind === "faucet") {
-      event.preventDefault();
-      window.open(network.funding.url, "_blank", "noopener,noreferrer");
+    event.preventDefault();
+    const funding = getWorkspacePresentation(workspaceMode).funding;
+    if (funding.kind === "faucet") {
+      window.open(funding.url, "_blank", "noopener,noreferrer");
       return;
     }
-    void handleFundClick(targetAddress, event);
+    if (funding.kind === "bridge") {
+      window.location.assign(funding.url);
+      return;
+    }
+    // Only Base uses the Coinbase onramp.
+    if (networkMode === "base") void handleFundClick(targetAddress, event);
   };
+
+  const scanPortfolioPrompt =
+    networkMode === "arc"
+      ? "Show my Arc portfolio"
+      : networkMode === "arbitrum"
+        ? "Show my Arbitrum portfolio"
+        : "Show my portfolio";
 
   return (
     <div className="fixed inset-0 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#EFEFEF] font-sans text-[#1A1A1A] antialiased transition-colors duration-200 dark:bg-[#0B1120] dark:text-gray-100">
@@ -2234,14 +2344,18 @@ export default function App() {
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <AppSidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={selectAppTab}
           isPortfolioOpen={isPortfolioOpen}
-          setIsPortfolioOpen={setIsPortfolioOpen}
+          setIsPortfolioOpen={setPortfolioDrawerOpen}
           isOpen={isAppSidebarOpen}
           setIsOpen={setIsAppSidebarOpen}
           onWidgetClick={handleWidgetClick}
           workspaceMode={workspaceMode}
           onWorkspaceSelect={selectWorkspace}
+          solanaTab={solanaTab}
+          onSolanaTabChange={selectSolanaTab}
+          isActivityOpen={isActivityOpen}
+          onOpenActivity={openActivity}
         />
 
         <div className="grid grid-rows-[1fr_auto] flex-1 overflow-hidden relative w-full h-full min-h-0 min-w-0">
@@ -2255,7 +2369,9 @@ export default function App() {
               </div>
             }
           >
-          {networkMode === "base" && activeTab === "allora" ? (
+          {isSolanaWorkspace ? (
+            <SolanaWorkspace tab={solanaTab} onTabChange={selectSolanaTab} />
+          ) : networkMode === "base" && activeTab === "allora" ? (
             <AlloraDashboard
               isDarkMode={isDarkMode}
               onActionClick={handleWidgetClick}
@@ -2277,8 +2393,9 @@ export default function App() {
             >
               <X402ServiceRouter onIntentTemplate={handleWidgetClick} />
             </React.Suspense>
-          ) : networkMode === "base" && activeTab === "webacy" ? (
-            <WebacyScanner />
+          ) : (networkMode === "base" || networkMode === "arbitrum") &&
+            activeTab === "webacy" ? (
+            <WebacyScanner network={networkMode} chainId={network.chainId} />
           ) : networkMode === "arc" && activeTab === "arc" ? (
             <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar block">
               <ArcDashboardWidget
@@ -2303,7 +2420,7 @@ export default function App() {
                 <div className="relative mx-auto w-full max-w-4xl min-w-0 pr-1 md:pr-0">
                   {messages.length === 0 && (
                     <IntentStarter
-                      networkMode={workspaceMode}
+                      networkMode={networkMode}
                       walletAddress={address}
                       onSelect={handleWidgetClick}
                     />
@@ -2370,6 +2487,9 @@ export default function App() {
                                     }
                                   />
                                 )}
+                              {msg.widgetType === AGENTS_HANDOFF_WIDGET ? (
+                                <AgentsHandoffCard />
+                              ) : null}
                               {msg.text.includes("[SHOW_ONRAMP]") &&
                                 address && (
                                   <div className="mt-5 md:mt-6 p-4 md:p-5 bg-white dark:bg-[#0F172A] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569] md:shadow-[4px_4px_0_#1A1A1A] dark:md:shadow-[4px_4px_0_#475569] flex flex-col gap-4 w-full sm:w-80 md:w-[450px]">
@@ -2391,7 +2511,9 @@ export default function App() {
                                     <p className="text-sm md:text-base font-bold text-[#1A1A1A] dark:text-gray-300">
                                       {networkMode === "arc"
                                         ? "Arc Testnet native USDC is required for value and gas. Open the official faucet to fund this testnet wallet."
-                                        : "You need USDC in your connected wallet to continue. Open the Base funding flow to continue."}
+                                        : networkMode === "base"
+                                          ? "You need USDC in your connected wallet to continue. Open the Base funding flow to continue."
+                                          : `You need funds on ${network.name} to continue. Bridge them in from another network with Kletia Studio.`}
                                     </p>
                                     <button
                                       onClick={(e) =>
@@ -2405,7 +2527,9 @@ export default function App() {
                                       />{" "}
                                       {networkMode === "arc"
                                         ? "OPEN ARC USDC FAUCET"
-                                        : "FUND YOUR WALLET NOW"}
+                                        : networkMode === "base"
+                                          ? "FUND YOUR WALLET NOW"
+                                          : "BRIDGE FUNDS"}
                                     </button>
                                   </div>
                                 )}
@@ -2500,6 +2624,18 @@ export default function App() {
                                   )
                                 }
                                 onComplete={(result) => {
+                                  if (
+                                    result.state === "success" &&
+                                    result.txHash &&
+                                    address
+                                  ) {
+                                    recordEvmActivity({
+                                      network: "arc",
+                                      hash: result.txHash,
+                                      title: "Circle App Kit route on Arc",
+                                      walletAddress: address,
+                                    });
+                                  }
                                   updateMessageForNetwork(
                                     msg.network || "arc",
                                     msg.id,
@@ -2982,9 +3118,9 @@ export default function App() {
                                   {msg.isLoading
                                     ? "System Processing"
                                     : msg.txHash
-                                      ? msg.network === "arc"
-                                        ? "Arc Final"
-                                        : "Included on Base"
+                                      ? (msg.network ?? networkMode) === "arc"
+                                        ? "Final on Arc"
+                                        : `Included on ${getNetwork(msg.network ?? networkMode).shortName}`
                                       : "Execute Route"}
                                 </button>
                               </div>
@@ -3038,17 +3174,21 @@ export default function App() {
                 input={input}
                 setInput={setInput}
                 handleSend={handleSend}
-                networkMode={workspaceMode}
+                networkMode={networkMode}
               />
             </>
           )}
           </React.Suspense>
         </div>
 
-        <Sidebar
-          isPortfolioOpen={isPortfolioOpen}
-          setIsPortfolioOpen={setIsPortfolioOpen}
-        />
+        {!isSolanaWorkspace ? (
+          <Sidebar
+            isPortfolioOpen={isPortfolioOpen}
+            setIsPortfolioOpen={setPortfolioDrawerOpen}
+            onScanPortfolio={() => handleWidgetClick(scanPortfolioPrompt)}
+          />
+        ) : null}
+        <ActivityDrawer isOpen={isActivityOpen} onClose={closeActivity} />
       </div>
     </div>
   );

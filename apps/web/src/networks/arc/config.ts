@@ -4,8 +4,10 @@ export type ArcVaultExecutionMode = "legacy_v1" | "vault_v2";
 export const ARC_LEGACY_VAULT_ADDRESS = getAddress(
   "0xe2810DB53998f8A51bBf5Bf94c21208b174da174",
 );
+// Public Arc Testnet Vault V2 deployment (runtime codehash pinned server-side).
+const PUBLIC_ARC_VAULT_V2_ADDRESS = "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d";
 const configuredVaultMode =
-  import.meta.env.VITE_ARC_VAULT_EXECUTION_MODE?.trim() || "legacy_v1";
+  import.meta.env.VITE_ARC_VAULT_EXECUTION_MODE?.trim() || "vault_v2";
 if (configuredVaultMode !== "legacy_v1" && configuredVaultMode !== "vault_v2") {
   throw new Error(
     "VITE_ARC_VAULT_EXECUTION_MODE must be exactly legacy_v1 or vault_v2.",
@@ -14,7 +16,10 @@ if (configuredVaultMode !== "legacy_v1" && configuredVaultMode !== "vault_v2") {
 export const ARC_VAULT_EXECUTION_MODE =
   configuredVaultMode as ArcVaultExecutionMode;
 const configuredVaultV2Address =
-  import.meta.env.VITE_ARC_VAULT_V2_ADDRESS?.trim();
+  import.meta.env.VITE_ARC_VAULT_V2_ADDRESS?.trim() ||
+  (import.meta.env.VITE_ARC_VAULT_EXECUTION_MODE?.trim()
+    ? undefined
+    : PUBLIC_ARC_VAULT_V2_ADDRESS);
 if (ARC_VAULT_EXECUTION_MODE === "vault_v2" && !configuredVaultV2Address) {
   throw new Error("VITE_ARC_VAULT_V2_ADDRESS is required for vault_v2.");
 }

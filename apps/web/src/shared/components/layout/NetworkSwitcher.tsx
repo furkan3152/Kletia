@@ -1,25 +1,32 @@
 import React from "react";
-import { Box, CircleDot, Loader2, Orbit, type LucideIcon } from "lucide-react";
-import { getNetwork, type NetworkMode } from "../../config/networks";
+import { Box, CircleDot, Loader2, Orbit, Sparkles, type LucideIcon } from "lucide-react";
+import { getNetwork, type ConsoleWorkspace } from "../../config/networks";
 
 /**
- * A selectable chat workspace. Today every workspace is a wallet-switchable
- * network; the alias keeps the selector shape open for non-EVM workspaces.
+ * A selectable console workspace: one of the wallet-switchable EVM networks
+ * or the Solana workspace. Selecting Solana never asks the EVM wallet to
+ * switch chains.
  */
-export type WorkspaceMode = NetworkMode;
+export type WorkspaceMode = ConsoleWorkspace;
+
+type WorkspacePresentation = {
+  readonly label: string;
+  readonly compactLabel: string;
+  readonly status: string;
+  readonly icon: LucideIcon;
+  readonly name: string;
+  readonly color: string;
+  /** Optional CSS background for the active state (Solana gradient). */
+  readonly activeBackground?: string;
+  readonly activeText?: string;
+  readonly enabled: boolean;
+  readonly beta?: boolean;
+};
 
 type LaneOption = {
   readonly id: string;
   readonly workspace: WorkspaceMode;
-  readonly presentation: {
-    readonly label: string;
-    readonly status: string;
-    readonly icon: LucideIcon;
-    readonly name: string;
-    readonly color: string;
-    readonly enabled: boolean;
-    readonly beta?: boolean;
-  };
+  readonly presentation: WorkspacePresentation;
 };
 
 interface NetworkSwitcherProps {
@@ -32,14 +39,24 @@ interface NetworkSwitcherProps {
   compact?: boolean;
 }
 
-const NETWORK_PRESENTATION: Record<
-  WorkspaceMode,
-  { readonly label: string; readonly status: string; readonly icon: LucideIcon; readonly name: string; readonly color: string; readonly enabled: boolean; readonly beta?: boolean }
-> = {
-  base: { label: "Base", status: "Mainnet", icon: Box, name: "Base Mainnet", color: "#0052FF", enabled: true },
-  arc: { label: "Arc", status: "Testnet", icon: CircleDot, name: "Arc Testnet", color: "#F59E0B", enabled: true },
-  arbitrum: { label: "Arb", status: "Mainnet", icon: Orbit, name: "Arbitrum One", color: "#28A0F0", enabled: getNetwork("arbitrum").enabled, beta: true },
+const NETWORK_PRESENTATION: Record<WorkspaceMode, WorkspacePresentation> = {
+  base: { label: "Base", compactLabel: "Base", status: "Mainnet", icon: Box, name: "Base Mainnet", color: "#0052FF", enabled: true },
+  arbitrum: { label: "Arb", compactLabel: "Arb", status: "Mainnet", icon: Orbit, name: "Arbitrum One", color: "#28A0F0", enabled: getNetwork("arbitrum").enabled, beta: true },
+  solana: {
+    label: "Solana",
+    compactLabel: "SOL",
+    status: "Mainnet",
+    icon: Sparkles,
+    name: "Solana Mainnet",
+    color: "#9945FF",
+    activeBackground: "linear-gradient(135deg, #9945FF 0%, #7C3AED 55%, #14F195 140%)",
+    activeText: "#FFFFFF",
+    enabled: true,
+  },
+  arc: { label: "Arc", compactLabel: "Arc", status: "Testnet", icon: CircleDot, name: "Arc Testnet", color: "#F59E0B", enabled: true },
 };
+
+const COMPACT_ORDER = ["base", "arbitrum", "solana", "arc"] as const satisfies readonly WorkspaceMode[];
 
 const LANE_OPTIONS: readonly {
   readonly label: "Production" | "Testnet";
@@ -47,7 +64,7 @@ const LANE_OPTIONS: readonly {
 }[] = [
   {
     label: "Production",
-    options: (["base", "arbitrum"] as const).map((workspace) => ({
+    options: (["base", "arbitrum", "solana"] as const).map((workspace) => ({
       id: workspace,
       workspace,
       presentation: NETWORK_PRESENTATION[workspace],
@@ -61,6 +78,17 @@ const LANE_OPTIONS: readonly {
   },
 ] as const;
 
+function activeStyle(definition: WorkspacePresentation, active: boolean): React.CSSProperties {
+  return {
+    outlineColor: definition.color,
+    ...(active
+      ? definition.activeBackground
+        ? { backgroundImage: definition.activeBackground, backgroundColor: definition.color, color: definition.activeText }
+        : { backgroundColor: definition.color }
+      : {}),
+  };
+}
+
 export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
   networkMode,
   onSelect,
@@ -72,14 +100,14 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
 }) => {
   const currentNetwork = NETWORK_PRESENTATION[networkMode];
   if (compact) {
-    const workspaces = ["base", "arbitrum", "arc"] as const;
+    const workspaces = COMPACT_ORDER;
     return (
       <div className={`flex min-w-0 flex-col gap-1.5 ${className}`} title={error ?? currentNetwork.name}>
         <div
           role="group"
           aria-label="Select network workspace"
           aria-busy={isSwitching}
-          className="grid grid-cols-3 gap-1 border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-1 shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0F172A] dark:shadow-[3px_3px_0_#475569]"
+          className="grid grid-cols-4 gap-1 border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-1 shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0F172A] dark:shadow-[3px_3px_0_#475569]"
         >
           {workspaces.map((workspace) => {
             const definition = NETWORK_PRESENTATION[workspace];
@@ -97,12 +125,12 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                     ? "text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#94A3B8]"
                     : "bg-white dark:bg-[#1A2841]"
                 }`}
-                style={{ backgroundColor: active ? definition.color : undefined, outlineColor: definition.color }}
+                style={activeStyle(definition, active)}
               >
                 {isSwitching && active ? (
                   <Loader2 className="mx-auto h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  definition.label
+                  definition.compactLabel
                 )}
               </button>
             );
@@ -128,17 +156,21 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
         className="relative w-full overflow-hidden border-[3px] border-[#1A1A1A] bg-[#F5F5F0] p-1 shadow-[4px_4px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0F172A] dark:shadow-[4px_4px_0_#475569]"
         title={currentNetwork.name}
       >
-        <div
-          className={`relative z-10 grid gap-1.5 ${
-            compact ? "grid-cols-2" : "grid-cols-1 min-[480px]:grid-cols-2"
-          }`}
-        >
+        <div className="relative z-10 grid grid-cols-1 gap-1.5">
           {LANE_OPTIONS.map((lane) => (
             <section key={lane.label} className="min-w-0 border-[2px] border-[#1A1A1A] bg-[#E7E5E4] p-1 dark:border-[#64748B] dark:bg-[#111C2F]">
               <p className="mb-1 truncate px-1 text-[10px] font-black uppercase tracking-[0.12em] text-gray-600 dark:text-slate-300">
                 {lane.label}
               </p>
-              <div className={`grid gap-1 ${lane.options.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              <div
+                className={`grid gap-1 ${
+                  lane.options.length > 2
+                    ? "grid-cols-3"
+                    : lane.options.length > 1
+                      ? "grid-cols-2"
+                      : "grid-cols-1"
+                }`}
+              >
           {lane.options.map((option) => {
             const definition = option.presentation;
             const active = option.workspace === networkMode;
@@ -158,10 +190,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                     ? "text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#94A3B8]"
                     : "bg-white hover:bg-[#FFF36D] dark:bg-[#1A2841] dark:hover:bg-[#243652]"
                 }`}
-                style={{
-                  backgroundColor: active ? definition.color : undefined,
-                  outlineColor: definition.color,
-                }}
+                style={activeStyle(definition, active)}
               >
                 {isSwitching && active ? (
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />

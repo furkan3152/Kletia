@@ -4,7 +4,11 @@ import { ARC_CONTRACTS } from "../../networks/arc/config";
 import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
 import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
+/** Wallet-switchable EVM networks of the console. */
 export type NetworkMode = "base" | "arc" | "arbitrum";
+
+/** Console workspaces: every EVM network plus the Solana workspace. */
+export type ConsoleWorkspace = NetworkMode | "solana";
 
 export type AppTab =
   | "chat"
@@ -75,6 +79,24 @@ export interface NetworkFeatures {
   readonly arcContracts: boolean;
 }
 
+/**
+ * How the console helps a user fund the active workspace:
+ * - `onramp`: Coinbase onramp (Base only).
+ * - `faucet`: official testnet faucet (Arc).
+ * - `bridge`: move funds in from another network with Kletia Studio.
+ */
+export interface FundingAction {
+  readonly kind: "onramp" | "faucet" | "bridge";
+  readonly label: string;
+  readonly url: string;
+}
+
+export const BRIDGE_FUNDING: FundingAction = {
+  kind: "bridge",
+  label: "Bridge funds",
+  url: "/studio",
+};
+
 export interface NetworkDefinition {
   readonly key: NetworkMode;
   readonly name: string;
@@ -107,11 +129,7 @@ export interface NetworkDefinition {
   readonly klet?: Address;
   readonly contracts: Partial<Record<keyof typeof ARC_CONTRACTS, Address>>;
   readonly features: NetworkFeatures;
-  readonly funding: {
-    readonly kind: "onramp" | "faucet";
-    readonly label: string;
-    readonly url: string;
-  };
+  readonly funding: FundingAction;
   readonly color: string;
   readonly icon: string;
   readonly badge: string;
@@ -513,11 +531,7 @@ export const NETWORKS = {
       arcLending: false,
       arcContracts: false,
     },
-    funding: {
-      kind: "onramp",
-      label: "Fund Wallet",
-      url: "https://bridge.arbitrum.io",
-    },
+    funding: BRIDGE_FUNDING,
     color: "#28A0F0",
     icon: "◆",
     badge: "PUBLIC BETA",
@@ -559,6 +573,19 @@ export const NETWORKS = {
           },
         ],
       },
+      {
+        id: "arbitrum-apps",
+        label: "Arbitrum Apps",
+        items: [
+          {
+            id: "webacy",
+            label: "Webacy Security",
+            icon: "shield",
+            feature: "webacy",
+            action: { type: "tab", tab: "webacy" },
+          },
+        ],
+      },
     ],
   },
 } as const satisfies Record<NetworkMode, NetworkDefinition>;
@@ -580,6 +607,37 @@ export const getNetworkByChainId = (
 
 export const isNetworkMode = (value: unknown): value is NetworkMode =>
   value === "base" || value === "arc" || value === "arbitrum";
+
+export const isConsoleWorkspace = (value: unknown): value is ConsoleWorkspace =>
+  value === "solana" || isNetworkMode(value);
+
+/**
+ * Presentation of the Solana workspace for shared chrome (navbar badge,
+ * funding action, sidebar footer). Solana is not a wagmi chain, so it has no
+ * NetworkDefinition.
+ */
+export const SOLANA_WORKSPACE = {
+  key: "solana",
+  name: "Solana Mainnet",
+  shortName: "Solana",
+  color: "#9945FF",
+  accent: "#14F195",
+  badge: "SOLANA",
+  funding: BRIDGE_FUNDING,
+} as const;
+
+export interface WorkspacePresentation {
+  readonly name: string;
+  readonly shortName: string;
+  readonly color: string;
+  readonly badge: string;
+  readonly funding: FundingAction;
+}
+
+export const getWorkspacePresentation = (
+  workspace: ConsoleWorkspace,
+): WorkspacePresentation =>
+  workspace === "solana" ? SOLANA_WORKSPACE : NETWORKS[workspace];
 
 export const getApiPrefix = (mode: NetworkMode): string =>
   NETWORKS[mode].apiPrefix;

@@ -31,7 +31,6 @@ export async function applyKletiaFee(
     "basename_register",
     "basename_renew",
     "deploy_token",
-    "mint_nft",
 
     "add_liquidity",
     "remove_liquidity",

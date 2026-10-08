@@ -15,7 +15,3 @@ export function emitAgentLog(
       `[${msgId}]: ${log}`,
   );
 }
-
-export function agentLogRoom(network: NetworkId, userAddress: string) {
-  return `agent:${network}:${getAddress(userAddress).toLowerCase()}`;
-}

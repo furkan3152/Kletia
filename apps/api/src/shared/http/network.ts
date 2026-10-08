@@ -89,6 +89,8 @@ export function resolveStrictRequestNetwork(req: Request): NetworkConfig {
   });
 }
 
+const BASE_ONLY_MESSAGE = "This service is only available on Base Mainnet.";
+
 export function resolveFixedBaseRequestNetwork(req: Request): NetworkConfig {
   const hasNetwork = requestNetworkInputs(req).length > 0;
   const hasChainId = requestChainIdInputs(req).length > 0;
@@ -96,10 +98,7 @@ export function resolveFixedBaseRequestNetwork(req: Request): NetworkConfig {
 
   const config = resolveStrictRequestNetwork(req);
   if (config.id !== "base") {
-    throw new NetworkValidationError(
-      "BASE_ONLY_ROUTE",
-      "This service is only available on Base Mainnet.",
-    );
+    throw new NetworkValidationError("BASE_ONLY_ROUTE", BASE_ONLY_MESSAGE);
   }
   return config;
 }
@@ -113,106 +112,81 @@ function sendNetworkError(res: Response, error: NetworkValidationError) {
   });
 }
 
-export function requireIntentNetwork(
+export type NetworkGuard = (
   req: Request,
   res: Response,
   next: NextFunction,
-) {
-  try {
-    req.kletiaNetwork = resolveStrictRequestNetwork(req);
-    next();
-  } catch (error) {
-    if (error instanceof NetworkValidationError) {
-      return sendNetworkError(res, error);
-    }
-    next(error);
-  }
-}
+) => void;
 
-export function requireFixedBaseNetwork(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    req.kletiaNetwork = resolveFixedBaseRequestNetwork(req);
-    return next();
-  } catch (error) {
-    if (error instanceof NetworkValidationError) {
-      return sendNetworkError(res, error);
-    }
-    return next(error);
-  }
-}
-
-export function requireBaseNetwork(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const config = resolveStrictRequestNetwork(req);
-    if (config.id !== "base") {
-      throw new NetworkValidationError(
-        "BASE_ONLY_ROUTE",
-        "This service is only available on Base Mainnet.",
-      );
+/**
+ * Builds an Express guard that resolves the request's network context,
+ * stores it on `req.kletiaNetwork` and continues. A NetworkValidationError
+ * becomes a JSON error response with its status code; any other error is
+ * passed to Express.
+ */
+export function createNetworkGuard(
+  resolve: (req: Request) => NetworkConfig,
+): NetworkGuard {
+  return (req, res, next) => {
+    let config: NetworkConfig;
+    try {
+      config = resolve(req);
+    } catch (error) {
+      if (error instanceof NetworkValidationError) {
+        sendNetworkError(res, error);
+        return;
+      }
+      next(error);
+      return;
     }
     req.kletiaNetwork = config;
     next();
-  } catch (error) {
-    if (error instanceof NetworkValidationError) {
-      return sendNetworkError(res, error);
-    }
-    next(error);
-  }
+  };
 }
 
-export function requireArcNetwork(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
+/**
+ * Guard for a route owned by exactly one network: network and chainId are
+ * both required, must agree, and must name `id`.
+ */
+export function requireNetwork(
+  id: NetworkId,
+  code: string,
+  message: string,
+): NetworkGuard {
+  return createNetworkGuard((req) => {
     const config = resolveStrictRequestNetwork(req);
-    if (config.id !== "arc") {
-      throw new NetworkValidationError(
-        "ARC_ONLY_ROUTE",
-        "This service is only available on Arc Testnet.",
-      );
-    }
-    req.kletiaNetwork = config;
-    return next();
-  } catch (error) {
-    if (error instanceof NetworkValidationError) {
-      return sendNetworkError(res, error);
-    }
-    return next(error);
-  }
+    if (config.id !== id) throw new NetworkValidationError(code, message);
+    return config;
+  });
 }
 
-export function requireArbitrumNetwork(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const config = resolveStrictRequestNetwork(req);
-    if (config.id !== "arbitrum") {
-      throw new NetworkValidationError(
-        "ARBITRUM_ONLY_ROUTE",
-        "This service is only available on Arbitrum One.",
-      );
-    }
-    req.kletiaNetwork = config;
-    return next();
-  } catch (error) {
-    if (error instanceof NetworkValidationError) {
-      return sendNetworkError(res, error);
-    }
-    return next(error);
-  }
-}
+/** Any enabled network; network and chainId are both required. */
+export const requireIntentNetwork = createNetworkGuard(
+  resolveStrictRequestNetwork,
+);
+
+/** Base only; an omitted network context defaults to Base Mainnet. */
+export const requireFixedBaseNetwork = createNetworkGuard(
+  resolveFixedBaseRequestNetwork,
+);
+
+export const requireBaseNetwork = requireNetwork(
+  "base",
+  "BASE_ONLY_ROUTE",
+  BASE_ONLY_MESSAGE,
+);
+
+export const requireArcNetwork = requireNetwork(
+  "arc",
+  "ARC_ONLY_ROUTE",
+  "This service is only available on Arc Testnet.",
+);
+
+export const requireArbitrumNetwork = requireNetwork(
+  "arbitrum",
+  "ARBITRUM_ONLY_ROUTE",
+  "This service is only available on Arbitrum One.",
+);
 
 export function readOptionalNetwork(req: Request): NetworkId | null {
   if (

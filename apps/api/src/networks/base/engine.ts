@@ -7,13 +7,11 @@ import {
   type Address,
 } from "viem";
 import type { ParsedIntent } from "../../shared/ai/parser.js";
-import { compileWorkflow } from "../../cross-chain/workflow.js";
 import { buildPolicyAgent } from "../../shared/policies/policyAgent.js";
 import { basePublicClient } from "../../shared/config/client.js";
 import { getPortfolio } from "./portfolio/viewer.js";
 import { handleBaseName } from "./intent/basename.js";
 import { handleTokenDeployment } from "./creator/token.js";
-import { handleNftMint } from "./creator/nft.js";
 
 import {
   applyKletiaFee,
@@ -40,9 +38,9 @@ import {
 import { buildSwapRankingEvidence, rankSwapRoutes } from "./routingPolicy.js";
 import { resolveConfiguredBaseSwapExecution } from "./config/intentRouterV2Environment.js";
 import { executeBaseIntentV2Swap } from "./intent/routerV2Integration.js";
-import { agentLogRoom, emitAgentLog } from "../../shared/observability/agentLog.js";
+import { emitAgentLog } from "../../shared/observability/agentLog.js";
 
-export { agentLogRoom, emitAgentLog } from "../../shared/observability/agentLog.js";
+export { emitAgentLog } from "../../shared/observability/agentLog.js";
 
 const KLETIA_ROUTER_ADDRESS = getAddress(
   "0x8214b00F49Da60684ce4B2C0b16dDB8a29d777cf",
@@ -64,7 +62,6 @@ const BASE_AMOUNT_ACTIONS = new Set([
   "withdraw",
   "bridge",
   "deploy_token",
-  "mint_nft",
 ]);
 const ALLORA_ASSETS = ["BTC", "ETH"] as const;
 const ALLORA_TIMEOUT_MS = 8_000;
@@ -216,462 +213,441 @@ export async function executeKletiaEngine(
   msgId: string = "",
   baseX402Challenge?: BaseX402ChallengeEvidence,
 ) {
-  try {
-    if (intent.action === "portfolio") return await getPortfolio(userAddress);
+  if (intent.action === "portfolio") return await getPortfolio(userAddress);
 
-    if (intent.action === "chat") {
-      return { status: "question", message: intent.message };
-    }
+  if (intent.action === "chat") {
+    return { status: "question", message: intent.message };
+  }
 
-    if (intent.action === "workflow") {
-      return await compileWorkflow(
-        intent,
-        userAddress,
-        msgId,
-        originalPrompt,
-        baseX402Challenge,
-      );
-    }
+  if (intent.action === "policy_agent") {
+    return buildPolicyAgent(intent, userAddress, "base");
+  }
 
-    if (intent.action === "policy_agent") {
-      return buildPolicyAgent(intent, userAddress, "base");
-    }
+  if (intent.action === "agent_action") {
+    return {
+      status: "question",
+      action: "agent_action",
+      message:
+        "The official Base MCP handoff panel is ready. Complete OAuth and get_wallets verification in your supported agent client; Kletia does not own any wallets or execute transactions itself.",
+      winnerMessage:
+        "Base MCP handoff is ready; connection, wallet selection, and each transaction approval remain in the official client.",
+    };
+  }
 
-    if (intent.action === "agent_action") {
-      return {
-        status: "question",
-        action: "agent_action",
-        message:
-          "The official Base MCP handoff panel is ready. Complete OAuth and get_wallets verification in your supported agent client; Kletia does not own any wallets or execute transactions itself.",
-        winnerMessage:
-          "Base MCP handoff is ready; connection, wallet selection, and each transaction approval remain in the official client.",
-      };
-    }
+  if (intent.action === "allora_prediction") {
+    return await handleAlloraPrediction(intent.tokenIn || "ETH", userAddress);
+  }
 
-    if (intent.action === "allora_prediction") {
-      return await handleAlloraPrediction(intent.tokenIn || "ETH", userAddress);
-    }
+  if (intent.action === "open_widget") {
+    return {
+      status: "success",
+      action: "open_widget",
+      widgetTarget: intent.tokenIn,
+      winnerMessage: intent.message || "Opening the relevant module...",
+    };
+  }
 
-    if (intent.action === "open_widget") {
-      return {
-        status: "success",
-        action: "open_widget",
-        widgetTarget: intent.tokenIn,
-        winnerMessage: intent.message || "Opening the relevant module...",
-      };
-    }
-
-    if (intent.action === "x402_discover") {
-      assertBaseX402PaymentPromptBinding(intent.maxPayment, originalPrompt);
-      emitAgentLog(
-        userAddress,
-        msgId,
-        "Coinbase CDP Bazaar Base x402 discovery started.",
-      );
-      return await discoverBaseX402Services({
-        query: intent.serviceQuery,
-        maxPayment: intent.maxPayment,
-        curatedOnly: intent.curatedOnly !== false,
-      });
-    }
-
-    if (intent.action === "x402_request") {
-      emitAgentLog(
-        userAddress,
-        msgId,
-        "Base MCP x402 approval plan compiler started.",
-      );
-      return buildBaseMcpX402Plan(
-        intent,
-        msgId,
-        originalPrompt,
-        baseX402Challenge,
-        userAddress,
-      );
-    }
-
-    if (intent.action === "yield_compare") {
-      return await handleYieldCompare(intent);
-    }
-
-    let action = intent.action.toLowerCase();
-    if (action === "addliquidity") action = "add_liquidity";
-    if (action === "removeliquidity") action = "remove_liquidity";
-    if (action === "liquidstake") action = "liquid_stake";
-    if (action === "liquidunstake") action = "liquid_unstake";
-
-    const workingIntent: ParsedIntent = { ...intent };
-    const originalGrossAmountStr = workingIntent.amount || "0";
-    assertExplicitPositiveAmount(action, originalGrossAmountStr);
-
-    const tokenInSymbol = workingIntent.tokenIn?.trim().toUpperCase();
-    const tokenOutSymbol = workingIntent.tokenOut?.trim().toUpperCase();
-    const isWrappedNativeConversion =
-      action === "swap" &&
-      ((tokenInSymbol === "ETH" && tokenOutSymbol === "WETH") ||
-        (tokenInSymbol === "WETH" && tokenOutSymbol === "ETH"));
-    const swapExecutionConfig =
-      action === "swap"
-        ? resolveConfiguredBaseSwapExecution(process.env)
-        : null;
-    const useIntentRouterV2 =
-      swapExecutionConfig?.mode === "intent_v2" && !isWrappedNativeConversion;
-    const feeApplication = useIntentRouterV2
-      ? {
-          netAmountStr: originalGrossAmountStr,
-          feeData: null,
-        }
-      : await applyKletiaFee(
-          workingIntent.tokenIn || "ETH",
-          originalGrossAmountStr,
-          userAddress,
-          feePolicyActionForIntent(
-            action,
-            workingIntent.tokenIn,
-            workingIntent.tokenOut,
-          ),
-        );
-    const { netAmountStr, feeData } = feeApplication;
-    workingIntent.amount = netAmountStr;
+  if (intent.action === "x402_discover") {
+    assertBaseX402PaymentPromptBinding(intent.maxPayment, originalPrompt);
     emitAgentLog(
       userAddress,
       msgId,
-      `🛡️ Kletia Engine started. Action: ${action}`,
+      "Coinbase CDP Bazaar Base x402 discovery started.",
     );
+    return await discoverBaseX402Services({
+      query: intent.serviceQuery,
+      maxPayment: intent.maxPayment,
+      curatedOnly: intent.curatedOnly !== false,
+    });
+  }
 
-    let result: any;
-    switch (action) {
-      case "swap":
-        result =
-          swapExecutionConfig?.mode === "intent_v2" &&
-          !isWrappedNativeConversion
-            ? await executeBaseIntentV2Swap(
-                workingIntent,
-                userAddress,
-                swapExecutionConfig,
-              )
-            : await handleSmartSwap(workingIntent, userAddress);
-        break;
-      case "lend":
-      case "borrow":
-      case "repay":
-      case "withdraw":
-        result = await handleDeFiBanking(workingIntent, userAddress);
-        break;
-      case "stake":
-        result = await handleStaking(workingIntent, userAddress);
-        break;
-      case "liquid_stake":
-      case "liquid_unstake":
-        result = await handleLiquidStaking(workingIntent, userAddress);
-        break;
-      case "add_liquidity":
-      case "remove_liquidity":
-        result = await handleLiquidity(workingIntent, userAddress);
-        break;
-      case "bridge":
-        result = await handleBridge(workingIntent, userAddress);
-        break;
-      case "basename_register":
-      case "basename_renew":
-        result = await handleBaseName(workingIntent, userAddress);
-        const sim = await xRaySimulate(
-          result.targetContract as `0x${string}`,
-          result.calldata as `0x${string}`,
-          userAddress,
-          result.amountInWei,
-          result.winner,
-        );
-        if (!sim.success) {
-          const simulationError =
-            typeof sim.error === "object" && sim.error !== null
-              ? (sim.error as Record<string, unknown>)
-              : null;
-          const simulationDetail =
-            typeof simulationError?.shortMessage === "string"
-              ? simulationError.shortMessage
-              : "Reverted";
-          throw new Error(
-            `Network Rule Violation: This transaction is rejected by the network. Details: ${simulationDetail}`,
-          );
-        }
-        break;
-      case "deploy_token":
-        emitAgentLog(userAddress, msgId, `🛠️ Preparing the token factory...`);
-        const tokenResult = await handleTokenDeployment(
-          userAddress,
-          workingIntent.name,
-          workingIntent.symbol,
-          originalGrossAmountStr,
-          workingIntent.launchId,
-          workingIntent.recipient,
-        );
-        result = {
-          ...tokenResult,
-          targetContract: tokenResult.target,
-          amountInWei: tokenResult.value.toString(),
-          winner:
-            "executionMode" in tokenResult &&
-            tokenResult.executionMode === "kletia_launch_factory_v2"
-              ? "Kletia Launch Factory V2"
-              : "Kletia Token Factory",
-        };
-        const deploymentSimulation = await xRaySimulate(
-          result.targetContract,
-          result.calldata,
-          userAddress,
-          result.amountInWei,
-          result.winner,
-        );
-        if (!deploymentSimulation.success) {
-          throw Object.assign(
-            new Error(
-              "Token deployment transaction failed live Base simulation.",
-            ),
-            {
-              code: "TOKEN_DEPLOYMENT_SIMULATION_FAILED",
-              statusCode: 400,
-            },
-          );
-        }
-        break;
-      case "mint_nft":
-        await handleNftMint(
-          userAddress,
+  if (intent.action === "x402_request") {
+    emitAgentLog(
+      userAddress,
+      msgId,
+      "Base MCP x402 approval plan compiler started.",
+    );
+    return buildBaseMcpX402Plan(
+      intent,
+      msgId,
+      originalPrompt,
+      baseX402Challenge,
+      userAddress,
+    );
+  }
+
+  if (intent.action === "yield_compare") {
+    return await handleYieldCompare(intent);
+  }
+
+  let action = intent.action.toLowerCase();
+  if (action === "addliquidity") action = "add_liquidity";
+  if (action === "removeliquidity") action = "remove_liquidity";
+  if (action === "liquidstake") action = "liquid_stake";
+  if (action === "liquidunstake") action = "liquid_unstake";
+
+  const workingIntent: ParsedIntent = { ...intent };
+  const originalGrossAmountStr = workingIntent.amount || "0";
+  assertExplicitPositiveAmount(action, originalGrossAmountStr);
+
+  const tokenInSymbol = workingIntent.tokenIn?.trim().toUpperCase();
+  const tokenOutSymbol = workingIntent.tokenOut?.trim().toUpperCase();
+  const isWrappedNativeConversion =
+    action === "swap" &&
+    ((tokenInSymbol === "ETH" && tokenOutSymbol === "WETH") ||
+      (tokenInSymbol === "WETH" && tokenOutSymbol === "ETH"));
+  const swapExecutionConfig =
+    action === "swap"
+      ? resolveConfiguredBaseSwapExecution(process.env)
+      : null;
+  const useIntentRouterV2 =
+    swapExecutionConfig?.mode === "intent_v2" && !isWrappedNativeConversion;
+  const feeApplication = useIntentRouterV2
+    ? {
+        netAmountStr: originalGrossAmountStr,
+        feeData: null,
+      }
+    : await applyKletiaFee(
+        workingIntent.tokenIn || "ETH",
+        originalGrossAmountStr,
+        userAddress,
+        feePolicyActionForIntent(
+          action,
           workingIntent.tokenIn,
-          originalGrossAmountStr,
+          workingIntent.tokenOut,
+        ),
+      );
+  const { netAmountStr, feeData } = feeApplication;
+  workingIntent.amount = netAmountStr;
+  emitAgentLog(
+    userAddress,
+    msgId,
+    `🛡️ Kletia Engine started. Action: ${action}`,
+  );
+
+  let result: any;
+  switch (action) {
+    case "swap":
+      result =
+        swapExecutionConfig?.mode === "intent_v2" &&
+        !isWrappedNativeConversion
+          ? await executeBaseIntentV2Swap(
+              workingIntent,
+              userAddress,
+              swapExecutionConfig,
+            )
+          : await handleSmartSwap(workingIntent, userAddress);
+      break;
+    case "lend":
+    case "borrow":
+    case "repay":
+    case "withdraw":
+      result = await handleDeFiBanking(workingIntent, userAddress);
+      break;
+    case "stake":
+      result = await handleStaking(workingIntent, userAddress);
+      break;
+    case "liquid_stake":
+    case "liquid_unstake":
+      result = await handleLiquidStaking(workingIntent, userAddress);
+      break;
+    case "add_liquidity":
+    case "remove_liquidity":
+      result = await handleLiquidity(workingIntent, userAddress);
+      break;
+    case "bridge":
+      result = await handleBridge(workingIntent, userAddress);
+      break;
+    case "basename_register":
+    case "basename_renew":
+      result = await handleBaseName(workingIntent, userAddress);
+      const sim = await xRaySimulate(
+        result.targetContract as `0x${string}`,
+        result.calldata as `0x${string}`,
+        userAddress,
+        result.amountInWei,
+        result.winner,
+      );
+      if (!sim.success) {
+        const simulationError =
+          typeof sim.error === "object" && sim.error !== null
+            ? (sim.error as Record<string, unknown>)
+            : null;
+        const simulationDetail =
+          typeof simulationError?.shortMessage === "string"
+            ? simulationError.shortMessage
+            : "Reverted";
+        throw new Error(
+          `Network Rule Violation: This transaction is rejected by the network. Details: ${simulationDetail}`,
         );
-        throw new Error("Unreachable NFT mint state.");
-      default:
-        throw new Error(`Unsupported Operation: ${intent.action}`);
-    }
-
-    emitAgentLog(
-      userAddress,
-      msgId,
-      `✅ Engine operation completed. Awaiting X-Ray approval...`,
-    );
-    result.actionType = action;
-
-    if (
-      feeData &&
-      result.status === "success" &&
-      !(result.winner && result.winner.includes("WETH Contract"))
-    ) {
-      const isNative = feeData.isNative;
-      const decimals = isNative
-        ? 18
-        : await basePublicClient.readContract({
-            address: feeData.tokenAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: "decimals",
-          });
-
-      let grossAmountWei = 0n;
-      if (originalGrossAmountStr.toUpperCase() === "MAX") {
-        grossAmountWei = BigInt(result.amountInWei) + BigInt(feeData.amountWei);
-      } else {
-        grossAmountWei = parseUnits(originalGrossAmountStr, decimals);
       }
-
-      const rawRoutes: Array<Record<string, any>> = Array.isArray(
-        result.allRoutes,
-      )
-        ? (result.allRoutes as Array<Record<string, any>>)
-        : [];
-      if (rawRoutes.length === 0) {
-        throw Object.assign(
-          new Error("Fee router requires an explicit executable route."),
-          { code: "FEE_ROUTER_ROUTE_REQUIRED", statusCode: 400 },
-        );
-      }
-
-      const compatibleRoutes = rawRoutes.filter(
-        (route) =>
-          route.executionMode !== "direct" &&
-          route.feeRouterCompatible !== false &&
-          route.execution?.feeRouterCompatible !== false,
+      break;
+    case "deploy_token":
+      emitAgentLog(userAddress, msgId, `🛠️ Preparing the token factory...`);
+      const tokenResult = await handleTokenDeployment(
+        userAddress,
+        workingIntent.name,
+        workingIntent.symbol,
+        originalGrossAmountStr,
+        workingIntent.launchId,
+        workingIntent.recipient,
       );
-      const uniqueTargets: Address[] = [
-        ...new Map<string, Address>(
-          compatibleRoutes.map((route) => {
-            const target = getAddress(String(route.router));
-            return [target.toLowerCase(), target] as const;
-          }),
-        ).values(),
-      ];
-      const targetChecks = await Promise.all(
-        uniqueTargets.map(async (target) => {
-          try {
-            const approved = await basePublicClient.readContract({
-              address: KLETIA_ROUTER_ADDRESS,
-              abi: KLETIA_ROUTER_GUARD_ABI,
-              functionName: "approvedTargets",
-              args: [target],
-            });
-            return [target.toLowerCase(), approved === true] as const;
-          } catch {
-            return [target.toLowerCase(), false] as const;
-          }
-        }),
-      );
-      const approvedTargetMap = new Map(targetChecks);
-      const wrappedCandidates: any[] = [];
-      for (const route of compatibleRoutes) {
-        const routeApprovals = Array.isArray(route.approvals)
-          ? route.approvals
-          : [];
-        const declaredInputs = [
-          [route.primaryTokenAddress, route.primaryAmountInWei],
-          [route.secondaryTokenAddress, route.secondaryAmountInWei],
-        ].filter((input) => input[0] && BigInt(input[1] || "0") > 0n);
-        if (routeApprovals.length > 1 || declaredInputs.length > 1) {
-          continue;
-        }
-
-        const targetProtocol = getAddress(route.router);
-        const targetCalldata = route.calldata as `0x${string}`;
-        const approvedTarget =
-          approvedTargetMap.get(targetProtocol.toLowerCase()) === true;
-        if (!approvedTarget) continue;
-
-        const wrappedCalldata = isNative
-          ? encodeFunctionData({
-              abi: KLETIA_ROUTER_ABI,
-              functionName: "executeETH",
-              args: [targetProtocol, targetCalldata],
-            })
-          : encodeFunctionData({
-              abi: KLETIA_ROUTER_ABI,
-              functionName: "executeERC20",
-              args: [
-                feeData.tokenAddress as `0x${string}`,
-                grossAmountWei,
-                targetProtocol,
-                targetCalldata,
-              ],
-            });
-        const approvals = isNative
-          ? []
-          : [
-              {
-                token: feeData.tokenAddress,
-                spender: KLETIA_ROUTER_ADDRESS,
-                amount: grossAmountWei.toString(),
-                symbol: workingIntent.tokenIn,
-                calldata: encodeFunctionData({
-                  abi: erc20Abi,
-                  functionName: "approve",
-                  args: [KLETIA_ROUTER_ADDRESS, grossAmountWei],
-                }),
-                required: true,
-              },
-            ];
-        wrappedCandidates.push({
-          ...route,
-          underlyingRouter: targetProtocol,
-          underlyingCalldata: targetCalldata,
-          router: KLETIA_ROUTER_ADDRESS,
-          calldata: wrappedCalldata,
-          value: isNative ? grossAmountWei.toString() : "0",
-          approvals,
-          executionMode: "kletia_fee_router",
-          callerSemantics: "explicit_recipient",
-          feeRouterCompatible: true,
-          policyTargets: [targetProtocol],
-          expectedOutput: `${route.expectedOutput || result.expectedOutput} (Includes %0.1 Kletia Fee)`,
-        });
-      }
-      const wrappedRoutes: any[] = [];
-      const wrappedSimulationResults = await settleWithConcurrency(
-        wrappedCandidates,
-        4,
-        async (wrappedRoute) => ({
-          wrappedRoute,
-          simulation: await xRaySimulate(
-            KLETIA_ROUTER_ADDRESS,
-            wrappedRoute.calldata,
-            userAddress,
-            wrappedRoute.value,
-            `Kletia Fee Router → ${wrappedRoute.name}`,
-            isNative
-              ? []
-              : [
-                  {
-                    addr: feeData.tokenAddress,
-                    amt: grossAmountWei.toString(),
-                  },
-                ],
-          ),
-        }),
-      );
-      for (const simulationResult of wrappedSimulationResults) {
-        if (simulationResult.status === "rejected") continue;
-        const { wrappedRoute, simulation } = simulationResult.value;
-        if (simulation.success || simulation.deferredUntilApproval) {
-          wrappedRoutes.push({
-            ...wrappedRoute,
-            simulationStatus: simulation.success
-              ? "passed"
-              : "deferred_until_approval",
-          });
-        }
-      }
-
-      result.feeRouterCoverage = {
-        requestedRouteCount: rawRoutes.length,
-        compatibleRouteCount: compatibleRoutes.length,
-        approvedRouteCount: wrappedCandidates.length,
-        unapprovedTargetCount: targetChecks.filter(([, approved]) => !approved)
-          .length,
-        unapprovedTargets: targetChecks
-          .filter(([, approved]) => !approved)
-          .map(([target]) => getAddress(target)),
-        simulatedRouteCount: wrappedSimulationResults.length,
-        eligibleRouteCount: wrappedRoutes.length,
+      result = {
+        ...tokenResult,
+        targetContract: tokenResult.target,
+        amountInWei: tokenResult.value.toString(),
+        winner:
+          "executionMode" in tokenResult &&
+          tokenResult.executionMode === "kletia_launch_factory_v2"
+            ? "Kletia Launch Factory V2"
+            : "Kletia Token Factory",
       };
-
-      if (wrappedRoutes.length === 0) {
+      const deploymentSimulation = await xRaySimulate(
+        result.targetContract,
+        result.calldata,
+        userAddress,
+        result.amountInWei,
+        result.winner,
+      );
+      if (!deploymentSimulation.success) {
         throw Object.assign(
           new Error(
-            "No route passed the Kletia fee-router allowlist and simulation.",
+            "Token deployment transaction failed live Base simulation.",
           ),
-          { code: "FEE_ROUTER_UNAVAILABLE", statusCode: 400 },
+          {
+            code: "TOKEN_DEPLOYMENT_SIMULATION_FAILED",
+            statusCode: 400,
+          },
         );
       }
+      break;
+    default:
+      throw new Error(`Unsupported Operation: ${intent.action}`);
+  }
 
-      const finalRoutes =
-        result.rankingEvidence &&
-        wrappedRoutes.every(
-          (route) =>
-            typeof route.amountOut === "bigint" &&
-            (route.simulationStatus === "passed" ||
-              route.simulationStatus === "deferred_until_approval"),
-        )
-          ? rankSwapRoutes(wrappedRoutes)
-          : wrappedRoutes;
-      const wrappedWinner = finalRoutes[0];
-      result.allRoutes = finalRoutes;
-      result.winner = wrappedWinner.name;
-      result.targetContract = wrappedWinner.router;
-      result.calldata = wrappedWinner.calldata;
-      result.value = wrappedWinner.value;
-      result.approvals = wrappedWinner.approvals;
-      result.tokenInAddress = isNative ? undefined : feeData.tokenAddress;
-      result.isNativeIn = isNative;
-      result.amountInWei = grossAmountWei.toString();
-      result.expectedOutput = wrappedWinner.expectedOutput;
-      if (result.rankingEvidence) {
-        result.rankingEvidence = buildSwapRankingEvidence(
-          finalRoutes,
-          result.rankingEvidence.protocolRestriction || undefined,
-          "final_routes_after_fee_router_allowlist_and_simulation",
-        );
+  emitAgentLog(
+    userAddress,
+    msgId,
+    `✅ Engine operation completed. Awaiting X-Ray approval...`,
+  );
+  result.actionType = action;
+
+  if (
+    feeData &&
+    result.status === "success" &&
+    !(result.winner && result.winner.includes("WETH Contract"))
+  ) {
+    const isNative = feeData.isNative;
+    const decimals = isNative
+      ? 18
+      : await basePublicClient.readContract({
+          address: feeData.tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "decimals",
+        });
+
+    let grossAmountWei = 0n;
+    if (originalGrossAmountStr.toUpperCase() === "MAX") {
+      grossAmountWei = BigInt(result.amountInWei) + BigInt(feeData.amountWei);
+    } else {
+      grossAmountWei = parseUnits(originalGrossAmountStr, decimals);
+    }
+
+    const rawRoutes: Array<Record<string, any>> = Array.isArray(
+      result.allRoutes,
+    )
+      ? (result.allRoutes as Array<Record<string, any>>)
+      : [];
+    if (rawRoutes.length === 0) {
+      throw Object.assign(
+        new Error("Fee router requires an explicit executable route."),
+        { code: "FEE_ROUTER_ROUTE_REQUIRED", statusCode: 400 },
+      );
+    }
+
+    const compatibleRoutes = rawRoutes.filter(
+      (route) =>
+        route.executionMode !== "direct" &&
+        route.feeRouterCompatible !== false &&
+        route.execution?.feeRouterCompatible !== false,
+    );
+    const uniqueTargets: Address[] = [
+      ...new Map<string, Address>(
+        compatibleRoutes.map((route) => {
+          const target = getAddress(String(route.router));
+          return [target.toLowerCase(), target] as const;
+        }),
+      ).values(),
+    ];
+    const targetChecks = await Promise.all(
+      uniqueTargets.map(async (target) => {
+        try {
+          const approved = await basePublicClient.readContract({
+            address: KLETIA_ROUTER_ADDRESS,
+            abi: KLETIA_ROUTER_GUARD_ABI,
+            functionName: "approvedTargets",
+            args: [target],
+          });
+          return [target.toLowerCase(), approved === true] as const;
+        } catch {
+          return [target.toLowerCase(), false] as const;
+        }
+      }),
+    );
+    const approvedTargetMap = new Map(targetChecks);
+    const wrappedCandidates: any[] = [];
+    for (const route of compatibleRoutes) {
+      const routeApprovals = Array.isArray(route.approvals)
+        ? route.approvals
+        : [];
+      const declaredInputs = [
+        [route.primaryTokenAddress, route.primaryAmountInWei],
+        [route.secondaryTokenAddress, route.secondaryAmountInWei],
+      ].filter((input) => input[0] && BigInt(input[1] || "0") > 0n);
+      if (routeApprovals.length > 1 || declaredInputs.length > 1) {
+        continue;
+      }
+
+      const targetProtocol = getAddress(route.router);
+      const targetCalldata = route.calldata as `0x${string}`;
+      const approvedTarget =
+        approvedTargetMap.get(targetProtocol.toLowerCase()) === true;
+      if (!approvedTarget) continue;
+
+      const wrappedCalldata = isNative
+        ? encodeFunctionData({
+            abi: KLETIA_ROUTER_ABI,
+            functionName: "executeETH",
+            args: [targetProtocol, targetCalldata],
+          })
+        : encodeFunctionData({
+            abi: KLETIA_ROUTER_ABI,
+            functionName: "executeERC20",
+            args: [
+              feeData.tokenAddress as `0x${string}`,
+              grossAmountWei,
+              targetProtocol,
+              targetCalldata,
+            ],
+          });
+      const approvals = isNative
+        ? []
+        : [
+            {
+              token: feeData.tokenAddress,
+              spender: KLETIA_ROUTER_ADDRESS,
+              amount: grossAmountWei.toString(),
+              symbol: workingIntent.tokenIn,
+              calldata: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [KLETIA_ROUTER_ADDRESS, grossAmountWei],
+              }),
+              required: true,
+            },
+          ];
+      wrappedCandidates.push({
+        ...route,
+        underlyingRouter: targetProtocol,
+        underlyingCalldata: targetCalldata,
+        router: KLETIA_ROUTER_ADDRESS,
+        calldata: wrappedCalldata,
+        value: isNative ? grossAmountWei.toString() : "0",
+        approvals,
+        executionMode: "kletia_fee_router",
+        callerSemantics: "explicit_recipient",
+        feeRouterCompatible: true,
+        policyTargets: [targetProtocol],
+        expectedOutput: `${route.expectedOutput || result.expectedOutput} (Includes %0.1 Kletia Fee)`,
+      });
+    }
+    const wrappedRoutes: any[] = [];
+    const wrappedSimulationResults = await settleWithConcurrency(
+      wrappedCandidates,
+      4,
+      async (wrappedRoute) => ({
+        wrappedRoute,
+        simulation: await xRaySimulate(
+          KLETIA_ROUTER_ADDRESS,
+          wrappedRoute.calldata,
+          userAddress,
+          wrappedRoute.value,
+          `Kletia Fee Router → ${wrappedRoute.name}`,
+          isNative
+            ? []
+            : [
+                {
+                  addr: feeData.tokenAddress,
+                  amt: grossAmountWei.toString(),
+                },
+              ],
+        ),
+      }),
+    );
+    for (const simulationResult of wrappedSimulationResults) {
+      if (simulationResult.status === "rejected") continue;
+      const { wrappedRoute, simulation } = simulationResult.value;
+      if (simulation.success || simulation.deferredUntilApproval) {
+        wrappedRoutes.push({
+          ...wrappedRoute,
+          simulationStatus: simulation.success
+            ? "passed"
+            : "deferred_until_approval",
+        });
       }
     }
 
-    return result;
-  } catch (error) {
-    throw error;
+    result.feeRouterCoverage = {
+      requestedRouteCount: rawRoutes.length,
+      compatibleRouteCount: compatibleRoutes.length,
+      approvedRouteCount: wrappedCandidates.length,
+      unapprovedTargetCount: targetChecks.filter(([, approved]) => !approved)
+        .length,
+      unapprovedTargets: targetChecks
+        .filter(([, approved]) => !approved)
+        .map(([target]) => getAddress(target)),
+      simulatedRouteCount: wrappedSimulationResults.length,
+      eligibleRouteCount: wrappedRoutes.length,
+    };
+
+    if (wrappedRoutes.length === 0) {
+      throw Object.assign(
+        new Error(
+          "No route passed the Kletia fee-router allowlist and simulation.",
+        ),
+        { code: "FEE_ROUTER_UNAVAILABLE", statusCode: 400 },
+      );
+    }
+
+    const finalRoutes =
+      result.rankingEvidence &&
+      wrappedRoutes.every(
+        (route) =>
+          typeof route.amountOut === "bigint" &&
+          (route.simulationStatus === "passed" ||
+            route.simulationStatus === "deferred_until_approval"),
+      )
+        ? rankSwapRoutes(wrappedRoutes)
+        : wrappedRoutes;
+    const wrappedWinner = finalRoutes[0];
+    result.allRoutes = finalRoutes;
+    result.winner = wrappedWinner.name;
+    result.targetContract = wrappedWinner.router;
+    result.calldata = wrappedWinner.calldata;
+    result.value = wrappedWinner.value;
+    result.approvals = wrappedWinner.approvals;
+    result.tokenInAddress = isNative ? undefined : feeData.tokenAddress;
+    result.isNativeIn = isNative;
+    result.amountInWei = grossAmountWei.toString();
+    result.expectedOutput = wrappedWinner.expectedOutput;
+    if (result.rankingEvidence) {
+      result.rankingEvidence = buildSwapRankingEvidence(
+        finalRoutes,
+        result.rankingEvidence.protocolRestriction || undefined,
+        "final_routes_after_fee_router_allowlist_and_simulation",
+      );
+    }
   }
+
+  return result;
 }

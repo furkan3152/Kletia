@@ -4,5 +4,3 @@ dist-ssr/
 *.local
 .env
 .DS_Store
-public/vendor/kletia-policy-v1/
-public/vendor/kletia-policy-v2/

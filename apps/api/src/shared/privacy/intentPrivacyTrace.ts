@@ -36,7 +36,7 @@ export interface IntentPrivacyTraceV1 {
     readonly detectedFieldClasses: readonly (
       | "numeric_value"
       | "evm_address"
-      | "stellar_address"
+      | "solana_address"
       | "url"
       | "portfolio_scope"
     )[];
@@ -74,12 +74,22 @@ const READ_ONLY_ACTIONS = new Set([
   "yield_compare",
 ]);
 
+// Solana public keys are 32-byte values rendered as 32-44 base58 characters.
+// The look-arounds keep longer base58 runs (signatures, encoded payloads) from
+// being misreported as an address fragment.
+const SOLANA_ADDRESS_PATTERN =
+  /(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])/u;
+
 function detectedFieldClasses(prompt: string): IntentPrivacyTraceV1["inputBoundary"]["detectedFieldClasses"] {
   const normalized = prompt.normalize("NFKC");
   const detected: Array<IntentPrivacyTraceV1["inputBoundary"]["detectedFieldClasses"][number]> = [];
   if (/\p{Number}/u.test(normalized)) detected.push("numeric_value");
   if (/0x[a-f\d]{40}/iu.test(normalized)) detected.push("evm_address");
-  if (/[GC][A-Z2-7]{55}/u.test(normalized)) detected.push("stellar_address");
+  // 0x-prefixed hex (EVM addresses, hashes) is removed first: its digits are
+  // mostly base58 and would otherwise be double-reported as a Solana address.
+  if (SOLANA_ADDRESS_PATTERN.test(normalized.replace(/0x[a-f\d]+/giu, " "))) {
+    detected.push("solana_address");
+  }
   if (/https:\/\/[^\s]+/iu.test(normalized)) detected.push("url");
   if (/\b(?:my|all|wallet|portfolio|balance|portf[oö]y|bakiye)\b/iu.test(normalized)) {
     detected.push("portfolio_scope");
@@ -117,7 +127,7 @@ function canonicalTracePayload(
  * This is deliberately not called a privacy proof: the API receives the raw
  * legacy prompt. The trace makes that fact, any semantic-provider disclosure,
  * and public-ledger execution explicit so the privacy-first default applies to
- * Base and Arc as well as WorkflowPlanV2.
+ * every network served by the legacy endpoint.
  */
 export function createIntentPrivacyTrace(input: {
   readonly requestId: string;

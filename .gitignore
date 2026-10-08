@@ -1,6 +1,5 @@
 # Dependencies and package-manager state
 node_modules/
-circuits/stellar-policy/build/
 .npm/
 .pnp.*
 .yarn/*
@@ -14,7 +13,6 @@ circuits/stellar-policy/build/
 .env
 .env.*
 !.env.example
-!.env.labs.example
 *.pem
 *.key
 *cdp_api_key.json
@@ -72,9 +70,6 @@ recent_changes*.diff
 *.sqlite-wal
 *.sqlite-shm
 
-# ZK ceremony artifacts (large binaries, not source)
-*.zkey
-*.wtns
 
 # IDE and editor files
 .idea/

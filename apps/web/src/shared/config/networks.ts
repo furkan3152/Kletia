@@ -6,12 +6,8 @@ import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
 export type NetworkMode = "base" | "arc" | "arbitrum";
 
-export const STELLAR_WORKSPACE_ENABLED =
-  import.meta.env.VITE_STELLAR_MVP_ENABLED === "true";
-
 export type AppTab =
   | "chat"
-  | "stellar"
   | "basename"
   | "allora"
   | "airdrop"

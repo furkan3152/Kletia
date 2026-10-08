@@ -12,7 +12,7 @@ import { NETWORK_CLIENTS } from "../../shared/config/networks.js";
 import { getIntentStore } from "../index.js";
 import { apiKeyStoreKind } from "./auth.js";
 import { webhookDispatcherStats, type DispatcherStats } from "./dispatcher.js";
-import { platformSecretStatus } from "./secrets.js";
+import { platformSecretStatus, type PlatformSecretStatus } from "./secrets.js";
 import { webhookStoreKind } from "./webhooks.js";
 
 export const PLATFORM_API_VERSION = "1.0.0";
@@ -42,6 +42,8 @@ export interface PlatformHealth {
   readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string };
   readonly webhooks: {
     readonly status: "enabled" | "needs_configuration";
+    /** How webhook secrets are sealed: a configured secret, the development key (memory stores only) or none. */
+    readonly sealing: PlatformSecretStatus;
     readonly dispatcher: DispatcherStats | null;
   };
 }
@@ -106,19 +108,43 @@ function storeKind(read: () => string): string {
 
 let cached: { readonly at: number; readonly networks: readonly NetworkHealth[] } | null = null;
 let inflight: Promise<readonly NetworkHealth[]> | null = null;
+let activeProbe: (network: NetworkKey) => Promise<NetworkHealth> = probe;
+
+/**
+ * Replaces the per-network RPC probe (tests, embedders with their own
+ * monitoring); `null` restores the live probe. Clears the cached result.
+ */
+export function configureHealthProbe(custom: ((network: NetworkKey) => Promise<NetworkHealth>) | null): void {
+  activeProbe = custom ?? probe;
+  cached = null;
+  inflight = null;
+}
+
+async function safeProbe(network: NetworkKey): Promise<NetworkHealth> {
+  try {
+    return await activeProbe(network);
+  } catch {
+    const chain = CHAINS[network];
+    return { network, chain: chain.id, name: chain.name, environment: chain.environment, ok: false, latencyMs: 0, detail: "RPC unavailable" };
+  }
+}
 
 async function networkHealth(): Promise<readonly NetworkHealth[]> {
   const now = Date.now();
   if (cached && now - cached.at < CACHE_MS) return cached.networks;
-  inflight ??= Promise.all(NETWORK_KEYS.map((network) => probe(network)))
+  if (inflight) return inflight;
+  const probeUsed = activeProbe;
+  const current: Promise<readonly NetworkHealth[]> = Promise.all(NETWORK_KEYS.map((network) => safeProbe(network)))
     .then((networks) => {
-      cached = { at: Date.now(), networks };
+      // A probe swapped mid-flight (configureHealthProbe) must not cache stale results.
+      if (activeProbe === probeUsed) cached = { at: Date.now(), networks };
       return networks;
     })
     .finally(() => {
-      inflight = null;
+      if (inflight === current) inflight = null;
     });
-  return inflight;
+  inflight = current;
+  return current;
 }
 
 export async function readPlatformHealth(): Promise<PlatformHealth> {
@@ -129,7 +155,8 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
     networks = [];
   }
   const healthy = networks.filter((entry) => entry.ok).length;
-  const webhooksEnabled = platformSecretStatus() !== "missing";
+  const sealing = platformSecretStatus();
+  const webhooksEnabled = sealing !== "missing";
   return {
     status: networks.length > 0 && healthy === networks.length ? "ok" : healthy === 0 ? "down" : "degraded",
     api: "v1",
@@ -144,6 +171,7 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
     },
     webhooks: {
       status: webhooksEnabled ? "enabled" : "needs_configuration",
+      sealing,
       dispatcher: webhookDispatcherStats(),
     },
   };

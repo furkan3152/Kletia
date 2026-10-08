@@ -1,7 +1,7 @@
 import { signature as toSignature } from "@solana/kit";
 import { explorerTxUrl, isSolanaAddress, isSolanaSignature } from "@kletia/core";
 import type { SolanaNetworkKey } from "./config.js";
-import { SolanaProviderError } from "./http.js";
+import { SolanaProviderError, describeRpcError } from "./http.js";
 import { rpcAbortSignal, solanaRpc } from "./rpc.js";
 
 export type SolanaConfirmationStatus = "not_found" | "processed" | "confirmed" | "finalized" | "failed";
@@ -77,7 +77,7 @@ export async function verifySolanaTransaction(
     error: signerMismatch
       ? "Transaction fee payer does not match the bound account."
       : status.err
-        ? JSON.stringify(status.err).slice(0, 200)
+        ? describeRpcError(status.err)
         : null,
     feeLamports: transaction?.meta ? transaction.meta.fee.toString() : null,
     signer,

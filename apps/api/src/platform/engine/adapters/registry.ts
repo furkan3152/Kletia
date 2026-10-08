@@ -1,10 +1,10 @@
 import type { IntentConstraints, IntentStep, ProtocolId } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { aaveV3Adapter } from "./aave-v3.js";
-import { evmTransferAdapter } from "./evm-transfer.js";
+import { aaveV3Adapter } from "./aaveV3.js";
+import { evmTransferAdapter } from "./evmTransfer.js";
 import { jupiterAdapter } from "./jupiter.js";
 import { relayAdapter } from "./relay.js";
-import { solanaTransferAdapter } from "./solana-transfer.js";
+import { solanaTransferAdapter } from "./solanaTransfer.js";
 import type { AdapterRoute, ProtocolAdapter } from "./types.js";
 
 /** Default preference order when several adapters can serve a route. */

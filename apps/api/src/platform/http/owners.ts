@@ -1,14 +1,12 @@
 /**
  * Which API key created an intent, for webhook routing.
  *
- * The engine's public service API does not expose the owner of a stored
- * intent, so the HTTP layer remembers owners of intents it created (bounded
- * LRU) and, when the engine stores intents in Postgres, falls back to the
- * `kletia_intents.owner_key_id` column so events after a restart or from
- * another instance still route.
+ * The owner is recorded by the engine's intent store when the intent is
+ * created (memory or Postgres), so events from intents created by another
+ * instance or before a restart route too. Owners never change, so resolved
+ * owners are cached in a bounded LRU.
  */
-import { getIntentStore } from "../index.js";
-import { dbRead, platformDatabaseUrl } from "./db.js";
+import { getIntentOwner } from "../index.js";
 
 const MAX_REMEMBERED = 20_000;
 const owners = new Map<string, string | null>();
@@ -28,21 +26,15 @@ export function rememberIntentOwner(intentId: string, ownerKeyId: string | undef
   remember(intentId, ownerKeyId ?? null);
 }
 
-async function ownerFromDatabase(intentId: string): Promise<string | null | undefined> {
-  if (!platformDatabaseUrl() || getIntentStore().kind !== "postgres") return undefined;
+/** The owning key id, null for public intents, undefined when not (yet) known or the store is unavailable. */
+export async function resolveIntentOwner(intentId: string): Promise<string | null | undefined> {
+  if (owners.has(intentId)) return owners.get(intentId) ?? null;
+  let stored: string | null | undefined;
   try {
-    const result = await dbRead<{ owner_key_id: string | null }>("SELECT owner_key_id FROM kletia_intents WHERE id = $1", [intentId]);
-    const row = result.rows[0];
-    return row ? row.owner_key_id : undefined;
+    stored = await getIntentOwner(intentId);
   } catch {
     return undefined;
   }
-}
-
-/** The owning key id, null for public intents, undefined when not (yet) known. */
-export async function resolveIntentOwner(intentId: string): Promise<string | null | undefined> {
-  if (owners.has(intentId)) return owners.get(intentId) ?? null;
-  const stored = await ownerFromDatabase(intentId);
   if (stored !== undefined) remember(intentId, stored);
   return stored;
 }

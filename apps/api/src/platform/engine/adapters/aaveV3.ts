@@ -16,7 +16,7 @@ import {
 import { PlatformError } from "../../errors.js";
 import { assetAmount, type ResolvedAsset } from "../assets.js";
 import { estimateEvmFeeUsd, evmChainId, evmClient, isEvmNetwork, readAllowance, type EvmNetworkKey } from "../chains/evm.js";
-import { assertEvmBalance, estimateGas } from "./evm-transfer.js";
+import { assertEvmBalance, estimateGas } from "./evmTransfer.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter } from "./types.js";
 import { verifyEvmReferences } from "./verification.js";
 

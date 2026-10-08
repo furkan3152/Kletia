@@ -27,7 +27,7 @@ test("client sends auth header, normalizes base URL and parses errors", async ()
     fetch: async (url, init) => {
       calls.push({ url, init });
       if (url.endsWith("/v1/networks")) return jsonResponse(200, { networks: [{ key: "base" }] });
-      return jsonResponse(422, { error: { code: "INTENT_UNSUPPORTED", message: "nope", issues: [{ path: "text", message: "x" }] } });
+      return jsonResponse(422, { error: { code: "INTENT_UNSUPPORTED", message: "nope", issues: [{ path: "text", message: "x" }], hints: ["swap 1 SOL to USDC", 7] } });
     },
   });
   assert.equal(client.baseUrl, "http://localhost:3001");
@@ -36,7 +36,7 @@ test("client sends auth header, normalizes base URL and parses errors", async ()
   assert.equal(calls[0].init.headers.authorization, "Bearer kl_dev_test");
   await assert.rejects(
     client.intents.create({ text: "hello", accounts: [`eip155:8453:${EVM}`] }, { dryRun: true }),
-    (error) => error instanceof KletiaApiError && error.code === "INTENT_UNSUPPORTED" && error.status === 422 && error.issues.length === 1 && error.requestId === "req-1",
+    (error) => error instanceof KletiaApiError && error.code === "INTENT_UNSUPPORTED" && error.status === 422 && error.issues.length === 1 && error.hints.length === 1 && error.hints[0] === "swap 1 SOL to USDC" && error.requestId === "req-1",
   );
   assert.ok(calls[1].url.endsWith("/v1/intents?dryRun=true"));
 });

@@ -1,7 +1,7 @@
 // Must stay the first import: loads .env and applies public defaults before
 // any module reads process.env.
 import "../shared/config/environment.js";
-import express, { type Express, type RequestHandler } from "express";
+import express, { type Express } from "express";
 import helmet from "helmet";
 
 import intentRoutes from "./routes/intent.js";
@@ -33,11 +33,16 @@ import {
   createCorsMiddleware,
 } from "../shared/http/cors.js";
 import { apiLimiter, premiumLimiter } from "../shared/http/rateLimits.js";
+import {
+  createPlatformRouter,
+  platformErrorHandler,
+} from "../platform/http/index.js";
 
 /**
  * Express composition root. Order is part of the security contract:
  *   helmet -> CORS (path-switched: /v1 public, everything else allowlisted)
- *   -> JSON body -> [/v1 platform API] -> /api/ limiter -> /api routers.
+ *   -> /v1 platform API (own 64 KB JSON parser, keys, tier limits, errors)
+ *   -> JSON body -> /api/ limiter -> /api routers.
  */
 
 (BigInt.prototype as any).toJSON = function () {
@@ -50,18 +55,12 @@ app.set("trust proxy", TRUST_PROXY_HOPS === 0 ? false : TRUST_PROXY_HOPS);
 
 app.use(helmet());
 app.use(createCorsMiddleware());
-app.use(express.json());
+// The public developer API. Mounted before the global JSON parser so its own
+// body limit and media-type checks apply; the /api/ limiter below does not
+// cover /v1, which brings its own authentication and tier rate limits.
+app.use(PLATFORM_API_PREFIX, createPlatformRouter(), platformErrorHandler);
 
-// ── Platform API mount point ────────────────────────────────────────────
-// The public developer API lives under PLATFORM_API_PREFIX ("/v1"). Mount it
-// here, or call mountPlatformApi(app, router) once at startup:
-//
-//   app.use(PLATFORM_API_PREFIX, platformRouter);
-//
-// At this point /v1 already has helmet, the public /v1 CORS policy and JSON
-// body parsing. The /api/ limiter below does not apply to /v1; the platform
-// router brings its own authentication and rate limits.
-// ────────────────────────────────────────────────────────────────────────
+app.use(express.json());
 
 app.use("/api/", apiLimiter);
 app.use("/api/premium", premiumLimiter, requireFixedBaseNetwork, premiumRoutes);
@@ -83,17 +82,5 @@ app.use(healthRoutes);
 app.use(intentRoutes);
 // POST /api/onramp-token
 app.use(onrampRoutes);
-
-/**
- * Mounts the public platform API under /v1. Safe to call after the app is
- * composed: no /api route and no error handler matches /v1, so appending
- * gives the same precedence as mounting at the marked point above.
- */
-export function mountPlatformApi(
-  target: Express,
-  router: RequestHandler,
-): void {
-  target.use(PLATFORM_API_PREFIX, router);
-}
 
 export { app };

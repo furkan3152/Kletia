@@ -132,7 +132,9 @@ export function ActivityFeed({
   className = "",
 }: ActivityFeedProps) {
   const entries = useActivityStore((state) => state.entries);
-  const networkKey = Array.isArray(network) ? network.join(",") : (network ?? "");
+  const networks: readonly NetworkKey[] | null =
+    network === undefined ? null : typeof network === "string" ? [network] : network;
+  const networkKey = networks ? networks.join(",") : "";
   const visible = React.useMemo(() => {
     const allowed = networkKey ? new Set(networkKey.split(",")) : null;
     return entries

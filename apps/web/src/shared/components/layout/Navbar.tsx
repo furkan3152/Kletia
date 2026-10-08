@@ -1,10 +1,10 @@
 import React from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Bot, CreditCard, Menu } from "lucide-react";
+import { ArrowRightLeft, Bot, CreditCard, Droplets, Menu } from "lucide-react";
 
 import { NetworkSwitcher, type WorkspaceMode } from "./NetworkSwitcher";
-import { getNetwork } from "../../config/networks";
+import { getWorkspacePresentation } from "../../config/networks";
 import { useNetwork } from "../../hooks/useNetwork";
+import { WalletDock } from "../../wallet/WalletDock";
 
 interface NavbarProps {
   address?: string;
@@ -26,24 +26,37 @@ export const Navbar: React.FC<NavbarProps> = ({
   networkSwitchError,
 }) => {
   const networkController = useNetwork();
-  const effectiveNetworkMode = networkMode ?? networkController.networkMode;
-  const activeNetwork = getNetwork(effectiveNetworkMode);
-  const activeColor = activeNetwork.color;
-  const activeBadge = activeNetwork.badge;
+  const effectiveNetworkMode: WorkspaceMode =
+    networkMode ?? networkController.networkMode;
+  const activeWorkspace = getWorkspacePresentation(effectiveNetworkMode);
+  const activeColor = activeWorkspace.color;
+  const activeBadge = activeWorkspace.badge;
+  const funding = activeWorkspace.funding;
   const selectNetwork =
     onNetworkSelect ??
-    ((selected: WorkspaceMode) => networkController.switchNetwork(selected));
+    ((selected: WorkspaceMode) =>
+      selected === "solana" ? undefined : networkController.switchNetwork(selected));
   const networkIsSwitching =
     isNetworkSwitching ?? networkController.isSwitching;
   const networkError = networkSwitchError ?? networkController.switchError;
-  const baseMcpHandoffEnabled = activeNetwork.features.baseMcpHandoff;
+  const showFunding = funding.kind !== "onramp" || Boolean(address);
+  const FundingIcon =
+    funding.kind === "bridge"
+      ? ArrowRightLeft
+      : funding.kind === "faucet"
+        ? Droplets
+        : CreditCard;
   const handleFunding = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (activeNetwork.funding.kind === "faucet") {
-      window.open(activeNetwork.funding.url, "_blank", "noopener,noreferrer");
+    if (funding.kind === "faucet") {
+      window.open(funding.url, "_blank", "noopener,noreferrer");
       return;
     }
-
-    if (address) {
+    if (funding.kind === "bridge") {
+      window.location.assign(funding.url);
+      return;
+    }
+    // Only Base uses the Coinbase onramp.
+    if (address && effectiveNetworkMode === "base") {
       handleFundClick(address, event);
     }
   };
@@ -77,7 +90,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             KLETIA
             <span
               className="hidden border-[2px] border-[#1A1A1A] px-1.5 py-0.5 text-[9px] font-bold tracking-normal text-white shadow-[2px_2px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569] sm:inline sm:px-2 sm:text-[10px] md:text-xs"
-              style={{ backgroundColor: activeColor }}
+              style={
+                effectiveNetworkMode === "solana"
+                  ? {
+                      backgroundColor: activeColor,
+                      backgroundImage:
+                        "linear-gradient(135deg, #9945FF 0%, #7C3AED 60%, #14F195 150%)",
+                    }
+                  : { backgroundColor: activeColor }
+              }
             >
               {activeBadge}
             </span>
@@ -92,115 +113,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             onSelect={selectNetwork}
             isSwitching={networkIsSwitching}
             error={networkError}
-            className="w-[17rem] lg:w-[19rem]"
+            className="w-[15rem] lg:w-[18rem] xl:w-[20rem]"
             compact
           />
         </div>
-        {baseMcpHandoffEnabled && (
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Base Agent Mode is in development."
-            className="hidden min-h-11 cursor-not-allowed items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] px-2.5 py-2 text-[9px] font-black uppercase tracking-wider text-[#1A1A1A] opacity-75 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white 2xl:flex"
-          >
-            <Bot className="h-4 w-4" aria-hidden="true" />
-            <span>BASE AGENT</span>
-            <span className="border-2 border-[#1A1A1A] bg-[#FFD700] px-1 py-0.5 text-[8px] leading-none text-[#1A1A1A]">
-              SOON
-            </span>
-          </button>
-        )}
-        {Boolean(address) && (
+        <a
+          href="/developers#agents"
+          className="hidden min-h-11 items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#EAF0FF] px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:shadow-[3px_3px_0_#475569] 2xl:flex"
+        >
+          <Bot className="h-4 w-4" aria-hidden="true" />
+          <span>Agents</span>
+        </a>
+        {showFunding && (
           <button
             type="button"
             onClick={handleFunding}
             className="hidden min-h-11 items-center justify-center gap-2 border-[3px] border-[#1A1A1A] bg-[#FFD700] px-3 py-2 font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#FACC15] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#60A5FA] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#3B82F6] xl:flex"
           >
-            <CreditCard className="w-4 h-4" />
-            <span className="text-xs">
-              {activeNetwork.funding.label.toUpperCase()}
-            </span>
+            <FundingIcon className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs">{funding.label.toUpperCase()}</span>
           </button>
         )}
 
-        <div className="flex min-w-0 items-center">
-          <ConnectButton.Custom>
-            {({
-              account,
-              chain,
-              openAccountModal,
-              openChainModal,
-              openConnectModal,
-              authenticationStatus,
-              mounted,
-            }) => {
-              const ready = mounted && authenticationStatus !== "loading";
-              const connected =
-                ready &&
-                account &&
-                chain &&
-                (!authenticationStatus ||
-                  authenticationStatus === "authenticated");
-
-              return (
-                <div
-                  className="min-w-0"
-                  {...(!ready && {
-                    "aria-hidden": true,
-                    style: {
-                      opacity: 0,
-                      pointerEvents: "none",
-                      userSelect: "none",
-                    },
-                  })}
-                >
-                  {(() => {
-                    if (!connected) {
-                      return (
-                        <button
-                          onClick={openConnectModal}
-                          type="button"
-                          className="min-h-11 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 py-2 text-[11px] font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none sm:px-4 sm:text-xs md:text-sm"
-                        >
-                          <span className="sm:hidden">Connect</span>
-                          <span className="hidden sm:inline">Connect Wallet</span>
-                        </button>
-                      );
-                    }
-
-                    if (chain.unsupported) {
-                      return (
-                        <button
-                          onClick={openChainModal}
-                          type="button"
-                          className="min-h-11 border-[3px] border-[#1A1A1A] bg-[#EF4444] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none sm:px-4 sm:text-xs md:text-sm"
-                        >
-                          Wrong Network
-                        </button>
-                      );
-                    }
-
-                    return (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={openAccountModal}
-                          type="button"
-                          className="flex min-h-11 max-w-[7.5rem] items-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-2.5 py-2 shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] sm:max-w-[10rem] sm:px-3 md:px-4"
-                        >
-                          <span className="w-2 h-2 rounded-full bg-[#10B981] border-[1px] border-[#1A1A1A]"></span>
-                          <span className="truncate font-mono text-[11px] font-black text-[#1A1A1A] dark:text-white sm:text-xs md:text-sm">
-                            {account.displayName}
-                          </span>
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            }}
-          </ConnectButton.Custom>
-        </div>
+        <WalletDock evmWorkspace={effectiveNetworkMode !== "solana"} />
         </div>
       </div>
 

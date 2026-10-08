@@ -1,27 +1,37 @@
 import React from "react";
 import { useAccount } from "wagmi";
 import {
+  ArrowLeftRight,
+  Bot,
   Briefcase,
   ChevronRight,
   FileKey2,
   Fingerprint,
   Hexagon,
+  Landmark,
   Layers,
+  LayoutDashboard,
   MessageSquare,
   Moon,
+  Percent,
+  ScrollText,
+  Send,
   Shield,
   ShieldAlert,
   Sun,
   TrendingUp,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
 
 import {
+  getWorkspacePresentation,
   type AppTab,
   type NavigationIcon,
   type NetworkNavigationItem,
 } from "../../config/networks";
+import { SOLANA_TABS, type SolanaTab } from "../../../networks/solana/solanaTabs";
 import {
   materializeIntentExample,
   requiresActiveWalletAddress,
@@ -42,7 +52,22 @@ interface AppSidebarProps {
   workspaceMode?: WorkspaceMode;
   onWorkspaceSelect?: (network: WorkspaceMode) => void | Promise<unknown>;
   onClearHistory?: () => void;
+  /** Active internal tab of the Solana workspace. */
+  solanaTab?: SolanaTab;
+  onSolanaTabChange?: (tab: SolanaTab) => void;
+  /** Cross-network activity drawer. */
+  isActivityOpen?: boolean;
+  onOpenActivity?: () => void;
 }
+
+const SOLANA_TAB_ICONS: Record<SolanaTab, LucideIcon> = {
+  overview: LayoutDashboard,
+  swap: ArrowLeftRight,
+  send: Send,
+  stake: Landmark,
+  yields: Percent,
+  activity: ScrollText,
+};
 
 const NAVIGATION_ICONS: Record<NavigationIcon, LucideIcon> = {
   chat: MessageSquare,
@@ -72,16 +97,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   workspaceMode,
   onWorkspaceSelect,
   onClearHistory,
+  solanaTab = "overview",
+  onSolanaTabChange,
+  isActivityOpen = false,
+  onOpenActivity,
 }) => {
   const { isDarkMode, toggleTheme, clearMessages } = useAppStore();
   const { address } = useAccount();
   const { networkMode, network, switchNetwork, isSwitching, switchError } =
     useNetwork();
-  const effectiveWorkspace = workspaceMode ?? networkMode;
+  const effectiveWorkspace: WorkspaceMode = workspaceMode ?? networkMode;
+  const isSolanaWorkspace = effectiveWorkspace === "solana";
+  const presentation = getWorkspacePresentation(effectiveWorkspace);
   const selectWorkspace =
     onWorkspaceSelect ??
-    ((selected: WorkspaceMode) => switchNetwork(selected));
-  const workspaceAccent = network.color;
+    ((selected: WorkspaceMode) =>
+      selected === "solana" ? undefined : switchNetwork(selected));
+  const workspaceAccent = presentation.color;
 
   const availableSections = React.useMemo(
     () =>
@@ -115,6 +147,86 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         ? "text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] translate-x-2"
         : "bg-white dark:bg-[#1E293B] text-[#1A1A1A] dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[8px_8px_0_#1A1A1A] dark:hover:shadow-[8px_8px_0_#475569]"
     }`;
+
+  const closeOnMobile = () => {
+    if (window.innerWidth < 768) {
+      setIsOpen(false);
+    }
+  };
+
+  const openPortfolio = () => {
+    setIsPortfolioOpen(true);
+    closeOnMobile();
+  };
+
+  const openActivity = () => {
+    setIsPortfolioOpen(false);
+    onOpenActivity?.();
+    closeOnMobile();
+  };
+
+  const selectSolanaTab = (tab: SolanaTab) => {
+    onSolanaTabChange?.(tab);
+    closeOnMobile();
+  };
+
+  const renderNavButton = ({
+    key,
+    label,
+    Icon,
+    isActive,
+    onClick,
+    badge,
+    title,
+    ariaCurrent,
+  }: {
+    key: string;
+    label: string;
+    Icon: LucideIcon;
+    isActive: boolean;
+    onClick: () => void;
+    badge?: React.ReactNode;
+    title?: string;
+    ariaCurrent?: "page" | "true";
+  }) => (
+    <button
+      key={key}
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-current={isActive ? (ariaCurrent ?? "true") : undefined}
+      className={navItemClass(isActive)}
+      style={
+        isActive
+          ? isSolanaWorkspace
+            ? {
+                backgroundColor: workspaceAccent,
+                backgroundImage:
+                  "linear-gradient(135deg, #9945FF 0%, #7C3AED 60%, #14F195 150%)",
+              }
+            : { backgroundColor: workspaceAccent }
+          : undefined
+      }
+    >
+      <div className="flex items-center gap-3">
+        <Icon
+          size={18}
+          className={isActive ? "text-white" : undefined}
+          style={isActive ? undefined : { color: workspaceAccent }}
+          aria-hidden="true"
+        />
+        <span>{label}</span>
+      </div>
+      <span className="flex shrink-0 items-center gap-1.5">
+        {badge}
+        <ChevronRight
+          size={16}
+          className="opacity-60 transition-opacity duration-100 group-hover:opacity-100"
+          aria-hidden="true"
+        />
+      </span>
+    </button>
+  );
 
   const handleNavigation = (item: NetworkNavigationItem) => {
     setIsPortfolioOpen(false);
@@ -191,7 +303,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   className="text-[10px] font-black uppercase truncate"
                   style={{ color: workspaceAccent }}
                 >
-                  {network.name}
+                  {presentation.name}
                 </p>
               </div>
               <NetworkSwitcher
@@ -204,7 +316,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             </div>
           </div>
 
-          {availableSections.map((section) => (
+          {isSolanaWorkspace ? (
+            <nav aria-label="Solana workspace" className="space-y-3">
+              <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2">
+                Solana
+              </h3>
+              {SOLANA_TABS.map((tab) =>
+                renderNavButton({
+                  key: `solana-${tab.id}`,
+                  label: tab.label,
+                  Icon: SOLANA_TAB_ICONS[tab.id],
+                  isActive: solanaTab === tab.id && !isActivityOpen,
+                  onClick: () => selectSolanaTab(tab.id),
+                  title: tab.description,
+                }),
+              )}
+            </nav>
+          ) : (
+            availableSections.map((section) => (
             <div key={section.id} className="space-y-3">
               <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2">
                 {section.label}
@@ -215,51 +344,70 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 const isActive =
                   item.action.type === "tab" &&
                   activeTab === item.action.tab &&
-                  !isPortfolioOpen;
+                  !isPortfolioOpen &&
+                  !isActivityOpen;
                 const needsWallet =
                   item.action.type === "prompt" &&
                   requiresActiveWalletAddress(item.action.prompt);
 
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleNavigation(item)}
-                    title={
-                      needsWallet && !address
-                        ? "Opens an editable example. Replace the recipient before sending, or connect a wallet to insert its address."
-                        : undefined
-                    }
-                    className={navItemClass(isActive)}
-                    style={
-                      isActive ? { backgroundColor: workspaceAccent } : undefined
-                    }
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon
-                        size={18}
-                        className={isActive ? "text-white" : undefined}
-                        style={isActive ? undefined : { color: workspaceAccent }}
-                      />
-                      <span>{item.label}</span>
-                    </div>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {needsWallet && !address ? (
-                        <span className="border-2 border-[#1A1A1A] bg-[#FFF36D] px-1.5 py-0.5 text-[9px] font-black uppercase text-[#1A1A1A] dark:border-[#64748B]">
-                          Edit
-                        </span>
-                      ) : null}
-                      <ChevronRight
-                        size={16}
-                        className="opacity-60 transition-opacity duration-100 group-hover:opacity-100"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </button>
-                );
+                return renderNavButton({
+                  key: item.id,
+                  label: item.label,
+                  Icon,
+                  isActive,
+                  onClick: () => handleNavigation(item),
+                  title:
+                    needsWallet && !address
+                      ? "Opens an editable example. Replace the recipient before sending, or connect a wallet to insert its address."
+                      : undefined,
+                  badge:
+                    needsWallet && !address ? (
+                      <span className="border-2 border-[#1A1A1A] bg-[#FFF36D] px-1.5 py-0.5 text-[9px] font-black uppercase text-[#1A1A1A] dark:border-[#64748B]">
+                        Edit
+                      </span>
+                    ) : null,
+                });
               })}
             </div>
-          ))}
+            ))
+          )}
+
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2">
+              Wallet
+            </h3>
+            {!isSolanaWorkspace
+              ? renderNavButton({
+                  key: "portfolio",
+                  label: "Portfolio",
+                  Icon: Wallet,
+                  isActive: isPortfolioOpen,
+                  onClick: openPortfolio,
+                  title: `Open the ${presentation.shortName} portfolio drawer`,
+                })
+              : null}
+            {renderNavButton({
+              key: "activity",
+              label: "Activity",
+              Icon: ScrollText,
+              isActive: isActivityOpen,
+              onClick: openActivity,
+              title: "Transactions across every network",
+            })}
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase ml-2">
+              Build
+            </h3>
+            <a href="/developers#agents" className={navItemClass(false)}>
+              <span className="flex items-center gap-3">
+                <Bot size={18} style={{ color: workspaceAccent }} aria-hidden="true" />
+                <span>Agents</span>
+              </span>
+              <ChevronRight size={16} className="opacity-60" aria-hidden="true" />
+            </a>
+          </div>
         </div>
 
         <div className="p-4 border-t-[4px] border-[#1A1A1A] dark:border-[#4B5563] bg-white dark:bg-[#1A2841] text-xs font-bold text-center text-[#1A1A1A] dark:text-gray-300 flex flex-col gap-3">
@@ -278,17 +426,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               )}
             </button>
           </div>
+          {!isSolanaWorkspace ? (
           <button
             type="button"
             onClick={onClearHistory ?? clearMessages}
             className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border-[2px] border-[#1A1A1A] bg-[#FF3B30] p-2 font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]"
           >
-            <MessageSquare className="w-4 h-4" /> CLEAR HISTORY
+            <MessageSquare className="w-4 h-4" aria-hidden="true" /> CLEAR HISTORY
           </button>
+          ) : null}
           <div>
             Kletia Omni Engine V2.0
             <br />
-            Powered by {network.shortName}
+            Powered by {presentation.shortName}
           </div>
         </div>
       </aside>

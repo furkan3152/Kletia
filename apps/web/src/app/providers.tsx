@@ -22,6 +22,8 @@ import {
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
 } from "../shared/config/networks";
+import { WalletSyncBridge } from "../shared/sync/WalletSyncBridge";
+import { SolanaWalletProvider } from "../shared/wallet/solana/SolanaWalletProvider";
 
 const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as
   string | undefined;
@@ -79,8 +81,9 @@ const config = createConfig({
 const queryClient = new QueryClient();
 
 /**
- * Wallet and data providers for every route that talks to a wallet. Loaded
- * lazily so marketing and documentation routes stay light.
+ * Wallet and data providers for every route that talks to a wallet: wagmi +
+ * RainbowKit for EVM networks and Wallet Standard for Solana. Loaded lazily
+ * so marketing and documentation routes stay light.
  */
 export function WalletProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -93,7 +96,10 @@ export function WalletProviders({ children }: { children: React.ReactNode }) {
             borderRadius: "small",
           })}
         >
-          {children}
+          <SolanaWalletProvider>
+            <WalletSyncBridge />
+            {children}
+          </SolanaWalletProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

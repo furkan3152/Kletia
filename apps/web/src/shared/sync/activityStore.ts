@@ -91,6 +91,18 @@ function sanitizeEntry(value: unknown): ActivityEntry | null {
   };
 }
 
+function sameEntry(left: ActivityEntry, right: ActivityEntry): boolean {
+  return (
+    left.id === right.id &&
+    left.network === right.network &&
+    left.title === right.title &&
+    left.status === right.status &&
+    left.reference === right.reference &&
+    left.url === right.url &&
+    left.at === right.at
+  );
+}
+
 function sanitizeEntries(value: unknown): ActivityEntry[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -132,7 +144,7 @@ export const useActivityStore = create<ActivityState>()(
         set((state) => {
           const existing = state.entries.find((entry) => entry.id === input.id);
           const merged = mergeEntry(existing, input);
-          if (!merged) return state;
+          if (!merged || (existing && sameEntry(existing, merged))) return state;
           const rest = state.entries.filter((entry) => entry.id !== input.id);
           return {
             entries: existing
@@ -150,7 +162,7 @@ export const useActivityStore = create<ActivityState>()(
             id,
             network: existing.network,
           });
-          if (!merged) return state;
+          if (!merged || sameEntry(existing, merged)) return state;
           return {
             entries: state.entries.map((entry) => (entry.id === id ? merged : entry)),
           };

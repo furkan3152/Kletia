@@ -122,8 +122,12 @@ export function useSecureWriteContract() {
         );
       }
 
-      const expectedSource =
-        network.key === "arc" ? "arc_manifest+rpc_bytecode" : "webacy";
+      // Every scan here is action-bound, so Base may answer with Webacy risk
+      // scoring or, without a Webacy key, the reviewed manifest plus bytecode.
+      const acceptedSources =
+        network.key === "arc"
+          ? ["arc_manifest+rpc_bytecode"]
+          : ["webacy", "base_manifest+rpc_bytecode"];
       const expectedTargetPolicy =
         normalizedAction === "x402_gateway_admin" ||
         normalizedAction === "x402_gateway_payment"
@@ -132,7 +136,7 @@ export function useSecureWriteContract() {
       if (
         data.network !== network.key ||
         data.chainId !== network.chainId ||
-        data.source !== expectedSource ||
+        !acceptedSources.includes(data.source) ||
         !data.address ||
         getAddress(data.address) !== target ||
         data.isContract !== true ||
@@ -141,11 +145,11 @@ export function useSecureWriteContract() {
         data.targetPolicy !== expectedTargetPolicy ||
         data.decision !== "approved" ||
         data.approved === false ||
-        !Number.isFinite(data.riskScore) ||
-        data.riskScore > 50
+        (data.source === "webacy" &&
+          (!Number.isFinite(data.riskScore) || data.riskScore > 50))
       ) {
         const tags = Array.isArray(data.tags)
-          ? ` Riskler: ${data.tags.join(", ")}`
+          ? ` Risks: ${data.tags.join(", ")}`
           : "";
         throw new Error(`Security policy blocked the operation.${tags}`);
       }

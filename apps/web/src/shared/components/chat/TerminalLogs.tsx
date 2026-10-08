@@ -1,7 +1,7 @@
 import React from "react";
+import { CHAINS, explorerTxUrl } from "@kletia/core";
 import { Terminal as TerminalIcon } from "lucide-react";
-import { ChatMessage } from "../../types";
-import { getNetwork } from "../../config/networks";
+import type { ChatMessage } from "../../types";
 
 interface TerminalLogsProps {
   msg: ChatMessage;
@@ -10,9 +10,9 @@ interface TerminalLogsProps {
 export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
   if (!msg.terminalLogs || msg.terminalLogs.length === 0) return null;
 
-  const messageNetwork = getNetwork(msg.network ?? "base");
-  const explorerUrl = `${messageNetwork.explorer.url}/tx/${msg.txHash}`;
-  const explorerName = messageNetwork.explorer.name;
+  const messageNetwork = msg.network ?? "base";
+  const explorerUrl = msg.txHash ? explorerTxUrl(messageNetwork, msg.txHash) : null;
+  const explorerName = CHAINS[messageNetwork].explorer.name;
 
   return (
     <div className="mt-4 md:mt-5 p-3 md:p-4 bg-[#1A1A1A] dark:bg-slate-900 border-[3px] border-gray-500 dark:border-[#4B5563] font-mono text-xs md:text-[13px] text-green-400 leading-relaxed overflow-x-hidden w-full sm:w-80 md:w-[450px] shadow-[3px_3px_0_#475569] dark:shadow-[3px_3px_0_#475569]">
@@ -30,14 +30,15 @@ export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
           {log}
         </div>
       ))}
-      {msg.txHash && (
+      {explorerUrl && (
         <a
           href={explorerUrl}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="text-[#0052FF] hover:text-white hover:underline mt-3 md:mt-4 pt-2 md:pt-3 border-t-[3px] border-gray-600 dark:border-slate-700 block flex items-center gap-1 font-black transition-colors break-all"
         >
           {explorerName} ↗
+          <span className="sr-only"> (opens in a new tab)</span>
         </a>
       )}
     </div>

@@ -35,9 +35,11 @@ export interface IntentStore {
   /** Intents with steps awaiting on-chain verification or settlement, oldest update first. */
   listActive(limit: number): Promise<IntentGraph[]>;
   findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null>;
+  /** API key id that created the intent: null for keyless intents, undefined when the intent is unknown. */
+  ownerOf(id: string): Promise<string | null | undefined>;
   /**
    * Claims references for one step. Re-claiming by the same intent/step is a
-   * no-op; a reference already claimed elsewhere throws 409 REFERENCE_ALREADY_USED.
+   * no-op; a reference already claimed elsewhere throws 422 REFERENCE_ALREADY_USED.
    */
   claimReferences(claims: readonly ReferenceClaim[]): Promise<void>;
   close(): Promise<void>;
@@ -53,12 +55,17 @@ function conflict(): PlatformError {
   return new PlatformError("INTENT_CONFLICT", "The intent changed while this request was running. Read it again and retry.", 409);
 }
 
+/** Another intent from the same API key already uses this clientReference. */
+export function clientReferenceExists(): PlatformError {
+  return new PlatformError("CLIENT_REFERENCE_EXISTS", "An intent with this clientReference already exists for this API key.", 409);
+}
+
 function notFound(): PlatformError {
   return new PlatformError("INTENT_NOT_FOUND", "Intent not found.", 404);
 }
 
 function referenceUsed(): PlatformError {
-  return new PlatformError("REFERENCE_ALREADY_USED", "A submitted transaction is already bound to another intent step.", 409);
+  return new PlatformError("REFERENCE_ALREADY_USED", "A submitted transaction is already bound to another intent step.", 422);
 }
 
 function clampLimit(limit: number, max = 200): number {
@@ -92,6 +99,10 @@ export class MemoryIntentStore implements IntentStore {
 
   async create(graph: IntentGraph, meta: IntentRecordMeta): Promise<void> {
     if (this.records.has(graph.id)) throw new PlatformError("INTENT_EXISTS", "Intent id already exists.", 409);
+    const clientReference = graph.request.clientReference;
+    if (meta.ownerKeyId && clientReference && (await this.findByClientReference(meta.ownerKeyId, clientReference))) {
+      throw clientReferenceExists();
+    }
     this.touch(graph.id, { graph: structuredClone(graph), ...(meta.ownerKeyId ? { ownerKeyId: meta.ownerKeyId } : {}) });
   }
 
@@ -134,6 +145,11 @@ export class MemoryIntentStore implements IntentStore {
     return null;
   }
 
+  async ownerOf(id: string): Promise<string | null | undefined> {
+    const record = this.records.get(id);
+    return record ? (record.ownerKeyId ?? null) : undefined;
+  }
+
   async claimReferences(claims: readonly ReferenceClaim[]): Promise<void> {
     for (const claim of claims) {
       const existing = this.claims.get(claim.key);
@@ -166,6 +182,10 @@ CREATE TABLE IF NOT EXISTS kletia_intents (
 );
 CREATE INDEX IF NOT EXISTS kletia_intents_owner_idx ON kletia_intents (owner_key_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS kletia_intents_status_idx ON kletia_intents (status, updated_at);
+ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS client_reference text;
+CREATE UNIQUE INDEX IF NOT EXISTS kletia_intents_client_reference_idx
+  ON kletia_intents (owner_key_id, client_reference)
+  WHERE owner_key_id IS NOT NULL AND client_reference IS NOT NULL;
 CREATE TABLE IF NOT EXISTS kletia_intent_references (
   reference text PRIMARY KEY,
   intent_id text NOT NULL,
@@ -213,12 +233,17 @@ export class PostgresIntentStore implements IntentStore {
   }
 
   async create(graph: IntentGraph, meta: IntentRecordMeta): Promise<void> {
+    const clientReference = meta.ownerKeyId ? graph.request.clientReference ?? null : null;
+    // No conflict target: a duplicate id and a duplicate (owner, clientReference)
+    // are both refused, so concurrent retries across instances create one intent.
     const result = await this.query(
-      `INSERT INTO kletia_intents (id, owner_key_id, status, graph, created_at, updated_at)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6) ON CONFLICT (id) DO NOTHING`,
-      [graph.id, meta.ownerKeyId ?? null, graph.status, JSON.stringify(graph), graph.createdAt, graph.updatedAt],
+      `INSERT INTO kletia_intents (id, owner_key_id, status, graph, created_at, updated_at, client_reference)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7) ON CONFLICT DO NOTHING`,
+      [graph.id, meta.ownerKeyId ?? null, graph.status, JSON.stringify(graph), graph.createdAt, graph.updatedAt, clientReference],
     );
-    if (result.rowCount === 0) throw new PlatformError("INTENT_EXISTS", "Intent id already exists.", 409);
+    if (result.rowCount !== 0) return;
+    if (clientReference && !(await this.get(graph.id))) throw clientReferenceExists();
+    throw new PlatformError("INTENT_EXISTS", "Intent id already exists.", 409);
   }
 
   async get(id: string): Promise<IntentGraph | null> {
@@ -258,11 +283,18 @@ export class PostgresIntentStore implements IntentStore {
 
   async findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null> {
     const result = await this.query<{ graph: unknown }>(
-      `SELECT graph FROM kletia_intents WHERE owner_key_id = $1 AND graph->'request'->>'clientReference' = $2
+      `SELECT graph FROM kletia_intents
+       WHERE owner_key_id = $1 AND (client_reference = $2 OR graph->'request'->>'clientReference' = $2)
        ORDER BY created_at DESC LIMIT 1`,
       [ownerKeyId, clientReference],
     );
     return PostgresIntentStore.parse(result.rows[0]);
+  }
+
+  async ownerOf(id: string): Promise<string | null | undefined> {
+    const result = await this.query<{ owner_key_id: string | null }>("SELECT owner_key_id FROM kletia_intents WHERE id = $1", [id]);
+    const row = result.rows[0];
+    return row ? row.owner_key_id : undefined;
   }
 
   async claimReferences(claims: readonly ReferenceClaim[]): Promise<void> {

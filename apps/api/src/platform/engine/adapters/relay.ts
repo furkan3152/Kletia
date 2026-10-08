@@ -15,6 +15,7 @@ import {
   type NetworkKey,
   type StepEvidence,
   type TransactionRequest,
+  WRAPPED_SOL_MINT,
 } from "@kletia/core";
 import { assembleSolanaTransaction, isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
@@ -22,15 +23,16 @@ import { assetAmount, assetFromRef, providerCurrency, sameAsset, type ResolvedAs
 import { erc20CreditFromLogs, evmChainId, isEvmNetwork, observeEvmTransaction, readEvmReceiptStatus } from "../chains/evm.js";
 import { assertSolanaTransactionOwner, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { decodeStepRef } from "../stepRef.js";
-import { assertEvmBalance } from "./evm-transfer.js";
+import { assertEvmBalance } from "./evmTransfer.js";
 import {
   fetchRelayQuote,
   fetchRelayRequestsByHash,
   fetchRelayStatus,
+  RELAY_NATIVE_SOLANA,
   type RelayCall,
   type RelayQuote,
   type RelayRequestState,
-} from "./relay-client.js";
+} from "./relayClient.js";
 import type {
   AdapterAction,
   AdapterRoute,
@@ -113,6 +115,11 @@ function amounts(action: AdapterAction, result: RelayQuote) {
       outUsd !== null && ratio !== null && Number.isFinite(ratio) ? outUsd * ratio : undefined,
     ),
   };
+}
+
+/** Relay may name native SOL by the System program or the wrapped-SOL mint. */
+function solanaNative(currency: string): string {
+  return currency === WRAPPED_SOL_MINT ? RELAY_NATIVE_SOLANA : currency;
 }
 
 function sameAddress(a: string, b: string): boolean {
@@ -441,7 +448,7 @@ export const relayAdapter: ProtocolAdapter = {
     if (state.outputChainId !== null && state.outputChainId !== relayChainId(destination)) {
       return mismatch("The Relay request for this deposit settles on a different network.");
     }
-    if (state.outputCurrency !== null && !sameAddress(state.outputCurrency, providerCurrency(output))) {
+    if (state.outputCurrency !== null && !sameAddress(solanaNative(state.outputCurrency), solanaNative(providerCurrency(output)))) {
       return mismatch("The Relay request for this deposit delivers a different asset.");
     }
     const failure = settlementFailure(state);

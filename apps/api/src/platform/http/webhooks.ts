@@ -13,11 +13,14 @@ import { dbQuery, dbTransaction, platformDatabaseUrl } from "./db.js";
 import { assertPublicWebhookUrl } from "./netguard.js";
 import { openSecret, randomBase62, randomHex, sealingAvailable, sealSecret } from "./secrets.js";
 
-export const WEBHOOK_EVENT_TYPES: readonly IntentEventType[] = Object.freeze([
-  "intent.created",
-  "intent.status_changed",
-  "intent.step_updated",
-]);
+/** Every engine intent event type; the Record forces this list to follow IntentEventType. */
+const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
+  "intent.created": true,
+  "intent.status_changed": true,
+  "intent.step_updated": true,
+};
+
+export const WEBHOOK_EVENT_TYPES: readonly IntentEventType[] = Object.freeze(Object.keys(EVENT_TYPE_SET) as IntentEventType[]);
 
 export const MAX_WEBHOOKS_PER_KEY = 10;
 

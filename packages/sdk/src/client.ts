@@ -148,6 +148,9 @@ export class KletiaClient {
         message: typeof error.message === "string" ? error.message : `Request failed with status ${response.status}.`,
         status: response.status,
         issues: Array.isArray(error.issues) ? (error.issues as ApiIssue[]) : [],
+        hints: Array.isArray(error.hints)
+          ? error.hints.filter((hint): hint is string => typeof hint === "string")
+          : [],
         requestId,
       });
     }

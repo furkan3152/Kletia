@@ -38,15 +38,41 @@ export interface HealthReport {
   readonly uptimeSeconds: number;
   readonly networks: readonly NetworkHealth[];
   readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string };
-  readonly webhooks: { readonly status: "enabled" | "needs_configuration" };
+  readonly webhooks: {
+    readonly status: "enabled" | "needs_configuration";
+    /** How webhook secrets are sealed: a configured secret, the development key (memory stores only) or none. */
+    readonly sealing: "configured" | "development_fallback" | "missing";
+    /** Delivery counters for this API process; null when the dispatcher is not running. */
+    readonly dispatcher: WebhookDispatcherStats | null;
+  };
+}
+
+export interface WebhookDispatcherStats {
+  readonly running: boolean;
+  readonly queued: number;
+  readonly inFlight: number;
+  readonly scheduledRetries: number;
+  readonly delivered: number;
+  readonly failed: number;
+  readonly dropped: number;
 }
 
 export interface QuoteRequest {
-  readonly from: { readonly network: NetworkKey; readonly asset: string; readonly amount: string };
-  readonly to: { readonly network: NetworkKey; readonly asset: string };
-  /** CAIP-10 account that will sign (improves accuracy for cross-network quotes). */
-  readonly account?: AccountId;
-  readonly recipient?: string;
+  readonly from: {
+    readonly network: NetworkKey;
+    /** Symbol, address/mint or CAIP-19 asset id. */
+    readonly asset: string;
+    /** Decimal amount in display units, e.g. "25" or "0.5". */
+    readonly amount: string;
+    /** CAIP-10 account that will sign (improves accuracy for cross-network quotes). */
+    readonly account?: AccountId;
+  };
+  readonly to: {
+    readonly network: NetworkKey;
+    readonly asset: string;
+    /** Destination address or CAIP-10 account. Defaults to `from.account` on the same VM; across VMs, set it for an executable quote. */
+    readonly recipient?: string;
+  };
   readonly slippageBps?: number;
 }
 

@@ -44,6 +44,9 @@ export async function streamIntentEvents(req: Request, res: Response, options: S
   const intentId = intentIdParam(req);
   const after = resumeAfter(req);
   await getIntent(intentId);
+  // The client may have gone away while the intent was read: a "close" that
+  // already fired is never emitted again, so nothing may be allocated for it.
+  if (res.destroyed || res.writableEnded) return;
   if (req.method === "HEAD") {
     res.status(200).setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.end();
@@ -91,6 +94,10 @@ export async function streamIntentEvents(req: Request, res: Response, options: S
 
     res.on("close", cleanup);
     req.on("close", cleanup);
+    if (res.destroyed) {
+      cleanup();
+      return;
+    }
 
     write(`retry: ${SSE_RETRY_MS}\n\n`);
     // Replay and subscribe synchronously: no event can be published between the two.

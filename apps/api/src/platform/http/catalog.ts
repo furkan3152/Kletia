@@ -1,11 +1,12 @@
 /**
  * Registries served by GET /v1/networks, /v1/protocols and /v1/assets.
  *
- * Per-network capabilities are derived, not hand-maintained: every engine
- * adapter's `supports()` is probed with every canonical asset pair and
- * action kind on that network (and every destination in the same capital
- * lane). What the registry lists is therefore exactly what the planner can
- * route today.
+ * Per-network capabilities are derived, not hand-maintained: every adapter the
+ * engine currently executes with (`activeProtocolAdapters()`, which embedders
+ * may replace through `configurePlatform`) is probed with every canonical
+ * asset pair and action kind on that network (and every destination in the
+ * same capital lane). What the registry lists is therefore exactly what the
+ * planner can route today. Results are cached per adapter set.
  */
 import {
   ASSETS,
@@ -21,11 +22,10 @@ import {
   type ProtocolDescriptor,
   type ProtocolId,
 } from "@kletia/core";
-import { ADAPTERS, EXECUTABLE_PROTOCOLS, type ProtocolAdapter } from "../index.js";
+import { activeProtocolAdapters, effectiveProtocol, type AdapterRoute, type ProtocolAdapter, type ResolvedAsset } from "../index.js";
 import { invalidRequest } from "./context.js";
 
-type AdapterRoute = Parameters<ProtocolAdapter["supports"]>[0];
-type RouteAsset = AdapterRoute["input"];
+type RouteAsset = ResolvedAsset;
 
 export const ACTION_KINDS = [
   "swap",
@@ -81,13 +81,6 @@ function routeAsset(asset: AssetDescriptor): RouteAsset {
   };
 }
 
-function effectiveProtocol(adapter: ProtocolAdapter, kind: IntentActionKind, input: RouteAsset): ProtocolId {
-  if (kind === "transfer" && adapter.protocols.includes("system-transfer")) {
-    return input.isNative ? "system-transfer" : adapter.id;
-  }
-  return adapter.id;
-}
-
 function supports(adapter: ProtocolAdapter, route: AdapterRoute): boolean {
   try {
     return adapter.supports(route);
@@ -96,18 +89,19 @@ function supports(adapter: ProtocolAdapter, route: AdapterRoute): boolean {
   }
 }
 
-function deriveRoutes(network: NetworkKey): NetworkRoute[] {
+function deriveRoutes(adapters: readonly ProtocolAdapter[], network: NetworkKey): NetworkRoute[] {
   const inputs = ASSETS.filter((asset) => asset.network === network).map(routeAsset);
   const found = new Map<string, { kind: IntentActionKind; protocol: ProtocolId; toNetworks: Set<NetworkKey> }>();
   for (const kind of ACTION_KINDS) {
     for (const destination of NETWORK_KEYS) {
       if (!sameCapitalLane(network, destination)) continue;
       const outputs = ASSETS.filter((asset) => asset.network === destination).map(routeAsset);
-      for (const adapter of ADAPTERS) {
+      for (const adapter of adapters) {
         for (const input of inputs) {
           for (const output of outputs) {
-            if (!supports(adapter, { kind, network, destinationNetwork: destination, input, output })) continue;
-            const protocol = effectiveProtocol(adapter, kind, input);
+            const route: AdapterRoute = { kind, network, destinationNetwork: destination, input, output };
+            if (!supports(adapter, route)) continue;
+            const protocol = effectiveProtocol(adapter, route);
             const key = `${kind}:${protocol}`;
             const entry = found.get(key) ?? { kind, protocol, toNetworks: new Set<NetworkKey>() };
             entry.toNetworks.add(destination);
@@ -124,13 +118,14 @@ function deriveRoutes(network: NetworkKey): NetworkRoute[] {
   }));
 }
 
-let networks: readonly NetworkCapabilities[] | null = null;
+let networks: { readonly adapters: readonly ProtocolAdapter[]; readonly value: readonly NetworkCapabilities[] } | null = null;
 
 export function networkCapabilities(): readonly NetworkCapabilities[] {
-  if (networks) return networks;
-  networks = Object.freeze(
+  const adapters = activeProtocolAdapters();
+  if (networks?.adapters === adapters) return networks.value;
+  const value = Object.freeze(
     NETWORK_KEYS.map((key): NetworkCapabilities => {
-      const routes = deriveRoutes(key);
+      const routes = deriveRoutes(adapters, key);
       return {
         ...CHAINS[key],
         actions: ACTION_KINDS.filter((kind) => routes.some((route) => route.kind === kind)),
@@ -141,16 +136,19 @@ export function networkCapabilities(): readonly NetworkCapabilities[] {
       };
     }),
   );
-  return networks;
+  networks = { adapters, value };
+  return value;
 }
 
-let protocols: readonly ProtocolView[] | null = null;
+let protocols: { readonly adapters: readonly ProtocolAdapter[]; readonly value: readonly ProtocolView[] } | null = null;
 
 export function protocolRegistry(): readonly ProtocolView[] {
-  protocols ??= Object.freeze(
-    PROTOCOLS.map((protocol) => ({ ...protocol, executable: EXECUTABLE_PROTOCOLS.includes(protocol.id) })),
-  );
-  return protocols;
+  const adapters = activeProtocolAdapters();
+  if (protocols?.adapters === adapters) return protocols.value;
+  const executable = new Set<ProtocolId>(adapters.flatMap((adapter) => adapter.protocols));
+  const value = Object.freeze(PROTOCOLS.map((protocol) => ({ ...protocol, executable: executable.has(protocol.id) })));
+  protocols = { adapters, value };
+  return value;
 }
 
 /** Canonical assets, optionally for one network (key, CAIP-2 id or EVM chain id). */

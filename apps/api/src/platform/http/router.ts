@@ -15,7 +15,7 @@ import express, { type ErrorRequestHandler, type Request, type RequestHandler, t
 import { parseAccountId } from "@kletia/core";
 import {
   cancelIntent,
-  createIntent,
+  createIntentDetailed,
   getIntent,
   listIntents,
   prepareStep,
@@ -96,10 +96,33 @@ export interface PlatformRouterOptions {
 
 /* ------------------------------------------------------------ guards */
 
+function tooLarge(): HttpError {
+  return new HttpError(413, "PAYLOAD_TOO_LARGE", `Request bodies are limited to ${MAX_BODY_BYTES / 1024} KB.`);
+}
+
+/**
+ * Size of a body an upstream (app-wide) JSON parser already consumed, when the
+ * client streamed it without Content-Length. Re-serialising is bounded by that
+ * parser's own limit.
+ */
+function preParsedBodyBytes(req: Request): number {
+  const parsed: unknown = req.body;
+  if (parsed === undefined || parsed === null || typeof parsed !== "object") return 0;
+  try {
+    return Buffer.byteLength(JSON.stringify(parsed), "utf8");
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
 const bodyGuards: RequestHandler = (req, res, next) => {
   const length = Number(req.get("content-length") ?? "0");
   if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
-    sendError(req, res, new HttpError(413, "PAYLOAD_TOO_LARGE", `Request bodies are limited to ${MAX_BODY_BYTES / 1024} KB.`));
+    sendError(req, res, tooLarge());
+    return;
+  }
+  if (req.get("content-length") === undefined && preParsedBodyBytes(req) > MAX_BODY_BYTES) {
+    sendError(req, res, tooLarge());
     return;
   }
   const hasBody = req.get("transfer-encoding") !== undefined || (Number.isFinite(length) && length > 0);
@@ -138,7 +161,7 @@ export const platformErrorHandler: ErrorRequestHandler = (error: unknown, req, r
         sendError(req, res, new HttpError(400, "INVALID_JSON", "The request body is not valid JSON (objects and arrays only)."));
         return;
       case "entity.too.large":
-        sendError(req, res, new HttpError(413, "PAYLOAD_TOO_LARGE", `Request bodies are limited to ${MAX_BODY_BYTES / 1024} KB.`));
+        sendError(req, res, tooLarge());
         return;
       case "charset.unsupported":
       case "encoding.unsupported":
@@ -166,23 +189,6 @@ const notFound: RequestHandler = (req, res) => {
 };
 
 /* ------------------------------------------------------------ helpers */
-
-/** Accepts the flat engine shape or the SDK's nested `{ from: {network, asset, amount}, to: {network, asset} }`. */
-function normalizeQuoteBody(body: unknown): unknown {
-  if (!isRecord(body) || !isRecord(body.from)) return body;
-  const from = body.from;
-  const to = isRecord(body.to) ? body.to : {};
-  return {
-    network: from.network,
-    from: from.asset,
-    amount: from.amount,
-    to: to.asset,
-    ...(to.network !== undefined && to.network !== from.network ? { toNetwork: to.network } : {}),
-    ...(body.account !== undefined ? { account: body.account } : {}),
-    ...(body.recipient !== undefined ? { recipient: body.recipient } : {}),
-    ...(body.slippageBps !== undefined ? { slippageBps: body.slippageBps } : {}),
-  };
-}
 
 function sendJson(res: Response, status: number, body: unknown): void {
   res.status(status).json(body);
@@ -238,7 +244,8 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
     ],
     "post /quotes": [
       handle(async (req, res) => {
-        sendJson(res, 200, await quoteRoutes(normalizeQuoteBody(req.body)));
+        // The engine accepts both the flat body and the nested SDK body (including from.account / to.recipient).
+        sendJson(res, 200, await quoteRoutes(req.body));
       }),
     ],
     "get /portfolio/:accountId": [
@@ -256,15 +263,13 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
       handle(async (req, res) => {
         const dryRun = booleanQuery(req, "dryRun");
         const owner = authOf(req).keyId;
-        const startedAt = Date.now();
-        const intent = await createIntent(req.body, { ...(owner ? { ownerKeyId: owner } : {}), dryRun });
+        const { intent, replayed } = await createIntentDetailed(req.body, { ...(owner ? { ownerKeyId: owner } : {}), dryRun });
         if (dryRun) {
           sendJson(res, 200, { intent });
           return;
         }
         rememberIntentOwner(intent.id, owner);
-        // A clientReference replay returns the stored intent, created before this request.
-        const replayed = Date.parse(intent.createdAt) < startedAt;
+        // A repeated clientReference returns the intent stored by the earlier request.
         if (replayed) res.setHeader("Idempotent-Replayed", "true");
         sendJson(res, replayed ? 200 : 201, { intent });
       }),

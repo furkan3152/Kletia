@@ -4,9 +4,14 @@
  *
  * The sealing key is sha256(KLETIA_PLATFORM_SECRET). In production the
  * variable is required (at least 32 characters); without it webhooks fail
- * closed. Outside production a fixed development key is used with a warning.
+ * closed. The same holds whenever KLETIA_DATABASE_URL is set: sealed secrets
+ * are persisted there, and a key published in this source file would make
+ * them plaintext to anyone holding a database copy. Only a development
+ * process with in-memory stores falls back to a fixed development key (with
+ * a warning).
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { platformDatabaseUrl } from "./db.js";
 
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 /** Largest multiple of 62 below 256: bytes at or above it are rejected to avoid modulo bias. */
@@ -48,13 +53,14 @@ function resolveSealingKey(): SealingKey {
   if (sealing) return sealing;
   const configured = process.env.KLETIA_PLATFORM_SECRET?.trim() ?? "";
   const production = process.env.NODE_ENV === "production";
+  const persisted = platformDatabaseUrl() !== null;
   if (configured && (!production || configured.length >= MIN_PRODUCTION_SECRET_LENGTH)) {
     sealing = { status: "configured", key: createHash("sha256").update(configured, "utf8").digest() };
-  } else if (production) {
+  } else if (production || persisted) {
     console.error(
       configured
         ? `[platform] KLETIA_PLATFORM_SECRET must be at least ${MIN_PRODUCTION_SECRET_LENGTH} characters; webhooks are disabled.`
-        : "[platform] KLETIA_PLATFORM_SECRET is not set; webhooks are disabled until it is configured.",
+        : `[platform] KLETIA_PLATFORM_SECRET is not set${persisted && !production ? " (required when KLETIA_DATABASE_URL is set)" : ""}; webhooks are disabled until it is configured.`,
     );
     sealing = { status: "missing", key: null };
   } else {

@@ -1,5 +1,5 @@
 /**
- * Postgres access for the HTTP layer (API keys, webhooks, intent owners).
+ * Postgres access for the HTTP layer (API keys, webhooks).
  * Uses the same KLETIA_DATABASE_URL as the intent store, through its own
  * small pool. Every failure becomes 503 STORE_UNAVAILABLE without leaking
  * connection details.
@@ -53,17 +53,6 @@ export async function dbQuery<R extends pg.QueryResultRow>(
   } catch (error) {
     if (error instanceof PlatformError) throw error;
     console.error(`[platform] ${schema.name} query failed:`, error instanceof Error ? error.message : error);
-    throw storeUnavailable();
-  }
-}
-
-/** Read-only query against a table this module does not own (no DDL); errors map to 503. */
-export async function dbRead<R extends pg.QueryResultRow>(text: string, values: readonly unknown[]): Promise<pg.QueryResult<R>> {
-  try {
-    return await platformPool().query<R>(text, [...values]);
-  } catch (error) {
-    if (error instanceof PlatformError) throw error;
-    console.error("[platform] read query failed:", error instanceof Error ? error.message : error);
     throw storeUnavailable();
   }
 }

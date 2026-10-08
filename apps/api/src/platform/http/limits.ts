@@ -8,7 +8,8 @@
  * | operator  | API key id     | 1200/min     |
  *
  * POST /v1/keys is additionally limited to 5 per hour per IP. Requests with a
- * rejected credential count against the caller's IP at the public limit.
+ * rejected credential count against the caller's IP at the public limit, and
+ * store lookups of uncached API keys are throttled per IP in auth.ts.
  */
 import type { Request, RequestHandler } from "express";
 import { ipKeyGenerator, rateLimit } from "express-rate-limit";
@@ -22,7 +23,8 @@ export const TIER_LIMITS: Readonly<Record<ApiTier, number>> = Object.freeze({
 
 export const KEY_ISSUANCE_LIMIT_PER_HOUR = 5;
 
-function clientIp(req: Request): string {
+/** Rate-limit identity of the caller's address (IPv6 grouped to /56). */
+export function clientIp(req: Request): string {
   return ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? "unknown");
 }
 
@@ -94,22 +96,29 @@ const MAX_STREAMS_TOTAL = 2_000;
 const openStreams = new Map<string, number>();
 let totalStreams = 0;
 
-/** Reserves an SSE slot for the caller; returns a release function or null when the caller is at capacity. */
+/**
+ * Reserves an SSE slot for the caller; returns a release function or null when
+ * the caller is at capacity. Every stream counts against the client IP, and a
+ * keyed stream also against its key, so minting more keys does not raise one
+ * address's share of the global pool.
+ */
 export function acquireStreamSlot(req: Request): (() => void) | null {
   const auth = authOf(req);
-  const client = auth.keyId ? `key:${auth.keyId}` : `ip:${clientIp(req)}`;
-  const current = openStreams.get(client) ?? 0;
-  if (current >= MAX_STREAMS_PER_CLIENT || totalStreams >= MAX_STREAMS_TOTAL) return null;
-  openStreams.set(client, current + 1);
+  const clients = [`ip:${clientIp(req)}`, ...(auth.keyId ? [`key:${auth.keyId}`] : [])];
+  if (totalStreams >= MAX_STREAMS_TOTAL) return null;
+  if (clients.some((client) => (openStreams.get(client) ?? 0) >= MAX_STREAMS_PER_CLIENT)) return null;
+  for (const client of clients) openStreams.set(client, (openStreams.get(client) ?? 0) + 1);
   totalStreams += 1;
   let released = false;
   return () => {
     if (released) return;
     released = true;
     totalStreams -= 1;
-    const remaining = (openStreams.get(client) ?? 1) - 1;
-    if (remaining <= 0) openStreams.delete(client);
-    else openStreams.set(client, remaining);
+    for (const client of clients) {
+      const remaining = (openStreams.get(client) ?? 1) - 1;
+      if (remaining <= 0) openStreams.delete(client);
+      else openStreams.set(client, remaining);
+    }
   };
 }
 

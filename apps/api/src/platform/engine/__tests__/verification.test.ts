@@ -276,6 +276,56 @@ describe("Solana reference verification (Jupiter swap USDC -> SOL)", () => {
     assert.ok(!isReferenceRejection(result));
   });
 
+  it("accepts an earlier payload that lands after a re-prepare raised the floor, within its landing window", async () => {
+    const reprepared = PREPARED_AT + 60_000;
+    // Prepare #1 guaranteed 0.066 SOL; prepare #2 (one minute later) raised the floor to 0.07 SOL.
+    const step = solanaStep({
+      quoteRef: encodeStepRef({
+        v: 1,
+        slippageBps: 50,
+        floors: [{ at: seconds(PREPARED_AT), min: "66000000" }, { at: seconds(reprepared), min: "70000000" }],
+      }),
+      minimumOutput: { asset: `${SOL_CHAIN}/slip44:501`, symbol: "SOL", decimals: 9, amount: "70000000", formatted: "0.07" },
+      prepared: {
+        quoteBinding: "c".repeat(64),
+        preparedAt: new Date(reprepared).toISOString(),
+        expiresAt: seconds(reprepared) + 90,
+        transactions: [{ vm: "svm", network: "solana", feePayer: SOL_ADDRESS, to: JUPITER_PROGRAM, description: "swap" }],
+      },
+      evidence: [
+        { kind: "quote", network: "solana", reference: "a".repeat(64), observedAt: new Date(PREPARED_AT).toISOString() },
+        { kind: "quote", network: "solana", reference: "c".repeat(64), observedAt: new Date(reprepared).toISOString() },
+      ],
+    });
+    // Payload #1 lands after the re-prepare with 0.0665 SOL: above its own floor, below the new one.
+    const earlier = randomSolanaSignature();
+    landSolana(earlier, { lamports: 66_500_000n, blockTime: seconds(reprepared) + 20 });
+    const result = await verifyJupiter(step, earlier, reprepared + 60_000);
+    assert.equal(code(result), "confirmed");
+    assert.equal(result.status === "confirmed" ? result.actualOutput?.amount : null, "66500000");
+    // Below every eligible floor is still refused.
+    const short = randomSolanaSignature();
+    landSolana(short, { lamports: 60_000_000n, blockTime: seconds(reprepared) + 20 });
+    assert.equal(code(await verifyJupiter(step, short, reprepared + 60_000)), "REFERENCE_MISMATCH");
+    // A swap landing long after payload #1 expired is held to the floors of payloads that could still land.
+    const late = solanaStep({
+      ...step,
+      quoteRef: encodeStepRef({
+        v: 1,
+        slippageBps: 50,
+        floors: [{ at: seconds(PREPARED_AT), min: "66000000" }, { at: seconds(PREPARED_AT) + 1_800, min: "70000000" }],
+      }),
+    });
+    const lateSwap = randomSolanaSignature();
+    landSolana(lateSwap, { lamports: 66_500_000n, blockTime: seconds(PREPARED_AT) + 1_820 });
+    assert.equal(code(await verifyJupiter(late, lateSwap, PREPARED_AT + 1_900_000)), "REFERENCE_MISMATCH");
+    // Steps prepared before floors were recorded keep using the current minimum.
+    const legacy = randomSolanaSignature();
+    landSolana(legacy, { lamports: 66_500_000n, blockTime: seconds(reprepared) + 20 });
+    const { quoteRef: _ref, ...withoutFloors } = step;
+    assert.equal(code(await verifyJupiter(withoutFloors, legacy, reprepared + 60_000)), "REFERENCE_MISMATCH");
+  });
+
   it("stays pending without a readable body, and expires never-landed signatures", async () => {
     const unreadable = randomSolanaSignature();
     landSolana(unreadable, { err: { InstructionError: [0, "Custom"] }, readable: false });
@@ -376,6 +426,33 @@ describe("Relay deposits from Solana are bound through Relay's request record", 
     assert.equal(code(await relayAdapter.verify({ step, references: [unindexed], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 })), "pending");
     mock.relayStatus.set(requestId.toLowerCase(), { status: "pending", inTxHashes: [unindexed], txHashes: [] });
     assert.equal(code(await relayAdapter.verify({ step, references: [unindexed], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 })), "confirmed");
+  });
+
+  it("falls back to the quoted request's status when the by-hash lookup answers with any error", async () => {
+    const answer = { status: 429 };
+    const inner = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/requests/v2")) return new Response("Too Many Requests", { status: answer.status });
+      return inner(input, init);
+    }) as typeof fetch;
+    for (const status of [400, 410, 429, 503]) {
+      answer.status = status;
+      const requestId = randomRequestId();
+      const step = relayDepositStep(requestId);
+      const unattributed = randomSolanaSignature();
+      landSolana(unattributed, { programs: [RELAY_PROGRAM] });
+      const waiting = await relayAdapter.verify({ step, references: [unattributed], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 });
+      assert.equal(code(waiting), "pending", `HTTP ${status}: unattributed deposits wait`);
+      const deposit = randomSolanaSignature();
+      landSolana(deposit, { programs: [RELAY_PROGRAM] });
+      mock.relayStatus.set(requestId, { status: "pending", inTxHashes: [deposit], txHashes: [] });
+      assert.equal(code(await relayAdapter.verify({ step, references: [deposit], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 })), "confirmed", `HTTP ${status}`);
+      const settling = relayDepositStep(requestId, { status: "settling", references: [deposit] });
+      assert.equal((await relayAdapter.poll?.(settling, Date.now()))?.status, "settling", `HTTP ${status}: not filled yet`);
+      assert.equal((await relayAdapter.poll?.(relayDepositStep(requestId, { status: "settling", references: [unattributed] }), Date.now()))?.status, "settling");
+    }
+    assert.deepEqual(mock.unknown, []);
   });
 
   it("rejects a Relay deposit that did not debit the step amount", async () => {
@@ -557,5 +634,16 @@ describe("identity helpers", () => {
     assert.equal(decodeStepRef("kq1.!!!"), null);
     assert.equal(decodeStepRef(encodeStepRef({ v: 1, slippageBps: 5_000 })), null);
     assert.equal(decodeStepRef(undefined), null);
+  });
+
+  it("keeps the planned floor and prepared floors in step refs, dropping malformed ones", () => {
+    const full = { v: 1, slippageBps: 50, plannedInput: "1000000000", plannedMinimum: "149250000", floors: [{ at: 1_791_460_000, min: "149000000" }] } as const;
+    assert.deepEqual(decodeStepRef(encodeStepRef(full)), full);
+    // Legacy refs carry neither; a partial or zero plan is ignored rather than trusted.
+    assert.deepEqual(decodeStepRef(encodeStepRef({ v: 1, slippageBps: 50 })), { v: 1, slippageBps: 50 });
+    const malformed = `kq1.${Buffer.from(JSON.stringify({ v: 1, slippageBps: 50, plannedInput: "0", plannedMinimum: "1", floors: [{ at: -1, min: "5" }, { at: 10, min: "1.5" }, { at: 10, min: "7" }] })).toString("base64url")}`;
+    assert.deepEqual(decodeStepRef(malformed), { v: 1, slippageBps: 50, floors: [{ at: 10, min: "7" }] });
+    const many = encodeStepRef({ v: 1, slippageBps: 50, floors: Array.from({ length: 20 }, (_, index) => ({ at: index + 1, min: String(index) })) });
+    assert.deepEqual(decodeStepRef(many)?.floors?.map((floor) => floor.at), Array.from({ length: 12 }, (_, index) => index + 9));
   });
 });

@@ -525,8 +525,17 @@ function schemas(): JsonObject {
             dispatcher: {
               oneOf: [
                 obj(
-                  { running: bool(), queued: int(), inFlight: int(), scheduledRetries: int(), delivered: int(), failed: int(), dropped: int() },
-                  ["running", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped"],
+                  {
+                    running: bool(),
+                    queued: int(),
+                    inFlight: int(),
+                    scheduledRetries: int(),
+                    delivered: int(),
+                    failed: int(),
+                    dropped: int(),
+                    pausedWebhooks: int({ description: "Webhooks paused after consecutive delivery failures." }),
+                  },
+                  ["running", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped", "pausedWebhooks"],
                 ),
                 { type: "null" },
               ],
@@ -621,9 +630,14 @@ const ERROR_RESPONSES: Readonly<Record<string, string>> = {
   "504": "GatewayTimeout",
 };
 
+/**
+ * Error responses of one operation. Every operation may be called with a key
+ * (authentication is optional everywhere), so 401 for a key that fails and 503
+ * when key verification is unavailable are always possible.
+ */
 function errors(...statuses: string[]): JsonObject {
   const out: JsonObject = {};
-  for (const status of ["400", "429", "500", ...statuses]) {
+  for (const status of ["400", "401", "429", "500", "503", ...statuses]) {
     const name = ERROR_RESPONSES[status];
     if (name) out[status] = { $ref: `#/components/responses/${name}` };
   }
@@ -708,7 +722,7 @@ function paths(): JsonObject {
         responses: {
           "201": ok("IntentResponse", "Intent planned and stored."),
           "200": ok("IntentResponse", "Dry run, or idempotent replay of an existing intent."),
-          ...errors("409", "413", "415", "422", "502", "503", "504"),
+          ...errors("409", "413", "415", "422", "502", "504"),
         },
       },
       get: {
@@ -717,7 +731,7 @@ function paths(): JsonObject {
         summary: "List intents created with the caller's key",
         security: KEY_REQUIRED,
         parameters: [{ name: "limit", in: "query", required: false, schema: int({ minimum: 1, maximum: 100, default: 20 }) }],
-        responses: { "200": ok("IntentListResponse", "Most recent first."), ...errors("401", "503") },
+        responses: { "200": ok("IntentListResponse", "Most recent first."), ...errors() },
       },
     },
     "/v1/intents/{id}": {
@@ -726,7 +740,7 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Read an intent",
         parameters: [intentIdParam],
-        responses: { "200": ok("IntentResponse", "Intent."), ...errors("404", "503") },
+        responses: { "200": ok("IntentResponse", "Intent."), ...errors("404") },
       },
     },
     "/v1/intents/{id}/steps/{stepId}/prepare": {
@@ -737,7 +751,7 @@ function paths(): JsonObject {
         description:
           "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote.",
         parameters: [intentIdParam, stepIdParam],
-        responses: { "200": ok("PreparedStepResponse", "Payload and updated intent."), ...errors("404", "409", "410", "422", "502", "503", "504") },
+        responses: { "200": ok("PreparedStepResponse", "Payload and updated intent."), ...errors("404", "409", "410", "422", "502", "504") },
       },
     },
     "/v1/intents/{id}/steps/{stepId}/submit": {
@@ -749,7 +763,7 @@ function paths(): JsonObject {
           `A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become \`settled\`; cross-network steps become \`settling\` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (${[...REJECTION_CODES].join(", ")}) and leave the step unchanged. References not yet visible on-chain are stored (\`submitted\`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them.`,
         parameters: [intentIdParam, stepIdParam],
         requestBody: jsonBody("SubmitRequest"),
-        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "409", "413", "415", "422", "502", "503") },
+        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "409", "413", "415", "422", "502") },
       },
     },
     "/v1/intents/{id}/refresh": {
@@ -758,7 +772,7 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Re-read verification and settlement state now",
         parameters: [intentIdParam],
-        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "503") },
+        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404") },
       },
     },
     "/v1/intents/{id}/cancel": {
@@ -767,7 +781,7 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Cancel an intent with no submitted steps",
         parameters: [intentIdParam],
-        responses: { "200": ok("IntentResponse", "Cancelled intent."), ...errors("404", "409", "503") },
+        responses: { "200": ok("IntentResponse", "Cancelled intent."), ...errors("404", "409") },
       },
     },
     "/v1/intents/{id}/events": {
@@ -804,14 +818,14 @@ function paths(): JsonObject {
         description: `At most ${MAX_WEBHOOKS_PER_KEY} webhooks per key. Deliveries are signed with \`Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>\`; verify with verifyWebhookSignature from @kletia/core.`,
         security: KEY_REQUIRED,
         requestBody: jsonBody("WebhookCreateRequest"),
-        responses: { "201": ok("WebhookResponse", "Webhook with its signing secret."), ...errors("401", "409", "413", "415", "422", "503") },
+        responses: { "201": ok("WebhookResponse", "Webhook with its signing secret."), ...errors("409", "413", "415", "422") },
       },
       get: {
         operationId: "listWebhooks",
         tags: ["Webhooks"],
         summary: "List webhooks",
         security: KEY_REQUIRED,
-        responses: { "200": ok("WebhookListResponse", "Webhooks (without secrets)."), ...errors("401", "503") },
+        responses: { "200": ok("WebhookListResponse", "Webhooks (without secrets)."), ...errors() },
       },
     },
     "/v1/webhooks/{id}": {
@@ -821,7 +835,7 @@ function paths(): JsonObject {
         summary: "Delete a webhook",
         security: KEY_REQUIRED,
         parameters: [{ name: "id", in: "path", required: true, schema: str({ pattern: WEBHOOK_ID_PATTERN.source }) }],
-        responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("401", "404", "503") },
+        responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("404") },
       },
     },
     "/v1/keys": {
@@ -831,7 +845,7 @@ function paths(): JsonObject {
         summary: "Issue a developer key",
         description: `The key is shown once and stored only as a SHA-256 hash. Limited to ${KEY_ISSUANCE_LIMIT_PER_HOUR} keys per hour per IP.`,
         requestBody: jsonBody("ApiKeyCreateRequest"),
-        responses: { "201": ok("ApiKeyResponse", "The new key."), ...errors("413", "415", "503") },
+        responses: { "201": ok("ApiKeyResponse", "The new key."), ...errors("413", "415") },
       },
     },
     "/v1/openapi.json": {
@@ -891,7 +905,7 @@ export function buildOpenApiDocument(): JsonObject {
         post: {
           summary: "Intent event delivery",
           description:
-            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s).",
+            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile.",
           parameters: [
             { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
             { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
@@ -930,12 +944,12 @@ export function buildOpenApiDocument(): JsonObject {
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
         Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
-          ...errorResponse("Rate limit exceeded (RATE_LIMITED, TOO_MANY_STREAMS)."),
+          ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },
         },
         InternalError: errorResponse("Unexpected error (INTERNAL_ERROR)."),
         BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE)."),
-        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, WEBHOOKS_NOT_CONFIGURED)."),
+        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED)."),
         GatewayTimeout: errorResponse("An upstream provider timed out (UPSTREAM_TIMEOUT, RPC_TIMEOUT)."),
       },
       schemas: schemas(),

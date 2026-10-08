@@ -15,6 +15,9 @@ export async function* readServerSentEvents(
   let id: string | undefined;
   let event: string | undefined;
   let data: string[] = [];
+  // A chunk that ended in "\r" may be the first half of a CRLF; a "\n" that
+  // opens the next chunk then belongs to that line ending, not an empty line.
+  let pendingCr = false;
   const onAbort = () => {
     void reader.cancel().catch(() => undefined);
   };
@@ -24,10 +27,15 @@ export async function* readServerSentEvents(
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
+      if (pendingCr && buffer.length > 0) {
+        if (buffer.startsWith("\n")) buffer = buffer.slice(1);
+        pendingCr = false;
+      }
       let newline = buffer.search(/\r\n|\r|\n/u);
       while (newline !== -1) {
         const line = buffer.slice(0, newline);
         const separatorLength = buffer.startsWith("\r\n", newline) ? 2 : 1;
+        pendingCr = separatorLength === 1 && buffer[newline] === "\r" && newline + 1 === buffer.length;
         buffer = buffer.slice(newline + separatorLength);
         if (line === "") {
           if (data.length > 0) {

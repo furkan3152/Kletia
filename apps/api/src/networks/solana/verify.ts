@@ -22,7 +22,8 @@ export interface SolanaTransactionEvidence {
 /**
  * Reads a signature's status and, once landed, its fee payer. When
  * `expectedSigner` is given, a landed transaction from another fee payer is
- * reported as failed evidence rather than accepted.
+ * reported as failed evidence rather than accepted, and one whose body cannot
+ * be read yet stays `processed` until its fee payer can be checked.
  */
 export async function verifySolanaTransaction(
   network: SolanaNetworkKey,
@@ -70,9 +71,11 @@ export async function verifySolanaTransaction(
     .catch(() => null);
   const signer = transaction ? String(transaction.transaction.message.accountKeys[0] ?? "") || null : null;
   const signerMismatch = expectedSigner !== undefined && signer !== null && signer !== expectedSigner;
+  // Without the body the fee payer is unknown: never report it confirmed for an expected signer.
+  const signerUnchecked = expectedSigner !== undefined && signer === null && landedStatus !== "failed";
   return {
     ...base,
-    status: signerMismatch ? "failed" : landedStatus,
+    status: signerMismatch ? "failed" : signerUnchecked ? "processed" : landedStatus,
     slot: status.slot.toString(),
     error: signerMismatch
       ? "Transaction fee payer does not match the bound account."

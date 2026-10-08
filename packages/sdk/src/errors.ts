@@ -11,6 +11,8 @@ export class KletiaApiError extends Error {
   /** Guidance from the API, e.g. supported example phrases on INTENT_UNSUPPORTED. */
   readonly hints: readonly string[];
   readonly requestId: string | null;
+  /** Seconds the API asked the caller to wait (`Retry-After`), when it sent one. */
+  readonly retryAfterSeconds: number | null;
 
   constructor(input: {
     code: string;
@@ -19,6 +21,7 @@ export class KletiaApiError extends Error {
     issues?: readonly ApiIssue[];
     hints?: readonly string[];
     requestId?: string | null;
+    retryAfterSeconds?: number | null;
   }) {
     super(input.message);
     this.name = "KletiaApiError";
@@ -27,6 +30,7 @@ export class KletiaApiError extends Error {
     this.issues = input.issues ?? [];
     this.hints = input.hints ?? [];
     this.requestId = input.requestId ?? null;
+    this.retryAfterSeconds = input.retryAfterSeconds ?? null;
   }
 
   /** True for failures worth retrying (network, timeout, 429, 5xx). */
@@ -40,12 +44,27 @@ export class KletiaExecutionError extends Error {
   readonly intentId: string;
   readonly stepId: string;
   override readonly cause: unknown;
+  /**
+   * Transactions the wallet already broadcast for this step that Kletia has
+   * not accepted yet, in payload order. `executeIntent` keeps them and
+   * submits them on its next run instead of asking the wallet to sign the
+   * step again; from another process, pass them back as
+   * `pendingReferences` (or call `intents.submitStep`).
+   */
+  readonly references?: readonly string[];
 
-  constructor(message: string, intentId: string, stepId: string, cause?: unknown) {
+  constructor(
+    message: string,
+    intentId: string,
+    stepId: string,
+    cause?: unknown,
+    references?: readonly string[],
+  ) {
     super(message);
     this.name = "KletiaExecutionError";
     this.intentId = intentId;
     this.stepId = stepId;
     this.cause = cause;
+    if (references && references.length > 0) this.references = references;
   }
 }

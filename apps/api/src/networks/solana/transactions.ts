@@ -28,7 +28,8 @@ import {
 } from "@solana-program/token";
 import { isBaseUnitAmount, isSolanaAddress, WRAPPED_SOL_MINT } from "@kletia/core";
 import { SOLANA_PROGRAMS, type SolanaNetworkKey } from "./config.js";
-import { SolanaProviderError, describeRpcError } from "./http.js";
+import { SolanaProviderError, describeRpcError, isRecord } from "./http.js";
+import { assertSolanaWalletRecipient } from "./recipient.js";
 import { rpcAbortSignal, solanaRpc } from "./rpc.js";
 
 export interface PreparedSolanaTransaction {
@@ -43,7 +44,56 @@ export interface PreparedSolanaTransaction {
 
 const TOKEN_2022_PROGRAM_ADDRESS = address(SOLANA_PROGRAMS.token2022);
 
-/** Reads the owning token program of a mint so Token-2022 mints transfer correctly. */
+interface TransferFee {
+  readonly epoch: bigint;
+  readonly basisPoints: bigint;
+  readonly maximumFee: bigint;
+}
+
+function integer(value: unknown): bigint | null {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === "string" && /^\d+$/u.test(value)) return BigInt(value);
+  return null;
+}
+
+function transferFee(value: unknown): TransferFee | null {
+  if (!isRecord(value)) return null;
+  const epoch = integer(value.epoch);
+  const basisPoints = integer(value.transferFeeBasisPoints);
+  const maximumFee = integer(value.maximumFee);
+  return epoch === null || basisPoints === null || maximumFee === null ? null : { epoch, basisPoints, maximumFee };
+}
+
+const chargesFee = (fee: TransferFee) => fee.basisPoints > 0n && fee.maximumFee > 0n;
+
+/**
+ * True when a Token-2022 mint's transfer-fee extension withholds part of a
+ * transfer now, or will from an epoch already scheduled. Token-2022 credits the
+ * destination with amount minus fee, so such a transfer can never verify. An
+ * unreadable fee config counts as charging.
+ */
+async function chargesTransferFee(network: SolanaNetworkKey, mintInfo: unknown): Promise<boolean> {
+  const extensions = isRecord(mintInfo) && Array.isArray(mintInfo.extensions) ? mintInfo.extensions : [];
+  const config: unknown = extensions.find((entry) => isRecord(entry) && entry.extension === "transferFeeConfig");
+  if (config === undefined) return false;
+  const state = isRecord(config) && isRecord(config.state) ? config.state : null;
+  const older = transferFee(state?.olderTransferFee);
+  const newer = transferFee(state?.newerTransferFee);
+  if (!older || !newer) return true;
+  if (chargesFee(newer)) return true;
+  if (!chargesFee(older)) return false;
+  // Only the older fee charges, and it stays in force until the newer fee's epoch.
+  const { epoch } = await solanaRpc(network)
+    .getEpochInfo({ commitment: "confirmed" })
+    .send({ abortSignal: rpcAbortSignal() });
+  return BigInt(epoch) < newer.epoch;
+}
+
+/**
+ * Reads the owning token program of a mint so Token-2022 mints transfer
+ * correctly. Refuses Token-2022 mints that charge a transfer fee.
+ */
 export async function readMintProgram(
   network: SolanaNetworkKey,
   mint: string,
@@ -58,11 +108,19 @@ export async function readMintProgram(
     throw new SolanaProviderError("Account is not an SPL token mint.", "SOLANA_MINT_INVALID", 422);
   }
   const data = value.data as unknown;
-  const decimals =
+  const mintInfo =
     typeof data === "object" && data !== null && "parsed" in data
-      ? Number((data as { parsed?: { info?: { decimals?: unknown } } }).parsed?.info?.decimals)
-      : NaN;
+      ? (data as { parsed?: { info?: unknown } }).parsed?.info
+      : undefined;
+  const decimals = isRecord(mintInfo) ? Number(mintInfo.decimals) : NaN;
   if (!Number.isInteger(decimals)) throw new SolanaProviderError("Mint decimals unavailable.", "SOLANA_MINT_INVALID", 422);
+  if (owner === SOLANA_PROGRAMS.token2022 && (await chargesTransferFee(network, mintInfo))) {
+    throw new SolanaProviderError(
+      "This Token-2022 mint charges a transfer fee, so the recipient would receive less than the amount sent. Fee-charging mints are not supported.",
+      "TOKEN_TRANSFER_FEE_UNSUPPORTED",
+      422,
+    );
+  }
   return { program: address(owner), decimals };
 }
 
@@ -140,6 +198,7 @@ export async function buildSolanaTransfer(request: TransferRequest): Promise<Pre
   const signer = createNoopSigner(address(request.from));
   const isNative = request.mint === "SOL" || request.mint === WRAPPED_SOL_MINT;
   if (isNative) {
+    await assertSolanaWalletRecipient(request.network, request.to);
     return finalize(request.network, request.from, [
       ...priorityInstructions(),
       getTransferSolInstruction({
@@ -153,7 +212,10 @@ export async function buildSolanaTransfer(request: TransferRequest): Promise<Pre
     throw new SolanaProviderError("Token mint must be a Solana address.", "SOLANA_MINT_INVALID", 400);
   }
   const mint = address(request.mint);
-  const { program, decimals } = await readMintProgram(request.network, request.mint);
+  const [, { program, decimals }] = await Promise.all([
+    assertSolanaWalletRecipient(request.network, request.to),
+    readMintProgram(request.network, request.mint),
+  ]);
   if (decimals !== request.decimals) {
     throw new SolanaProviderError("Mint decimals do not match the reviewed asset.", "SOLANA_MINT_DECIMALS_MISMATCH", 422);
   }

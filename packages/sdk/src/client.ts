@@ -28,7 +28,11 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export interface KletiaClientOptions {
   /** API origin, without the `/v1` suffix. Defaults to the hosted Kletia API. */
   readonly baseUrl?: string;
-  /** Developer or operator key (`kl_dev_…`). Optional for public endpoints. */
+  /**
+   * Developer or operator key (`kl_dev_…`). Optional for public endpoints.
+   * Server-side only: never ship it in browser bundles; from the browser use
+   * the public tier or a `baseUrl` that proxies through your server.
+   */
   readonly apiKey?: string;
   /** Per-request timeout in milliseconds (default 20000). */
   readonly timeoutMs?: number;
@@ -54,6 +58,31 @@ function normalizeBaseUrl(value: string): string {
     throw new Error("Kletia baseUrl must use HTTPS (HTTP is allowed only for localhost).");
   }
   return url.origin + url.pathname.replace(/\/+$/u, "").replace(/\/v1$/u, "");
+}
+
+/** `Retry-After` as seconds (delta-seconds or an HTTP date), or null when absent. */
+function retryAfterSeconds(response: Response): number | null {
+  const value = response.headers.get("retry-after")?.trim();
+  if (!value) return null;
+  if (/^\d+$/u.test(value)) return Number(value);
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - Date.now()) / 1000));
+}
+
+/** Builds the error for a non-2xx response from the API's JSON error envelope. */
+function errorFromResponse(response: Response, parsed: unknown, fallbackMessage: string): KletiaApiError {
+  const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : {};
+  return new KletiaApiError({
+    code: typeof error.code === "string" ? error.code : `HTTP_${response.status}`,
+    message: typeof error.message === "string" ? error.message : fallbackMessage,
+    status: response.status,
+    issues: Array.isArray(error.issues) ? (error.issues as ApiIssue[]) : [],
+    hints: Array.isArray(error.hints)
+      ? error.hints.filter((hint): hint is string => typeof hint === "string")
+      : [],
+    requestId: response.headers.get("x-request-id"),
+    retryAfterSeconds: retryAfterSeconds(response),
+  });
 }
 
 function encodeSegment(value: string, name: string): string {
@@ -138,21 +167,12 @@ export class KletiaClient {
           message: "The Kletia API returned a non-JSON response.",
           status: response.status,
           requestId,
+          retryAfterSeconds: retryAfterSeconds(response),
         });
       }
     }
     if (!response.ok) {
-      const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : {};
-      throw new KletiaApiError({
-        code: typeof error.code === "string" ? error.code : `HTTP_${response.status}`,
-        message: typeof error.message === "string" ? error.message : `Request failed with status ${response.status}.`,
-        status: response.status,
-        issues: Array.isArray(error.issues) ? (error.issues as ApiIssue[]) : [],
-        hints: Array.isArray(error.hints)
-          ? error.hints.filter((hint): hint is string => typeof hint === "string")
-          : [],
-        requestId,
-      });
+      throw errorFromResponse(response, parsed, `Request failed with status ${response.status}.`);
     }
     return parsed as T;
   }
@@ -245,7 +265,18 @@ export class KletiaClient {
         }),
         ...(options.signal ? { signal: options.signal } : {}),
       });
-      if (!response.ok || !response.body) {
+      if (!response.ok) {
+        // Same error envelope as every other endpoint (TOO_MANY_STREAMS, INTENT_NOT_FOUND, …).
+        const text = await response.text().catch(() => "");
+        let parsed: unknown = null;
+        try {
+          parsed = text ? JSON.parse(text) : null;
+        } catch {
+          parsed = null;
+        }
+        throw errorFromResponse(response, parsed, "Event stream could not be opened.");
+      }
+      if (!response.body) {
         throw new KletiaApiError({
           code: `HTTP_${response.status}`,
           message: "Event stream could not be opened.",

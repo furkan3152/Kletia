@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   CHAINS,
   formatAmount,
@@ -24,7 +24,7 @@ export const DEFAULT_WIDGET_EXAMPLES: readonly string[] = [
 ];
 
 export interface KletiaIntentWidgetProps {
-  /** An existing client, or options to create one. */
+  /** An existing client, or options to create one (keep `clientOptions` stable, e.g. with useMemo). */
   readonly client?: KletiaClient;
   readonly clientOptions?: KletiaClientOptions;
   /** CAIP-10 accounts the user controls. Required to plan. */
@@ -72,7 +72,9 @@ function useResolvedTheme(theme: KletiaIntentWidgetProps["theme"]): "light" | "d
 function describeError(error: unknown): string {
   if (error instanceof KletiaApiError) {
     const issue = error.issues[0];
-    return issue ? `${error.message} (${issue.path || "request"}: ${issue.message})` : error.message;
+    const message = issue ? `${error.message} (${issue.path || "request"}: ${issue.message})` : error.message;
+    const hints = error.hints.slice(0, 3);
+    return hints.length > 0 ? `${message} Try: ${hints.map((hint) => `“${hint}”`).join(", ")}.` : message;
   }
   return error instanceof Error ? error.message : "Something went wrong.";
 }
@@ -150,6 +152,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     [props.client, props.clientOptions],
   );
   const resolvedTheme = useResolvedTheme(theme);
+  const textId = useId();
   const [text, setText] = useState(props.defaultText ?? "");
   const [intent, setIntent] = useState<IntentGraph | null>(null);
   const [phase, setPhase] = useState<"idle" | "planning" | "executing">("idle");
@@ -223,11 +226,11 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         </span>
         <span className="kw-lane">{accounts.length} account{accounts.length === 1 ? "" : "s"}</span>
       </div>
-      <label className="kw-label" htmlFor="kw-intent-text">
+      <label className="kw-label" htmlFor={textId}>
         What should happen?
       </label>
       <textarea
-        id="kw-intent-text"
+        id={textId}
         className="kw-textarea"
         value={text}
         maxLength={1000}

@@ -1,0 +1,777 @@
+/**
+ * Intent service: the stateful half of the engine. Plans and persists
+ * intents, prepares wallet-ready payloads, verifies submitted references
+ * on-chain, polls cross-network settlement and emits events for every
+ * transition. All writes use optimistic concurrency through the store and
+ * are serialised per intent inside one process.
+ */
+import {
+  assertStepTransition,
+  CHAINS,
+  deriveIntentStatus,
+  isBaseUnitAmount,
+  isEvmAddress,
+  isStepDone,
+  parseAccountId,
+  type IntentGraph,
+  type IntentStatus,
+  type IntentStep,
+  type StepEvidence,
+  type StepExecutionPayload,
+  type StepStatus,
+} from "@kletia/core";
+import { PlatformError, toPlatformError } from "../errors.js";
+import { adapterForStep, configureAdapters } from "./adapters/registry.js";
+import type { PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
+import { isReferenceRejection, referenceFormatValid, referenceKey } from "./adapters/verification.js";
+import { quoteBindingFor } from "./binding.js";
+import { evmChainId, isEvmNetwork } from "./chains/evm.js";
+import { assertSolanaTransactionOwner } from "./chains/solana.js";
+import { emitGraphChanges, platformEvents } from "./events.js";
+import { actionForStep, planIntent, summarize } from "./planner.js";
+import { decodeStepRef, encodeStepRef } from "./stepRef.js";
+import { createIntentStore, type IntentStore } from "./store.js";
+import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
+
+/** Payloads expire quickly: Solana blockhashes and provider quotes go stale. */
+export const PAYLOAD_TTL_SECONDS = 90;
+/** Cross-network steps unresolved this long become indeterminate (manual review, never auto-retried). */
+const SETTLEMENT_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const MAX_REFERENCES = 4;
+
+let store: IntentStore | null = null;
+
+export function getIntentStore(): IntentStore {
+  store ??= createIntentStore();
+  return store;
+}
+
+export interface PlatformConfiguration {
+  /** Intent persistence (tests, custom storage). */
+  readonly store?: IntentStore;
+  /** Protocol adapters to plan and execute with; `null` restores the built-in set. */
+  readonly adapters?: readonly ProtocolAdapter[] | null;
+}
+
+/** Overrides the intent store and/or the protocol adapters (tests, embedders). */
+export function configurePlatform(options: PlatformConfiguration): void {
+  if (options.store) store = options.store;
+  if (options.adapters !== undefined) configureAdapters(options.adapters);
+}
+
+const locks = new Map<string, Promise<unknown>>();
+
+/** Serialises mutations of one intent within this process. */
+async function withIntentLock<T>(id: string, task: () => Promise<T>): Promise<T> {
+  const previous = locks.get(id) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(task);
+  const tail = run.catch(() => undefined);
+  locks.set(id, tail);
+  try {
+    return await run;
+  } finally {
+    if (locks.get(id) === tail) locks.delete(id);
+  }
+}
+
+function assertIntentId(id: string): void {
+  if (typeof id !== "string" || !INTENT_ID_PATTERN.test(id)) {
+    throw new PlatformError("INTENT_NOT_FOUND", "Intent not found.", 404);
+  }
+}
+
+async function loadIntent(id: string): Promise<IntentGraph> {
+  assertIntentId(id);
+  const graph = await getIntentStore().get(id);
+  if (!graph) throw new PlatformError("INTENT_NOT_FOUND", "Intent not found.", 404);
+  return graph;
+}
+
+function findStep(graph: IntentGraph, stepId: string): IntentStep {
+  const step = typeof stepId === "string" && STEP_ID_PATTERN.test(stepId)
+    ? graph.steps.find((candidate) => candidate.id === stepId)
+    : undefined;
+  if (!step) throw new PlatformError("STEP_NOT_FOUND", `Step ${String(stepId).slice(0, 8)} does not exist in this intent.`, 404);
+  return step;
+}
+
+/** Walks a chain of statuses, asserting each hop is a legal lifecycle transition. */
+function transition(step: IntentStep, ...path: StepStatus[]): StepStatus {
+  let current = step.status;
+  for (const next of path) {
+    try {
+      assertStepTransition(current, next);
+    } catch {
+      throw new PlatformError("STEP_TRANSITION_INVALID", `Step ${step.id} cannot move from ${current} to ${next}.`, 409);
+    }
+    current = next;
+  }
+  return current;
+}
+
+function deriveStatus(graph: IntentGraph, steps: readonly IntentStep[], now: number): IntentStatus {
+  if (graph.status === "cancelled") return "cancelled";
+  return deriveIntentStatus(steps, graph.expiresAt, now);
+}
+
+function withSteps(graph: IntentGraph, steps: readonly IntentStep[], now: number): IntentGraph {
+  return {
+    ...graph,
+    steps,
+    status: deriveStatus(graph, steps, now),
+    updatedAt: nextTimestamp(graph.updatedAt, now),
+    summary: summarize(steps, graph.edges, graph.summary.signaturesRequired, graph.summary.title),
+  };
+}
+
+function replaceStep(steps: readonly IntentStep[], next: IntentStep): IntentStep[] {
+  return steps.map((step) => (step.id === next.id ? next : step));
+}
+
+/** Pending steps whose dependencies are all done become ready. */
+function unlockDependents(steps: readonly IntentStep[]): IntentStep[] {
+  const byId = new Map(steps.map((step) => [step.id, step]));
+  return steps.map((step) => {
+    if (step.status !== "pending") return step;
+    const done = step.dependsOn.every((dependency) => {
+      const parent = byId.get(dependency);
+      return parent !== undefined && isStepDone(parent);
+    });
+    return done ? { ...step, status: transition(step, "ready") } : step;
+  });
+}
+
+function emitSideEffects(before: IntentGraph, after: IntentGraph): void {
+  for (const step of after.steps) {
+    const previous = before.steps.find((candidate) => candidate.id === step.id);
+    if (!previous) continue;
+    if (previous.status !== "submitted" && step.status === "submitted") {
+      const reference = step.references?.[step.references.length - 1];
+      platformEvents.emit("activity.recorded", {
+        id: `${after.id}:${step.id}`,
+        network: step.network,
+        title: step.title,
+        ...(reference ? { reference, url: CHAINS[step.network].explorer.tx.replace("{hash}", encodeURIComponent(reference)) } : {}),
+      });
+    }
+    if (previous.status !== step.status && (step.status === "settled" || step.status === "settling" || step.status === "failed")) {
+      const account = parseAccountId(step.account);
+      if (account) {
+        platformEvents.emit("portfolio.invalidated", { account: account.id, network: step.network, reason: `intent ${after.id} step ${step.id} ${step.status}` });
+      }
+      const recipient = step.recipient ? parseAccountId(step.recipient) : null;
+      if (step.status === "settled" && recipient && recipient.id !== account?.id) {
+        platformEvents.emit("portfolio.invalidated", { account: recipient.id, network: recipient.chain.key, reason: `intent ${after.id} step ${step.id} settled` });
+      }
+    }
+  }
+}
+
+async function commit(before: IntentGraph, after: IntentGraph): Promise<IntentGraph> {
+  await getIntentStore().update(after.id, after, before.updatedAt);
+  emitGraphChanges(before, after);
+  emitSideEffects(before, after);
+  return after;
+}
+
+/* ---------------------------------------------------------------- create */
+
+export interface CreateIntentOptions {
+  /** API key id of the caller; enables listing and idempotent clientReference. */
+  readonly ownerKeyId?: string;
+  /** Plan and quote without persisting. */
+  readonly dryRun?: boolean;
+}
+
+export async function createIntent(request: unknown, options: CreateIntentOptions = {}): Promise<IntentGraph> {
+  try {
+    const clientReference =
+      typeof request === "object" && request !== null && "clientReference" in request &&
+        typeof (request as { clientReference: unknown }).clientReference === "string"
+        ? (request as { clientReference: string }).clientReference
+        : undefined;
+    if (!options.dryRun && options.ownerKeyId && clientReference) {
+      const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
+      if (existing) return existing;
+    }
+    const graph = await planIntent(request);
+    if (options.dryRun) return graph;
+    await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+    emitGraphChanges(null, graph);
+    return graph;
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* ------------------------------------------------------------------ read */
+
+export async function getIntent(id: string): Promise<IntentGraph> {
+  try {
+    const graph = await loadIntent(id);
+    const now = Date.now();
+    const status = deriveStatus(graph, graph.steps, now);
+    if (status === graph.status) return graph;
+    // Time-based transitions (e.g. planned -> expired) are persisted lazily.
+    return await withIntentLock(id, async () => {
+      const latest = await loadIntent(id);
+      const derived = deriveStatus(latest, latest.steps, now);
+      if (derived === latest.status) return latest;
+      const next: IntentGraph = { ...latest, status: derived, updatedAt: nextTimestamp(latest.updatedAt, now) };
+      return commit(latest, next).catch(() => latest);
+    });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+export async function listIntents(ownerKeyId: string, limit = 50): Promise<IntentGraph[]> {
+  try {
+    if (!ownerKeyId) throw new PlatformError("AUTH_REQUIRED", "Listing intents requires an API key.", 401);
+    return await getIntentStore().listByOwner(ownerKeyId, limit);
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* --------------------------------------------------------------- prepare */
+
+export interface PreparedStepResult {
+  readonly intent: IntentGraph;
+  readonly payload: StepExecutionPayload;
+}
+
+function assertExecutable(graph: IntentGraph, now: number): void {
+  const status = deriveStatus(graph, graph.steps, now);
+  if (status === "cancelled") throw new PlatformError("INTENT_CANCELLED", "This intent was cancelled.", 409);
+  if (status === "expired") throw new PlatformError("INTENT_EXPIRED", "This intent expired before execution started. Create a new one to re-quote.", 410);
+  if (status === "completed") throw new PlatformError("INTENT_COMPLETED", "This intent is already completed.", 409);
+  const deadline = graph.request.constraints?.deadline;
+  if (deadline !== undefined && deadline * 1000 <= now) {
+    throw new PlatformError("DEADLINE_PASSED", "The intent's deadline has passed.", 410);
+  }
+}
+
+const HEX_DATA = /^0x(?:[0-9a-fA-F]{2})*$/u;
+
+/**
+ * Engine-level guard on adapter output: every transaction is on the step
+ * network and sent / fee-paid (and, on Solana, solely signed) by the step
+ * account, whatever the adapter claims about itself.
+ */
+function validatePayload(step: IntentStep, prepared: PreparedPayload): void {
+  const account = parseAccountId(step.account);
+  if (!account) throw new PlatformError("STEP_INVALID", "Step account is invalid.", 500);
+  const count = prepared.transactions.length;
+  if (count === 0 || count > MAX_REFERENCES || prepared.records.length !== count) {
+    throw new PlatformError("PAYLOAD_INVALID", "The adapter produced an invalid transaction count.", 502);
+  }
+  for (const [index, transaction] of prepared.transactions.entries()) {
+    const record = prepared.records[index];
+    if (transaction.network !== step.network || record?.network !== step.network || record.vm !== transaction.vm) {
+      throw new PlatformError("PAYLOAD_INVALID", "Payload transaction is on another network.", 502);
+    }
+    if (transaction.vm === "evm") {
+      if (!isEvmNetwork(step.network) || transaction.chainId !== evmChainId(step.network)) {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload transaction targets another chain.", 502);
+      }
+      if (!isEvmAddress(transaction.from) || transaction.from.toLowerCase() !== account.address.toLowerCase()) {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload transaction is not sent by the step account.", 502);
+      }
+      if (!isEvmAddress(transaction.to) || !HEX_DATA.test(transaction.data) || !isBaseUnitAmount(transaction.value)) {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload transaction has a malformed target, calldata or value.", 502);
+      }
+      if ((record.to ?? "").toLowerCase() !== transaction.to.toLowerCase()) {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload record does not match its transaction.", 502);
+      }
+    } else {
+      if (CHAINS[step.network].vm !== "svm" || transaction.feePayer !== account.address || transaction.encoding !== "base64") {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload transaction is not fee-paid by the step account.", 502);
+      }
+      // Decode the wire transaction itself: fee payer and sole signer must be the step account.
+      const info = assertSolanaTransactionOwner(transaction.transaction, account.address);
+      if (record.to && !info.programs.includes(record.to)) {
+        throw new PlatformError("PAYLOAD_INVALID", "Payload transaction does not invoke its recorded program.", 502);
+      }
+    }
+  }
+}
+
+function priceMoved(step: IntentStep, prepared: PreparedPayload): boolean {
+  if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit") return false;
+  const plannedInput = BigInt(step.input.amount);
+  const plannedMinimum = BigInt(step.minimumOutput.amount);
+  return BigInt(prepared.expectedOutput.amount) * plannedInput < plannedMinimum * BigInt(prepared.input.amount);
+}
+
+export async function prepareStep(intentId: string, stepId: string): Promise<PreparedStepResult> {
+  try {
+    return await withIntentLock(intentId, async () => {
+      const graph = await loadIntent(intentId);
+      const step = findStep(graph, stepId);
+      const now = Date.now();
+      assertExecutable(graph, now);
+      const waiting = step.dependsOn.filter((dependency) => {
+        const parent = graph.steps.find((candidate) => candidate.id === dependency);
+        return !parent || !isStepDone(parent);
+      });
+      if (waiting.length > 0) {
+        throw new PlatformError("STEP_NOT_READY", `Step ${step.id} waits for ${waiting.join(", ")} to settle.`, 409);
+      }
+      if (!["pending", "ready", "awaiting_signature", "failed"].includes(step.status)) {
+        throw new PlatformError("STEP_NOT_PREPARABLE", `Step ${step.id} is ${step.status}; it cannot be prepared again.`, 409);
+      }
+      const funded = graph.edges.some((edge) => edge.to === step.id && edge.kind === "funds");
+      const action = actionForStep(graph, step);
+      const adapter = adapterForStep(step);
+      const prepared = await adapter.prepare({ graph, step, action, now });
+      validatePayload(step, prepared);
+      // Quote-specific warnings are replaced by the fresh quote's; static ones (token verification, rent) persist.
+      const quoteSpecific = /^(?:Route:|Price |Fees and price impact|Slippage capped|Simulation was unavailable)/u;
+      const warnings = [...(step.warnings ?? []).filter((warning) => !quoteSpecific.test(warning)), ...prepared.warnings];
+      if (priceMoved(step, prepared)) {
+        if (!funded) {
+          throw new PlatformError(
+            "QUOTE_MOVED",
+            `The price moved beyond the slippage limit since planning (now ${prepared.expectedOutput.formatted} ${prepared.expectedOutput.symbol}, plan guaranteed ${step.minimumOutput?.formatted}). Create a new intent to re-quote.`,
+            409,
+          );
+        }
+        warnings.push(`Price moved since planning; the fresh quote guarantees ${prepared.minimumOutput.formatted} ${prepared.minimumOutput.symbol}.`);
+      }
+      const quoteBinding = quoteBindingFor(prepared.transactions);
+      const expiresAt = Math.floor(now / 1000) + PAYLOAD_TTL_SECONDS;
+      const preparedAt = new Date(now).toISOString();
+      const status = step.status === "failed" || step.status === "pending"
+        ? transition(step, "ready", "awaiting_signature")
+        : transition(step, "awaiting_signature");
+      const ref = decodeStepRef(step.quoteRef);
+      const evidence: StepEvidence = {
+        kind: "quote",
+        network: step.network,
+        reference: quoteBinding,
+        observedAt: preparedAt,
+        detail: `Prepared ${prepared.transactions.length} transaction(s) with ${adapter.label}${prepared.quoteId ? ` (quote ${prepared.quoteId.slice(0, 18)})` : ""}.`,
+      };
+      // Every settlement tracking id handed to a wallet stays attributable to this step.
+      const tracking: StepEvidence[] = prepared.trackingId
+        ? [{ kind: "quote", network: step.network, reference: prepared.trackingId.slice(0, 100), observedAt: preparedAt, detail: "Settlement request prepared." }]
+        : [];
+      const { references: _references, failure: _failure, ...rest } = step;
+      const nextStep: IntentStep = {
+        ...rest,
+        status,
+        input: prepared.input,
+        expectedOutput: prepared.expectedOutput,
+        minimumOutput: prepared.minimumOutput,
+        ...(prepared.feesUsd !== undefined ? { feesUsd: roundUsd(prepared.feesUsd) } : {}),
+        ...(step.settlement
+          ? { settlement: { ...step.settlement, ...(prepared.trackingId ? { trackingId: prepared.trackingId } : {}) } }
+          : {}),
+        prepared: { quoteBinding, preparedAt, expiresAt, transactions: prepared.records },
+        evidence: appendEvidence(step, [evidence, ...tracking]),
+        ...(ref ? { quoteRef: encodeStepRef({ ...ref, ...(prepared.quoteId ? { quote: prepared.quoteId } : {}) }) } : {}),
+        ...(warnings.length > 0 ? { warnings: [...new Set(warnings)].slice(0, 12) } : {}),
+      };
+      const next = withSteps(graph, replaceStep(graph.steps, nextStep), now);
+      const intent = await commit(graph, next);
+      return {
+        intent,
+        payload: {
+          vm: CHAINS[step.network].vm,
+          transactions: prepared.transactions,
+          expiresAt,
+          quoteBinding,
+        },
+      };
+    });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* ---------------------------------------------------------------- submit */
+
+function submittedAt(step: IntentStep): number {
+  for (let index = step.evidence.length - 1; index >= 0; index -= 1) {
+    const entry = step.evidence[index];
+    if (entry?.kind === "note" && entry.detail === "References submitted.") return Date.parse(entry.observedAt);
+  }
+  return step.prepared ? Date.parse(step.prepared.preparedAt) : Date.now();
+}
+
+function appendEvidence(step: IntentStep, evidence: readonly StepEvidence[]): StepEvidence[] {
+  return [...step.evidence, ...evidence].slice(-50);
+}
+
+function applyVerification(step: IntentStep, result: VerificationResult, now: number): IntentStep {
+  if (result.status === "pending") {
+    if (!result.stale || step.status === "indeterminate") return step;
+    return {
+      ...step,
+      status: transition(step, "indeterminate"),
+      evidence: appendEvidence(step, [
+        { kind: "note", network: step.network, observedAt: new Date(now).toISOString(), detail: "Submitted transactions were not observed for over an hour; manual review needed." },
+      ]),
+    };
+  }
+  if (result.status === "failed") {
+    return {
+      ...step,
+      status: transition(step, "failed"),
+      evidence: appendEvidence(step, result.evidence),
+      failure: result.failure,
+    };
+  }
+  const cross = step.settlement?.kind === "cross-network";
+  return {
+    ...step,
+    status: cross ? transition(step, "settling") : transition(step, "confirmed", "settled"),
+    evidence: appendEvidence(step, result.evidence),
+    ...(!cross && result.actualOutput ? { actualOutput: result.actualOutput } : {}),
+  };
+}
+
+function applySettlement(step: IntentStep, result: SettlementResult, now: number): IntentStep {
+  if (result.status === "settled") {
+    return {
+      ...step,
+      status: transition(step, "settled"),
+      evidence: appendEvidence(step, result.evidence),
+      ...(result.actualOutput ? { actualOutput: result.actualOutput } : {}),
+    };
+  }
+  if (result.status === "failed") {
+    return { ...step, status: transition(step, "failed"), evidence: appendEvidence(step, result.evidence), failure: result.failure };
+  }
+  let next = step;
+  if (result.trackingId && step.settlement && result.trackingId !== step.settlement.trackingId) {
+    next = { ...next, settlement: { ...step.settlement, trackingId: result.trackingId } };
+  }
+  if (now - submittedAt(step) > SETTLEMENT_TIMEOUT_MS && step.status !== "indeterminate") {
+    next = {
+      ...next,
+      status: transition(step, "indeterminate"),
+      evidence: appendEvidence(step, [
+        { kind: "note", network: step.network, observedAt: new Date(now).toISOString(), detail: "Settlement has not completed within 3 hours; manual review needed." },
+      ]),
+    };
+  }
+  return next;
+}
+
+/**
+ * Binds verified references to this step globally. Claims happen only after
+ * on-chain verification (sender, chain, binding) so nobody can squat a hash
+ * they did not send; a reference already bound elsewhere is rejected.
+ */
+async function claimVerified(intentId: string, step: IntentStep, result: VerificationResult): Promise<VerificationResult> {
+  if (result.status !== "confirmed") return result;
+  try {
+    await getIntentStore().claimReferences(
+      (step.references ?? []).map((reference) => ({ key: referenceKey(step, reference), intentId, stepId: step.id })),
+    );
+    return result;
+  } catch (error) {
+    const platformError = toPlatformError(error);
+    if (platformError.code !== "REFERENCE_ALREADY_USED") throw platformError;
+    return { status: "failed", evidence: [], failure: { code: platformError.code, message: platformError.message } };
+  }
+}
+
+/** Verifies a step's current references on-chain and claims them when confirmed. */
+async function verifyReferences(intentId: string, step: IntentStep, now: number): Promise<VerificationResult> {
+  const references = step.references ?? [];
+  const result = await adapterForStep(step).verify({ step, references, submittedAt: submittedAt(step), now });
+  return claimVerified(intentId, step, result);
+}
+
+/** True once any current reference produced origin-network evidence (receipt / landed transaction). */
+function hasOriginEvidence(step: IntentStep): boolean {
+  const references = new Set(step.references ?? []);
+  return step.evidence.some(
+    (entry) => (entry.kind === "receipt" || entry.kind === "transaction") && entry.reference !== undefined && references.has(entry.reference),
+  );
+}
+
+/**
+ * The references are not this step's transactions: drop them and put the step
+ * back to awaiting its prepared payload. Nothing happened on-chain for it.
+ */
+function rejectReferences(step: IntentStep, failure: StepFailure, now: number): IntentStep {
+  const { references: _references, failure: _failure, ...rest } = step;
+  return {
+    ...rest,
+    status: transition(step, "failed", "ready", "awaiting_signature"),
+    evidence: appendEvidence(step, [
+      {
+        kind: "note",
+        network: step.network,
+        ...(step.references?.length ? { reference: step.references[step.references.length - 1] as string } : {}),
+        observedAt: new Date(now).toISOString(),
+        detail: `References rejected (${failure.code}): ${failure.message}`.slice(0, 300),
+      },
+    ]),
+  };
+}
+
+/** Rejected references are "understood but not executable" (422) per the API contract, including reuse. */
+function rejectionError(failure: StepFailure): PlatformError {
+  return new PlatformError(failure.code, failure.message, 422, [{ path: "references", message: failure.message }]);
+}
+
+/** Fast solvers often fill within seconds: poll a freshly settling step once right away. */
+async function settleNow(step: IntentStep, now: number): Promise<IntentStep> {
+  const adapter = adapterForStep(step);
+  if (step.status !== "settling" || !adapter.poll) return step;
+  try {
+    return applySettlement(step, await adapter.poll(step, now), now);
+  } catch {
+    return step;
+  }
+}
+
+/** Advances one step by re-reading the chain or the settlement network. */
+async function progressStep(intentId: string, step: IntentStep, now: number): Promise<IntentStep> {
+  const adapter = adapterForStep(step);
+  const references = step.references ?? [];
+  const settlingLike = step.status === "settling" ||
+    (step.status === "indeterminate" && step.settlement?.kind === "cross-network" && hasOriginEvidence(step));
+  if (settlingLike) {
+    if (!adapter.poll) return step;
+    return applySettlement(step, await adapter.poll(step, now), now);
+  }
+  if ((step.status === "submitted" || step.status === "indeterminate") && references.length > 0) {
+    const result = await verifyReferences(intentId, step, now);
+    if (isReferenceRejection(result)) return rejectReferences(step, result.failure, now);
+    if (step.status === "indeterminate" && result.status === "pending") return step;
+    return settleNow(applyVerification(step, result, now), now);
+  }
+  return step;
+}
+
+function parseReferences(step: IntentStep, input: unknown): string[] {
+  if (!Array.isArray(input) || input.length === 0 || input.length > MAX_REFERENCES) {
+    throw new PlatformError("REFERENCES_INVALID", `references must be a list of 1-${MAX_REFERENCES} transaction hashes or signatures.`, 400, [
+      { path: "references", message: "Invalid list." },
+    ]);
+  }
+  const references = input.map((value, index) => {
+    if (typeof value !== "string" || !referenceFormatValid(step, value.trim())) {
+      throw new PlatformError(
+        "REFERENCE_INVALID",
+        step.chain.startsWith("eip155:") ? "Each reference must be a 0x-prefixed 32-byte transaction hash." : "Each reference must be a base58 Solana signature.",
+        400,
+        [{ path: `references[${index}]`, message: "Invalid format." }],
+      );
+    }
+    return value.trim();
+  });
+  if (new Set(references.map((reference) => referenceKey(step, reference))).size !== references.length) {
+    throw new PlatformError("REFERENCES_INVALID", "references must not repeat.", 400);
+  }
+  return references;
+}
+
+function sameReferences(step: IntentStep, a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((reference, index) => referenceKey(step, reference) === referenceKey(step, b[index] ?? ""));
+}
+
+const SUBMITTED_STATUSES: readonly StepStatus[] = ["submitted", "confirmed", "settling", "settled", "indeterminate"];
+
+/**
+ * A submitted step whose references never produced on-chain evidence may take
+ * new ones: wallets replace transactions (speed-up / cancel changes the hash)
+ * and a mistyped hash must not lock the step.
+ */
+function acceptsReplacementReferences(step: IntentStep): boolean {
+  return (step.status === "submitted" || step.status === "indeterminate") && !hasOriginEvidence(step);
+}
+
+/**
+ * Submits transaction references for a prepared step. They are verified
+ * on-chain before anything is stored: references that are not this step's
+ * transactions (other sender, other payload, mined before prepare, already
+ * bound elsewhere) are refused with 4xx and leave the step unchanged. Not yet
+ * visible references are stored as `submitted` and re-verified by refresh and
+ * the settlement poller.
+ */
+export async function submitStep(intentId: string, stepId: string, references: unknown): Promise<IntentGraph> {
+  try {
+    return await withIntentLock(intentId, async () => {
+      const graph = await loadIntent(intentId);
+      const step = findStep(graph, stepId);
+      const parsed = parseReferences(step, references);
+      if (step.references && sameReferences(step, step.references, parsed) && SUBMITTED_STATUSES.includes(step.status)) {
+        return graph;
+      }
+      if (graph.status === "cancelled") throw new PlatformError("INTENT_CANCELLED", "This intent was cancelled.", 409);
+      const replacing = acceptsReplacementReferences(step);
+      if ((step.status !== "awaiting_signature" && !replacing) || !step.prepared) {
+        throw new PlatformError("STEP_NOT_AWAITING_SIGNATURE", `Step ${step.id} is ${step.status}; prepare it before submitting.`, 409);
+      }
+      if (parsed.length !== step.prepared.transactions.length) {
+        throw new PlatformError(
+          "REFERENCE_COUNT_MISMATCH",
+          `Submit exactly ${step.prepared.transactions.length} reference(s), one per prepared transaction, in order.`,
+          400,
+          [{ path: "references", message: `Expected ${step.prepared.transactions.length}, got ${parsed.length}.` }],
+        );
+      }
+      const now = Date.now();
+      const path: StepStatus[] = step.status === "submitted"
+        ? []
+        : step.status === "indeterminate"
+          ? ["failed", "ready", "awaiting_signature", "submitted"]
+          : ["submitted"];
+      const { failure: _failure, ...rest } = step;
+      const candidate: IntentStep = {
+        ...rest,
+        status: path.length > 0 ? transition(step, ...path) : step.status,
+        references: parsed,
+        evidence: appendEvidence(step, [
+          { kind: "note", network: step.network, reference: parsed[parsed.length - 1] as string, observedAt: new Date(now).toISOString(), detail: "References submitted." },
+        ]),
+      };
+      let result: VerificationResult;
+      try {
+        result = await verifyReferences(intentId, candidate, now);
+      } catch (error) {
+        // Chain or provider reads failed: keep the submission; refresh and the poller re-verify it.
+        console.warn("[platform] verification deferred:", toPlatformError(error).message);
+        result = { status: "pending", evidence: [], reason: "Verification deferred.", stale: false };
+      }
+      if (isReferenceRejection(result)) throw rejectionError(result.failure);
+      const verified = await settleNow(applyVerification(candidate, result, now), now);
+      const steps = unlockDependents(replaceStep(graph.steps, verified));
+      return commit(graph, withSteps(graph, steps, now));
+    });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* --------------------------------------------------------------- refresh */
+
+const REFRESHABLE: readonly StepStatus[] = ["submitted", "confirmed", "settling", "indeterminate"];
+
+async function refreshIntentInternal(id: string, onlySteps?: readonly string[]): Promise<IntentGraph> {
+  return withIntentLock(id, async () => {
+    const graph = await loadIntent(id);
+    if (graph.status === "cancelled") return graph;
+    const now = Date.now();
+    let steps: IntentStep[] = [...graph.steps];
+    let changed = false;
+    for (const step of graph.steps) {
+      if (!REFRESHABLE.includes(step.status) || (onlySteps && !onlySteps.includes(step.id))) continue;
+      try {
+        const next = await progressStep(id, step, now);
+        if (next !== step) {
+          steps = replaceStep(steps, next);
+          changed = true;
+        }
+      } catch (error) {
+        console.warn(`[platform] refresh ${id}/${step.id} deferred:`, toPlatformError(error).message);
+      }
+    }
+    const unlocked = unlockDependents(steps);
+    if (unlocked.some((step, index) => step !== steps[index])) changed = true;
+    const status = deriveStatus(graph, unlocked, now);
+    if (!changed && status === graph.status) return graph;
+    return commit(graph, withSteps(graph, unlocked, now));
+  });
+}
+
+/** Re-verifies submitted steps and polls settling steps now. */
+export async function refreshIntent(id: string): Promise<IntentGraph> {
+  try {
+    return await refreshIntentInternal(id);
+  } catch (error) {
+    if (error instanceof PlatformError && error.code === "INTENT_CONFLICT") return loadIntent(id);
+    throw toPlatformError(error);
+  }
+}
+
+/* ---------------------------------------------------------------- cancel */
+
+export async function cancelIntent(id: string): Promise<IntentGraph> {
+  try {
+    return await withIntentLock(id, async () => {
+      const graph = await loadIntent(id);
+      if (graph.status === "cancelled") return graph;
+      const started = graph.steps.some(
+        (step) => (step.references?.length ?? 0) > 0 ||
+          ["submitted", "confirmed", "settling", "settled", "indeterminate"].includes(step.status),
+      );
+      if (started) {
+        throw new PlatformError("INTENT_NOT_CANCELLABLE", "A step was already submitted on-chain; the intent can no longer be cancelled.", 409);
+      }
+      const now = Date.now();
+      const steps = graph.steps.map((step): IntentStep => {
+        if (step.status === "skipped") return step;
+        const path: StepStatus[] = step.status === "awaiting_signature" || step.status === "failed" ? ["ready", "skipped"] : ["skipped"];
+        return { ...step, status: transition(step, ...path) };
+      });
+      const next: IntentGraph = {
+        ...graph,
+        steps,
+        status: "cancelled",
+        updatedAt: nextTimestamp(graph.updatedAt, now),
+      };
+      return commit(graph, next);
+    });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* ---------------------------------------------------------------- poller */
+
+export interface SettlementPollerOptions {
+  readonly intervalMs?: number;
+  readonly concurrency?: number;
+  readonly batchSize?: number;
+}
+
+/**
+ * Periodically refreshes intents with submitted or settling steps. Never
+ * throws; returns a stop function.
+ */
+export function startSettlementPoller(options: SettlementPollerOptions = {}): () => void {
+  const intervalMs = Math.max(2_000, options.intervalMs ?? 8_000);
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 4, 16));
+  const batchSize = Math.max(1, Math.min(options.batchSize ?? 100, 500));
+  let running = false;
+  let stopped = false;
+  const tick = async () => {
+    if (running || stopped) return;
+    running = true;
+    try {
+      const active = await getIntentStore().listActive(batchSize);
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(concurrency, active.length) }, async () => {
+        while (!stopped && cursor < active.length) {
+          const graph = active[cursor];
+          cursor += 1;
+          if (!graph) continue;
+          await refreshIntent(graph.id).catch((error: unknown) => {
+            console.warn(`[platform] poll ${graph.id} failed:`, toPlatformError(error).message);
+          });
+        }
+      });
+      await Promise.all(workers);
+    } catch (error) {
+      console.warn("[platform] settlement poller tick failed:", toPlatformError(error).message);
+    } finally {
+      running = false;
+    }
+  };
+  const timer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+  timer.unref?.();
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}

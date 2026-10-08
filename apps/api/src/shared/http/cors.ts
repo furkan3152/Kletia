@@ -126,6 +126,7 @@ export const platformCorsOptions: CorsOptions = {
     "RateLimit-Remaining",
     "RateLimit-Reset",
     "Retry-After",
+    "Idempotent-Replayed",
   ],
   maxAge: 600,
 };

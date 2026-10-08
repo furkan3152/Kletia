@@ -206,10 +206,12 @@ export function assetAmount(asset: ResolvedAsset, units: string, usd?: number): 
   };
 }
 
+/** CAIP-19 equality: EVM ids compare case-insensitively; Solana mints are case-sensitive base58. */
 export function sameAsset(a: { readonly id: string } | { readonly asset: string }, b: { readonly id: string } | { readonly asset: string }): boolean {
   const left = "id" in a ? a.id : a.asset;
   const right = "id" in b ? b.id : b.asset;
-  return left.toLowerCase() === right.toLowerCase();
+  if (left.startsWith("eip155:") && right.startsWith("eip155:")) return left.toLowerCase() === right.toLowerCase();
+  return left === right;
 }
 
 /** The address a provider (Relay/Jupiter) uses for an asset. */

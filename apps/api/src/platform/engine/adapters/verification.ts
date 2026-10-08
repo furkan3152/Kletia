@@ -1,34 +1,59 @@
 /**
  * Shared on-chain verification of submitted references.
  *
- * EVM: every reference must have a successful receipt from the bound account
- * to the prepared target on the step chain, mined after the payload was
- * prepared, and the landed transactions must reproduce the prepared quote
- * binding exactly.
+ * EVM: every reference must be mined on the step chain from the bound account,
+ * and the landed transactions (chain, from, to, calldata, value) must
+ * reproduce the quote binding of a payload prepared for this step exactly;
+ * each must be mined after that payload was first prepared. Only then does a
+ * revert count as an on-chain failure of the step.
  *
- * Solana: every signature must be confirmed/finalized, fee-paid by the bound
- * account, land after prepare and invoke the prepared primary program.
+ * Solana: every signature must be confirmed/finalized with a readable body,
+ * fee-paid by the bound account, land after the step was first prepared and
+ * invoke the prepared primary program; adapters add amount checks.
+ *
+ * Failures whose code is in REJECTION_CODES prove that the references are not
+ * this step's transactions. They never fail the step: the service refuses the
+ * submission and the step keeps waiting for the right references.
  */
 import {
   explorerTxUrl,
   isEvmTransactionHash,
   isSolanaSignature,
   parseAccountId,
+  WRAPPED_SOL_MINT,
   type IntentStep,
   type StepEvidence,
 } from "@kletia/core";
 import { isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { quoteBindingForViews, type BindingView } from "../binding.js";
-import { evmChainId, isEvmNetwork, observeEvmTransaction } from "../chains/evm.js";
+import { evmChainId, isEvmNetwork, observeEvmTransaction, type EvmTransactionObservation } from "../chains/evm.js";
 import { observeSolanaTransaction, type SolanaTransactionObservation } from "../chains/solana.js";
 import type { StepFailure, VerificationResult, VerifyContext } from "./types.js";
 
 /** Landed transactions older than prepare time (minus clock skew) are refused. */
 const CLOCK_SKEW_SECONDS = 300;
-/** EVM references unseen for this long are reported stale (never auto-failed: a nonce can still land). */
-const EVM_STALE_MS = 60 * 60 * 1000;
+/** References unseen for this long are reported stale (never auto-failed: a nonce can still land). */
+export const REFERENCE_STALE_MS = 60 * 60 * 1000;
 /** Solana signatures unseen this long after prepare/submit can never land (blockhash expired). */
 const SOLANA_EXPIRY_GRACE_MS = 180_000;
+/**
+ * Lamport tolerance for native-SOL amount checks: covers one token-account rent
+ * (2,039,280 lamports) created or reclaimed inside a swap transaction.
+ */
+export const SOL_RENT_TOLERANCE_LAMPORTS = 2_100_000n;
+
+/** Failure codes that mean "these references are not this step's transactions". */
+export const REJECTION_CODES: ReadonlySet<string> = new Set([
+  "REFERENCE_WRONG_SENDER",
+  "REFERENCE_WRONG_CHAIN",
+  "REFERENCE_MISMATCH",
+  "REFERENCE_STALE",
+  "REFERENCE_ALREADY_USED",
+]);
+
+export function isReferenceRejection(result: VerificationResult): result is Extract<VerificationResult, { status: "failed" }> {
+  return result.status === "failed" && REJECTION_CODES.has(result.failure.code);
+}
 
 function failed(evidence: StepEvidence[], failure: StepFailure): VerificationResult {
   return { status: "failed", evidence, failure };
@@ -38,6 +63,35 @@ export function referenceFormatValid(step: IntentStep, reference: string): boole
   return step.chain.startsWith("eip155:") ? isEvmTransactionHash(reference) : isSolanaSignature(reference);
 }
 
+const BINDING_PATTERN = /^[0-9a-f]{64}$/u;
+
+/**
+ * Bindings of every payload prepared for this step (current one plus earlier
+ * re-prepares), each mapped to the unix ms when it was first prepared.
+ */
+export function preparedBindings(step: IntentStep): Map<string, number> {
+  const bindings = new Map<string, number>();
+  const add = (binding: string | undefined, at: string) => {
+    const time = Date.parse(at);
+    if (!binding || !BINDING_PATTERN.test(binding) || !Number.isFinite(time)) return;
+    const known = bindings.get(binding);
+    if (known === undefined || time < known) bindings.set(binding, time);
+  };
+  if (step.prepared) add(step.prepared.quoteBinding, step.prepared.preparedAt);
+  for (const entry of step.evidence) {
+    if (entry.kind === "quote") add(entry.reference, entry.observedAt);
+  }
+  return bindings;
+}
+
+/** Unix ms of the first prepare of this step, or null when it was never prepared. */
+export function firstPreparedAt(step: IntentStep): number | null {
+  const times = [...preparedBindings(step).values()];
+  return times.length > 0 ? Math.min(...times) : null;
+}
+
+type LandedEvm = Extract<EvmTransactionObservation, { state: "landed" }>;
+
 export async function verifyEvmReferences(context: VerifyContext): Promise<VerificationResult> {
   const { step, references } = context;
   const prepared = step.prepared;
@@ -46,63 +100,69 @@ export async function verifyEvmReferences(context: VerifyContext): Promise<Verif
     return failed([], { code: "STEP_NOT_PREPARED", message: "The step has no prepared EVM payload." });
   }
   const chainId = evmChainId(step.network);
-  const preparedAtSeconds = Math.floor(Date.parse(prepared.preparedAt) / 1000);
-  const evidence: StepEvidence[] = [];
-  const views: BindingView[] = [];
-  for (const [index, reference] of references.entries()) {
-    const record = prepared.transactions[index];
-    if (!record?.to) return failed(evidence, { code: "STEP_NOT_PREPARED", message: "Prepared transaction record is missing." });
+  const observedAt = new Date(context.now).toISOString();
+  const landed: LandedEvm[] = [];
+  for (const reference of references) {
     const observation = await observeEvmTransaction(step.network, reference);
-    const observedAt = new Date(context.now).toISOString();
     if (observation.state !== "landed") {
       return {
         status: "pending",
-        evidence,
+        evidence: [],
         reason: observation.state === "pending" ? "Transaction is pending." : "Transaction is not visible yet.",
-        stale: context.now - context.submittedAt > EVM_STALE_MS,
+        stale: context.now - context.submittedAt > REFERENCE_STALE_MS,
       };
     }
-    const base = { network: step.network, reference, url: explorerTxUrl(step.network, reference), observedAt };
+    // Fail closed: without a block time the transaction cannot be ordered against prepare.
+    if (observation.blockTimestamp === null) {
+      return { status: "pending", evidence: [], reason: "Block time is not readable yet.", stale: false };
+    }
+    landed.push(observation);
+  }
+  for (const [index, observation] of landed.entries()) {
     if (observation.chainId !== null && observation.chainId !== chainId) {
-      return failed(evidence, { code: "REFERENCE_WRONG_CHAIN", message: `Transaction ${index + 1} is not on ${step.network}.` });
+      return failed([], { code: "REFERENCE_WRONG_CHAIN", message: `Transaction ${index + 1} is not on ${step.network}.` });
     }
     if (observation.from.toLowerCase() !== account.address.toLowerCase()) {
-      return failed(evidence, {
-        code: "REFERENCE_WRONG_SENDER",
-        message: `Transaction ${index + 1} was not sent by the step account.`,
-      });
+      return failed([], { code: "REFERENCE_WRONG_SENDER", message: `Transaction ${index + 1} was not sent by the step account.` });
     }
-    if ((observation.to ?? "").toLowerCase() !== record.to.toLowerCase()) {
-      return failed(evidence, {
-        code: "REFERENCE_WRONG_TARGET",
-        message: `Transaction ${index + 1} does not call the prepared contract.`,
-      });
-    }
-    if (observation.blockTimestamp !== null && observation.blockTimestamp < preparedAtSeconds - CLOCK_SKEW_SECONDS) {
-      return failed(evidence, {
-        code: "REFERENCE_STALE",
-        message: `Transaction ${index + 1} was mined before this step was prepared.`,
-      });
-    }
-    if (observation.status !== "success") {
-      evidence.push({ ...base, kind: "receipt", detail: `Reverted in block ${observation.blockNumber}.` });
-      return failed(evidence, { code: "TRANSACTION_REVERTED", message: `Transaction ${index + 1} reverted on-chain.` });
-    }
-    evidence.push({ ...base, kind: "receipt", detail: `Succeeded in block ${observation.blockNumber}.` });
-    views.push({
-      vm: "evm",
-      chainId,
-      from: observation.from.toLowerCase(),
-      to: (observation.to ?? "").toLowerCase(),
-      data: observation.input.toLowerCase(),
-      value: observation.value.toString(),
+  }
+  // The binding covers chain, sender, target, calldata and value of every
+  // transaction, so a match proves each receipt.to equals the prepared target.
+  const views: BindingView[] = landed.map((observation) => ({
+    vm: "evm",
+    chainId,
+    from: observation.from.toLowerCase(),
+    to: (observation.to ?? "").toLowerCase(),
+    data: observation.input.toLowerCase(),
+    value: observation.value.toString(),
+  }));
+  const preparedAtMs = preparedBindings(step).get(quoteBindingForViews(views));
+  if (preparedAtMs === undefined) {
+    return failed([], {
+      code: "REFERENCE_MISMATCH",
+      message: "The submitted transactions do not match a payload prepared for this step (target, calldata or value differ).",
     });
   }
-  if (quoteBindingForViews(views) !== prepared.quoteBinding) {
-    return failed(evidence, {
-      code: "REFERENCE_MISMATCH",
-      message: "The submitted transactions do not match the prepared payload.",
-    });
+  const notBefore = Math.floor(preparedAtMs / 1000) - CLOCK_SKEW_SECONDS;
+  for (const [index, observation] of landed.entries()) {
+    if ((observation.blockTimestamp ?? 0) < notBefore) {
+      return failed([], { code: "REFERENCE_STALE", message: `Transaction ${index + 1} was mined before this step's payload was prepared.` });
+    }
+  }
+  const evidence: StepEvidence[] = landed.map((observation, index) => {
+    const reference = references[index] as string;
+    return {
+      kind: "receipt",
+      network: step.network,
+      reference,
+      url: explorerTxUrl(step.network, reference),
+      observedAt,
+      detail: `${observation.status === "success" ? "Succeeded" : "Reverted"} in block ${observation.blockNumber}.`,
+    };
+  });
+  const reverted = landed.findIndex((observation) => observation.status !== "success");
+  if (reverted !== -1) {
+    return failed(evidence, { code: "TRANSACTION_REVERTED", message: `Transaction ${reverted + 1} reverted on-chain.` });
   }
   return { status: "confirmed", evidence };
 }
@@ -123,8 +183,13 @@ export async function verifySolanaReferences(
   if (!prepared || !account || !isSolanaNetworkKey(step.network)) {
     return { result: failed([], { code: "STEP_NOT_PREPARED", message: "The step has no prepared Solana payload." }), observations };
   }
-  const preparedAt = Date.parse(prepared.preparedAt);
+  // Wallets re-sign Solana payloads, so the earliest prepare bounds every payload of this step.
+  const notBefore = Math.floor((firstPreparedAt(step) ?? Date.parse(prepared.preparedAt)) / 1000) - CLOCK_SKEW_SECONDS;
   const evidence: StepEvidence[] = [];
+  const pending = (reason: string, stale = false) => ({
+    result: { status: "pending" as const, evidence, reason, stale },
+    observations,
+  });
   for (const [index, reference] of references.entries()) {
     const record = prepared.transactions[index];
     const observation = await observeSolanaTransaction(step.network, reference, account.address);
@@ -141,27 +206,22 @@ export async function verifySolanaReferences(
           observations,
         };
       }
+      return pending(observation.status === "processed" ? "Transaction is processed but not yet confirmed." : "Signature is not visible yet.");
+    }
+    if (!observation.detailsAvailable) {
+      // A status alone (even a failed one) does not prove who sent the transaction.
+      return pending("Transaction details are not readable yet.", context.now - context.submittedAt > REFERENCE_STALE_MS);
+    }
+    if (observation.feePayer !== account.address) {
       return {
-        result: {
-          status: "pending",
-          evidence,
-          reason: observation.status === "processed" ? "Transaction is processed but not yet confirmed." : "Signature is not visible yet.",
-          stale: false,
-        },
+        result: failed(evidence, { code: "REFERENCE_WRONG_SENDER", message: `Transaction ${index + 1} was not fee-paid by the step account.` }),
         observations,
       };
     }
-    if (observation.status === "failed") {
-      evidence.push({ ...base, kind: "transaction", detail: observation.error ?? "Transaction failed." });
-      const wrongPayer = observation.feePayer !== null && observation.feePayer !== account.address;
-      return {
-        result: failed(evidence, wrongPayer
-          ? { code: "REFERENCE_WRONG_SENDER", message: `Transaction ${index + 1} was not fee-paid by the step account.` }
-          : { code: "TRANSACTION_FAILED", message: `Transaction ${index + 1} failed on-chain.` }),
-        observations,
-      };
+    if (observation.blockTime === null) {
+      return pending("Block time is not readable yet.");
     }
-    if (observation.blockTime !== null && observation.blockTime < Math.floor(preparedAt / 1000) - CLOCK_SKEW_SECONDS) {
+    if (observation.blockTime < notBefore) {
       return {
         result: failed(evidence, { code: "REFERENCE_STALE", message: `Transaction ${index + 1} landed before this step was prepared.` }),
         observations,
@@ -169,10 +229,14 @@ export async function verifySolanaReferences(
     }
     if (record?.to && !observation.programs.includes(record.to)) {
       return {
-        result: failed(evidence, {
-          code: "REFERENCE_MISMATCH",
-          message: `Transaction ${index + 1} does not invoke the prepared program.`,
-        }),
+        result: failed(evidence, { code: "REFERENCE_MISMATCH", message: `Transaction ${index + 1} does not invoke the prepared program.` }),
+        observations,
+      };
+    }
+    if (observation.status === "failed") {
+      evidence.push({ ...base, kind: "transaction", detail: observation.error ?? "Transaction failed." });
+      return {
+        result: failed(evidence, { code: "TRANSACTION_FAILED", message: `Transaction ${index + 1} failed on-chain.` }),
         observations,
       };
     }
@@ -182,6 +246,25 @@ export async function verifySolanaReferences(
   const outcome = check?.(observations);
   if (outcome && outcome.failure) return { result: failed(evidence, outcome.failure), observations };
   return { result: { status: "confirmed", evidence }, observations };
+}
+
+/**
+ * Net native-SOL movement of `owner` across observations, with the fee added
+ * back and wrapped-SOL token balance changes folded in (Jupiter wraps and
+ * unwraps SOL inside the swap transaction).
+ */
+export function effectiveSolDelta(observations: readonly SolanaTransactionObservation[], owner: string): bigint {
+  return observations.reduce((total, observation) => {
+    const lamports = observation.lamportDeltas.get(owner) ?? 0n;
+    const fee = observation.feePayer === owner ? (observation.fee ?? 0n) : 0n;
+    const wrapped = observation.tokenDeltas.get(`${owner}:${WRAPPED_SOL_MINT}`) ?? 0n;
+    return total + lamports + fee + wrapped;
+  }, 0n);
+}
+
+/** Net SPL token movement of `owner` for `mint` across observations. */
+export function tokenDelta(observations: readonly SolanaTransactionObservation[], owner: string, mint: string): bigint {
+  return observations.reduce((total, observation) => total + (observation.tokenDeltas.get(`${owner}:${mint}`) ?? 0n), 0n);
 }
 
 export function referenceKey(step: IntentStep, reference: string): string {

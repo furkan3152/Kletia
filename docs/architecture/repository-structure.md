@@ -1,36 +1,53 @@
 # Repository structure and ownership
 
-Kletia is one product with four isolated network profiles, staged multichain workflows, and explicitly separated research labs. Directories follow runtime and trust ownership rather than feature history.
+Kletia is one npm workspace: a dependency-free intent specification, client libraries, an API and a web app, plus two independent Hardhat contract workspaces. Directories follow runtime and trust ownership rather than feature history.
 
 ```text
+packages/
+  core/                             @kletia/core: chains, CAIP identities, assets, protocols,
+                                    intent graph, lifecycle, validation, events, webhooks
+  sdk/                              @kletia/sdk: v1 client, SSE, EVM/Solana signers, executeIntent
+  widget/                           @kletia/widget: embeddable React intent widget
 apps/
   api/
-    src/index.ts                    HTTP composition root
-    src/networks/base/              Base-only adapters, assets, routes, security
-    src/networks/arc/               Arc-only contracts, App Kit, and intents
+    src/index.ts                    Entry point (Vercel and Node); imports environment first
+    src/http/app.ts                 Express composition: helmet, CORS (/api strict, /v1 open),
+                                    limiters, route mounts, /v1 mount point
+    src/http/server.ts              Startup attestation (degraded mode), shutdown
+    src/http/routes/                Health and capabilities, console intent, on-ramp
+    src/platform/engine/            Chain-agnostic grammar, planner, adapters (Jupiter, Relay,
+                                    Aave V3, transfers), verification, store, events, poller
+    src/platform/http/              Platform API v1: keys, rate limits, intents, SSE, webhooks,
+                                    OpenAPI
+    src/networks/base/              Base adapters, assets, routes, security, Intent Router V2
+    src/networks/arc/               Arc contracts, App Kit and intents
     src/networks/arbitrum/          Arbitrum One adapters and readiness
     src/networks/arbitrum-sepolia/  Testnet Aave/Circle endpoint
-    src/networks/stellar/           Native, passkey, Payment Center, labs
-    src/cross-chain/                Sealed workflow versions and durable state
-    src/shared/                     Parser, assets, policy, HTTP, safety, evidence
-    src/integrations/               Bounded external-provider interfaces
+    src/networks/solana/            Solana RPC, Jupiter, transfers, verification, Kamino
+    src/cross-chain/                Console staged workflow (Base → Arbitrum, Across)
+    src/shared/                     Parser, assets, policy, HTTP, privacy, environment, evidence
+    src/integrations/               Webacy and Allora boundaries
+    src/release/                    Readiness and capability reporting
     src/scripts/                    Operator and verification commands
   web/
-    src/app/                        Application composition and global styles
-    src/networks/                   Network-owned UI and wallet bindings
-    src/cross-chain/                Staged workflow execution and timelines
-    src/shared/                     Shared presentation, state, validation, privacy
-    src/integrations/               External-service presentation boundaries
+    src/main.tsx                    Entry: egress guard first, then the router
+    src/app/router.tsx              History router; every route is a lazy chunk
+    src/app/routes/                 Route table, Link, ConsoleRoute (wallet providers + console)
+    src/app/site/                   Site shell, design primitives, IntentGraphView
+    src/app/pages/                  Home, Developers, Networks, Studio, 404
+    src/app/App.tsx                 Intent console (EVM chat workspaces + Solana workspace)
+    src/networks/                   Network-owned UI (Base, Arc, Arbitrum, Solana)
+    src/shared/wallet/              Chain-agnostic wallet layer (wagmi + Wallet Standard)
+    src/shared/sync/                Cross-feature event bus and activity store
+    src/shared/platform/            Platform API client and hooks
+    src/shared/                     Presentation, state, validation, privacy
 contracts/
-  base/                             Base Solidity and Mainnet manifests
-  arc/                              Arc Solidity and Testnet manifests
-  stellar/                          Soroban crates, locks, and Testnet manifests
-circuits/
-  stellar-policy/                   Circom Policy V1/V2 source and dev artifacts
-docs/                               Canonical docs, runbooks, and research records
+  base/                             Base Solidity and Mainnet manifests (own lockfile)
+  arc/                              Arc Solidity and Testnet manifests (own lockfile)
+docs/                               Architecture, platform API, networks, deployment, runbooks
 tooling/                            Repository-wide verification gates
 attachments/                        Immutable submission artifacts
-.github/                            CI, issue forms, and pull-request policy
+.github/                            CI, issue forms and pull-request policy
 render.yaml                         Canonical public service topology
 ```
 
@@ -38,62 +55,54 @@ render.yaml                         Canonical public service topology
 
 ```mermaid
 flowchart TD
-    Shared[apps/*/src/shared] --> Base[networks/base]
-    Shared --> Arc[networks/arc]
-    Shared --> Arb[networks/arbitrum]
-    Shared --> Stellar[networks/stellar]
-    Base & Arc & Arb & Stellar --> Composition[app/API composition roots]
-    Base & Arc & Arb & Stellar --> Workflow[cross-chain coordinators]
-    Contracts[network contract packages] --> Manifest[deployment and lock manifests]
-    Manifest --> Base & Arc & Stellar
-
-    Base -. forbidden .-> Arc
-    Arc -. forbidden .-> Stellar
-    Stellar -. forbidden .-> Base
+    Core["@kletia/core"] --> SDK["@kletia/sdk"]
+    SDK --> Widget["@kletia/widget"]
+    Core --> Platform[api: platform engine + /v1]
+    Core --> Networks[api: networks/*]
+    Networks --> Platform
+    Networks --> Console[api: console engines]
+    Core --> Web[web app]
+    SDK --> Web
+    Networks -. forbidden .-> Networks2[another network module]
 ```
 
-Network modules may consume shared primitives. They must not import another network's targets, ABIs, assets, wallet implementation, or calldata builder. Cross-chain modules coordinate typed network steps; they do not erase ownership boundaries.
+- `@kletia/core` imports nothing. Everything else may import it.
+- A network module may use shared primitives and `@kletia/core`. It must not import another network's targets, ABIs, assets, wallet implementation or transaction builders.
+- The platform engine composes network modules through adapters; it never reaches into another adapter's private state.
+- The web app talks to the API only over HTTP (the SDK or `fetch`); it never imports API source.
 
 ## Ownership rules
 
-### Shared code
+### `packages/*`
 
-`shared` contains reusable parsing, HTTP, state, validation, disclosure, and presentation primitives. It must not become an unreviewed global registry of protocol addresses or special cases. A change in shared code requires the full network intent matrix because all profiles can be affected.
+Published library surface. Changes are API changes: keep them backwards compatible, typed and tested (`npm run test:packages`). `core` stays dependency-free and runs in Node, browsers and edge runtimes.
 
 ### Network code
 
-- Base code never imports Arc, Arbitrum, or Stellar execution code.
+- Base code never imports Arc, Arbitrum or Solana execution code.
 - Arc code never inherits Base targets or assumes an ERC-20 representation for native USDC.
 - Arbitrum One and Arbitrum Sepolia keep production/Testnet identities separate.
-- Stellar code uses explicit network passphrase, address type, issuer/SAC, wallet family, and passkey/Classic authorization.
-- Each action owns its discovery, preparation, simulation, receipt, and recovery semantics.
+- Solana code resolves tokens by mint and token program, builds only unsigned transactions, and refuses provider instructions that require any signer other than the fee payer.
+- Each action owns its discovery, preparation, simulation, evidence and recovery semantics.
 
-### Cross-chain code
+### Platform engine
 
-Workflow versions are compatibility boundaries, not interchangeable success paths. A value-bearing generic workflow may hand off to a reviewed executor, but cannot accept a generic transaction hash as proof. Production and Testnet steps cannot appear in the same plan.
+The engine is the single cross-network intent engine. New venues are added as adapters with plan, prepare, verify and (for cross-network venues) poll. A step may only advance on evidence its adapter verified. Production and Testnet networks never share one graph.
 
-### Contract and circuit workspaces
+### Contract workspaces
 
-- `contracts/base` and `contracts/arc` have independent Hardhat configurations, lockfiles, compiler profiles, deployments, and operator environments.
-- `contracts/stellar` is a Rust workspace whose deployment manifests and protocol locks pin Testnet identities.
-- `circuits/stellar-policy` owns Circom source, public-input schemas, and reproducible development artifacts. Trusted setup and audit status must remain explicit.
-- Generated build, cache, artifact, target, witness, zkey, and local wallet material must not be committed unless a verifier explicitly requires a bounded public artifact.
-
-## Core versus labs
-
-Core release modules are part of `npm run verify:core` and the default Render Blueprint. Policy/control-plane, solver market, private payments, MPP, and generic V3/V4 research surfaces require `STELLAR_LABS_ENABLED=true` plus the labs verification suite. A labs deployment manifest remains evidence of that Testnet contract, not a default product dependency.
+`contracts/base` and `contracts/arc` have independent Hardhat configurations, lockfiles, compiler profiles, deployments and operator environments. Generated build, cache, artifact and local wallet material is never committed.
 
 ## Path stability
 
 The following paths are externally or cryptographically significant:
 
-- `contracts/*/deployments/**` and Stellar lock manifests;
+- `contracts/*/deployments/**`;
 - `attachments/**`, whose paths and SHA-256 hashes are enforced;
-- API/web composition roots referenced by deployment configuration;
-- public assets referenced by the web application and documentation;
-- circuit public-input schemas and verifier-linked artifacts.
+- `apps/api/src/index.ts` (Vercel entry) and the Render build commands;
+- public assets referenced by the web app and documentation (`apps/web/public/kletia-logo.png` is hash-pinned).
 
-Before moving one of these files, update every code, deployment, documentation, and CI reference in the same change. Attachment contents and paths must not change. Run both:
+Before moving one of these files, update every code, deployment, documentation and CI reference in the same change, then run:
 
 ```bash
 npm run check:structure
@@ -102,20 +111,17 @@ npm run check:docs
 
 ## Naming and generated output
 
-- Application source and documentation are English; localized intent synonyms remain inside allowlisted parser/privacy sources.
+- Application source and documentation are English; localized intent synonyms remain inside allowlisted parser and privacy sources.
 - TypeScript filenames use camelCase or PascalCase.
-- Package names are unique and package-local lockfiles remain authoritative.
-- `node_modules`, `dist`, Hardhat artifacts/cache, Rust `target`, local databases, environment files, private keys, recovery bundles, and proving secrets are ignored.
-- Operator scripts belong under the owning package's script directory and are not browser/runtime imports.
+- One root lockfile covers the workspace; contract workspaces keep their own.
+- `node_modules`, `dist`, Hardhat artifacts/cache, local databases, environment files, private keys and recovery bundles are ignored.
 
 ## Adding a feature
 
-1. Choose the owning network or shared trust boundary.
-2. Add canonical identity and fail-closed readiness before UI availability.
+1. Choose the owning package, network module or platform adapter.
+2. Add canonical identity to `@kletia/core` and fail-closed readiness (`/api/capabilities`) before UI availability.
 3. Implement deterministic preparation and action-specific evidence.
-4. Bind the feature to both intent and manual review without creating a second execution truth.
-5. Add happy-path, unavailable, stale, wrong-network, wrong-account, and recovery tests.
-6. Update the owning README, architecture/status documentation, environment template, and deployment configuration if applicable.
-7. Run the smallest package checks during development, then `npm run verify:core`; run labs or live gates when their boundaries changed.
-
-The structural checker rejects deprecated package paths, network-crossing imports, generated output, mutated attachments, invalid deployment evidence, non-English application copy outside parsers, and other repository invariants.
+4. Expose it through `/v1` when it is an intent, so the app, SDK and widget share one execution truth.
+5. Add happy-path, unavailable, stale, wrong-network, wrong-account and recovery tests.
+6. Update the owning README, environment template, documentation and deployment configuration.
+7. Run the package checks while iterating, then `npm run verify`.

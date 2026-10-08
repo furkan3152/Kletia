@@ -40,7 +40,19 @@ hash). It is rate-limited per IP.
 { "error": { "code": "INTENT_UNSUPPORTED", "message": "…", "issues": [{ "path": "actions[0].network", "message": "…" }] }, "requestId": "…" }
 ```
 
-Codes are `UPPER_SNAKE_CASE` and stable. Every response carries `X-Request-Id`.
+Codes are `UPPER_SNAKE_CASE` and stable. Every response carries `X-Request-Id` (a valid incoming UUID is echoed). `INTENT_UNSUPPORTED` errors also include `hints`: example phrases the grammar understands.
+
+| Status | When |
+|---|---|
+| 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCE_COUNT_MISMATCH`, …) |
+| 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
+| 404 | Unknown intent, step, webhook or path |
+| 405 | Wrong method (with an `Allow` header) |
+| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook) |
+| 413 / 415 | Body over 64 KB / non-JSON body |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 429 | Rate limited (with `Retry-After`) |
+| 502 / 503 | Upstream provider unavailable, or a feature not configured (`WEBHOOKS_NOT_CONFIGURED`) |
 
 ## Endpoints
 
@@ -95,7 +107,17 @@ Structured alternative:
 ```
 
 `amount: "max"` on a dependent step means "the guaranteed output of the
-previous step". Response: `201 { "intent": IntentGraph }`.
+previous step". Response: `201 { "intent": IntentGraph }`. A dry run returns `200` and is not stored. Repeating a `clientReference` returns the original intent with `200` and `Idempotent-Replayed: true`.
+
+`GET /v1/intents` accepts `?limit=1..100` (default 20).
+
+### `POST /v1/quotes`
+
+```json
+{ "from": { "network": "base", "asset": "USDC", "amount": "25" }, "to": { "network": "solana", "asset": "USDC" } }
+```
+
+Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protocol`, `input`, `output`, `minimumOutput`, `feesUsd`, `estimatedSeconds`, `transactionCount` and `settlement`; `unavailable` lists venues that could not quote with the reason. A flat body (`network`, `from`, `to`, `toNetwork`, `amount`) is also accepted.
 
 ### Step execution
 
@@ -112,7 +134,9 @@ previous step". Response: `201 { "intent": IntentGraph }`.
    `settled`; cross-network steps become `settling` until the settlement network
    reports a destination fill, then `settled` (or `failed` on refund/expiry).
 
-A payload expires at `payload.expiresAt`; prepare again to re-quote.
+A payload expires at `payload.expiresAt`; prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
+
+EVM steps verify plain wallets (the receipt sender must be the step account). Smart-contract wallets that relay through bundlers are not yet supported.
 
 ### Events and webhooks
 
@@ -124,10 +148,17 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 
 Types: `intent.created`, `intent.status_changed`, `intent.step_updated`.
 
+The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each client may hold 10 streams; a stream closes after 30 minutes.
+
 Webhook deliveries are `POST` with header
 `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
-Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries retry up to
-3 times with backoff. Webhook URLs must be public HTTPS.
+Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries also carry
+`Kletia-Event-Id`, `Kletia-Event-Type`, `Kletia-Webhook-Id` and
+`Kletia-Delivery-Attempt`, and retry up to 3 times (1 s, 5 s, 25 s); redirects
+are never followed. Webhook URLs must be public HTTPS; private, loopback,
+link-local and metadata addresses are refused at registration and again at
+every delivery. A key may register 10 webhooks. Webhooks need
+`KLETIA_PLATFORM_SECRET` on the server (secrets are encrypted at rest).
 
 ## Supported intents (v1)
 

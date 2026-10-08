@@ -2,7 +2,7 @@
  * Relay API client (https://docs.relay.link). Every response is validated
  * field-by-field; anything unexpected fails closed.
  */
-import { isBaseUnitAmount, isEvmAddress, isSolanaAddress } from "@kletia/core";
+import { applySlippage, isBaseUnitAmount, isEvmAddress, isSolanaAddress } from "@kletia/core";
 import type { ExternalSolanaInstruction } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { fetchProviderJson } from "../http.js";
@@ -29,6 +29,9 @@ const RELAY_API_KEY = process.env.RELAY_API_KEY?.trim() || null;
 function headers(): Record<string, string> {
   return RELAY_API_KEY ? { "x-api-key": RELAY_API_KEY } : {};
 }
+
+/** Floor applied when Relay omits minimumAmount and no slippage was requested. */
+const DEFAULT_FLOOR_SLIPPAGE_BPS = 50;
 
 export const RELAY_NATIVE_EVM = "0x0000000000000000000000000000000000000000";
 export const RELAY_NATIVE_SOLANA = "11111111111111111111111111111111";
@@ -95,7 +98,11 @@ function invalid(detail: string): PlatformError {
   return new PlatformError("RELAY_QUOTE_INVALID", `Relay returned an unexpected quote (${detail}).`, 502);
 }
 
-function parseCurrencyAmount(value: unknown, label: string): RelayCurrencyAmount {
+/**
+ * `fallbackSlippageBps`: when Relay omits `minimumAmount`, the floor is derived
+ * from the requested slippage instead of trusting the quoted amount.
+ */
+function parseCurrencyAmount(value: unknown, label: string, fallbackSlippageBps?: number): RelayCurrencyAmount {
   if (!isRecord(value) || !isRecord(value.currency)) throw invalid(`${label} missing`);
   const currency = value.currency;
   const chainId = currency.chainId;
@@ -105,7 +112,11 @@ function parseCurrencyAmount(value: unknown, label: string): RelayCurrencyAmount
   if (typeof address !== "string" || !(isEvmAddress(address) || isSolanaAddress(address))) throw invalid(`${label}.address`);
   if (typeof decimals !== "number" || !Number.isInteger(decimals) || decimals < 0 || decimals > 36) throw invalid(`${label}.decimals`);
   if (!isBaseUnitAmount(value.amount)) throw invalid(`${label}.amount`);
-  const minimumAmount = isBaseUnitAmount(value.minimumAmount) ? value.minimumAmount : value.amount;
+  const minimumAmount = isBaseUnitAmount(value.minimumAmount)
+    ? value.minimumAmount
+    : fallbackSlippageBps !== undefined
+      ? applySlippage(value.amount, fallbackSlippageBps)
+      : value.amount;
   return {
     chainId,
     address,
@@ -218,7 +229,7 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
   if (!isRecord(body) || !isRecord(body.details)) throw invalid("details");
   const details = body.details;
   const currencyIn = parseCurrencyAmount(details.currencyIn, "currencyIn");
-  const currencyOut = parseCurrencyAmount(details.currencyOut, "currencyOut");
+  const currencyOut = parseCurrencyAmount(details.currencyOut, "currencyOut", request.slippageBps ?? DEFAULT_FLOOR_SLIPPAGE_BPS);
   if (
     currencyIn.chainId !== request.originChainId ||
     !sameCurrency(currencyIn.address, request.originCurrency) ||
@@ -231,6 +242,11 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
   }
   if (currencyOut.amount === "0" || currencyOut.minimumAmount === "0" || BigInt(currencyOut.minimumAmount) > BigInt(currencyOut.amount)) {
     throw invalid("output floor");
+  }
+  // The guaranteed floor must honour the requested slippage (1 base unit of rounding allowed).
+  if (request.slippageBps !== undefined &&
+    BigInt(currencyOut.minimumAmount) + 1n < BigInt(applySlippage(currencyOut.amount, request.slippageBps))) {
+    throw invalid("output floor is below the requested slippage");
   }
   const calls = parseCalls(body.steps);
   const requestIds = new Set(
@@ -289,16 +305,8 @@ export interface RelayRequestState {
   readonly outputChainId: number | null;
 }
 
-/** Looks up the Relay request that a deposit transaction created. */
-export async function fetchRelayRequestByHash(hash: string): Promise<RelayRequestState | null> {
-  const body = await fetchProviderJson(`${RELAY_API_URL}/requests/v2?hash=${encodeURIComponent(hash)}`, {
-    provider: "Relay",
-    headers: headers(),
-    allowStatus: [404],
-  });
-  if (!isRecord(body) || !Array.isArray(body.requests)) return null;
-  const request = body.requests.find((entry) => isRecord(entry) && typeof entry.id === "string");
-  if (!isRecord(request) || typeof request.id !== "string") return null;
+function parseRequest(request: Record<string, unknown>): RelayRequestState | null {
+  if (typeof request.id !== "string" || !/^0x[0-9a-fA-F]{64}$/u.test(request.id)) return null;
   const data = isRecord(request.data) ? request.data : {};
   const metadata = isRecord(data.metadata) ? data.metadata : {};
   const currencyOut = isRecord(metadata.currencyOut) ? metadata.currencyOut : {};
@@ -315,6 +323,20 @@ export async function fetchRelayRequestByHash(hash: string): Promise<RelayReques
     outputCurrency: typeof currency.address === "string" ? currency.address : null,
     outputChainId: typeof currency.chainId === "number" ? currency.chainId : null,
   };
+}
+
+/** Looks up the Relay requests a deposit transaction created (usually one). */
+export async function fetchRelayRequestsByHash(hash: string): Promise<RelayRequestState[]> {
+  const body = await fetchProviderJson(`${RELAY_API_URL}/requests/v2?hash=${encodeURIComponent(hash)}`, {
+    provider: "Relay",
+    headers: headers(),
+    allowStatus: [404],
+  });
+  if (!isRecord(body) || !Array.isArray(body.requests)) return [];
+  return body.requests
+    .slice(0, 8)
+    .map((entry) => (isRecord(entry) ? parseRequest(entry) : null))
+    .filter((entry): entry is RelayRequestState => entry !== null);
 }
 
 export async function fetchRelayStatus(requestId: string): Promise<RelayRequestState> {

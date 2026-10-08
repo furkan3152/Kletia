@@ -16,16 +16,16 @@ import {
   type StepEvidence,
   type TransactionRequest,
 } from "@kletia/core";
-import { assembleSolanaTransaction } from "../../../networks/solana/index.js";
+import { assembleSolanaTransaction, isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef, providerCurrency, sameAsset, type ResolvedAsset } from "../assets.js";
-import { erc20CreditFromLogs, evmChainId, isEvmNetwork, readEvmReceiptStatus } from "../chains/evm.js";
-import { assertSolanaTransactionOwner, readSolanaSignatureStatus, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
+import { erc20CreditFromLogs, evmChainId, isEvmNetwork, observeEvmTransaction, readEvmReceiptStatus } from "../chains/evm.js";
+import { assertSolanaTransactionOwner, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { decodeStepRef } from "../stepRef.js";
 import { assertEvmBalance } from "./evm-transfer.js";
 import {
   fetchRelayQuote,
-  fetchRelayRequestByHash,
+  fetchRelayRequestsByHash,
   fetchRelayStatus,
   type RelayCall,
   type RelayQuote,
@@ -40,7 +40,15 @@ import type {
   SettlementResult,
   VerificationResult,
 } from "./types.js";
-import { stepOwner, verifyEvmReferences, verifySolanaReferences } from "./verification.js";
+import {
+  effectiveSolDelta,
+  REFERENCE_STALE_MS,
+  SOL_RENT_TOLERANCE_LAMPORTS,
+  stepOwner,
+  tokenDelta,
+  verifyEvmReferences,
+  verifySolanaReferences,
+} from "./verification.js";
 
 export const RELAY_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "solana"];
 const SAME_NETWORK_SWAP_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum"];
@@ -173,10 +181,11 @@ async function solanaTransactions(
       instructions: call.instructions,
       addressLookupTables: call.addressLookupTables,
     });
-    if (!prepared.simulation.ok && prepared.simulation.error !== "Simulation unavailable") {
+    const simulation = await confirmSimulation("solana", prepared.transaction, prepared.simulation);
+    if (simulation && !simulation.ok) {
       throw new PlatformError(
         "SIMULATION_FAILED",
-        `The Relay deposit would fail on-chain (${(prepared.simulation.error ?? "simulation error").slice(0, 160)}). Check the balance of the sending account.`,
+        `The Relay deposit would fail on-chain (${simulation.error.slice(0, 160)}). Check the balance of the sending account.`,
         422,
       );
     }
@@ -215,23 +224,84 @@ function settlementFailure(state: RelayRequestState): SettlementResult | null {
   return null;
 }
 
-async function destinationConfirmed(
+const RELAY_REQUEST_ID = /^0x[0-9a-fA-F]{64}$/u;
+
+/**
+ * Relay request ids quoted for this step (plan time and every prepare), most
+ * recent first. A deposit only counts for the step when Relay attributes it
+ * to one of these requests.
+ */
+export function relayRequestIds(step: IntentStep): string[] {
+  const ids: string[] = [];
+  const add = (value: string | undefined) => {
+    if (value && RELAY_REQUEST_ID.test(value) && !ids.includes(value.toLowerCase())) ids.push(value.toLowerCase());
+  };
+  add(step.settlement?.trackingId);
+  for (const entry of [...step.evidence].reverse()) {
+    if (entry.kind === "quote") add(entry.reference);
+  }
+  return ids;
+}
+
+type DepositMatch =
+  | { readonly kind: "matched"; readonly state: RelayRequestState }
+  | { readonly kind: "foreign"; readonly requestId: string }
+  | { readonly kind: "unknown" };
+
+function sameReference(a: string, b: string): boolean {
+  return a.startsWith("0x") || b.startsWith("0x") ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** Finds the Relay request a deposit created and checks it was quoted for this step. */
+async function requestForDeposit(step: IntentStep, deposit: string): Promise<DepositMatch> {
+  const allowed = relayRequestIds(step);
+  const byHash = await fetchRelayRequestsByHash(deposit);
+  const own = byHash.find((state) => allowed.includes(state.requestId.toLowerCase()));
+  if (own) return { kind: "matched", state: own };
+  const foreign = byHash[0];
+  if (foreign) return { kind: "foreign", requestId: foreign.requestId };
+  // Not indexed by hash yet: a quoted request that lists this deposit as its origin transaction binds it too.
+  for (const requestId of allowed.slice(0, 3)) {
+    const state = await fetchRelayStatus(requestId);
+    if (state.originTxHashes.some((hash) => sameReference(hash, deposit))) return { kind: "matched", state };
+  }
+  return { kind: "unknown" };
+}
+
+interface DestinationCheck {
+  readonly confirmed: boolean;
+  /** Amount observed arriving at the recipient; null when it cannot be measured. */
+  readonly credited: bigint | null;
+}
+
+/**
+ * Destination-network evidence for a fill: the transaction succeeded and, where
+ * measurable, credited the recipient with the output asset.
+ */
+async function destinationCredit(
   network: NetworkKey,
   hash: string,
-  output: ResolvedAsset | null,
+  output: ResolvedAsset,
   recipient: string,
-): Promise<{ confirmed: boolean; credited: bigint | null }> {
+): Promise<DestinationCheck> {
   if (isEvmNetwork(network)) {
     if (!/^0x[0-9a-fA-F]{64}$/u.test(hash)) return { confirmed: false, credited: null };
-    const receipt = await readEvmReceiptStatus(network, hash);
-    if (receipt.status !== "success") return { confirmed: false, credited: null };
-    const credited = output && !output.isNative && output.address
-      ? erc20CreditFromLogs(receipt.logs, output.address, recipient)
-      : null;
-    return { confirmed: true, credited: credited !== null && credited > 0n ? credited : null };
+    if (!output.isNative && output.address) {
+      const receipt = await readEvmReceiptStatus(network, hash);
+      if (receipt.status !== "success") return { confirmed: false, credited: null };
+      const credited = erc20CreditFromLogs(receipt.logs, output.address, recipient);
+      // A fill that moved no output token to the recipient is not this request's fill.
+      return credited > 0n ? { confirmed: true, credited } : { confirmed: false, credited: null };
+    }
+    const observation = await observeEvmTransaction(network, hash);
+    if (observation.state !== "landed" || observation.status !== "success") return { confirmed: false, credited: null };
+    const direct = observation.to !== null && observation.to.toLowerCase() === recipient.toLowerCase() && observation.value > 0n;
+    return { confirmed: true, credited: direct ? observation.value : null };
   }
-  if (network === "solana") {
-    return { confirmed: (await readSolanaSignatureStatus("solana", hash)) === "success", credited: null };
+  if (isSolanaNetworkKey(network)) {
+    const read = await readSolanaCredit(network, hash, recipient, output.isNative ? null : (output.address as string));
+    if (read.status !== "success" || read.credited === null || read.credited <= 0n) return { confirmed: false, credited: null };
+    return { confirmed: true, credited: read.credited };
   }
   return { confirmed: false, credited: null };
 }
@@ -313,21 +383,41 @@ export const relayAdapter: ProtocolAdapter = {
   },
 
   async verify(context): Promise<VerificationResult> {
-    if (context.step.chain.startsWith("eip155:")) return verifyEvmReferences(context);
-    const input = context.step.input ? assetFromRef(context.step.input) : null;
-    const owner = stepOwner(context.step);
+    const { step } = context;
+    // EVM: the exact quote binding proves the deposit calldata (and its Relay request) is ours.
+    if (step.chain.startsWith("eip155:")) return verifyEvmReferences(context);
+    const input = step.input ? assetFromRef(step.input) : null;
+    const owner = stepOwner(step);
     const { result } = await verifySolanaReferences(context, (observations) => {
-      if (!input || input.isNative || !context.step.input) return;
-      const debited = observations.reduce(
-        (total, observation) => total - (observation.tokenDeltas.get(`${owner}:${input.address}`) ?? 0n),
-        0n,
-      );
-      if (debited < BigInt(context.step.input.amount)) {
+      if (!input || !step.input) return { failure: { code: "STEP_INVALID", message: "The step has no recorded input." } };
+      const spent = input.isNative
+        ? -effectiveSolDelta(observations, owner) + SOL_RENT_TOLERANCE_LAMPORTS
+        : -tokenDelta(observations, owner, input.address as string);
+      if (spent < BigInt(step.input.amount)) {
         return {
-          failure: { code: "REFERENCE_MISMATCH", message: `The deposit did not debit ${context.step.input.formatted} ${input.symbol} from the step account.` },
+          failure: { code: "REFERENCE_MISMATCH", message: `The deposit did not debit ${step.input.formatted} ${input.symbol} from the step account.` },
         };
       }
     });
+    if (result.status !== "confirmed" || step.settlement?.kind !== "cross-network") return result;
+    // Solana wallets re-sign payloads, so bind the deposit through Relay's own request record.
+    const deposit = context.references[context.references.length - 1] as string;
+    const match = await requestForDeposit(step, deposit);
+    if (match.kind === "foreign") {
+      return {
+        status: "failed",
+        evidence: [],
+        failure: { code: "REFERENCE_MISMATCH", message: "The deposit belongs to a Relay request that was not quoted for this step." },
+      };
+    }
+    if (match.kind === "unknown") {
+      return {
+        status: "pending",
+        evidence: [],
+        reason: "Relay has not indexed the deposit yet.",
+        stale: context.now - context.submittedAt > REFERENCE_STALE_MS,
+      };
+    }
     return result;
   },
 
@@ -337,16 +427,23 @@ export const relayAdapter: ProtocolAdapter = {
     const deposit = step.references?.[step.references.length - 1];
     const recipient = step.recipient ? parseAccountId(step.recipient) : null;
     const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
-    let state: RelayRequestState | null = deposit ? await fetchRelayRequestByHash(deposit).catch(() => null) : null;
-    if (state && recipient && state.recipient && !sameAddress(state.recipient, recipient.address)) {
-      return {
-        status: "failed",
-        evidence: [],
-        failure: { code: "SETTLEMENT_MISMATCH", message: "The Relay request for this deposit pays a different recipient." },
-      };
+    if (!deposit || !recipient || !output) {
+      return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The bridge step lacks a deposit, recipient or output." } };
     }
-    if (!state && step.settlement?.trackingId) state = await fetchRelayStatus(step.settlement.trackingId);
-    if (!state) return { status: "settling", evidence: [] };
+    const match = await requestForDeposit(step, deposit);
+    // Unknown or foreign attribution stays settling (and times out to manual review); it never settles.
+    if (match.kind !== "matched") return { status: "settling", evidence: [] };
+    const state = match.state;
+    const mismatch = (message: string): SettlementResult => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message } });
+    if (state.recipient && !sameAddress(state.recipient, recipient.address)) {
+      return mismatch("The Relay request for this deposit pays a different recipient.");
+    }
+    if (state.outputChainId !== null && state.outputChainId !== relayChainId(destination)) {
+      return mismatch("The Relay request for this deposit settles on a different network.");
+    }
+    if (state.outputCurrency !== null && !sameAddress(state.outputCurrency, providerCurrency(output))) {
+      return mismatch("The Relay request for this deposit delivers a different asset.");
+    }
     const failure = settlementFailure(state);
     if (failure) return failure;
     if (state.status !== "success") {
@@ -354,10 +451,9 @@ export const relayAdapter: ProtocolAdapter = {
     }
     const observedAt = new Date().toISOString();
     for (const hash of state.destinationTxHashes) {
-      const check = await destinationConfirmed(destination, hash, output, recipient?.address ?? "").catch(() => ({
-        confirmed: false,
-        credited: null,
-      }));
+      const check = await destinationCredit(destination, hash, output, recipient.address).catch(
+        (): DestinationCheck => ({ confirmed: false, credited: null }),
+      );
       if (!check.confirmed) continue;
       const evidence: StepEvidence = {
         kind: "settlement",
@@ -365,17 +461,14 @@ export const relayAdapter: ProtocolAdapter = {
         reference: hash,
         url: explorerTxUrl(destination, hash),
         observedAt,
-        detail: `Relay fill confirmed on ${CHAINS[destination].name} (request ${state.requestId.slice(0, 10)}…).`,
+        detail: `Relay fill confirmed on ${CHAINS[destination].name} (request ${state.requestId.slice(0, 10)}…)` +
+          (check.credited !== null ? `; ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol} credited to the recipient.` : "."),
       };
-      const reported = state.outputAmount !== null && output &&
-        (state.outputCurrency === null || sameAddress(state.outputCurrency, output.isNative ? state.outputCurrency : (output.address as string)))
-        ? state.outputAmount
-        : null;
-      const amount = check.credited !== null ? check.credited.toString() : reported;
+      // Only a measured credit becomes actualOutput; otherwise dependents keep spending the guaranteed minimum.
       return {
         status: "settled",
         evidence: [evidence],
-        ...(amount && output ? { actualOutput: assetAmount(output, amount) } : {}),
+        ...(check.credited !== null ? { actualOutput: assetAmount(output, check.credited.toString()) } : {}),
       };
     }
     return { status: "settling", evidence: [] };

@@ -27,16 +27,12 @@ jobs:
           node-version: 22.23.1
           cache: npm
           cache-dependency-path: |
-            apps/api/package-lock.json
-            apps/web/package-lock.json
+            package-lock.json
             contracts/base/package-lock.json
             contracts/arc/package-lock.json
 
-      - name: Install API dependencies
-        run: npm --prefix apps/api ci --include=dev --legacy-peer-deps
-
-      - name: Install web dependencies
-        run: npm --prefix apps/web ci --include=dev --legacy-peer-deps
+      - name: Install workspace dependencies (apps and packages)
+        run: npm ci
 
       - name: Install Base contract dependencies
         run: npm --prefix contracts/base ci --include=dev --legacy-peer-deps
@@ -44,12 +40,11 @@ jobs:
       - name: Install Arc contract dependencies
         run: npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 
-      - name: Verify structure, applications and contracts
+      - name: Verify structure, packages, applications and contracts
         run: npm run verify
 
       - name: Reject high-severity runtime advisories
         run: |
-          npm --prefix apps/api audit --omit=dev --audit-level=high
-          npm --prefix apps/web audit --omit=dev --audit-level=high
+          npm audit --omit=dev --audit-level=high
           npm --prefix contracts/base audit --omit=dev --audit-level=high
           npm --prefix contracts/arc audit --omit=dev --audit-level=high

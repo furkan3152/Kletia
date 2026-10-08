@@ -18,6 +18,37 @@ function providerCode(provider: string, suffix: string): string {
   return `${provider.toUpperCase().replace(/\W+/gu, "_")}_${suffix}`;
 }
 
+/** Reads a response body, aborting as soon as it exceeds MAX_RESPONSE_BYTES (never buffers more). */
+async function readBounded(response: Response, provider: string): Promise<string> {
+  const tooLarge = () => new PlatformError("PROVIDER_RESPONSE_TOO_LARGE", `${provider} returned an oversized response.`, 502);
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw tooLarge();
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw tooLarge();
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch (error) {
+    if (error instanceof PlatformError) throw error;
+    throw new PlatformError(providerCode(provider, "UNAVAILABLE"), `${provider} response was interrupted. Try again shortly.`, 502);
+  }
+  return text + decoder.decode();
+}
+
 /** Fetches JSON with a hard timeout and size limit; maps failures to PlatformError. */
 export async function fetchProviderJson(url: string, request: ProviderRequest): Promise<unknown> {
   let response: Response;
@@ -39,10 +70,7 @@ export async function fetchProviderJson(url: string, request: ProviderRequest): 
       502,
     );
   }
-  const text = await response.text();
-  if (text.length > MAX_RESPONSE_BYTES) {
-    throw new PlatformError("PROVIDER_RESPONSE_TOO_LARGE", `${request.provider} returned an oversized response.`, 502);
-  }
+  const text = await readBounded(response, request.provider);
   if (request.allowStatus?.includes(response.status)) return null;
   let body: unknown = null;
   try {

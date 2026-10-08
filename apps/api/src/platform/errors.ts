@@ -3,6 +3,7 @@
  * with a stable UPPER_SNAKE_CASE code, an HTTP status and optional per-field
  * issues. 5xx errors never carry provider or stack details.
  */
+import { isSolanaError } from "@solana/kit";
 import { BaseError as ViemBaseError } from "viem";
 import { SolanaProviderError } from "../networks/solana/index.js";
 
@@ -84,9 +85,13 @@ export function toPlatformError(error: unknown): PlatformError {
   if (error instanceof ViemBaseError) {
     return new PlatformError("RPC_UNAVAILABLE", "An EVM network read failed. Try again shortly.", 502);
   }
+  if (isSolanaError(error)) {
+    return new PlatformError("RPC_UNAVAILABLE", "A Solana network read failed. Try again shortly.", 502);
+  }
   if (error instanceof Error && error.name === "TimeoutError") {
     return new PlatformError("UPSTREAM_TIMEOUT", "An upstream provider timed out. Try again shortly.", 504);
   }
+  console.error("[platform] unexpected error:", error instanceof Error ? (error.stack ?? error.message) : error);
   return new PlatformError("INTERNAL_ERROR", "Unexpected platform error.", 500);
 }
 

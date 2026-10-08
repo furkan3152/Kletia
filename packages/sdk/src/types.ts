@@ -1,6 +1,8 @@
 import type {
   AccountId,
+  AssetAmount,
   AssetDescriptor,
+  AssetId,
   ChainDescriptor,
   IntentGraph,
   IntentRequest,
@@ -8,6 +10,7 @@ import type {
   ProtocolDescriptor,
   ProtocolId,
   StepExecutionPayload,
+  StepSettlement,
 } from "@kletia/core";
 
 export interface NetworkCapabilities extends ChainDescriptor {
@@ -15,15 +18,27 @@ export interface NetworkCapabilities extends ChainDescriptor {
   readonly protocols: readonly ProtocolId[];
 }
 
+export interface NetworkHealth {
+  readonly network: NetworkKey;
+  readonly chain: string;
+  readonly name: string;
+  readonly environment: "mainnet" | "testnet";
+  readonly ok: boolean;
+  readonly latencyMs: number;
+  /** Latest block number (EVM) or slot (Solana). */
+  readonly height?: string;
+  readonly detail?: string;
+}
+
 export interface HealthReport {
   readonly status: "ok" | "degraded" | "down";
-  readonly version?: string;
-  readonly networks: readonly {
-    readonly network: NetworkKey;
-    readonly ok: boolean;
-    readonly latencyMs?: number;
-    readonly detail?: string;
-  }[];
+  readonly api: "v1";
+  readonly version: string;
+  readonly time: string;
+  readonly uptimeSeconds: number;
+  readonly networks: readonly NetworkHealth[];
+  readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string };
+  readonly webhooks: { readonly status: "enabled" | "needs_configuration" };
 }
 
 export interface QuoteRequest {
@@ -37,35 +52,47 @@ export interface QuoteRequest {
 
 export interface QuoteRoute {
   readonly protocol: ProtocolId;
-  readonly input: { readonly asset: string; readonly symbol: string; readonly amount: string; readonly formatted: string };
-  readonly output: { readonly asset: string; readonly symbol: string; readonly amount: string; readonly formatted: string };
-  readonly minimumOutput?: { readonly amount: string; readonly formatted: string };
+  readonly label: string;
+  readonly network: NetworkKey;
+  readonly toNetwork: NetworkKey;
+  readonly input: AssetAmount;
+  readonly output: AssetAmount;
+  readonly minimumOutput: AssetAmount;
   readonly feesUsd?: number;
-  readonly estimatedSeconds?: number;
-  readonly warnings?: readonly string[];
+  readonly estimatedSeconds: number;
+  readonly transactionCount: number;
+  readonly settlement: StepSettlement;
+  readonly warnings: readonly string[];
+  readonly quoteId?: string;
 }
 
 export interface QuoteResponse {
   readonly routes: readonly QuoteRoute[];
   readonly best: QuoteRoute | null;
+  readonly quotedAt: string;
+  /** Venues that could not quote this movement, with the reason. */
+  readonly unavailable: readonly { readonly protocol: ProtocolId; readonly code: string; readonly message: string }[];
 }
 
 export interface PortfolioHolding {
-  readonly asset?: string;
+  readonly asset: AssetId;
   readonly symbol: string;
-  readonly name?: string;
+  readonly name: string;
   readonly decimals: number;
   readonly amount: string;
   readonly formatted: string;
-  readonly usdValue: number | null;
+  readonly usd: number | null;
+  readonly verified: boolean;
+  readonly isNative: boolean;
 }
 
 export interface PortfolioResponse {
   readonly account: AccountId;
   readonly network: NetworkKey;
-  readonly totalUsd: number;
   readonly holdings: readonly PortfolioHolding[];
-  readonly observedAt?: string;
+  readonly totalUsd: number;
+  readonly unpricedCount: number;
+  readonly observedAt: string;
 }
 
 export interface CreateIntentOptions {

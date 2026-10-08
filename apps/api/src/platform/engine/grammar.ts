@@ -172,7 +172,14 @@ function parseAmount(raw: string, clause: string): AmountPhrase {
   if (value === "quarter" || value === "a quarter") return { type: "previous", portionBps: 2_500 };
   if (["all", "max", "everything", "it", "them", "that"].includes(value)) return { type: "previous", portionBps: 10_000 };
   const usd = value.startsWith("$");
-  let numeric = value.replace(/^\$/u, "").replace(/,/gu, "");
+  let numeric = value.replace(/^\$/u, "");
+  if (numeric.includes(",")) {
+    // Commas are accepted only as thousands separators ("1,250.5"). "1,5" (a decimal comma) is refused, never read as 15.
+    if (!/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(numeric)) {
+      throw clauseError(clause, `"${raw}" is ambiguous; use a dot for decimals (e.g. "1.5").`);
+    }
+    numeric = numeric.replace(/,/gu, "");
+  }
   if (numeric.startsWith(".")) numeric = `0${numeric}`;
   if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(numeric) || /^0(?:\.0+)?$/u.test(numeric)) {
     throw clauseError(clause, `"${raw}" is not a positive amount.`);

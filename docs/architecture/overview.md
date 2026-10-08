@@ -2,168 +2,166 @@
 
 ## Product boundary
 
-Kletia is one intent-driven application with four isolated network profiles and two capital lanes. It converts an outcome into exact network actions, asks the user to authorize every value-moving step, and advances only when action-specific evidence is verified.
+Kletia is intent infrastructure for EVM networks and Solana. It converts an outcome ("bridge 50 USDC from Base to Solana and stake it as JitoSOL") into exact, network-bound steps, asks the user's own wallet to authorize every value-moving step, and advances only when step-specific evidence is verified.
 
-| Profile | Network | Lane | Primary role |
-|---|---|---|---|
-| `base` | Base Mainnet (`8453`) | Production | Main DeFi, token launch, Basenames, x402, portfolio and security surface |
-| `arbitrum` | Arbitrum One (`42161`) | Production | Capability-gated Uniswap V3/Aave expansion and staged Base workflows |
-| `arc` | Arc Testnet (`5042002`) | Testnet | Native-USDC programmable-money protocols and CCTP source execution |
-| `stellar` | Stellar Testnet | Testnet | Native payments/SDEX, passkey C-accounts, Payment Center, and opt-in research labs |
+It ships in two forms that share one engine:
 
-Arbitrum Sepolia (`421614`) is a reviewed Testnet execution endpoint for the Arc/CCTP/Aave corridor, not a fifth independent workspace. Production and Testnet assets cannot enter the same workflow.
+- **The Kletia app** — a home page, the intent console (`/app`), Intent Studio (`/studio`), a developer portal and a network status page.
+- **The Kletia platform** — Platform API v1 (`/v1`), [`@kletia/core`](../../packages/core/README.md) (the intent specification), [`@kletia/sdk`](../../packages/sdk/README.md) and [`@kletia/widget`](../../packages/widget/README.md), so other products can embed cross-network intents.
 
-Changing a profile changes wallet family, chain identity, asset catalog, action vocabulary, target registry, native-gas behavior, widgets, response validation, and executable state. It is not a cosmetic RPC switch.
+| Network key | Network | CAIP-2 | Lane | Primary role |
+|---|---|---|---|---|
+| `base` | Base | `eip155:8453` | Production | Intent Router V2 swaps, lending discovery, token launch, Basenames, x402 |
+| `arbitrum` | Arbitrum One | `eip155:42161` | Production | Uniswap V3 / Aave V3, staged Base workflows |
+| `solana` | Solana | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Production | Jupiter swaps, liquid staking, transfers, Kamino discovery |
+| `arc` | Arc Testnet | `eip155:5042002` | Testnet | Native-USDC protocols and Circle App Kit |
+| `arbitrum-sepolia` | Arbitrum Sepolia | `eip155:421614` | Testnet | Circle Testnet USDC and Aave supply |
+| `solana-devnet` | Solana Devnet | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testnet | Transfers and portfolio |
+
+Production and testnet capital never share one intent. Changing a network changes wallet family, chain identity, asset catalog, action vocabulary, target registry and evidence rules — it is never a cosmetic RPC switch.
 
 ## Layered system
 
 ```mermaid
 flowchart TB
-    subgraph Client[Browser and user authority]
-      UI[Intent chat and network dashboards]
-      Privacy[Private fields and disclosure controls]
-      Wallet[EVM wallet / Stellar passkey / Freighter]
-      Review[Exact transaction review and timeline]
+    subgraph Surfaces[Surfaces]
+      Home[Home and developer portal]
+      Console[Intent console /app]
+      Studio[Intent Studio /studio]
+      Widget["@kletia/widget"]
+      SDK["@kletia/sdk"]
     end
 
-    subgraph API[Deterministic orchestration API]
-      Parse[Deterministic parser + consented semantic fallback]
-      Resolve[Network asset and entity resolution]
-      Compile[Intent and workflow compilers]
-      Rank[Live discovery, ranking, simulation]
-      State[Durable checkpoint and recovery stores]
-      Verify[Receipt, event, provider and protocol verification]
+    subgraph Wallets[User authority]
+      EVM[EVM wallets via EIP-1193]
+      SOL[Solana wallets via Wallet Standard]
     end
 
-    subgraph Execution[Network-specific execution]
-      Base[Base adapters and V2 router]
-      Arc[Arc contracts and App Kit boundaries]
-      Arb[Arbitrum adapters and Aave/CCTP]
-      Stellar[Stellar Classic, SDEX and C-accounts]
+    subgraph API[Kletia API]
+      AppRoutes["/api: console engines (Base, Arc, Arbitrum chat)"]
+      V1["/v1: Platform API (keys, intents, SSE, webhooks)"]
+      Planner[Deterministic grammar and planner]
+      Adapters[Adapters: Jupiter, Relay, Aave V3, transfers]
+      Store[Intent store and event buffer]
+      Verify[On-chain and settlement verification]
     end
 
-    subgraph Labs[Opt-in Stellar research labs]
-      Policy[Circom policy proofs]
-      Control[Soroban control plane]
-      Auction[Bond vault and route auction]
-      Shielded[Private payments and MPP]
+    subgraph Networks[Networks and venues]
+      Base[Base]
+      Arb[Arbitrum]
+      Arc[Arc Testnet]
+      Sol[Solana]
+      Relay[Relay settlement]
     end
 
-    UI --> Privacy --> Parse
-    Parse --> Resolve --> Compile --> Rank
-    Rank --> Base & Arc & Arb & Stellar
-    Wallet --> Base & Arc & Arb & Stellar
-    Base & Arc & Arb & Stellar --> Verify --> State --> Review
-    Compile -. STELLAR_LABS_ENABLED .-> Policy --> Control --> Auction --> Shielded
+    Home & Studio & Widget & SDK --> V1
+    Console --> AppRoutes
+    Console --> V1
+    V1 --> Planner --> Adapters --> Store
+    Adapters --> Base & Arb & Sol & Relay
+    AppRoutes --> Base & Arc & Arb
+    EVM --> Base & Arb & Arc
+    SOL --> Sol
+    Base & Arb & Sol & Relay --> Verify --> Store
+    Store -- events --> V1
 ```
 
 ### Runtime ownership
 
-- `apps/web` owns the visible intent experience, local privacy controls, wallet/passkey sessions, stale-state invalidation, and final approval.
-- `apps/api` owns canonical identities, intent interpretation, capability gates, live route construction, durable state, and evidence validation.
-- `contracts/base`, `contracts/arc`, and `contracts/stellar` own independent compiler and deployment boundaries.
-- `circuits/stellar-policy` owns reproducible Policy V1/V2 research artifacts.
-- `render.yaml` is the canonical public-service topology; labs are disabled there by default.
+- `packages/core` owns the shared language: chain registry, CAIP identities, assets, protocols, intent graph types, lifecycle rules, validation, events and webhook signatures. It has no runtime dependencies.
+- `apps/api/src/platform` owns the chain-agnostic engine: grammar, planner, adapters, store, event buffer, settlement poller and the `/v1` HTTP layer.
+- `apps/api/src/networks/*` own network primitives (RPC, assets, builders, verification) and the console's network engines. A network module never imports another network's targets or builders.
+- `apps/web` owns presentation, wallet sessions (EVM and Solana), the cross-feature event bus, final review and the user's approval.
+- `contracts/base` and `contracts/arc` own independent compiler and deployment boundaries.
+- `render.yaml` is the canonical public-service topology.
 
-## Intent and execution lifecycle
+## Intent graph lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Interpreting
-    Interpreting --> Clarification: required field ambiguous
-    Clarification --> Interpreting: sealed answer
-    Interpreting --> Discovering: entities resolved
-    Discovering --> Unavailable: hard gate fails
-    Discovering --> Review: live route and simulation pass
-    Review --> AwaitingSignature: user accepts exact step
-    AwaitingSignature --> Submitted: wallet broadcasts
-    Submitted --> Confirmed: receipt/event verified
-    Submitted --> Indeterminate: finality or provider unclear
-    Indeterminate --> Submitted: recover existing hash/nonce
-    Confirmed --> Review: next checkpoint exists
-    Confirmed --> Completed: terminal evidence verified
-    Unavailable --> [*]
-    Completed --> [*]
+    [*] --> planned: plan (live quotes)
+    planned --> executing: first step prepared
+    executing --> settling: cross-network step submitted
+    settling --> executing: settlement verified, dependents unlocked
+    executing --> completed: every step settled
+    executing --> partially_completed: a later step failed
+    executing --> failed
+    executing --> indeterminate: evidence unclear
+    indeterminate --> executing: existing reference recovered
+    planned --> expired
+    planned --> cancelled
+    completed --> [*]
 ```
 
-1. The browser binds the request to the active profile, account, and disclosure choice.
-2. Deterministic parsing runs first. A semantic model is used only when permitted; its output is untrusted structured input.
-3. Entity resolution maps symbols and addresses to exact network identities. Ambiguity creates a clarification, not a guessed transfer.
-4. Adapters perform live discovery. Lane, chain, target, bytecode, asset, amount, deadline, quote freshness, privacy, and protocol capability are hard gates.
-5. Supported routes are ranked using action-appropriate output, gas, fees, time, yield/risk, and disclosure costs.
-6. The browser checks the response envelope against the current session and asks for the exact wallet or passkey authorization.
-7. The API verifies receipt, event, amount, nonce, fill/refund, or protocol post-state before advancing.
-8. Unknown finality enters recovery. The existing transaction is checked again; money is not resent automatically.
+1. A request carries natural language or structured actions plus CAIP-10 accounts (one per VM is typical).
+2. The deterministic grammar compiles text into actions. No model is involved in planning or execution; unsupported wording is refused with examples.
+3. The planner resolves each action to exact network identities, picks an adapter, quotes it live, chains dependent amounts through guaranteed minimum outputs, and may merge a bridge followed by a destination swap into one cross-network swap.
+4. Each step is bound to exactly one network, one account and one protocol. Steps form a DAG; a step becomes `ready` only when its dependencies settle.
+5. `prepare` re-quotes and returns unsigned transactions (EVM calls or base64 Solana v0 transactions) with an expiry and a quote binding.
+6. The user's wallet signs. The client submits the references (hashes or signatures).
+7. The API verifies each reference on-chain: status, sender or fee payer equal to the bound account, target and chain. Cross-network steps stay `settling` until the settlement network reports a destination fill.
+8. Every transition emits an event to SSE subscribers and signed webhooks.
 
 ## Network execution boundaries
 
-### Base Mainnet
+### Base
 
-Base is the broadest production capital lane. Its active swap boundary is `KletiaIntentRouterV2`, which combines EIP-712 intent binding, unordered nonces, deadlines, governance-enabled typed adapters, codehash checks, output balance deltas, fee caps, and residual-allowance cleanup. Discovery may be broader than onchain adapter execution; an observed quote source is not automatically authorized.
-
-Lending, vault, staking, liquidity, token-launch, Basename, security, Across, and x402 flows keep protocol-specific target and evidence rules. A generic “trusted score” cannot override a failing identity, simulation, or spender gate.
+Base is the broadest production lane. Its swap boundary is `KletiaIntentRouterV2`: EIP-712 intent binding, unordered nonces, deadlines, governance-enabled typed adapters, codehash checks, output balance deltas, fee caps and residual-allowance cleanup. The router, LaunchFactory V2 and Arc Vault V2 identities are public and pinned; they are re-validated against the live chain on every request.
 
 ### Arbitrum
 
-Arbitrum One uses reviewed external protocol identities rather than a Kletia contract workspace. Uniswap V3 and Aave actions are gated independently in API and web builds. Borrow capacity uses live collateral, debt, liquidity, and oracle inputs and is not treated as permission to borrow.
-
-Arbitrum Sepolia is limited to the reviewed Circle Testnet USDC/Aave corridor. The workflow verifies Arc approval and burn, Circle message/attestation, destination mint, Aave approval, and Aave supply as separate checkpoints.
+Arbitrum One uses reviewed external protocol identities. Uniswap V3 and Aave actions are gated independently, and borrow capacity reads live collateral, debt, liquidity and oracle inputs without granting permission to borrow. Arbitrum Sepolia is limited to the Circle Testnet USDC and Aave corridor.
 
 ### Arc Testnet
 
-Arc owns its target allowlist, ABIs, response envelopes, and native-USDC rules. Kletia's native-value rail uses 18 atomic decimals, while Circle/App Kit ERC-20 rails use 6; conversion is action-specific and never inferred from the symbol alone. Arc contracts are Testnet deployments, not inherited Base protocols or production assurances.
+Arc owns its target allowlist, ABIs, response envelopes and native-USDC rules. The native-value rail uses 18 decimals while the ERC-20 interface uses 6; conversion is action-specific and never inferred from the symbol.
 
-### Stellar Testnet
+### Solana
 
-Stellar is both a native execution profile and the home of opt-in research labs. Core flows include XLM/USDC balances, trustlines, direct Classic payments, SDEX path payments, and WebAuthn `secp256r1` contract accounts. A passkey controls a Stellar C-account through the pinned Smart Account Kit/relayer boundary; it is not an EVM private key or universal wallet credential.
+Solana primitives live in `apps/api/src/networks/solana`: portfolio (SOL, SPL and Token-2022), Jupiter quotes and swap transactions, transfers with idempotent associated-account creation, provider-instruction assembly (refusing any signer other than the fee payer), signature verification and Kamino rate discovery. Every prepared transaction is simulated before it is returned. See the [Solana guide](../networks/solana.md).
 
-The Payment Center coordinates SEP-1 discovery, SEP-45 contract-account authentication, SEP-38 quotes, SEP-24 user withdrawals, durable recovery, and exact Stellar transfer evidence. A provider must pass the configured corridor and real-settlement review; Testanchor remains reference-only and cannot turn release readiness green.
+### Cross-network settlement
 
-Policy proofs, control-plane commitments, solver bonds/auctions, shielded payments, and MPP remain labs. They add reproducible research value but do not execute Arc/EVM funds or prove a foreign-chain state transition by themselves.
+Relay settles EVM ↔ Solana and Base ↔ Arbitrum movements, including bridge-and-swap in one user transaction. Kletia verifies the source transaction on-chain and then polls the settlement network; a step is `settled` only on a reported destination fill, and `failed` on refund or failure. The console's staged Base → Arbitrum workflow additionally uses Across with destination fill verification.
 
 ## Custody and authorization
 
-Kletia does not use one universal router for every financial action:
-
-- EVM swaps may use a typed router adapter when target, spender, path, recipient, amount, and output semantics are supported.
-- Lending, vault, staking, and liquidity calls execute from the user's wallet when an intermediary would change protocol ownership.
-- Stellar C-account transactions require the matching WebAuthn credential; Classic operations may use Freighter.
-- Policy or plan signatures authorize constraints and orchestration, not token transfer.
-- Same-chain batching is atomic only when the wallet/contract capability supports the exact calls. A cross-chain workflow has no global rollback.
-
-No user secret belongs in environment templates, source, logs, or browser storage. Operator deployment identities are separated from end-user accounts and runtime services.
+- Kletia is non-custodial. The API returns unsigned transactions; it never holds keys or moves funds.
+- Every value-moving transaction is signed in the user's own wallet: EIP-1193 for EVM networks, Wallet Standard (`solana:signAndSendTransaction`) for Solana.
+- Approvals are exact; an EVM approval is included only when the current allowance is insufficient.
+- Same-chain batching is atomic only when the wallet supports the exact calls. Cross-network intents have no global rollback.
+- API keys authenticate integrators; they never authorize value movement.
 
 ## Evidence model
 
 | Level | Meaning |
 |---|---|
 | `observed` | Data was read from a declared source; protocol truth is not yet established |
-| `chain_native_verified` | The relevant receipt or ledger result was verified |
-| `protocol_verified` | Expected protocol events, values, or post-state also match |
-| `zk_verified` | The pinned circuit/verifier accepted the stated policy relation |
+| `chain_verified` | The receipt or signature status was verified with the bound sender or fee payer |
+| `settlement_verified` | The settlement network reported the destination fill for the exact request |
+| `protocol_verified` | Expected protocol events, values or post-state also match |
 
-`zk_verified` does not prove a foreign EVM transaction. A hash does not prove the intended economic result. Provider status does not independently prove bank finality. The UI and documentation must preserve these distinctions.
+A hash alone never proves the intended economic result, and provider status never independently proves another network's state.
 
 ## Failure and dependency model
 
-- Missing RPC, bytecode, provider credential, deployment pin, durable store, or capability flag reduces or disables the affected feature.
-- Provider errors do not become zero balances, fabricated APY, fixture routes, or mock success.
-- Quote expiry requires re-quotation; a material economic change requires a fresh review.
-- `submitted`, `failed`, `refunded`, `indeterminate`, and `recovery_required` are distinct durable states.
-- External responses from models, RPCs, quote services, x402 endpoints, anchors, and relayers remain untrusted until their applicable checks pass.
+- A missing RPC, credential or deployment pin disables only the affected feature; `GET /api/capabilities` reports it as `needs_configuration` or `disabled`.
+- An unreachable RPC degrades its network at startup; an RPC on the wrong chain stops the API.
+- Provider errors never become zero balances, fabricated yields or mock success.
+- Quote expiry requires re-preparation; a material change requires a fresh review.
+- `submitted`, `settling`, `failed`, `indeterminate` and `expired` are distinct states; uncertain transactions are recovered by their existing reference, never resent.
 
 ## Extension rule
 
 A new network or protocol becomes executable only after:
 
-1. authoritative identity and asset metadata are added;
+1. its chain, assets and protocol identity are added to `@kletia/core`;
 2. lane and runtime chain identity are verified;
 3. live discovery and unavailable behavior are implemented;
-4. an operation-specific transaction/XDR builder exists;
-5. spender, recipient, amount, deadline, return value, and state-transition rules are validated;
-6. simulation and receipt/protocol evidence are defined;
-7. browser session and wallet bindings are tested;
-8. documentation, readiness, and adversarial tests pass;
-9. only then is execution enabled.
+4. an operation-specific transaction builder exists;
+5. spender, recipient, amount, deadline and output rules are validated;
+6. simulation and on-chain evidence rules are defined;
+7. wallet bindings are tested in the browser and the SDK;
+8. documentation, capability reporting and adversarial tests pass.
 
-Use the [documentation index](../README.md), [repository structure](repository-structure.md), and [MVP test runbook](../runbooks/mvp-live-test.md) for implementation and release procedures.
+See the [documentation index](../README.md), [repository structure](repository-structure.md) and [Platform API v1](../platform/api-v1.md).

@@ -3,6 +3,7 @@ import { keccak256 } from "viem";
 import { assertArbitrumSepoliaReadiness, ARBITRUM_SEPOLIA, arbitrumSepoliaPublicClient } from "../networks/arbitrum-sepolia/config.js";
 import { resolveConfiguredBaseSwapExecution } from "../networks/base/config/intentRouterV2Environment.js";
 import { validateBaseIntentV2Runtime } from "../networks/base/intent/routerV2Runtime.js";
+import { readSolanaHealth } from "../networks/solana/index.js";
 import {
   ARC_CONTRACTS,
   ARC_VAULT_EXECUTION_MODE,
@@ -171,8 +172,23 @@ async function arbitrumSepoliaCheck(): Promise<Readonly<Record<string, unknown>>
   });
 }
 
+async function solanaRpcCheck(): Promise<Readonly<Record<string, unknown>>> {
+  const health = await readSolanaHealth("solana");
+  if (!health.ok) {
+    throw Object.assign(new Error("Solana Mainnet RPC is unavailable."), {
+      code: "SOLANA_RPC_UNAVAILABLE",
+    });
+  }
+  return Object.freeze({
+    network: health.network,
+    slot: health.slot,
+    version: health.version,
+    latencyMs: health.latencyMs,
+  });
+}
+
 async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
-  // Every check targets an independent EVM RPC, so they run in parallel.
+  // Every check targets an independent RPC, so they run in parallel.
   const checks = Object.freeze(await Promise.all([
     checked({
       id: "base_intent_router_v2",
@@ -194,6 +210,15 @@ async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
       required: true,
       operation: arbitrumSepoliaCheck,
       readyReason: "The live chain, Circle USDC/CCTP and Aave provider bindings match the reviewed Testnet manifest.",
+    }),
+    checked({
+      id: "solana_rpc",
+      label: "Solana Mainnet RPC",
+      // Informational: a public Solana RPC outage degrades Solana routes but
+      // does not block the user-signed EVM MVP smoke.
+      required: false,
+      operation: solanaRpcCheck,
+      readyReason: "The configured Solana Mainnet RPC answered getSlot and getVersion at confirmed commitment.",
     }),
   ]));
   const ready = checks.every((check) => !check.required || check.status === "ready");

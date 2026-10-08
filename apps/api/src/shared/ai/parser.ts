@@ -267,7 +267,6 @@ const REQUIRED_AMOUNT_ACTIONS: Record<NetworkId, ReadonlySet<string>> = {
     "withdraw",
     "bridge",
     "deploy_token",
-    "mint_nft",
   ]),
   arc: new Set([
     "swap",
@@ -844,7 +843,6 @@ const LLM_EXECUTABLE_ACTIONS = new Set([
   "withdraw",
   "bridge",
   "deploy_token",
-  "mint_nft",
   "basename_register",
   "basename_renew",
   "vault_deposit",
@@ -891,7 +889,6 @@ function hasPromptBoundAction(action: string, text: string): boolean {
     bridge: /\b(?:bridge|move|köprüle|koprule)\b/iu,
     deploy_token:
       /\b(?:create|deploy|launch|oluştur|olustur)\b[^,;:.!?\n]{0,48}\b(?:token|coin)\b/iu,
-    mint_nft: /\b(?:mint|bas)\b[^,;:.!?\n]{0,32}\bnft\b/iu,
     basename_register:
       /\b(?:register|buy|purchase|kaydet|kayıt\s+et|satın\s+al)\b/iu,
     basename_renew: /\b(?:renew|extend|yenile|uzat)\b/iu,
@@ -1658,7 +1655,6 @@ function enforcePromptBoundIntent(
         (intent.action === "basename_register" ||
           intent.action === "basename_renew" ||
           intent.action === "open_widget" ||
-          intent.action === "mint_nft" ||
           intent.action === "liquid_stake")
       ) &&
       !(label === "output asset" && intent.action === "memo_send") &&
@@ -1686,10 +1682,6 @@ function enforcePromptBoundIntent(
           ? intent.tokenOut
           : undefined,
       allowBasename: true,
-    },
-    {
-      value: intent.action === "mint_nft" ? intent.tokenIn : undefined,
-      allowBasename: false,
     },
   ].filter(({ value }) => value !== undefined);
   if (
@@ -4527,73 +4519,6 @@ function compactStructuredIntent(value: unknown): Record<string, unknown> {
   return compacted;
 }
 
-// ✨ AI ERROR TRANSLATOR
-export async function explainKletiaError(
-  userPrompt: string,
-  rawError: string,
-): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey)
-    return "There is a network issue, cannot fetch details right now.";
-
-  let systemPrompt = `You are Kletia's AI assistant. Speak briefly and clearly. Do not be rude or robotic, but never over-explain. Use at most 1-2 sentences.
-    Kletia engine received this error: "${rawError}"
-    Task: Briefly explain this error to the user.`;
-
-  if (rawError.includes("KEE_ERROR|")) {
-    try {
-      const parts = rawError.split("|");
-      const category = parts[1];
-      const reason = parts[2];
-      const aiHint = parts[3];
-      systemPrompt = `You are Kletia's AI assistant. Speak briefly, smartly, and clearly. Absolutely do not give unnecessary details. Never exceed 1 or 2 sentences.
-            Error Reason: "${reason}"
-            Guidance/Command (KEE HINT): "${aiHint}"
-
-            IMPORTANT RULE: If the Guidance (KEE HINT) contains a tag like [SHOW_ONRAMP], you MUST absolutely append this exact tag to the very end of your response.
-
-            Example Response: "It seems your balance is insufficient for this transaction. You can easily fund your wallet from the button below. [SHOW_ONRAMP]"`;
-    } catch (e) {}
-  }
-
-  try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://kletia.com",
-          "X-Title": "Kletia Omni-Engine",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 100,
-        }),
-      },
-    );
-    const data = await response.json();
-    let finalResponse = data.choices[0].message.content.trim();
-
-    if (
-      rawError.includes("[SHOW_ONRAMP]") &&
-      !finalResponse.includes("[SHOW_ONRAMP]")
-    ) {
-      finalResponse += " [SHOW_ONRAMP]";
-    }
-
-    return finalResponse;
-  } catch {
-    return "Transaction failed on the network. Please check your wallet balance or network status.";
-  }
-}
-
 export async function parseUserIntent(
   userPrompt: string,
   conversationHistory: any[] = [],
@@ -4698,8 +4623,6 @@ export async function parseUserIntent(
       const lc = lastMsg.content.toLowerCase();
       if (
         lc.includes("extend duration") ||
-        lc.includes("which name's duration") ||
-        lc.includes("extend duration") ||
         lc.includes("which name's duration")
       ) {
         if (
@@ -4722,7 +4645,7 @@ export async function parseUserIntent(
         ) {
           userPrompt = `${userPrompt} buy`;
         }
-      } else if (lc.includes("borrow") || lc.includes("borrow")) {
+      } else if (lc.includes("borrow")) {
         const prevUserMsg = conversationHistory
           .slice()
           .reverse()

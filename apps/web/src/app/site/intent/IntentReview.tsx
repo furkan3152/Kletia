@@ -2,6 +2,8 @@ import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
 import { CircleAlert, PenLine, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import React, { useId, useState } from "react";
 
+import { externalRecipients } from "../../../shared/platform/intentBinding";
+
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
@@ -27,6 +29,11 @@ export interface IntentReviewProps {
   readonly busy?: boolean;
   /** When set, confirming is blocked and this explains why. */
   readonly blockedReason?: string | null;
+  /**
+   * The user's own accounts. Steps that pay anyone else are listed with the
+   * full recipient address above the confirmation.
+   */
+  readonly ownedAccounts?: readonly AccountId[];
   readonly className?: string;
 }
 
@@ -119,6 +126,7 @@ export function IntentReview({
   confirmLabel = "Confirm and sign",
   busy = false,
   blockedReason,
+  ownedAccounts,
   className,
 }: IntentReviewProps) {
   const checkboxId = useId();
@@ -135,6 +143,7 @@ export function IntentReview({
     .filter((value): value is string => Boolean(value));
   const signatures = summary.signaturesRequired;
   const warnings = intent.warnings;
+  const external = ownedAccounts ? externalRecipients(intent, ownedAccounts) : [];
 
   return (
     <section aria-label="Review before signing" className={cx("flex flex-col gap-4", className)}>
@@ -180,6 +189,30 @@ export function IntentReview({
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {warnings.map((warning) => (
               <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {external.length > 0 ? (
+        <div className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#1A1A1A] dark:border-[#B45309]">
+          <p className={cx(LABEL, "flex items-center gap-2")}>
+            <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+            Funds leave your wallets
+          </p>
+          <p className="mt-2">
+            {external.length === 1 ? "This step pays an address" : "These steps pay addresses"} that{" "}
+            {external.length === 1 ? "is" : "are"} not one of your connected wallets. Check every character before you
+            sign:
+          </p>
+          <ul className="mt-2 space-y-1">
+            {external.map((item) => (
+              <li key={`${item.stepId}:${item.recipient}`}>
+                Step {item.stepIndex + 1} on {item.network}:{" "}
+                <span className="break-all font-code font-bold">
+                  {item.recipient.slice(item.recipient.lastIndexOf(":") + 1)}
+                </span>
+              </li>
             ))}
           </ul>
         </div>

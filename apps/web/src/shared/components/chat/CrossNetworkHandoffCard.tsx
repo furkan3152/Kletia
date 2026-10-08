@@ -2,6 +2,7 @@ import { ArrowUpRight, ChevronDown, LoaderCircle, Waypoints } from "lucide-react
 import React, { useId, useState } from "react";
 
 import { Link } from "../../../app/routes/Link";
+import { LazyBoundary } from "../LazyBoundary";
 import { studioHrefFor } from "./crossNetworkHandoff";
 
 const InlineIntentPlanner = React.lazy(() => import("./InlineIntentPlanner"));
@@ -72,16 +73,24 @@ export function CrossNetworkHandoffCard({ prompt }: CrossNetworkHandoffCardProps
       </div>
       {prompt && opened ? (
         <div id={panelId} hidden={!planning} className="min-w-0 border-t-[3px] border-[#1A1A1A] pt-4 dark:border-[#4B5563]">
-          <React.Suspense
-            fallback={
-              <p role="status" className="flex items-center gap-2 text-sm font-bold">
-                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Loading the planner…
+          <LazyBoundary
+            fallback={() => (
+              <p role="alert" className="text-sm font-bold">
+                The planner could not load here. Use “Plan in Studio” instead, or reload the page.
               </p>
-            }
+            )}
           >
-            <InlineIntentPlanner prompt={prompt} />
-          </React.Suspense>
+            <React.Suspense
+              fallback={
+                <p role="status" className="flex items-center gap-2 text-sm font-bold">
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading the planner…
+                </p>
+              }
+            >
+              <InlineIntentPlanner prompt={prompt} />
+            </React.Suspense>
+          </LazyBoundary>
         </div>
       ) : null}
     </div>

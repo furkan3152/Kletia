@@ -11,18 +11,22 @@
  * No wallet SDK is imported here; callers pass the connector and the Wallet
  * Standard wallet they already hold.
  */
-import {
-  eip1193Signer,
-  type Eip1193Provider,
-  type EvmSigner,
-  type IntentSigners,
-  type SolanaSigner,
-} from "@kletia/sdk";
-import { parseAccountId, type AccountId, type IntentGraph } from "@kletia/core";
+import { eip1193Signer, type Eip1193Provider, type EvmSigner, type SolanaSigner } from "@kletia/sdk";
 import type { Wallet, WalletAccount } from "@wallet-standard/base";
 
 import { signAndSendSolanaTransaction } from "../wallet/solana/executeSolanaTransaction";
-import { PREVIEW_ACCOUNTS } from "./kletiaClient";
+
+export {
+  findBindingProblem,
+  isNothingSentError,
+  isPreviewAccount,
+  observeSigners,
+  sameOwner,
+  shortAccountId,
+  transactionBindingProblem,
+  type BindingProblem,
+  type SignerObserver,
+} from "./intentBinding";
 
 function isEip1193Provider(value: unknown): value is Eip1193Provider {
   return (
@@ -87,126 +91,3 @@ export function walletStandardIntentSigner(
   };
 }
 
-export interface SignerObserver {
-  /** The wallet is about to be asked for a signature. */
-  readonly onRequest?: () => void;
-  /** The wallet returned a transaction hash / signature (already broadcast). */
-  readonly onReference?: (reference: string) => void;
-  /** The wallet (or a pre-sign check) refused before anything was sent. */
-  readonly onReject?: (error: unknown) => void;
-}
-
-/** Wrap signers so the caller can follow each signature request. */
-export function observeSigners(signers: IntentSigners, observer: SignerObserver): IntentSigners {
-  const observed: { evm?: EvmSigner; solana?: SolanaSigner } = {};
-  if (signers.evm) {
-    const evm = signers.evm;
-    observed.evm = {
-      address: evm.address,
-      async sendTransaction(request) {
-        observer.onRequest?.();
-        let hash: string;
-        try {
-          hash = await evm.sendTransaction(request);
-        } catch (error) {
-          observer.onReject?.(error);
-          throw error;
-        }
-        observer.onReference?.(hash);
-        return hash;
-      },
-      waitForTransaction: (hash, chainId) => evm.waitForTransaction(hash, chainId),
-    };
-  }
-  if (signers.solana) {
-    const solana = signers.solana;
-    observed.solana = {
-      address: solana.address,
-      async signAndSendTransaction(request) {
-        observer.onRequest?.();
-        let signature: string;
-        try {
-          signature = await solana.signAndSendTransaction(request);
-        } catch (error) {
-          observer.onReject?.(error);
-          throw error;
-        }
-        observer.onReference?.(signature);
-        return signature;
-      },
-    };
-  }
-  return observed;
-}
-
-const PREVIEW_ADDRESSES = new Set(
-  [PREVIEW_ACCOUNTS.evm, PREVIEW_ACCOUNTS.solana].map((id) =>
-    id.slice(id.lastIndexOf(":") + 1).toLowerCase(),
-  ),
-);
-
-/** True for the demo accounts used by read-only previews, on any network. */
-export function isPreviewAccount(accountId: string): boolean {
-  const parsed = parseAccountId(accountId);
-  const address = parsed ? parsed.address : accountId.slice(accountId.lastIndexOf(":") + 1);
-  return PREVIEW_ADDRESSES.has(address.toLowerCase());
-}
-
-/** Same address in the same namespace (EVM accounts may be re-homed across eip155 chains). */
-export function sameOwner(left: string, right: string): boolean {
-  const a = parseAccountId(left);
-  const b = parseAccountId(right);
-  if (!a || !b || a.chain.namespace !== b.chain.namespace) return false;
-  return a.chain.namespace === "eip155"
-    ? a.address.toLowerCase() === b.address.toLowerCase()
-    : a.address === b.address;
-}
-
-const UNSIGNED_STATUSES = new Set<IntentGraph["steps"][number]["status"]>([
-  "pending",
-  "ready",
-  "awaiting_signature",
-]);
-
-export interface BindingProblem {
-  readonly stepId: string;
-  readonly account: AccountId;
-  readonly message: string;
-}
-
-/**
- * Checks that every wallet step of `intent` is bound to one of the connected
- * accounts (never a preview account). Returns the first problem, if any.
- */
-export function findBindingProblem(
-  intent: IntentGraph,
-  connected: readonly AccountId[],
-): BindingProblem | null {
-  for (const step of [...intent.steps].sort((a, b) => a.index - b.index)) {
-    if (isPreviewAccount(step.account)) {
-      return {
-        stepId: step.id,
-        account: step.account,
-        message: `Step ${step.index + 1} is bound to a demo preview account. Plan again with your connected wallets.`,
-      };
-    }
-    // Only steps that still need a signature must match a connected wallet.
-    if (step.mode !== "wallet" || !UNSIGNED_STATUSES.has(step.status)) continue;
-    if (!connected.some((account) => sameOwner(account, step.account))) {
-      const namespace = parseAccountId(step.account)?.chain.namespace;
-      return {
-        stepId: step.id,
-        account: step.account,
-        message: `Step ${step.index + 1} must be signed by ${shortAccountId(step.account)}. Connect that ${
-          namespace === "solana" ? "Solana" : "EVM"
-        } wallet to continue.`,
-      };
-    }
-  }
-  return null;
-}
-
-export function shortAccountId(accountId: string): string {
-  const address = accountId.slice(accountId.lastIndexOf(":") + 1);
-  return address.length <= 14 ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
-}

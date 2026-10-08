@@ -216,7 +216,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
           ) : null}
         </aside>
 
-        <div className="flex min-w-0 flex-col gap-6" aria-live="polite" aria-busy={busy}>
+        <div className="flex min-w-0 flex-col gap-6">
           {resumeMode && !intent && status !== "executing" ? (
             <div className={cx("flex flex-col gap-4 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
               <SectionTitle index={2} title="Pick up where you left off" />

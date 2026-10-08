@@ -2,6 +2,7 @@ import type { IntentGraph } from "@kletia/core";
 import { ArrowDown, History, PenLine } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { readIntentSession, STUDIO_INTENT_SESSION_KEY } from "../../../shared/platform/intentSession";
 import { useRoute } from "../../routes/useRoute";
 import { Button } from "../../site/ui/Button";
@@ -27,6 +28,21 @@ function PanelFallback() {
       <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
         Loading wallets
       </span>
+    </div>
+  );
+}
+
+function PanelFailed({ reload }: { reload: () => void }) {
+  return (
+    <div role="alert" className={cx("flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
+      <p className="font-display text-xl font-bold">The wallet panel could not load</p>
+      <p className={cx("text-sm", TEXT_MUTED)}>
+        Nothing was signed. Check your connection and reload; an intent that was already running can be resumed after the
+        reload.
+      </p>
+      <Button size="sm" onClick={reload} className="self-start">
+        Reload
+      </Button>
     </div>
   );
 }
@@ -183,14 +199,16 @@ export default function StudioPage() {
             aria-labelledby="studio-execute-heading"
             className={cx("scroll-mt-28 p-4 sm:p-6 lg:p-8", INK_BORDER, HARD_SHADOW, "bg-[#EDE9DF] dark:bg-[#0E1729]")}
           >
-            <React.Suspense fallback={<PanelFallback />}>
-              <StudioExecutionPanel
-                preview={target}
-                resumeIntentId={target ? null : resumeIntentId}
-                onClose={close}
-                onBusyChange={onBusyChange}
-              />
-            </React.Suspense>
+            <LazyBoundary fallback={(reload) => <PanelFailed reload={reload} />}>
+              <React.Suspense fallback={<PanelFallback />}>
+                <StudioExecutionPanel
+                  preview={target}
+                  resumeIntentId={target ? null : resumeIntentId}
+                  onClose={close}
+                  onBusyChange={onBusyChange}
+                />
+              </React.Suspense>
+            </LazyBoundary>
           </section>
         ) : null}
       </div>

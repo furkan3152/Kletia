@@ -488,9 +488,20 @@ export function installEgressGuard(): void {
 
   // Persistence is egress across time: a value written here outlives the tab and
   // is readable by any script on the origin.
+  // Reading `window.localStorage` / `sessionStorage` throws a SecurityError when
+  // site data is blocked (e.g. a third-party /embed iframe with third-party
+  // cookies blocked). The app must still boot there, so a missing storage is
+  // simply not wrapped (nothing can be written to it either).
+  const readStorage = (name: "localStorage" | "sessionStorage"): Storage | undefined => {
+    try {
+      return scope[name];
+    } catch {
+      return undefined;
+    }
+  };
   for (const [name, storage] of [
-    ["localStorage", scope.localStorage],
-    ["sessionStorage", scope.sessionStorage],
+    ["localStorage", readStorage("localStorage")],
+    ["sessionStorage", readStorage("sessionStorage")],
   ] as const) {
     if (!storage) continue;
     const nativeSetItem = storage.setItem.bind(storage);

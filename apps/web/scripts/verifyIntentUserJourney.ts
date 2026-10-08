@@ -446,6 +446,114 @@ assert.equal(
   "submitted",
 );
 
+// Signing guards: preview accounts never sign, the connected account must be
+// the step account (EVM case-insensitive, Solana exact), a prepared
+// transaction must match its step, and a stopped run never reaches a wallet.
+const binding = await import("../src/shared/platform/intentBinding");
+assert.equal(binding.isPreviewAccount(binding.PREVIEW_ACCOUNTS.evm), true);
+assert.equal(binding.isPreviewAccount("eip155:42161:0x000000000000000000000000000000000000DEAD"), true);
+assert.equal(binding.isPreviewAccount(SOLANA_ACCOUNT), false);
+assert.equal(binding.sameOwner(EVM_ACCOUNT, `eip155:42161:${EVM_RECIPIENT.toUpperCase().replace("0X", "0x")}`), true);
+assert.equal(
+  binding.sameOwner(SOLANA_ACCOUNT, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOLANA_RECIPIENT.toLowerCase()}`),
+  false,
+  "Solana public keys are case-sensitive.",
+);
+const solanaStep = {
+  ...bridgeStep,
+  id: "s2",
+  index: 1,
+  network: "solana",
+  chain: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  account: SOLANA_ACCOUNT,
+  status: "ready",
+  settlement: undefined,
+  references: [],
+} as unknown as Parameters<typeof binding.transactionBindingProblem>[0];
+const evmStep = { ...bridgeStep, status: "ready", references: [] } as unknown as Parameters<
+  typeof binding.transactionBindingProblem
+>[0];
+const solanaTx = {
+  vm: "svm",
+  network: "solana",
+  feePayer: SOLANA_RECIPIENT,
+  transaction: "AA==",
+  encoding: "base64",
+  description: "swap",
+} as const;
+const evmTx = {
+  vm: "evm",
+  network: "base",
+  chainId: 8453,
+  from: EVM_RECIPIENT.toUpperCase().replace("0X", "0x"),
+  to: EVM_RECIPIENT,
+  data: "0x",
+  value: "0",
+  description: "bridge",
+} as const;
+assert.equal(binding.transactionBindingProblem(solanaStep, solanaTx), null);
+assert.equal(binding.transactionBindingProblem(evmStep, evmTx), null, "EVM senders compare case-insensitively.");
+assert.match(binding.transactionBindingProblem(evmStep, { ...evmTx, chainId: 42161 }) ?? "", /chain 42161/u);
+assert.match(binding.transactionBindingProblem(evmStep, { ...evmTx, network: "arbitrum" }) ?? "", /^Kletia refused/u);
+assert.match(binding.transactionBindingProblem(evmStep, { ...evmTx, from: `0x${"2".repeat(40)}` }) ?? "", /another EVM account/u);
+assert.match(binding.transactionBindingProblem(evmStep, solanaTx) ?? "", /^Kletia refused/u, "A step only signs on its own VM.");
+assert.match(
+  binding.transactionBindingProblem(solanaStep, { ...solanaTx, feePayer: SOLANA_RECIPIENT.toLowerCase() }) ?? "",
+  /another Solana account/u,
+);
+assert.match(
+  binding.transactionBindingProblem(
+    { ...solanaStep, account: binding.PREVIEW_ACCOUNTS.solana } as typeof solanaStep,
+    { ...solanaTx, feePayer: binding.PREVIEW_ACCOUNTS.solana.split(":")[2] as string },
+  ) ?? "",
+  /demo preview account/u,
+);
+const twoStepIntent = { ...bridgeIntent, status: "planned", steps: [evmStep, solanaStep] } as unknown as Parameters<
+  typeof binding.findBindingProblem
+>[0];
+assert.equal(binding.findBindingProblem(twoStepIntent, [EVM_ACCOUNT, SOLANA_ACCOUNT]), null);
+assert.equal(binding.findBindingProblem(twoStepIntent, [EVM_ACCOUNT])?.stepId, "s2");
+assert.equal(
+  binding.findBindingProblem(twoStepIntent, [binding.PREVIEW_ACCOUNTS.evm as typeof EVM_ACCOUNT, SOLANA_ACCOUNT])?.stepId,
+  "s1",
+  "A connected preview account never satisfies a step.",
+);
+assert.equal(binding.isNothingSentError(Object.assign(new Error("User rejected the request."), { code: 4001 })), true);
+assert.equal(binding.isNothingSentError(new Error("Kletia refused to sign step 1: wrong chain.")), true);
+assert.equal(binding.isNothingSentError(new Error("Wallet returned an invalid transaction hash.")), false);
+assert.equal(binding.isNothingSentError(new Error("Request timed out")), false, "Unknown outcomes need a reconfirmation.");
+const transferIntent = {
+  ...bridgeIntent,
+  steps: [{ ...solanaStep, recipient: `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${"8".repeat(44)}` }],
+} as unknown as Parameters<typeof binding.externalRecipients>[0];
+assert.equal(binding.externalRecipients(transferIntent, [SOLANA_ACCOUNT]).length, 1, "Third-party payees are flagged.");
+assert.equal(binding.externalRecipients(bridgeIntent, [EVM_ACCOUNT, SOLANA_ACCOUNT]).length, 0, "Own accounts are not.");
+
+const walletCalls: string[] = [];
+let allowSigning = false;
+const guarded = binding.observeSigners(
+  {
+    solana: {
+      address: SOLANA_RECIPIENT,
+      signAndSendTransaction: async () => {
+        walletCalls.push("sign");
+        return "5".repeat(87);
+      },
+    },
+  },
+  {
+    beforeRequest: () => {
+      if (!allowSigning) throw new DOMException("Execution was stopped before signing.", "AbortError");
+    },
+    onRequest: () => walletCalls.push("request"),
+  },
+);
+await assert.rejects(guarded.solana!.signAndSendTransaction(solanaTx), { name: "AbortError" });
+assert.deepEqual(walletCalls, [], "A stopped run never opens a wallet prompt.");
+allowSigning = true;
+assert.equal(await guarded.solana!.signAndSendTransaction(solanaTx), "5".repeat(87));
+assert.deepEqual(walletCalls, ["request", "sign"]);
+
 console.log(
-  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync and step phases.",
+  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync, step phases and signing guards (preview accounts, step-bound accounts and transactions, stopped runs, unknown signing outcomes, third-party recipients).",
 );

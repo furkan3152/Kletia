@@ -1,6 +1,6 @@
 import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
 import { CirclePause, OctagonX, PenLine, Play, RefreshCw, TriangleAlert } from "lucide-react";
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
 import type { IntentExecution, IntentExecutionError } from "../../../shared/platform/useIntentExecution";
 import { ApiErrorPanel } from "../ui/ApiErrorPanel";
@@ -84,24 +84,49 @@ export function IntentExecutionFlow({
   className,
 }: IntentExecutionFlowProps) {
   const { intent, status, error } = execution;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previousStatusRef = useRef(status);
+
+  // When the control the user just pressed disappears (Confirm, Cancel, the
+  // last progress view), focus would fall back to <body>. Move it to the
+  // panel that replaced it instead; never steal focus from anywhere else.
+  useLayoutEffect(() => {
+    if (previousStatusRef.current === status) return;
+    previousStatusRef.current = status;
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (active && active !== document.body) return;
+    rootRef.current?.querySelector<HTMLElement>("[data-flow-focus]")?.focus({ preventScroll: false });
+  }, [status]);
+
+  const announcement = flowAnnouncement(execution);
+  const region = (
+    <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {announcement}
+    </p>
+  );
 
   if (!intent) {
-    if (status === "failed" && error) {
-      return (
-        <div className={className}>
-          <ExecutionErrorPanel error={error} title="Planning failed" {...(onReplan ? { onRetry: onReplan } : {})} />
-        </div>
-      );
-    }
-    return null;
+    return (
+      <div ref={rootRef} className={className}>
+        {region}
+        {status === "failed" && error ? (
+          <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
+            <ExecutionErrorPanel error={error} title="Planning failed" {...(onReplan ? { onRetry: onReplan } : {})} />
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   if (status === "review" || status === "planning") {
     return (
-      <div className={cx("flex flex-col gap-6", className)}>
+      <div ref={rootRef} className={cx("flex flex-col gap-6", className)}>
+        {region}
         <IntentReview
           intent={intent}
           busy={status === "planning"}
+          blockedReason={status === "review" ? execution.bindingProblem?.message ?? null : null}
+          ownedAccounts={execution.accounts}
           onConfirm={() => void execution.start(intent)}
           {...(describeAccount ? { describeAccount } : {})}
           {...(onReplan ? { onReplan } : {})}
@@ -117,9 +142,14 @@ export function IntentExecutionFlow({
   const anySubmitted = intent.steps.some((step) => (step.references?.length ?? 0) > 0 || !["pending", "ready", "awaiting_signature"].includes(step.status));
 
   return (
-    <div className={cx("flex flex-col gap-6", className)}>
+    <div ref={rootRef} className={cx("flex flex-col gap-6", className)}>
+      {region}
       {status === "paused" ? (
-        <div role="status" className={cx("flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A]", INK_BORDER)}>
+        <div
+          tabIndex={-1}
+          data-flow-focus=""
+          className={cx("flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] focus:outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]", INK_BORDER)}
+        >
           <p className={cx(LABEL, "flex items-center gap-2")}>
             <CirclePause className="h-4 w-4" aria-hidden="true" />
             Paused
@@ -148,24 +178,32 @@ export function IntentExecutionFlow({
       ) : null}
 
       {status === "failed" && error ? (
-        <ExecutionErrorPanel
-          error={error}
-          title={error.stepId ? "A step did not go through" : "Execution stopped"}
-          {...(!terminal ? { onRetry: () => void execution.resume(intent.id), retryLabel: "Retry from here" } : {})}
-        />
+        <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
+          <ExecutionErrorPanel
+            error={error}
+            title={error.stepId ? "A step did not go through" : "Execution stopped"}
+            {...(!terminal ? { onRetry: () => void execution.resume(intent.id), retryLabel: "Retry from here" } : {})}
+          />
+        </div>
       ) : null}
 
-      {terminal ? <IntentOutcome intent={intent} footer={outcomeFooter} /> : null}
+      {terminal ? (
+        <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
+          <IntentOutcome intent={intent} footer={outcomeFooter} />
+        </div>
+      ) : null}
 
       {!terminal ? (
-        <IntentProgress
-          intent={live}
-          phases={execution.stepPhases}
-          activeStepId={execution.activeStepId}
-          streaming={execution.streaming}
-          running={status === "executing"}
-          {...(walletFor ? { walletFor } : {})}
-        />
+        <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
+          <IntentProgress
+            intent={live}
+            phases={execution.stepPhases}
+            activeStepId={execution.activeStepId}
+            streaming={execution.streaming}
+            running={status === "executing"}
+            {...(walletFor ? { walletFor } : {})}
+          />
+        </div>
       ) : null}
 
       {status === "executing" ? (
@@ -185,6 +223,35 @@ export function IntentExecutionFlow({
       {showGraph ? <IntentGraphView intent={live} stepFooter={(step) => <StepLinks step={step} />} /> : null}
     </div>
   );
+}
+
+/** One short sentence for screen readers when the flow changes state. */
+function flowAnnouncement(execution: IntentExecution): string {
+  const { intent, status } = execution;
+  switch (status) {
+    case "planning":
+      return "Planning with your accounts.";
+    case "review": {
+      if (!intent) return "";
+      const signatures = intent.summary.signaturesRequired;
+      return `Plan ready: ${intent.steps.length} step${intent.steps.length === 1 ? "" : "s"}, ${signatures} signature${
+        signatures === 1 ? "" : "s"
+      }. Review it and confirm before signing.`;
+    }
+    case "paused":
+      return `Execution paused. ${execution.pauseReason ?? ""}`.trim();
+    case "failed":
+      // ExecutionErrorPanel is an alert and announces the details itself.
+      return intent ? "Execution stopped." : "Planning failed.";
+    case "completed":
+    case "cancelled": {
+      if (!intent) return "";
+      const settled = intent.steps.filter((step) => step.status === "settled").length;
+      return `Intent ${status}. ${settled} of ${intent.steps.length} step${intent.steps.length === 1 ? "" : "s"} settled.`;
+    }
+    default:
+      return "";
+  }
 }
 
 function isTerminal(intent: IntentGraph): boolean {

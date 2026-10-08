@@ -2,6 +2,7 @@ import React from "react";
 import { formatAccountId, sameAccount } from "@kletia/core";
 import { LoaderCircle, ScrollText } from "lucide-react";
 
+import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { ActivityFeed } from "../../../shared/sync/ActivityFeed";
 import { useKletiaEvent } from "../../../shared/sync/bus";
 import { useSolanaWallet } from "../../../shared/wallet/solana/solanaWalletContext";
@@ -86,9 +87,20 @@ export default function SolanaWorkspace({ tab, onTabChange }: SolanaWorkspacePro
         return <SolanaOverview owner={owner} portfolio={portfolio} onNavigate={onTabChange} />;
       case "ask":
         return (
-          <React.Suspense fallback={<AskFallback />}>
-            <SolanaAsk />
-          </React.Suspense>
+          <LazyBoundary
+            fallback={(reload) => (
+              <div role="alert" className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-sm font-bold text-[#1A1A1A] dark:border-[#7F1D1D]">
+                The Ask tab could not load. Check your connection and reload.
+                <button type="button" onClick={reload} className="inline-flex min-h-11 items-center justify-center self-start border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none">
+                  Reload
+                </button>
+              </div>
+            )}
+          >
+            <React.Suspense fallback={<AskFallback />}>
+              <SolanaAsk />
+            </React.Suspense>
+          </LazyBoundary>
         );
       case "swap":
         return <SolanaSwap owner={owner} portfolio={portfolio.data} />;

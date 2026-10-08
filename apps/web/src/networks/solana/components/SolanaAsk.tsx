@@ -207,14 +207,14 @@ export default function SolanaAsk() {
         </button>
       </form>
 
-      <div aria-live="polite" aria-busy={busy} className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-5">
         {status === "planning" && !intent ? (
           <p role="status" className={`${ui.card} text-sm font-black uppercase`}>
             Planning “{lastPlanned}” with your accounts…
           </p>
         ) : null}
         {needsEvmHint ? (
-          <p className={ui.warningBox}>
+          <p role="status" className={ui.warningBox}>
             This intent also needs an EVM account (for example to receive on Base). Connect an EVM wallet from the top
             bar, then plan again.
           </p>

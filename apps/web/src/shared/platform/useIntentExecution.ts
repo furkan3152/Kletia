@@ -14,7 +14,7 @@
  * references are submitted instead of signing again, and a step whose
  * signature outcome is unknown pauses for an explicit confirmation.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   KletiaApiError,
   KletiaExecutionError,
@@ -41,7 +41,15 @@ import {
   updateIntentSession,
   type StepSigningMark,
 } from "./intentSession";
-import { findBindingProblem, isPreviewAccount, observeSigners, sameOwner } from "./intentSigners";
+import {
+  findBindingProblem,
+  isNothingSentError,
+  isPreviewAccount,
+  observeSigners,
+  sameOwner,
+  transactionBindingProblem,
+  type BindingProblem,
+} from "./intentBinding";
 import { describePlatformError, getKletiaClient, toPlatformError, type PlatformError } from "./kletiaClient";
 import { useIntentSigners, type ConnectedIntentSigners } from "./useIntentSigners";
 
@@ -109,6 +117,12 @@ export interface IntentExecution extends ConnectedIntentSigners {
   readonly streaming: boolean;
   /** Intent stored by a previous page load of this tab, if not yet resumed. */
   readonly resumableIntentId: string | null;
+  /**
+   * Why the current (non-terminal) intent cannot be signed with the wallets
+   * connected right now: a preview account, or a step account that is not
+   * connected. Execution refuses to start while this is set.
+   */
+  readonly bindingProblem: BindingProblem | null;
   /** Persist a plan with the connected accounts for review. No wallet prompt. */
   plan: (request: IntentRequestInput) => Promise<IntentGraph | null>;
   /**
@@ -348,10 +362,15 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const tokenRef = useRef(0);
   const streamRef = useRef<{ intentId: string; controller: AbortController } | null>(null);
   const createdIdsRef = useRef(new Set<string>());
-  const currentStepRef = useRef<string | null>(null);
   const phasesRef = useRef<Readonly<Record<string, LocalStepPhase>>>({});
   /** In-memory mirror of the session marks (storage may be unavailable). */
   const marksRef = useRef(new Map<string, StepSigningMark>());
+  /**
+   * In-memory mirror of the references each wallet returned, per
+   * `intentId:stepId`. A retry in the same page submits these instead of
+   * signing again even when sessionStorage is unavailable.
+   */
+  const referencesRef = useRef(new Map<string, readonly string[]>());
   const allowResignRef = useRef(new Set<string>());
   const reconfirmStepIdsRef = useRef<readonly string[]>([]);
 
@@ -372,7 +391,6 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const clearPhases = useCallback(() => {
     phasesRef.current = {};
     setStepPhases({});
-    currentStepRef.current = null;
     setActiveStepId(null);
   }, []);
 
@@ -391,7 +409,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       const accepted = next.steps.filter(stepWasSubmitted).map((step) => step.id);
       if (accepted.length > 0) {
         if (sessionKey) forgetSteps(sessionKey, next.id, accepted);
-        for (const stepId of accepted) marksRef.current.delete(`${next.id}:${stepId}`);
+        for (const stepId of accepted) {
+          marksRef.current.delete(`${next.id}:${stepId}`);
+          referencesRef.current.delete(`${next.id}:${stepId}`);
+        }
         const phases = phasesRef.current;
         if (accepted.some((stepId) => phases[stepId])) {
           const remaining = Object.fromEntries(
@@ -482,7 +503,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
 
   /** Connected accounts to plan with; refuses preview accounts and unknown wallets. */
   const resolveAccounts = useCallback((requested?: readonly AccountId[]): readonly AccountId[] => {
-    const available = connectedRef.current.accounts;
+    const available = connectedRef.current.accounts.filter((account) => !isPreviewAccount(account));
     if (available.length === 0) {
       throw new LocalPlanError(
         localError("WALLET_REQUIRED", "Connect a wallet first: Kletia plans with your own accounts before you sign."),
@@ -563,13 +584,15 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   /** Submit references the wallet already produced (instead of signing again). */
   const submitStoredReferences = useCallback(
     async (client: KletiaClient, graph: IntentGraph): Promise<IntentGraph> => {
-      if (!sessionKey) return graph;
-      const session = readIntentSession(sessionKey);
-      if (!session || session.intentId !== graph.id) return graph;
+      const stored = sessionKey ? readIntentSession(sessionKey) : null;
+      const session = stored?.intentId === graph.id ? stored : null;
       let current = graph;
       for (const step of graph.steps) {
-        const references = session.references[step.id];
-        if (!references?.length) continue;
+        const fromSession = session?.references[step.id] ?? [];
+        const fromMemory = referencesRef.current.get(`${graph.id}:${step.id}`) ?? [];
+        // Both lists grow in signing order; the longer one has everything the other has.
+        const references = fromMemory.length >= fromSession.length ? fromMemory : fromSession;
+        if (!references.length) continue;
         if (step.status !== "ready" && step.status !== "awaiting_signature") continue;
         current = await client.intents.submitStep(graph.id, step.id, references);
         commitIntent(current);
@@ -611,26 +634,46 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
 
       const intentId = graph.id;
       const markKey = (stepId: string) => `${intentId}:${stepId}`;
+      // The step this run is signing. Kept per run (not per hook) so a wallet
+      // that answers after a cancel still records its reference for the
+      // right step, and a stale run never touches the visible phases.
+      let runStep: IntentStep | null = null;
       const signers = observeSigners(connectedRef.current.signers, {
+        beforeRequest: (request) => {
+          // A cancelled, superseded or unmounted run never opens a wallet prompt.
+          if (controller.signal.aborted || !isCurrent()) {
+            throw new DOMException("Execution was stopped before signing.", "AbortError");
+          }
+          if (!runStep) throw new Error("Kletia refused to sign: no step is being executed.");
+          const problem = transactionBindingProblem(runStep, request);
+          if (problem) throw new Error(problem);
+        },
         onRequest: () => {
-          const stepId = currentStepRef.current;
-          if (!stepId) return;
-          marksRef.current.set(markKey(stepId), "requested");
-          if (sessionKey) markStepSigning(sessionKey, intentId, stepId, "requested");
-          setPhase(stepId, "signing");
+          const step = runStep;
+          if (!step) return;
+          marksRef.current.set(markKey(step.id), "requested");
+          if (sessionKey) markStepSigning(sessionKey, intentId, step.id, "requested");
+          if (isCurrent()) setPhase(step.id, "signing");
         },
         onReference: (reference) => {
-          const stepId = currentStepRef.current;
-          if (!stepId) return;
-          if (sessionKey) appendStepReference(sessionKey, intentId, stepId, reference);
-          setPhase(stepId, "confirming");
+          const step = runStep;
+          if (!step) return;
+          const key = markKey(step.id);
+          referencesRef.current.set(key, [...(referencesRef.current.get(key) ?? []), reference]);
+          if (sessionKey) appendStepReference(sessionKey, intentId, step.id, reference);
+          if (isCurrent()) setPhase(step.id, "confirming");
         },
-        onReject: () => {
-          const stepId = currentStepRef.current;
-          if (!stepId) return;
-          marksRef.current.set(markKey(stepId), "rejected");
-          if (sessionKey) markStepSigning(sessionKey, intentId, stepId, "rejected");
-          setPhase(stepId, null);
+        onReject: (rejection) => {
+          const step = runStep;
+          if (!step) return;
+          // Only a failure that guarantees nothing was broadcast clears the
+          // step for a new signature; anything else stays "requested" so the
+          // next attempt pauses for an explicit confirmation.
+          if (isNothingSentError(rejection)) {
+            marksRef.current.set(markKey(step.id), "rejected");
+            if (sessionKey) markStepSigning(sessionKey, intentId, step.id, "rejected");
+          }
+          if (isCurrent()) setPhase(step.id, null);
         },
       });
 
@@ -646,13 +689,13 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             ...(pollIntervalMs ? { pollIntervalMs } : {}),
             onUpdate: (next) => commitIntent(next),
             beforeStep: (step, latest) => {
-              if (controller.signal.aborted) return false;
+              if (controller.signal.aborted || !isCurrent()) return false;
               const blocked = ambiguousSteps(latest).filter((candidate) => candidate.id === step.id);
               if (blocked.length > 0) {
                 pausedFor = blocked;
                 return false;
               }
-              currentStepRef.current = step.id;
+              runStep = step;
               setActiveStepId(step.id);
               setPhase(step.id, "preparing");
               return true;
@@ -674,7 +717,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           setReconfirmStepIds(pausedFor.map((step) => step.id));
           const titles = pausedFor.map((step) => `“${step.title}”`).join(", ");
           setPauseReason(
-            `A signature for ${titles} was requested before this page reloaded and its outcome is unknown. Check your wallet's recent activity before signing again.`,
+            `A signature for ${titles} was requested earlier and Kletia never received the result. Check your wallet's recent activity: sign again only if nothing was sent.`,
           );
         } else {
           setPauseReason("Execution stopped before the intent finished. Resume to keep going.");
@@ -811,6 +854,12 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     setReconfirmStepIds([]);
   }, [clearPhases, sessionKey, stopStream]);
 
+  const accountsForBinding = connected.accounts;
+  const bindingProblem = useMemo(
+    () => (intent && !TERMINAL_INTENT.has(intent.status) ? findBindingProblem(intent, accountsForBinding) : null),
+    [accountsForBinding, intent],
+  );
+
   const forgetResumable = useCallback(() => {
     if (sessionKey) clearIntentSession(sessionKey);
     setResumableIntentId(null);
@@ -827,6 +876,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     reconfirmStepIds,
     streaming,
     resumableIntentId,
+    bindingProblem,
     plan,
     start,
     resume,

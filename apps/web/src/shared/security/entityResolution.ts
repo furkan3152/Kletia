@@ -144,7 +144,6 @@ const NON_ASSET_ACTIONS: Readonly<Record<NetworkMode, ReadonlySet<string>>> = {
     "basename_register",
     "basename_renew",
     "deploy_token",
-    "mint_nft",
     "agent_action",
     "x402_discover",
     "x402_request",

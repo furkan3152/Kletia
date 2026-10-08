@@ -10,6 +10,7 @@ import {
   ARC_VAULT_EXECUTION_MODE,
 } from "../shared/config/networks.js";
 import { ARBITRUM_SEPOLIA_MVP_ENABLED } from "../networks/arbitrum-sepolia/config.js";
+import { platformSecretStatus } from "../platform/http/secrets.js";
 
 export type FeatureState = "live" | "needs_configuration" | "disabled";
 
@@ -43,6 +44,23 @@ function feature(
         detail: `Set ${requires.join(" and ")} on the API to enable this feature.`,
         requires,
       };
+}
+
+function webhookCapability(): FeatureCapability {
+  const base = { id: "platform.webhooks", network: "all", name: "Signed webhooks (Platform API v1)" } as const;
+  switch (platformSecretStatus()) {
+    case "configured":
+      return { ...base, state: "live", detail: "Webhook secrets sealed with KLETIA_PLATFORM_SECRET." };
+    case "development_fallback":
+      return { ...base, state: "live", detail: "Development sealing key (in-memory store only); set KLETIA_PLATFORM_SECRET before production." };
+    default:
+      return {
+        ...base,
+        state: "needs_configuration",
+        detail: "Set KLETIA_PLATFORM_SECRET (at least 32 characters) on the API to enable webhooks.",
+        requires: ["KLETIA_PLATFORM_SECRET"],
+      };
+  }
 }
 
 export function readFeatureCapabilities(): {
@@ -112,9 +130,13 @@ export function readFeatureCapabilities(): {
       "base.x402_premium",
       "base",
       "Paid x402 data endpoints",
-      has("CDP_API_KEY_ID", "CDP_API_KEY_SECRET"),
-      "CDP x402 facilitator.",
-      ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET"],
+      (has("CDP_API_KEY_ID", "CDP_API_KEY_SECRET") ||
+        has("CDP_API_KEY_NAME", "CDP_API_KEY_PRIVATE_KEY")) &&
+        (process.env.NODE_ENV !== "production" ||
+          has("X402_TREASURY_ADDRESS") ||
+          has("KLETIA_FEE_RECIPIENT")),
+      "CDP x402 facilitator and a payment recipient.",
+      ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "X402_TREASURY_ADDRESS"],
     ),
     feature(
       "base.portfolio_discovery",
@@ -179,6 +201,7 @@ export function readFeatureCapabilities(): {
         : "In-memory store; set KLETIA_DATABASE_URL for durability across restarts.",
       ...(has("KLETIA_DATABASE_URL") ? {} : { requires: ["KLETIA_DATABASE_URL"] }),
     },
+    webhookCapability(),
   ];
   return { features, publicDefaults: APPLIED_PUBLIC_DEFAULTS };
 }

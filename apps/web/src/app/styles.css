@@ -477,6 +477,45 @@ html.kletia-site body {
   color: inherit;
 }
 
+/* =========================================================================
+   EMBED MODE
+   /embed runs inside third-party iframes: document scrolling, its own theme
+   and an optional transparent background (bg=transparent).
+   ========================================================================= */
+html.kletia-embed,
+html.kletia-embed body,
+html.kletia-embed #root {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+
+html.kletia-embed {
+  background-color: #f4f1ea;
+  color: #1a1a1a;
+}
+
+html.kletia-embed.dark {
+  background-color: #0b1120;
+  color: #f1f5f9;
+}
+
+html.kletia-embed body {
+  background-color: inherit;
+  color: inherit;
+}
+
+html.kletia-embed #root {
+  background-color: transparent;
+  color: inherit;
+}
+
+html.kletia-embed.kletia-embed-transparent,
+html.kletia-embed.kletia-embed-transparent body {
+  background-color: transparent;
+}
+
 /* Route transition progress bar. */
 .kl-pending-bar {
   transform: scaleX(0);

@@ -56,6 +56,13 @@ import {
   AGENTS_HANDOFF_MESSAGE,
   AGENTS_HANDOFF_WIDGET,
 } from "../shared/components/chat/agentsHandoff";
+import { CrossNetworkHandoffCard } from "../shared/components/chat/CrossNetworkHandoffCard";
+import {
+  CROSS_NETWORK_HANDOFF_MESSAGE,
+  CROSS_NETWORK_HANDOFF_WIDGET,
+  readHandoffData,
+} from "../shared/components/chat/crossNetworkHandoff";
+import { detectCrossNetworkPrompt } from "../shared/platform/crossNetworkPrompt";
 import { readStorage, writeStorage } from "../shared/state/safeStorage";
 import { recordActivity } from "../shared/sync/activityStore";
 import { emitNetworkSelected, emitPortfolioInvalidated } from "../shared/sync/bus";
@@ -801,6 +808,39 @@ export default function App() {
         chainId: network.chainId,
       });
       blockStructuredSelection();
+      return;
+    }
+    // Solana and cross-network prompts are outside the EVM chat engines:
+    // hand them to the platform planner (Studio, or inline) instead of
+    // sending them to /api/intent. Structured follow-ups keep their flow.
+    if (
+      !options.clarificationSelection &&
+      !options.conversation &&
+      !options.clarificationSourceMessageId &&
+      detectCrossNetworkPrompt(userText)
+    ) {
+      setInput("");
+      const handoffRequestId = createRequestId();
+      addMessage({
+        id: `${handoffRequestId}:user`,
+        role: "user",
+        text: persistentDisplayText,
+        network: networkMode,
+        chainId: network.chainId,
+        walletAddress: address,
+        requestId: handoffRequestId,
+      });
+      addMessage({
+        id: `${handoffRequestId}:kletia`,
+        role: "kletia",
+        text: CROSS_NETWORK_HANDOFF_MESSAGE,
+        widgetType: CROSS_NETWORK_HANDOFF_WIDGET,
+        widgetData: { prompt: userText },
+        network: networkMode,
+        chainId: network.chainId,
+        walletAddress: address,
+        requestId: handoffRequestId,
+      });
       return;
     }
     if (!address) {
@@ -2489,6 +2529,11 @@ export default function App() {
                                 )}
                               {msg.widgetType === AGENTS_HANDOFF_WIDGET ? (
                                 <AgentsHandoffCard />
+                              ) : null}
+                              {msg.widgetType === CROSS_NETWORK_HANDOFF_WIDGET ? (
+                                <CrossNetworkHandoffCard
+                                  prompt={readHandoffData(msg.widgetData)?.prompt ?? null}
+                                />
                               ) : null}
                               {msg.text.includes("[SHOW_ONRAMP]") &&
                                 address && (

@@ -232,3 +232,16 @@ kletiaBus.on("activity.recorded", (payload) => {
     ...(payload.url ? { url: payload.url } : {}),
   });
 });
+
+// The feed is shared by every tab of the app: when another tab (Studio, an
+// embed on this origin, a second console) writes the persisted list, re-read
+// it here so neither tab overwrites the other's entries.
+if (typeof window !== "undefined") {
+  try {
+    window.addEventListener("storage", (event) => {
+      if (event.key === ACTIVITY_STORAGE_KEY) void useActivityStore.persist.rehydrate();
+    });
+  } catch {
+    // Storage events are unavailable in some sandboxed frames; the feed then syncs on reload.
+  }
+}

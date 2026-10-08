@@ -9,7 +9,7 @@ import { REST_CREATE_INTENT, SDK_PLAN_AND_EXECUTE, WIDGET_SNIPPET } from "../../
 const TABS: readonly CodeTab[] = [
   { id: "sdk", label: "TypeScript SDK", language: "ts", code: SDK_PLAN_AND_EXECUTE, filename: "intent.ts" },
   { id: "rest", label: "REST", language: "bash", code: REST_CREATE_INTENT, filename: "POST /v1/intents" },
-  { id: "widget", label: "React widget", language: "tsx", code: WIDGET_SNIPPET, badge: "Preview", filename: "IntentPanel.tsx" },
+  { id: "widget", label: "React widget", language: "tsx", code: WIDGET_SNIPPET, filename: "IntentPanel.tsx" },
 ];
 
 const POINTS = [

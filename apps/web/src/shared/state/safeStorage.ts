@@ -44,3 +44,36 @@ export const safeLocalStorage: StateStorage = {
   setItem: (name, value) => writeStorage(name, value),
   removeItem: (name) => removeStorage(name),
 };
+
+function sessionStore(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Tab-scoped storage (sessionStorage) with the same failure guarantees as above. */
+export function readSessionStorage(key: string): string | null {
+  try {
+    return sessionStore()?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSessionStorage(key: string, value: string): void {
+  try {
+    sessionStore()?.setItem(key, value);
+  } catch {
+    // See writeStorage.
+  }
+}
+
+export function removeSessionStorage(key: string): void {
+  try {
+    sessionStore()?.removeItem(key);
+  } catch {
+    // See writeStorage.
+  }
+}

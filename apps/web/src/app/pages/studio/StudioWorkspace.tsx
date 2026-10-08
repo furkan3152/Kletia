@@ -58,8 +58,8 @@ function LoadingState() {
 }
 
 /**
- * Studio composer plus the planned graph. Wallet-free: a wallet-aware page can
- * wrap this in WalletProviders and pass `renderActions` to add execution.
+ * Studio composer plus the planned graph. Wallet-free: StudioPage passes
+ * `renderActions` to launch the lazily loaded wallet execution panel.
  */
 export function StudioWorkspace({ initialText = "", renderActions, executionNote }: StudioWorkspaceProps) {
   const studio = useStudioPlanner(initialText || INTENT_EXAMPLES[2]!);
@@ -169,8 +169,8 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
           <div className="flex flex-col gap-3">
             {executionNote ?? (
               <p>
-                <strong>Read-only preview.</strong> Execution with connected wallets happens in the console today and is
-                coming to Studio.
+                <strong>Read-only preview.</strong> A dry run never signs or moves funds; execute the plan with your own
+                wallets.
               </p>
             )}
             <ButtonLink to="/app" size="sm" variant="secondary" className="self-start">

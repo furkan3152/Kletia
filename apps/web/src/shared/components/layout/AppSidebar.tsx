@@ -62,6 +62,7 @@ interface AppSidebarProps {
 
 const SOLANA_TAB_ICONS: Record<SolanaTab, LucideIcon> = {
   overview: LayoutDashboard,
+  ask: MessageSquare,
   swap: ArrowLeftRight,
   send: Send,
   stake: Landmark,

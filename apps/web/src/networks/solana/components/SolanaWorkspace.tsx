@@ -1,6 +1,6 @@
 import React from "react";
 import { formatAccountId, sameAccount } from "@kletia/core";
-import { ScrollText } from "lucide-react";
+import { LoaderCircle, ScrollText } from "lucide-react";
 
 import { ActivityFeed } from "../../../shared/sync/ActivityFeed";
 import { useKletiaEvent } from "../../../shared/sync/bus";
@@ -15,14 +15,31 @@ import { SolanaStake } from "./SolanaStake";
 import { SolanaSwap } from "./SolanaSwap";
 import { SolanaYields } from "./SolanaYields";
 
+// The Ask tab pulls the intent graph view and the shared execution hook;
+// load it only when the tab is opened.
+const SolanaAsk = React.lazy(() => import("./SolanaAsk"));
+
+function AskFallback() {
+  return (
+    <p
+      role="status"
+      className="flex items-center gap-2 border-[3px] border-[#1A1A1A] bg-white p-4 text-sm font-black uppercase text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white"
+    >
+      <LoaderCircle className="h-4 w-4 animate-spin text-[#9945FF]" aria-hidden="true" />
+      Loading Ask
+    </p>
+  );
+}
+
 export interface SolanaWorkspaceProps {
   tab: SolanaTab;
   onTabChange: (tab: SolanaTab) => void;
 }
 
 /**
- * First-class Solana workspace for the console: portfolio, Jupiter swaps,
- * transfers, liquid staking, Kamino yields and Solana activity. Loaded lazily
+ * First-class Solana workspace for the console: portfolio, plain-English
+ * intents (Ask), Jupiter swaps, transfers, liquid staking, Kamino yields and
+ * Solana activity. Loaded lazily
  * when the user selects the Solana workspace.
  */
 export default function SolanaWorkspace({ tab, onTabChange }: SolanaWorkspaceProps) {
@@ -67,6 +84,12 @@ export default function SolanaWorkspace({ tab, onTabChange }: SolanaWorkspacePro
     switch (id) {
       case "overview":
         return <SolanaOverview owner={owner} portfolio={portfolio} onNavigate={onTabChange} />;
+      case "ask":
+        return (
+          <React.Suspense fallback={<AskFallback />}>
+            <SolanaAsk />
+          </React.Suspense>
+        );
       case "swap":
         return <SolanaSwap owner={owner} portfolio={portfolio.data} />;
       case "send":

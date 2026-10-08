@@ -2,7 +2,7 @@
  * Internal navigation of the Solana workspace. Kept dependency-free so the
  * console sidebar can render it without loading the workspace chunk.
  */
-export type SolanaTab = "overview" | "swap" | "send" | "stake" | "yields" | "activity";
+export type SolanaTab = "overview" | "ask" | "swap" | "send" | "stake" | "yields" | "activity";
 
 export interface SolanaTabDefinition {
   readonly id: SolanaTab;
@@ -12,6 +12,7 @@ export interface SolanaTabDefinition {
 
 export const SOLANA_TABS: readonly SolanaTabDefinition[] = [
   { id: "overview", label: "Overview", description: "Portfolio and balances" },
+  { id: "ask", label: "Ask", description: "Plan any intent in plain English" },
   { id: "swap", label: "Swap", description: "Best route through Jupiter" },
   { id: "send", label: "Send", description: "SOL and SPL transfers" },
   { id: "stake", label: "Stake", description: "Liquid staking tokens" },

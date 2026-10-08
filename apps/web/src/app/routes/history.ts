@@ -13,7 +13,7 @@ export interface RouteLocation {
   /** Monotonic key; changes on every navigation, including hash-only ones. */
   readonly key: number;
   readonly action: NavigationAction;
-  /** Scroll position to restore on back/forward navigation. */
+  /** Scroll position to restore on back/forward navigation (null when unknown). */
   readonly restoreScrollY: number | null;
 }
 
@@ -76,7 +76,7 @@ export function installHistoryListener() {
   }
   window.addEventListener("popstate", (event: PopStateEvent) => {
     const state = (event.state ?? {}) as HistoryState;
-    current = readWindowLocation("pop", typeof state.scrollY === "number" ? state.scrollY : 0);
+    current = readWindowLocation("pop", typeof state.scrollY === "number" ? state.scrollY : null);
     emit();
   });
 }

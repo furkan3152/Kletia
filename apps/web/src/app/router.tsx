@@ -151,8 +151,8 @@ export function AppRouter() {
     const pathChanged = previousPathRef.current !== location.pathname;
     previousPathRef.current = location.pathname;
     let cancel: () => void = () => undefined;
-    if (location.action === "pop") {
-      window.scrollTo(0, location.restoreScrollY ?? 0);
+    if (location.action === "pop" && location.restoreScrollY !== null) {
+      window.scrollTo(0, location.restoreScrollY);
     } else if (location.hash) {
       cancel = scrollToHash(location.hash, location.action !== "initial" && !pathChanged);
     } else if (location.action !== "initial") {

@@ -148,6 +148,8 @@ const STEP_RANK: Readonly<Record<StepStatus, number>> = {
 };
 
 const MAX_STREAM_RECONNECTS = 3;
+/** A stream that stayed open this long is considered healthy when it ends. */
+const STABLE_STREAM_MS = 60_000;
 
 function isIntentGraph(value: unknown): value is IntentGraph {
   return (
@@ -426,12 +428,12 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         let lastEventId: string | undefined;
         let failures = 0;
         while (!controller.signal.aborted && failures <= MAX_STREAM_RECONNECTS) {
+          const openedAt = Date.now();
           try {
             await client.intents.stream(
               intentId,
               (event) => {
                 lastEventId = event.id;
-                failures = 0;
                 const current = intentRef.current;
                 if (!current || current.id !== intentId) return;
                 const patched = applyEvent(current, event);
@@ -443,7 +445,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             // Unavailable stream (older API, proxy, network): polling still drives progress.
           }
           if (controller.signal.aborted) break;
-          failures += 1;
+          // A long-lived stream that ended normally (the API closes streams after
+          // 30 minutes) reconnects freely; short-lived ones count as failures so
+          // a misbehaving endpoint cannot turn into a request loop.
+          failures = Date.now() - openedAt > STABLE_STREAM_MS ? 1 : failures + 1;
           await wait(3_000 * failures, controller.signal);
         }
         if (streamRef.current === handle) {

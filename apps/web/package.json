@@ -24,6 +24,7 @@
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@kletia/core": "file:../../packages/core",
     "@kletia/sdk": "file:../../packages/sdk",
+    "@kletia/widget": "file:../../packages/widget",
     "@noble/hashes": "1.8.0",
     "@rainbow-me/rainbowkit": "2.2.11",
     "@scure/bip39": "1.6.0",

@@ -18,6 +18,7 @@ const contentTypes = new Map([
   [".ico", "image/x-icon"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".webmanifest", "application/manifest+json; charset=utf-8"],
   [".map", "application/json; charset=utf-8"],
   [".png", "image/png"],
   [".svg", "image/svg+xml"],
@@ -35,8 +36,16 @@ const commonHeaders = {
     "camera=(), microphone=(), geolocation=(), payment=(self)",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "SAMEORIGIN",
 };
+
+// Only the embeddable widget page may be framed by other sites.
+const frameHeaders = (pathname) =>
+  /^\/embed(?:\/|$)/u.test(pathname)
+    ? { "Content-Security-Policy": "frame-ancestors *" }
+    : {
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": "frame-ancestors 'self'",
+      };
 
 const safePath = (pathname) => {
   let decoded;
@@ -102,6 +111,7 @@ const server = createServer(async (request, response) => {
     if (!acceptsHtml && extname(url.pathname)) {
       response.writeHead(404, {
         ...commonHeaders,
+        ...frameHeaders(url.pathname),
         "Cache-Control": "no-store",
       });
       response.end("Not found");
@@ -123,6 +133,7 @@ const server = createServer(async (request, response) => {
   );
   response.writeHead(200, {
     ...commonHeaders,
+    ...frameHeaders(url.pathname),
     "Cache-Control": immutableAsset
       ? "public, max-age=31536000, immutable"
       : "no-cache",

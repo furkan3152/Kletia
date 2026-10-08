@@ -8,6 +8,7 @@ through a `VITE_` variable.
 
 - Root Directory: `apps/web`
 - Framework Preset: `Vite`
+- Install Command: `cd ../.. && npm ci` (pinned in `apps/web/vercel.json`; installs the npm workspace and builds `@kletia/*` packages)
 - Build Command: `npm run build`
 - Output Directory: `dist`
 - Node.js: `22.x`
@@ -38,6 +39,7 @@ browser. A domain-restricted browser RPC can replace them later.
 
 - Root Directory: `apps/api`
 - Framework Preset: `Other` or auto-detected Express
+- Install Command: `cd ../.. && npm ci` (pinned in `apps/api/vercel.json`)
 - Build/Output overrides: leave empty; Vercel detects `src/index.ts`
 - Node.js: `22.x`
 - Function region: Frankfurt (`fra1`, pinned in `vercel.json`)

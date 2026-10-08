@@ -20,6 +20,24 @@ export const EXECUTABLE_PROTOCOLS: readonly ProtocolId[] = Object.freeze(
   [...new Set(ADAPTERS.flatMap((adapter) => adapter.protocols))],
 );
 
+/**
+ * Adapters the engine plans and executes with. Defaults to ADAPTERS; tests and
+ * embedders may substitute their own set (e.g. stubbed venues) through
+ * `configureAdapters`.
+ */
+let activeAdapters: readonly ProtocolAdapter[] = ADAPTERS;
+
+export function configureAdapters(adapters: readonly ProtocolAdapter[] | null): void {
+  if (adapters !== null && adapters.length === 0) {
+    throw new PlatformError("ADAPTERS_INVALID", "At least one protocol adapter is required.", 500);
+  }
+  activeAdapters = adapters === null ? ADAPTERS : Object.freeze([...adapters]);
+}
+
+export function activeProtocolAdapters(): readonly ProtocolAdapter[] {
+  return activeAdapters;
+}
+
 /** The protocol id a route executes under with this adapter. */
 export function effectiveProtocol(adapter: ProtocolAdapter, route: AdapterRoute): ProtocolId {
   if (route.kind === "transfer" && adapter.protocols.includes("system-transfer")) {
@@ -36,7 +54,7 @@ export function candidateAdapters(
 ): ProtocolAdapter[] {
   const avoid = new Set(constraints?.avoidProtocols ?? []);
   const prefer = constraints?.preferProtocols ?? [];
-  const candidates = ADAPTERS.filter(
+  const candidates = activeAdapters.filter(
     (adapter) => adapter.supports(route) && !avoid.has(effectiveProtocol(adapter, route)),
   );
   const rank = (adapter: ProtocolAdapter) => {
@@ -48,12 +66,18 @@ export function candidateAdapters(
   return ordered;
 }
 
-/** The adapter that executes a planned step (by protocol and VM). */
+/** Primary adapter id of each VM's transfer family (both execute `system-transfer`). */
+const TRANSFER_FAMILY: Readonly<Record<"evm" | "svm", ProtocolId>> = { evm: "erc20-transfer", svm: "spl-token" };
+
+/**
+ * The adapter that executes a planned step. Several adapters may share a
+ * protocol id (`system-transfer` exists on every VM), so ties are broken by
+ * the step's VM.
+ */
 export function adapterForStep(step: Pick<IntentStep, "protocol" | "chain">): ProtocolAdapter {
-  const isSolana = step.chain.startsWith("solana:");
-  const adapter = step.protocol === "system-transfer"
-    ? (isSolana ? solanaTransferAdapter : evmTransferAdapter)
-    : ADAPTERS.find((entry) => entry.protocols.includes(step.protocol));
+  const matches = activeAdapters.filter((entry) => entry.protocols.includes(step.protocol));
+  const family = TRANSFER_FAMILY[step.chain.startsWith("solana:") ? "svm" : "evm"];
+  const adapter = matches.length > 1 ? (matches.find((entry) => entry.id === family) ?? matches[0]) : matches[0];
   if (!adapter) {
     throw new PlatformError("PROTOCOL_UNSUPPORTED", `No execution adapter for protocol ${step.protocol}.`, 500);
   }

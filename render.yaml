@@ -5,14 +5,13 @@ services:
     name: kletia-backend
     runtime: node
     branch: main
-    rootDir: apps/api
     plan: free
     region: frankfurt
-    # NODE_ENV=production is present during Render builds. Explicitly include
-    # build-time TypeScript and type packages; the runtime still starts only
-    # the emitted JavaScript.
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
-    startCommand: npm start
+    # npm workspace build from the repository root. NODE_ENV=production is
+    # present during Render builds, so build-time TypeScript is included
+    # explicitly; the runtime starts only the emitted JavaScript.
+    buildCommand: npm ci --include=dev && npm run build:api
+    startCommand: npm run start:api
     domains:
       - api.kletiaai.xyz
     renderSubdomainPolicy: enabled
@@ -135,10 +134,9 @@ services:
     name: kletia-frontend
     runtime: static
     branch: main
-    rootDir: apps/web
     # Vite, TypeScript and React types are build-time devDependencies.
-    buildCommand: npm ci --include=dev --legacy-peer-deps && npm run build
-    staticPublishPath: ./dist
+    buildCommand: npm ci --include=dev && npm run build:web
+    staticPublishPath: ./apps/web/dist
     routes:
       - type: rewrite
         source: /*
@@ -156,9 +154,43 @@ services:
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
-      - path: /*
+      - path: /
         name: X-Frame-Options
         value: SAMEORIGIN
+      - path: /index.html
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /app
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /app/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /studio
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /studio/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /developers
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /developers/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /networks
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /networks/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      # The embeddable widget is the only page other sites may frame.
+      - path: /embed
+        name: Content-Security-Policy
+        value: frame-ancestors *
+      - path: /embed/*
+        name: Content-Security-Policy
+        value: frame-ancestors *
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable

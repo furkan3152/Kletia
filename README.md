@@ -5,238 +5,222 @@
 <h1 align="center">Kletia</h1>
 
 <p align="center">
-  <strong>Intent-driven, evidence-aware multichain finance.</strong>
+  <strong>Intent infrastructure for EVM and Solana.</strong>
 </p>
 
 <p align="center">
-  Kletia turns a natural-language financial goal into reviewed network-specific steps, keeps every value-moving action under the user's wallet or passkey approval, and verifies the result with chain and protocol evidence.
+  Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Arc and Solana.<br>
+  Use it as an app, or put cross-network intents into your own product with one API, SDK and widget.
 </p>
 
 <p align="center">
   <a href="https://github.com/furkan3152/Kletia/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/furkan3152/Kletia/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2864dc.svg"></a>
-  <img alt="Node.js 22.23.1" src="https://img.shields.io/badge/Node.js-22.23.1-3c873a.svg">
+  <img alt="Node.js 22" src="https://img.shields.io/badge/Node.js-22-3c873a.svg">
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178c6.svg">
-  <img alt="Solidity 0.8.20 and 0.8.24" src="https://img.shields.io/badge/Solidity-0.8.20%20%7C%200.8.24-363636.svg">
-  <img alt="Soroban Rust" src="https://img.shields.io/badge/Soroban-Rust-e86f35.svg">
+  <img alt="EVM and Solana" src="https://img.shields.io/badge/chains-EVM%20%2B%20Solana-14F195.svg">
 </p>
 
 > [!IMPORTANT]
-> Kletia is a development-stage multichain MVP. It includes public Base Mainnet deployments and real Testnet transactions, but it is not an audited universal settlement protocol. Testnet evidence, successful builds, provider discovery, and production readiness are different claims. The runtime fails closed when required identity, quote, simulation, persistence, or provider evidence is unavailable.
+> Kletia is non-custodial and fail-closed, with public Base Mainnet deployments and live Solana, Relay and Jupiter integrations. It has not been independently audited. Builds, quotes, testnet evidence and funded production execution are different claims; see the [security model](#security-model).
 
-## What Kletia does
+## Why Kletia
 
-- Interprets simple and staged intents while keeping contract identities, calldata, XDR, quotes, and success decisions deterministic.
-- Resolves assets by network-specific identity: EVM chain and contract, or Solana mint and token program.
-- Compares reviewed routes using output, gas, fees, slippage, time, risk, and disclosure cost.
-- Presents approvals, bridge checkpoints, protocol actions, and recovery as explicit user-authorized steps.
-- Treats `indeterminate` as a real state: an uncertain transaction is recovered by its existing hash or nonce, never silently resent.
-- Separates private planning, ZK policy proof, public execution, and shielded-payment claims instead of calling every privacy feature the same thing.
+Moving value across chains still means juggling bridges, DEXs, wallets, token addresses and failure modes by hand — and every product that wants to offer it rebuilds the same fragile plumbing.
 
-## System architecture
+Kletia turns an outcome into an **intent graph**: a DAG of network-bound steps, each quoted live, signed in the user's own wallet and advanced only on on-chain or settlement-network evidence.
+
+```text
+"bridge 50 USDC from base to solana then swap half to JitoSOL"
+
+  s1  Base     USDC ──Relay──▶ Solana USDC     approve + deposit (EVM wallet)
+  s2  Solana   USDC ──Jupiter─▶ JitoSOL        1 transaction (Solana wallet)
+      └── s2 unlocks only after s1's destination fill is verified
+```
+
+| For | Kletia gives you |
+|---|---|
+| **Users** | One console for Base, Arbitrum, Arc and Solana: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
+| **Builders** | Platform API v1, a typed SDK and a drop-in React widget: plan, quote, execute and track cross-network intents without running bridge, DEX or wallet plumbing. |
+| **Agents** | Deterministic intent compilation, x402 pay-per-call and REST — a safe execution surface for autonomous software that still never holds keys. |
+
+## Build with Kletia
+
+```bash
+npm install @kletia/sdk
+```
+
+```ts
+import { KletiaClient, executeIntent, eip1193Signer, walletStandardSolanaSigner, formatAccountId } from "@kletia/sdk";
+
+const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
+
+const intent = await kletia.intents.create({
+  text: "bridge 25 USDC from base to solana then swap half to JitoSOL",
+  accounts: [formatAccountId("base", evmAddress), formatAccountId("solana", solanaAddress)],
+  constraints: { maxSlippageBps: 50 },
+});
+
+await executeIntent(kletia, intent, {
+  evm: eip1193Signer(window.ethereum, evmAddress),
+  solana: walletStandardSolanaSigner(phantom, phantomAccount, "solana:mainnet"),
+});
+```
+
+Or over REST:
+
+```bash
+curl -X POST https://api.kletiaai.xyz/v1/intents?dryRun=true \
+  -H 'content-type: application/json' \
+  -d '{"text":"swap 1 SOL to USDC","accounts":["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"]}'
+```
+
+Or as a component:
+
+```tsx
+<KletiaIntentWidget clientOptions={{ apiKey }} accounts={accounts} signers={signers} />
+```
+
+| Package | What it is |
+|---|---|
+| [`@kletia/core`](packages/core/README.md) | The intent specification: CAIP-2/10/19 identities, chain, asset and protocol registries, intent graph, lifecycle rules, validation, events, webhook signatures. Zero dependencies. |
+| [`@kletia/sdk`](packages/sdk/README.md) | Typed client for Platform API v1, Server-Sent Events, EIP-1193 and Wallet Standard signers, `executeIntent`. |
+| [`@kletia/widget`](packages/widget/README.md) | Embeddable React widget with scoped styles: plan, review and execute intents. |
+| [Platform API v1](docs/platform/api-v1.md) | REST + SSE + signed webhooks, developer keys, OpenAPI at `/v1/openapi.json`. |
+
+## How it works
 
 ```mermaid
 flowchart LR
-    U[User intent] --> W[Web app]
-    W --> P[Deterministic parser]
-    P -. explicit consent only .-> AI[Semantic model]
-    P --> C[Intent compiler]
-    AI --> C
-    C --> G{Capability and safety gates}
-
-    G --> B[Base Mainnet]
-    G --> A[Arc Testnet]
-    G --> R[Arbitrum One / Sepolia]
-
-    B --> E[EVM wallet approval]
-    A --> E
-    R --> E
-
-    E --> V[Receipt and protocol verification]
-    V --> T[Timeline, evidence, recovery]
-
-    subgraph Optional research labs
-      Z[Groth16 policy proofs]
-      O[Control plane and route auction]
-      H[Shielded payments and MPP]
-    end
-
-    C -. labs enabled .-> Z
-    Z --> O
-    O --> H
+    A[Outcome<br/>text or structured actions] --> B[Deterministic grammar]
+    B --> C[Planner<br/>assets, accounts, live quotes]
+    C --> D[Intent graph<br/>DAG of network-bound steps]
+    D --> E[Prepare<br/>unsigned EVM / Solana transactions]
+    E --> F[User wallet signs]
+    F --> G[Verify<br/>on-chain + settlement evidence]
+    G -->|unlock dependents| E
+    G --> H[Events<br/>SSE + signed webhooks]
 ```
 
-The browser owns presentation, private-field handling, wallet bindings, passkey ceremonies, and final transaction review. The API owns semantic interpretation, canonical registries, live discovery, route construction, simulation policy, durable workflow state, and evidence verification. Network modules share safety primitives, but never inherit another network's asset or contract identities.
+1. **Express** — natural language or structured actions, plus the CAIP-10 accounts the user controls.
+2. **Plan** — a deterministic compiler (no model in the execution path) resolves exact network identities, picks a venue, quotes it live, chains amounts through guaranteed minimum outputs and merges bridge + swap into one cross-network swap when possible.
+3. **Sign** — every value-moving transaction is signed in the user's own wallet: EIP-1193 for EVM, Wallet Standard for Solana.
+4. **Prove** — a step advances only when Kletia observes it on-chain from the bound account; cross-network steps settle only on a verified destination fill.
 
-### Intent lifecycle
+## Networks and venues
+
+| Network | Lane | What runs today |
+|---|---|---|
+| **Base** (`eip155:8453`) | Production | Kletia Intent Router V2 swaps, Relay swaps and bridges, Aave V3 supply, lending and vault discovery, token launch (LaunchFactory V2), Basenames, x402 |
+| **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Aave V3, Relay swaps and bridges, staged Base → Arbitrum workflows |
+| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Relay bridges to Base and Arbitrum, Kamino rate discovery |
+| **Arc Testnet** (`eip155:5042002`) | Testnet | Native-USDC swap, lending, staking, Vault V2, batch and memo payments, Circle App Kit |
+| **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Circle Testnet USDC and Aave supply |
+| **Solana Devnet** | Testnet | Transfers and portfolio |
+
+Production and testnet capital never share one intent. The full protocol registry lives in [`packages/core/src/protocols.ts`](packages/core/src/protocols.ts) and is served at `GET /v1/protocols`.
+
+## Architecture
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant Web as Kletia Web
-    participant API as Kletia API
-    participant Provider as RPC / Quote provider
-    participant Wallet as Wallet / Passkey
-    participant Chain as Network / Protocol
-
-    User->>Web: Describe outcome and constraints
-    Web->>API: Network-bound intent
-    API->>Provider: Live discovery and simulation
-    Provider-->>API: Quote and observed evidence
-    API-->>Web: Exact staged plan
-    Web->>Wallet: Review one value-moving step
-    Wallet->>Chain: User-authorized transaction
-    Chain-->>API: Receipt / event / protocol state
-    API-->>Web: Verified next checkpoint or recovery state
+flowchart TB
+    subgraph Surfaces
+      Site[Home · Developers · Networks]
+      Console[Console /app]
+      Studio[Intent Studio]
+      Widget["@kletia/widget"]
+      SDK["@kletia/sdk"]
+    end
+    subgraph API[Kletia API]
+      V1["/v1 Platform API<br/>keys · intents · SSE · webhooks"]
+      Engine[Planner + adapters<br/>Jupiter · Relay · Aave · transfers]
+      Store[(Intent store<br/>Postgres or memory)]
+      AppApi["/api console engines<br/>Base · Arc · Arbitrum · Solana"]
+    end
+    Site & Studio & Widget & SDK --> V1
+    Console --> V1
+    Console --> AppApi
+    V1 --> Engine --> Store
+    Engine --> Chains[(Base · Arbitrum · Solana · Relay)]
+    AppApi --> Chains2[(Base · Arc · Arbitrum · Solana)]
 ```
 
-Cross-chain workflows are checkpointed, not globally atomic. A later step is prepared only after the previous network or protocol result satisfies its specific evidence rules.
+The first-party app is built on the same API integrators use. See the [architecture overview](docs/architecture/overview.md).
 
-## Network and capability matrix
-
-| Network | Lane | Implemented surface | Current boundary |
-|---|---|---|---|
-| **Base Mainnet** (`8453`) | Production capital lane | Portfolio, reviewed swap execution through Intent Router V2, lending/vault discovery, token launch, Basenames, x402, security integrations | Contracts are publicly deployed and identity-pinned; this is not an audit or a guarantee that every discovered protocol route is executable |
-| **Arbitrum One** (`42161`) | Production capital lane | Uniswap V3 and Aave V3 adapters, portfolio and risk reads, staged Base-to-Arbitrum workflows | Public Beta behind independent API and web capability gates |
-| **Arc Testnet** (`5042002`) | Testnet lane | Native-USDC swap, lending, staking, Vault V2, memo and batch payments, Circle/App Kit planning | Testnet-only deployed contracts; native-value and ERC-20 USDC decimal rails remain distinct |
-| **Arbitrum Sepolia** (`421614`) | Testnet endpoint | Circle Testnet USDC and reviewed Aave supply workflow | Used by the Arc/CCTP test corridor; borrowing remains read-only capacity in the MVP |
-
-Production and Testnet capital never share one workflow. A registry entry means “known identity,” not automatic support for every action.
-
-## Core release and research labs
-
-Kletia deliberately separates the testable product from heavier research surfaces.
-
-| Profile | Included | Command | Meaning |
-|---|---|---|---|
-| **Core** | API/web, four network profiles, intent tests, privacy egress, Payment Center boundaries, Base/Arc compilation | `npm run verify:core` | Required CI and public-release source gate |
-| **Labs** | Policy V1/V2, Circom proofs, Soroban control plane, route auction, solver reference process, private payments, MPP, V3/V4 research workflows | `npm run verify:labs` | Reproducible research; not a substitute for provider or funded execution evidence |
-| **Live preflight** | RPC, contract identity, durable store, passkey and provider readiness | `npm run verify:mvp-live` | Expected to fail closed until every required live dependency is configured |
-
-The reference solver coordinates lab auction records; it does not secretly fund or execute Arc/EVM transactions. The reviewed staged executor remains wallet-controlled.
-
-## Repository map
+## Repository
 
 ```text
+packages/
+  core/       Intent specification (zero dependencies)
+  sdk/        TypeScript SDK
+  widget/     React widget
 apps/
-  api/                    Express API, intent compiler, adapters, workflows, evidence
-  web/                    React/Vite application, wallets, passkeys, timelines, ZK workers
+  api/        Express API: /v1 platform (src/platform), console engines, network modules
+  web/        React app: home, console, Studio, developer portal, networks status
 contracts/
-  base/                   Base Mainnet Solidity contracts and deployment evidence
-  arc/                    Arc Testnet Solidity contracts and migration evidence
-docs/                     Architecture, network, deployment, runbook, and research records
-tooling/                  Repository, privacy, workflow, circuit, and release gates
-attachments/              Path- and hash-stable submission material
+  base/       Base Mainnet Solidity contracts and deployment evidence
+  arc/        Arc Testnet Solidity contracts and migration evidence
+docs/         Architecture, platform API, networks, deployment and runbooks
+tooling/      Repository, documentation and privacy verification gates
 ```
 
-See the [documentation index](docs/README.md) and [repository ownership rules](docs/architecture/repository-structure.md) before moving modules. Submission attachments and deployment manifests are path-sensitive.
+## Run it locally
 
-## Local development
-
-### Prerequisites
-
-- Node.js **22.23.1** (`.nvmrc`)
-- npm shipped with that Node release
-- An EVM wallet for Base, Arc, and Arbitrum value-moving tests
-
-### Install
+Prerequisites: Node.js **22** (`.nvmrc` pins 22.23.1), an EVM wallet and a Solana wallet (Phantom, Solflare or Backpack) for value-moving tests.
 
 ```bash
 git clone https://github.com/furkan3152/Kletia.git
 cd Kletia
 nvm use
+npm ci                       # installs the workspace and builds @kletia/* packages
 
-npm --prefix apps/api ci --include=dev --legacy-peer-deps
-npm --prefix apps/web ci --include=dev --legacy-peer-deps
-npm --prefix contracts/base ci --include=dev --legacy-peer-deps
-npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
-```
-
-The repository intentionally has no root workspace lockfile. Each JavaScript package owns its lockfile and must be installed independently. ```bash
-```
-
-### Configure
-
-```bash
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
+
+npm run dev:api              # http://localhost:3001  (/api and /v1)
+npm run dev:web              # http://localhost:5174
 ```
 
-Use [the API environment template](apps/api/.env.example) as the complete reference. At minimum, configure the RPCs for the networks you intend to test. `OPENROUTER_API_KEY` is optional: deterministic intents continue to work without it, while unsupported wording remains fail-closed instead of being sent to a model. Browser `VITE_*` values are public and must never contain secrets.
-
-### Run
-
-```bash
-# Terminal 1 — core API
-npm run dev:mvp:api
-
-# Terminal 2 — web app on the passkey-compatible origin
-npm run dev:mvp:web
-```
-
-Open [http://localhost:5174](http://localhost:5174). Use the labs API only when intentionally evaluating research surfaces:
-
-```bash
-npm run dev:labs:api
-npm run dev:mvp:solver
-```
+Every feature that needs no secret works out of the box: public, identity-pinned deployments are applied as defaults and re-validated on-chain on every request. `GET /api/capabilities` lists anything that still needs an operator key (for example Webacy risk scoring, Allora, Across, CDP on-ramp) and the app shows it instead of hiding it.
 
 ## Verification
 
 ```bash
-# CI-equivalent product gate
-npm run verify
-
-# Research contracts, circuits, stores, and browser surfaces
-npm run verify:labs
-
-# Everything reproducible from the repository
-npm run verify:all
-
-# Live, no-mock dependency preflight
-npm run verify:mvp-live
+npm run verify          # structure, docs, privacy gates, package tests, typecheck,
+                        # builds, intent matrices, lint, contract compilation
+npm run verify:mvp-live # live, no-mock dependency preflight
 ```
 
 | Evidence | What it proves | What it does not prove |
 |---|---|---|
-| Typecheck/build/test | The checked source path is reproducible | Live liquidity, funded execution, or security |
+| Typecheck / build / tests | The checked source path is reproducible | Live liquidity, funded execution or security |
 | Deployment manifest and codehash | Exact observed contract identity | Contract correctness or audit status |
-| Live readiness | Configured dependency is reachable and identity-bound | A user completed the financial lifecycle |
-| Confirmed transaction plus protocol evidence | That exact operation reached the verified state | Mainnet safety or every future operation |
-| Provider completion evidence | That provider reported the off-chain terminal state | Independent banking finality unless separately verified |
-
-The end-to-end operator procedure is in the [real-data MVP runbook](docs/runbooks/mvp-live-test.md).
-
-## Public deployments and evidence
-
-- Base V2 identities: [`contracts/base/deployments/base-mainnet-v2.json`](contracts/base/deployments/base-mainnet-v2.json)
-- Arc Testnet identities: [`contracts/arc/deployments/arc-testnet.json`](contracts/arc/deployments/arc-testnet.json)
-- Render service definition: [`render.yaml`](render.yaml)
-
-The public application is [kletiaai.xyz](https://kletiaai.xyz) and the API is [api.kletiaai.xyz](https://api.kletiaai.xyz). A public deployment can lag the repository; verify its readiness endpoints and deployed commit before treating it as evidence for `main`.
+| Live readiness | A configured dependency is reachable and identity-bound | That a user completed the financial lifecycle |
+| Verified transaction + settlement evidence | That exact operation reached the verified state | Mainnet safety of every future operation |
 
 ## Security model
 
-- Kletia does not hold user funds or embed user/deployer private keys in the API or browser bundle.
-- AI may interpret language only with the applicable disclosure consent; it cannot choose trusted identities or produce execution truth.
-- Plans bind request, account, network, asset, target, amount, deadline, and calldata/XDR evidence.
-- Approvals use exact reviewed spenders; network and account changes invalidate prepared actions.
-- A transaction hash alone is not completion. Receipt, event, amount, nonce, and protocol post-state rules are action-specific.
-- External quotes, RPCs, paid x402 bodies, anchor pages, and model output remain untrusted inputs.
+- **Non-custodial.** The API returns unsigned transactions; users sign every value-moving step. Kletia never holds keys.
+- **Deterministic execution.** Model output (only with explicit consent, console only) can never choose a target, amount or success.
+- **Evidence over assertions.** Sender or fee payer, target, chain and status are verified on-chain; cross-network steps need a destination fill.
+- **Exactness.** Assets resolve by network identity, approvals are exact, prepared payloads expire and are bound to their quote.
+- **Fail closed.** Missing RPC, quote, simulation or credential disables a feature; it never becomes a mock result. Uncertain transactions are recovered, never resent.
+- **Untrusted inputs.** Quotes, RPCs, relayers, solvers, x402 responses and model output stay untrusted until their checks pass.
 
-This repository and its Testnet contracts have not been presented as independently audited. Do not use unaudited paths with funds you cannot afford to lose. Report vulnerabilities according to [SECURITY.md](SECURITY.md).
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## Public deployments
+
+- Base Intent Router V2, LaunchFactory V2 and attestation registry: [`contracts/base/deployments/base-mainnet-v2.json`](contracts/base/deployments/base-mainnet-v2.json)
+- Arc Testnet identities: [`contracts/arc/deployments/arc-testnet.json`](contracts/arc/deployments/arc-testnet.json)
+- Service topology: [`render.yaml`](render.yaml)
+
+The app runs at [kletiaai.xyz](https://kletiaai.xyz) and the API at [api.kletiaai.xyz](https://api.kletiaai.xyz). A public deployment can lag the repository; check its readiness endpoints before treating it as evidence for `main`.
 
 ## Documentation
 
-Start with [docs/README.md](docs/README.md). The main technical entry points are:
-
-- [Architecture overview](docs/architecture/overview.md)
-- [Repository structure and ownership](docs/architecture/repository-structure.md)
-- [Base DeFi registry](docs/networks/base-defi-registry.md)
-- [Arbitrum workflow](docs/networks/arbitrum-workflow.md)
-- [Render release runbook](docs/deployment/render.md)
-- [MVP live-test runbook](docs/runbooks/mvp-live-test.md)
+Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md) and [Vercel](docs/deployment/vercel.md) deployment.
 
 ## Contributing and license
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening a pull request. Kletia source is available under the [MIT License](LICENSE); third-party and research dependencies retain their own licenses and notices.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Kletia is available under the [MIT License](LICENSE); third-party dependencies retain their own licenses.

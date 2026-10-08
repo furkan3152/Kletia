@@ -3,6 +3,10 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Workspace packages (@kletia/widget) must share the app's React instance.
+    dedupe: ["react", "react-dom"],
+  },
   optimizeDeps: {
     include: ["buffer"],
   },

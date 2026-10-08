@@ -1,29 +1,62 @@
 {
   "name": "kletia",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "engines": {
     "node": "22.23.1"
   },
+  "workspaces": [
+    "packages/core",
+    "packages/sdk",
+    "packages/widget",
+    "apps/api",
+    "apps/web"
+  ],
   "scripts": {
     "check:structure": "node tooling/validate-repository.mjs",
     "check:docs": "node tooling/verify-documentation.mjs",
     "check:privacy-egress": "node tooling/verify-privacy-egress-guard.mjs",
     "check:intent-privacy-trace": "node tooling/verify-intent-privacy-trace.mjs",
-    "check:intent-schema-planner": "npm --prefix apps/api run verify:intent-schema-planner",
-    "check:intent-network-matrix": "npm --prefix apps/api run verify:intent-network-matrix",
-    "check:intent-user-journey": "npm --prefix apps/web run verify:intent-user-journey",
-    "verify:mvp-live": "npm --prefix apps/api run verify:mvp-live",
-    "dev:api": "npm --prefix apps/api run dev:mvp",
-    "dev:web": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 npm --prefix apps/web run dev -- --host 127.0.0.1 --port 5174 --strictPort",
-    "typecheck:api": "npm --prefix apps/api run typecheck",
-    "build:api": "npm --prefix apps/api run build",
-    "typecheck:web": "npm --prefix apps/web run typecheck",
-    "lint:web": "npm --prefix apps/web run lint",
-    "build:web": "npm --prefix apps/web run build",
+    "check:intent-schema-planner": "npm run verify:intent-schema-planner -w @kletia/api",
+    "check:intent-network-matrix": "npm run verify:intent-network-matrix -w @kletia/api",
+    "check:intent-user-journey": "npm run verify:intent-user-journey -w @kletia/web",
+    "verify:mvp-live": "npm run verify:mvp-live -w @kletia/api",
+    "dev:api": "npm run dev:mvp -w @kletia/api",
+    "dev:web": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 npm run dev -w @kletia/web -- --host 127.0.0.1 --port 5174 --strictPort",
+    "typecheck:api": "npm run typecheck -w @kletia/api",
+    "build:api": "npm run build:packages && npm run build -w @kletia/api",
+    "typecheck:web": "npm run typecheck -w @kletia/web",
+    "lint:web": "npm run lint -w @kletia/web",
+    "build:web": "npm run build:packages && npm run build -w @kletia/web",
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
-    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run typecheck:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc"
+    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
+    "build:packages": "npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget",
+    "test:packages": "npm test -w @kletia/core && npm test -w @kletia/sdk",
+    "test:api": "npm test -w @kletia/api",
+    "start:api": "npm run start -w @kletia/api",
+    "postinstall": "npm run build:packages"
+  },
+  "overrides": {
+    "axios": "1.20.0",
+    "hono": "4.13.2",
+    "socket.io-parser": "4.2.7",
+    "viem": {
+      "ws": "8.21.1"
+    },
+    "underscore": "1.13.8",
+    "fast-uri": "4.2.1",
+    "form-data": "4.0.6",
+    "ip-address": "10.5.0",
+    "nanoid": "3.3.18",
+    "postcss": "8.5.26",
+    "tsx": {
+      "esbuild": "0.28.2"
+    },
+    "@coinbase/cdp-sdk": "1.56.0",
+    "@coral-xyz/anchor": {
+      "toml": "4.3.0"
+    }
   },
   "license": "MIT"
 }

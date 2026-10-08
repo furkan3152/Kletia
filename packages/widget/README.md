@@ -47,6 +47,8 @@ widget with an iframe:
 <iframe src="https://kletiaai.xyz/embed" width="480" height="640" title="Kletia intents"></iframe>
 ```
 
+The hosted page accepts `theme=light|dark|auto`, `text=<default intent>`, `examples=<comma-separated>` (up to 6) and `bg=transparent`. It never reads an API key from the URL and always uses the public tier. Users connect their own EVM and Solana wallets inside the frame; for `theme=dark&bg=transparent` on a light page, add `style="color-scheme: dark"` to the iframe.
+
 ## Props
 
 | Prop | Type | Notes |

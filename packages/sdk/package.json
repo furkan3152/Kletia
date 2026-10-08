@@ -36,5 +36,8 @@
     "solana",
     "evm",
     "cross-chain"
-  ]
+  ],
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
 }

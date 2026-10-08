@@ -83,6 +83,12 @@ Or as a component:
 <KletiaIntentWidget accounts={accounts} signers={signers} />
 ```
 
+Or with no build step at all, as an iframe:
+
+```html
+<iframe src="https://kletiaai.xyz/embed?theme=dark&text=swap%201%20SOL%20to%20USDC" width="420" height="640" style="border:0"></iframe>
+```
+
 | Package | What it is |
 |---|---|
 | [`@kletia/core`](packages/core/README.md) | The intent specification: CAIP-2/10/19 identities, chain, asset and protocol registries, intent graph, lifecycle rules, validation, events, webhook signatures. Zero dependencies. |

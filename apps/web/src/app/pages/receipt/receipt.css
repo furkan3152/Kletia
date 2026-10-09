@@ -1,0 +1,536 @@
+/* Receipt page: a through ticket. The control coupon (what Kletia signed)
+   and the passenger coupon (what the owner chose to show) are two pieces of
+   one printed stock, joined by a perforation with a notch at each end. The
+   stock keeps its ink at night (the art night rule); only the shadow and
+   the room around it change. */
+
+.kl-rcpt {
+  container-type: inline-size;
+}
+.kl-rcpt__ticket {
+  --notch: 13px;
+  --kla-focus: #0052ff;
+  --kla-link: #0047e0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 36%);
+  filter: drop-shadow(5px 5px 0 var(--kla-shadow));
+}
+.kl-rcpt__coupon {
+  position: relative;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--kla-stock-ink);
+  background-color: var(--kla-stock);
+  background-image: var(--kla-stock-grain);
+  background-size: 180px 180px;
+  border: 3px solid #1a1a1a;
+}
+:where(.kl-rcpt__coupon) p,
+:where(.kl-rcpt__coupon) h2,
+:where(.kl-rcpt__coupon) h3,
+:where(.kl-rcpt__coupon) ul,
+:where(.kl-rcpt__coupon) ol,
+:where(.kl-rcpt__coupon) dl,
+:where(.kl-rcpt__coupon) dd {
+  margin: 0;
+}
+:where(.kl-rcpt__coupon) ul,
+:where(.kl-rcpt__coupon) ol {
+  padding: 0;
+  list-style: none;
+}
+
+/* Control coupon: notches on its right corners, no edge at the perforation. */
+.kl-rcpt__control {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 22px 18px;
+  border-right: 0;
+  -webkit-mask:
+    radial-gradient(circle at 100% 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at 100% 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 100% 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+}
+/* Passenger coupon: notches on its left corners; its left edge is the perforation. */
+.kl-rcpt__passenger {
+  padding: 16px 18px 18px 26px;
+  border-left: 0;
+  background-image: linear-gradient(#1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+  background-size: 3px 9px, 180px 180px;
+  background-repeat: repeat-y, repeat;
+  background-position: 0 4px, 0 0;
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+}
+/* The ink rim of each notch (the mask keeps only the quarter inside each coupon). */
+.kl-rcpt__control::before,
+.kl-rcpt__control::after,
+.kl-rcpt__passenger::before,
+.kl-rcpt__passenger::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  width: calc(2 * var(--notch) + 6px);
+  height: calc(2 * var(--notch) + 6px);
+  box-sizing: border-box;
+  border: 3px solid #1a1a1a;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.kl-rcpt__control::before,
+.kl-rcpt__control::after {
+  right: calc(-1 * var(--notch) - 3px);
+}
+.kl-rcpt__passenger::before,
+.kl-rcpt__passenger::after {
+  left: calc(-1 * var(--notch) - 3px);
+}
+.kl-rcpt__control::before,
+.kl-rcpt__passenger::before {
+  top: calc(-1 * var(--notch) - 6px);
+}
+.kl-rcpt__control::after,
+.kl-rcpt__passenger::after {
+  bottom: calc(-1 * var(--notch) - 6px);
+}
+
+.kl-rcpt__k {
+  margin-top: 14px !important;
+  margin-bottom: 4px !important;
+}
+.kl-rcpt__issue {
+  margin-top: 10px !important;
+  font: 700 15px/1.35 var(--kla-font-display);
+  letter-spacing: -0.01em;
+}
+.kl-rcpt__status {
+  margin-top: 4px !important;
+  font: 400 13.5px/1.5 var(--kla-font-body);
+}
+.kl-rcpt__route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 12px !important;
+}
+.kl-rcpt__track {
+  flex: 0 1 44px;
+  min-width: 18px;
+  height: 10px;
+  background:
+    linear-gradient(#1a1a1a, #1a1a1a) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, #1a1a1a 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
+}
+.kl-rcpt__legs {
+  margin-top: 4px !important;
+  border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
+}
+.kl-rcpt__leg {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 9px 0;
+  border-bottom: 1.5px dashed rgba(26, 26, 26, 0.45);
+  font: 400 13.5px/1.4 var(--kla-font-body);
+}
+.kl-rcpt__leg strong {
+  font-weight: 700;
+}
+.kl-rcpt__leg-what {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.kl-rcpt__leg-what .kla-bullet {
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.kl-rcpt__via {
+  font: 500 11px/1 var(--kla-font-mono);
+  color: var(--kla-stock-muted);
+  white-space: nowrap;
+}
+.kl-rcpt__mark {
+  min-width: 14px;
+  text-align: center;
+  font: 800 13px/1 var(--kla-font-mono);
+  color: #6b6c71;
+}
+.kl-rcpt__leg[data-mark="seen"] .kl-rcpt__mark {
+  color: #0b7a4b;
+}
+.kl-rcpt__leg[data-mark="failed"] .kl-rcpt__mark {
+  color: #c8102e;
+}
+.kl-rcpt__leg-note {
+  grid-column: 2 / -1;
+  font: 500 12px/1.45 var(--kla-font-body);
+  color: var(--kla-stock-muted);
+}
+.kl-rcpt__leg-note strong {
+  color: #1a1a1a;
+}
+.kl-rcpt__fields {
+  grid-template-columns: repeat(3, minmax(0, max-content)) !important;
+}
+.kl-rcpt__stamps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 18px;
+  margin-top: auto;
+  padding-top: 14px;
+  min-height: 96px;
+}
+.kl-rcpt__stamps .kl-rdie,
+.kl-rcpt__stamps .kla-stamp {
+  flex: none;
+  transform: rotate(var(--kla-rot, 0deg));
+  mix-blend-mode: multiply;
+  opacity: 0.92;
+}
+.kl-rcpt__stamps .kl-rdie--verified {
+  width: 112px;
+}
+.kl-rcpt__stamps .kl-rdie--void {
+  width: 176px;
+}
+.kl-rcpt__stamps .kl-rdie--logged {
+  width: 148px;
+}
+.kl-rcpt__stamps .kla-stamp--settled,
+.kl-rcpt__stamps .kla-stamp--held,
+.kl-rcpt__stamps .kla-stamp--planned {
+  width: 140px;
+}
+.kl-rcpt__stamps .kla-stamp--failed {
+  width: 104px;
+}
+
+/* A voided receipt: greyed under the cancel bar. */
+.kl-rcpt__ticket[data-void] .kl-rcpt__control > :not(.kl-rcpt__stamps) {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+
+/* Passenger coupon content. */
+.kl-rcpt__pk {
+  font: 800 10px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.kl-rcpt__ptitle {
+  margin-top: 6px !important;
+  font: 700 18px/1.15 var(--kla-font-display);
+  letter-spacing: -0.02em;
+}
+.kl-rcpt__pcount {
+  margin-top: 4px !important;
+  font: 500 12px/1.45 var(--kla-font-body);
+  color: var(--kla-stock-muted);
+}
+.kl-rcpt__group {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
+}
+.kl-rcpt__group-k {
+  font: 700 9.5px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--kla-stock-muted);
+}
+.kl-rcpt__said {
+  margin-top: 4px !important;
+  font: 600 14px/1.45 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+}
+.kl-rcpt__rows {
+  display: grid;
+  gap: 3px;
+  margin-top: 5px !important;
+  font: 400 12.5px/1.45 var(--kla-font-body);
+}
+.kl-rcpt__rows dt {
+  font-weight: 700;
+}
+.kl-rcpt__rows > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
+}
+.kl-rcpt__rows dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.kl-rcpt__mono {
+  font: 600 12px/1.45 var(--kla-font-mono);
+}
+.kl-rcpt__sealed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px !important;
+  font: 600 12.5px/1.35 var(--kla-font-body);
+  color: #6b1414;
+}
+.kl-rcpt__sealed .kl-rdie {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+.kl-rcpt__notice {
+  margin-top: 12px !important;
+  padding: 8px 10px;
+  border: 2px solid #1a1a1a;
+  background: rgba(255, 214, 10, 0.22);
+  font: 600 12px/1.45 var(--kla-font-body);
+}
+.kl-rcpt__problems {
+  margin-top: 10px !important;
+  padding-left: 18px !important;
+  list-style: square !important;
+  font: 600 12.5px/1.5 var(--kla-font-body);
+  color: #8f0a20;
+}
+.kl-rcpt__pstamp {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.kl-rcpt__pstamp .kl-rdie--rechecked {
+  width: 124px;
+  transform: rotate(var(--kla-rot, 0deg));
+  mix-blend-mode: multiply;
+}
+.kl-rcpt__passenger .kla-ticket__punches {
+  margin-top: 10px;
+}
+
+/* Under 720 px of ticket: the coupons stack, the perforation turns. */
+@container (max-width: 720px) {
+  .kl-rcpt__ticket {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kl-rcpt__control {
+    padding: 14px 16px 16px;
+    border-right: 3px solid #1a1a1a;
+    border-bottom: 0;
+    -webkit-mask:
+      radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+  }
+  .kl-rcpt__passenger {
+    padding: 22px 16px 16px;
+    border-left: 3px solid #1a1a1a;
+    border-top: 0;
+    background-image: linear-gradient(90deg, #1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+    background-size: 9px 3px, 180px 180px;
+    background-repeat: repeat-x, repeat;
+    background-position: 4px 0, 0 0;
+    -webkit-mask:
+      radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+  }
+  .kl-rcpt__control::before,
+  .kl-rcpt__control::after {
+    top: auto;
+    bottom: calc(-1 * var(--notch) - 3px);
+  }
+  .kl-rcpt__control::before {
+    right: auto;
+    left: calc(-1 * var(--notch) - 6px);
+  }
+  .kl-rcpt__control::after {
+    right: calc(-1 * var(--notch) - 6px);
+  }
+  .kl-rcpt__passenger::before,
+  .kl-rcpt__passenger::after {
+    bottom: auto;
+    top: calc(-1 * var(--notch) - 3px);
+  }
+  .kl-rcpt__passenger::before {
+    left: calc(-1 * var(--notch) - 6px);
+  }
+  .kl-rcpt__passenger::after {
+    left: auto;
+    right: calc(-1 * var(--notch) - 6px);
+  }
+  .kl-rcpt__fields {
+    grid-template-columns: repeat(2, minmax(0, max-content)) !important;
+  }
+  .kl-rcpt__stamps {
+    justify-content: flex-start;
+  }
+}
+@container (max-width: 420px) {
+  .kl-rcpt__leg {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    font-size: 13px;
+  }
+  .kl-rcpt__stamps .kl-rdie--void {
+    width: 150px;
+  }
+}
+
+/* Receipt dies: inks are stamp inks, kept at night (printed on stock). */
+.kl-rdie--verified {
+  --kla-stamp-ink: #0b6e43;
+  --kla-rot: -6deg;
+}
+.kl-rdie--void {
+  --kla-stamp-ink: #c8102e;
+  --kla-rot: -9deg;
+}
+.kl-rdie--sealed {
+  --kla-stamp-ink: #8e1b1b;
+  --kla-rot: 4deg;
+}
+.kl-rdie--logged {
+  --kla-stamp-ink: #22305a;
+  --kla-rot: 3deg;
+}
+.kl-rdie--rechecked {
+  --kla-stamp-ink: #0047e0;
+  --kla-rot: -4deg;
+}
+.kl-rdie__word--verified {
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+}
+.kl-rdie__word--void {
+  font-size: 30px;
+  letter-spacing: 0.32em;
+}
+.kl-rdie__word--sealed {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+.kl-rdie__word--logged {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.kl-rdie__word--date {
+  font-size: 19px;
+  letter-spacing: 0.04em;
+}
+.kl-rdie__band {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+}
+.kl-rdie__knock-fill {
+  fill: var(--kla-stock, #fffcf2);
+}
+.kl-rdie__knock-stroke {
+  stroke: var(--kla-stock, #fffcf2);
+}
+
+/* "Check it yourself": a blueprint sheet. */
+.kl-rcpt-blueprint {
+  position: relative;
+  color: #eaf1ff;
+  background-color: #0b3a8c;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+  border: 3px solid #1a1a1a;
+  box-shadow: 5px 5px 0 var(--kla-shadow);
+}
+.dark .kl-rcpt-blueprint {
+  border-color: #4b5563;
+}
+.kl-rcpt-blueprint dt {
+  font: 700 9.5px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #b9cdf6;
+}
+.kl-rcpt-blueprint dd {
+  margin: 3px 0 0;
+  font: 600 12.5px/1.45 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+  color: #ffffff;
+}
+.kl-rcpt-blueprint code {
+  font: 600 12.5px/1.5 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Recheck board. */
+.kl-recheck__scroll {
+  overflow-x: auto;
+}
+.kl-recheck .kla-board__table td,
+.kl-recheck .kla-board__table tbody th {
+  font: 600 12.5px/1.3 var(--kla-font-mono);
+  color: #f4f1ea;
+}
+.kl-recheck__legno {
+  padding: 2px 5px;
+  background: #ffd60a;
+  color: #1a1a1a;
+  font: 800 10.5px/1 var(--kla-font-mono);
+}
+.kl-recheck__net {
+  white-space: nowrap;
+}
+.kl-recheck__net .kla-bullet {
+  margin-right: 8px;
+  border-color: #050608;
+}
+.kl-recheck__where {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.kl-recheck__source {
+  color: #c4cddb !important;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 640px) {
+  .kl-recheck .kl-recheck__where {
+    display: none;
+  }
+  .kl-recheck .kla-flap {
+    font-size: 11px;
+  }
+}
+@container (max-width: 460px) {
+  .kl-recheck .kla-board__table tr > :first-child {
+    padding-left: 10px;
+  }
+  .kl-recheck .kla-board__table td,
+  .kl-recheck .kla-board__table tbody th,
+  .kl-recheck .kla-board__table thead th {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .kl-recheck__net .kla-bullet {
+    display: none;
+  }
+  .kl-recheck .kla-flap {
+    width: 0.86em;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kl-rdie {
+    animation: none !important;
+  }
+}

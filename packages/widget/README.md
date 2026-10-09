@@ -34,6 +34,44 @@ manage your webhooks. Use the keyless public tier (omit `clientOptions`) or a
 `<baseUrl>/v1/…`) that forwards them to the Kletia API and adds
 `Authorization: Bearer kl_dev_…` there.
 
+## Before anything is signed
+
+- **Fare breakdown.** Plans ask for the [asset-change preview](../../docs/platform/preview.md)
+  (`preview`, default on): what leaves each wallet, what arrives where
+  (expected, and "at least"), money that only passes through, fees in USD,
+  allowances, gas to bring on arrival and when it lands, every number
+  labelled `simulated`, `simulated, funds assumed`, `venue minimum`, `quoted`
+  or `estimated` (by shape and in words). Pressing **Execute** approves that
+  fare and its digest is sent to prepare as `acknowledgedPreview`; a fare
+  that changes (`PREVIEW_CHANGED`, or a prepared payload whose fare differs)
+  stops before the wallet with the old fare struck through until the user
+  approves the new one. A blocking preview issue is never signed.
+- **Custom contracts.** Every `call` / `action` step shows its
+  `ContractReview` (who, what, permissions, result, provenance, "Not audited
+  by Kletia"); an unverified source, program or domain needs an
+  acknowledgement before **Execute**, and the prepared review needs **Sign
+  this step** before the wallet opens.
+- **Rule Book.** A hold for approval shows the rule ids and the approval
+  link (https only); refusals show the rules, observed values and limits.
+- **Receipts.** A finished intent shows its receipt stamp and **Share
+  receipt…**: receipts are private until the user picks what a link shows.
+
+## Intents and sessions your backend creates
+
+```tsx
+// Your backend created the intent with its API key (POST /v1/intents).
+<KletiaIntentWidget intentId="int_3f9a…" accounts={accounts} signers={signers} />
+
+// Your backend created a session (POST /v1/sessions); the widget turns it into
+// an intent for the connected wallet. This page's origin must be in allowedOrigins.
+<KletiaIntentWidget sessionId="cs_9c1e…" accounts={accounts} signers={signers} />
+```
+
+With `intentId` the widget shows the intent's review and fare and asks for
+the wallet it was planned for. With `sessionId` it shows who is asking and
+what, the amount within the session's bounds, and plans only once a wallet is
+connected (`hostOrigin` defaults to `location.origin`).
+
 If a wallet has already broadcast a step's transactions but Kletia could not
 record them (for example a network error), the widget keeps those references
 and the button changes to **Resubmit**: it reports them instead of asking the
@@ -81,7 +119,7 @@ function Checkout({ accounts, signers }) {
 
 | Hook | Returns |
 |---|---|
-| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun? })` | `plan(text)`, `execute()`, `cancel()`, `reset()`, `intent`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences` |
+| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun?, preview?, onPreview?, onReview?, onApprovalRequired? })` | `plan(text)`, `open(intentId)`, `execute()`, `cancel()`, `reset()`, `intent`, `preview`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences`. `onPreview` / `onReview` / `onApprovalRequired` are `executeIntent`'s gates (see `@kletia/sdk`); the preview gate runs with the plan's `preview` |
 | `useIntent(intentId)` | `intent`, `status` (`loading`, `live` on the event stream, `polling`, `done`, `error`), `error`, `lastEvent` |
 | `useQuote(request, { debounceMs: 400 })` | `data`, `status`, `error`, `reload()`; pass `null` to quote nothing |
 | `useNetworks()`, `usePortfolio(accountId)` | `data`, `status`, `error`, `reload()` |
@@ -118,7 +156,21 @@ frameworks.
 | `examples` | `string[]` | Example chips |
 | `maxSlippageBps` | `number` | Per-swap slippage ceiling |
 | `metadata` | `Record<string, string>` | Echoed in events and webhooks |
-| `onIntentCreated` / `onUpdate` / `onComplete` / `onError` | callbacks | Lifecycle hooks |
+| `intentId` | `int_…` | Open an intent your backend created instead of planning from text |
+| `sessionId` / `hostOrigin` | `cs_…` / origin | Run a session your backend created; `hostOrigin` (default `location.origin`) must be in its `allowedOrigins` |
+| `preview` | `boolean` | Ask for the fare breakdown with every plan (default `true`) |
+| `linkOrigin` | origin | Rebuild non-https approval and receipt links on this origin (the Kletia web app only) |
+| `onIntentCreated` / `onIntentOpened` / `onUpdate` / `onComplete` / `onError` | callbacks | Lifecycle hooks (`onIntentOpened`: an `intentId` was loaded) |
+
+## Display helpers
+
+`@kletia/widget/review` exports the pure models the widget renders, for your
+own UI: `fareModel(preview, intent)`, `contractReviewModel(review)`,
+`policyHold(intent)`, `policyOutcome(error)`, `approvalHref`,
+`receiptShareHref`, `RECEIPT_SHARE_PROFILES`, `CERTAINTY_INFO`. They return
+plain text (control and direction-override characters removed) and only
+https links. The components are exported too: `FareBreakdown`,
+`ContractReview`, `PolicyNotice`, `ReceiptStamp`.
 
 ## License
 

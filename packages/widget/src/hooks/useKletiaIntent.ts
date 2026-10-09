@@ -17,6 +17,8 @@ export interface UseKletiaIntentOptions extends IntentSessionConfig {
 export interface UseKletiaIntentResult extends IntentSessionState {
   /** Plans an intent from text (or a request without accounts); resolves with it, or null (see `error`). */
   plan(input: PlanInput): Promise<IntentGraph | null>;
+  /** Opens a stored intent (e.g. one your backend created) to review and execute it. */
+  open(intentId: string): Promise<IntentGraph | null>;
   /** Executes the planned intent with `signers`; resubmits `pendingReferences` instead of signing again. */
   execute(): Promise<IntentGraph | null>;
   /** Stops a running execution and cancels the intent on Kletia (refused once a step was submitted). */
@@ -50,7 +52,7 @@ export function useKletiaIntent(options: UseKletiaIntentOptions): UseKletiaInten
   useEffect(() => session.attach(), [session]);
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   return useMemo(
-    () => ({ ...state, plan: session.plan, execute: session.execute, cancel: session.cancel, reset: session.reset }),
+    () => ({ ...state, plan: session.plan, open: session.open, execute: session.execute, cancel: session.cancel, reset: session.reset }),
     [state, session],
   );
 }

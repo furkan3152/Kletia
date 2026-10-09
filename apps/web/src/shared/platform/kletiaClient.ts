@@ -6,7 +6,7 @@
  * URL validation, headers and timeouts live in exactly one place. The module
  * is tiny and wallet-free: it is safe to import from marketing routes.
  */
-import { KletiaApiError, KletiaClient, type ApiIssue } from "@kletia/sdk";
+import { KletiaApiError, KletiaClient, KletiaPolicyError, type ApiIssue, type PolicyErrorDetails } from "@kletia/sdk";
 
 import { BACKEND_URL } from "../config/runtime";
 
@@ -51,6 +51,8 @@ export interface PlatformError {
   readonly retryable: boolean;
   /** True when the API could not be reached at all (offline, DNS, CORS, timeout). */
   readonly unreachable: boolean;
+  /** Rule Book refusals and holds: the rules that decided and the approval to wait for. */
+  readonly policy?: PolicyErrorDetails;
 }
 
 export function toPlatformError(error: unknown): PlatformError {
@@ -63,6 +65,7 @@ export function toPlatformError(error: unknown): PlatformError {
       requestId: error.requestId,
       retryable: error.retryable,
       unreachable: error.status === 0,
+      ...(error instanceof KletiaPolicyError ? { policy: error.policy } : {}),
     };
   }
   const message =

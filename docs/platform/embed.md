@@ -93,12 +93,95 @@ dependencies and run in any browser with custom elements and `MessageChannel`.
 | `origin` | an https origin, or `http://localhost:<port>` | `https://kletiaai.xyz` | Where `/embed` is served. Set it for a self-hosted Kletia. Anything else (paths, plain http) emits `EMBED_ORIGIN_INVALID` and renders nothing. |
 | `reference` | `^[A-Za-z0-9_.:-]{1,80}$` | none | Your reference, stored on created intents as `metadata.hostRef` and echoed in `kletia:intent-planned` and `kletia:intent-created`. Anyone with the intent id can read it: **never put personal data in it**. |
 | `label` | text | `Kletia intent widget` | Accessible name of the frame. |
+| `intent` | `int_` + 32 hex | none | Opens an intent your backend created with its API key, instead of planning from text. See [Intents and sessions your backend creates](#intents-and-sessions-your-backend-creates). |
+| `session` | `cs_` + 32 hex | none | Runs a session your backend created: the frame plans your fixed actions for the visitor's wallet. `intent` wins when both are set. |
 
-Changing `theme`, `text`, `examples`, `bg`, `origin` or `reference` reloads
-the frame (changes in the same task are batched); `height` and `label` apply
-in place. Style the frame from your page with `kletia-intent::part(frame)`;
+Changing `theme`, `text`, `examples`, `bg`, `origin`, `reference`, `intent`
+or `session` reloads the frame (changes in the same task are batched);
+`height` and `label` apply in place. Style the frame from your page with `kletia-intent::part(frame)`;
 for a fixed-height box that scrolls inside, override the height there
 (`kletia-intent::part(frame) { height: 560px !important; }`).
+
+## Intents and sessions your backend creates
+
+Custom contracts ([contracts.md](contracts.md)) and other integrator-only
+actions need your API key, which never goes into a browser. Your backend
+creates the work and the frame only names it; the id travels in the URL
+fragment (`/embed#intent=int_…`, `/embed#session=cs_…`), which browsers never
+send to a server, so it stays out of access logs and referrers. Malformed ids
+are dropped by the element and again by the frame.
+
+**An intent (you already know the visitor's wallet).** Your backend calls
+`POST /v1/intents` with its key, the visitor's accounts and the actions (for
+example a `call` step), and hands the id to your page:
+
+```html
+<kletia-intent intent="int_3f9a…" reference="order-42"></kletia-intent>
+```
+
+The frame reads the intent, shows its review and fare, and asks the visitor
+to connect the wallet the intent was planned for ("This intent was prepared
+for 0x5eed…c0de; connect that wallet"). Nothing is prepared until the visitor
+presses Execute. The host gets `kletia:step-updated` and `kletia:completed`
+for it (no `kletia:intent-created`: you made it).
+
+**A session (the frame connects the wallet).** Your backend calls
+`POST /v1/sessions` with its key, the fixed actions and `allowedOrigins`
+([contracts.md#sessions](contracts.md#sessions)), and hands the session id
+to your page:
+
+```html
+<kletia-intent session="cs_9c1e…"></kletia-intent>
+```
+
+The frame shows who is asking ("acme.example is asking you to: …", with your
+integrator name and whether your domain is verified) and, once the visitor
+connects a wallet, turns the session into an intent for that wallet with
+`POST /v1/sessions/{id}/intents`. A session runs only inside the element (or
+a host that completes the bridge handshake): the host origin the bridge
+proved must be one of the session's `allowedOrigins`, otherwise the frame
+refuses before anything is planned (the API checks the same origin again).
+`kletia:intent-created` carries the intent id and, as `reference`, the
+session's `clientReference`.
+
+Either way the frame never takes instructions from your page: the bridge is
+one-way (frame to host), and the only inputs are the attributes above.
+
+## What the visitor sees before signing
+
+- **The fare breakdown.** Every plan with a wallet comes with an
+  [asset-change preview](preview.md): what leaves each wallet, what arrives
+  where (expected, and "at least" on a yellow plate), money that only passes
+  through a wallet (collapsed), fees in USD (network, venue, extra), the
+  allowances granted and what is left of them, what to bring (for example gas
+  on a network the visitor has never used) and when it arrives. Every number
+  is labelled `simulated`, `simulated, funds assumed`, `venue minimum`,
+  `quoted` or `estimated`, by a shape and in words; unpriced amounts say
+  "price unavailable", never $0. Pressing Execute approves that fare: its
+  digest goes to prepare as `acknowledgedPreview`, and a payload that is
+  materially worse (`PREVIEW_CHANGED`), or whose fare differs, stops before
+  the wallet with the old fare struck through until the visitor approves the
+  new one. A preview issue Kletia marks as blocking is never signed.
+- **Custom contracts.** Each `call` / `action` step shows its review: who
+  (integrator, website, domain verified or not), what (the function and every
+  argument with where its value comes from), permissions (exact approvals),
+  the simulated result, provenance (source verification, proxy and
+  implementation, Solana programs) and "Not audited by Kletia". An
+  unverified source, program or domain needs an explicit acknowledgement
+  before Execute, and after Kletia prepares the step the prepared review is
+  shown again and needs a second confirmation ("Sign this step") before the
+  wallet opens.
+- **Rule Book outcomes.** When your key's rule book holds the intent for
+  approval, the frame says "Held for approval", names the rules that asked
+  for it and links the approval request (an https `…/approve#apr_…` link:
+  reading it is not approving it). Refusals (`POLICY_VIOLATION`, spend
+  limits, schedules) name the rule ids and their observed and limit values.
+- **Receipts.** When a finished intent's [receipt](receipts.md) is issued,
+  the frame shows the receipt stamp and a "Share receipt…" action. Receipts
+  are private until shared: the visitor picks what the link shows (route,
+  amounts, proof or everything; showing transactions reveals the sending
+  addresses) and gets a link to the receipt page. Nothing about it is sent to
+  your page.
 
 ## Events
 
@@ -111,7 +194,7 @@ Every event is a `CustomEvent` dispatched on the element, with
 | `kletia:ready` | `{ height }` | The frame accepted the connection. |
 | `kletia:resize` | `{ height }` | The content height changed (the element resizes the frame itself). |
 | `kletia:intent-planned` | `{ status, reference? }` | The visitor planned a preview before connecting a wallet. Previews are dry runs: nothing is stored and there is no id. |
-| `kletia:intent-created` | `{ intentId, status, reference? }` | The visitor planned an intent with a connected wallet; Kletia stored it. |
+| `kletia:intent-created` | `{ intentId, status, reference? }` | The visitor planned an intent with a connected wallet (or a session created one); Kletia stored it. For a session, `reference` is the session's `clientReference`. |
 | `kletia:step-updated` | `{ intentId, stepId, stepIndex, network, status }` | A step of a stored intent changed status (`awaiting_signature`, `submitted`, `settled`, …). |
 | `kletia:completed` | `{ intentId, status }` | Execution finished; `status` is the final intent status (`completed`, `partially_completed`, `failed`, …). |
 | `kletia:error` | `{ code, message }` | Something failed. `message` is fixed text; the visitor's own error text never leaves the frame. |

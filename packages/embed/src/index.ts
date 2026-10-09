@@ -55,7 +55,7 @@ export const CONNECT_RETRY_DELAYS: readonly number[] = [250, 500, 1000, 2000, 40
 export const CONNECT_GIVE_UP_MS = 4000;
 
 /** Attributes `<kletia-intent>` reads. */
-export const OBSERVED_ATTRIBUTES: readonly string[] = ["theme", "text", "examples", "bg", "height", "origin", "reference", "label"];
+export const OBSERVED_ATTRIBUTES: readonly string[] = ["theme", "text", "examples", "bg", "height", "origin", "reference", "label", "intent", "session"];
 
 export type KletiaTheme = "light" | "dark" | "auto";
 
@@ -75,6 +75,17 @@ export interface KletiaEmbedOptions {
    * Anyone holding the intent id can read it: never put personal data in it.
    */
   readonly reference?: string | null;
+  /**
+   * An intent your backend created with its API key (`int_…`): the widget
+   * opens it for review and signing instead of planning from text. Sent in
+   * the URL fragment, so it never reaches access logs or referrers.
+   */
+  readonly intent?: string | null;
+  /**
+   * A session your backend created (`cs_…`), turned into an intent for the
+   * visitor's wallet. Also sent in the fragment. `intent` wins when both are set.
+   */
+  readonly session?: string | null;
 }
 
 export interface KletiaReadyDetail {
@@ -168,6 +179,8 @@ declare global {
 
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]+/gu;
 const REFERENCE = /^[A-Za-z0-9_.:-]{1,80}$/u;
+const INTENT_REF = /^int_[0-9a-f]{32}$/u;
+const SESSION_REF = /^cs_[0-9a-f]{32}$/u;
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function clean(value: string, max: number): string {
@@ -199,6 +212,17 @@ export function normalizeExamples(value: unknown): string[] {
 
 export function normalizeReference(value: unknown): string | null {
   return typeof value === "string" && REFERENCE.test(value) ? value : null;
+}
+
+/**
+ * The URL fragment that opens an integrator-created intent (`#intent=int_…`)
+ * or session (`#session=cs_…`), or "" when neither id is valid.
+ */
+export function embedFragment(options: Pick<KletiaEmbedOptions, "intent" | "session">): string {
+  const intent = typeof options.intent === "string" ? options.intent.trim() : "";
+  if (INTENT_REF.test(intent)) return `#intent=${intent}`;
+  const session = typeof options.session === "string" ? options.session.trim() : "";
+  return SESSION_REF.test(session) ? `#session=${session}` : "";
 }
 
 /**
@@ -271,7 +295,7 @@ export function buildEmbedUrl(kletiaOrigin: string, options: KletiaEmbedOptions 
     query.set("origin", host);
   }
   const search = query.toString();
-  return `${origin}/embed${search ? `?${search}` : ""}`;
+  return `${origin}/embed${search ? `?${search}` : ""}${embedFragment(options)}`;
 }
 
 export interface KletiaElementConfig {
@@ -295,6 +319,8 @@ export function readElementConfig(getAttribute: (name: string) => string | null)
       examples: getAttribute("examples"),
       bg: getAttribute("bg"),
       reference: getAttribute("reference"),
+      intent: getAttribute("intent"),
+      session: getAttribute("session"),
     },
     height: parseFrameHeight(getAttribute("height")),
     label: label || "Kletia intent widget",
@@ -544,6 +570,8 @@ function createElementClass(): CustomElementConstructor {
         return;
       }
       const src = buildEmbedUrl(config.origin, config.options, pageOrigin());
+      // A new fragment alone would not reload the frame: start a fresh document instead.
+      if (this.#frame && src.split("#")[1] !== this.#src.split("#")[1]) this.#teardown();
       let frame = this.#frame;
       if (!frame) {
         frame = document.createElement("iframe");
@@ -700,6 +728,8 @@ function applyAttributes(element: Element, options: KletiaFrameOptions): void {
   set("examples", options.examples);
   set("bg", options.bg);
   set("reference", options.reference);
+  set("intent", options.intent);
+  set("session", options.session);
   set("height", options.height);
   set("label", options.label);
 }

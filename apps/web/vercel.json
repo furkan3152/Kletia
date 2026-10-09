@@ -3,6 +3,14 @@
   "installCommand": "cd ../.. && npm ci",
   "rewrites": [
     {
+      "source": "/go/:id(lk_[0-9a-f]{24})/card.png",
+      "destination": "https://api.kletiaai.xyz/v1/links/:id/card.png"
+    },
+    {
+      "source": "/go/:id(lk_[0-9a-f]{24})",
+      "destination": "https://api.kletiaai.xyz/v1/links/:id/page"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -39,7 +47,7 @@
       ]
     },
     {
-      "source": "/((?!embed(?:/|$)).*)",
+      "source": "/((?!embed(?:/|$)|go(?:/|$)).*)",
       "headers": [
         {
           "key": "X-Frame-Options",
@@ -66,6 +74,87 @@
         {
           "key": "Content-Security-Policy",
           "value": "frame-ancestors *"
+        }
+      ]
+    },
+    {
+      "source": "/go/:path*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/r/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/approve",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/actions.json",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,PUT,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, Content-Encoding, Accept-Encoding, X-Accept-Action-Version, X-Accept-Blockchain-Ids"
+        },
+        {
+          "key": "Access-Control-Expose-Headers",
+          "value": "X-Action-Version, X-Blockchain-Ids"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/kletia-receipt-keys.json",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, HEAD, OPTIONS"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
         }
       ]
     }

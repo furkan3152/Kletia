@@ -1,0 +1,240 @@
+/* Fare breakdown: a printed tariff table on ticket stock, under the ticket's
+   legs. Printed objects keep their ink at night (the art's night rule): the
+   stock, the ink and the yellow "at least" plate do not change with the
+   theme. Monospaced amounts, Space Grotesk labels, shapes for certainty. */
+
+.klf {
+  container-type: inline-size;
+  color: var(--kla-stock-ink, #1a1a1a);
+  background-color: var(--kla-stock, #fffcf2);
+  background-image: var(--kla-stock-grain);
+  background-size: 180px 180px;
+  border: 3px solid #1a1a1a;
+  border-top-width: 6px;
+  box-shadow: 4px 4px 0 var(--kla-shadow, #1a1a1a);
+  font: 500 13px/1.45 var(--kla-font-body);
+  --klf-muted: var(--kla-stock-muted, #55565b);
+}
+.klf p,
+.klf ul {
+  margin: 0;
+}
+.klf ul {
+  list-style: none;
+  padding: 0;
+}
+.klf a {
+  color: #0047e0;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.klf :focus-visible {
+  outline: 3px solid #0052ff;
+  outline-offset: 2px;
+}
+.klf__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 10px 14px 8px;
+  border-bottom: 2px solid #1a1a1a;
+  font: 800 11px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.klf__title {
+  font: 800 13px/1 var(--kla-font-display);
+  letter-spacing: 0.18em;
+}
+.klf__body {
+  padding: 4px 14px 10px;
+}
+.klf__basis,
+.klf__changed {
+  margin: 8px 0 2px;
+  padding: 6px 8px;
+  border: 2px solid #1a1a1a;
+  font-weight: 600;
+}
+.klf__basis {
+  border-style: dashed;
+}
+.klf__changed {
+  border-color: #b42318;
+  background: #fff1f0;
+}
+.klf__changed s {
+  text-decoration-color: #b42318;
+  text-decoration-thickness: 2px;
+  font-family: var(--kla-font-mono);
+  font-size: 12px;
+}
+.klf__changed ul {
+  margin-top: 4px;
+  padding-left: 18px;
+  list-style: disc;
+}
+.klf__sec {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 2px 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed rgba(26, 26, 26, 0.4);
+}
+.klf__sec:last-child {
+  border-bottom: 0;
+}
+.klf__k {
+  padding-top: 2px;
+  font: 800 11px/1.3 var(--kla-font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.klf__rows {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.klf__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+.klf__row--wide {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.klf__net {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font: 700 11px/1.3 var(--kla-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+.klf__net .kla-bullet {
+  font-size: 9px;
+  min-width: 2.4em;
+}
+.klf__val {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.klf__amt {
+  font: 700 13px/1.35 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+}
+.klf__usd {
+  justify-self: end;
+  font: 600 12.5px/1.35 var(--kla-font-mono);
+  white-space: nowrap;
+}
+.klf__usd--none {
+  font: 600 11.5px/1.35 var(--kla-font-body);
+  color: var(--klf-muted);
+  white-space: normal;
+  text-align: right;
+}
+.klf__note {
+  font-size: 11.5px;
+  color: var(--klf-muted);
+}
+.klf__warn {
+  color: #92400e;
+  font-weight: 700;
+}
+.klf__bound {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+}
+.klf__plate {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 1px 8px 2px;
+  background: #ffd60a;
+  color: #1a1a1a;
+  border: 2px solid #1a1a1a;
+  font: 800 12.5px/1.35 var(--kla-font-mono);
+}
+.klf__plate b {
+  font: 800 10.5px/1.35 var(--kla-font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.klf__addr {
+  grid-column: 2 / -1;
+  font: 600 11.5px/1.4 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+}
+.klf__mark {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+  color: #1a1a1a;
+}
+.klf__list {
+  display: grid;
+  gap: 3px;
+}
+.klf__block {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 2px solid #b42318;
+  color: #8f1d14;
+  font-weight: 700;
+}
+.klf__transit summary {
+  cursor: pointer;
+  font: 800 11px/1.3 var(--kla-font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  list-style: revert;
+}
+.klf__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 2px solid #1a1a1a;
+  font: 600 11px/1.3 var(--kla-font-body);
+  color: var(--klf-muted);
+}
+.klf__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Phone widths: rows stack (label line, then amount line), no horizontal scroll. */
+@container (max-width: 520px) {
+  .klf__sec {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .klf__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .klf__row > .klf__net {
+    grid-column: 1 / -1;
+  }
+  .klf__bound,
+  .klf__addr {
+    grid-column: 1 / -1;
+  }
+}

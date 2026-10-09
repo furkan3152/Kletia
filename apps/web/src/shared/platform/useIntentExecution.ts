@@ -13,22 +13,41 @@
  * sessionStorage so a reload can `resume()`: the intent is refreshed, stored
  * references are submitted instead of signing again, and a step whose
  * signature outcome is unknown pauses for an explicit confirmation.
+ *
+ * Before any wallet prompt the user sees, and must approve:
+ * - the fare (asset-change preview): plans ask for it, confirming approves
+ *   the fare on screen, and its digest goes to prepare as
+ *   `acknowledgedPreview`. A fare that changed (`PREVIEW_CHANGED`, or a
+ *   prepared payload whose fare differs) opens a `fare` gate; nothing is
+ *   signed until the user approves the new fare. A blocking preview issue
+ *   is never signed through.
+ * - every custom-contract step's prepared review (a `review` gate).
+ * A Rule Book hold (`POLICY_APPROVAL_REQUIRED`) pauses with `policyHold`.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   KletiaApiError,
   KletiaExecutionError,
+  KletiaPreviewChangedError,
   executeIntent,
   type KletiaClient,
+  type PolicyErrorDetails,
+  type PrepareStepOptions,
+  type PreviewGateContext,
 } from "@kletia/sdk";
 import type {
   AccountId,
   AnyKletiaEvent,
+  ContractReview,
   IntentGraph,
+  IntentPreview,
   IntentRequest,
   IntentStep,
+  PreviewIssue,
+  StepPreview,
   StepStatus,
 } from "@kletia/core";
+import { blockingIssuesFor } from "@kletia/widget/review";
 
 import { syncIntentActivity } from "./intentActivity";
 import {
@@ -94,6 +113,43 @@ export interface UseIntentExecutionOptions {
   readonly pollIntervalMs?: number;
 }
 
+/** A pause before a wallet prompt that needs the user's decision. */
+export type ExecutionGate =
+  | {
+      readonly kind: "fare";
+      readonly stepId: string;
+      readonly stepTitle: string;
+      /** The fare to approve now. */
+      readonly preview: IntentPreview;
+      /** The fare the user approved before (printed struck through when it got worse). */
+      readonly previous: IntentPreview | null;
+      /** What got worse (`PREVIEW_CHANGED` changes). */
+      readonly changes: readonly PreviewIssue[];
+      readonly reason: PreviewGateContext["reason"];
+    }
+  | {
+      readonly kind: "review";
+      readonly stepId: string;
+      readonly stepTitle: string;
+      readonly stepIndex: number;
+      /** The review of exactly the prepared transactions. */
+      readonly review: ContractReview;
+      /** The plan-time review, when the step had one. */
+      readonly planned: ContractReview | null;
+    };
+
+/** One key per decision: a new fare or another step's review is a new gate (and remounts its panel). */
+export function gateKey(gate: ExecutionGate): string {
+  return gate.kind === "fare" ? `fare:${gate.stepId}:${gate.preview.digest}` : `review:${gate.stepId}`;
+}
+
+/** The owner's Rule Book holds the intent until an approver approves it. */
+export interface PolicyHold {
+  readonly code: string;
+  readonly message: string;
+  readonly policy: PolicyErrorDetails;
+}
+
 export interface ResumeOptions {
   /**
    * The user confirmed that a step whose signature was requested before a
@@ -117,6 +173,17 @@ export interface IntentExecution extends ConnectedIntentSigners {
   readonly streaming: boolean;
   /** Intent stored by a previous page load of this tab, if not yet resumed. */
   readonly resumableIntentId: string | null;
+  /**
+   * The fare (asset-change preview) of the current intent: the plan's, then
+   * the newest one the user approved. Null when the API returned none.
+   */
+  readonly preview: IntentPreview | null;
+  /** A decision the user must take before the next wallet prompt (a changed fare, a contract review). */
+  readonly gate: ExecutionGate | null;
+  /** Approve (`true`) or stop (`false`) at the open gate. Only an explicit approval continues. */
+  readonly resolveGate: (approved: boolean) => void;
+  /** Set while the owner's Rule Book holds the intent for an approval. */
+  readonly policyHold: PolicyHold | null;
   /**
    * Why the current (non-terminal) intent cannot be signed with the wallets
    * connected right now: a preview account, or a step account that is not
@@ -333,14 +400,36 @@ function observeClient(client: KletiaClient, onIntent: (intent: IntentGraph) => 
   Object.defineProperty(observed, "intents", {
     value: {
       ...client.intents,
-      prepareStep: async (id: string, stepId: string) => {
-        const prepared = await client.intents.prepareStep(id, stepId);
+      // Options (acknowledgedPreview, signal) must reach the API untouched.
+      prepareStep: async (id: string, stepId: string, options?: PrepareStepOptions) => {
+        const prepared = await client.intents.prepareStep(id, stepId, options);
         if (prepared?.intent && prepared.intent.id === id) onIntent(prepared.intent);
         return prepared;
       },
     },
   });
   return observed;
+}
+
+/**
+ * A fresh fare for a stored intent (resuming after a reload): recomputed now,
+ * else the last one Kletia kept; null when neither is available.
+ */
+async function loadPreview(client: KletiaClient, intentId: string, signal: AbortSignal): Promise<IntentPreview | null> {
+  try {
+    return await client.intents.preview(intentId, { signal, maxRetries: 0 });
+  } catch {
+    // Rate limited or unavailable: the kept fare still has to be approved before signing.
+  }
+  try {
+    return await client.intents.getPreview(intentId, { signal });
+  } catch {
+    return null;
+  }
+}
+
+function stepTitle(step: IntentStep): string {
+  return `Step ${step.index + 1}: ${step.title}`;
 }
 
 const wait = (ms: number, signal: AbortSignal) =>
@@ -376,6 +465,9 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const [resumableIntentId, setResumableIntentId] = useState<string | null>(() =>
     sessionKey ? readIntentSession(sessionKey)?.intentId ?? null : null,
   );
+  const [preview, setPreviewState] = useState<IntentPreview | null>(null);
+  const [gate, setGate] = useState<ExecutionGate | null>(null);
+  const [policyHold, setPolicyHold] = useState<PolicyHold | null>(null);
 
   const intentRef = useRef<IntentGraph | null>(null);
   const connectedRef = useRef(connected);
@@ -395,6 +487,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const referencesRef = useRef(new Map<string, readonly string[]>());
   const allowResignRef = useRef(new Set<string>());
   const reconfirmStepIdsRef = useRef<readonly string[]>([]);
+  const previewRef = useRef<IntentPreview | null>(null);
+  /** Digests of fares the user approved (confirming the review approves the fare on screen). */
+  const approvedDigestsRef = useRef(new Set<string>());
+  const gateResolveRef = useRef<((approved: boolean) => void) | null>(null);
 
   useLayoutEffect(() => {
     connectedRef.current = connected;
@@ -414,6 +510,19 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     phasesRef.current = {};
     setStepPhases({});
     setActiveStepId(null);
+  }, []);
+
+  const setPreview = useCallback((next: IntentPreview | null) => {
+    previewRef.current = next;
+    setPreviewState(next);
+  }, []);
+
+  /** Closes the open gate; anything but an explicit approval means "stop, do not sign". */
+  const resolveGate = useCallback((approved: boolean) => {
+    const resolve = gateResolveRef.current;
+    gateResolveRef.current = null;
+    setGate(null);
+    resolve?.(approved === true);
   }, []);
 
   const stopStream = useCallback(() => {
@@ -509,6 +618,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       runRef.current = null;
       streamRef.current?.controller.abort();
       streamRef.current = null;
+      // A pending review never turns into a signature once the view is gone.
+      const resolve = gateResolveRef.current;
+      gateResolveRef.current = null;
+      resolve?.(false);
     },
     [],
   );
@@ -556,6 +669,8 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setError(null);
       setPauseReason(null);
       setReconfirmStepIds([]);
+      setPolicyHold(null);
+      resolveGate(false);
       let accounts: readonly AccountId[];
       try {
         accounts = resolveAccounts(request.accounts);
@@ -568,13 +683,19 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       clearPhases();
       const metadata = { ...(metadataRef.current ?? {}), ...(request.metadata ?? {}) };
       try {
-        const created = await client.intents.create({
-          ...request,
-          accounts,
-          ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
-        });
+        const planned = await client.intents.create(
+          {
+            ...request,
+            accounts,
+            ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+          },
+          { preview: true },
+        );
+        const created = planned.intent;
         if (streamRef.current && streamRef.current.intentId !== created.id) stopStream();
         createdIdsRef.current.add(created.id);
+        approvedDigestsRef.current.clear();
+        setPreview(planned.preview && planned.preview.intentId === created.id ? planned.preview : null);
         commitIntent(created);
         setStatus("review");
         return created;
@@ -584,7 +705,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         return null;
       }
     },
-    [clearPhases, commitIntent, getClient, resolveAccounts, stopStream],
+    [clearPhases, commitIntent, getClient, resolveAccounts, resolveGate, setPreview, stopStream],
   );
 
   /** Steps prepared before a reload whose signature outcome is unknown. */
@@ -624,8 +745,13 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     [commitIntent, sessionKey],
   );
 
+  /**
+   * `confirmedFare`: the user just confirmed the review of this exact plan,
+   * so the fare on screen counts as approved. Otherwise (resume, a plan made
+   * without a review) the fare is shown again before the first signature.
+   */
   const execute = useCallback(
-    async (graph: IntentGraph): Promise<IntentGraph | null> => {
+    async (graph: IntentGraph, confirmedFare = false): Promise<IntentGraph | null> => {
       const client = getClient();
       if (!client) return null;
       runRef.current?.controller.abort();
@@ -638,6 +764,8 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setPauseReason(null);
       setReconfirmStepIds([]);
       setResumableIntentId(null);
+      setPolicyHold(null);
+      resolveGate(false);
       clearPhases();
       commitIntent(graph);
 
@@ -703,7 +831,34 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       });
 
       let pausedFor: IntentStep[] = [];
+      /** Why this run stopped without an error (the user stopped at a gate, or a Rule Book hold). */
+      let stoppedFor: string | null = null;
+      const ask = (next: ExecutionGate): Promise<boolean> =>
+        new Promise<boolean>((resolve) => {
+          if (controller.signal.aborted || !isCurrent()) {
+            resolve(false);
+            return;
+          }
+          gateResolveRef.current?.(false);
+          gateResolveRef.current = resolve;
+          controller.signal.addEventListener("abort", () => {
+            if (gateResolveRef.current === resolve) resolveGate(false);
+            else resolve(false);
+          }, { once: true });
+          setGate(next);
+        });
       try {
+        // The fare the user confirmed in the review; after a reload, the latest kept fare (shown again before signing).
+        let shown = previewRef.current && previewRef.current.intentId === graph.id ? previewRef.current : null;
+        if (shown && confirmedFare) approvedDigestsRef.current.add(shown.digest);
+        // Intents with a plan record come from an API that keeps fares (older APIs and dry runs have none).
+        if (!shown && !confirmedFare && graph.plan) {
+          shown = await loadPreview(client, graph.id, controller.signal);
+          if (!isCurrent()) return null;
+          if (shown && shown.intentId === graph.id) setPreview(shown);
+          else shown = null;
+        }
+        const gated = shown;
         let current = await submitStoredReferences(client, graph);
         const ambiguous = ambiguousSteps(current);
         if (ambiguous.length > 0) {
@@ -713,6 +868,59 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             signal: controller.signal,
             ...(pollIntervalMs ? { pollIntervalMs } : {}),
             onUpdate: (next) => commitIntent(next),
+            // The fare gate runs only against an API that returned a fare; without one the
+            // SDK still refuses any blocking preview issue on its own.
+            ...(gated
+              ? {
+                  preview: gated,
+                  onPreview: async (next: IntentPreview, stepPreview: StepPreview | null, context: PreviewGateContext) => {
+                    // Never sign through an issue Kletia marked as blocking, whatever the user clicks.
+                    const blocking = blockingIssuesFor(context.step.id, stepPreview, next);
+                    if (blocking.length > 0) {
+                      if (isCurrent()) setPreview(next);
+                      throw new KletiaExecutionError(
+                        `Kletia will not sign “${context.step.title}”: ${blocking.map((issue) => issue.message || issue.code).join(" ")}`,
+                        context.intent.id,
+                        context.step.id,
+                      );
+                    }
+                    if (context.reason === "before-prepare" && approvedDigestsRef.current.has(next.digest)) return true;
+                    const approved = await ask({
+                      kind: "fare",
+                      stepId: context.step.id,
+                      stepTitle: stepTitle(context.step),
+                      preview: next,
+                      previous: previewRef.current,
+                      changes: context.changes,
+                      reason: context.reason,
+                    });
+                    if (approved) {
+                      approvedDigestsRef.current.add(next.digest);
+                      if (isCurrent()) setPreview(next);
+                    } else {
+                      stoppedFor = `You stopped before signing “${context.step.title}”. Nothing was signed for it. Resume to see its fare again.`;
+                    }
+                    return approved;
+                  },
+                }
+              : {}),
+            onReview: async (step, review, context) => {
+              const approved = await ask({
+                kind: "review",
+                stepId: step.id,
+                stepTitle: stepTitle(step),
+                stepIndex: step.index,
+                review,
+                planned: context.planned ?? null,
+              });
+              if (!approved) stoppedFor = `You stopped before signing “${step.title}”. Nothing was signed for it.`;
+              return approved;
+            },
+            onApprovalRequired: (_approval, policyError) => {
+              if (!isCurrent()) return;
+              setPolicyHold({ code: policyError.code, message: policyError.message, policy: policyError.policy });
+              stoppedFor = "Held for approval: the owner's rule book asks a person to approve this intent before Kletia prepares anything to sign.";
+            },
             beforeStep: (step, latest) => {
               if (controller.signal.aborted || !isCurrent()) return false;
               const blocked = ambiguousSteps(latest).filter((candidate) => candidate.id === step.id);
@@ -745,12 +953,13 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             `A signature for ${titles} was requested earlier and Kletia never received the result. Check your wallet's recent activity: sign again only if nothing was sent.`,
           );
         } else {
-          setPauseReason("Execution stopped before the intent finished. Resume to keep going.");
+          setPauseReason(stoppedFor ?? "Execution stopped before the intent finished. Resume to keep going.");
         }
         return current;
       } catch (caught) {
         if (isAbort(caught, controller.signal) || !isCurrent()) return null;
         runRef.current = null;
+        if (caught instanceof KletiaPreviewChangedError) setPreview(caught.preview);
         const failure = toExecutionError(caught);
         setError(failure);
         setStatus("failed");
@@ -769,8 +978,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       commitIntent,
       getClient,
       pollIntervalMs,
+      resolveGate,
       sessionKey,
       setPhase,
+      setPreview,
       startStream,
       submitStoredReferences,
     ],
@@ -779,7 +990,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const start = useCallback(
     async (input: IntentRequestInput | IntentGraph): Promise<IntentGraph | null> => {
       if (isIntentGraph(input)) {
-        if (createdIdsRef.current.has(input.id)) return execute(input);
+        if (createdIdsRef.current.has(input.id)) return execute(input, true);
         // Not persisted with the connected accounts (e.g. a dry-run preview): plan it again.
         const planned = await plan(requestFromGraph(input));
         return planned ? execute(planned) : null;
@@ -831,6 +1042,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const cancel = useCallback(async () => {
     const current = intentRef.current;
     const signing = Object.values(phasesRef.current).includes("signing");
+    resolveGate(false);
     runRef.current?.controller.abort();
     runRef.current = null;
     stopStream();
@@ -859,10 +1071,11 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setError(toExecutionError(caught));
       setStatus("paused");
     }
-  }, [clearPhases, commitIntent, getClient, sessionKey, stopStream]);
+  }, [clearPhases, commitIntent, getClient, resolveGate, sessionKey, stopStream]);
 
   const reset = useCallback(() => {
     const current = intentRef.current;
+    resolveGate(false);
     runRef.current?.controller.abort();
     runRef.current = null;
     stopStream();
@@ -873,11 +1086,14 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     }
     intentRef.current = null;
     setIntent(null);
+    setPreview(null);
+    setPolicyHold(null);
+    approvedDigestsRef.current.clear();
     setStatus("idle");
     setError(null);
     setPauseReason(null);
     setReconfirmStepIds([]);
-  }, [clearPhases, sessionKey, stopStream]);
+  }, [clearPhases, resolveGate, sessionKey, setPreview, stopStream]);
 
   const accountsForBinding = connected.accounts;
   const bindingProblem = useMemo(
@@ -901,6 +1117,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     reconfirmStepIds,
     streaming,
     resumableIntentId,
+    preview,
+    gate,
+    resolveGate,
+    policyHold,
     bindingProblem,
     plan,
     start,

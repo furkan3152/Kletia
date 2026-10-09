@@ -8,6 +8,12 @@
  *
  * `kind: "embed"` renders without the site shell so it can live in a
  * third-party iframe (see EmbedPage for the parameters it accepts).
+ *
+ * Public pages for one object (`/r/<receiptId>`, `/go/<linkId>`, `/approve`)
+ * are `site` routes matched by pattern. They carry user content, so they are
+ * never indexed (`robots`), never listed in the sitemap, and their canonical
+ * URL is their own path (the receipt key and the approval id live in the
+ * fragment, which never reaches a server and is never part of a canonical).
  */
 import type { ComponentType } from "react";
 
@@ -19,6 +25,9 @@ export type RouteId =
   | "studio"
   | "embed"
   | "console"
+  | "receipt"
+  | "link"
+  | "approve"
   | "notFound";
 
 type PageModule = { default: ComponentType };
@@ -30,8 +39,15 @@ export interface RouteDefinition {
   readonly kind: "site" | "console" | "embed";
   readonly title: string;
   readonly description: string;
+  /** Robots directive; default "index,follow" (embed and 404 pages set their own in the router). */
+  readonly robots?: string;
+  /** The canonical URL is the visited path (pattern routes), not `path`. */
+  readonly canonicalFromPath?: boolean;
   readonly load: () => Promise<PageModule>;
 }
+
+/** User content and capabilities: never indexed, never followed. */
+const PRIVATE_PAGE_ROBOTS = "noindex,nofollow";
 
 const SITE_DESCRIPTION =
   "Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed.";
@@ -99,6 +115,38 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
       "Connect an EVM or Solana wallet and run cross-chain intents with every value-moving step signed in your own wallet.",
     load: () => import("./ConsoleRoute"),
   },
+  receipt: {
+    id: "receipt",
+    path: "/r",
+    kind: "site",
+    title: "Kletia receipt",
+    description:
+      "A receipt Kletia signed for a finished intent. Check the signature in your browser and re-read the transactions from public nodes yourself.",
+    robots: PRIVATE_PAGE_ROBOTS,
+    canonicalFromPath: true,
+    load: () => import("../pages/receipt/ReceiptPage"),
+  },
+  link: {
+    id: "link",
+    path: "/go",
+    kind: "site",
+    title: "Kletia intent link",
+    description:
+      "An intent link: the publisher fixed where the money goes, you choose where it comes from, and you sign every step in your own wallet.",
+    robots: PRIVATE_PAGE_ROBOTS,
+    canonicalFromPath: true,
+    load: () => import("../pages/link/LinkPage"),
+  },
+  approve: {
+    id: "approve",
+    path: "/approve",
+    kind: "site",
+    title: "Approval requested: Kletia Rule Book",
+    description:
+      "A Rule Book held an intent for a second look. Read what it would do, then approve or reject it with the wallet the rule book names.",
+    robots: PRIVATE_PAGE_ROBOTS,
+    load: () => import("../pages/approve/ApprovePage"),
+  },
   notFound: {
     id: "notFound",
     path: "/404",
@@ -117,12 +165,20 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/studio": "studio",
   "/embed": "embed",
   "/app": "console",
+  "/approve": "approve",
 });
+
+/** `/r/<receiptId>` (receipt ids: `rcpt_` + 32 hex). */
+export const RECEIPT_PATH_PATTERN = /^\/r\/(rcpt_[0-9a-f]{32})$/u;
+/** `/go/<linkId>` (link ids: `lk_` + 24 hex). */
+export const LINK_PATH_PATTERN = /^\/go\/(lk_[0-9a-f]{24})$/u;
 
 export function matchRoute(pathname: string): RouteDefinition {
   const exact = EXACT[pathname];
   if (exact) return ROUTES[exact];
   if (pathname.startsWith("/app/")) return ROUTES.console;
+  if (RECEIPT_PATH_PATTERN.test(pathname)) return ROUTES.receipt;
+  if (LINK_PATH_PATTERN.test(pathname)) return ROUTES.link;
   return ROUTES.notFound;
 }
 

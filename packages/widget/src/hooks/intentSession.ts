@@ -13,11 +13,12 @@
  *   `pendingReferences` and resubmitted by the next `execute()`: the step is
  *   never signed twice.
  */
-import type { AccountId, IntentGraph, IntentRequest } from "@kletia/core";
+import type { AccountId, IntentGraph, IntentPreview, IntentRequest } from "@kletia/core";
 import {
   KletiaExecutionError,
   executeIntent,
   isIntentTerminal,
+  type ExecuteIntentOptions,
   type IntentSigners,
   type KletiaClient,
 } from "@kletia/sdk";
@@ -33,11 +34,13 @@ export interface IntentSessionState {
   readonly error: unknown;
   /** Broadcast references Kletia has not recorded yet, by step id. `execute()` resubmits them instead of signing again. */
   readonly pendingReferences: Readonly<Record<string, readonly string[]>>;
+  /** The plan's asset-change preview ("fare breakdown") when `preview` is on and the API returned one. */
+  readonly preview: IntentPreview | null;
 }
 
 export type IntentSessionAction =
   | { readonly type: "plan_started" }
-  | { readonly type: "plan_succeeded"; readonly intent: IntentGraph }
+  | { readonly type: "plan_succeeded"; readonly intent: IntentGraph; readonly preview?: IntentPreview | null }
   | { readonly type: "plan_failed"; readonly error: unknown }
   | { readonly type: "execute_started" }
   | { readonly type: "intent_updated"; readonly intent: IntentGraph }
@@ -63,6 +66,7 @@ export const INITIAL_INTENT_SESSION_STATE: IntentSessionState = Object.freeze({
   intent: null,
   error: null,
   pendingReferences: Object.freeze({}),
+  preview: null,
 });
 
 /** The resting phase for an intent: finished once terminal, planned otherwise. */
@@ -74,11 +78,11 @@ function restingPhase(intent: IntentGraph | null): IntentPhase {
 export function intentSessionReducer(state: IntentSessionState, action: IntentSessionAction): IntentSessionState {
   switch (action.type) {
     case "plan_started":
-      return { phase: "planning", intent: null, error: null, pendingReferences: {} };
+      return { phase: "planning", intent: null, error: null, pendingReferences: {}, preview: null };
     case "plan_succeeded":
-      return { phase: restingPhase(action.intent), intent: action.intent, error: null, pendingReferences: {} };
+      return { phase: restingPhase(action.intent), intent: action.intent, error: null, pendingReferences: {}, preview: action.preview ?? null };
     case "plan_failed":
-      return { phase: "idle", intent: null, error: action.error, pendingReferences: {} };
+      return { phase: "idle", intent: null, error: action.error, pendingReferences: {}, preview: null };
     case "execute_started":
       if (!state.intent) return state;
       return { ...state, phase: "executing", error: null };
@@ -92,7 +96,7 @@ export function intentSessionReducer(state: IntentSessionState, action: IntentSe
       };
     case "execute_succeeded":
       if (!state.intent || action.intent.id !== state.intent.id) return state;
-      return { phase: restingPhase(action.intent), intent: action.intent, error: null, pendingReferences: {} };
+      return { ...state, phase: restingPhase(action.intent), intent: action.intent, error: null, pendingReferences: {} };
     case "execute_failed":
       return { ...state, phase: restingPhase(state.intent), error: action.error, pendingReferences: action.pendingReferences };
     case "references_held":
@@ -122,6 +126,18 @@ export interface IntentSessionConfig {
   readonly maxSlippageBps?: number;
   /** Plan without storing the intent (preview only; it cannot be executed). */
   readonly dryRun?: boolean;
+  /**
+   * Ask for the asset-change preview ("fare breakdown") with every plan
+   * (`state.preview`). With `onPreview`, `execute()` hands that preview to
+   * the SDK's preview gate, so a fare that changes is shown again first.
+   */
+  readonly preview?: boolean;
+  /** `executeIntent`'s preview gate: resolve true only once the user approved the fare. */
+  readonly onPreview?: ExecuteIntentOptions["onPreview"];
+  /** `executeIntent`'s review hook for custom-contract steps: resolve true only once the user confirmed. */
+  readonly onReview?: ExecuteIntentOptions["onReview"];
+  /** Called when the owner's rule book holds the intent for approval; `execute()` then stops without signing. */
+  readonly onApprovalRequired?: ExecuteIntentOptions["onApprovalRequired"];
 }
 
 /** What to plan: intent text, or a request without `accounts` (taken from the config). */
@@ -134,6 +150,11 @@ export interface IntentSession {
   configure(config: IntentSessionConfig): void;
   /** Plans an intent; resolves with it, or null when it failed or was superseded (see `error`). */
   plan(input: PlanInput): Promise<IntentGraph | null>;
+  /**
+   * Opens a stored intent (e.g. one your backend created with its key) so
+   * `execute()` can run it; with `preview`, its latest preview is loaded too.
+   */
+  open(intentId: string): Promise<IntentGraph | null>;
   /** Executes the planned intent with the configured signers; resolves with the latest intent, or null. */
   execute(): Promise<IntentGraph | null>;
   /** Stops a running execution, then cancels the intent on Kletia (refused once a step was submitted). */
@@ -189,17 +210,47 @@ export function createIntentSession(client: KletiaClient, initial: IntentSession
         : request.constraints;
     const metadata = request.metadata ?? config.metadata;
     try {
-      const intent = await client.intents.create(
-        {
-          ...request,
-          accounts,
-          ...(constraints ? { constraints } : {}),
-          ...(metadata ? { metadata } : {}),
-        },
-        { signal: controller.signal, ...(config.dryRun ? { dryRun: true } : {}) },
-      );
+      const body = {
+        ...request,
+        accounts,
+        ...(constraints ? { constraints } : {}),
+        ...(metadata ? { metadata } : {}),
+      };
+      const options = { signal: controller.signal, ...(config.dryRun ? { dryRun: true } : {}) };
+      const created = config.preview
+        ? await client.intents.create(body, { ...options, preview: true })
+        : { intent: await client.intents.create(body, options), preview: null };
       if (mine !== epoch) return null;
-      dispatch({ type: "plan_succeeded", intent });
+      dispatch({ type: "plan_succeeded", intent: created.intent, preview: created.preview });
+      return created.intent;
+    } catch (error) {
+      if (mine !== epoch) return null;
+      dispatch({ type: "plan_failed", error });
+      return null;
+    } finally {
+      if (planning === controller) planning = null;
+    }
+  };
+
+  const open = async (intentId: string): Promise<IntentGraph | null> => {
+    if (attached === 0) return null;
+    stopExecution();
+    planning?.abort();
+    epoch += 1;
+    const mine = epoch;
+    const controller = new AbortController();
+    planning = controller;
+    dispatch({ type: "plan_started" });
+    try {
+      const intent = await client.intents.get(intentId, { signal: controller.signal });
+      let preview: IntentPreview | null = null;
+      if (config.preview) {
+        preview = await client.intents.getPreview(intent.id, { signal: controller.signal }).catch(() =>
+          client.intents.preview(intent.id, { signal: controller.signal }).catch(() => null),
+        );
+      }
+      if (mine !== epoch) return null;
+      dispatch({ type: "plan_succeeded", intent, preview });
       return intent;
     } catch (error) {
       if (mine !== epoch) return null;
@@ -240,6 +291,10 @@ export function createIntentSession(client: KletiaClient, initial: IntentSession
         onUpdate: (next) => {
           if (mine === epoch) dispatch({ type: "intent_updated", intent: next });
         },
+        // The preview gate only runs with the preview the user saw (an API without previews keeps the SDK default).
+        ...(config.onPreview && state.preview ? { onPreview: config.onPreview, preview: state.preview } : {}),
+        ...(config.onReview ? { onReview: config.onReview } : {}),
+        ...(config.onApprovalRequired ? { onApprovalRequired: config.onApprovalRequired } : {}),
       });
       if (mine !== epoch) return null;
       dispatch({ type: "execute_succeeded", intent: final });
@@ -332,6 +387,7 @@ export function createIntentSession(client: KletiaClient, initial: IntentSession
       config = next;
     },
     plan,
+    open,
     execute,
     cancel,
     reset,

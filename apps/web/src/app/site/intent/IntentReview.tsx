@@ -1,7 +1,9 @@
-import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
+import type { AccountId, IntentGraph, IntentPreview, IntentStep } from "@kletia/core";
+import { contractReviewModel, fareModel, isContractStep } from "@kletia/widget/review";
 import { CircleAlert, PenLine, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
 
+import { ContractReviewCard } from "../../../shared/platform/ContractReviewCard";
 import { externalRecipients } from "../../../shared/platform/intentBinding";
 
 import { cssVars, staggerIndex } from "../motion/tokens";
@@ -18,7 +20,10 @@ import {
   protocolName,
   shortAccount,
 } from "./format";
+import { FareTable } from "./FareTable";
 import { popOut } from "./phaseMotion";
+import { PolicyNotice } from "./PolicyNotice";
+import { holdOf } from "./policyView";
 
 export interface IntentReviewProps {
   /** A persisted intent planned with the user's own accounts. */
@@ -37,6 +42,11 @@ export interface IntentReviewProps {
    * full recipient address above the confirmation.
    */
   readonly ownedAccounts?: readonly AccountId[];
+  /**
+   * The plan's fare (asset-change preview). Confirming approves this fare;
+   * a fare that changes later is shown again before anything is signed.
+   */
+  readonly preview?: IntentPreview | null;
   readonly className?: string;
 }
 
@@ -141,13 +151,32 @@ export function IntentReview({
   onReplan,
   confirmLabel = "Confirm and sign",
   busy = false,
-  blockedReason,
+  blockedReason: blockedByCaller,
   ownedAccounts,
+  preview,
   className,
 }: IntentReviewProps) {
   const checkboxId = useId();
   const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
   const confirmed = confirmedFor === intent.id;
+  // Custom-contract steps: an unverified source, program or domain needs an explicit acknowledgement.
+  const [acks, setAcks] = useState<Readonly<Record<string, boolean>>>({});
+  const contractSteps = [...intent.steps]
+    .sort((a, b) => a.index - b.index)
+    .filter((step) => isContractStep(step) && step.call?.review);
+  const missingAck = contractSteps.some(
+    (step) => step.call?.review && contractReviewModel(step.call.review).needsAcknowledgement && !acks[`${intent.id}:${step.id}`],
+  );
+  const fare = preview && preview.intentId === intent.id ? preview : null;
+  const fareBlocking = fare ? fareModel(fare, intent).blocking : [];
+  const hold = holdOf(intent);
+  const blockedReason =
+    blockedByCaller ??
+    (fareBlocking.length > 0
+      ? `Kletia will not sign this plan: ${fareBlocking.map((issue) => issue.message || issue.code).join(" ")}`
+      : missingAck
+        ? "Read each custom contract below and tick its acknowledgement before signing."
+        : null);
   const steps = [...intent.steps].sort((a, b) => a.index - b.index);
   const { summary } = intent;
   const fees = formatUsd(summary.totalFeesUsd);
@@ -207,6 +236,21 @@ export function IntentReview({
           <ReviewStep key={step.id} step={step} describeAccount={describeAccount} order={order} />
         ))}
       </ol>
+
+      {fare ? <FareTable preview={fare} intent={intent} /> : null}
+
+      {contractSteps.map((step) => (
+        <ContractReviewCard
+          key={step.id}
+          review={step.call!.review}
+          title={`Step ${step.index + 1} · ${step.call?.label ?? step.title}`}
+          acknowledged={Boolean(acks[`${intent.id}:${step.id}`])}
+          onAcknowledge={(value) => setAcks((current) => ({ ...current, [`${intent.id}:${step.id}`]: value }))}
+          disabled={busy}
+        />
+      ))}
+
+      {hold ? <PolicyNotice outcome={hold} /> : null}
 
       {warnings.length > 0 ? (
         <div className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-4 text-sm font-semibold text-[#1A1A1A] dark:border-[#4B5563]">
@@ -280,7 +324,7 @@ export function IntentReview({
             ) : null}
           </span>
           <label htmlFor={checkboxId} className="text-sm font-semibold leading-relaxed">
-            I reviewed the networks, amounts, minimum outputs and fees. My wallet will ask me to sign{" "}
+            I reviewed the {fare ? "fare, " : ""}networks, amounts, minimum outputs and fees. My wallet will ask me to sign{" "}
             {signatures} time{signatures === 1 ? "" : "s"}, and nothing moves without that signature.
           </label>
         </div>

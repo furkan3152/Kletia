@@ -1,0 +1,8 @@
+{
+  "rules": [
+    {
+      "pathPattern": "/go/*",
+      "apiPath": "https://api.kletiaai.xyz/v1/blinks/*"
+    }
+  ]
+}

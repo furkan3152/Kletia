@@ -1,3 +1,11 @@
 export { KletiaIntentWidget, DEFAULT_WIDGET_EXAMPLES } from "./KletiaIntentWidget.js";
 export type { KletiaIntentWidgetProps } from "./KletiaIntentWidget.js";
+export { FareBreakdown, CertaintyGlyph } from "./FareBreakdown.js";
+export type { FareBreakdownProps } from "./FareBreakdown.js";
+export { ContractReview } from "./ContractReview.js";
+export type { ContractReviewProps } from "./ContractReview.js";
+export { PolicyNotice } from "./PolicyNotice.js";
+export type { PolicyNoticeProps } from "./PolicyNotice.js";
+export { ReceiptStamp } from "./ReceiptStamp.js";
+export type { ReceiptStampProps } from "./ReceiptStamp.js";
 export { ensureWidgetStyles, WIDGET_CSS, WIDGET_STYLE_ID } from "./styles.js";

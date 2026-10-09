@@ -48,13 +48,29 @@ const widget = mountKletiaIntent("#slot", {
 
 ## Attributes
 
-`theme` (`light` | `dark` | `auto`), `text` (≤ 500 characters), `examples`
+`intent` (`int_…`, an intent your backend created with its key) or `session`
+(`cs_…`, a session your backend created), sent in the URL fragment so they
+never reach access logs or referrers; `theme` (`light` | `dark` | `auto`), `text` (≤ 500 characters), `examples`
 (comma-separated, ≤ 6), `bg` (`transparent`), `height` (pixels until the
 frame reports its content height, default 600; the frame then follows its
 content), `origin` (default
 `https://kletiaai.xyz`; https, or http on localhost), `reference`
 (`^[A-Za-z0-9_.:-]{1,80}$`, stored as `metadata.hostRef`, publicly readable
 with the intent) and `label` (the frame's accessible name).
+
+```html
+<!-- Your backend created the intent (POST /v1/intents with its key). -->
+<kletia-intent intent="int_3f9a…"></kletia-intent>
+<!-- Or a session (POST /v1/sessions); this page's origin must be in allowedOrigins. -->
+<kletia-intent session="cs_9c1e…"></kletia-intent>
+```
+
+Before anything is signed the frame shows the fare breakdown (asset-change
+preview with certainty labels and fees in USD), the review of every custom
+contract with "Not audited by Kletia" and an acknowledgement when something
+is unverified, Rule Book holds and refusals with their rule ids, and, once a
+receipt is issued, a share action. Details in
+[docs/platform/embed.md](../../docs/platform/embed.md#what-the-visitor-sees-before-signing).
 
 ## Events
 

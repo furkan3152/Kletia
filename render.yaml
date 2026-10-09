@@ -176,7 +176,17 @@ services:
     # Vite, TypeScript and React types are build-time devDependencies.
     buildCommand: npm ci --include=dev && npm run build:web
     staticPublishPath: ./apps/web/dist
+    # Rules apply only where no file exists, first match wins. Intent link
+    # pages and their share cards come from the API: it injects each link's
+    # preview tags into go-shell.html (served from this site). The rewrite
+    # proxies, so the browser stays on kletiaai.xyz/go/<id>.
     routes:
+      - type: rewrite
+        source: /go/:id/card.png
+        destination: https://api.kletiaai.xyz/v1/links/:id/card.png
+      - type: rewrite
+        source: /go/:id
+        destination: https://api.kletiaai.xyz/v1/links/:id/page
       - type: rewrite
         source: /*
         destination: /index.html
@@ -223,6 +233,40 @@ services:
       - path: /networks/*
         name: X-Frame-Options
         value: SAMEORIGIN
+      - path: /protocols
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /protocols/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      # Shared receipts and approval requests: same-origin framing only, never
+      # indexed (the pages also say noindex).
+      - path: /r
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /r/*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /r/*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /approve
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /approve
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      # Intent link pages are never framed, by anyone. The API sends the same
+      # headers; these rules hold whether or not the rewrite forwards them.
+      - path: /go/*
+        name: X-Frame-Options
+        value: DENY
+      - path: /go/*
+        name: Content-Security-Policy
+        value: frame-ancestors 'none'
+      - path: /go/*
+        name: X-Robots-Tag
+        value: noindex, nofollow
       # The embeddable widget is the only page other sites may frame.
       - path: /embed
         name: Content-Security-Policy
@@ -236,6 +280,34 @@ services:
       - path: /index.html
         name: Cache-Control
         value: no-cache
+      - path: /go-shell.html
+        name: Cache-Control
+        value: no-cache
+      # Solana Actions: blink clients map kletiaai.xyz/go/<id> to the API's
+      # /v1/blinks/<id> through this file, which must answer every origin.
+      - path: /actions.json
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /actions.json
+        name: Access-Control-Allow-Methods
+        value: GET,POST,PUT,OPTIONS
+      - path: /actions.json
+        name: Access-Control-Allow-Headers
+        value: Content-Type, Authorization, Content-Encoding, Accept-Encoding, X-Accept-Action-Version, X-Accept-Blockchain-Ids
+      - path: /actions.json
+        name: Access-Control-Expose-Headers
+        value: X-Action-Version, X-Blockchain-Ids
+      # The receipt key mirror: verifiers trust a key only when the API and
+      # this second origin list it (update it in the release that rotates).
+      - path: /.well-known/kletia-receipt-keys.json
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /.well-known/kletia-receipt-keys.json
+        name: Content-Type
+        value: application/json; charset=utf-8
+      - path: /.well-known/kletia-receipt-keys.json
+        name: Cache-Control
+        value: public, max-age=3600
     domains:
       - kletiaai.xyz
     renderSubdomainPolicy: enabled

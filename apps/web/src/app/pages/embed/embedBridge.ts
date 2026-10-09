@@ -162,7 +162,17 @@ export interface EmbedBridge {
   /** The page calls this once the "this site is notified" notice is on screen. */
   setNoticeVisible(visible: boolean): void;
   resize(height: number): void;
-  intentCreated(intent: BridgeIntent, persisted: boolean): void;
+  /**
+   * A plan was made in the frame. `reference` overrides the `ref` parameter
+   * for intents a session created (their `clientReference`).
+   */
+  intentCreated(intent: BridgeIntent, persisted: boolean, reference?: string | null): void;
+  /**
+   * The frame opened an intent the host's backend created (`#intent=`):
+   * its progress is reported from now on, but no `intent.created` is sent
+   * (the host made it).
+   */
+  trackIntent(intent: BridgeIntent): void;
   intentUpdated(intent: BridgeIntent): void;
   intentCompleted(intent: BridgeIntent): void;
   error(error: unknown): void;
@@ -277,9 +287,10 @@ export function createEmbedBridge(env: EmbedBridgeEnv): EmbedBridge {
         post({ type: "resize", height });
       }
     },
-    intentCreated(intent, persisted) {
+    intentCreated(intent, persisted, override) {
       if (!readySent) return;
-      const reference = env.reference ? { reference: env.reference } : {};
+      const ref = override !== undefined && override !== null && HOST_REFERENCE.test(override) ? override : env.reference;
+      const reference = ref ? { reference: ref } : {};
       tracked = null;
       if (!persisted) {
         // A preview (dry run): nothing is stored, so there is no id to share.
@@ -289,6 +300,10 @@ export function createEmbedBridge(env: EmbedBridgeEnv): EmbedBridge {
       if (!canShareIds()) return;
       tracked = { id: intent.id, steps: new Map(intent.steps.map((step) => [step.id, step.status])) };
       post({ type: "intent.created", intentId: intent.id, status: intent.status, ...reference });
+    },
+    trackIntent(intent) {
+      // Statuses as of opening are the baseline; only later changes are posted.
+      tracked = { id: intent.id, steps: new Map(intent.steps.map((step) => [step.id, step.status])) };
     },
     intentUpdated(intent) {
       sendStepChanges(intent);

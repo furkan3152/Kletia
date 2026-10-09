@@ -15,6 +15,7 @@ import { createEmbedClient } from "./embedClient";
 import {
   applyEmbedDocumentMode,
   leaveEmbedDocumentMode,
+  readEmbedFragment,
   readEmbedParams,
   watchSystemTheme,
 } from "./embedParams";
@@ -74,6 +75,27 @@ function ExternalRecipientWarning({ intent, owned, live }: { intent: IntentGraph
   );
 }
 
+/** A session runs only for the site that created it, proven by the bridge. */
+function SessionNeedsHost({ waiting }: { waiting: boolean }) {
+  // The bridge notice gives a host 30 seconds to connect; so does this.
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const timer = window.setTimeout(() => setGaveUp(true), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [waiting]);
+  return (
+    <p
+      role="status"
+      className="border-[3px] border-[#1A1A1A] bg-[#FFF3B0] px-3 py-2 text-sm font-semibold text-[#1A1A1A] dark:border-[#B45309]"
+    >
+      {waiting && !gaveUp
+        ? "Connecting to the site that opened this widget…"
+        : "This checkout must be opened from the site that created it, through the Kletia embed element. Nothing was planned or signed."}
+    </p>
+  );
+}
+
 /** The widget keeps planning (dry runs) when the wallet runtime cannot load. */
 function WalletBarFailed() {
   return (
@@ -124,6 +146,8 @@ function WalletBarFallback() {
 export default function EmbedPage() {
   const { location } = useRoute();
   const params = useMemo(() => readEmbedParams(location.search), [location.search]);
+  // Integrator-created work (`#intent=` / `#session=`): ids travel in the fragment only.
+  const target = useMemo(() => readEmbedFragment(location.hash), [location.hash]);
   const bridgeParams = useMemo(() => readBridgeParams(location.search), [location.search]);
   const { bridge, snapshot: bridgeSnapshot } = useEmbedBridge();
   useEmbedResize(bridge);
@@ -135,6 +159,8 @@ export default function EmbedPage() {
   const [wallet, setWallet] = useState<EmbedWalletState>({ accounts: [], signers: undefined });
   const [lastText, setLastText] = useState(params.text);
   const [planned, setPlanned] = useState<{ key: string; intent: IntentGraph } | null>(null);
+  /** The intent a session created for this visitor: reopened by id if the widget remounts (the session may be used up). */
+  const [sessionIntentId, setSessionIntentId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     applyEmbedDocumentMode(params);
@@ -171,10 +197,23 @@ export default function EmbedPage() {
     (intent: IntentGraph) => {
       if (intent.request.text) setLastText(intent.request.text);
       setPlanned({ key: widgetKey, intent });
+      if (target?.kind === "session") {
+        // A session's intent is stored with the integrator's key; its client reference is the host's own.
+        setSessionIntentId(intent.id);
+        bridge?.intentCreated(intent, true, intent.request.clientReference ?? null);
+        return;
+      }
       // Previews (no wallet) are dry runs: the host learns that a plan exists, never an id.
       bridge?.intentCreated(intent, live);
     },
-    [bridge, live, widgetKey],
+    [bridge, live, target, widgetKey],
+  );
+  const onIntentOpened = useCallback(
+    (intent: IntentGraph) => {
+      setPlanned({ key: widgetKey, intent });
+      bridge?.trackIntent(intent);
+    },
+    [bridge, widgetKey],
   );
   const onUpdate = useCallback(
     (intent: IntentGraph) => {
@@ -191,6 +230,11 @@ export default function EmbedPage() {
     [bridge],
   );
   const onError = useCallback((error: unknown) => bridge?.error(error), [bridge]);
+
+  // Flow A: the host's backend created the intent. Flow B: a session; it needs the host origin the bridge proved.
+  const openIntentId = target?.kind === "intent" ? target.id : sessionIntentId;
+  const sessionWaiting = target?.kind === "session" && !openIntentId && bridge !== null && bridgeSnapshot.status !== "connected";
+  const sessionBlocked = target?.kind === "session" && !openIntentId && (bridge === null || bridgeSnapshot.status !== "connected");
 
   return (
     <main
@@ -215,21 +259,31 @@ export default function EmbedPage() {
         // Keyed by plan: a new plan with an outside recipient rises in and rings once again.
         <ExternalRecipientWarning key={plannedIntent.id} intent={plannedIntent} owned={accounts} live={live} />
       ) : null}
-      <KletiaIntentWidget
-        key={widgetKey}
-        client={client}
-        accounts={accounts}
-        {...(lease ? { signers: lease.signers } : {})}
-        defaultText={lastText}
-        examples={params.examples ?? DEFAULT_WIDGET_EXAMPLES}
-        theme={params.theme}
-        metadata={metadata}
-        onIntentCreated={onIntentCreated}
-        onUpdate={onUpdate}
-        onComplete={onComplete}
-        onError={onError}
-        className="!max-w-none"
-      />
+      {sessionBlocked ? (
+        <SessionNeedsHost waiting={sessionWaiting} />
+      ) : (
+        <KletiaIntentWidget
+          key={widgetKey}
+          client={client}
+          accounts={accounts}
+          {...(lease ? { signers: lease.signers } : {})}
+          defaultText={lastText}
+          examples={params.examples ?? DEFAULT_WIDGET_EXAMPLES}
+          theme={params.theme}
+          metadata={metadata}
+          // Fares are asked for stored plans only: demo-account previews are not saved and cannot run.
+          preview={live || target !== null}
+          linkOrigin={typeof window === "undefined" ? null : window.location.origin}
+          {...(openIntentId ? { intentId: openIntentId } : {})}
+          {...(target?.kind === "session" && !openIntentId ? { sessionId: target.id, hostOrigin: bridgeSnapshot.origin } : {})}
+          onIntentCreated={onIntentCreated}
+          onIntentOpened={onIntentOpened}
+          onUpdate={onUpdate}
+          onComplete={onComplete}
+          onError={onError}
+          className="!max-w-none"
+        />
+      )}
     </main>
   );
 }

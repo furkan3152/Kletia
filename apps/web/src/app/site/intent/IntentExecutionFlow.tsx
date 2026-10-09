@@ -2,13 +2,17 @@ import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
 import { CirclePause, OctagonX, PenLine, Play, RefreshCw, TriangleAlert } from "lucide-react";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
-import type { IntentExecution, IntentExecutionError } from "../../../shared/platform/useIntentExecution";
+import { gateKey, type IntentExecution, type IntentExecutionError } from "../../../shared/platform/useIntentExecution";
 import { ApiErrorPanel } from "../ui/ApiErrorPanel";
 import { Button } from "../ui/Button";
 import { cx, INK_BORDER, LABEL } from "../ui/styles";
+import { ExecutionGatePanel } from "./ExecutionGatePanel";
 import { IntentGraphView } from "./IntentGraphView";
 import { IntentOutcome, IntentProgress, StepLinks } from "./IntentProgress";
 import { IntentReview } from "./IntentReview";
+import { PolicyNotice } from "./PolicyNotice";
+import { outcomeOf } from "./policyView";
+import { ReceiptPanel } from "./ReceiptPanel";
 import { withLocalPhases } from "./stepPhase";
 
 /** An execution or planning failure, with a retry when it can help. */
@@ -23,6 +27,16 @@ export function ExecutionErrorPanel({
   onRetry?: () => void;
   retryLabel?: string;
 }) {
+  // Rule Book refusals and holds name the rules that decided (and the approval to ask for).
+  const policy = error.platform ? outcomeOf(error.platform) : null;
+  if (policy) {
+    return (
+      <PolicyNotice
+        outcome={policy}
+        {...(onRetry && error.retryable && policy.kind === "held" ? { onCheckAgain: onRetry } : {})}
+      />
+    );
+  }
   if (error.platform) {
     return (
       <ApiErrorPanel
@@ -139,6 +153,7 @@ export function IntentExecutionFlow({
           busy={status === "planning"}
           blockedReason={status === "review" ? execution.bindingProblem?.message ?? null : null}
           ownedAccounts={execution.accounts}
+          preview={execution.preview}
           onConfirm={() => void execution.start(intent)}
           {...(describeAccount ? { describeAccount } : {})}
           {...(onReplan ? { onReplan } : {})}
@@ -153,9 +168,15 @@ export function IntentExecutionFlow({
   const signing = Object.values(execution.stepPhases).includes("signing");
   const anySubmitted = intent.steps.some((step) => (step.references?.length ?? 0) > 0 || !["pending", "ready", "awaiting_signature"].includes(step.status));
 
+  const hold = status === "paused" && execution.policyHold ? outcomeOf(execution.policyHold) : null;
+
   return (
     <div ref={rootRef} className={cx("flex flex-col gap-6", className)}>
       {region}
+      {execution.gate && status === "executing" ? (
+        <ExecutionGatePanel key={gateKey(execution.gate)} gate={execution.gate} intent={intent} onResolve={execution.resolveGate} />
+      ) : null}
+      {hold ? <PolicyNotice outcome={hold} /> : null}
       {status === "paused" ? (
         <div
           tabIndex={-1}
@@ -180,7 +201,7 @@ export function IntentExecutionFlow({
             ) : (
               <Button size="sm" onClick={() => void execution.resume(intent.id)}>
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                Resume
+                {hold ? "Check approval and continue" : "Resume"}
               </Button>
             )}
             {!anySubmitted ? (
@@ -208,6 +229,9 @@ export function IntentExecutionFlow({
           <IntentOutcome intent={intent} footer={outcomeFooter} celebrate={watchedIntentId === intent.id} />
         </div>
       ) : null}
+
+      {/* Receipts commit to the plan record: intents without one (older APIs) never get a receipt. */}
+      {terminal && intent.plan ? <ReceiptPanel intentId={intent.id} intentStatus={intent.status} /> : null}
 
       {!terminal ? (
         <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
@@ -259,6 +283,10 @@ function flowAnnouncement(execution: IntentExecution): string {
     }
     case "paused":
       return `Execution paused. ${execution.pauseReason ?? ""}`.trim();
+    case "executing":
+      if (execution.gate?.kind === "fare") return "The fare needs your approval before the next signature.";
+      if (execution.gate?.kind === "review") return "Check the custom contract before your wallet asks you to sign.";
+      return "";
     case "failed":
       // ExecutionErrorPanel is an alert and announces the details itself.
       return intent ? "Execution stopped." : "Planning failed.";

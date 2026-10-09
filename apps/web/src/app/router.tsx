@@ -98,14 +98,16 @@ function setMeta(attribute: "name" | "property", key: string, content: string) {
 }
 
 function applyDocumentMeta(route: RouteDefinition, pathname: string) {
-  const canonicalPath = route.id === "console" ? "/app" : route.id === "notFound" ? pathname : route.path;
+  const canonicalPath =
+    route.id === "console" ? "/app" : route.id === "notFound" || route.canonicalFromPath ? pathname : route.path;
   const url = `${SITE_ORIGIN}${canonicalPath}`;
   document.title = route.title;
   setMeta("name", "description", route.description);
   setMeta(
     "name",
     "robots",
-    route.id === "notFound" ? "noindex,follow" : route.kind === "embed" ? "noindex,nofollow" : "index,follow",
+    route.robots ??
+      (route.id === "notFound" ? "noindex,follow" : route.kind === "embed" ? "noindex,nofollow" : "index,follow"),
   );
   setMeta("property", "og:title", route.title);
   setMeta("property", "og:description", route.description);

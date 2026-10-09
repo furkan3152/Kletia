@@ -390,3 +390,37 @@ test("protocol round trip: @kletia/embed's host connector accepts every frame me
   // Messages a v1 host does not know are dropped rather than forwarded.
   assert.equal(parseBridgeMessage({ kletia: "event", v: 1, type: "navigate", url: "https://evil.example" }), null);
 });
+
+test("an intent the host created is tracked without an intent.created, and only while the notice is shown", () => {
+  const frame = frameHarness({ reference: "order-42" });
+  frame.bridge.resize(700);
+  frame.bridge.start();
+  const port = recordingPort();
+  frame.deliver({ ports: [port] });
+  frame.bridge.trackIntent(intent("int_host", ["ready", "pending"]));
+  // Before the notice is visible nothing id-bearing is posted.
+  frame.bridge.intentUpdated(intent("int_host", ["awaiting_signature", "pending"]));
+  frame.bridge.setNoticeVisible(true);
+  frame.bridge.intentUpdated(intent("int_host", ["submitted", "pending"]));
+  frame.bridge.intentCompleted(intent("int_host", ["settled", "settled"], { status: "completed" }));
+  const types = port.messages.slice(1).map((message) => message.type);
+  assert.equal(types.includes("intent.created"), false, "the host made the intent: no intent.created");
+  assert.deepEqual(types, ["intent.step_updated", "intent.step_updated", "intent.step_updated", "intent.completed"]);
+  assert.equal(port.messages[1].status, "submitted", "statuses before the notice are not replayed as ids");
+});
+
+test("a session's intent carries its client reference when it is a valid reference, else the ref parameter", () => {
+  const frame = frameHarness({ reference: "page-ref" });
+  frame.bridge.resize(700);
+  frame.bridge.start();
+  const port = recordingPort();
+  frame.deliver({ ports: [port] });
+  frame.bridge.setNoticeVisible(true);
+  frame.bridge.intentCreated(intent("int_session", ["ready"]), true, "order-A-1029:1");
+  frame.bridge.intentCreated(intent("int_session2", ["ready"]), true, "has spaces <script>");
+  frame.bridge.intentCreated(intent("int_session3", ["ready"]), true, null);
+  assert.deepEqual(
+    port.messages.slice(1).map((message) => message.reference),
+    ["order-A-1029:1", "page-ref", "page-ref"],
+  );
+});

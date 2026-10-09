@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/kletia-logo.png" />
+    <link rel="apple-touch-icon" href="/kletia-logo.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0052FF" />
+    <meta name="color-scheme" content="light dark" />
+    <!--
+      Shell of the intent link page (kletiaai.xyz/go/<id>). The static host
+      rewrites /go/<id> to the API (GET /v1/links/<id>/page), which fetches this
+      file and replaces the block between the two markers with the link's
+      title, description, canonical URL and share card, every value escaped.
+      Nothing else in this file changes, so it holds no per-link content.
+    -->
+    <!--kletia:head-->
+    <title>Kletia intent link</title>
+    <meta name="description" content="An intent link: you review the plan and sign every step in your own wallet." />
+    <meta name="robots" content="noindex,nofollow" />
+    <!--/kletia:head-->
+    <script type="module">
+      // Boots the web app: its entry, styles and fonts have content hashes in
+      // their names, so they are read from this origin's /index.html (same
+      // origin only) instead of being copied here at build time.
+      const sameOrigin = (value) => {
+        try {
+          return new URL(value, location.origin).origin === location.origin;
+        } catch {
+          return false;
+        }
+      };
+      const fail = () => {
+        const root = document.getElementById("root");
+        if (!root || root.childElementCount > 0) return;
+        const notice = document.createElement("p");
+        notice.style.cssText = "max-width:32rem;margin:15vh auto;padding:0 16px;font:600 16px/1.5 system-ui,sans-serif";
+        notice.textContent = "Kletia could not load. Check your connection and reload this page.";
+        root.append(notice);
+      };
+      try {
+        const response = await fetch("/index.html", { credentials: "same-origin", cache: "no-cache" });
+        if (!response.ok) throw new Error(`index.html answered ${response.status}`);
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        const fonts = page.getElementById("kl-font-preloads");
+        const preloads = fonts && fonts.content ? [...fonts.content.querySelectorAll('link[rel="preload"][as="font"]')] : [];
+        const links = [...page.querySelectorAll('link[rel="stylesheet"][href], link[rel="modulepreload"][href]'), ...preloads];
+        for (const source of links) {
+          const href = source.getAttribute("href");
+          if (!href || !sameOrigin(href)) continue;
+          const link = document.createElement("link");
+          for (const name of ["rel", "as", "type", "crossorigin"]) {
+            const value = source.getAttribute(name);
+            if (value !== null) link.setAttribute(name, value);
+          }
+          link.href = href;
+          document.head.append(link);
+        }
+        const entries = [...page.querySelectorAll('script[type="module"][src]')].filter((script) => sameOrigin(script.getAttribute("src")));
+        if (entries.length === 0) throw new Error("index.html has no module entry");
+        for (const source of entries) {
+          const script = document.createElement("script");
+          script.type = "module";
+          if (source.hasAttribute("crossorigin")) script.crossOrigin = source.getAttribute("crossorigin") || "";
+          script.src = source.getAttribute("src");
+          script.addEventListener("error", fail);
+          document.head.append(script);
+        }
+      } catch {
+        fail();
+      }
+    </script>
+  </head>
+  <body>
+    <noscript>Kletia needs JavaScript to show this intent link and to plan it with your wallet.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

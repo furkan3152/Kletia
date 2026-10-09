@@ -11,6 +11,7 @@ import {
   buildEmbedUrl,
   connectFrame,
   defineKletiaIntent,
+  embedFragment,
   normalizeExamples,
   normalizeHostOrigin,
   normalizeKletiaOrigin,
@@ -88,6 +89,23 @@ test("invalid attribute values are dropped instead of forwarded", () => {
   assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { theme: "auto" })).theme, undefined);
   assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { reference: "x".repeat(81) })).ref, undefined);
   assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { reference: "a.b:c_d-1" })).ref, "a.b:c_d-1");
+});
+
+test("intent and session ids travel in the fragment, never in the query", () => {
+  const intent = `int_${"a".repeat(32)}`;
+  const session = `cs_${"b".repeat(32)}`;
+  const config = readElementConfig(attributes({ intent: ` ${intent} `, reference: "order-42" }));
+  const url = buildEmbedUrl(config.origin, config.options, HOST);
+  assert.equal(new URL(url).hash, `#intent=${intent}`);
+  assert.equal(url.includes(`?intent`) || url.includes(`&intent`) || query(url).intent !== undefined, false);
+  assert.deepEqual(query(url), { ref: "order-42", bridge: "1", origin: HOST });
+  assert.equal(new URL(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { session }, HOST)).hash, `#session=${session}`);
+  // The intent wins when both are set; malformed ids are dropped, never forwarded.
+  assert.equal(embedFragment({ intent, session }), `#intent=${intent}`);
+  for (const bad of ["int_ABC", `int_${"a".repeat(31)}`, `${intent}&x=1`, "cs_123", "javascript:alert(1)", 7, null]) {
+    assert.equal(embedFragment({ intent: bad, session: bad }), "", String(bad));
+  }
+  assert.equal(new URL(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { session: "cs_nope" })).hash, "");
 });
 
 test("text and examples are cleaned and capped like the frame caps them", () => {

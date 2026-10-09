@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+# Shared receipts and approval requests are private pages (noindex as well).
+# Intent links (/go/) stay crawlable so link previews can read their tags.
+Disallow: /r/
+Disallow: /approve
 
 Sitemap: https://kletiaai.xyz/sitemap.xml

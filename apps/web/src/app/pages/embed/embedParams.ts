@@ -11,6 +11,11 @@
  * The host bridge parameters (`bridge`, `origin`, `ref`) are read by
  * `readBridgeParams` in `embedBridge.ts`, outside the entry bundle.
  *
+ * Integrator-created work arrives in the URL fragment, which browsers never
+ * send to servers (access logs, referrers): `#intent=int_…` opens an intent
+ * the integrator's backend created with its key, `#session=cs_…` runs a
+ * session (`readEmbedFragment`). Only those two exact shapes are accepted.
+ *
  * An API key is never read from the URL: the embed always calls the public
  * tier, so a key cannot leak through referrers, logs or browser history.
  */
@@ -23,6 +28,33 @@ export interface EmbedParams {
   /** `null` when the host did not pass examples (the widget defaults apply). */
   readonly examples: readonly string[] | null;
   readonly transparent: boolean;
+}
+
+/** Integrator-created work named in the fragment. */
+export type EmbedTarget = { readonly kind: "intent"; readonly id: string } | { readonly kind: "session"; readonly id: string };
+
+const INTENT_FRAGMENT_ID = /^int_[0-9a-f]{32}$/u;
+const SESSION_FRAGMENT_ID = /^cs_[0-9a-f]{32}$/u;
+
+/**
+ * Reads `#intent=int_…` or `#session=cs_…` (the intent wins when both are
+ * present, as `@kletia/embed` does). Anything else, including extra
+ * characters around an id, is ignored: the frame then plans from text.
+ */
+export function readEmbedFragment(hash: string): EmbedTarget | null {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw || raw.length > 200) return null;
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(raw);
+  } catch {
+    return null;
+  }
+  const intent = params.getAll("intent");
+  if (intent.length === 1 && INTENT_FRAGMENT_ID.test(intent[0] ?? "")) return { kind: "intent", id: intent[0] as string };
+  const session = params.getAll("session");
+  if (session.length === 1 && SESSION_FRAGMENT_ID.test(session[0] ?? "")) return { kind: "session", id: session[0] as string };
+  return null;
 }
 
 export const EMBED_MAX_TEXT = 500;

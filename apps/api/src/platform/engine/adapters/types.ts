@@ -20,6 +20,7 @@ import type {
   ContractReview,
   ContractStepCall,
   ExecutionMode,
+  FeeLine,
   IntentActionKind,
   IntentGraph,
   IntentStep,
@@ -100,6 +101,29 @@ export interface AdapterAction extends AdapterRoute {
   readonly call?: ContractCallContext;
 }
 
+/**
+ * A venue fee the quote reported (asset-preview design §6.2), without the
+ * step id and network the preview fills in. `deducted` fees are already
+ * inside the lower output; `on-top` costs are debited in addition.
+ */
+export type PlannedVenueFee = Omit<FeeLine, "stepId" | "network">;
+
+/**
+ * What the step's quote already contains for the asset-change preview
+ * (design §5.1, source 2): the transactions prepare would return now, built
+ * from the quote the plan (or the auction) fetched anyway. Never persisted in
+ * the graph; the engine keeps it in memory until `expiresAt`. Adapters must
+ * not make an extra provider call to fill it.
+ */
+export interface PlannedStepPreview {
+  readonly transactions: readonly TransactionRequest[];
+  /** Pinned spender of the approval the transactions grant, if any. */
+  readonly approvalSpender?: string;
+  readonly venueFees?: readonly PlannedVenueFee[];
+  /** Quote validity (unix seconds); the transactions are not simulated after it. */
+  readonly expiresAt: number;
+}
+
 export interface PlannedStep {
   readonly protocol: ProtocolId;
   readonly title: string;
@@ -137,6 +161,8 @@ export interface PlannedStep {
   /** Call / action steps: the snapshot the step executes (with the plan review). */
   readonly call?: ContractStepCall;
   readonly review?: ContractReview;
+  /** Quote transactions for the plan-time preview (asset-change preview); optional. */
+  readonly preview?: PlannedStepPreview;
 }
 
 /**
@@ -223,6 +249,13 @@ export interface ProtocolAdapter {
   readonly id: ProtocolId;
   readonly protocols: readonly ProtocolId[];
   readonly label: string;
+  /**
+   * Prepare-time asset-change preview: the built-in adapters' payloads are
+   * always simulated and held to the preview invariants before they leave
+   * Kletia. An adapter an embedder installs with `configurePlatform({ adapters })`
+   * opts in with `true`; otherwise its payloads carry a quoted preview.
+   */
+  readonly previewAtPrepare?: boolean;
   supports(route: AdapterRoute): boolean;
   plan(action: AdapterAction): Promise<PlannedStep>;
   prepare(context: PrepareContext): Promise<PreparedPayload>;

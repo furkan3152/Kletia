@@ -71,6 +71,32 @@ differently from its quote. The reference rejections
 `REFERENCE_STALE`, `REFERENCE_ALREADY_USED`) are returned as `422` by submit
 and leave the step unchanged.
 
+## Rule Book refusals
+
+When a key's rule book (policy) refuses a plan or a prepare, the envelope
+carries `error.policy`: the decision id, the stage, the key whose rule book
+refused, every violated rule id with its JSON path, observed value and limit,
+and `retryAt` when a later retry can succeed. When several rules fail at once
+the code follows this precedence, non-retryable first, so clients never
+retry hopeless requests: `POLICY_VIOLATION`, `POLICY_OWNER_REVOKED`,
+`POLICY_APPROVAL_REJECTED`, `POLICY_APPROVAL_STALE`,
+`POLICY_APPROVAL_EXPIRED`, `POLICY_PRICE_UNAVAILABLE`, `POLICY_SPEND_LIMIT`,
+`POLICY_SCHEDULE_CLOSED`, `POLICY_APPROVAL_REQUIRED` (`policyErrorCode` in
+`@kletia/core`). `POLICY_PRICE_UNAVAILABLE` and `POLICY_APPROVAL_REJECTED`
+are exact entries, not provider families.
+
+## Receipts, links and previews
+
+Receipt verification results (`SIGNATURE_INVALID`, `DISCLOSURE_MISMATCH`,
+…) are not API errors: `verifyReceipt` in `@kletia/core` returns them as
+`problems`. The same holds for preview change reasons (`PREVIEW_NEW_DEBIT`,
+…), which `PREVIEW_CHANGED` lists in `error.issues`. Intent link codes split
+between the publisher (`LINK_DEFINITION_INVALID`, `LINK_POLICY_CONFLICT`,
+`LINK_IMMUTABLE_FIELD`) and the visitor (`LINK_INPUT_OUT_OF_BOUNDS`,
+`LINK_SOURCE_NOT_ALLOWED`, `LINK_EXHAUSTED`, …); `validateLinkDefinition`
+and `expandLink` in `@kletia/core` report the static ones before any
+request is sent.
+
 ## Catalog
 
 ### Request
@@ -87,8 +113,12 @@ and leave the step unchanged.
 | <a id="error-INVALID_JSON"></a>`INVALID_JSON` | 400 | no | Malformed JSON | Send a JSON object or array as the request body. |
 | <a id="error-INVALID_REQUEST"></a>`INVALID_REQUEST` | 400 | no | Invalid request | Fix the fields listed in error.issues and send the request again. |
 | <a id="error-INVALID_REQUEST_BODY"></a>`INVALID_REQUEST_BODY` | 400 | no | Unreadable request body | Send a complete UTF-8 JSON body with a correct Content-Length. |
+| <a id="error-LINK_DEFINITION_INVALID"></a>`LINK_DEFINITION_INVALID` | 400 | no | Invalid link definition | Fix the fields listed in error.issues. validateLinkDefinition in @kletia/core reports the same issues locally. |
+| <a id="error-LINK_IMMUTABLE_FIELD"></a>`LINK_IMMUTABLE_FIELD` | 422 | no | Link field cannot change | A link's promise only tightens: raise min, lower max, remove sources, lower uses, expire earlier or turn the blink off. Create a new link for anything else. |
 | <a id="error-METHOD_NOT_ALLOWED"></a>`METHOD_NOT_ALLOWED` | 405 | no | Method not allowed | Use one of the methods listed in the Allow header. |
 | <a id="error-PAYLOAD_TOO_LARGE"></a>`PAYLOAD_TOO_LARGE` | 413 | no | Request body too large | Keep request bodies under 64 KB. |
+| <a id="error-POLICY_INVALID"></a>`POLICY_INVALID` | 400 | no | Invalid rule book | Fix the fields listed in error.issues. validatePolicy in @kletia/core reports the same issues locally. |
+| <a id="error-RECEIPT_ANCHOR_INVALID"></a>`RECEIPT_ANCHOR_INVALID` | 422 | no | Anchor transaction refused | The reported transaction is not a successful EAS timestamp(batchDigest) call for this batch on Base. Report the transaction that timestamped it. |
 | <a id="error-REFERENCES_INVALID"></a>`REFERENCES_INVALID` | 400 | no | Invalid references | Send { "references": [...] } with one transaction hash or signature per prepared transaction. |
 | <a id="error-REFERENCE_COUNT_MISMATCH"></a>`REFERENCE_COUNT_MISMATCH` | 400 | no | Wrong number of references | Submit exactly one reference per prepared transaction, in order. |
 | <a id="error-REFERENCE_INVALID"></a>`REFERENCE_INVALID` | 400 | no | Invalid reference | Send a 0x-prefixed 32-byte hash for EVM steps or a base58 signature for Solana steps. |
@@ -113,19 +143,36 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AGENT_KEY_FORBIDDEN"></a>`AGENT_KEY_FORBIDDEN` | 403 | no | Not allowed for agent keys | Agent keys never manage project keys or rule books, and need the matching permission (webhooks, registerContracts, sessions, createChildKeys, links) for the rest. Use a project key. |
+| <a id="error-APPROVAL_SIGNATURE_INVALID"></a>`APPROVAL_SIGNATURE_INVALID` | 403 | no | Approval signature invalid | Sign the exact typed data (EIP-712 "Kletia Approvals") or message text of this approval with the listed wallet, before it expires. |
+| <a id="error-APPROVER_NOT_ALLOWED"></a>`APPROVER_NOT_ALLOWED` | 403 | no | Not an approver of this intent | Approve with an active project key outside the requester's subtree, or with a wallet the rule book lists. Agent keys never approve, and requireWallet refuses keys. |
 | <a id="error-CONTRACT_DENIED"></a>`CONTRACT_DENIED` | 422 | no | Contract not allowed | Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action. |
 | <a id="error-KEY_SECRET_ROTATED"></a>`KEY_SECRET_ROTATED` | 403 | no | Rotated key secret | This secret still authenticates during its grace window but cannot manage keys. Use the current secret. |
+| <a id="error-LINK_POLICY_CONFLICT"></a>`LINK_POLICY_CONFLICT` | 422 | no | Link outside the key's rule book | The link reaches networks, assets, recipients, contracts or amounts the publisher key's rule book refuses (rule ids in error.issues). Tighten the link or use another key. |
 | <a id="error-MCP_ORIGIN_FORBIDDEN"></a>`MCP_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for MCP | Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin. |
+| <a id="error-POLICY_APPROVAL_REJECTED"></a>`POLICY_APPROVAL_REJECTED` | 403 | no | Approval rejected | An approver rejected this intent and it was cancelled. Plan a new intent if appropriate. |
+| <a id="error-POLICY_APPROVAL_REQUIRED"></a>`POLICY_APPROVAL_REQUIRED` | 403 | yes | Approval required | The intent is on hold for an approver. Share error.policy.approval.url with an approver; retry after Retry-After once it is approved. |
+| <a id="error-POLICY_OWNER_REVOKED"></a>`POLICY_OWNER_REVOKED` | 403 | no | Intent owner key revoked | The key that owns this intent, or one of its ancestors, is revoked or expired, so nothing more is prepared. Steps already submitted keep settling. |
+| <a id="error-POLICY_SCHEDULE_CLOSED"></a>`POLICY_SCHEDULE_CLOSED` | 403 | yes | Outside the rule book's timetable | Payloads are prepared only inside the timetable's windows. Retry after Retry-After seconds, when the next window opens. |
+| <a id="error-POLICY_SPEND_LIMIT"></a>`POLICY_SPEND_LIMIT` | 403 | yes | Spend cap reached | A rolling 24 h or 7 d USD cap of the key, an ancestor or the project is used up. Retry after Retry-After (error.policy.retryAt), or ask a project key to raise the cap. |
+| <a id="error-POLICY_VIOLATION"></a>`POLICY_VIOLATION` | 403 | no | Refused by the rule book | error.policy lists every violated rule id, the key whose rule book refused, the observed value and the limit. Change the request; splitting it or adding accounts does not help. |
 | <a id="error-SESSION_ORIGIN_FORBIDDEN"></a>`SESSION_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this session | Embed the session only on one of its allowedOrigins, or create a session that lists this origin. |
 
 ### Not found
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-APPROVAL_NOT_FOUND"></a>`APPROVAL_NOT_FOUND` | 404 | no | Approval not found | Check the approval id from the link (/approve#apr_…) or error.policy.approval. |
 | <a id="error-CONTRACT_NOT_FOUND"></a>`CONTRACT_NOT_FOUND` | 404 | no | Contract registration not found | List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project. |
 | <a id="error-INTENT_NOT_FOUND"></a>`INTENT_NOT_FOUND` | 404 | no | Intent not found | Check the intent id. Dry runs are never stored. |
 | <a id="error-KEY_NOT_FOUND"></a>`KEY_NOT_FOUND` | 404 | no | API key not found | List your project's keys with GET /v1/keys; only active keys of your own project can be managed. |
+| <a id="error-LINK_NOT_FOUND"></a>`LINK_NOT_FOUND` | 404 | no | Link not found | Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links. |
 | <a id="error-NOT_FOUND"></a>`NOT_FOUND` | 404 | no | Unknown route | Check the path against GET /v1/openapi.json. |
+| <a id="error-POLICY_NOT_FOUND"></a>`POLICY_NOT_FOUND` | 404 | no | Rule book not found | This key or project has no rule book (or no pending amendment to cancel). Create one with PUT /v1/keys/{id}/policy. |
+| <a id="error-PREVIEW_NOT_FOUND"></a>`PREVIEW_NOT_FOUND` | 404 | no | No preview yet | Compute one with POST /v1/intents/{id}/preview, or create the intent with ?preview=true. |
+| <a id="error-RECEIPT_LOG_NOT_FOUND"></a>`RECEIPT_LOG_NOT_FOUND` | 404 | no | Log batch not found | List batches with GET /v1/receipts/log; batches close hourly, and an unbatched digest has no inclusion yet. |
+| <a id="error-RECEIPT_NOT_FOUND"></a>`RECEIPT_NOT_FOUND` | 404 | no | Receipt not found | Unknown or unshared receipts look the same. The intent's owner reads receipts with GET /v1/intents/{id}/receipt and shares them. |
+| <a id="error-RECEIPT_SHARE_NOT_FOUND"></a>`RECEIPT_SHARE_NOT_FOUND` | 404 | no | Receipt share not found | The share link is unknown or was revoked. Ask the receipt's owner for a new link. |
 | <a id="error-SESSION_NOT_FOUND"></a>`SESSION_NOT_FOUND` | 404 | no | Session not found | Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions. |
 | <a id="error-STEP_NOT_FOUND"></a>`STEP_NOT_FOUND` | 404 | no | Step not found | Use a step id from intent.steps (s1, s2, ...). |
 | <a id="error-WEBHOOK_NOT_FOUND"></a>`WEBHOOK_NOT_FOUND` | 404 | no | Webhook not found | List your webhooks with GET /v1/webhooks; each key sees only its own. |
@@ -134,6 +181,8 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-AGENT_KEY_LIMIT_REACHED"></a>`AGENT_KEY_LIMIT_REACHED` | 409 | no | Too many agent keys | A project holds at most 100 active agent keys. Revoke one first. |
+| <a id="error-APPROVAL_DECIDED"></a>`APPROVAL_DECIDED` | 409 | no | Approval already decided | The approval was already approved, rejected or expired; a decision is final. Read it with GET /v1/policy/approvals/{id}. |
 | <a id="error-CLIENT_REFERENCE_EXISTS"></a>`CLIENT_REFERENCE_EXISTS` | 409 | no | clientReference already used | Use a new clientReference, or read the existing intent. |
 | <a id="error-CONTRACT_CHANGED"></a>`CONTRACT_CHANGED` | 409 | no | Contract code changed | The contract's code or proxy implementation no longer matches its pins, so the registration is suspended. The integrator must inspect it and call reverify. |
 | <a id="error-CONTRACT_EXISTS"></a>`CONTRACT_EXISTS` | 409 | no | Contract already registered | This key already registered this address (or origin) on this network. Change it with PATCH /v1/contracts/{id}. |
@@ -149,10 +198,27 @@ and leave the step unchanged.
 | <a id="error-INTENT_EXISTS"></a>`INTENT_EXISTS` | 409 | yes | Intent id collision | Send the request again. |
 | <a id="error-INTENT_NOT_CANCELLABLE"></a>`INTENT_NOT_CANCELLABLE` | 409 | no | Intent cannot be cancelled | A step was already submitted; follow it to settlement instead. |
 | <a id="error-KEY_COLLISION"></a>`KEY_COLLISION` | 409 | yes | Key generation collided | Send the request again. |
+| <a id="error-KEY_DEPTH_EXCEEDED"></a>`KEY_DEPTH_EXCEEDED` | 409 | no | Agent key tree too deep | Agent keys sit at most 2 levels below a project key. Create the key under a shallower parent. |
 | <a id="error-KEY_LIMIT_REACHED"></a>`KEY_LIMIT_REACHED` | 409 | no | Too many active keys | A project holds at most 5 active keys. Revoke one with DELETE /v1/keys/{id} first. |
 | <a id="error-KEY_NOT_MANAGEABLE"></a>`KEY_NOT_MANAGEABLE` | 409 | no | Operator keys are immutable | Operator keys come from server configuration; change KLETIA_OPERATOR_API_KEYS instead. |
+| <a id="error-LINK_ACCOUNT_LIMIT"></a>`LINK_ACCOUNT_LIMIT` | 409 | no | Account used this link enough | This account reached the link's per-account limit. |
+| <a id="error-LINK_CONTRACT_CHANGED"></a>`LINK_CONTRACT_CHANGED` | 409 | no | Link contract changed | The pinned contract registration has a newer revision, so the link paused itself. The publisher must review and resume it. |
+| <a id="error-LINK_EXHAUSTED"></a>`LINK_EXHAUSTED` | 409 | yes | Link used up | Every use of the link is reserved or consumed. Uses of abandoned intents are released, so retry later. |
+| <a id="error-LINK_LIMIT_REACHED"></a>`LINK_LIMIT_REACHED` | 409 | no | Too many links | A key holds at most 200 active links and creates at most 60 an hour. Delete or let some expire first. |
+| <a id="error-LINK_PAUSED"></a>`LINK_PAUSED` | 409 | no | Link paused | The publisher paused the link, or it paused itself because a pinned recipient name or contract changed. Ask the publisher. |
+| <a id="error-LINK_PENDING"></a>`LINK_PENDING` | 409 | yes | Link not active yet | Links that pay a fixed third party or call a custom contract activate after a delay. Retry after Retry-After seconds. |
+| <a id="error-LINK_RECIPIENT_CHANGED"></a>`LINK_RECIPIENT_CHANGED` | 409 | no | Link recipient changed | A pinned recipient name now resolves elsewhere, so the link paused itself. The publisher must review and resume it. |
+| <a id="error-LINK_SUSPENDED"></a>`LINK_SUSPENDED` | 409 | no | Link suspended | Kletia suspended the link. Funds of steps already completed are in your wallet. |
+| <a id="error-POLICY_AMENDMENT_PENDING"></a>`POLICY_AMENDMENT_PENDING` | 409 | no | Amendment pending | A loosening amendment is waiting to activate. Cancel it with DELETE …/policy/pending first, or wait for activatesAt. |
+| <a id="error-POLICY_APPROVAL_STALE"></a>`POLICY_APPROVAL_STALE` | 409 | no | Approval no longer covers the intent | Fresh prices put the intent above the approved ceiling. Plan a new intent and ask for a new approval. |
+| <a id="error-POLICY_CONFLICT"></a>`POLICY_CONFLICT` | 409 | no | Rule book changed | The If-Match hash is not the current version. Read the rule book again and resend the change. |
+| <a id="error-PREVIEW_CHANGED"></a>`PREVIEW_CHANGED` | 409 | no | Preview changed | The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest. |
 | <a id="error-PROGRAM_CHANGED"></a>`PROGRAM_CHANGED` | 409 | no | Program changed | An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify. |
 | <a id="error-QUOTE_MOVED"></a>`QUOTE_MOVED` | 409 | no | Price moved | The price moved beyond the slippage limit since planning. Create a new intent to re-quote. |
+| <a id="error-RECEIPT_ANCHOR_EXISTS"></a>`RECEIPT_ANCHOR_EXISTS` | 409 | no | Batch already anchored | This log batch already has an anchoring transaction on record. |
+| <a id="error-RECEIPT_NOT_APPLICABLE"></a>`RECEIPT_NOT_APPLICABLE` | 409 | no | No receipt for this intent | Expired intents executed nothing, so they get no receipt. |
+| <a id="error-RECEIPT_NOT_READY"></a>`RECEIPT_NOT_READY` | 409 | yes | Receipt not ready | Receipts are issued after the intent ends and every anchor is finalized. Retry later; GET /v1/intents/{id}/receipt answers 202 with expectedBy meanwhile. |
+| <a id="error-RECEIPT_SHARE_LIMIT"></a>`RECEIPT_SHARE_LIMIT` | 409 | no | Too many receipt shares | A receipt has at most 10 active shares. Revoke one first. |
 | <a id="error-RECIPIENT_NAME_CHANGED"></a>`RECIPIENT_NAME_CHANGED` | 409 | no | Recipient name changed | The recipient's name now resolves to another address. Create a new intent to pay the new address. |
 | <a id="error-SESSION_USED"></a>`SESSION_USED` | 409 | no | Session already used | The session reached its maxIntents. Ask the integrator's backend for a new session. |
 | <a id="error-STEP_NOT_AWAITING_SIGNATURE"></a>`STEP_NOT_AWAITING_SIGNATURE` | 409 | no | Step not awaiting a signature | Prepare the step before submitting references. |
@@ -168,6 +234,10 @@ and leave the step unchanged.
 |---|---|---|---|---|
 | <a id="error-DEADLINE_PASSED"></a>`DEADLINE_PASSED` | 410 / 422 | no | Deadline passed | constraints.deadline is in the past. Plan again with a later deadline. |
 | <a id="error-INTENT_EXPIRED"></a>`INTENT_EXPIRED` | 410 | no | Intent expired | The plan expired before execution started. Create a new intent to re-quote. |
+| <a id="error-LINK_EXPIRED"></a>`LINK_EXPIRED` | 410 | no | Link expired or withdrawn | The link expired or its publisher withdrew it. Ask the publisher for a new link. |
+| <a id="error-POLICY_APPROVAL_EXPIRED"></a>`POLICY_APPROVAL_EXPIRED` | 410 | no | Approval expired | Nobody decided the approval in time. Plan a new intent to ask again. |
+| <a id="error-RECEIPT_DISCLOSURES_WITHDRAWN"></a>`RECEIPT_DISCLOSURES_WITHDRAWN` | 410 | no | Receipt disclosures withdrawn | The owner withdrew this intent's disclosures, so no share can be created. The signed payloads remain. |
+| <a id="error-RECEIPT_SHARE_EXPIRED"></a>`RECEIPT_SHARE_EXPIRED` | 410 | no | Receipt share expired | The share link expired. Ask the receipt's owner for a new link. |
 | <a id="error-SESSION_EXPIRED"></a>`SESSION_EXPIRED` | 410 | no | Session expired | Sessions live 60-3600 seconds. Ask the integrator's backend for a new session. |
 
 ### Intent (understood but not executable)
@@ -202,6 +272,11 @@ and leave the step unchanged.
 | <a id="error-INSUFFICIENT_BALANCE"></a>`INSUFFICIENT_BALANCE` | 422 | no | Insufficient balance | Fund the account or lower the amount. |
 | <a id="error-INTENT_UNSUPPORTED"></a>`INTENT_UNSUPPORTED` | 422 | no | Intent not supported | Rephrase using one of the examples in error.hints, or send structured actions. |
 | <a id="error-JUPITER_SIMULATION_FAILED"></a>`JUPITER_SIMULATION_FAILED` | 422 | no | Swap simulation failed | The swap would fail on-chain. Check the balance or try a smaller amount. |
+| <a id="error-LINK_ACCOUNTS_REQUIRED"></a>`LINK_ACCOUNTS_REQUIRED` | 422 | no | Accounts missing for this link | Send one account per virtual machine the route signs on (error.issues names them). |
+| <a id="error-LINK_INPUT_OUT_OF_BOUNDS"></a>`LINK_INPUT_OUT_OF_BOUNDS` | 422 | no | Amount outside the link's bounds | Choose an amount within the link's min and max for this asset (unverified publishers are limited to $1,000); deliver links take no amount. |
+| <a id="error-LINK_NOT_BLINK_ELIGIBLE"></a>`LINK_NOT_BLINK_ELIGIBLE` | 422 | no | Link cannot be a blink | Blinks need a Solana-only visitor flow of at most 3 steps and a verified publisher domain; error.message gives the reason. |
+| <a id="error-LINK_PUBLISHER_MISMATCH"></a>`LINK_PUBLISHER_MISMATCH` | 422 | no | Publisher does not match the contract | The publisher name and website must match the integrator of every contract registration the link calls. |
+| <a id="error-LINK_SOURCE_NOT_ALLOWED"></a>`LINK_SOURCE_NOT_ALLOWED` | 422 | no | Funding source not allowed | Fund the link from one of its networks and assets (error.issues lists them). On the destination network a deliver link takes only the delivered asset. |
 | <a id="error-NETWORK_UNSUPPORTED"></a>`NETWORK_UNSUPPORTED` | 422 / 500 | no | Network not supported | Use a network from GET /v1/networks that supports this action. |
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
@@ -282,6 +357,7 @@ and leave the step unchanged.
 | <a id="error-JUPITER_QUOTE_INVALID"></a>`JUPITER_QUOTE_INVALID` | 502 | yes | Jupiter quote refused | Retry shortly. |
 | <a id="error-JUPITER_QUOTE_MISMATCH"></a>`JUPITER_QUOTE_MISMATCH` | 502 | yes | Jupiter quote mismatch | Jupiter returned a quote for another request. Retry shortly. |
 | <a id="error-JUPITER_SWAP_INVALID"></a>`JUPITER_SWAP_INVALID` | 502 | yes | Jupiter swap refused | Retry shortly. |
+| <a id="error-LINK_DELIVERY_UNQUOTABLE"></a>`LINK_DELIVERY_UNQUOTABLE` | 502 | yes | Delivery could not be sized | No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network. |
 | <a id="error-PAYLOAD_INVALID"></a>`PAYLOAD_INVALID` | 502 | yes | Prepared payload refused | The prepared transactions failed Kletia's safety checks and were not returned. Retry shortly. |
 | <a id="error-PROVIDER_INVALID_JSON"></a>`PROVIDER_INVALID_JSON` | 502 | yes | Invalid provider response | Retry shortly. |
 | <a id="error-PROVIDER_REJECTED"></a>`PROVIDER_REJECTED` | 422 / 502 | no | Provider rejected the request | The provider refused this request (422) or failed (502). Also returned as <PROVIDER>_REJECTED, e.g. JUPITER_REJECTED. |
@@ -303,7 +379,11 @@ and leave the step unchanged.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-CONTRACTS_DISABLED"></a>`CONTRACTS_DISABLED` | 503 | yes | Custom contracts unavailable | Custom contract and Solana Action steps are disabled on this deployment, or need an API key. Retry later, use a key, or plan without them. |
+| <a id="error-LINKS_DISABLED"></a>`LINKS_DISABLED` | 503 | yes | Links unavailable | Intent links are switched off on this deployment. Retry later. |
+| <a id="error-LINK_PAGE_UNAVAILABLE"></a>`LINK_PAGE_UNAVAILABLE` | 503 | yes | Link page unavailable | The page shell could not be loaded. Retry shortly; the link itself is unaffected. |
 | <a id="error-NAME_RESOLUTION_UNAVAILABLE"></a>`NAME_RESOLUTION_UNAVAILABLE` | 503 | yes | Name records unavailable | The name's records could not be read. Retry shortly, or use an address. |
+| <a id="error-POLICY_PRICE_UNAVAILABLE"></a>`POLICY_PRICE_UNAVAILABLE` | 503 | yes | Price unavailable for a USD rule | A USD rule of the rule book needs an amount no fresh price source covers, so it fails closed. Retry shortly, or use a listed asset. |
+| <a id="error-RECEIPTS_DISABLED"></a>`RECEIPTS_DISABLED` | 503 | yes | Receipts unavailable | Receipts are switched off or no signing key is configured on this deployment. Retry later; reads of existing receipts keep working. |
 | <a id="error-SIMULATION_UNAVAILABLE"></a>`SIMULATION_UNAVAILABLE` | 503 | yes | Simulation unavailable | No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly. |
 | <a id="error-STORE_UNAVAILABLE"></a>`STORE_UNAVAILABLE` | 503 | yes | Storage unavailable | Retry shortly. Presented API keys cannot be verified meanwhile. |
 | <a id="error-WEBHOOKS_NOT_CONFIGURED"></a>`WEBHOOKS_NOT_CONFIGURED` | 503 | no | Webhooks not configured | The operator must set KLETIA_PLATFORM_SECRET (at least 32 characters). |
@@ -314,6 +394,7 @@ and leave the step unchanged.
 |---|---|---|---|---|
 | <a id="error-ADAPTERS_INVALID"></a>`ADAPTERS_INVALID` | 500 | yes | Adapter configuration invalid | The operator configured an invalid adapter set. |
 | <a id="error-INTERNAL_ERROR"></a>`INTERNAL_ERROR` | 500 | yes | Internal error | Retry later. If it persists, report it with the requestId. |
+| <a id="error-LINK_PLAN_OUT_OF_BOUNDS"></a>`LINK_PLAN_OUT_OF_BOUNDS` | 500 | no | Plan left the link's envelope | The planned intent did not match the link's fixed networks, recipients, contracts or input, so nothing was stored. Report it with the requestId. |
 | <a id="error-NAME_RESOLVER_INVALID"></a>`NAME_RESOLVER_INVALID` | 500 | yes | Name resolver misconfigured | The operator registered an invalid name resolver. |
 | <a id="error-PLATFORM_ERROR"></a>`PLATFORM_ERROR` | 500 | yes | Unclassified platform error | Retry later. If it persists, report it with the requestId. |
 | <a id="error-PROTOCOL_UNSUPPORTED"></a>`PROTOCOL_UNSUPPORTED` | 500 | yes | Protocol adapter missing | Plan the intent again. |

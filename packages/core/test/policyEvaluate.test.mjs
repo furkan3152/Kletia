@@ -100,8 +100,8 @@ test("one pass and one fail per rule (articles 1-8)", () => {
     ["assets.unlisted", { assets: { unlisted: "deny" } }, facts([stepFacts({ input: asset(UNLISTED, "USDC", 100) })]), { assets: { unlisted: "deny" } }, facts()],
     ["accounts.allow", { accounts: { allow: [`eip155:*:${EVM}`] } }, facts(), { accounts: { allow: [`eip155:*:${EVM}`, `solana:*:${SOL}`] } }],
     ["recipients.deny", { recipients: { deny: [`eip155:*:${EVM}`] } }, facts(), { recipients: { deny: [STRANGER] } }],
-    ["recipients.mode", { recipients: { mode: "own" } }, facts([stepFacts({ recipient: STRANGER, external: true })]), { recipients: { mode: "own" } }],
-    ["recipients.names", { recipients: { names: "deny" } }, facts([stepFacts({ recipientName: "me.base.eth" })]), { recipients: { names: "deny" } }],
+    ["recipients.mode", { recipients: { mode: "own" } }, facts([stepFacts({ recipient: STRANGER, external: true })]), { recipients: { mode: "own" } }, facts()],
+    ["recipients.names", { recipients: { names: "deny" } }, facts([stepFacts({ recipientName: "me.base.eth" })]), { recipients: { names: "deny" } }, facts()],
     ["limits.maxSteps", { limits: { maxSteps: 1 } }, facts([stepFacts(), stepFacts({ id: "s2", index: 1 })]), { limits: { maxSteps: 2 } }],
     ["limits.maxSlippageBps", { limits: { maxSlippageBps: 10 } }, facts([stepFacts({ slippageBps: 50 })]), { limits: { maxSlippageBps: 50 } }],
     ["limits.maxExtraCostUsd", { limits: { maxExtraCostUsd: "1" } }, facts([stepFacts({ extraCosts: [asset(ETH_BASE, "ETH", 2, 18)] })]), { limits: { maxExtraCostUsd: "2" } }],
@@ -411,4 +411,20 @@ test("decision log: the hash chain verifies, detects rewrites against a stored h
   assert.equal(verifyDecisionChain(tampered).valid, false);
   assert.equal(verifyDecisionChain([records[0], records[2]]).valid, false, "gap");
   assert.equal(policyExposureId("int_x", "s1", "ab"), `px_${createHash("sha256").update("int_x|s1|ab").digest("hex").slice(0, 24)}`);
+});
+
+test("fail-closed edges: raw deny patterns still match, value-moving steps without an input are unpriced, approvals need a ceiling", () => {
+  // A stored document that skipped normalisation (checksummed address, upper-case name) still denies.
+  const raw = { schema, recipients: { deny: ["eip155:*:0x9999999999999999999999999999999999999999".replace("0x9", "0X9").replace("0X9", "0x9"), "ACME.BASE.ETH"] } };
+  const checksummed = { schema, recipients: { deny: ["eip155:8453:0x8F3C0000000000000000000000000000000AA21B"] } };
+  assert.deepEqual(failed(evaluatePolicy(checksummed, facts(), { scope: "key" })), ["recipients.deny"]);
+  assert.deepEqual(failed(evaluatePolicy(raw, facts([stepFacts({ recipient: OWN_ARB, recipientName: "acme.base.eth" })]), { scope: "key" })), ["recipients.deny"]);
+  const withdraw = stepFacts({ kind: "withdraw", protocol: "aave-v3", input: undefined });
+  assert.deepEqual(failed(run({ caps: { perStepUsd: "10" } }, facts([withdraw]))), ["pricing.unavailable"]);
+  assert.deepEqual(failed(run({ caps: { perIntentUsd: "10" } }, facts([withdraw]))), ["pricing.unavailable"]);
+  assert.deepEqual(failed(run({ caps: { perStepUsd: "10" } }, facts([stepFacts({ kind: "claim", protocol: "kamino", input: undefined })]))), [], "claims move nothing of their own");
+  const chain = [{ policy: doc({ confirm: { aboveUsd: "50" } }), scope: "key" }];
+  const prepare = facts(undefined, { stage: "prepare" });
+  assert.equal(evaluatePolicyChain(chain, prepare, { approval: { status: "approved" } }).code, "POLICY_APPROVAL_STALE", "an approval without a ceiling never clears");
+  assert.equal(evaluatePolicyChain(chain, prepare, { approval: { status: "approved", ceilingUsdMicros: usd(1000) } }).outcome, "allow");
 });

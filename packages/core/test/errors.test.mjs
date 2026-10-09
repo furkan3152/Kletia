@@ -142,3 +142,83 @@ test("every contract validation issue code is a catalogued error", async () => {
   const { CONTRACT_ISSUE_PRECEDENCE } = await import("../dist/index.js");
   for (const code of CONTRACT_ISSUE_PRECEDENCE) assert.ok(isKletiaErrorCode(code), code);
 });
+
+test("round-5 codes (receipts, Rule Book, intent links, asset preview) carry the designs' statuses", async () => {
+  // [status, category, retryable]
+  const expected = {
+    // Receipts design §14.1.
+    RECEIPT_NOT_FOUND: [404, "not_found", false],
+    RECEIPT_NOT_READY: [409, "conflict", true],
+    RECEIPT_NOT_APPLICABLE: [409, "conflict", false],
+    RECEIPTS_DISABLED: [503, "unavailable", true],
+    RECEIPT_SHARE_NOT_FOUND: [404, "not_found", false],
+    RECEIPT_SHARE_EXPIRED: [410, "expired", false],
+    RECEIPT_SHARE_LIMIT: [409, "conflict", false],
+    RECEIPT_DISCLOSURES_WITHDRAWN: [410, "expired", false],
+    RECEIPT_LOG_NOT_FOUND: [404, "not_found", false],
+    RECEIPT_ANCHOR_INVALID: [422, "request", false],
+    RECEIPT_ANCHOR_EXISTS: [409, "conflict", false],
+    // Policy design §13.
+    POLICY_VIOLATION: [403, "permission", false],
+    POLICY_SPEND_LIMIT: [403, "permission", true],
+    POLICY_SCHEDULE_CLOSED: [403, "permission", true],
+    POLICY_PRICE_UNAVAILABLE: [503, "unavailable", true],
+    POLICY_OWNER_REVOKED: [403, "permission", false],
+    POLICY_APPROVAL_REQUIRED: [403, "permission", true],
+    POLICY_APPROVAL_REJECTED: [403, "permission", false],
+    POLICY_APPROVAL_EXPIRED: [410, "expired", false],
+    POLICY_APPROVAL_STALE: [409, "conflict", false],
+    POLICY_INVALID: [400, "request", false],
+    POLICY_NOT_FOUND: [404, "not_found", false],
+    POLICY_CONFLICT: [409, "conflict", false],
+    POLICY_AMENDMENT_PENDING: [409, "conflict", false],
+    AGENT_KEY_FORBIDDEN: [403, "permission", false],
+    AGENT_KEY_LIMIT_REACHED: [409, "conflict", false],
+    KEY_DEPTH_EXCEEDED: [409, "conflict", false],
+    APPROVAL_NOT_FOUND: [404, "not_found", false],
+    APPROVAL_DECIDED: [409, "conflict", false],
+    APPROVAL_SIGNATURE_INVALID: [403, "permission", false],
+    APPROVER_NOT_ALLOWED: [403, "permission", false],
+    // Intent-links design §12.
+    LINK_NOT_FOUND: [404, "not_found", false],
+    LINK_DEFINITION_INVALID: [400, "request", false],
+    LINK_LIMIT_REACHED: [409, "conflict", false],
+    LINK_PENDING: [409, "conflict", true],
+    LINK_PAUSED: [409, "conflict", false],
+    LINK_SUSPENDED: [409, "conflict", false],
+    LINK_EXPIRED: [410, "expired", false],
+    LINK_EXHAUSTED: [409, "conflict", true],
+    LINK_ACCOUNT_LIMIT: [409, "conflict", false],
+    LINK_INPUT_OUT_OF_BOUNDS: [422, "intent", false],
+    LINK_SOURCE_NOT_ALLOWED: [422, "intent", false],
+    LINK_ACCOUNTS_REQUIRED: [422, "intent", false],
+    LINK_RECIPIENT_CHANGED: [409, "conflict", false],
+    LINK_CONTRACT_CHANGED: [409, "conflict", false],
+    LINK_POLICY_CONFLICT: [422, "permission", false],
+    LINK_PUBLISHER_MISMATCH: [422, "intent", false],
+    LINK_IMMUTABLE_FIELD: [422, "request", false],
+    LINK_DELIVERY_UNQUOTABLE: [502, "upstream", true],
+    LINK_NOT_BLINK_ELIGIBLE: [422, "intent", false],
+    LINK_PAGE_UNAVAILABLE: [503, "unavailable", true],
+    LINK_PLAN_OUT_OF_BOUNDS: [500, "internal", false],
+    LINKS_DISABLED: [503, "unavailable", true],
+    // Asset-preview design §8.4.
+    PREVIEW_CHANGED: [409, "conflict", false],
+    PREVIEW_NOT_FOUND: [404, "not_found", false],
+  };
+  assert.equal(Object.keys(expected).length, 55);
+  const { FEATURE_ERROR_CODES } = await import("../dist/index.js");
+  assert.deepEqual(Object.values(FEATURE_ERROR_CODES).flat().sort(), Object.keys(expected).sort(), "every round-5 code is attributed to its feature");
+  for (const [code, [status, category, retryable]] of Object.entries(expected)) {
+    const entry = ERROR_CATALOG[code];
+    assert.ok(entry, `${code} is catalogued`);
+    assert.equal(entry.status, status, `${code} status`);
+    assert.equal(entry.category, category, `${code} category`);
+    assert.equal(entry.retryable, retryable, `${code} retryable`);
+    assert.equal(Boolean(entry.step), false, `${code} is not a step failure`);
+    // Exact entries win over the provider families (_UNAVAILABLE, _REJECTED) they look like.
+    assert.equal(resolveErrorCode(code), code, `${code} resolves to itself`);
+  }
+  assert.equal(describeError("POLICY_PRICE_UNAVAILABLE").category, "unavailable");
+  assert.equal(describeError("POLICY_APPROVAL_REJECTED").category, "permission");
+});

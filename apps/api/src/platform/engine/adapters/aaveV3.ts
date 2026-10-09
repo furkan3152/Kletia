@@ -74,6 +74,7 @@ import {
   wrapTransaction,
   type LendingContext,
   type LendingMetrics,
+  LENDING_PREVIEW_TTL_SECONDS,
 } from "./lending/common.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter } from "./types.js";
 import { evmEvents, stepOwner, verifyEvmReceipts, type EvmOutcome, type LandedEvmReceipt } from "./verification.js";
@@ -463,6 +464,8 @@ export const aaveV3Adapter: ProtocolAdapter = {
       warnings: planned.warnings,
       transactionCount: planned.transactions.length,
       slippageBps: action.slippageBps,
+      // The plan already encodes the payload (no provider involved): the preview simulates it.
+      preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
     };
   },
 

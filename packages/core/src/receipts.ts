@@ -1410,6 +1410,26 @@ function isLogBatch(value: unknown): value is ReceiptLogBatch {
  * key, signature); collects the rest. Never throws.
  */
 export async function verifyReceipt(document: unknown, options: VerifyReceiptOptions = {}): Promise<ReceiptVerification> {
+  try {
+    return await verifyReceiptUnsafe(document, options);
+  } catch (error) {
+    // Fail closed on anything unexpected (hostile input, broken runtime).
+    return {
+      valid: false,
+      digest: "",
+      kid: "",
+      key: { status: "unknown", provenance: "none" },
+      disclosed: [],
+      sealed: [],
+      inclusion: null,
+      intentMatches: null,
+      problems: [{ code: "SCHEMA_INVALID", message: `The document could not be verified: ${error instanceof Error ? error.message.slice(0, 200) : "unknown error"}.` }],
+      warnings: [],
+    };
+  }
+}
+
+async function verifyReceiptUnsafe(document: unknown, options: VerifyReceiptOptions): Promise<ReceiptVerification> {
   const problems: ReceiptProblem[] = [];
   const warnings: ReceiptWarning[] = [];
   let digest = "";

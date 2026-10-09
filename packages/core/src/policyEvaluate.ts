@@ -321,11 +321,24 @@ export function isOwnAccount(own: readonly string[], account: string): boolean {
   return own.some((candidate) => sameAddressAccount(candidate, account));
 }
 
-/** Fresh value (§5.2): Σ input notional of root steps + Σ priced extra costs of every step; null when any is unpriced. */
+/** Kinds that move no value of their own (a missing input is then not an unknown amount). */
+const NO_INPUT_KINDS: ReadonlySet<IntentActionKind> = new Set(["read", "approve", "claim"]);
+
+/** True when a step moves value but its input amount is unknown (fail closed under USD rules). */
+function inputUnknown(step: StepFacts): boolean {
+  return step.input === undefined && !NO_INPUT_KINDS.has(step.kind);
+}
+
+/**
+ * Fresh value (§5.2): Σ input notional of root steps + Σ priced extra costs
+ * of every step; null when any is unpriced (a value-moving root step without
+ * an input amount counts as unpriced).
+ */
 export function policyNotionalUsdMicros(steps: readonly StepFacts[]): { readonly value: bigint | null; readonly unpriced: readonly string[] } {
   let total = 0n;
   const unpriced: string[] = [];
   for (const step of steps) {
+    if (step.root && inputUnknown(step)) unpriced.push(`steps[${step.index}].input`);
     if (step.root && step.input) {
       if (step.input.usdMicros === null) unpriced.push(`steps[${step.index}].input`);
       else total += step.input.usdMicros;
@@ -499,7 +512,7 @@ export function evaluatePolicy(policy: PolicyDocument | null, facts: PolicyFacts
       "recipients.deny",
       allSteps,
       (step) =>
-        denied.some((pattern) => accountMatchesPattern(step.recipient, pattern) || (nameOf(step) !== undefined && pattern === nameOf(step)))
+        denied.some((pattern) => accountMatchesPattern(step.recipient, pattern) || (nameOf(step) !== undefined && pattern.trim().toLowerCase() === nameOf(step)))
           ? { path: `steps[${step.index}].recipient`, message: "The recipient is denied.", observed: step.recipientName ? `${step.recipientName} (${step.recipient})` : step.recipient }
           : null,
       `${denied.length} denied`,
@@ -516,7 +529,7 @@ export function evaluatePolicy(policy: PolicyDocument | null, facts: PolicyFacts
         if (recipientMode === "allowlist") {
           if (allow.some((pattern) => accountMatchesPattern(step.recipient, pattern))) return null;
           const name = nameOf(step);
-          if (names === "trusted" && name !== undefined && allow.includes(name)) return null;
+          if (names === "trusted" && name !== undefined && allow.some((pattern) => pattern.trim().toLowerCase() === name)) return null;
         }
         return {
           path: `steps[${step.index}].recipient`,
@@ -586,7 +599,7 @@ export function evaluatePolicy(policy: PolicyDocument | null, facts: PolicyFacts
     const max = policyUsdMicros(caps.perStepUsd);
     each(
       "caps.perStepUsd",
-      allSteps.filter((step) => step.input !== undefined),
+      allSteps.filter((step) => step.input !== undefined || inputUnknown(step)),
       (step) => {
         const value = step.input?.usdMicros ?? null;
         if (value === null) {
@@ -745,10 +758,11 @@ export function evaluatePolicyChain(chain: readonly PolicyChainEntry[], facts: P
       retryAfterSeconds = retryAfterSeconds ?? 15;
     } else if (approval.status === "rejected") add("approval.rejected", "An approver rejected this intent.");
     else if (approval.status === "expired") add("approval.expired", "The approval expired before it was decided.");
-    else if (approval.ceilingUsdMicros !== undefined && (notional === null || notional > approval.ceilingUsdMicros)) {
-      add("approval.stale", "The fresh value is above the approved ceiling; plan a new intent.", {
+    else if (approval.ceilingUsdMicros === undefined || notional === null || notional > approval.ceilingUsdMicros) {
+      // An approval never lifts what it cannot bound: no ceiling, or an unpriced fresh value, is stale.
+      add("approval.stale", "The fresh value is above the approved ceiling (or cannot be priced); plan a new intent.", {
         observed: usdText(notional),
-        limit: formatUsdMicros(approval.ceilingUsdMicros),
+        ...(approval.ceilingUsdMicros !== undefined ? { limit: formatUsdMicros(approval.ceilingUsdMicros) } : {}),
       });
     } else {
       rules.push({ rule: "approval.required", ...tag, status: "pass", observed: "approved" });

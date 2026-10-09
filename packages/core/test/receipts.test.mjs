@@ -748,3 +748,15 @@ test("evmQuoteBinding equals the engine's quoteBindingForViews (sha256 of canoni
   assert.equal(await evmQuoteBinding(views.map(evmBindingView)), expected);
   assert.notEqual(await evmQuoteBinding([views[1], views[0]]), expected, "order matters");
 });
+
+test("verifyReceipt never throws on hostile documents", async () => {
+  const hostile = { payload: vectors.receipt.payload, digest: vectors.receipt.digest, signature: vectors.receipt.signature };
+  Object.defineProperty(hostile, "disclosures", { enumerable: true, get() { throw new Error("boom"); } });
+  const result = await verify(hostile);
+  assert.equal(result.valid, false);
+  assert.deepEqual(codes(result), ["SCHEMA_INVALID"]);
+  for (const junk of [null, 1, "x", [], { payload: [] }, { receipt: { payload: { spec: "kletia.receipt/v1" } } }]) {
+    const outcome = await verify(junk);
+    assert.equal(outcome.valid, false);
+  }
+});

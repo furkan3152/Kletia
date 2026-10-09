@@ -604,6 +604,8 @@ export const contractCallAdapter: ContractProtocolAdapter = {
       slippageBps: Math.max(1, snapshot.toleranceBps ?? CONTRACT_LIMITS.defaultToleranceBps),
       call: snapshot,
       review: run.review,
+      // The reviewed transactions, for the plan-time asset-change preview (simulated again there, with the intent's other steps).
+      preview: { transactions: run.transactions, approvalSpender: snapshot.approvalSpender, expiresAt: Math.floor(Date.now() / 1000) + 90 },
     });
   },
 

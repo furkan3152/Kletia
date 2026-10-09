@@ -95,12 +95,25 @@ export interface RelaySolanaCall {
 
 export type RelayCall = RelayEvmCall | RelaySolanaCall;
 
+/** A Relay fee the quote reports as taken from the amount (relayer, app), for the asset-change preview. */
+export interface RelayVenueFee {
+  readonly kind: "relayer" | "app";
+  readonly chainId: number;
+  readonly address: string;
+  readonly symbol: string;
+  readonly decimals: number;
+  readonly amount: string;
+  readonly amountUsd: number | null;
+}
+
 export interface RelayQuote {
   readonly requestId: string;
   readonly calls: readonly RelayCall[];
   readonly currencyIn: RelayCurrencyAmount;
   readonly currencyOut: RelayCurrencyAmount;
   readonly feesUsd: number | null;
+  /** Relayer and app fees (deducted from the output); the origin gas estimate is not included (it is simulated). */
+  readonly venueFees: readonly RelayVenueFee[];
   readonly timeEstimateSeconds: number;
   /** Total impact (fees + price) in percent; negative means value lost. */
   readonly totalImpactPercent: number | null;
@@ -225,6 +238,23 @@ function sumFeesUsd(fees: unknown): number | null {
   return seen ? total : null;
 }
 
+/** Relayer and app fees with a positive amount (malformed entries are skipped: they are display-only). */
+function venueFees(fees: unknown): RelayVenueFee[] {
+  if (!isRecord(fees)) return [];
+  const out: RelayVenueFee[] = [];
+  for (const kind of ["relayer", "app"] as const) {
+    const entry = fees[kind];
+    if (!isRecord(entry) || !isRecord(entry.currency)) continue;
+    const { chainId, address, symbol, decimals } = entry.currency;
+    const amount = entry.amount;
+    if (typeof chainId !== "number" || typeof address !== "string" || typeof symbol !== "string" || typeof decimals !== "number") continue;
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36 || !isBaseUnitAmount(amount) || amount === "0") continue;
+    const usd = finiteNumber(entry.amountUsd);
+    out.push({ kind, chainId, address, symbol: symbol.slice(0, 16), decimals, amount, amountUsd: usd !== null && usd >= 0 ? usd : null });
+  }
+  return out;
+}
+
 export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<RelayQuote> {
   const body = await fetchProviderJson(`${RELAY_API_URL}/quote`, {
     provider: "Relay",
@@ -283,6 +313,7 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
     currencyIn,
     currencyOut,
     feesUsd: sumFeesUsd(body.fees),
+    venueFees: venueFees(body.fees),
     timeEstimateSeconds: time !== null && time >= 0 && time < 86_400 ? Math.ceil(time) : 30,
     totalImpactPercent: impact,
     recipient,

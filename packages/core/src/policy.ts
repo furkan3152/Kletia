@@ -234,14 +234,19 @@ export function normalizeAccountPattern(value: unknown): string | null {
   return `${parsed.chain.id}:${parsed.chain.namespace === "eip155" ? parsed.address.toLowerCase() : parsed.address}`;
 }
 
-/** True when a CAIP-10 account matches a normalised pattern. */
+/**
+ * True when a CAIP-10 account matches a pattern. The pattern is normalised
+ * here too, so a stored document that skipped validation can never make a
+ * deny entry miss because of address case.
+ */
 export function accountMatchesPattern(account: string, pattern: string): boolean {
   const parsed = parseAccountId(account);
-  if (!parsed) return false;
+  const normalized = normalizeAccountPattern(pattern);
+  if (!parsed || !normalized) return false;
   const address = parsed.chain.namespace === "eip155" ? parsed.address.toLowerCase() : parsed.address;
-  const wildcard = /^(eip155|solana):\*:(.+)$/u.exec(pattern);
+  const wildcard = /^(eip155|solana):\*:(.+)$/u.exec(normalized);
   if (wildcard) return wildcard[1] === parsed.chain.namespace && wildcard[2] === address;
-  return pattern === `${parsed.chain.id}:${address}`;
+  return normalized === `${parsed.chain.id}:${address}`;
 }
 
 /** Normalises an asset entry (`USDC`, `USDC@base`, `group:ETH`, CAIP-19) to its canonical spelling; null when unknown. */

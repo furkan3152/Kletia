@@ -380,6 +380,32 @@ export const ERROR_CODE_FAMILIES: readonly { readonly suffix: string; readonly c
   { suffix: "_REJECTED", code: "PROVIDER_REJECTED" },
 ]);
 
+/**
+ * Codes added by the round-5 designs, by feature. Core lands first, so until
+ * the API package of a feature emits its codes the API's catalog drift test
+ * lists them as catalogued but not emitted; this table names which package
+ * owes each code (receipts R3, policies PF2/PF3a, links L2/L3, preview V2/V3).
+ */
+export const FEATURE_ERROR_CODES: Readonly<Record<"receipts" | "policies" | "links" | "preview", readonly KletiaErrorCode[]>> = Object.freeze({
+  receipts: Object.freeze([
+    "RECEIPT_NOT_FOUND", "RECEIPT_NOT_READY", "RECEIPT_NOT_APPLICABLE", "RECEIPTS_DISABLED", "RECEIPT_SHARE_NOT_FOUND", "RECEIPT_SHARE_EXPIRED",
+    "RECEIPT_SHARE_LIMIT", "RECEIPT_DISCLOSURES_WITHDRAWN", "RECEIPT_LOG_NOT_FOUND", "RECEIPT_ANCHOR_INVALID", "RECEIPT_ANCHOR_EXISTS",
+  ] as const),
+  policies: Object.freeze([
+    "POLICY_VIOLATION", "POLICY_SPEND_LIMIT", "POLICY_SCHEDULE_CLOSED", "POLICY_PRICE_UNAVAILABLE", "POLICY_OWNER_REVOKED", "POLICY_APPROVAL_REQUIRED",
+    "POLICY_APPROVAL_REJECTED", "POLICY_APPROVAL_EXPIRED", "POLICY_APPROVAL_STALE", "POLICY_INVALID", "POLICY_NOT_FOUND", "POLICY_CONFLICT",
+    "POLICY_AMENDMENT_PENDING", "AGENT_KEY_FORBIDDEN", "AGENT_KEY_LIMIT_REACHED", "KEY_DEPTH_EXCEEDED", "APPROVAL_NOT_FOUND", "APPROVAL_DECIDED",
+    "APPROVAL_SIGNATURE_INVALID", "APPROVER_NOT_ALLOWED",
+  ] as const),
+  links: Object.freeze([
+    "LINK_NOT_FOUND", "LINK_DEFINITION_INVALID", "LINK_LIMIT_REACHED", "LINK_PENDING", "LINK_PAUSED", "LINK_SUSPENDED", "LINK_EXPIRED", "LINK_EXHAUSTED",
+    "LINK_ACCOUNT_LIMIT", "LINK_INPUT_OUT_OF_BOUNDS", "LINK_SOURCE_NOT_ALLOWED", "LINK_ACCOUNTS_REQUIRED", "LINK_RECIPIENT_CHANGED", "LINK_CONTRACT_CHANGED",
+    "LINK_POLICY_CONFLICT", "LINK_PUBLISHER_MISMATCH", "LINK_IMMUTABLE_FIELD", "LINK_DELIVERY_UNQUOTABLE", "LINK_NOT_BLINK_ELIGIBLE", "LINK_PAGE_UNAVAILABLE",
+    "LINK_PLAN_OUT_OF_BOUNDS", "LINKS_DISABLED",
+  ] as const),
+  preview: Object.freeze(["PREVIEW_CHANGED", "PREVIEW_NOT_FOUND"] as const),
+});
+
 export const ERROR_DOCS_ORIGIN = "https://kletiaai.xyz";
 
 const CODE_SHAPE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/u;

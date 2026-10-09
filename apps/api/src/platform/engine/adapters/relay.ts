@@ -16,7 +16,9 @@ import {
   CHAINS,
   explorerTxUrl,
   formatAmount,
+  formatAssetId,
   fromBaseUnits,
+  nativeAssetId,
   getProtocol,
   isVenueContract,
   parseAccountId,
@@ -55,6 +57,8 @@ import type {
   AdapterAction,
   AdapterRoute,
   PlannedStep,
+  PlannedStepPreview,
+  PlannedVenueFee,
   PreparedPayload,
   ProtocolAdapter,
   SettlementResult,
@@ -362,6 +366,48 @@ async function solanaTransactions(
   return { transactions, programs };
 }
 
+/** Seconds a Relay quote's transactions are previewed for (Relay quotes are short-lived). */
+const PREVIEW_TTL_SECONDS = 60;
+
+/** Relayer and app fees as preview fee lines (deducted from the output, as Relay quotes them). */
+function relayVenueFees(action: AdapterAction, result: RelayQuote): PlannedVenueFee[] {
+  return result.venueFees.map((fee): PlannedVenueFee => {
+    const network = [action.network, action.destinationNetwork].find((candidate) => relayChainId(candidate) === fee.chainId);
+    const native = /^0x0{40}$/u.test(fee.address) || fee.address === RELAY_NATIVE_SOLANA;
+    const asset = network
+      ? native
+        ? nativeAssetId(network)
+        : formatAssetId(network, CHAINS[network].vm === "svm" ? "token" : "erc20", CHAINS[network].vm === "svm" ? fee.address : getAddress(fee.address))
+      : null;
+    return {
+      kind: "venue",
+      label: fee.kind === "relayer" ? "Relay relayer fee" : "Relay app fee",
+      ...(asset ? { asset: { asset, symbol: fee.symbol, decimals: fee.decimals }, amount: fee.amount } : {}),
+      formatted: fromBaseUnits(fee.amount, fee.decimals),
+      ...(fee.amountUsd !== null ? { usd: fee.amountUsd } : {}),
+      paid: "deducted",
+      certainty: "quoted",
+    };
+  });
+}
+
+/**
+ * The quote's own transactions for the plan-time preview: the EVM calls it
+ * returned, validated and mapped exactly as prepare maps them. Solana origins
+ * need a blockhash and a simulation to assemble, so they stay quoted at plan.
+ */
+function relayPreview(action: AdapterAction, result: RelayQuote): PlannedStepPreview | undefined {
+  if (!isEvmNetwork(action.network)) return undefined;
+  const transactions = evmTransactions(action, result.calls, title(action));
+  const approve = result.calls.find((call): call is RelayEvmCall => call.kind === "evm" && call.data.toLowerCase().startsWith(APPROVE_SELECTOR));
+  return {
+    transactions,
+    ...(approve ? { approvalSpender: `0x${approve.data.slice(34, 74)}`.toLowerCase() } : {}),
+    venueFees: relayVenueFees(action, result),
+    expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
+  };
+}
+
 function settlementFailure(state: RelayRequestState): SettlementResult | null {
   const why = state.failReason ? ` (${state.failReason})` : "";
   if (state.status === "refund") {
@@ -507,6 +553,7 @@ export const relayAdapter: ProtocolAdapter = {
     const warnings = quoteWarnings(result);
     if (!action.output.verified) warnings.push(`${action.output.symbol} is not a verified token.`);
     const cross = crossNetwork(action);
+    const preview = relayPreview(action, result);
     return {
       protocol: "relay",
       title: title(action),
@@ -521,6 +568,7 @@ export const relayAdapter: ProtocolAdapter = {
       quoteId: result.requestId,
       transactionCount: result.calls.length,
       slippageBps: action.slippageBps,
+      ...(preview ? { preview } : {}),
     };
   },
 

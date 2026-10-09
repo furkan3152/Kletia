@@ -4,7 +4,7 @@
  * itself never ships wagmi, RainbowKit or Solana wallet code.
  */
 import { CHAINS, type AccountId, type IntentGraph, type IntentRequest, type IntentStep, type NetworkKey } from "@kletia/core";
-import { ArrowUpRight, CircleCheck, History, LoaderCircle, Wallet, X } from "lucide-react";
+import { ArrowUpRight, CircleCheck, History, Wallet, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { STUDIO_INTENT_SESSION_KEY } from "../../../shared/platform/intentSession";
@@ -15,7 +15,9 @@ import { WalletDock } from "../../../shared/wallet/WalletDock";
 import { WalletProviders } from "../../providers";
 import { IntentExecutionFlow } from "../../site/intent/IntentExecutionFlow";
 import { networkColor, networkName } from "../../site/intent/format";
+import { useChangeKey } from "../../site/motion/useChangeKey";
 import { Button, ButtonLink } from "../../site/ui/Button";
+import { Skeleton, SkeletonGroup, SkeletonText } from "../../site/ui/Skeleton";
 import { cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 
 export interface StudioExecutionPanelProps {
@@ -56,11 +58,21 @@ function connectedFor(execution: IntentExecution, namespace: Namespace): Connect
 
 function WalletRequirement({ namespace, account }: { namespace: Namespace; account: ConnectedAccount | null }) {
   const label = namespace === "eip155" ? "EVM wallet" : "Solana wallet";
+  // The check stamps in when a wallet connects during this visit (not when it was already connected).
+  const connectedKey = useChangeKey(Boolean(account));
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 border-2 border-[#1A1A1A] bg-[#FBFAF7] px-3 py-2 dark:border-[#4B5563] dark:bg-[#0F1A2C]">
+    <li
+      className={cx(
+        "flex flex-wrap items-center justify-between gap-2 border-2 border-[#1A1A1A] px-3 py-2 transition-colors duration-240 dark:border-[#4B5563]",
+        account ? "bg-[#ECFDF5] dark:bg-[#0F2A1D]" : "bg-[#FBFAF7] dark:bg-[#0F1A2C]",
+      )}
+    >
       <span className="flex items-center gap-2 text-sm font-bold">
         {account ? (
-          <CircleCheck className="h-4 w-4 text-[#047857] dark:text-[#14F195]" aria-hidden="true" />
+          <CircleCheck
+            className={cx("h-4 w-4 text-[#047857] dark:text-[#14F195]", connectedKey > 0 && "kl-stamp")}
+            aria-hidden="true"
+          />
         ) : (
           <Wallet className="h-4 w-4 text-[#45464B] dark:text-[#A9B6C8]" aria-hidden="true" />
         )}
@@ -101,19 +113,63 @@ function StepBindings({ preview, execution }: { preview: IntentGraph; execution:
 }
 
 function SectionTitle({ index, title, done }: { index: number; title: string; done?: boolean }) {
+  // The number box swaps to ✓ with a stamp when the section completes during this visit.
+  const doneKey = useChangeKey(Boolean(done));
   return (
     <h3 className="flex items-center gap-3 font-display text-xl font-bold tracking-[-0.01em]">
       <span
         aria-hidden="true"
         className={cx(
-          "flex h-8 w-8 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-sm font-black dark:border-[#4B5563]",
+          "flex h-8 w-8 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-sm font-black shadow-[2px_2px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]",
           done ? "bg-[#14F195] text-[#0B1120]" : "bg-[#FFD60A] text-[#1A1A1A]",
+          done && doneKey > 0 && "kl-stamp",
         )}
       >
         {done ? "✓" : index}
       </span>
       {title}
     </h3>
+  );
+}
+
+/** "Planning with your accounts…": a placeholder shaped like the review that follows. */
+function ReviewSkeleton() {
+  return (
+    <SkeletonGroup label="Planning with your accounts" className="flex flex-col gap-4">
+      <div className={cx("flex flex-col gap-4 p-4 sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Planning with your accounts…</p>
+          <div className="flex gap-2">
+            <Skeleton surface="card" className="h-6 w-24 border-2" />
+            <Skeleton surface="card" className="h-6 w-24 border-2" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className="flex flex-col gap-1.5">
+              <Skeleton surface="card" className="h-2.5 w-16 border-2" />
+              <Skeleton surface="card" className="h-4 w-24 border-2" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className={cx("flex flex-col gap-3 p-4", INK_BORDER, SURFACE)}>
+        <div className="flex gap-2">
+          <Skeleton surface="card" className="h-5 w-6 border-2" />
+          <Skeleton surface="card" className="h-6 w-14 border-2" />
+          <Skeleton surface="card" className="h-6 w-20 border-2" />
+        </div>
+        <Skeleton surface="card" className="h-5 w-2/3" />
+        <SkeletonText surface="card" lines={2} />
+      </div>
+      <div className={cx("flex flex-col gap-4 p-4 sm:p-5", INK_BORDER, SURFACE)}>
+        <div className="flex items-start gap-3">
+          <Skeleton surface="card" className="h-5 w-5 shrink-0" />
+          <SkeletonText surface="card" lines={2} className="flex-1" />
+        </div>
+        <Skeleton surface="card" className="h-14 w-56" />
+      </div>
+    </SkeletonGroup>
   );
 }
 
@@ -218,7 +274,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
 
         <div className="flex min-w-0 flex-col gap-6">
           {resumeMode && !intent && status !== "executing" ? (
-            <div className={cx("flex flex-col gap-4 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
+            <div className={cx("kl-rise flex flex-col gap-4 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
               <SectionTitle index={2} title="Pick up where you left off" />
               <p className="text-sm leading-relaxed">
                 This tab was executing an intent before it reloaded. Resuming refreshes its status from Kletia and
@@ -254,12 +310,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
             </div>
           ) : null}
 
-          {status === "planning" && !intent ? (
-            <p className={cx("flex items-center gap-2 p-5 text-sm font-bold", INK_BORDER, SURFACE)}>
-              <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              Planning with your accounts…
-            </p>
-          ) : null}
+          {status === "planning" && !intent ? <ReviewSkeleton /> : null}
 
           {intent || status === "failed" ? (
             <div className="flex flex-col gap-4">
@@ -273,6 +324,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
                 describeAccount={describeAccount}
                 walletFor={walletFor}
                 {...(request ? { onReplan: replan } : {})}
+                notifyProgress
                 outcomeFooter={
                   <div className="flex flex-wrap gap-3">
                     <ButtonLink to="/app" size="sm">

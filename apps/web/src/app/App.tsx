@@ -2469,7 +2469,8 @@ export default function App() {
                     {messages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        data-from={msg.role}
+                        className={`kl-msg-in flex min-w-0 items-start gap-2.5 sm:gap-3 md:gap-5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                       >
                         {msg.role === "kletia" && (
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center border-[3px] border-[#4B5563] bg-white shadow-[3px_3px_0_#475569] dark:border-[#4B5563] dark:bg-slate-800 dark:shadow-[3px_3px_0_#475569] sm:h-10 sm:w-10 md:h-12 md:w-12">

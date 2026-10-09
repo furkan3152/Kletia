@@ -49,6 +49,8 @@ export interface IntentStore {
    */
   claimReferences(claims: readonly ReferenceClaim[]): Promise<void>;
   close(): Promise<void>;
+  /** Intents created by one API key since `since` (ISO), counted by status (usage reporting; optional for custom stores). */
+  countByOwner?(ownerKeyId: string, since: string): Promise<Record<string, number>>;
 }
 
 const ACTIVE_STEP_STATUSES: readonly StepStatus[] = ["submitted", "confirmed", "settling"];
@@ -188,6 +190,15 @@ export class MemoryIntentStore implements IntentStore {
     this.records.clear();
     this.claims.clear();
     this.polled.clear();
+  }
+
+  async countByOwner(ownerKeyId: string, since: string): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const record of this.records.values()) {
+      if (record.ownerKeyId !== ownerKeyId || record.graph.createdAt < since) continue;
+      counts[record.graph.status] = (counts[record.graph.status] ?? 0) + 1;
+    }
+    return counts;
   }
 }
 
@@ -371,6 +382,14 @@ export class PostgresIntentStore implements IntentStore {
 
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  async countByOwner(ownerKeyId: string, since: string): Promise<Record<string, number>> {
+    const result = await this.query<{ status: string; count: string }>(
+      "SELECT status, count(*)::text AS count FROM kletia_intents WHERE owner_key_id = $1 AND created_at >= $2 GROUP BY status",
+      [ownerKeyId, since],
+    );
+    return Object.fromEntries(result.rows.map((row) => [row.status, Number(row.count)]));
   }
 }
 

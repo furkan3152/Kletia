@@ -2,8 +2,8 @@
  * `IntentStep.quoteRef` encoding. The planner records what it needs to
  * re-prepare a step later (provider quote id, applied slippage, the share of
  * the previous step's output the step consumes, liquid-staking provider, the
- * planned price floor) and every prepare appends its payload's guaranteed
- * minimum.
+ * planned price floor, whether a withdraw closes the whole position) and every
+ * prepare appends its payload's guaranteed minimum.
  */
 import { isBaseUnitAmount } from "@kletia/core";
 import { base64UrlDecode, base64UrlEncode, canonicalJson, isRecord } from "./util.js";
@@ -31,6 +31,8 @@ export interface StepRef {
   readonly plannedMinimum?: string;
   /** Floors of the most recent prepared payloads, oldest first. */
   readonly floors?: readonly PreparedFloor[];
+  /** Withdraw: close the whole position at the step's venue ("withdraw all"). */
+  readonly closePosition?: true;
 }
 
 const PREFIX = "kq1.";
@@ -85,5 +87,6 @@ export function decodeStepRef(value: string | undefined): StepRef | null {
     ...(typeof parsed.provider === "string" && parsed.provider.length <= 32 ? { provider: parsed.provider } : {}),
     ...planned,
     ...(floors.length > 0 ? { floors } : {}),
+    ...(parsed.closePosition === true ? { closePosition: true as const } : {}),
   };
 }

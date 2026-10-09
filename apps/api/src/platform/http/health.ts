@@ -8,7 +8,7 @@ import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 import type { PublicClient } from "viem";
 import { readSolanaHealth, isSolanaNetworkKey } from "../../networks/solana/index.js";
 import { arbitrumSepoliaPublicClient } from "../../networks/arbitrum-sepolia/config.js";
-import { NETWORK_CLIENTS } from "../../shared/config/networks.js";
+import { NETWORK_CLIENTS, PLATFORM_NETWORK_CLIENTS } from "../../shared/config/networks.js";
 import { getIntentStore } from "../index.js";
 import { apiKeyStoreKind } from "./auth.js";
 import { webhookDispatcherStats, type DispatcherStats } from "./dispatcher.js";
@@ -54,6 +54,10 @@ function evmClientFor(network: NetworkKey): PublicClient | null {
       return NETWORK_CLIENTS.base;
     case "arbitrum":
       return NETWORK_CLIENTS.arbitrum;
+    case "ethereum":
+    case "optimism":
+    case "polygon":
+      return PLATFORM_NETWORK_CLIENTS[network];
     case "arc":
       return NETWORK_CLIENTS.arc;
     case "arbitrum-sepolia":

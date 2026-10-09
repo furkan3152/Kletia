@@ -26,10 +26,13 @@ import { adapterForStep, configureAdapters } from "./adapters/registry.js";
 import type { PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
 import { isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
 import { quoteBindingFor } from "./binding.js";
+import { sameAddress } from "./accounts.js";
+import { sameAsset } from "./assets.js";
 import { evmChainId, isEvmNetwork } from "./chains/evm.js";
 import { assertSolanaTransactionOwner } from "./chains/solana.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
-import { actionForStep, planIntent, summarize } from "./planner.js";
+import { resolveRecipientName } from "./names.js";
+import { actionForStep, planIntent, stepRecipientName, summarize } from "./planner.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
@@ -353,7 +356,7 @@ interface PriceFloor {
  * it). Legacy steps without a recorded plan use their current amounts.
  */
 function plannedFloor(step: IntentStep): PriceFloor | null {
-  if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit") return null;
+  if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit" || step.kind === "withdraw") return null;
   const ref = decodeStepRef(step.quoteRef);
   const planned = ref?.plannedInput && ref.plannedMinimum
     ? { input: ref.plannedInput, minimum: ref.plannedMinimum }
@@ -368,6 +371,43 @@ function plannedFloor(step: IntentStep): PriceFloor | null {
 function priceMoved(floor: PriceFloor | null, prepared: PreparedPayload): boolean {
   if (!floor) return false;
   return BigInt(prepared.expectedOutput.amount) * floor.input < floor.minimum * BigInt(prepared.input.amount);
+}
+
+/**
+ * Value paid on top of the input may not appear or grow after planning: each
+ * prepared extra cost needs a planned cost in the same asset, and may exceed it
+ * by at most the step's slippage. Returns the offending cost's description.
+ */
+function extraCostMoved(step: IntentStep, prepared: PreparedPayload): string | null {
+  const slippageBps = BigInt(decodeStepRef(step.quoteRef)?.slippageBps ?? 0);
+  for (const cost of prepared.extraCosts ?? []) {
+    if (!isBaseUnitAmount(cost.amount)) return `${cost.symbol} (malformed amount)`;
+    const planned = (step.extraCosts ?? [])
+      .filter((entry) => sameAsset(entry, cost))
+      .reduce((total, entry) => total + BigInt(entry.amount), 0n);
+    if (BigInt(cost.amount) * 10_000n > planned * (10_000n + slippageBps)) return `${cost.formatted} ${cost.symbol}`;
+  }
+  return null;
+}
+
+/**
+ * A step planned for a recipient name pays the address the name resolved to
+ * at planning. The name is resolved again before every prepare; a different
+ * address (or an unreadable record) refuses the prepare.
+ */
+async function assertRecipientNameUnchanged(step: IntentStep): Promise<void> {
+  const name = stepRecipientName(step);
+  const recipient = step.recipient ? parseAccountId(step.recipient) : null;
+  if (!name || !recipient) return;
+  const resolution = await resolveRecipientName(name, recipient.chain.key);
+  const current = parseAccountId(`${recipient.chain.id}:${resolution.address}`);
+  if (!current || !sameAddress(current, recipient)) {
+    throw new PlatformError(
+      "RECIPIENT_NAME_CHANGED",
+      `${name} now resolves to ${resolution.address.slice(0, 64)}, not the planned ${recipient.address}. Create a new intent to pay the new address.`,
+      409,
+    );
+  }
 }
 
 export async function prepareStep(intentId: string, stepId: string): Promise<PreparedStepResult> {
@@ -390,8 +430,17 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
       const funded = graph.edges.some((edge) => edge.to === step.id && edge.kind === "funds");
       const action = actionForStep(graph, step);
       const adapter = adapterForStep(step);
+      await assertRecipientNameUnchanged(step);
       const prepared = await adapter.prepare({ graph, step, action, now });
       validatePayload(step, prepared);
+      const movedCost = extraCostMoved(step, prepared);
+      if (movedCost) {
+        throw new PlatformError(
+          "QUOTE_MOVED",
+          `The venue now charges ${movedCost} on top of the amount, more than planned. Create a new intent to re-quote.`,
+          409,
+        );
+      }
       // Quote-specific warnings are replaced by the fresh quote's; static ones (token verification, rent) persist.
       const quoteSpecific = /^(?:Route:|Price |Fees and price impact|Slippage capped|Simulation was unavailable)/u;
       const warnings = [...(step.warnings ?? []).filter((warning) => !quoteSpecific.test(warning)), ...prepared.warnings];
@@ -424,6 +473,7 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
       const tracking: StepEvidence[] = prepared.trackingId
         ? [{ kind: "quote", network: step.network, reference: prepared.trackingId.slice(0, 100), observedAt: preparedAt, detail: "Settlement request prepared." }]
         : [];
+      // step.extraCosts keeps the planned values: every prepare is held to them (extraCostMoved).
       const { references: _references, failure: _failure, ...rest } = step;
       const nextStep: IntentStep = {
         ...rest,

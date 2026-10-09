@@ -1,13 +1,18 @@
 /**
  * POST /v1/quotes: live routes for one asset movement (same- or
- * cross-network) from every adapter that can serve it, plus the best route
- * by guaranteed output. Quotes are advisory; nothing is persisted.
+ * cross-network) from every adapter that can serve it, plus the best route.
+ * Routes are ranked like the planner's venue auction (auction.ts): net
+ * guaranteed output (minimum minus priced extra costs), then time, then
+ * transactions; routes slower than `maxSeconds` (default 600) or with
+ * unpriced extra costs rank last. Quotes are advisory; nothing is persisted.
  */
 import {
   CHAINS,
   formatAccountId,
   isDecimalAmount,
   isNetworkKey,
+  MAX_MAX_SECONDS,
+  MIN_MAX_SECONDS,
   toBaseUnits,
   type AssetAmount,
   type NetworkKey,
@@ -19,7 +24,9 @@ import { PlatformError, toPlatformError } from "../errors.js";
 import { recipientForNetwork } from "./accounts.js";
 import { candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute } from "./adapters/types.js";
-import { resolveAsset, sameAsset } from "./assets.js";
+import { assetAmount, resolveAsset, sameAsset } from "./assets.js";
+import { compareQuotes, DEFAULT_MAX_SECONDS, exclusionReason, venueQuote, type VenueQuote } from "./auction.js";
+import { looksLikeName, resolveRecipientName } from "./names.js";
 import { DEFAULT_SLIPPAGE_BPS } from "./planner.js";
 import { isRecord, roundUsd } from "./util.js";
 
@@ -36,9 +43,11 @@ export interface QuoteRoutesInput {
   readonly amount: string;
   /** Sender (CAIP-10 or address on `network`); a placeholder is used when omitted. */
   readonly account?: string;
-  /** Recipient on `toNetwork` (CAIP-10 or address); defaults to the sender for same-namespace routes. */
+  /** Recipient on `toNetwork` (CAIP-10, address or name); defaults to the sender for same-namespace routes. */
   readonly recipient?: string;
   readonly slippageBps?: number;
+  /** Longest acceptable settlement estimate in seconds (default 600); slower routes rank last. */
+  readonly maxSeconds?: number;
 }
 
 export interface QuoteRoute {
@@ -49,12 +58,18 @@ export interface QuoteRoute {
   readonly input: AssetAmount;
   readonly output: AssetAmount;
   readonly minimumOutput: AssetAmount;
+  /** Guaranteed output net of extra costs; absent when those costs cannot be priced. */
+  readonly netMinimumOutput?: AssetAmount;
   readonly feesUsd?: number;
+  /** Value paid on top of the input (e.g. a fixed native fee). */
+  readonly extraCosts?: readonly AssetAmount[];
   readonly estimatedSeconds: number;
   readonly transactionCount: number;
   readonly settlement: StepSettlement;
   readonly warnings: readonly string[];
   readonly quoteId?: string;
+  /** False when the route cannot be chosen as best (too slow, unpriced extra costs, other asset). */
+  readonly eligible: boolean;
 }
 
 export interface QuoteRoutesResult {
@@ -92,6 +107,7 @@ function flatten(input: Record<string, unknown>): Record<string, unknown> {
     ...(from.account !== undefined || input.account !== undefined ? { account: from.account ?? input.account } : {}),
     ...(to.recipient !== undefined || input.recipient !== undefined ? { recipient: to.recipient ?? input.recipient } : {}),
     ...(input.slippageBps !== undefined ? { slippageBps: input.slippageBps } : {}),
+    ...(input.maxSeconds !== undefined ? { maxSeconds: input.maxSeconds } : {}),
   };
 }
 
@@ -118,8 +134,17 @@ function parseInput(raw: unknown): QuoteRoutesInput {
   if (slippage !== undefined && (typeof slippage !== "number" || !Number.isInteger(slippage) || slippage < 1 || slippage > 1_000)) {
     issues.push({ path: "slippageBps", message: "Must be an integer between 1 and 1000." });
   }
+  const seconds = input.maxSeconds;
+  if (seconds !== undefined && (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds < MIN_MAX_SECONDS || seconds > MAX_MAX_SECONDS)) {
+    issues.push({ path: "maxSeconds", message: `Must be an integer between ${MIN_MAX_SECONDS} and ${MAX_MAX_SECONDS}.` });
+  }
   if (issues.length > 0) throw new PlatformError("INVALID_REQUEST", "The quote request is invalid.", 400, issues);
   return input as unknown as QuoteRoutesInput;
+}
+
+async function recipientFor(value: string, network: NetworkKey): Promise<ParsedAccountId> {
+  if (!looksLikeName(value)) return accountFor(value, network);
+  return accountFor((await resolveRecipientName(value, network)).address, network);
 }
 
 function accountFor(value: string | undefined, network: NetworkKey): ParsedAccountId {
@@ -147,7 +172,7 @@ export async function quoteRoutes(rawInput: unknown): Promise<QuoteRoutesResult>
     }
     const account = accountFor(input.account, input.network);
     const recipient = input.recipient
-      ? accountFor(input.recipient, toNetwork)
+      ? await recipientFor(input.recipient, toNetwork)
       : CHAINS[toNetwork].namespace === account.chain.namespace
         ? { ...account, chain: CHAINS[toNetwork], id: formatAccountId(CHAINS[toNetwork], account.address) }
         : accountFor(undefined, toNetwork);
@@ -173,43 +198,54 @@ export async function quoteRoutes(rawInput: unknown): Promise<QuoteRoutesResult>
       recipient,
       slippageBps: input.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
     };
+    const maxSeconds = input.maxSeconds ?? DEFAULT_MAX_SECONDS;
     const settled = await Promise.allSettled(adapters.map((adapter) => adapter.plan(action)));
-    const routes: QuoteRoute[] = [];
+    const quotes: VenueQuote[] = [];
     const unavailable: { protocol: ProtocolId; code: string; message: string }[] = [];
-    settled.forEach((result, index) => {
+    for (const [index, result] of settled.entries()) {
       const adapter = adapters[index];
-      if (!adapter) return;
+      if (!adapter) continue;
       if (result.status === "rejected") {
         const error = toPlatformError(result.reason);
         unavailable.push({ protocol: adapter.id, code: error.code, message: error.message });
-        return;
+        continue;
       }
-      const planned = result.value;
-      routes.push({
+      quotes.push(await venueQuote(adapter, action, result.value, maxSeconds));
+    }
+    if (quotes.length === 0) {
+      const first = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
+      throw toPlatformError(first?.reason);
+    }
+    quotes.sort((a, b) => compareQuotes(a, b, [], adapters));
+    const routes = quotes.map((quote): QuoteRoute => {
+      const planned = quote.planned;
+      const reason = exclusionReason(quote);
+      const priced = quote.netMinimum !== null && sameAsset(planned.minimumOutput, to);
+      return {
         protocol: planned.protocol,
-        label: adapter.label,
+        label: quote.adapter.label,
         network: input.network,
         toNetwork,
         input: planned.input,
         output: planned.expectedOutput,
         minimumOutput: planned.minimumOutput,
+        ...(priced && quote.netMinimum !== null
+          ? { netMinimumOutput: assetAmount(to, (quote.netMinimum < 0n ? 0n : quote.netMinimum).toString()) }
+          : {}),
         ...(planned.feesUsd !== undefined ? { feesUsd: roundUsd(planned.feesUsd) } : {}),
+        ...(planned.extraCosts && planned.extraCosts.length > 0 ? { extraCosts: planned.extraCosts } : {}),
         estimatedSeconds: planned.estimatedSeconds,
         transactionCount: planned.transactionCount,
         settlement: planned.settlement,
-        warnings: planned.warnings,
+        warnings: reason ? [...planned.warnings, `Not eligible as best route: ${reason}.`] : planned.warnings,
         ...(planned.quoteId ? { quoteId: planned.quoteId } : {}),
-      });
+        eligible: quote.excluded === undefined,
+      };
     });
-    if (routes.length === 0) {
-      const first = settled.find((result): result is PromiseRejectedResult => result.status === "rejected");
-      throw toPlatformError(first?.reason);
-    }
-    routes.sort((a, b) => {
-      const diff = BigInt(b.minimumOutput.amount) - BigInt(a.minimumOutput.amount);
-      return diff > 0n ? 1 : diff < 0n ? -1 : 0;
-    });
-    return { routes, best: routes[0] ?? null, quotedAt: new Date().toISOString(), unavailable };
+    // A lone route is still the best one, unless the caller's own time limit rules it out.
+    const fallback = routes.length === 1 && !(input.maxSeconds !== undefined && quotes[0]?.excluded === "slow") ? routes[0] : null;
+    const best = routes.find((route) => route.eligible) ?? fallback ?? null;
+    return { routes, best, quotedAt: new Date().toISOString(), unavailable };
   } catch (error) {
     throw toPlatformError(error);
   }

@@ -52,12 +52,23 @@ export interface IntentActionSpec {
   readonly from?: string;
   /** Output asset: symbol, or a CAIP-19 id (for bridges may be on `toNetwork`). */
   readonly to?: string;
-  /** Decimal amount of `from` (human units), or "max". */
+  /**
+   * Decimal amount of `from` (human units), or "max": the previous step's
+   * output, or for a `withdraw` the whole position at the venue.
+   */
   readonly amount?: string;
   readonly toNetwork?: NetworkKey;
-  /** Recipient address or CAIP-10 account. Defaults to the acting account. */
+  /**
+   * Recipient address, CAIP-10 account or name (`*.eth`, `*.base.eth`,
+   * `*.sns`). Defaults to the acting account.
+   */
   readonly recipient?: string;
   readonly protocol?: ProtocolId;
+  /**
+   * Action options: `venue` (deposit/withdraw: a YIELD_VENUES id, slug or
+   * vault/market address on `network`), `portionBps` (share of the previous
+   * output), `provider` (liquid-staking provider label).
+   */
   readonly params?: Readonly<Record<string, string | number | boolean>>;
 }
 
@@ -68,7 +79,14 @@ export interface IntentConstraints {
   readonly deadline?: number;
   /** Upper bound for total fees across all steps, in USD. */
   readonly maxFeeUsd?: number;
+  /**
+   * Longest acceptable settlement estimate for a cross-network step, in
+   * seconds (default 600). Slower venue quotes lose the auction.
+   */
+  readonly maxSeconds?: number;
+  /** Venues to choose first when several can serve a step. */
   readonly preferProtocols?: readonly ProtocolId[];
+  /** Venues never to use. */
   readonly avoidProtocols?: readonly ProtocolId[];
   /** Only produce routes inside one capital lane (default: enforced). */
   readonly allowTestnets?: boolean;
@@ -209,9 +227,15 @@ export interface IntentStep {
   readonly expectedOutput?: AssetAmount;
   readonly minimumOutput?: AssetAmount;
   readonly recipient?: AccountId;
+  /** Name the recipient was resolved from (ENS, Basenames, SNS); re-resolved before every prepare. */
+  readonly recipientName?: string;
+  /** Registry venue (YIELD_VENUES id) a deposit or withdraw step executes against. */
+  readonly venue?: string;
   readonly dependsOn: readonly string[];
   readonly settlement?: StepSettlement;
   readonly feesUsd?: number;
+  /** Value the step pays on top of its input (e.g. a bridge's fixed native fee). */
+  readonly extraCosts?: readonly AssetAmount[];
   readonly estimatedSeconds?: number;
   readonly status: StepStatus;
   readonly evidence: readonly StepEvidence[];

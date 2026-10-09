@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import express, { type Express, type Router } from "express";
-import { CHAINS, NETWORK_KEYS, verifyWebhookSignature, type IntentGraph, type NetworkKey } from "@kletia/core";
+import { CHAINS, NETWORK_KEYS, resolveErrorCode, verifyWebhookSignature, type IntentGraph, type NetworkKey } from "@kletia/core";
 import { configurePlatform, getIntentStore, STEP_ID_PATTERN, type IntentStore } from "../../index.js";
 import { MemoryIntentStore } from "../../engine/store.js";
 import {
@@ -424,7 +424,7 @@ describe("GET /v1/openapi.json", () => {
     assert.equal(document.openapi, "3.1.0");
     const served = routerOperations(createPlatformRouter());
     const documented = documentOperations();
-    assert.ok(served.size >= 19, `router serves ${served.size} operations`);
+    assert.ok(served.size >= 28, `router serves ${served.size} operations`);
     assert.deepEqual([...served].filter((operation) => !documented.has(operation)), [], "served but undocumented");
     assert.deepEqual([...documented].filter((operation) => !served.has(operation)), [], "documented but not served");
     const table = new Set(PLATFORM_ROUTES.map((route) => `${route.method.toUpperCase()} /v1${route.path.replace(/:([A-Za-z]+)/gu, "{$1}")}`));
@@ -453,13 +453,58 @@ describe("GET /v1/openapi.json", () => {
         if (!HTTP_METHODS.has(method)) continue;
         assert.ok(operation.operationId && !operationIds.has(operation.operationId), `unique operationId on ${method} ${path}`);
         operationIds.add(operation.operationId);
-        const declared = JSON.stringify(operation.parameters ?? []);
+        const declared = JSON.stringify(resolveParameters(operation.parameters));
         for (const name of names) {
-          const viaComponent = name === "id" && /IntentId/u.test(declared) || name === "stepId" && /StepId/u.test(declared);
-          assert.ok(viaComponent || declared.includes(`"name":"${name}"`), `${method} ${path} declares ${name}`);
+          assert.ok(declared.includes(`"name":"${name}","in":"path"`), `${method} ${path} declares ${name}`);
         }
       }
     }
+  });
+
+  function resolveParameters(parameters: unknown[] | undefined): unknown[] {
+    return (parameters ?? []).map((parameter) => {
+      const reference = (parameter as { $ref?: string }).$ref;
+      if (!reference) return parameter;
+      const name = /^#\/components\/parameters\/(.+)$/u.exec(reference)?.[1] ?? "";
+      return document.components.parameters?.[name];
+    });
+  }
+
+  it("declares Idempotency-Key exactly on the operations that honour it", async () => {
+    const key = await issueKey(server, "openapi-idempotency");
+    const honoured: string[] = [];
+    const refused: string[] = [];
+    for (const route of PLATFORM_ROUTES.filter((entry) => entry.method === "post")) {
+      const path = route.path
+        .replace(":id", route.path.startsWith("/keys") ? `key_${"0".repeat(24)}` : route.path.startsWith("/webhooks") ? `wh_${"0".repeat(24)}` : `int_${"0".repeat(32)}`)
+        .replace(":stepId", "s1");
+      const reply = await call<ErrorEnvelope>(server, "POST", path, { key, body: {}, headers: { "idempotency-key": "not a valid key!" } });
+      const code = (reply.body as Partial<ErrorEnvelope>).error?.code;
+      const operation = `POST /v1${route.path.replace(/:([A-Za-z]+)/gu, "{$1}")}`;
+      if (code === "IDEMPOTENCY_KEY_INVALID") honoured.push(operation);
+      if (code === "IDEMPOTENCY_NOT_SUPPORTED") refused.push(operation);
+    }
+    const declaring: string[] = [];
+    for (const [path, item] of Object.entries(document.paths)) {
+      for (const [method, operation] of Object.entries(item)) {
+        if (!HTTP_METHODS.has(method)) continue;
+        if (JSON.stringify(resolveParameters(operation.parameters)).includes('"name":"Idempotency-Key"')) declaring.push(`${method.toUpperCase()} ${path}`);
+      }
+    }
+    assert.deepEqual(declaring.sort(), [...honoured].sort());
+    assert.deepEqual(
+      honoured.sort(),
+      ["POST /v1/intents", "POST /v1/intents/{id}/cancel", "POST /v1/intents/{id}/steps/{stepId}/submit", "POST /v1/keys", "POST /v1/keys/{id}/rotate", "POST /v1/webhooks"].sort(),
+    );
+    assert.deepEqual(refused, ["POST /v1/intents/{id}/steps/{stepId}/prepare"]);
+  });
+
+  it("names only catalogued error codes in its descriptions", () => {
+    const text = JSON.stringify(document);
+    const mentioned = new Set([...text.matchAll(/\b([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\b/gu)].map((match) => match[1] as string));
+    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS"]);
+    const unknown = [...mentioned].filter((code) => !ignored.has(code) && !resolveErrorCode(code));
+    assert.deepEqual(unknown, []);
   });
 
   it("uses the engine's step id format and documents 422 reference rejections on submit", () => {

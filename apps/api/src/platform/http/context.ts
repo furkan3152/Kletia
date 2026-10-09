@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { PlatformError, toPlatformError, type PlatformIssue } from "../errors.js";
 import { INTENT_ID_PATTERN, MAX_STEP_TRANSACTIONS, STEP_ID_PATTERN } from "../index.js";
+import { errorDocsLink } from "./errorsRoute.js";
 
 export type ApiTier = "public" | "developer" | "operator";
 
@@ -16,6 +17,10 @@ export interface AuthContext {
   readonly tier: ApiTier;
   /** API key id (never the key itself). Absent on the public tier. */
   readonly keyId?: string;
+  /** Project of a developer key: keys issued from one another share it. */
+  readonly projectId?: string;
+  /** The key authenticated with a secret that was rotated out and is inside its grace window. */
+  readonly viaPreviousSecret?: true;
   /** Set when the caller presented a credential that failed; the request is rejected after rate limiting. */
   readonly rejection?: HttpError | PlatformError;
 }
@@ -101,7 +106,14 @@ export function cachePublicly(res: Response, seconds = 60): void {
 }
 
 export interface ErrorBody {
-  readonly error: { readonly code: string; readonly message: string; readonly issues?: readonly PlatformIssue[]; readonly hints?: readonly string[] };
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+    readonly issues?: readonly PlatformIssue[];
+    readonly hints?: readonly string[];
+    /** Documentation of the code in the error catalog (GET /v1/errors). */
+    readonly docs?: string;
+  };
   readonly requestId: string;
 }
 
@@ -139,7 +151,8 @@ export function sendError(req: Request, res: Response, error: unknown): void {
   if (failure.status === 401 && !res.getHeader("WWW-Authenticate")) {
     res.setHeader("WWW-Authenticate", 'Bearer realm="kletia"');
   }
-  const body: ErrorBody = { error: failure.toJSON(), requestId: requestIdOf(req) };
+  const docs = errorDocsLink(failure.code);
+  const body: ErrorBody = { error: { ...failure.toJSON(), ...(docs ? { docs } : {}) }, requestId: requestIdOf(req) };
   res.status(failure.status).json(body);
 }
 

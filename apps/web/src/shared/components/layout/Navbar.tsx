@@ -76,13 +76,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
           </button>
 
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-white shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0B1220] dark:shadow-[3px_3px_0_#475569]">
+        <div className="group/logo flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-white shadow-[3px_3px_0_#1A1A1A] dark:border-[#64748B] dark:bg-[#0B1220] dark:shadow-[3px_3px_0_#475569]">
           <img
             src="/kletia-logo.png"
             alt="Kletia"
             width="32"
             height="32"
-            className="h-7 w-7 object-contain invert dark:invert-0"
+            className="h-7 w-7 object-contain invert transition-transform duration-240 ease-kl-snap group-hover/logo:rotate-90 motion-reduce:transition-none motion-reduce:group-hover/logo:rotate-0 dark:invert-0"
           />
         </div>
         <div className="min-w-0">

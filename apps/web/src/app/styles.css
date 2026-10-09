@@ -477,6 +477,12 @@ html.kletia-site body {
   color: inherit;
 }
 
+/* The console paints #root dark; on site routes the page colour must show
+   through even when the page chunk fails or is still loading. */
+html.kletia-site #root {
+  background-color: transparent;
+}
+
 /* =========================================================================
    EMBED MODE
    /embed runs inside third-party iframes: document scrolling, its own theme
@@ -707,5 +713,669 @@ html.kletia-embed.kletia-embed-transparent body {
     justify-content: center;
     row-gap: 0.75rem;
     padding: 0 1rem;
+  }
+}
+
+/* =========================================================================
+   MOTION SYSTEM
+   Tokens, keyframes and utilities for src/app/site/motion (see the README
+   "Motion system" section). Rules:
+   - Only transform and opacity move (clip-path / stroke-dashoffset for small
+     one-shot effects). Never transform a page-level wrapper.
+   - One-shot entrances use `backwards` fill, so nothing lingers afterwards
+     (no permanent transform or stacking context).
+   - Every infinite animation carries `.kl-loop` (or is listed in the pause
+     rules): it stops off-screen ([data-kl-paused], set by useAutoPause) and
+     in hidden tabs (html[data-kl-hidden], set by the router).
+   - Every class has a prefers-reduced-motion fallback at the end.
+   ========================================================================= */
+:root {
+  /* durations */
+  --kl-dur-instant: 90ms;
+  --kl-dur-fast: 150ms;
+  --kl-dur-base: 240ms;
+  --kl-dur-slow: 420ms;
+  --kl-dur-slower: 700ms;
+  --kl-dur-count: 900ms;
+  --kl-dur-epic: 1200ms;
+
+  /* easings */
+  --kl-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --kl-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --kl-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --kl-ease-snap: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+
+  /* distances */
+  --kl-shift-xs: 2px;
+  --kl-shift-sm: 4px;
+  --kl-shift-md: 8px;
+  --kl-shift-lg: 16px;
+  --kl-shift-xl: 24px;
+
+  /* stagger (per item, capped at 8 items => 480ms) */
+  --kl-stagger: 60ms;
+
+  /* hard shadow ink (theme-aware; used by shadow-hard*) */
+  --kl-shadow-ink: #1a1a1a;
+}
+.dark {
+  --kl-shadow-ink: #475569;
+}
+
+/* ---- Entrances ---------------------------------------------------------- */
+@keyframes kl-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--kl-shift-lg), 0);
+  }
+}
+.kl-rise {
+  animation: kl-rise var(--kl-dur-slow) var(--kl-ease-out) backwards;
+  animation-delay: calc(var(--kl-i, 0) * var(--kl-stagger));
+}
+
+/* A card dropped on the desk: it slides in from its shadow while the shadow grows. */
+@keyframes kl-drop {
+  0% {
+    opacity: 0;
+    transform: translate(var(--kl-shift-md), var(--kl-shift-md));
+    box-shadow: 0 0 0 transparent;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.kl-drop {
+  animation: kl-drop var(--kl-dur-base) var(--kl-ease-snap) backwards;
+}
+/* Graph build-in: kl-drop with a per-node delay. */
+.kl-node-in {
+  animation: kl-drop var(--kl-dur-base) var(--kl-ease-snap) backwards;
+  animation-delay: var(--kl-delay, 0ms);
+}
+
+@keyframes kl-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.4) rotate(-8deg);
+  }
+}
+.kl-stamp {
+  animation: kl-stamp 320ms var(--kl-ease-snap) backwards;
+}
+
+@keyframes kl-shake {
+  17%,
+  50%,
+  83% {
+    transform: translateX(-4px);
+  }
+  33%,
+  67% {
+    transform: translateX(4px);
+  }
+}
+.kl-shake {
+  animation: kl-shake 300ms var(--kl-ease-standard);
+}
+
+@keyframes kl-fill-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+.kl-fill-x {
+  transform-origin: left center;
+  animation: kl-fill-x var(--kl-dur-slow) var(--kl-ease-out) backwards;
+  animation-delay: var(--kl-delay, 0ms);
+}
+
+/* SVG draw-in: needs pathLength="1" on the path. */
+@keyframes kl-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+.kl-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: kl-draw 380ms var(--kl-ease-out) backwards;
+  animation-delay: var(--kl-delay, 0ms);
+}
+.kl-draw-fade {
+  animation: kl-fade var(--kl-dur-slow) var(--kl-ease-out) backwards;
+  animation-delay: var(--kl-delay, 0ms);
+}
+
+/* Chat messages: user messages slide in from the right, others from the left. */
+@keyframes kl-msg-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--kl-msg-x, -12px));
+  }
+}
+.kl-msg-in {
+  animation: kl-msg-in var(--kl-dur-base) var(--kl-ease-out) backwards;
+}
+.kl-msg-in[data-from="user"] {
+  --kl-msg-x: 12px;
+}
+
+/* Route fallback when no View Transition ran: opacity only on the page wrapper. */
+.kl-route-enter {
+  animation: kl-fade 220ms var(--kl-ease-out) backwards;
+}
+
+@keyframes kl-code-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.kl-code-swap {
+  animation: kl-code-swap 180ms var(--kl-ease-out) backwards;
+}
+
+@keyframes kl-ping-once {
+  from {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.kl-ping-once {
+  animation: kl-ping-once 900ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+/* ---- Scroll reveal (Reveal.tsx) ----------------------------------------- */
+@keyframes kl-reveal-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--kl-reveal-shift, var(--kl-shift-lg)), 0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .kl-reveal[data-reveal="pending"]:not([data-reveal-stagger]),
+  .kl-reveal[data-reveal="pending"][data-reveal-stagger] > [data-reveal-item] {
+    opacity: 0;
+    transform: translate3d(0, var(--kl-reveal-shift, var(--kl-shift-lg)), 0);
+  }
+  .kl-reveal[data-reveal="pending"]:not([data-reveal-stagger]):focus-within,
+  .kl-reveal[data-reveal="pending"][data-reveal-stagger]:focus-within > [data-reveal-item] {
+    opacity: 1;
+    transform: none;
+  }
+  .kl-reveal[data-reveal="shown"]:not([data-reveal-stagger]),
+  .kl-reveal[data-reveal="shown"][data-reveal-stagger] > [data-reveal-item] {
+    animation: kl-reveal-in var(--kl-dur-slow) var(--kl-ease-out) backwards;
+    animation-delay: calc(var(--kl-i, 0) * var(--kl-stagger) + var(--kl-reveal-delay, 0ms));
+  }
+}
+
+/* ---- Loops (always with .kl-loop or in the pause list) ------------------ */
+:where(.kl-attn-ring) {
+  position: relative;
+}
+.kl-attn-ring::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 3px solid #ffd60a;
+  pointer-events: none;
+  opacity: 0;
+  animation: kl-attn 1200ms var(--kl-ease-out) infinite;
+}
+.kl-attn-ring--once::after {
+  animation-iteration-count: 1;
+}
+@keyframes kl-attn {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+
+/* Moving diagonal hatch for in-flight steps and bars (sits under the content). */
+:where(.kl-hatch) {
+  position: relative;
+  overflow: hidden;
+}
+.kl-hatch {
+  isolation: isolate;
+  --kl-hatch-color: rgba(26, 26, 26, 0.2);
+}
+.dark .kl-hatch {
+  --kl-hatch-color: rgba(255, 255, 255, 0.16);
+}
+.kl-hatch::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 -18px;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--kl-hatch-color) 0 6px,
+    transparent 6px 12px
+  );
+  animation: kl-hatch 800ms linear infinite;
+}
+@keyframes kl-hatch {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(16.97px);
+  }
+}
+
+/* Skeleton sweep. */
+:where(.kl-shimmer) {
+  position: relative;
+  overflow: hidden;
+}
+.kl-shimmer {
+  --kl-shimmer-color: rgba(255, 255, 255, 0.45);
+}
+.dark .kl-shimmer {
+  --kl-shimmer-color: rgba(255, 255, 255, 0.06);
+}
+.kl-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+  background-image: linear-gradient(90deg, transparent, var(--kl-shimmer-color), transparent);
+  animation: kl-shimmer 1.4s linear infinite;
+}
+@keyframes kl-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Marquee track (Marquee.tsx); duration and shift come from measurements. */
+.kl-mq-track {
+  animation: kl-mq var(--kl-mq-duration, 60s) linear infinite;
+}
+@keyframes kl-mq {
+  to {
+    transform: translate3d(var(--kl-mq-shift, -50%), 0, 0);
+  }
+}
+.kl-mq:focus-within .kl-mq-track {
+  animation-play-state: paused;
+}
+@media (hover: hover) {
+  .kl-mq:hover .kl-mq-track {
+    animation-play-state: paused;
+  }
+}
+
+/* ---- Hover and interaction ---------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  .kl-lift {
+    transition:
+      transform var(--kl-dur-fast) var(--kl-ease-standard),
+      box-shadow var(--kl-dur-fast) var(--kl-ease-standard);
+  }
+  .kl-lift:focus-within {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--kl-lift-shadow, 6px 6px 0 var(--kl-shadow-ink));
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .kl-lift:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--kl-lift-shadow, 6px 6px 0 var(--kl-shadow-ink));
+  }
+}
+
+:where(.kl-spotlight) {
+  position: relative;
+}
+.kl-spotlight {
+  isolation: isolate;
+}
+.dark .kl-spotlight {
+  --kl-spot-strength: 18%;
+}
+.kl-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background-image: radial-gradient(
+    180px circle at var(--kl-mx, 50%) var(--kl-my, 50%),
+    color-mix(in srgb, var(--kl-spot, #0052ff) var(--kl-spot-strength, 12%), transparent),
+    transparent 70%
+  );
+  transition: opacity var(--kl-dur-fast) var(--kl-ease-standard);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .kl-spotlight:hover::before {
+    opacity: 1;
+  }
+}
+
+/* <details class="kl-details">: animated open where ::details-content and
+   interpolate-size exist; other browsers open instantly. */
+@supports (interpolate-size: allow-keywords) {
+  .kl-details {
+    interpolate-size: allow-keywords;
+  }
+  .kl-details::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+  }
+  .kl-details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .kl-details::details-content {
+      transition:
+        block-size var(--kl-dur-slow) var(--kl-ease-out),
+        opacity var(--kl-dur-slow) var(--kl-ease-out),
+        content-visibility var(--kl-dur-slow) allow-discrete;
+    }
+  }
+}
+.kl-details-chevron {
+  transition: transform var(--kl-dur-fast) var(--kl-ease-standard);
+}
+.kl-details[open] > summary .kl-details-chevron {
+  transform: rotate(90deg);
+}
+
+/* Horizontal overflow cue: shadows at the scrollable edges (pure CSS). Set
+   --kl-scroll-bg to the container background; cells must stay transparent. */
+.kl-scroll-shadow {
+  --kl-scroll-bg: #f4f1ea;
+  --kl-scroll-shade: rgba(26, 26, 26, 0.3);
+  background-image:
+    linear-gradient(to right, var(--kl-scroll-bg) 30%, transparent),
+    linear-gradient(to left, var(--kl-scroll-bg) 30%, transparent),
+    radial-gradient(farthest-side at 0 50%, var(--kl-scroll-shade), transparent),
+    radial-gradient(farthest-side at 100% 50%, var(--kl-scroll-shade), transparent);
+  background-position:
+    left center,
+    right center,
+    left center,
+    right center;
+  background-size:
+    40px 100%,
+    40px 100%,
+    14px 100%,
+    14px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+  background-color: var(--kl-scroll-bg);
+}
+.dark .kl-scroll-shadow {
+  --kl-scroll-bg: #0b1120;
+  --kl-scroll-shade: rgba(0, 0, 0, 0.65);
+}
+
+/* CodeBlock: sliding tab indicator and line reveal. */
+@media (prefers-reduced-motion: no-preference) {
+  .kl-tab-indicator {
+    transition:
+      transform var(--kl-dur-base) var(--kl-ease-snap),
+      width var(--kl-dur-base) var(--kl-ease-snap),
+      height var(--kl-dur-base) var(--kl-ease-snap);
+  }
+  pre[data-code-reveal="pending"] {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+/* Toasts. */
+@keyframes kl-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--kl-shift-md));
+  }
+}
+@keyframes kl-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes kl-toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.kl-toast {
+  animation: kl-toast-in var(--kl-dur-base) var(--kl-ease-snap) backwards;
+}
+.kl-toast.kl-toast--leaving {
+  animation: kl-toast-out 160ms var(--kl-ease-in) forwards;
+}
+.kl-toast-timer {
+  transform-origin: left center;
+  animation-name: kl-toast-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* ---- Pause rules ---------------------------------------------------------- */
+html[data-kl-hidden]
+  :is(
+    .kl-loop,
+    .kl-marquee,
+    .kl-mq-track,
+    .kl-float,
+    .kl-ping,
+    .kl-flow-v,
+    .kl-flow-h,
+    .kl-packet,
+    .kl-caret,
+    .kl-attn-ring,
+    .kl-hatch,
+    .kl-shimmer,
+    .animate-spin,
+    .animate-pulse,
+    .animate-ping
+  ),
+[data-kl-paused]
+  :is(
+    .kl-loop,
+    .kl-marquee,
+    .kl-mq-track,
+    .kl-float,
+    .kl-ping,
+    .kl-flow-v,
+    .kl-flow-h,
+    .kl-packet,
+    .kl-caret,
+    .kl-attn-ring,
+    .kl-hatch,
+    .kl-shimmer
+  ),
+:is(
+    .kl-loop,
+    .kl-marquee,
+    .kl-mq-track,
+    .kl-float,
+    .kl-ping,
+    .kl-flow-v,
+    .kl-flow-h,
+    .kl-packet,
+    .kl-caret,
+    .kl-attn-ring,
+    .kl-hatch,
+    .kl-shimmer
+  )[data-kl-paused] {
+  animation-play-state: paused !important;
+}
+html[data-kl-hidden] :is(.kl-attn-ring, .kl-hatch, .kl-shimmer)::before,
+html[data-kl-hidden] :is(.kl-attn-ring, .kl-hatch, .kl-shimmer)::after,
+[data-kl-paused] :is(.kl-attn-ring, .kl-hatch, .kl-shimmer)::before,
+[data-kl-paused] :is(.kl-attn-ring, .kl-hatch, .kl-shimmer)::after,
+:is(.kl-attn-ring, .kl-hatch, .kl-shimmer)[data-kl-paused]::before,
+:is(.kl-attn-ring, .kl-hatch, .kl-shimmer)[data-kl-paused]::after {
+  animation-play-state: paused !important;
+}
+
+/* ---- View Transitions (motion/viewTransition.ts) --------------------------- */
+html[data-kl-vt="route"] .kl-page {
+  view-transition-name: kl-page;
+}
+/* The sticky site header stays on top of the moving page and swaps instantly. */
+html[data-kl-vt="route"] :is(#root > div > header, .kl-site-header) {
+  view-transition-name: kl-header;
+}
+html[data-kl-vt]::view-transition {
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-kl-vt="route"]::view-transition-old(root),
+  html[data-kl-vt="route"]::view-transition-new(root),
+  html[data-kl-vt="route"]::view-transition-group(kl-header),
+  html[data-kl-vt="route"]::view-transition-new(kl-header) {
+    animation: none;
+  }
+  html[data-kl-vt="route"]::view-transition-old(kl-header) {
+    display: none;
+  }
+  /* No height morph: only the page body fades and nudges. */
+  html[data-kl-vt="route"]::view-transition-group(kl-page) {
+    animation: none;
+  }
+  html[data-kl-vt="route"]::view-transition-old(kl-page) {
+    animation: kl-vt-out 160ms var(--kl-ease-in) both;
+  }
+  html[data-kl-vt="route"]::view-transition-new(kl-page) {
+    animation: kl-vt-in 260ms var(--kl-ease-out) both;
+  }
+  html[data-kl-vt="theme"]::view-transition-old(root) {
+    animation: none;
+  }
+  html[data-kl-vt="theme"]::view-transition-new(root) {
+    animation: kl-theme-in 450ms var(--kl-ease-out);
+  }
+  html[data-kl-vt="filter"]::view-transition-old(root),
+  html[data-kl-vt="filter"]::view-transition-new(root) {
+    animation: none;
+  }
+  html[data-kl-vt="filter"]::view-transition-group(*) {
+    animation-duration: var(--kl-dur-base);
+    animation-timing-function: var(--kl-ease-standard);
+  }
+}
+@keyframes kl-vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes kl-vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes kl-theme-in {
+  from {
+    clip-path: circle(0 at var(--kl-vt-x, 50%) var(--kl-vt-y, 0%));
+  }
+  to {
+    clip-path: circle(150vmax at var(--kl-vt-x, 50%) var(--kl-vt-y, 0%));
+  }
+}
+
+/* ---- Print ------------------------------------------------------------------ */
+@media print {
+  .kl-reveal[data-reveal],
+  .kl-reveal[data-reveal] > [data-reveal-item] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  pre[data-code-reveal] {
+    clip-path: none !important;
+  }
+  .kl-loop {
+    animation: none !important;
+  }
+}
+
+/* ---- Reduced motion: final states, or opacity-only within 150ms --------- */
+@media (prefers-reduced-motion: reduce) {
+  .kl-rise,
+  .kl-drop,
+  .kl-node-in,
+  .kl-shake,
+  .kl-fill-x,
+  .kl-draw,
+  .kl-draw-fade,
+  .kl-route-enter,
+  .kl-code-swap,
+  .kl-ping-once,
+  .kl-mq-track,
+  .kl-loop,
+  .kl-toast-timer {
+    animation: none !important;
+  }
+  .kl-stamp,
+  .kl-msg-in,
+  .kl-toast {
+    animation: kl-fade 150ms ease-out backwards !important;
+  }
+  .kl-toast.kl-toast--leaving {
+    animation: kl-toast-fade-out 150ms ease-in forwards !important;
+  }
+  .kl-toast-timer {
+    display: none;
+  }
+  .kl-reveal[data-reveal],
+  .kl-reveal[data-reveal] > [data-reveal-item] {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  /* A static yellow outline instead of the pulsing ring (none for one-shot rings). */
+  .kl-attn-ring::after {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+  .kl-attn-ring--once::after {
+    opacity: 0;
+  }
+  .kl-hatch::before {
+    animation: none !important;
+  }
+  .kl-shimmer::after {
+    display: none;
+  }
+  .kl-lift,
+  .kl-tab-indicator,
+  .kl-details-chevron {
+    transition: none !important;
+  }
+  .kl-spotlight::before {
+    display: none;
+  }
+}
+@keyframes kl-toast-fade-out {
+  to {
+    opacity: 0;
   }
 }

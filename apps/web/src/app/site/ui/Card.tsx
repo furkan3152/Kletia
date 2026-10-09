@@ -52,7 +52,11 @@ export function Card({
   onPointerLeave,
   ...rest
 }: CardProps) {
-  const spot = useSpotlight<HTMLElement>({ color: spotlightColor ?? SPOT_COLORS[tone] });
+  const {
+    ref: spotRef,
+    handlers: spotHandlers,
+    style: spotStyle,
+  } = useSpotlight<HTMLElement>({ color: spotlightColor ?? SPOT_COLORS[tone] });
   const classes = cx(
     "relative",
     INK_BORDER,
@@ -79,22 +83,22 @@ export function Card({
   }
   return (
     <Element
-      ref={spot.ref}
+      ref={spotRef}
       {...rest}
       onPointerEnter={(event: React.PointerEvent<HTMLElement>) => {
         onPointerEnter?.(event);
-        spot.handlers.onPointerEnter(event);
+        spotHandlers.onPointerEnter(event);
       }}
       onPointerMove={(event: React.PointerEvent<HTMLElement>) => {
         onPointerMove?.(event);
-        spot.handlers.onPointerMove(event);
+        spotHandlers.onPointerMove(event);
       }}
       onPointerLeave={(event: React.PointerEvent<HTMLElement>) => {
         onPointerLeave?.(event);
-        spot.handlers.onPointerLeave(event);
+        spotHandlers.onPointerLeave(event);
       }}
       className={classes}
-      style={{ ...spot.style, ...style }}
+      style={{ ...spotStyle, ...style }}
     >
       {children}
     </Element>

@@ -61,7 +61,7 @@ import { recordedVenueId } from "./adapters/lending/common.js";
 import { activeProtocolAdapters, adapterForProtocol, candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
 import { assertContractAmount } from "./contracts/caps.js";
-import { contractDirectory, contractsEnabled, type ContractPhrase } from "./contracts/directory.js";
+import { contractDirectory, contractsEnabled, withActivationRetry, type ContractPhrase } from "./contracts/directory.js";
 import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
@@ -760,12 +760,12 @@ async function draftContractStep(
     throw new PlatformError("CONTRACT_SUSPENDED", `${registration.id} is suspended; the integrator must inspect and reverify it.`, 409, issue(`${path}.contract`, "Suspended."));
   }
   if (registration.status === "pending" || registration.activeRevision === null) {
-    throw new PlatformError(
+    throw withActivationRetry(new PlatformError(
       "CONTRACT_PENDING",
       `${registration.id} activates${registration.activatesAt ? ` at ${registration.activatesAt}` : " after its activation delay"}; retry then.`,
       409,
       issue(`${path}.contract`, "Pending activation."),
-    );
+    ), registration.activatesAt);
   }
   if (definition.network !== network) {
     throw new PlatformError(

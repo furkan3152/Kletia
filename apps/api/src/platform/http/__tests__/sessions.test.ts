@@ -12,7 +12,10 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type { IntentGraph, SessionView } from "@kletia/core";
-import { EVM_ACCOUNT, resetEngine, SOL_ACCOUNT } from "../../engine/__tests__/helpers.js";
+import { setTimeout as sleep } from "node:timers/promises";
+import { EVM_ACCOUNT, resetEngine, SOL_ACCOUNT, STUB_ADAPTERS, stubJupiter } from "../../engine/__tests__/helpers.js";
+import { configurePlatform } from "../../engine/service.js";
+import { PlatformError } from "../../errors.js";
 import { assertError, call, serve, useTestEnvironment, type TestServer } from "./support.js";
 
 useTestEnvironment();
@@ -202,6 +205,55 @@ describe("GET /v1/sessions/{id} and POST /v1/sessions/{id}/intents", () => {
     assert.equal((await call<{ session: SessionView }>(server, "GET", `/sessions/${second.id}`)).body.session.used, 0, "the use was given back");
   });
 
+  it("numbers multi-use references by claimed use, so a concurrent failed plan never bricks the session", async () => {
+    // A quote that takes a round trip and fails for one wallet: that visitor's use is given back while
+    // another visitor's intent, claimed after it, already holds the next reference number.
+    const unlucky = "HXtBm8XZbxaTt41uqaKhwUAa6Z1aPyvJdsZVENiWsetg";
+    const slowJupiter = {
+      ...stubJupiter,
+      plan: async (action: Parameters<typeof stubJupiter.plan>[0]) => {
+        await sleep(60);
+        if (action.account.address === unlucky) throw new PlatformError("QUOTE_UNAVAILABLE", "No route for this wallet right now.", 502);
+        return stubJupiter.plan(action);
+      },
+    };
+    configurePlatform({ adapters: [slowJupiter, ...STUB_ADAPTERS.filter((adapter) => adapter !== stubJupiter)] });
+    // A router of its own: a fresh public-tier budget for the visitors of this test.
+    const server = await serve((app) => {
+      app.use("/v1", createPlatformRouter(), platformErrorHandler);
+    });
+    try {
+      const owner = await issueKey("campaign");
+      const session = await createSession(owner.key, { actions: [SWAP], allowedOrigins: [ORIGIN], maxIntents: 10, clientReference: "campaign-7" });
+      const failing = call(server, "POST", `/sessions/${session.id}/intents`, { body: { accounts: [`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${unlucky}`], hostOrigin: ORIGIN } });
+      await sleep(10);
+      const succeeding = call<{ intent: IntentGraph }>(server, "POST", `/sessions/${session.id}/intents`, { body: visitor() });
+      const [failed, ok] = await Promise.all([failing, succeeding]);
+      assertError(failed, 502, "QUOTE_UNAVAILABLE");
+      assert.equal(ok.status, 201, JSON.stringify(ok.body));
+      assert.equal(ok.body.intent.request.clientReference, "campaign-7:2");
+      // Later visitors: each gets a fresh number (3, 4, ...), never the given-back 1 or the taken 2.
+      const later = [
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:6Ld9vWuj2dW1WJAxyukvuJ1zZM5cKgpkdaurKRt5T6iP",
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:5wvVJvxnru7C5MZKKaSdf6fBSKrBMBzNJRb3qo4FCknK",
+      ];
+      const references: string[] = [];
+      for (const account of later) {
+        const reply = await call<{ intent: IntentGraph }>(server, "POST", `/sessions/${session.id}/intents`, { body: { accounts: [account], hostOrigin: ORIGIN } });
+        assert.equal(reply.status, 201, JSON.stringify(reply.body));
+        references.push(reply.body.intent.request.clientReference ?? "");
+      }
+      assert.deepEqual(references, ["campaign-7:3", "campaign-7:4", "campaign-7:5"]);
+      const view = (await call<{ session: SessionView }>(server, "GET", `/sessions/${session.id}`)).body.session;
+      assert.equal(view.used, 4, "the failed visitor's use was given back; four intents exist");
+      assert.equal(view.status, "active");
+    } finally {
+      configurePlatform({ adapters: STUB_ADAPTERS });
+      await server.close();
+    }
+  });
+
   it("stops serving sessions of a revoked key", async () => {
     const owner = await issueKey("revoked");
     const session = await createSession(owner.key, { actions: [SWAP], allowedOrigins: [ORIGIN] });
@@ -220,6 +272,7 @@ describe("session stores", () => {
       allowedOrigins: [ORIGIN],
       maxIntents: 1,
       used: 0,
+      issued: 0,
       expiresAt: new Date(START + 60_000).toISOString(),
       createdAt: new Date(START).toISOString(),
       ...overrides,
@@ -237,8 +290,13 @@ describe("session stores", () => {
     const results = await Promise.all(Array.from({ length: 6 }, () => store.use(first.id, nowIso)));
     assert.equal(results.filter((result) => result.state === "used_ok").length, 2);
     assert.equal(results.filter((result) => result.state === "used").length, 4);
+    assert.deepEqual(results.flatMap((result) => (result.state === "used_ok" ? [result.record.issued] : [])).sort(), [1, 2]);
     await store.release(first.id);
-    assert.equal((await store.use(first.id, nowIso)).state, "used_ok");
+    assert.equal((await store.get(first.id))?.used, 1);
+    assert.equal((await store.get(first.id))?.issued, 2, "a given-back use keeps its number");
+    const again = await store.use(first.id, nowIso);
+    assert.equal(again.state, "used_ok");
+    assert.equal(again.state === "used_ok" ? again.record.issued : null, 3, "the next use is numbered after every number already handed out");
     assert.equal((await store.use(first.id, new Date(START + 61_000).toISOString())).state, "expired");
     assert.equal((await store.use(`cs_${"0".repeat(32)}`, nowIso)).state, "missing");
     await store.create(record(owner), 2, new Date(START + 61_000).toISOString());

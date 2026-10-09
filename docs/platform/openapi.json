@@ -72,6 +72,14 @@
       "description": "Per-key request counts and rate-limit state."
     },
     {
+      "name": "Contracts",
+      "description": "Register your own EVM contracts and Solana Actions so your key's intents can call them: pinned, simulated, verified, never audited by Kletia."
+    },
+    {
+      "name": "Sessions",
+      "description": "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet."
+    },
+    {
       "name": "MCP",
       "description": "Read-only Model Context Protocol server for agents."
     }
@@ -1807,6 +1815,1062 @@
         }
       }
     },
+    "/v1/contracts": {
+      "post": {
+        "operationId": "registerContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Register a custom contract (EVM) or Solana Actions endpoint",
+        "description": "Validates the definition (the same rules as validateContractDefinition in @kletia/core: forbidden functions, argument and event bindings, reserved names, deny lists), pins the code identity on-chain (code hash, proxy implementation; Solana program data, deploy slot, upgrade authority), records source (Sourcify) / program (OtterSec) verification and, for Solana, each action's metadata. Mainnet registrations stay `pending` for the activation delay (default 15 minutes; testnets activate at once) and send `contract.registered` then `contract.activated` webhooks; integrator names that use a reserved brand also wait for domain verification. At most 25 registrations per key; registrations, updates and reverifications share 20 per hour per key. A rotated-out secret cannot register (403 KEY_SECRET_ROTATED). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The registration (status pending or active).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listContracts",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "List the caller's registrations and its project's visible ones",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "vm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ContractVm"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "active",
+                "suspended"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registrations, oldest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/contracts/inspect": {
+      "get": {
+        "operationId": "inspectContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "What registering an address or programs would pin and allow",
+        "description": "EVM (`network` + `address`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, and every function marked allowed or forbidden with the reason. Solana (`network` + `programs`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares 20 calls per minute per key with the test endpoint.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "network",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          },
+          {
+            "name": "programs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 400
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inspection.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractInspectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/contracts/{id}": {
+      "get": {
+        "operationId": "getContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Read a registration",
+        "description": "The owner also gets the ABI (or programs and payees) and the revision history. Unknown ids and other keys' private registrations both answer 404 CONTRACT_NOT_FOUND.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registration.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Change a registration (owner only)",
+        "description": "Labels and phrases change in place. Any other change is re-validated, re-pinned and stored as a new revision: pending for the activation delay on mainnet (the active revision keeps serving until then; intents planned on it stop preparing once the new one activates, 409 CONTRACT_REVISION_CHANGED), immediate on testnets. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractDefinitionPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The registration.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Delete a registration (owner only; idempotent)",
+        "description": "Planned intents that use it stop preparing (409 CONTRACT_NOT_USABLE); verification of submitted steps continues.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/contracts/{id}/test": {
+      "post": {
+        "operationId": "testContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Dry-run an action for an account (simulation + review)",
+        "description": "Runs the plan and prepare pipeline of one entry for `account` (the owner tests the latest revision, also while it is pending): bindings, approvals, simulation and the review users will see. Never stored, never signed, and the response carries no calldata to persist. 20 per minute per key (shared with inspect).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The dry run.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/contracts/{id}/reverify": {
+      "post": {
+        "operationId": "reverifyContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Re-read pins and verification after an intended upgrade (owner only)",
+        "description": "Re-pins the code, re-checks Sourcify / OtterSec and the domain file (`/.well-known/kletia.json` listing the id). Changed pins, or a suspension for pins_changed, program_changed or outcome_mismatch, create a new revision (pending on mainnet; the registration becomes active again when it activates). Unchanged code only refreshes the verification. Operator suspensions cannot be lifted here. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The registration.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/contracts/{id}/suspend": {
+      "post": {
+        "operationId": "suspendContract",
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Suspend any registration (operator key)",
+        "description": "Abuse handling. Sends contract.suspended to the owner's webhooks; the owner cannot lift it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ct_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractSuspendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The suspended registration.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/sessions": {
+      "post": {
+        "operationId": "createSession",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Create a session the embed turns into an intent for a visitor",
+        "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Session view for the embed (public; the id is the capability)",
+        "description": "Integrator identity, allowed origins, action labels, amount bounds, status and expiry. Never the key or the project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cs_[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}/intents": {
+      "post": {
+        "operationId": "createSessionIntent",
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Turn a session into an intent for the visitor's accounts (public)",
+        "description": "Re-checks expiry (410 SESSION_EXPIRED), the use count (409 SESSION_USED; one atomic use) and that `hostOrigin` is an allowed origin (403 SESSION_ORIGIN_FORBIDDEN), then plans the template with the visitor's accounts under the session owner's key, with `metadata.sessionId` set. A plan that fails gives the use back. The visitor reviews and signs every step in their own wallet.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^cs_[0-9a-f]{32}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The intent this visitor already created with the session's clientReference.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
     "/v1/errors": {
       "get": {
         "operationId": "listErrors",
@@ -1924,7 +2988,7 @@
           "MCP"
         ],
         "summary": "Model Context Protocol server (Streamable HTTP)",
-        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
+        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2173,6 +3237,78 @@
         }
       }
     },
+    "contractEvent": {
+      "post": {
+        "operationId": "receiveContractEvent",
+        "summary": "Contract registration event delivery",
+        "description": "Sent to the webhooks of the registration's own key that subscribe to the type: contract.registered (a registration or a new revision; on mainnet it activates after the delay), contract.activated, contract.suspended (pins changed, outcome mismatch, program changed, domain no longer verified, operator) and contract.reactivated. Same signing, retries and queueing as intent events. Webhooks created before these types existed do not receive them unless re-created.",
+        "parameters": [
+          {
+            "name": "Kletia-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^t=[0-9]+,v1=[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "Kletia-Event-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "Kletia-Event-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "contract.registered",
+                "contract.activated",
+                "contract.suspended",
+                "contract.reactivated"
+              ]
+            }
+          },
+          {
+            "name": "Kletia-Webhook-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Kletia-Delivery-Attempt",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-4]$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        }
+      }
+    },
     "webhookTest": {
       "post": {
         "operationId": "receiveWebhookTest",
@@ -2353,7 +3489,7 @@
         }
       },
       "Forbidden": {
-        "description": "Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN).",
+        "description": "Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2368,7 +3504,7 @@
         }
       },
       "NotFound": {
-        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, NOT_FOUND).",
+        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, NOT_FOUND).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2383,7 +3519,7 @@
         }
       },
       "Conflict": {
-        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, ...).",
+        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2398,7 +3534,7 @@
         }
       },
       "Gone": {
-        "description": "Expired (INTENT_EXPIRED, DEADLINE_PASSED).",
+        "description": "Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2443,7 +3579,7 @@
         }
       },
       "Unprocessable": {
-        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
+        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2491,7 +3627,7 @@
         }
       },
       "BadGateway": {
-        "description": "An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE).",
+        "description": "An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE, ACTION_ENDPOINT_UNAVAILABLE).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2506,7 +3642,7 @@
         }
       },
       "Unavailable": {
-        "description": "Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED).",
+        "description": "Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -2645,7 +3781,9 @@
           "repay",
           "approve",
           "claim",
-          "read"
+          "read",
+          "call",
+          "action"
         ]
       },
       "IntentStatus": {
@@ -2901,6 +4039,17 @@
                 "boolean"
               ]
             }
+          },
+          "contract": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^(?:ct_[0-9a-f]{24}|[A-Za-z0-9][A-Za-z0-9 .-]{1,63})$",
+            "description": "`call` / `action` only (required there): a contract registration id (ct_…) or one of its aliases. Only intents created with the registration's key (or a key of its project, for project-visible registrations) can use it."
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$",
+            "description": "`call` / `action` only (required there): the registration's action id, e.g. `deposit`."
           }
         },
         "required": [
@@ -3294,6 +4443,9 @@
               "code",
               "message"
             ]
+          },
+          "call": {
+            "$ref": "#/components/schemas/ContractStepCall"
           }
         },
         "required": [
@@ -3610,6 +4762,10 @@
           },
           "quoteBinding": {
             "type": "string"
+          },
+          "review": {
+            "$ref": "#/components/schemas/ContractReview",
+            "description": "Custom contract steps: the review of exactly these transactions. Show it to the user before handing the transactions to the wallet."
           }
         },
         "required": [
@@ -3785,6 +4941,68 @@
           "data"
         ]
       },
+      "ContractEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "contract.registered",
+              "contract.activated",
+              "contract.suspended",
+              "contract.reactivated"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "contractId": {
+                "type": "string",
+                "pattern": "^ct_[0-9a-f]{24}$"
+              },
+              "ownerKeyId": {
+                "type": "string"
+              },
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "target": {
+                "type": "string",
+                "description": "Lower-case contract address (EVM) or the Solana Actions origin."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "description": "Suspensions: pins_changed, outcome_mismatch, program_changed, domain_unverified or `operator: <reason>`."
+              }
+            },
+            "required": [
+              "contractId",
+              "ownerKeyId",
+              "network",
+              "target",
+              "revision"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ],
+        "description": "Contract registration lifecycle, delivered to the webhooks of the registration's own key only."
+      },
       "KletiaEvent": {
         "oneOf": [
           {
@@ -3795,6 +5013,9 @@
           },
           {
             "$ref": "#/components/schemas/IntentStepUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ContractEvent"
           }
         ],
         "discriminator": {
@@ -3802,7 +5023,11 @@
           "mapping": {
             "intent.created": "#/components/schemas/IntentCreatedEvent",
             "intent.status_changed": "#/components/schemas/IntentStatusChangedEvent",
-            "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent"
+            "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent",
+            "contract.registered": "#/components/schemas/ContractEvent",
+            "contract.activated": "#/components/schemas/ContractEvent",
+            "contract.suspended": "#/components/schemas/ContractEvent",
+            "contract.reactivated": "#/components/schemas/ContractEvent"
           }
         }
       },
@@ -3993,6 +5218,31 @@
               "assetCount": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "customContracts": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "call",
+                      "action"
+                    ]
+                  },
+                  "protocol": {
+                    "$ref": "#/components/schemas/ProtocolId"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "False while the deployment disables custom contracts or no adapter executes them."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "protocol",
+                  "enabled"
+                ],
+                "description": "How this network takes integrator contracts: EVM `call` steps, Solana `action` steps (registrations: POST /v1/contracts)."
               }
             },
             "required": [
@@ -4000,7 +5250,8 @@
               "protocols",
               "executableProtocols",
               "routes",
-              "assetCount"
+              "assetCount",
+              "customContracts"
             ]
           }
         ]
@@ -4028,7 +5279,8 @@
               "payments",
               "security",
               "data",
-              "token-program"
+              "token-program",
+              "custom"
             ]
           },
           "networks": {
@@ -4568,12 +5820,20 @@
               },
               "webhooks": {
                 "type": "string"
+              },
+              "contracts": {
+                "type": "string"
+              },
+              "sessions": {
+                "type": "string"
               }
             },
             "required": [
               "intents",
               "apiKeys",
-              "webhooks"
+              "webhooks",
+              "contracts",
+              "sessions"
             ]
           },
           "webhooks": {
@@ -4647,6 +5907,33 @@
               "status",
               "dispatcher"
             ]
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "False when the deployment's kill switch disables custom contracts."
+              },
+              "simulation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "unavailable"
+                  ]
+                },
+                "description": "Per network: whether a configured endpoint can simulate now (custom contract steps are never prepared unsimulated). Null when not probed."
+              }
+            },
+            "required": [
+              "enabled",
+              "simulation"
+            ]
           }
         },
         "required": [
@@ -4657,7 +5944,8 @@
           "uptimeSeconds",
           "networks",
           "storage",
-          "webhooks"
+          "webhooks",
+          "contracts"
         ]
       },
       "Webhook": {
@@ -4678,7 +5966,11 @@
               "enum": [
                 "intent.created",
                 "intent.status_changed",
-                "intent.step_updated"
+                "intent.step_updated",
+                "contract.registered",
+                "contract.activated",
+                "contract.suspended",
+                "contract.reactivated"
               ]
             }
           },
@@ -4716,12 +6008,16 @@
               "enum": [
                 "intent.created",
                 "intent.status_changed",
-                "intent.step_updated"
+                "intent.step_updated",
+                "contract.registered",
+                "contract.activated",
+                "contract.suspended",
+                "contract.reactivated"
               ]
             },
             "minItems": 1,
             "uniqueItems": true,
-            "description": "Defaults to every intent event."
+            "description": "Defaults to every event type that exists when the webhook is created (intent events of the key's intents, contract events of its registrations)."
           }
         },
         "required": [
@@ -4911,6 +6207,10 @@
               "intent.created",
               "intent.status_changed",
               "intent.step_updated",
+              "contract.registered",
+              "contract.activated",
+              "contract.suspended",
+              "contract.reactivated",
               "webhook.test"
             ]
           },
@@ -5130,6 +6430,36 @@
               "byStatus"
             ],
             "description": "Intents the key created in the window, by current status."
+          },
+          "contracts": {
+            "type": "object",
+            "properties": {
+              "registered": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "suspended": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "preparedToday": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Priced custom contract steps prepared today (UTC)."
+              },
+              "notionalTodayUsd": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Their notional, counted against the key's daily cap."
+              }
+            },
+            "required": [
+              "registered",
+              "suspended",
+              "preparedToday",
+              "notionalTodayUsd"
+            ],
+            "description": "The key's contract registrations and today's custom contract activity."
           }
         },
         "required": [
@@ -5142,7 +6472,8 @@
           "totals",
           "byRoute",
           "series",
-          "intents"
+          "intents",
+          "contracts"
         ]
       },
       "ShieldsBadge": {
@@ -5304,6 +6635,2602 @@
         },
         "required": [
           "references"
+        ]
+      },
+      "ContractVm": {
+        "type": "string",
+        "enum": [
+          "evm",
+          "svm"
+        ]
+      },
+      "AbiParameter": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "Canonical ABI type (`uint256`, `address[]`, `tuple`)."
+          },
+          "internalType": {
+            "type": "string"
+          },
+          "indexed": {
+            "type": "boolean"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiParameter"
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "AbiItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "function",
+              "event",
+              "error"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "stateMutability": {
+            "type": "string",
+            "enum": [
+              "nonpayable",
+              "payable",
+              "view",
+              "pure"
+            ]
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiParameter"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiParameter"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "inputs"
+        ]
+      },
+      "ArgBinding": {
+        "description": "An argument's value source: `$amount`, `$account`, `$recipient`, `$token`, `$self`, `$minimumOutput`, `$deadline`, `$previous.output.amount`, `$previous.output.asset`, `$param.<name>`, a literal, a tuple or a literal-only array. Kletia encodes every call from the ABI and these bindings; arbitrary calldata never exists.",
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^\\$(amount|account|recipient|token|self|minimumOutput|deadline|previous\\.output\\.amount|previous\\.output\\.asset|param\\.[a-z][A-Za-z0-9_]{0,31})$"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "literal": {
+                "type": [
+                  "string",
+                  "boolean"
+                ]
+              }
+            },
+            "required": [
+              "literal"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "tuple": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArgBinding"
+                }
+              }
+            },
+            "required": [
+              "tuple"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "array": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArgBinding"
+                },
+                "maxItems": 8
+              }
+            },
+            "required": [
+              "array"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "EventBinding": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string",
+            "description": "Name or full signature of an ABI event (normalised to the signature)."
+          },
+          "emitter": {
+            "type": "string",
+            "description": "`$self` or an `addresses` label; the log must come from that pinned address."
+          },
+          "where": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "$account",
+                    "$recipient",
+                    "$amount",
+                    "$token",
+                    "$self"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "literal": {
+                      "type": [
+                        "string",
+                        "boolean"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "literal"
+                  ]
+                }
+              ]
+            },
+            "description": "Event input name → binding; at least one binds `$account` or `$recipient`."
+          },
+          "output": {
+            "type": "string",
+            "description": "Event input reporting the output amount (needs the action's `output`)."
+          }
+        },
+        "required": [
+          "event",
+          "emitter",
+          "where"
+        ]
+      },
+      "ActionParam": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_]{0,31}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "uint",
+              "int",
+              "bool",
+              "enum"
+            ]
+          },
+          "min": {
+            "type": "string"
+          },
+          "max": {
+            "type": "string"
+          },
+          "enum": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      },
+      "EvmContractAction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "function": {
+            "type": "string",
+            "description": "Canonical signature, e.g. `deposit(uint256,address)`; nonpayable or payable."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArgBinding"
+            },
+            "description": "One binding per ABI input, in order."
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "Registry symbol on the network, CAIP-19 id, or `native`."
+              },
+              "approval": {
+                "type": "object",
+                "properties": {
+                  "spender": {
+                    "type": "string",
+                    "description": "`$self` or an `addresses` label: always an exact approve of the step amount."
+                  }
+                },
+                "required": [
+                  "spender"
+                ]
+              }
+            },
+            "required": [
+              "token"
+            ]
+          },
+          "value": {
+            "type": "object",
+            "properties": {
+              "bind": {
+                "type": "string",
+                "description": "`$amount` (native input) or a wei literal."
+              },
+              "max": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "description": "Wei cap."
+              }
+            },
+            "required": [
+              "bind",
+              "max"
+            ]
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "description": "`$self`, an `addresses` label or an ERC-20 address."
+              },
+              "toleranceBps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "default": 10
+              }
+            },
+            "required": [
+              "token"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventBinding"
+            },
+            "minItems": 1,
+            "maxItems": 3
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActionParam"
+            },
+            "maxItems": 6
+          },
+          "recipient": {
+            "type": "string",
+            "enum": [
+              "account",
+              "any"
+            ],
+            "default": "account"
+          },
+          "phrases": {
+            "type": "object",
+            "properties": {
+              "verbs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z]{2,16}$"
+                },
+                "minItems": 1,
+                "maxItems": 4
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9 .-]{1,39}$"
+                },
+                "minItems": 1,
+                "maxItems": 4,
+                "description": "Not a network, asset symbol, built-in venue word, `kletia` or grammar keyword."
+              }
+            },
+            "required": [
+              "verbs",
+              "aliases"
+            ],
+            "description": "Natural-language phrases: `<verb> <amount> into <alias>`."
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "minAmount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              "maxAmount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Required on mainnet for spending actions."
+              }
+            }
+          },
+          "selector": {
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{8}$",
+            "description": "In responses."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "function",
+          "args",
+          "events"
+        ]
+      },
+      "SolanaActionEndpoint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "href": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Action URL on `origin`; placeholders `{amount}`, `{amountBaseUnits}` and `{<param>}` only."
+          },
+          "primaryProgram": {
+            "type": "string",
+            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "token"
+            ]
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "mint": {
+                "type": "string",
+                "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+              },
+              "toleranceBps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "mint"
+            ]
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActionParam"
+            },
+            "maxItems": 6
+          },
+          "phrases": {
+            "type": "object",
+            "properties": {
+              "verbs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z]{2,16}$"
+                },
+                "minItems": 1,
+                "maxItems": 4
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9 .-]{1,39}$"
+                },
+                "minItems": 1,
+                "maxItems": 4,
+                "description": "Not a network, asset symbol, built-in venue word, `kletia` or grammar keyword."
+              }
+            },
+            "required": [
+              "verbs",
+              "aliases"
+            ],
+            "description": "Natural-language phrases: `<verb> <amount> into <alias>`."
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "minAmount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              "maxAmount": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Required on mainnet for spending actions."
+              }
+            }
+          },
+          "metadata": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SolanaActionMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In responses: the action's metadata as fetched at registration."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "href",
+          "primaryProgram"
+        ]
+      },
+      "ContractIntegrator": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "description": "Reserved brand names need the brand's own website and a verified domain."
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "description": "HTTPS origin; required on mainnet. Publish `/.well-known/kletia.json` listing the registration id to verify it."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "EvmContractDefinition": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "evm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "address": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "integrator": {
+            "$ref": "#/components/schemas/ContractIntegrator"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ],
+            "default": "private"
+          },
+          "abi": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiItem"
+            },
+            "minItems": 1,
+            "maxItems": 40,
+            "description": "An allowlist: every function item must be used by an action."
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+                },
+                "address": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{40}$"
+                }
+              },
+              "required": [
+                "label",
+                "address"
+              ]
+            },
+            "maxItems": 4,
+            "description": "Other contracts an action may name as approval spender or event emitter (pinned like the target)."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvmContractAction"
+            },
+            "minItems": 1,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "address",
+          "integrator",
+          "abi",
+          "actions"
+        ]
+      },
+      "SolanaActionDefinition": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "svm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "integrator": {
+            "$ref": "#/components/schemas/ContractIntegrator"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ],
+            "default": "private"
+          },
+          "origin": {
+            "type": "string",
+            "format": "uri",
+            "description": "HTTPS origin every `href` is on (public DNS name, port 443 or 1024+)."
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+            },
+            "minItems": 1,
+            "maxItems": 6,
+            "description": "Allowlisted top-level programs (pinned)."
+          },
+          "payees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+                },
+                "maxLamports": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                }
+              },
+              "required": [
+                "label",
+                "address",
+                "maxLamports"
+              ]
+            },
+            "maxItems": 2,
+            "description": "The only third parties a top-level System transfer may pay, each with a lamport cap."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SolanaActionEndpoint"
+            },
+            "minItems": 1,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "integrator",
+          "origin",
+          "programs",
+          "actions"
+        ]
+      },
+      "ContractDefinition": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EvmContractDefinition"
+          },
+          {
+            "$ref": "#/components/schemas/SolanaActionDefinition"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "vm",
+          "mapping": {
+            "evm": "#/components/schemas/EvmContractDefinition",
+            "svm": "#/components/schemas/SolanaActionDefinition"
+          }
+        },
+        "description": "Validated by validateContractDefinition (@kletia/core), which reports the same issues locally. At most 48 KB as canonical JSON."
+      },
+      "ContractDefinitionPatch": {
+        "type": "object",
+        "minProperties": 1,
+        "description": "Fields of the definition to replace (`null` removes an optional field); `vm`, `network`, `address` and `origin` cannot change. Changing only labels and phrases updates the current revision; any other change creates a new revision, pending for the activation delay on mainnet.",
+        "properties": {
+          "integrator": {
+            "$ref": "#/components/schemas/ContractIntegrator"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ]
+          },
+          "abi": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiItem"
+            }
+          },
+          "addresses": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "pattern": "^0x[0-9a-fA-F]{40}$"
+                }
+              },
+              "required": [
+                "label",
+                "address"
+              ]
+            }
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+            }
+          },
+          "payees": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "maxLamports": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "address",
+                "maxLamports"
+              ]
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/EvmContractAction"
+                },
+                {
+                  "$ref": "#/components/schemas/SolanaActionEndpoint"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "EvmProxyPin": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "eip1967",
+              "eip1967-beacon",
+              "eip1822",
+              "zeppelinos",
+              "eip1167"
+            ]
+          },
+          "implementation": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "implementationCodeHash": {
+            "type": "string"
+          },
+          "admin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "beacon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "beaconCodeHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "implementation",
+          "implementationCodeHash",
+          "admin",
+          "beacon",
+          "beaconCodeHash"
+        ]
+      },
+      "EvmContractPins": {
+        "type": "object",
+        "properties": {
+          "codeHash": {
+            "type": "string"
+          },
+          "codeSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proxy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EvmProxyPin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "codeHash": {
+                  "type": "string"
+                },
+                "codeSize": {
+                  "type": "integer"
+                },
+                "proxy": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/EvmProxyPin"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "address",
+                "codeHash",
+                "codeSize",
+                "proxy"
+              ]
+            }
+          },
+          "blockNumber": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "codeHash",
+          "codeSize",
+          "proxy",
+          "addresses",
+          "blockNumber",
+          "checkedAt"
+        ],
+        "description": "Code identity re-read at every prepare and at the receipt block; any change suspends the registration."
+      },
+      "SolanaProgramPin": {
+        "type": "object",
+        "properties": {
+          "program": {
+            "type": "string",
+            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+          },
+          "loader": {
+            "type": "string"
+          },
+          "programData": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastDeploySlot": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upgradeAuthority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dataHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "program",
+          "loader",
+          "programData",
+          "lastDeploySlot",
+          "upgradeAuthority"
+        ]
+      },
+      "SourceVerification": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "exact_match",
+              "match",
+              "unverified",
+              "unknown"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "const": "sourcify"
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "proxyType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "provider",
+          "checkedAt"
+        ]
+      },
+      "ProgramVerification": {
+        "type": "object",
+        "properties": {
+          "program": {
+            "type": "string"
+          },
+          "verified": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "const": "ottersec"
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "repository": {
+            "type": "string",
+            "format": "uri"
+          },
+          "commit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "program",
+          "verified",
+          "provider",
+          "checkedAt"
+        ]
+      },
+      "ContractVerification": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SourceVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "implementationSource": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SourceVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgramVerification"
+            }
+          },
+          "domain": {
+            "type": "object",
+            "properties": {
+              "verified": {
+                "type": "boolean"
+              },
+              "checkedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "verified",
+              "checkedAt"
+            ]
+          },
+          "risk": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "webacy"
+                  },
+                  "score": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "level": {
+                    "type": "string"
+                  },
+                  "checkedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "score",
+                  "checkedAt"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "SolanaActionMetadata": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "actionVersion": {
+            "type": "string"
+          },
+          "blockchainIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "label",
+          "disabled",
+          "fetchedAt"
+        ]
+      },
+      "ContractRevisionSummary": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "definitionHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "revision",
+          "definitionHash",
+          "createdAt"
+        ]
+      },
+      "ContractView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ct_[0-9a-f]{24}$"
+          },
+          "vm": {
+            "$ref": "#/components/schemas/ContractVm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "address": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$",
+            "description": "EVM: checksummed contract address."
+          },
+          "origin": {
+            "type": "string",
+            "format": "uri",
+            "description": "Solana Actions: the registered origin."
+          },
+          "integrator": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string",
+                "format": "uri"
+              },
+              "domainVerified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "domainVerified"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "project"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "suspended"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Latest revision; the definition fields describe it."
+          },
+          "activeRevision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The revision intents use; null while the first revision waits for activation."
+          },
+          "pendingRevision": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "activatesAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "definitionHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "sha256 of the canonical security-relevant fields."
+          },
+          "pins": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EvmContractPins"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SolanaProgramPin"
+                }
+              }
+            ]
+          },
+          "verification": {
+            "$ref": "#/components/schemas/ContractVerification"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/EvmContractAction"
+                },
+                {
+                  "$ref": "#/components/schemas/SolanaActionEndpoint"
+                }
+              ]
+            }
+          },
+          "abi": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiItem"
+            },
+            "description": "Owner only."
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "address"
+              ]
+            },
+            "description": "Owner only."
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Owner only."
+          },
+          "payees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "maxLamports": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "address",
+                "maxLamports"
+              ]
+            },
+            "description": "Owner only."
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractRevisionSummary"
+            },
+            "description": "Owner only, GET /v1/contracts/{id}: newest first."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "suspendedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "pins_changed, outcome_mismatch, program_changed, domain_unverified or `operator: <reason>`."
+          }
+        },
+        "required": [
+          "id",
+          "vm",
+          "network",
+          "integrator",
+          "visibility",
+          "status",
+          "revision",
+          "activeRevision",
+          "pendingRevision",
+          "activatesAt",
+          "definitionHash",
+          "pins",
+          "verification",
+          "actions",
+          "createdAt",
+          "updatedAt",
+          "suspendedReason"
+        ]
+      },
+      "AssetChange": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string",
+            "description": "CAIP-19 id."
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer"
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "True for registry assets."
+          },
+          "delta": {
+            "type": "string",
+            "pattern": "^-?(0|[1-9][0-9]*)$",
+            "description": "Signed base units (negative: debit)."
+          },
+          "formatted": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "symbol",
+          "decimals",
+          "listed",
+          "delta",
+          "formatted"
+        ]
+      },
+      "ContractReview": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "evm-call",
+              "solana-action"
+            ]
+          },
+          "integrator": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string",
+                "format": "uri"
+              },
+              "domainVerified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "domainVerified"
+            ]
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Always starts with \"Not audited by Kletia. Kletia checked the contract's code identity and simulated this transaction; it did not review the contract's logic.\""
+          },
+          "contract": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "address": {
+                "type": "string"
+              },
+              "explorerUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "exact_match",
+                  "match",
+                  "unverified",
+                  "unknown"
+                ]
+              },
+              "proxy": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "implementation": {
+                    "type": "string"
+                  },
+                  "implementationSource": {
+                    "type": "string",
+                    "enum": [
+                      "exact_match",
+                      "match",
+                      "unverified",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "implementation",
+                  "implementationSource"
+                ]
+              },
+              "registeredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revision": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "network",
+              "address",
+              "explorerUrl",
+              "source",
+              "registeredAt",
+              "revision"
+            ]
+          },
+          "call": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "function": {
+                "type": "string",
+                "examples": [
+                  "deposit(uint256 assets, address receiver)"
+                ]
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "display": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "amount",
+                        "account",
+                        "recipient",
+                        "token",
+                        "self",
+                        "minimumOutput",
+                        "deadline",
+                        "previousOutput",
+                        "param",
+                        "literal"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "display",
+                    "source"
+                  ]
+                }
+              },
+              "value": {
+                "$ref": "#/components/schemas/AssetAmount"
+              }
+            },
+            "required": [
+              "label",
+              "function",
+              "args"
+            ]
+          },
+          "approvals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "$ref": "#/components/schemas/AssetId"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "decimals": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "asset",
+                    "symbol",
+                    "decimals"
+                  ]
+                },
+                "spender": {
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/AssetAmount"
+                },
+                "existingAllowance": {
+                  "$ref": "#/components/schemas/AssetAmount"
+                }
+              },
+              "required": [
+                "token",
+                "spender",
+                "amount"
+              ]
+            }
+          },
+          "action": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "programs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "verified": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "upgradeable": {
+                      "type": "boolean"
+                    },
+                    "upgradeAuthority": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "verified",
+                    "upgradeable",
+                    "upgradeAuthority"
+                  ]
+                }
+              },
+              "instructionCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "url",
+              "domain",
+              "programs",
+              "instructionCount"
+            ]
+          },
+          "simulation": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "unavailable"
+                ]
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "block": {
+                "type": "string"
+              },
+              "slot": {
+                "type": "string"
+              },
+              "assetChanges": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AssetChange"
+                }
+              },
+              "networkFee": {
+                "$ref": "#/components/schemas/AssetAmount"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "status",
+              "at",
+              "assetChanges",
+              "warnings"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "integrator",
+          "notices",
+          "approvals",
+          "simulation"
+        ],
+        "description": "What the user reviews before signing a custom contract step: who, what, permissions, result, provenance, notice. Kletia has not audited the contract."
+      },
+      "ContractStepCall": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "type": "string",
+            "pattern": "^ct_[0-9a-f]{24}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "definitionHash": {
+            "type": "string"
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$"
+          },
+          "vm": {
+            "$ref": "#/components/schemas/ContractVm"
+          },
+          "target": {
+            "type": "string",
+            "description": "EVM contract address or the Solana Action's primary program."
+          },
+          "integrator": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string"
+              },
+              "domainVerified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "domainVerified"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "function": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "fragment": {
+            "$ref": "#/components/schemas/AbiItem"
+          },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArgBinding"
+            }
+          },
+          "approvalSpender": {
+            "type": "string"
+          },
+          "value": {
+            "type": "object",
+            "properties": {
+              "bind": {
+                "type": "string"
+              },
+              "max": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bind",
+              "max"
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fragment": {
+                  "$ref": "#/components/schemas/AbiItem"
+                },
+                "emitter": {
+                  "type": "string"
+                },
+                "where": {
+                  "type": "object"
+                },
+                "output": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fragment",
+                "emitter",
+                "where"
+              ]
+            }
+          },
+          "pins": {
+            "$ref": "#/components/schemas/EvmContractPins"
+          },
+          "recipientMode": {
+            "type": "string",
+            "enum": [
+              "account",
+              "any"
+            ]
+          },
+          "toleranceBps": {
+            "type": "integer"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string"
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SolanaProgramPin"
+            }
+          },
+          "payees": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "type": "string"
+                },
+                "maxLamports": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address",
+                "maxLamports"
+              ]
+            }
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "$ref": "#/components/schemas/AssetId"
+              },
+              "symbol": {
+                "type": "string"
+              },
+              "decimals": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "asset",
+              "symbol",
+              "decimals"
+            ]
+          },
+          "review": {
+            "$ref": "#/components/schemas/ContractReview"
+          }
+        },
+        "required": [
+          "contract",
+          "revision",
+          "definitionHash",
+          "entry",
+          "vm",
+          "target",
+          "integrator",
+          "review"
+        ],
+        "description": "Self-contained snapshot of the registration a call/action step was planned with; verification never needs the registry."
+      },
+      "ContractTestRequest": {
+        "type": "object",
+        "properties": {
+          "entry": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,39}$"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/DecimalAmount"
+          },
+          "params": {
+            "type": "object",
+            "maxProperties": 8,
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "recipient": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "entry",
+          "account"
+        ]
+      },
+      "ContractTestResult": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "type": "string",
+            "pattern": "^ct_[0-9a-f]{24}$"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "entry": {
+            "type": "string"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "input": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "expectedOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "minimumOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "selector": {
+                  "type": "string"
+                },
+                "value": {
+                  "$ref": "#/components/schemas/BaseUnits"
+                },
+                "programs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "description"
+              ]
+            },
+            "description": "What would be signed (never calldata to persist)."
+          },
+          "gas": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "feesUsd": {
+            "type": "number"
+          },
+          "review": {
+            "$ref": "#/components/schemas/ContractReview"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "contract",
+          "revision",
+          "entry",
+          "network",
+          "account",
+          "transactions",
+          "review",
+          "warnings"
+        ]
+      },
+      "AbiFunctionClassification": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "stateMutability": {
+            "type": "string",
+            "enum": [
+              "nonpayable",
+              "payable",
+              "view",
+              "pure"
+            ]
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "CONTRACT_FUNCTION_FORBIDDEN",
+              "CONTRACT_ARGUMENT_FORBIDDEN",
+              null
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "signature",
+          "selector",
+          "stateMutability",
+          "allowed",
+          "code",
+          "reason",
+          "notes"
+        ]
+      },
+      "EvmContractInspection": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "evm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "address": {
+            "type": "string"
+          },
+          "deployed": {
+            "type": "boolean"
+          },
+          "codeSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "eip7702": {
+            "type": "boolean",
+            "description": "EIP-7702 delegated account (cannot be registered)."
+          },
+          "denied": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the address can never be registered, or null."
+          },
+          "pins": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EvmContractPins"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "$ref": "#/components/schemas/SourceVerification"
+              },
+              "implementationSource": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceVerification"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "implementationSource"
+            ]
+          },
+          "abi": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AbiItem"
+            },
+            "description": "From Sourcify when verified (the implementation's for a proxy)."
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbiFunctionClassification"
+            }
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "address",
+          "deployed",
+          "codeSize",
+          "eip7702",
+          "denied",
+          "pins",
+          "verification",
+          "abi",
+          "functions"
+        ]
+      },
+      "SolanaProgramInspection": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "svm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "program": {
+                  "type": "string"
+                },
+                "pin": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SolanaProgramPin"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "denied": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "verification": {
+                  "$ref": "#/components/schemas/ProgramVerification"
+                }
+              },
+              "required": [
+                "program",
+                "pin",
+                "denied",
+                "verification"
+              ]
+            }
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "programs"
+        ]
+      },
+      "ContractInspection": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EvmContractInspection"
+          },
+          {
+            "$ref": "#/components/schemas/SolanaProgramInspection"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "vm",
+          "mapping": {
+            "evm": "#/components/schemas/EvmContractInspection",
+            "svm": "#/components/schemas/SolanaProgramInspection"
+          }
+        }
+      },
+      "ContractSuspendRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ContractResponse": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "$ref": "#/components/schemas/ContractView"
+          }
+        },
+        "required": [
+          "contract"
+        ]
+      },
+      "ContractListResponse": {
+        "type": "object",
+        "properties": {
+          "contracts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractView"
+            }
+          }
+        },
+        "required": [
+          "contracts"
+        ]
+      },
+      "ContractTestResponse": {
+        "type": "object",
+        "properties": {
+          "test": {
+            "$ref": "#/components/schemas/ContractTestResult"
+          }
+        },
+        "required": [
+          "test"
+        ]
+      },
+      "ContractInspectionResponse": {
+        "type": "object",
+        "properties": {
+          "inspection": {
+            "$ref": "#/components/schemas/ContractInspection"
+          }
+        },
+        "required": [
+          "inspection"
+        ]
+      },
+      "SessionCreateRequest": {
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentActionSpec"
+            },
+            "minItems": 1,
+            "maxItems": 8,
+            "description": "Structured actions only (no text)."
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Index of the action whose amount the visitor may choose (its amount is the default)."
+              },
+              "min": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              },
+              "max": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              }
+            },
+            "required": [
+              "action",
+              "min",
+              "max"
+            ]
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Origins of the pages that may embed the session (https, or http://localhost for development)."
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 3600,
+            "default": 900
+          },
+          "maxIntents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 1
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/IntentConstraints"
+          },
+          "metadata": {
+            "type": "object",
+            "maxProperties": 19,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "description": "Copied to every intent, plus `sessionId`."
+          },
+          "clientReference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,80}$"
+          }
+        },
+        "required": [
+          "actions",
+          "allowedOrigins"
+        ]
+      },
+      "SessionView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^cs_[0-9a-f]{32}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "used"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "integrator": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "website": {
+                "type": "string",
+                "format": "uri"
+              },
+              "domainVerified": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "domainVerified"
+            ]
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "$ref": "#/components/schemas/IntentActionKind"
+                },
+                "network": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "toNetwork": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "string"
+                },
+                "contract": {
+                  "type": "string"
+                },
+                "entry": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "network",
+                "label"
+              ]
+            }
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "integer"
+              },
+              "min": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              },
+              "max": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              },
+              "default": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              },
+              "symbol": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "min",
+              "max"
+            ]
+          },
+          "maxIntents": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "used": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "embedUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Creation response only: the embed page with the id in the URL fragment."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "expiresAt",
+          "createdAt",
+          "integrator",
+          "allowedOrigins",
+          "actions",
+          "maxIntents",
+          "used"
+        ],
+        "description": "Never carries the API key or the project."
+      },
+      "SessionIntentRequest": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            },
+            "minItems": 1,
+            "maxItems": 6,
+            "description": "The visitor's connected accounts."
+          },
+          "amount": {
+            "$ref": "#/components/schemas/DecimalAmount"
+          },
+          "hostOrigin": {
+            "type": "string",
+            "format": "uri",
+            "description": "Origin of the page hosting the frame; must be one of the session's allowedOrigins."
+          }
+        },
+        "required": [
+          "accounts",
+          "hostOrigin"
+        ]
+      },
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/SessionView"
+          }
+        },
+        "required": [
+          "session"
         ]
       },
       "IntentResponse": {

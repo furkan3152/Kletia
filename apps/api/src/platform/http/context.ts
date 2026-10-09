@@ -151,6 +151,11 @@ export function sendError(req: Request, res: Response, error: unknown): void {
   if (failure instanceof HttpError && failure.headers) {
     for (const [name, value] of Object.entries(failure.headers)) res.setHeader(name, value);
   }
+  // Engine errors that know when a retry may succeed (e.g. CONTRACT_PENDING until activation).
+  const retryAfter = (failure as { readonly retryAfterSeconds?: unknown }).retryAfterSeconds;
+  if (typeof retryAfter === "number" && Number.isInteger(retryAfter) && retryAfter > 0 && !res.getHeader("Retry-After")) {
+    res.setHeader("Retry-After", String(retryAfter));
+  }
   if (failure.status === 401 && !res.getHeader("WWW-Authenticate")) {
     res.setHeader("WWW-Authenticate", 'Bearer realm="kletia"');
   }

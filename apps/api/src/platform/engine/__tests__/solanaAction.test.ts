@@ -2,9 +2,11 @@
  * Solana Action steps end to end against mocked RPC and a canned action
  * server: plan (fetch, rules, simulation, review), prepare (fresh fetch,
  * re-blockhash, instruction digest), submit / verify (instruction binding
- * with wallet-added compute budget and Lighthouse, deltas, owner and CPI
- * checks), simulated-effect refusals, program pin changes, and the dry-run
- * test of the live Jupiter blink fixture.
+ * with wallet-added compute budget and Lighthouse assertions, deltas, owner
+ * and CPI checks), simulated-effect refusals, the user's signature on
+ * accounts outside SPL balances (stake accounts, mints, foreign programs),
+ * program pin changes, and the dry-run test of the live Jupiter blink
+ * fixture.
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -24,16 +26,19 @@ import {
   installSolanaAccounts,
   ix,
   JUP6,
+  LIGHTHOUSE,
   NOOP,
   programImages,
   randomAddress,
   SOL_OTHER,
   SOL_USER,
+  SYSTEM,
   TOKEN,
   tokenAccountImage,
   USDC_MINT,
   walletImage,
   type AccountImage,
+  type TestInstruction,
 } from "./solanaActionHarness.js";
 
 const fixtures = JSON.parse(readFileSync(new URL("./contractFixtures.json", import.meta.url), "utf8")) as {
@@ -85,9 +90,14 @@ function actionDefinition(): Record<string, unknown> {
   };
 }
 
-function actionTransaction(data = Buffer.from([7])): string {
+function actionInstruction(data = Buffer.from([7])): TestInstruction {
   const instruction = ix.program(ACME_PROGRAM, [USER_USDC, USER_ST, POOL], data);
-  return buildTransaction(SOL_USER, [ix.computeUnits(200_000), ix.computePrice(1_000n), { ...instruction, accounts: [...(instruction.accounts ?? []), { address: TOKEN }] }]);
+  return { ...instruction, accounts: [...(instruction.accounts ?? []), { address: TOKEN }] };
+}
+
+/** The action server's transaction; `extra` instructions model what a wallet appends before signing. */
+function actionTransaction(data = Buffer.from([7]), extra: readonly TestInstruction[] = []): string {
+  return buildTransaction(SOL_USER, [ix.computeUnits(200_000), ix.computePrice(1_000n), actionInstruction(data), ...extra]);
 }
 
 function staticKeys(base64: string): string[] {
@@ -251,6 +261,7 @@ describe("Solana Action steps: plan and prepare", () => {
     assert.equal(review.kind, "solana-action");
     assert.equal(review.notices[0], CONTRACT_REVIEW_NOTICE);
     assert.ok(review.notices.some((notice) => /sent your address to actions\.acme\.example/u.test(notice)));
+    assert.ok(review.notices.some((notice) => /^Your signature reaches 6Ld9vW…T6iP \(chosen by Acme Stake\); each can act on anything you hold in that program\.$/u.test(notice)), JSON.stringify(review.notices));
     assert.deepEqual(review.action?.programs, [{ id: ACME_PROGRAM, verified: true, upgradeable: true, upgradeAuthority: SOL_OTHER }]);
     assert.deepEqual(review.simulation.assetChanges.map((change) => [change.symbol, change.delta]), [["USDC", "-1000000"], [`${ST_MINT.slice(0, 4)}…${ST_MINT.slice(-4)}`, "950000"]]);
     assert.equal(review.simulation.networkFee?.amount, "5200");
@@ -319,6 +330,75 @@ describe("Solana Action steps: plan and prepare", () => {
   });
 });
 
+describe("Solana Action steps: the user's signature on accounts outside SPL balances", () => {
+  const STAKE = "Stake11111111111111111111111111111111111111";
+  const USER_STAKE = randomAddress();
+  const USER_MINT = randomAddress();
+  const ATTACKER = randomAddress();
+  const ATTACKER_TOKEN = randomAddress();
+  const FOREIGN = randomAddress();
+
+  /** One allowlisted instruction that also receives the user's stake account, a mint the user controls, the Stake program and attacker accounts. */
+  function reachingTransaction(): string {
+    const instruction = ix.program(ACME_PROGRAM, [USER_USDC, USER_ST, POOL, USER_STAKE, USER_MINT, ATTACKER, ATTACKER_TOKEN], Buffer.from([7]));
+    return buildTransaction(SOL_USER, [ix.computeUnits(200_000), ix.computePrice(1_000n), { ...instruction, accounts: [...(instruction.accounts ?? []), { address: TOKEN }, { address: STAKE }, { address: FOREIGN }] }]);
+  }
+
+  const parsed = (programId: string, program: string, type: string, info: Record<string, unknown>) => [{ index: 2, instructions: [{ programId, program, parsed: { type, info }, stackHeight: 2 }] }];
+
+  beforeEach(() => {
+    transport.responder = (method) => (method === "post" ? { json: { type: "transaction", transaction: reachingTransaction() } } : { json: { title: "Stake", label: "Stake" } });
+    accounts.set(USER_STAKE, { owner: STAKE, lamports: 500_002_282_880n, data: Buffer.alloc(200, 2) });
+  });
+
+  it("refuses at plan a CPI that drains or re-authorises the user's stake account, mints with the user's authority or hands the wallet to a foreign program", async () => {
+    simulation.inner = parsed(STAKE, "stake", "withdraw", { stakeAccount: USER_STAKE, destination: ATTACKER, withdrawAuthority: SOL_USER, lamports: 500_000_000_000 });
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", /invokes the Stake program/u));
+    simulation.inner = parsed(STAKE, "stake", "authorize", { stakeAccount: USER_STAKE, authority: SOL_USER, newAuthority: ATTACKER, authorityType: "Withdrawer" });
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", /Stake program/u));
+    simulation.inner = parsed(TOKEN, "spl-token", "mintTo", { mint: USER_MINT, account: ATTACKER_TOKEN, mintAuthority: SOL_USER, amount: "1000000000000000" });
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", /mints a token with the user's mint authority/u));
+    simulation.inner = parsed(SYSTEM, "system", "withdrawFromNonce", { nonceAccount: ATTACKER, destination: ATTACKER, nonceAuthority: SOL_USER, lamports: 1 });
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", /System WithdrawNonceAccount|withdrawFromNonce/u));
+    simulation.inner = [{ index: 2, instructions: [{ programId: FOREIGN, accounts: [SOL_USER, USER_STAKE], data: "2", stackHeight: 2 }] }];
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", new RegExp(`passes the user's wallet to ${FOREIGN}`, "u")));
+    // The simulated account states catch a drain even when the CPI tree reads clean.
+    simulation.inner = [];
+    post.set(USER_STAKE, { owner: STAKE, lamports: 2_282_880n, data: Buffer.alloc(200, 2) });
+    await assert.rejects(planAction(), rejects("ACTION_TRANSACTION_REJECTED", /an account of the Stake program/u));
+    post.clear();
+    // Control: a foreign program that never receives the user's wallet cannot sign for it, and the step plans.
+    simulation.inner = [{ index: 2, instructions: [{ programId: FOREIGN, accounts: [POOL], data: "2", stackHeight: 2 }] }];
+    const graph = await planAction();
+    assert.equal(graph.steps[0]?.call?.review.simulation.status, "ok");
+    assert.equal(directory.anomalies.length, 0);
+  });
+
+  it("fails and suspends when the landed transaction drains the user's stake account or mints with the user's authority", async () => {
+    const base58 = getBase58Decoder();
+    const graph = await planAction();
+    const { payload } = await prepareStep(graph.id, "s1");
+    const transaction = (payload.transactions[0] as SolanaTransactionRequest).transaction;
+    const keys = staticKeys(transaction);
+    // getTransaction (json) reports CPIs compiled: Stake Withdraw (4) of the user's stake account to the attacker, signed by the user.
+    const withdraw = { programIdIndex: keys.indexOf(STAKE), accounts: [keys.indexOf(USER_STAKE), keys.indexOf(ATTACKER), 0, 0, 0], data: base58.decode(Uint8Array.from([4, 0, 0, 0, 0, 0x74, 0x3b, 0xa4, 0x0b, 0, 0, 0])), stackHeight: 2 };
+    const step = (await submitStep(graph.id, "s1", [land(transaction, { inner: [{ index: 2, instructions: [withdraw] }] })])).steps[0]!;
+    assert.equal(step.status, "failed");
+    assert.equal(step.failure?.code, "OUTCOME_NOT_PROVEN");
+    assert.match(step.failure?.message ?? "", /Stake program/u);
+    assert.equal(directory.anomalies[0]?.reason, "outcome_mismatch");
+    assert.equal(registration.status, "suspended");
+
+    registration.status = "active";
+    const second = await planAction();
+    const prepared = (await prepareStep(second.id, "s1")).payload.transactions[0] as SolanaTransactionRequest;
+    const mintTo = { programIdIndex: keys.indexOf(TOKEN), accounts: [keys.indexOf(USER_MINT), keys.indexOf(ATTACKER_TOKEN), 0], data: base58.decode(Uint8Array.from([7, 0, 0x80, 0xc6, 0xa4, 0x7e, 0x8d, 0x03, 0])), stackHeight: 2 };
+    const minted = (await submitStep(second.id, "s1", [land(prepared.transaction, { inner: [{ index: 2, instructions: [mintTo] }] })])).steps[0]!;
+    assert.equal(minted.failure?.code, "OUTCOME_NOT_PROVEN");
+    assert.match(minted.failure?.message ?? "", /mints a token with the user's mint authority/u);
+  });
+});
+
 describe("Solana Action steps: verify", () => {
   async function prepared(): Promise<{ graph: IntentGraph; transaction: string }> {
     const graph = await planAction();
@@ -355,6 +435,43 @@ describe("Solana Action steps: verify", () => {
     assert.equal(approved.failure?.code, "OUTCOME_NOT_PROVEN");
   });
 
+  const assertion: TestInstruction = { program: LIGHTHOUSE, accounts: [{ address: USER_USDC }], data: Buffer.from([9, 0, 1]) };
+  const memoryWrite: TestInstruction = {
+    program: LIGHTHOUSE,
+    accounts: [{ address: LIGHTHOUSE }, { address: SYSTEM }, { address: SOL_USER, role: "writable-signer" }, { address: randomAddress(), role: "writable" }, { address: USER_USDC }],
+    data: Buffer.from([0, 0, 255, 0, 0, 0, 232, 3]),
+  };
+
+  it("confirms the landed transaction with a wallet-added Lighthouse assertion", async () => {
+    const { graph } = await prepared();
+    const step = (await submitStep(graph.id, "s1", [land(actionTransaction(undefined, [assertion]))])).steps[0]!;
+    assert.equal(step.status, "settled", JSON.stringify(step.failure));
+  });
+
+  it("treats a wallet-added Lighthouse MemoryWrite as another transaction: rejected, nothing failed or suspended", async () => {
+    const { graph } = await prepared();
+    // MemoryWrite creates a memory account the user funds (System CreateAccount from the user).
+    const landedWrite = actionTransaction(undefined, [memoryWrite]);
+    const keys = staticKeys(landedWrite);
+    const createAccount = { programIdIndex: keys.indexOf(SYSTEM), accounts: [0, keys.indexOf(memoryWrite.accounts?.[3]?.address ?? "")], data: getBase58Decoder().decode(Uint8Array.from([0, 0, 0, 0, 0x80, 0xcb, 0x77, 0, 0, 0, 0, 0])), stackHeight: 2 };
+    await assert.rejects(submitStep(graph.id, "s1", [land(landedWrite, { inner: [{ index: 3, instructions: [createAccount] }] })]), rejects("REFERENCE_MISMATCH", /Lighthouse instruction other than an assertion/u));
+    assert.equal(directory.anomalies.length, 0, "no anomaly");
+    assert.equal(registration.status, "active", "the integrator is not suspended");
+    assert.equal((await planAction()).steps[0]?.status, "ready", "other users still plan");
+    // An assertion that invoked another program is not an inert addition either.
+    const cpi = { programIdIndex: keys.indexOf(SYSTEM), accounts: [0], data: getBase58Decoder().decode(Uint8Array.from([2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])), stackHeight: 2 };
+    const withAssertion = actionTransaction(undefined, [{ ...assertion, accounts: [...(assertion.accounts ?? []), { address: SYSTEM }] }]);
+    await assert.rejects(submitStep(graph.id, "s1", [land(withAssertion, { inner: [{ index: 3, instructions: [{ ...cpi, programIdIndex: staticKeys(withAssertion).indexOf(SYSTEM) }] }] })]), rejects("REFERENCE_MISMATCH", /invoked other programs/u));
+    assert.equal(directory.anomalies.length, 0);
+  });
+
+  it("still suspends when the prepared instructions misbehave next to inert Lighthouse assertions", async () => {
+    const { graph } = await prepared();
+    const step = (await submitStep(graph.id, "s1", [land(actionTransaction(undefined, [assertion]), { credit: 10n })])).steps[0]!;
+    assert.equal(step.failure?.code, "OUTCOME_NOT_PROVEN");
+    assert.equal(directory.anomalies[0]?.reason, "outcome_mismatch");
+  });
+
   it("fails when the output is below the guaranteed minimum", async () => {
     const { graph, transaction } = await prepared();
     const step = (await submitStep(graph.id, "s1", [land(transaction, { credit: 10n })])).steps[0]!;
@@ -364,7 +481,9 @@ describe("Solana Action steps: verify", () => {
 });
 
 describe("Solana Action test endpoint (live Jupiter fixture)", () => {
-  it("accepts the captured blink and reports the simulated USDC credit", async () => {
+  const GOONFI = "goonuddtQRrWqqn5nFyczVKaie28f3kDkHWkHtURSLE";
+
+  it("refuses the captured blink while a route program it hands the user's wallet to is not allowlisted, then reports the simulated USDC credit", async () => {
     const jupiter = programImages(JUP6, 454_465_850n, "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ");
     const noop = programImages(NOOP, 154_177_312n, "F3S4PD17Eo3FyCMropzDLCpBFuQuBmufUVBBdKEHbQFT");
     accounts.set(JUP6, jupiter.program);
@@ -381,21 +500,32 @@ describe("Solana Action test endpoint (live Jupiter fixture)", () => {
     router.handlers.delete("simulateTransaction");
     router.raw.set("simulateTransaction", () => fixtures.jupiterSimulationText);
     transport.responder = () => ({ json: { type: "transaction", transaction: fixtures.jupiterBlink.transaction } });
-    const swap = await registrationOf({
+    // The captured route CPIs into GoonFi with the user's wallet as the transfer authority.
+    const goonfi = programImages(GOONFI, 377_000_000n, SOL_OTHER);
+    accounts.set(GOONFI, goonfi.program);
+    accounts.set(goonfi.programDataAddress, goonfi.programData);
+    const pins = {
+      [JUP6]: { program: JUP6, loader: "BPFLoaderUpgradeab1e11111111111111111111111", programData: jupiter.programDataAddress, lastDeploySlot: "454465850", upgradeAuthority: "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ" },
+      [NOOP]: { program: NOOP, loader: "BPFLoaderUpgradeab1e11111111111111111111111", programData: noop.programDataAddress, lastDeploySlot: "154177312", upgradeAuthority: "F3S4PD17Eo3FyCMropzDLCpBFuQuBmufUVBBdKEHbQFT" },
+      [GOONFI]: { program: GOONFI, loader: "BPFLoaderUpgradeab1e11111111111111111111111", programData: goonfi.programDataAddress, lastDeploySlot: "377000000", upgradeAuthority: SOL_OTHER },
+    };
+    const blink = (programs: readonly string[]) => registrationOf({
       vm: "svm",
       network: "solana",
       integrator: { name: "Acme Swap", website: "https://acme.example" },
       origin: "https://jupiter.dial.to",
-      programs: [JUP6, NOOP],
+      programs,
       actions: [{ id: "swap", label: "Swap SOL to USDC", href: "https://jupiter.dial.to/api/v0/swap/SOL-USDC/{amount}", primaryProgram: JUP6, input: { token: "native" }, output: { mint: USDC_MINT, toleranceBps: 100 }, limits: { maxAmount: "1" } }],
     }, {
       id: "ct_00000000000000000000b0b0",
-      pins: [
-        { program: JUP6, loader: "BPFLoaderUpgradeab1e11111111111111111111111", programData: jupiter.programDataAddress, lastDeploySlot: "454465850", upgradeAuthority: "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ" },
-        { program: NOOP, loader: "BPFLoaderUpgradeab1e11111111111111111111111", programData: noop.programDataAddress, lastDeploySlot: "154177312", upgradeAuthority: "F3S4PD17Eo3FyCMropzDLCpBFuQuBmufUVBBdKEHbQFT" },
-      ],
+      pins: programs.map((program) => pins[program as keyof typeof pins]),
       verification: { domain: { verified: false, checkedAt: null }, programs: [{ program: JUP6, verified: false, provider: "ottersec", checkedAt: null }] },
     });
+    await assert.rejects(
+      testContractAction(await blink([JUP6, NOOP]), { entry: "swap", account: ACCOUNT, amount: "0.01" }),
+      rejects("ACTION_TRANSACTION_REJECTED", new RegExp(`passes the user's wallet to ${GOONFI}`, "u")),
+    );
+    const swap = await blink([JUP6, NOOP, GOONFI]);
     const result = await testContractAction(swap, { entry: "swap", account: ACCOUNT, amount: "0.01" });
     const sim = JSON.parse(fixtures.jupiterSimulationText).result.value as { preTokenBalances: { owner: string; mint: string; uiTokenAmount: { amount: string } }[]; postTokenBalances: { owner: string; mint: string; uiTokenAmount: { amount: string } }[] };
     const sum = (list: typeof sim.preTokenBalances) => list.filter((entry) => entry.owner === SOL_USER && entry.mint === USDC_MINT).reduce((total, entry) => total + BigInt(entry.uiTokenAmount.amount), 0n);

@@ -7,13 +7,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { getCompiledTransactionMessageDecoder, getTransactionDecoder } from "@solana/kit";
+import { address, getAddressEncoder, getCompiledTransactionMessageDecoder, getTransactionDecoder } from "@solana/kit";
 import { WRAPPED_SOL_MINT } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { decodeSolanaTransaction, type SolanaInnerInstruction } from "../chains/solana.js";
+import { decodeSolanaTransaction, type SolanaAccountState, type SolanaInnerInstruction } from "../chains/solana.js";
 import {
   actionInstructionDigest,
   actionMetadataUrl,
+  authorityStateRefusal,
   checkActionTransaction,
   decodeActionTransaction,
   fetchActionTransaction,
@@ -21,6 +22,7 @@ import {
   fillActionHref,
   innerInstructionRefusal,
   outcomeRefusal,
+  walletAdditionRefusal,
   withBlockhash,
   type ActionRules,
 } from "../contracts/solanaActions.js";
@@ -29,9 +31,11 @@ import {
   ACME_HELPER,
   ACME_PROGRAM,
   buildTransaction,
+  ATA,
   CannedTransport,
   ix,
   JUP6,
+  LIGHTHOUSE,
   NOOP,
   presign,
   randomAddress,
@@ -39,6 +43,7 @@ import {
   SOL_USER,
   SYSTEM,
   TOKEN,
+  tokenAccountImage,
   USDC_MINT,
 } from "./solanaActionHarness.js";
 
@@ -158,6 +163,17 @@ describe("Solana Actions: structure rules", () => {
     }
   });
 
+  it("accepts Lighthouse assertions only, and never a native or loader program even when allowlisted", async () => {
+    await check(buildTransaction(SOL_USER, [...ok, { program: LIGHTHOUSE, accounts: [{ address: SOL_USER }], data: Buffer.from([5, 0, 1]) }]));
+    for (const kind of [0, 1]) {
+      const memory = { program: LIGHTHOUSE, accounts: [{ address: LIGHTHOUSE }, { address: SYSTEM }, { address: SOL_USER, role: "writable-signer" as const }, { address: randomAddress(), role: "writable" as const }], data: Buffer.from([kind, 0, 255, 0]) };
+      await assert.rejects(check(buildTransaction(SOL_USER, [...ok, memory])), refusedWith("ACTION_TRANSACTION_REJECTED", /Lighthouse instruction other than an assertion/u));
+    }
+    await assert.rejects(check(buildTransaction(SOL_USER, [...ok, { program: LIGHTHOUSE, data: Buffer.alloc(0) }])), refusedWith("ACTION_TRANSACTION_REJECTED", /Lighthouse/u));
+    const stake = "Stake11111111111111111111111111111111111111";
+    await assert.rejects(check(buildTransaction(SOL_USER, [...ok, ix.program(stake, [randomAddress()])]), { programs: [ACME_PROGRAM, stake] }), refusedWith("PROGRAM_NOT_ALLOWED", /the Stake program, which a Solana Action may never use/u));
+  });
+
   it("caps compute units, the priority fee, the heap frame and the transaction size", async () => {
     await assert.rejects(check(buildTransaction(SOL_USER, [ix.computeUnits(1_400_001), ix.program(ACME_PROGRAM)])), refusedWith("ACTION_TRANSACTION_REJECTED", /1,400,000 compute units/u));
     await assert.rejects(check(buildTransaction(SOL_USER, [ix.computeUnits(1_000_000), ix.computePrice(5_000_001n), ix.program(ACME_PROGRAM)])), refusedWith("ACTION_TRANSACTION_REJECTED", /priority fee/u));
@@ -194,7 +210,7 @@ describe("Solana Actions: CPI scan", () => {
   it("refuses Assign / Allocate of the user's wallet and unreadable entries", () => {
     assert.match(innerInstructionRefusal([inner(SYSTEM, [1, 0, 0, 0], [SOL_USER])], SOL_USER, accounts) ?? "", /System Assign/u);
     assert.match(innerInstructionRefusal([inner(SYSTEM, [8, 0, 0, 0], [SOL_USER])], SOL_USER, accounts) ?? "", /System Allocate/u);
-    assert.match(innerInstructionRefusal([inner(SYSTEM, null, [], { type: "assign", info: { account: SOL_USER, owner: ACME_PROGRAM } })], SOL_USER, accounts) ?? "", /assign/u);
+    assert.match(innerInstructionRefusal([inner(SYSTEM, null, [], { type: "assign", info: { account: SOL_USER, owner: ACME_PROGRAM } })], SOL_USER, accounts) ?? "", /System Assign/u);
     assert.match(innerInstructionRefusal([inner("", null, [])], SOL_USER, accounts) ?? "", /could not be read/u);
   });
 
@@ -205,6 +221,130 @@ describe("Solana Actions: CPI scan", () => {
       inner(SYSTEM, [1, 0, 0, 0], [randomAddress()]),
       inner(ACME_PROGRAM, [1], [userAccount]),
     ], SOL_USER, accounts), null);
+  });
+});
+
+describe("Solana Actions: CPI scan of the user's signature (accounts outside SPL balances)", () => {
+  const STAKE = "Stake11111111111111111111111111111111111111";
+  const userAccount = randomAddress();
+  const userTokens = new Set([userAccount]);
+  const foreignAccount = randomAddress();
+  const owners = new Map([[userAccount, SOL_USER], [foreignAccount, SOL_OTHER]]);
+  const scope = { programs: [ACME_PROGRAM], tokenOwners: owners };
+  const inner = (program: string, data: number[] | null, accountsList: string[], parsed: SolanaInnerInstruction["parsed"] = null): SolanaInnerInstruction =>
+    ({ index: 0, program, accounts: accountsList, data: data ? Uint8Array.from(data) : null, parsed });
+  const scan = (...instructions: SolanaInnerInstruction[]) => innerInstructionRefusal(instructions, SOL_USER, userTokens, scope);
+
+  it("refuses native and loader programs anywhere in the CPI tree, with or without the user", () => {
+    const withdraw = inner(STAKE, null, [], { type: "withdraw", info: { stakeAccount: randomAddress(), destination: SOL_OTHER, withdrawAuthority: SOL_USER, lamports: 500_000_000_000 } });
+    assert.match(scan(withdraw) ?? "", /invokes the Stake program/u);
+    assert.match(scan(inner(STAKE, [1, 0, 0, 0], [randomAddress(), randomAddress()])) ?? "", /Stake program/u);
+    for (const [program, name] of [["Vote111111111111111111111111111111111111111", "Vote"], ["BPFLoaderUpgradeab1e11111111111111111111111", "upgradeable BPF loader"], ["AddressLookupTab1e1111111111111111111111111", "Address Lookup Table"], ["Config1111111111111111111111111111111111111", "Config"], ["LoaderV411111111111111111111111111111111111", "loader v4"]] as const) {
+      assert.match(scan(inner(program, [3], [randomAddress()])) ?? "", new RegExp(name, "u"), program);
+    }
+    // Even an allowlist entry cannot open them.
+    assert.match(innerInstructionRefusal([inner(STAKE, [4], [randomAddress()])], SOL_USER, userTokens, { programs: [STAKE] }) ?? "", /Stake program/u);
+  });
+
+  it("refuses mints, freezes and thaws with the user's authority, raw or parsed", () => {
+    const mint = randomAddress();
+    assert.match(scan(inner(TOKEN, null, [], { type: "mintTo", info: { mint, account: randomAddress(), mintAuthority: SOL_USER, amount: "1000" } })) ?? "", /mints a token with the user's mint authority/u);
+    assert.match(scan(inner(TOKEN, [7, 1, 0, 0, 0, 0, 0, 0, 0], [mint, randomAddress(), SOL_USER])) ?? "", /mints/u);
+    assert.match(scan(inner(TOKEN, [14, 1, 0, 0, 0, 0, 0, 0, 0, 6], [mint, randomAddress(), SOL_USER])) ?? "", /mints/u);
+    assert.match(scan(inner(TOKEN, [10], [randomAddress(), mint, SOL_USER])) ?? "", /freezes or thaws/u);
+    assert.match(scan(inner(TOKEN, null, [], { type: "thawAccount", info: { account: randomAddress(), mint, freezeAuthority: SOL_USER } })) ?? "", /freezes or thaws/u);
+    // The same instructions under someone else's authority do not involve the user.
+    assert.equal(scan(inner(TOKEN, [7, 1, 0, 0, 0, 0, 0, 0, 0], [mint, userAccount, SOL_OTHER])), null);
+  });
+
+  it("refuses spends where the user is only a delegate, allows spends from the user's own accounts", () => {
+    assert.match(scan(inner(TOKEN, [3, 1, 0, 0, 0, 0, 0, 0, 0], [foreignAccount, randomAddress(), SOL_USER])) ?? "", /only holds delegated or shared authority/u);
+    assert.match(scan(inner(TOKEN, null, [], { type: "burnChecked", info: { account: foreignAccount, mint: USDC_MINT, authority: SOL_USER, tokenAmount: { amount: "5" } } })) ?? "", /delegated/u);
+    assert.match(scan(inner(TOKEN, [8, 5, 0, 0, 0, 0, 0, 0, 0], [foreignAccount, USDC_MINT, SOL_USER])) ?? "", /delegated/u);
+    // A multisig the user signs for owns the source: refused too.
+    const multisig = randomAddress();
+    assert.match(scan(inner(TOKEN, [12, 1, 0, 0, 0, 0, 0, 0, 0, 6], [foreignAccount, USDC_MINT, randomAddress(), multisig, SOL_USER])) ?? "", /delegated or shared/u);
+    // The user's own account (balance-checked) and accounts that live only inside the transaction are fine.
+    assert.equal(scan(inner(TOKEN, [3, 1, 0, 0, 0, 0, 0, 0, 0], [userAccount, randomAddress(), SOL_USER])), null);
+    assert.equal(scan(inner(TOKEN, [12, 1, 0, 0, 0, 0, 0, 0, 0, 6], [randomAddress(), USDC_MINT, randomAddress(), SOL_USER])), null);
+    assert.equal(scan(inner(TOKEN, [8, 5, 0, 0, 0, 0, 0, 0, 0], [userAccount, USDC_MINT, SOL_USER])), null);
+    assert.equal(scan(inner("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", [26, 1, 1, 0, 0, 0, 0, 0, 0, 0, 6], [userAccount, USDC_MINT, randomAddress(), SOL_USER])), null, "Token-2022 transfer with fee from the user's account");
+    // Any other token instruction with the user's authority is refused; account set-up is not.
+    assert.match(scan(inner(TOKEN, [5], [userAccount, SOL_USER])) ?? "", /token revoke with the user's authority/u);
+    assert.match(scan(inner("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", [37, 0], [userAccount, SOL_USER])) ?? "", /token instruction 37/u);
+    assert.equal(scan(inner(TOKEN, [1], [randomAddress(), USDC_MINT, SOL_USER, randomAddress()])), null);
+    assert.equal(scan(inner(TOKEN, [9], [userAccount, SOL_USER, SOL_USER])), null, "a close back to the user");
+  });
+
+  it("refuses System nonce, seed, Assign and Allocate use of the user's wallet; allows transfers and account creation", () => {
+    const nonce = randomAddress();
+    assert.match(scan(inner(SYSTEM, [5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], [nonce, SOL_OTHER, randomAddress(), randomAddress(), SOL_USER])) ?? "", /System WithdrawNonceAccount/u);
+    assert.match(scan(inner(SYSTEM, [7, 0, 0, 0], [nonce, SOL_USER])) ?? "", /System AuthorizeNonceAccount/u);
+    assert.match(scan(inner(SYSTEM, [4, 0, 0, 0], [nonce, randomAddress(), SOL_USER])) ?? "", /System AdvanceNonceAccount/u);
+    assert.match(scan(inner(SYSTEM, null, [], { type: "withdrawFromNonce", info: { nonceAccount: nonce, destination: SOL_OTHER, nonceAuthority: SOL_USER, lamports: 5 } })) ?? "", /withdrawFromNonce|WithdrawNonceAccount/u);
+    assert.match(scan(inner(SYSTEM, [11, 0, 0, 0], [randomAddress(), SOL_USER, SOL_OTHER])) ?? "", /System TransferWithSeed/u);
+    assert.match(scan(inner(SYSTEM, [10, 0, 0, 0], [randomAddress(), SOL_USER])) ?? "", /System AssignWithSeed/u);
+    assert.equal(scan(inner(SYSTEM, [2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0], [SOL_USER, SOL_OTHER])), null);
+    assert.equal(scan(inner(SYSTEM, [0, 0, 0, 0], [SOL_USER, randomAddress()])), null);
+    assert.equal(scan(inner(SYSTEM, null, [], { type: "createAccount", info: { source: SOL_USER, newAccount: randomAddress(), lamports: 2_039_280, space: 165, owner: TOKEN } })), null);
+    assert.equal(scan(inner(ATA, [1], [SOL_USER, randomAddress(), SOL_USER, USDC_MINT, SYSTEM, TOKEN])), null);
+  });
+
+  it("refuses a program outside the allowlist that receives the user's wallet, and only then", () => {
+    const thirdParty = randomAddress();
+    assert.match(scan(inner(thirdParty, [1, 2], [randomAddress(), SOL_USER])) ?? "", new RegExp(`passes the user's wallet to ${thirdParty}`, "u"));
+    // Lighthouse through CPI is no exception (MemoryWrite with the user as payer).
+    assert.match(scan(inner(LIGHTHOUSE, [0, 0, 255], [LIGHTHOUSE, SYSTEM, SOL_USER, randomAddress()])) ?? "", /passes the user's wallet to L2TExMF/u);
+    // Without the wallet it cannot sign for the user (Solana lets a CPI sign only for accounts it receives).
+    assert.equal(scan(inner(thirdParty, [1, 2], [randomAddress(), userAccount])), null);
+    // The registration's own programs are trusted with the wallet.
+    assert.equal(scan(inner(ACME_PROGRAM, [1, 2], [SOL_USER, userAccount])), null);
+    assert.equal(innerInstructionRefusal([inner(thirdParty, [1], [SOL_USER])], SOL_USER, userTokens, { programs: [ACME_PROGRAM, thirdParty] }), null);
+  });
+
+  it("checks simulated states of accounts the user holds authority over outside SPL balances", () => {
+    const account = randomAddress();
+    const state = (owner: string, lamports: bigint, data: Uint8Array = new Uint8Array()): SolanaAccountState => ({ owner, lamports, executable: false, data });
+    const stakeData = Buffer.alloc(200, 3);
+    assert.match(authorityStateRefusal(account, state(STAKE, 500_002_282_880n, stakeData), state(STAKE, 2_282_880n, stakeData), SOL_USER) ?? "", /an account of the Stake program/u);
+    assert.match(authorityStateRefusal(account, state(STAKE, 10n, stakeData), state(STAKE, 10n, Buffer.alloc(200, 4)), SOL_USER) ?? "", /Stake program/u, "re-authorised");
+    assert.equal(authorityStateRefusal(account, state(STAKE, 10n, stakeData), state(STAKE, 20n, stakeData), SOL_USER), null, "a credit is harmless");
+    const nonceData = Buffer.alloc(80, 1);
+    assert.match(authorityStateRefusal(account, state(SYSTEM, 1_447_680n, nonceData), state(SYSTEM, 0n, nonceData), SOL_USER) ?? "", /System account other than the user's wallet/u);
+    assert.equal(authorityStateRefusal(account, state(SYSTEM, 5n), state(SYSTEM, 9n), SOL_USER), null, "a payee receiving SOL");
+    assert.equal(authorityStateRefusal(account, null, state(ACME_PROGRAM, 9n, Buffer.alloc(8)), SOL_USER), null, "created by the transaction");
+    const mint = (authority: string | null, supply: bigint) => {
+      const data = Buffer.alloc(82);
+      if (authority) {
+        data.writeUInt32LE(1, 0);
+        Buffer.from(getAddressEncoder().encode(address(authority))).copy(data, 4);
+      }
+      data.writeBigUInt64LE(supply, 36);
+      data[44] = 6;
+      data[45] = 1;
+      return state(TOKEN, 1_461_600n, data);
+    };
+    assert.match(authorityStateRefusal(account, mint(SOL_USER, 100n), mint(SOL_USER, 1_000_100n), SOL_USER) ?? "", /a mint the user controls/u);
+    assert.match(authorityStateRefusal(account, mint(SOL_USER, 100n), mint(SOL_OTHER, 100n), SOL_USER) ?? "", /a mint the user controls/u);
+    assert.equal(authorityStateRefusal(account, mint(SOL_USER, 100n), mint(SOL_USER, 90n), SOL_USER), null, "a burn lowers the supply");
+    assert.equal(authorityStateRefusal(account, mint(SOL_OTHER, 100n), mint(SOL_OTHER, 900n), SOL_USER), null, "someone else's mint");
+    const delegated = tokenAccountImage(USDC_MINT, SOL_OTHER, 50n, { delegate: SOL_USER });
+    const delegatedState = (amount: bigint) => ({ ...tokenAccountImage(USDC_MINT, SOL_OTHER, amount, { delegate: SOL_USER }), executable: false });
+    assert.match(authorityStateRefusal(account, { ...delegated, executable: false }, delegatedState(10n), SOL_USER) ?? "", /only a delegate or close authority of/u);
+    assert.match(authorityStateRefusal(account, { ...delegated, executable: false }, null, SOL_USER) ?? "", /delegate or close authority/u);
+    assert.equal(authorityStateRefusal(account, { ...delegated, executable: false }, delegatedState(60n), SOL_USER), null);
+  });
+});
+
+describe("Solana Actions: wallet additions", () => {
+  const view = (program: string, data: number[]) => ({ program, accounts: [], data: Uint8Array.from(data) });
+  it("tolerates compute-budget and Lighthouse assertion instructions only", () => {
+    assert.equal(walletAdditionRefusal([view(ACME_PROGRAM, [1]), view(LIGHTHOUSE, [9, 0]), view(LIGHTHOUSE, [5, 1])], []), null);
+    assert.match(walletAdditionRefusal([view(ACME_PROGRAM, [1]), view(LIGHTHOUSE, [0, 0, 255])], []) ?? "", /Instruction 2 is a Lighthouse instruction other than an assertion/u);
+    assert.match(walletAdditionRefusal([view(LIGHTHOUSE, [1, 0])], []) ?? "", /other than an assertion/u);
+    assert.match(walletAdditionRefusal([view(LIGHTHOUSE, [16, 0])], []) ?? "", /other than an assertion/u, "AssertMerkleTreeAccount calls another program");
+    const cpi: SolanaInnerInstruction = { index: 1, program: SYSTEM, accounts: [SOL_USER, randomAddress()], data: null, parsed: { type: "createAccount", info: { source: SOL_USER } } };
+    assert.match(walletAdditionRefusal([view(ACME_PROGRAM, [1]), view(LIGHTHOUSE, [9, 0])], [cpi]) ?? "", /Instruction 2 \(Lighthouse\) invoked other programs/u);
   });
 });
 

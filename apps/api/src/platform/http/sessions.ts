@@ -15,7 +15,9 @@
  * - POST /v1/sessions/{id}/intents (public): re-checks expiry, the use count
  *   (one atomic conditional increment) and the host origin, then plans the
  *   template with the visitor's accounts under the session owner's key, with
- *   `metadata.sessionId` set. A failed plan gives the use back.
+ *   `metadata.sessionId` set. A failed plan gives the use back. With several
+ *   uses, each intent's clientReference is `<clientReference>:<n>`, where n
+ *   counts claimed uses and is never reused (a given-back use keeps its n).
  *
  * A leaked session id lets someone else run the same fixed actions with their
  * own funds and wallet, nothing more. Storage: memory (50,000 sessions) or
@@ -82,7 +84,14 @@ export interface SessionRecord {
   readonly template: SessionTemplate;
   readonly allowedOrigins: readonly string[];
   readonly maxIntents: number;
+  /** Uses taken and not given back (a failed plan releases its use). */
   readonly used: number;
+  /**
+   * Uses ever claimed; never decremented. Numbers the clientReference suffix
+   * of each intent, so a released use never hands its number to the next
+   * visitor while a concurrent visitor already holds the following one.
+   */
+  readonly issued: number;
   readonly expiresAt: string;
   readonly createdAt: string;
 }
@@ -114,9 +123,13 @@ export interface SessionStore {
   /** Inserts unless the owner already holds `maxActive` active sessions (429 RATE_LIMITED). */
   create(record: SessionRecord, maxActive: number, now: string): Promise<void>;
   get(id: string): Promise<SessionRecord | null>;
-  /** One atomic use: `used + 1` only while `used < maxIntents` and the session has not expired. */
+  /**
+   * One atomic use: `used + 1` and `issued + 1` only while `used < maxIntents`
+   * and the session has not expired. The returned record's `issued` is this
+   * use's number, unique for the session's lifetime.
+   */
   use(id: string, now: string): Promise<SessionUse>;
-  /** Gives one use back (a plan that failed after the use was taken). */
+  /** Gives one use back (a plan that failed after the use was taken); `issued` stays. */
   release(id: string): Promise<void>;
   /** Deletes sessions that expired before `before`. */
   prune(before: string): Promise<void>;
@@ -152,7 +165,7 @@ export class MemorySessionStore implements SessionStore {
     if (!record) return { state: "missing" };
     if (record.expiresAt <= now) return { state: "expired" };
     if (record.used >= record.maxIntents) return { state: "used" };
-    const next = { ...record, used: record.used + 1 };
+    const next = { ...record, used: record.used + 1, issued: Math.max(record.issued, record.used) + 1 };
     this.sessions.set(id, next);
     return { state: "used_ok", record: next };
   }
@@ -177,9 +190,11 @@ CREATE TABLE IF NOT EXISTS kletia_sessions (
   allowed_origins text[] NOT NULL,
   max_intents integer NOT NULL,
   used integer NOT NULL DEFAULT 0,
+  issued integer NOT NULL DEFAULT 0,
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE kletia_sessions ADD COLUMN IF NOT EXISTS issued integer NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS kletia_sessions_owner_idx ON kletia_sessions (owner_key_id, created_at);
 CREATE INDEX IF NOT EXISTS kletia_sessions_expiry_idx ON kletia_sessions (expires_at);`,
 } as const;
@@ -191,11 +206,12 @@ interface SessionRow {
   allowed_origins: string[];
   max_intents: number;
   used: number;
+  issued: number | null;
   expires_at: Date | string;
   created_at: Date | string;
 }
 
-const SESSION_COLUMNS = "id, owner_key_id, template, allowed_origins, max_intents, used, expires_at, created_at";
+const SESSION_COLUMNS = "id, owner_key_id, template, allowed_origins, max_intents, used, issued, expires_at, created_at";
 
 function isoOf(value: Date | string): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -211,6 +227,7 @@ function sessionFromRow(row: SessionRow): SessionRecord | null {
     allowedOrigins: Array.isArray(row.allowed_origins) ? row.allowed_origins : [],
     maxIntents: row.max_intents,
     used: row.used,
+    issued: Math.max(row.issued ?? 0, row.used),
     expiresAt: isoOf(row.expires_at),
     createdAt: isoOf(row.created_at),
   };
@@ -229,9 +246,9 @@ export class PostgresSessionStore implements SessionStore {
       );
       if (Number(count.rows[0]?.count ?? "0") >= maxActive) return false;
       await client.query(
-        `INSERT INTO kletia_sessions (id, owner_key_id, template, allowed_origins, max_intents, used, expires_at, created_at)
-         VALUES ($1, $2, $3::jsonb, $4::text[], $5, $6, $7, $8)`,
-        [record.id, record.ownerKeyId, JSON.stringify(record.template), [...record.allowedOrigins], record.maxIntents, record.used, record.expiresAt, record.createdAt],
+        `INSERT INTO kletia_sessions (id, owner_key_id, template, allowed_origins, max_intents, used, issued, expires_at, created_at)
+         VALUES ($1, $2, $3::jsonb, $4::text[], $5, $6, $7, $8, $9)`,
+        [record.id, record.ownerKeyId, JSON.stringify(record.template), [...record.allowedOrigins], record.maxIntents, record.used, Math.max(record.issued, record.used), record.expiresAt, record.createdAt],
       );
       return true;
     });
@@ -247,7 +264,7 @@ export class PostgresSessionStore implements SessionStore {
   async use(id: string, now: string): Promise<SessionUse> {
     const result = await dbQuery<SessionRow>(
       SESSIONS_SCHEMA,
-      `UPDATE kletia_sessions SET used = used + 1
+      `UPDATE kletia_sessions SET used = used + 1, issued = GREATEST(issued, used) + 1
        WHERE id = $1 AND used < max_intents AND expires_at > $2
        RETURNING ${SESSION_COLUMNS}`,
       [id, now],
@@ -499,6 +516,7 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     allowedOrigins: request.allowedOrigins,
     maxIntents: request.maxIntents ?? 1,
     used: 0,
+    issued: 0,
     expiresAt: iso(now + (request.expiresInSeconds ?? CONTRACT_LIMITS.sessionDefaultTtlSeconds) * 1000),
     createdAt: iso(now),
   };
@@ -518,7 +536,13 @@ export async function getSession(id: string): Promise<SessionView> {
   return sessionView(await liveSession(id), contractNow());
 }
 
-/** The clientReference of the n-th intent of a session (unique per use when a session allows several). */
+/**
+ * The clientReference of a session's intent: unique per claimed use when a
+ * session allows several. `use` is the monotonic `issued` number, never the
+ * `used` count: a failed plan gives its use back, and numbering by `used`
+ * would hand a later visitor the suffix a concurrent visitor's intent already
+ * holds (409 CLIENT_REFERENCE_EXISTS for every visitor after it).
+ */
 function useReference(reference: string | undefined, use: number, maxIntents: number): string | undefined {
   if (!reference) return undefined;
   if (maxIntents === 1) return reference;
@@ -568,7 +592,7 @@ export async function createSessionIntent(id: string, body: unknown): Promise<Se
     if (claim.state === "missing") throw sessionNotFound();
     throw claim.state === "expired" ? sessionExpired() : sessionUsed();
   }
-  const reference = useReference(template.clientReference, claim.record.used, record.maxIntents);
+  const reference = useReference(template.clientReference, claim.record.issued, record.maxIntents);
   const intentRequest = {
     actions,
     accounts: request.accounts,

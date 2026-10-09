@@ -38,6 +38,7 @@ import {
   contractDirectory,
   contractsEnabled,
   reportContractAnomaly,
+  withActivationRetry,
   type ContractDirectory,
   type RegisteredContract,
 } from "./contracts/directory.js";
@@ -529,7 +530,7 @@ async function assertContractStepUsable(graph: IntentGraph, step: IntentStep, am
     throw new PlatformError("CONTRACT_SUSPENDED", `${registration.id} is suspended; the integrator must inspect and reverify it.`, 409);
   }
   if (registration.status === "pending" || registration.activeRevision === null) {
-    throw new PlatformError("CONTRACT_PENDING", `${registration.id} is waiting for activation.`, 409);
+    throw withActivationRetry(new PlatformError("CONTRACT_PENDING", `${registration.id} is waiting for activation.`, 409), registration.activatesAt);
   }
   if (registration.activeRevision !== snapshot.revision || registration.definitionHash !== snapshot.definitionHash) {
     throw new PlatformError(

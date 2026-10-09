@@ -18,8 +18,24 @@
  *   states of the user's accounts: no error, exact input debit, no other
  *   debit, declared output credited, the user's wallet still a plain System
  *   account, the user's token accounts keep owner, no delegate and their
- *   close authority, and no Approve / SetAuthority / Assign / Allocate
- *   touching the user's accounts anywhere in the CPI tree.
+ *   close authority, and the CPI scan (`innerInstructionRefusal`).
+ * - CPI scan (simulated and landed inner instructions): the user's signature
+ *   reaches only the registration's allowlisted programs and the built-in
+ *   System / Token / Token-2022 / ATA / Memo programs, and on those only
+ *   through instructions whose effect the balance checks see (transfers and
+ *   burns from the user's own token accounts, account creation, closes back
+ *   to the user). Native and loader programs (Stake, Vote, loaders, lookup
+ *   tables, Config, ...) are refused anywhere in the CPI tree. A program
+ *   outside the allowlist may run only when it never receives the user's
+ *   wallet: Solana lets a CPI sign only for accounts it was given.
+ * - Simulated account states: writable accounts the user can hold authority
+ *   over outside SPL balances (native-program accounts such as stake
+ *   accounts, System accounts other than the wallet, mints the user can mint
+ *   or freeze, token accounts the user is only a delegate or close authority
+ *   of) must not lose value or change hands.
+ * - Wallets may add ComputeBudget and Lighthouse assertion instructions;
+ *   Lighthouse MemoryWrite / MemoryClose (accounts the payer funds) are not
+ *   tolerated, in the action server's transaction or added by the wallet.
  */
 import { createHash } from "node:crypto";
 import {
@@ -60,6 +76,39 @@ import type { ActionTransport } from "./directory.js";
 export const LIGHTHOUSE_PROGRAM = "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95";
 export const MEMO_PROGRAMS: readonly string[] = ["MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr", "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo"];
 const TOKEN_PROGRAMS: readonly string[] = [SOLANA_PROGRAM_IDS.token, SOLANA_PROGRAM_IDS.token2022];
+
+/**
+ * Native and loader programs a Solana Action may never reach, at the top
+ * level or through CPI, whatever the allowlist says: with the user's
+ * signature they withdraw or re-authorise stake accounts, upgrade programs
+ * and take over lookup tables, vote and config accounts.
+ */
+export const ACTION_DENIED_PROGRAMS: ReadonlyMap<string, string> = new Map([
+  ["Stake11111111111111111111111111111111111111", "the Stake program"],
+  ["Vote111111111111111111111111111111111111111", "the Vote program"],
+  ["BPFLoaderUpgradeab1e11111111111111111111111", "the upgradeable BPF loader"],
+  ["BPFLoader2111111111111111111111111111111111", "the BPF loader"],
+  ["BPFLoader1111111111111111111111111111111111", "the deprecated BPF loader"],
+  ["LoaderV411111111111111111111111111111111111", "loader v4"],
+  ["NativeLoader1111111111111111111111111111111", "the native loader"],
+  [SOLANA_PROGRAM_IDS.addressLookupTable, "the Address Lookup Table program"],
+  ["Config1111111111111111111111111111111111111", "the Config program"],
+  ["Feature111111111111111111111111111111111111", "the Feature program"],
+  ["ZkTokenProof1111111111111111111111111111111", "the ZK token proof program"],
+  ["ZkE1Gama1Proof11111111111111111111111111111", "the ZK ElGamal proof program"],
+]);
+
+/**
+ * Lighthouse instructions that only read accounts and call no other program:
+ * the assertions (discriminators 2-17 of `LighthouseInstruction`) except
+ * AssertMerkleTreeAccount (16, which calls the account-compression program).
+ * MemoryWrite (0) and MemoryClose (1) create and close memory accounts funded
+ * by the payer.
+ */
+export function isLighthouseAssertion(data: Uint8Array | null | undefined): boolean {
+  const kind = data?.[0];
+  return kind !== undefined && kind >= 2 && kind <= 17 && kind !== 16;
+}
 /** Spec version this client speaks (`X-Accept-Action-Version`). */
 export const ACTION_VERSION = "2.4";
 
@@ -321,11 +370,16 @@ export async function checkActionTransaction(base64: string, decoded: DecodedSol
   const paid = new Map<string, bigint>();
   for (const [index, instruction] of instructions.entries()) {
     const program = instruction.program;
+    const denied = ACTION_DENIED_PROGRAMS.get(program);
+    if (denied) throw new PlatformError("PROGRAM_NOT_ALLOWED", `Instruction ${index + 1} calls ${denied}, which a Solana Action may never use.`, 422);
     if (!allowed.has(program) && !builtin.has(program)) {
       throw new PlatformError("PROGRAM_NOT_ALLOWED", `Instruction ${index + 1} calls ${program}, which is not in the registration's program allowlist.`, 422);
     }
     if (program === rules.primaryProgram) primary = true;
     if (allowed.has(program)) continue;
+    if (program === LIGHTHOUSE_PROGRAM && !isLighthouseAssertion(instruction.data)) {
+      throw rejected(`Instruction ${index + 1} is a Lighthouse instruction other than an assertion (MemoryWrite and MemoryClose create and close accounts the user pays for).`);
+    }
     if (program === SOLANA_PROGRAM_IDS.computeBudget) {
       const set = computeBudget(instruction);
       if (set.limit !== undefined) limit = set.limit;
@@ -339,7 +393,7 @@ export async function checkActionTransaction(base64: string, decoded: DecodedSol
       if ((kind !== 0 && kind !== 1) || instruction.data.length > 1) throw rejected(`Instruction ${index + 1} is an associated-token instruction other than Create / CreateIdempotent.`);
       if (instruction.accounts[0] !== rules.user) throw rejected(`Instruction ${index + 1} creates a token account paid by another account.`);
     }
-    // Memo and Lighthouse instructions move nothing.
+    // Memo instructions and Lighthouse assertions move nothing.
   }
   if (!primary) throw rejected(`The transaction does not invoke the action's program ${rules.primaryProgram}.`);
   for (const amount of paid.values()) payeeLamports += amount;
@@ -461,56 +515,303 @@ export function decodeTokenAccount(state: SolanaAccountState | null): TokenAccou
   };
 }
 
-const SYSTEM_DANGEROUS = new Map<number, string>([[1, "Assign"], [8, "Allocate"], [9, "AllocateWithSeed"], [10, "AssignWithSeed"]]);
-const SYSTEM_PARSED_DANGEROUS = new Set(["assign", "assignWithSeed", "allocate", "allocateWithSeed"]);
+/* ------------------------------------------------------------- CPI scan */
 
-function infoAddress(info: Readonly<Record<string, unknown>>, key: string): string | null {
-  const value = info[key];
-  return typeof value === "string" ? value : null;
+/** Who the scan protects and which programs the registration trusts with the user's signature. */
+export interface CpiScope {
+  /** The registration's allowlisted programs (the integrator's own programs). */
+  readonly programs: readonly string[];
+  /**
+   * Token account → owner before the transaction (else after it), from token
+   * balances and account states. Unknown accounts were created and closed
+   * inside the transaction.
+   */
+  readonly tokenOwners?: ReadonlyMap<string, string>;
+}
+
+/** A Token / System / ATA instruction in one shape: its type and named accounts. */
+interface ScannedInstruction {
+  readonly type: string;
+  readonly fields: Readonly<Record<string, string | undefined>>;
+  /** The user's wallet is among its accounts (raw) or anywhere in its parsed info. */
+  readonly involvesUser: boolean;
+}
+
+const TOKEN_TYPES: readonly string[] = [
+  "initializeMint", "initializeAccount", "initializeMultisig", "transfer", "approve", "revoke", "setAuthority", "mintTo", "burn",
+  "closeAccount", "freezeAccount", "thawAccount", "transferChecked", "approveChecked", "mintToChecked", "burnChecked",
+  "initializeAccount2", "syncNative", "initializeAccount3", "initializeMultisig2", "initializeMint2", "getAccountDataSize",
+  "initializeImmutableOwner", "amountToUiAmount", "uiAmountToAmount",
+];
+
+/** Named accounts of raw token instructions (the RPC's parsed field names). */
+const TOKEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  transfer: ["source", "destination", "authority"],
+  transferChecked: ["source", "mint", "destination", "authority"],
+  transferCheckedWithFee: ["source", "mint", "destination", "authority"],
+  burn: ["account", "mint", "authority"],
+  burnChecked: ["account", "mint", "authority"],
+  mintTo: ["mint", "account", "mintAuthority"],
+  mintToChecked: ["mint", "account", "mintAuthority"],
+  approve: ["source", "delegate", "owner"],
+  approveChecked: ["source", "mint", "delegate", "owner"],
+  revoke: ["source", "owner"],
+  setAuthority: ["account", "authority"],
+  closeAccount: ["account", "destination", "owner"],
+  freezeAccount: ["account", "mint", "freezeAuthority"],
+  thawAccount: ["account", "mint", "freezeAuthority"],
+};
+
+/** Token instructions that use no authority of the user even when they name the user (account set-up, reads). */
+const TOKEN_SAFE_WITH_USER = new Set([
+  "initializeMint", "initializeMint2", "initializeAccount", "initializeAccount2", "initializeAccount3", "initializeMultisig",
+  "initializeMultisig2", "syncNative", "getAccountDataSize", "initializeImmutableOwner", "amountToUiAmount", "uiAmountToAmount",
+]);
+
+const SYSTEM_TYPES: readonly string[] = [
+  "createAccount", "assign", "transfer", "createAccountWithSeed", "advanceNonce", "withdrawFromNonce", "initializeNonce",
+  "authorizeNonce", "allocate", "allocateWithSeed", "assignWithSeed", "transferWithSeed", "upgradeNonce",
+];
+const SYSTEM_NAMES: Readonly<Record<string, string>> = {
+  assign: "Assign", allocate: "Allocate", allocateWithSeed: "AllocateWithSeed", assignWithSeed: "AssignWithSeed", transferWithSeed: "TransferWithSeed",
+  advanceNonce: "AdvanceNonceAccount", withdrawFromNonce: "WithdrawNonceAccount", authorizeNonce: "AuthorizeNonceAccount",
+};
+const SYSTEM_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  createAccount: ["source", "newAccount"],
+  transfer: ["source", "destination"],
+  createAccountWithSeed: ["source", "newAccount", "base"],
+};
+
+const ATA_TYPES: readonly string[] = ["create", "createIdempotent", "recoverNested"];
+
+function containsAddress(value: unknown, wanted: string, depth = 0): boolean {
+  if (typeof value === "string") return value === wanted;
+  if (depth > 4) return false;
+  if (Array.isArray(value)) return value.some((entry) => containsAddress(entry, wanted, depth + 1));
+  if (isRecord(value)) return Object.values(value).some((entry) => containsAddress(entry, wanted, depth + 1));
+  return false;
+}
+
+/** Normalises a raw or parsed Token / Token-2022 instruction; null when unreadable. */
+function scanToken(instruction: SolanaInnerInstruction, user: string): ScannedInstruction | null {
+  if (instruction.parsed) {
+    const { type, info } = instruction.parsed;
+    const fields: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(info)) if (typeof value === "string") fields[key] = value;
+    return { type, fields, involvesUser: containsAddress(info, user) };
+  }
+  const data = instruction.data;
+  if (!data || data.length === 0) return null;
+  const kind = data[0] as number;
+  const type = kind === 26 && data[1] === 1 && instruction.program === SOLANA_PROGRAM_IDS.token2022
+    ? "transferCheckedWithFee"
+    : TOKEN_TYPES[kind] ?? `instruction ${kind}`;
+  const fields: Record<string, string | undefined> = {};
+  (TOKEN_FIELDS[type] ?? []).forEach((name, index) => {
+    fields[name] = instruction.accounts[index];
+  });
+  return { type, fields, involvesUser: instruction.accounts.includes(user) };
+}
+
+/** Normalises a raw or parsed System instruction; null when unreadable. */
+function scanSystem(instruction: SolanaInnerInstruction, user: string): ScannedInstruction | null {
+  if (instruction.parsed) {
+    const { type, info } = instruction.parsed;
+    const fields: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(info)) if (typeof value === "string") fields[key] = value;
+    return { type, fields, involvesUser: containsAddress(info, user) };
+  }
+  const kind = instruction.data ? u32(instruction.data) : null;
+  if (kind === null) return null;
+  const type = SYSTEM_TYPES[kind] ?? `instruction ${kind}`;
+  const fields: Record<string, string | undefined> = {};
+  (SYSTEM_FIELDS[type] ?? []).forEach((name, index) => {
+    fields[name] = instruction.accounts[index];
+  });
+  return { type, fields, involvesUser: instruction.accounts.includes(user) };
+}
+
+/** Normalises a raw or parsed associated-token-account instruction; null when unreadable. */
+function scanAssociatedToken(instruction: SolanaInnerInstruction, user: string): ScannedInstruction | null {
+  if (instruction.parsed) return { type: instruction.parsed.type, fields: {}, involvesUser: containsAddress(instruction.parsed.info, user) };
+  const data = instruction.data;
+  if (!data) return null;
+  const type = data.length === 0 ? "create" : data.length === 1 ? ATA_TYPES[data[0] as number] ?? `instruction ${data[0]}` : "unknown";
+  return { type, fields: {}, involvesUser: instruction.accounts.includes(user) };
+}
+
+function tokenRefusal(scanned: ScannedInstruction, user: string, userTokenAccounts: ReadonlySet<string>, owners: ReadonlyMap<string, string>): string | null {
+  const { type, fields, involvesUser } = scanned;
+  const mine = (account: string | undefined) => account !== undefined && (account === user || userTokenAccounts.has(account));
+  /** An account someone else owns (the user acts as its delegate or multisig signer); unknown accounts live only inside the transaction. */
+  const foreign = (account: string | undefined) => {
+    if (account === undefined || userTokenAccounts.has(account)) return false;
+    const owner = owners.get(account);
+    return owner !== undefined && owner !== user;
+  };
+  switch (type) {
+    case "approve":
+    case "approveChecked":
+      return involvesUser || mine(fields.source) ? "A program approves a delegate on the user's token account." : null;
+    case "setAuthority":
+      return involvesUser || mine(fields.account) || mine(fields.mint) ? "A program changes an authority of the user's token account." : null;
+    case "closeAccount":
+      return fields.destination !== user && (involvesUser || userTokenAccounts.has(fields.account ?? "")) ? "A program closes the user's token account to someone else." : null;
+    case "transfer":
+    case "transferChecked":
+    case "transferCheckedWithFee":
+    case "burn":
+    case "burnChecked":
+      return involvesUser && foreign(fields.source ?? fields.account)
+        ? `A program spends from ${fields.source ?? fields.account}, a token account the user only holds delegated or shared authority over.`
+        : null;
+    case "mintTo":
+    case "mintToChecked":
+      return involvesUser ? "A program mints a token with the user's mint authority." : null;
+    case "freezeAccount":
+    case "thawAccount":
+      return involvesUser ? "A program freezes or thaws a token account with the user's authority." : null;
+    default:
+      return involvesUser && !TOKEN_SAFE_WITH_USER.has(type) ? `A program runs token ${type} with the user's authority.` : null;
+  }
+}
+
+function systemRefusal(scanned: ScannedInstruction, user: string): string | null {
+  const { type, fields, involvesUser } = scanned;
+  switch (type) {
+    case "createAccount":
+    case "createAccountWithSeed":
+      return fields.newAccount === user ? "A program re-creates the user's wallet as a program account." : null;
+    case "transfer":
+    case "initializeNonce":
+    case "upgradeNonce":
+      return null;
+    default:
+      return involvesUser ? `A program runs System ${SYSTEM_NAMES[type] ?? type} with the user's wallet.` : null;
+  }
 }
 
 /**
- * Scans inner (CPI) instructions: any Token Approve / ApproveChecked /
- * SetAuthority touching the user's token accounts or authority, a CloseAccount
- * of a user token account to someone else, or a System Assign / Allocate of the
- * user's wallet refuses the transaction. Unreadable entries refuse too.
+ * Scans inner (CPI) instructions with the user's signature in mind. Refuses:
+ * native and loader programs anywhere (Stake, Vote, loaders, lookup tables,
+ * Config, ...); a program outside the allowlist and the built-ins that
+ * receives the user's wallet (it could act with the user's signature);
+ * Token / Token-2022 approvals, authority changes, mints, freezes and thaws
+ * with the user's authority, spends from accounts the user only has
+ * delegated authority over, closes of the user's token accounts to someone
+ * else, and any other token instruction using the user's authority; System
+ * instructions on the user's wallet other than transfers and account
+ * creation (Assign, Allocate, seed and nonce variants). Unreadable entries
+ * refuse too. Transfers and burns from the user's own token accounts are
+ * left to the balance checks.
  */
-export function innerInstructionRefusal(inner: readonly SolanaInnerInstruction[], user: string, userTokenAccounts: ReadonlySet<string>): string | null {
-  const mine = (account: string | null | undefined) => account === user || (account !== null && account !== undefined && userTokenAccounts.has(account));
+export function innerInstructionRefusal(
+  inner: readonly SolanaInnerInstruction[],
+  user: string,
+  userTokenAccounts: ReadonlySet<string>,
+  scope: CpiScope = { programs: [] },
+): string | null {
+  const allowlisted = new Set(scope.programs);
+  const owners = scope.tokenOwners ?? new Map<string, string>();
   for (const instruction of inner) {
-    if (!instruction.program) return "An inner instruction could not be read.";
-    if (TOKEN_PROGRAMS.includes(instruction.program)) {
-      if (instruction.parsed) {
-        const { type, info } = instruction.parsed;
-        if (type === "approve" || type === "approveChecked") {
-          if (mine(infoAddress(info, "source")) || mine(infoAddress(info, "owner")) || mine(infoAddress(info, "multisigOwner"))) return "A program approves a delegate on the user's token account.";
-        } else if (type === "setAuthority") {
-          if (mine(infoAddress(info, "account")) || mine(infoAddress(info, "mint")) || mine(infoAddress(info, "authority")) || mine(infoAddress(info, "multisigAuthority"))) return "A program changes an authority of the user's token account.";
-        } else if (type === "closeAccount") {
-          if (userTokenAccounts.has(infoAddress(info, "account") ?? "") && infoAddress(info, "destination") !== user) return "A program closes the user's token account to someone else.";
-        }
-        continue;
-      }
-      const data = instruction.data;
-      if (!data || data.length === 0) return "An inner token instruction could not be read.";
-      const [first, second, third, fourth] = instruction.accounts;
-      if (data[0] === 4 && (mine(first) || mine(third))) return "A program approves a delegate on the user's token account.";
-      if (data[0] === 13 && (mine(first) || mine(fourth))) return "A program approves a delegate on the user's token account.";
-      if (data[0] === 6 && (mine(first) || mine(second))) return "A program changes an authority of the user's token account.";
-      if (data[0] === 9 && first !== undefined && userTokenAccounts.has(first) && second !== user) return "A program closes the user's token account to someone else.";
-    } else if (instruction.program === SOLANA_PROGRAM_IDS.system) {
-      if (instruction.parsed) {
-        if (SYSTEM_PARSED_DANGEROUS.has(instruction.parsed.type) && infoAddress(instruction.parsed.info, "account") === user) {
-          return `A program runs System ${instruction.parsed.type} on the user's wallet.`;
-        }
-        continue;
-      }
-      const data = instruction.data;
-      if (!data) return "An inner System instruction could not be read.";
-      const kind = u32(data);
-      const name = kind === null ? undefined : SYSTEM_DANGEROUS.get(kind);
-      if (name && instruction.accounts[0] === user) return `A program runs System ${name} on the user's wallet.`;
+    const program = instruction.program;
+    if (!program) return "An inner instruction could not be read.";
+    const denied = ACTION_DENIED_PROGRAMS.get(program);
+    if (denied) return `A program invokes ${denied}, which a Solana Action may never reach.`;
+    if (TOKEN_PROGRAMS.includes(program)) {
+      const scanned = scanToken(instruction, user);
+      if (!scanned) return "An inner token instruction could not be read.";
+      const refusal = tokenRefusal(scanned, user, userTokenAccounts, owners);
+      if (refusal) return refusal;
+    } else if (program === SOLANA_PROGRAM_IDS.system) {
+      const scanned = scanSystem(instruction, user);
+      if (!scanned) return "An inner System instruction could not be read.";
+      const refusal = systemRefusal(scanned, user);
+      if (refusal) return refusal;
+    } else if (program === SOLANA_PROGRAM_IDS.associatedToken) {
+      const scanned = scanAssociatedToken(instruction, user);
+      if (!scanned) return "An inner associated-token instruction could not be read.";
+      if (scanned.involvesUser && !ATA_TYPES.includes(scanned.type)) return `A program runs associated-token ${scanned.type} with the user's wallet.`;
+    } else if (MEMO_PROGRAMS.includes(program) || allowlisted.has(program)) {
+      continue;
+    } else if (instruction.parsed ? true : instruction.accounts.includes(user)) {
+      // Solana lets a CPI sign only for accounts it receives: a program that never gets the user's wallet cannot use the user's signature.
+      return `A program passes the user's wallet to ${program}, which is not in the registration's program allowlist (a program that receives the wallet can act with the user's signature).`;
     }
+  }
+  return null;
+}
+
+/* ----------------------------------------------------- simulated account states */
+
+interface MintState {
+  readonly mintAuthority: string | null;
+  readonly supply: bigint;
+  readonly freezeAuthority: string | null;
+}
+
+/** SPL mint layout (first 82 bytes; Token-2022 extensions follow with account type byte 1). */
+function decodeMint(state: SolanaAccountState | null): MintState | null {
+  if (!state || !TOKEN_PROGRAMS.includes(state.owner)) return null;
+  const data = state.data;
+  if (data.length !== 82 && !(data.length > 165 && data[165] === 1)) return null;
+  const decoder = getAddressDecoder();
+  const option = (offset: number) => (u32(data, offset) === 1 ? String(decoder.decode(data.subarray(offset + 4, offset + 36))) : null);
+  return { mintAuthority: option(0), supply: readU64(data, 36) ?? 0n, freezeAuthority: option(46) };
+}
+
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+/**
+ * Backstop over the simulated post state of one writable account (not the
+ * user's wallet, which is checked apart): accounts the user can hold
+ * authority over outside SPL balances must not lose value or change hands.
+ * Native-program accounts (stake, vote, lookup tables, program data) and
+ * System accounts other than the wallet only change with their authority's
+ * signature, which here is the user's; a mint the user can mint or freeze
+ * must keep its supply and authorities; a token account the user is only a
+ * delegate or close authority of must keep its balance. Accounts created by
+ * the transaction are not checked here.
+ */
+export function authorityStateRefusal(account: string, pre: SolanaAccountState | null, post: SolanaAccountState | null, user: string): string | null {
+  if (!pre || pre.lamports === 0n) return null;
+  const changed = !post || post.owner !== pre.owner || post.lamports < pre.lamports || !sameBytes(post.data, pre.data);
+  const denied = ACTION_DENIED_PROGRAMS.get(pre.owner);
+  if (denied) return changed ? `The transaction would change ${account}, an account of ${denied}.` : null;
+  if (pre.owner === SOLANA_PROGRAM_IDS.system) {
+    return changed ? `The transaction would take SOL from or reassign ${account}, a System account other than the user's wallet.` : null;
+  }
+  if (!TOKEN_PROGRAMS.includes(pre.owner)) return null;
+  const mint = decodeMint(pre);
+  if (mint && (mint.mintAuthority === user || mint.freezeAuthority === user)) {
+    const after = decodeMint(post);
+    if (!after || after.supply > mint.supply || after.mintAuthority !== mint.mintAuthority || after.freezeAuthority !== mint.freezeAuthority) {
+      return `The transaction would mint or change the authorities of ${account}, a mint the user controls.`;
+    }
+  }
+  const token = decodeTokenAccount(pre);
+  if (token && token.owner !== user && (token.delegate === user || token.closeAuthority === user)) {
+    const after = decodeTokenAccount(post);
+    if (!after || !post || (readU64(post.data, 64) ?? 0n) < (readU64(pre.data, 64) ?? 0n)) {
+      return `The transaction would spend or close ${account}, a token account the user is only a delegate or close authority of.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Wallet additions a landed transaction may carry beyond the prepared
+ * instructions are ComputeBudget and Lighthouse assertions only. A
+ * Lighthouse instruction other than an assertion, or one that issued inner
+ * instructions, makes the landed transaction a different one.
+ */
+export function walletAdditionRefusal(instructions: readonly SolanaInstructionView[], inner: readonly SolanaInnerInstruction[]): string | null {
+  for (const [index, instruction] of instructions.entries()) {
+    if (instruction.program !== LIGHTHOUSE_PROGRAM) continue;
+    if (!isLighthouseAssertion(instruction.data)) return `Instruction ${index + 1} is a Lighthouse instruction other than an assertion; wallets may add only compute-budget and Lighthouse assertion instructions.`;
+    if (inner.some((entry) => entry.index === index)) return `Instruction ${index + 1} (Lighthouse) invoked other programs; wallets may add only compute-budget and Lighthouse assertion instructions.`;
   }
   return null;
 }

@@ -20,6 +20,12 @@ export interface AssetDescriptor {
   readonly tokenProgram?: "spl-token" | "token-2022";
   /** Cross-network identity group: assets in the same group are fungible 1:1 in intent. */
   readonly group?: "USDC" | "USDT" | "ETH" | "BTC" | "EURC" | "SOL";
+  /**
+   * The ERC-20 is a view of the account's native balance (no storage slot):
+   * simulations that need funds in flight override the native balance,
+   * scaled by 10^(native decimals - token decimals). Arc USDC.
+   */
+  readonly nativeBalanceView?: true;
 }
 
 function native(network: NetworkKey, group?: AssetDescriptor["group"]): AssetDescriptor {
@@ -112,7 +118,7 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   evm("polygon", "WPOL", "Wrapped POL", "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", 18, "wrapped"),
   evm("polygon", "WETH", "Wrapped Ether", "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", 18, "wrapped", "ETH"),
   // Arc Testnet: USDC is the native gas asset (18 decimals) with a 6-decimal ERC-20 interface.
-  evm("arc", "USDC", "USD Coin", "0x3600000000000000000000000000000000000000", 6, "stablecoin", "USDC"),
+  { ...evm("arc", "USDC", "USD Coin", "0x3600000000000000000000000000000000000000", 6, "stablecoin", "USDC"), nativeBalanceView: true },
   // Arbitrum Sepolia
   native("arbitrum-sepolia", "ETH"),
   evm("arbitrum-sepolia", "USDC", "USD Coin", "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", 6, "stablecoin", "USDC"),

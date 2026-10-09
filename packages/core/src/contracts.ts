@@ -1494,6 +1494,17 @@ export function domainFileListsContract(body: unknown, contractId: string): bool
   return isRecord(body) && Array.isArray(body.contracts) && body.contracts.some((entry) => entry === contractId);
 }
 
+/**
+ * True when a `/.well-known/kletia.json` body authorizes an intent link:
+ * `"links": ["lk_…"]` lists it, or `"keys": ["key_…"]` lists its owner key
+ * (every link of that key; key ids are public and stable across rotations).
+ */
+export function domainFileListsLink(body: unknown, linkId: string, keyId: string): boolean {
+  if (!isRecord(body)) return false;
+  const lists = (field: unknown, value: string) => Array.isArray(field) && field.some((entry) => entry === value);
+  return lists(body.links, linkId) || lists(body.keys, keyId);
+}
+
 /** Resolves a registry asset for a definition: `native`, a symbol on `network`, or a CAIP-19 id on `network`. */
 export function resolveContractAsset(network: NetworkKey, token: string): AssetDescriptor | null {
   if (typeof token !== "string" || !token.trim()) return null;

@@ -155,6 +155,8 @@ export type EvmTransactionObservation =
       readonly input: string;
       readonly value: bigint;
       readonly chainId: number | null;
+      /** Account nonce the transaction used (Rule Book nonce pinning compares it with the pinned one). */
+      readonly nonce: number | null;
       readonly blockNumber: bigint;
       readonly blockTimestamp: number | null;
       readonly logs: readonly Log[];
@@ -187,10 +189,24 @@ export async function observeEvmTransaction(network: EvmNetworkKey, hash: string
     input: transaction.input,
     value: transaction.value,
     chainId: typeof transaction.chainId === "number" ? transaction.chainId : null,
+    nonce: typeof transaction.nonce === "number" && Number.isSafeInteger(transaction.nonce) ? transaction.nonce : null,
     blockNumber: receipt.blockNumber,
     blockTimestamp: block ? Number(block.timestamp) : null,
     logs: receipt.logs,
   };
+}
+
+/**
+ * The account's next nonce including pending transactions
+ * (`eth_getTransactionCount(account, "pending")`): Rule Book nonce pinning.
+ * Throws when unreadable (pinning fails closed).
+ */
+export async function readPendingNonce(network: EvmNetworkKey, account: string): Promise<bigint> {
+  const count = await withTimeout(evmClient(network).request({ method: "eth_getTransactionCount", params: [getAddress(account), "pending"] }), 5_000);
+  if (typeof count !== "string" || !/^0x[0-9a-fA-F]{1,16}$/u.test(count)) {
+    throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read returned a malformed nonce.", 502);
+  }
+  return BigInt(count);
 }
 
 /** Destination-side check for solver fills: receipt exists and succeeded. */

@@ -214,7 +214,8 @@ export async function verifyEvmReceipts(
     data: observation.input.toLowerCase(),
     value: observation.value.toString(),
   }));
-  const preparedAtMs = preparedBindings(step).get(quoteBindingForViews(views));
+  const landedBinding = quoteBindingForViews(views);
+  const preparedAtMs = preparedBindings(step).get(landedBinding);
   if (preparedAtMs === undefined) {
     return done(failed([], {
       code: "REFERENCE_MISMATCH",
@@ -227,6 +228,10 @@ export async function verifyEvmReceipts(
       return done(failed([], { code: "REFERENCE_STALE", message: `Transaction ${index + 1} was mined before this step's payload was prepared.` }));
     }
   }
+  rememberLandedPayload(step.network, references, {
+    quoteBinding: landedBinding,
+    nonces: landed.map((observation) => (observation.nonce === null ? null : String(observation.nonce))),
+  });
   const evidence: StepEvidence[] = landed.map((observation, index) => {
     const reference = references[index] as string;
     return {
@@ -255,6 +260,44 @@ export async function verifyEvmReceipts(
     evidence: allEvidence,
     ...(outcome?.actualOutput ? { actualOutput: outcome.actualOutput } : {}),
   });
+}
+
+/* ------------------------------------------------ landed payloads (Rule Book) */
+
+/** Which prepared payload landed (its binding) and the nonce each transaction used. */
+export interface LandedPayload {
+  readonly quoteBinding: string;
+  /** Decimal nonce per reference, in order (null when the node did not report it). */
+  readonly nonces: readonly (string | null)[];
+}
+
+const MAX_LANDED_PAYLOADS = 10_000;
+const landedPayloads = new Map<string, LandedPayload>();
+
+function landedKey(network: string, references: readonly string[]): string {
+  return `${network}|${references.map((reference) => reference.toLowerCase()).join(",")}`;
+}
+
+function rememberLandedPayload(network: string, references: readonly string[], payload: LandedPayload): void {
+  const key = landedKey(network, references);
+  landedPayloads.delete(key);
+  landedPayloads.set(key, payload);
+  while (landedPayloads.size > MAX_LANDED_PAYLOADS) {
+    const oldest = landedPayloads.keys().next().value;
+    if (oldest === undefined) break;
+    landedPayloads.delete(oldest);
+  }
+}
+
+/**
+ * The payload an EVM step's references were verified against in this
+ * process (binding and landed nonces), or null when not verified here
+ * (another instance, Solana). The Rule Book reconciles exposures with it.
+ */
+export function landedPayload(step: Pick<IntentStep, "network" | "references">): LandedPayload | null {
+  const references = step.references ?? [];
+  if (references.length === 0) return null;
+  return landedPayloads.get(landedKey(step.network, references)) ?? null;
 }
 
 export interface SolanaVerificationCheck {

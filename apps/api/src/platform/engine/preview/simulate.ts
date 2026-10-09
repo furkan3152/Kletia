@@ -14,12 +14,7 @@
  */
 import { createHash } from "node:crypto";
 import { decodeFunctionResult, encodeFunctionData, erc20Abi, getAddress, pad, toHex, type Hex } from "viem";
-import {
-  CHAINS,
-  getAsset,
-  type EvmTransactionRequest,
-  type SolanaTransactionRequest,
-} from "@kletia/core";
+import { CHAINS, getAsset, type SolanaTransactionRequest } from "@kletia/core";
 import type { EvmNetworkKey } from "../chains/evm.js";
 import { simulateSolanaTransactionDetailed, type DetailedSolanaSimulation } from "../chains/solana.js";
 import { balanceOverride } from "../contracts/balanceSlots.js";
@@ -27,8 +22,8 @@ import { parseSimulatedBlock, type SimulatedCallResult, type StateOverrides } fr
 import { demoteSimulationEndpoint, jsonRpc, simulationEndpoints } from "../contracts/simulationRpc.js";
 import { staticKeysOf } from "../contracts/solanaActions.js";
 import type { SolanaNetworkKey } from "../../../networks/solana/index.js";
+import { getBase64Encoder, getCompiledTransactionMessageDecoder, getTransactionDecoder } from "@solana/kit";
 import { ARBITRUM_NETWORKS, NODE_INTERFACE, NODE_INTERFACE_ABI, type EvmBlockPlan, type EvmJob } from "./jobs.js";
-import { getCompiledTransactionMessageDecoder, getTransactionDecoder, getBase64Encoder } from "@solana/kit";
 
 const GAS_PRICE_TTL_MS = 12_000;
 const L1_TTL_MS = 30_000;
@@ -367,4 +362,3 @@ export function blockOpStackL1Fee(block: SimulatedBlock): bigint | null {
   return total;
 }
 
-export type { EvmTransactionRequest };

@@ -451,11 +451,14 @@ export async function evmStepPreview(context: StepBuildContext, job: Extract<Sim
   const inputToken = tokenOf(step.input?.asset, step.network);
   const inputNative = step.input !== undefined && inputToken === null && parseAssetId(step.input.asset)?.isNative === true;
   const assumed = block.overridden !== null;
-  const balanceBefore = inputToken
-    ? reads.get(inputToken)?.before ?? null
-    : inputNative
-      ? context.nativeBalances.get(`${network}:${owner}`) ?? null
-      : null;
+  // A withdraw's input comes out of a venue position, not out of the wallet: no balance to cover.
+  const balanceBefore = step.kind === "withdraw"
+    ? null
+    : inputToken
+      ? reads.get(inputToken)?.before ?? null
+      : inputNative
+        ? context.nativeBalances.get(`${network}:${owner}`) ?? null
+        : null;
   const ready = !assumed && block.plan.assumeFunds === null;
   const recipient = step.recipient ?? step.account;
   const cross = step.settlement?.kind === "cross-network";
@@ -643,6 +646,9 @@ function parentLabel(graph: IntentGraph, step: IntentStep): string {
 
 /* ------------------------------------------------------------- Solana steps */
 
+/** Most lamports a step may move into accounts it creates for others (≈ 2.9 KB of account data). */
+export const CREATED_ACCOUNT_RENT_CAP = 20_000_000n;
+
 /** Builds the step preview of a simulated Solana step (one simulation per transaction). */
 export function solanaStepPreview(context: StepBuildContext, simulations: readonly SimulatedSolanaStep[]): BuiltStep {
   const { graph, step, stage } = context;
@@ -652,7 +658,10 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
   const error = simulations.find((entry) => entry.simulation.error !== null)?.simulation.error ?? null;
   let lamports = 0n;
   let fee = 0n;
+  /** Lamports moved into token accounts created for the user (refundable when closed). */
   let rent = 0n;
+  /** Lamports moved into other accounts the transaction creates (e.g. a deBridge order account). */
+  let created = 0n;
   const tokenDeltas = new Map<string, bigint>();
   const decimals = new Map<string, number>();
   const tokenAccounts: { account: string; owner: string; delegate: string | null }[] = [];
@@ -679,21 +688,23 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
         lamports += (simulation.postBalances[keyIndex] ?? 0n) - keyPre;
         wrappedBefore += keyPre;
       }
-      if (position === 0 && inputNative) inputBefore = pre + wrappedBefore;
+      if (position === 0 && inputNative && step.kind !== "withdraw") inputBefore = pre + wrappedBefore;
     }
     fee += simulation.fee ?? 0n;
     if (simulation.preBalances && simulation.postBalances) {
       for (const [keyIndex, key] of keys.entries()) {
-        if (key === user || !owned.has(key) || wrapped.has(key)) continue;
+        if (key === user || wrapped.has(key)) continue;
         const pre = simulation.preBalances[keyIndex] ?? 0n;
         const post = simulation.postBalances[keyIndex] ?? 0n;
-        if (pre === 0n && post > 0n) rent += post;
+        if (pre !== 0n || post <= 0n) continue;
+        if (owned.has(key)) rent += post;
+        else created += post;
       }
     }
     const { deltas, decimals: seen } = tokenDeltasOf(simulation.preTokenBalances, simulation.postTokenBalances, user);
     for (const [mint, delta] of deltas) tokenDeltas.set(mint, (tokenDeltas.get(mint) ?? 0n) + delta);
     for (const [mint, value] of seen) decimals.set(mint, value);
-    if (position === 0 && inputMint) {
+    if (position === 0 && inputMint && step.kind !== "withdraw") {
       inputBefore = simulation.preTokenBalances.filter((balance) => balance.owner === user && balance.mint === inputMint).reduce((total, balance) => total + balance.amount, 0n);
     }
     for (const [requestedIndex, account] of entry.requested.entries()) {
@@ -705,7 +716,9 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
   // Wrapped SOL is already counted through its accounts' lamports above.
   tokenDeltas.delete(WRAPPED_SOL_MINT);
   const solDelta = lamports;
-  const solSpent = -solDelta - fee - rent;
+  // Rent of accounts the transaction creates for others is shown as a fee line and tolerated up to a
+  // cap (a venue's order account); anything beyond counts as SOL taken from the user.
+  const solSpent = -solDelta - fee - rent - (created < CREATED_ACCOUNT_RENT_CAP ? created : CREATED_ACCOUNT_RENT_CAP);
   const recipient = step.recipient ?? step.account;
   const cross = step.settlement?.kind === "cross-network";
   const ownRecipient = isOwn(graph, recipient);
@@ -753,6 +766,7 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
   }
   let solExpected = solDelta;
   let solWorst = solDelta;
+  if (created > 0n) fees.push(feeLine(step, network, "rent", "Account rent (venue accounts)", nativeAsset, created, "on-top", certainty));
   if (inputNative && model && step.kind !== "withdraw") {
     solExpected += model.encoded - model.expected;
     solWorst += model.encoded - model.worst;

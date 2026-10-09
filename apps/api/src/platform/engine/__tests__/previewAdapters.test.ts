@@ -80,7 +80,9 @@ describe("plan-time preview transactions of built-in adapters", () => {
   it("LI.FI: approval and diamond call built by the same code as prepare", async () => {
     const action = bridgeAction("base", "arbitrum");
     const transactionId = `0x${"ab".repeat(32)}`;
-    mock.lifiQuote = () => lifiQuoteBody(action, { transactionId });
+    // One quote body for both calls: the fixture stamps its deadlines with the current second.
+    const body = lifiQuoteBody(action, { transactionId });
+    mock.lifiQuote = () => structuredClone(body);
     const planned = await lifiAdapter.plan(action);
     assert.ok(planned.preview);
     const step = preparedStep({ network: "base", chain: CHAINS.base.id, account: action.account.id, status: "ready" });

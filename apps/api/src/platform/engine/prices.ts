@@ -3,7 +3,7 @@
  * (WSOL for SOL, Wormhole-bridged WETH as an ETH proxy) and are cached
  * briefly. A missing price yields null; it never blocks planning.
  */
-import { CHAINS, WRAPPED_SOL_MINT, type NetworkKey } from "@kletia/core";
+import { assetsForNetwork, CHAINS, WRAPPED_SOL_MINT, type NetworkKey } from "@kletia/core";
 import { readSolanaPrices } from "../../networks/solana/index.js";
 
 /** Wormhole-bridged WETH on Solana; tracks ETH closely and is priced by Jupiter. */
@@ -30,6 +30,29 @@ async function mintPrice(mint: string): Promise<number | null> {
   return request;
 }
 
+/**
+ * Natives Jupiter cannot price (POL) fall back to the Rule Book's oracle
+ * (Chainlink POL / USD on Polygon and Arbitrum), so Polygon fees are known
+ * and `limits.maxFeeUsd` does not lock Polygon out (policy design §4.4).
+ */
+async function oracleNativePrice(network: NetworkKey): Promise<number | null> {
+  const cached = cache.get(`oracle:${network}`);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const native = assetsForNetwork(network).find((asset) => asset.address === null);
+  let value: number | null = null;
+  if (native) {
+    try {
+      const { policyPrice, quoteUsdNumber } = await import("./policy/pricing.js");
+      const quote = await policyPrice({ asset: native.id, symbol: native.symbol, decimals: native.decimals, network });
+      value = quote ? quoteUsdNumber(quote) : null;
+    } catch {
+      value = null;
+    }
+  }
+  cache.set(`oracle:${network}`, { value, expiresAt: Date.now() + (value === null ? 10_000 : CACHE_TTL_MS) });
+  return value;
+}
+
 /** USD price of a network's native gas asset (testnets other than Arc price at 0). */
 export async function nativeUsdPrice(network: NetworkKey): Promise<number | null> {
   const chain = CHAINS[network];
@@ -37,7 +60,7 @@ export async function nativeUsdPrice(network: NetworkKey): Promise<number | null
   if (chain.environment === "testnet") return 0;
   if (chain.nativeAsset.symbol === "SOL") return mintPrice(WRAPPED_SOL_MINT);
   if (chain.nativeAsset.symbol === "ETH") return mintPrice(ETH_PROXY_MINT);
-  return null;
+  return oracleNativePrice(network);
 }
 
 export async function solanaMintUsdPrice(mint: string): Promise<number | null> {

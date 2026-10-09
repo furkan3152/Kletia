@@ -22,11 +22,13 @@ import {
   type StepEvidence,
   type StepExecutionPayload,
   type StepStatus,
+  validateIntentRequest,
+  type IntentRequest,
 } from "@kletia/core";
 import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
 import { ADAPTERS, adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
 import type { ContractPreparedPayload, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
-import { firstPreparedAt, isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
+import { firstPreparedAt, isReferenceRejection, landedPayload, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
 import { quoteBindingFor } from "./binding.js";
 import { sameAddress } from "./accounts.js";
 import { assetFromRef, sameAsset } from "./assets.js";
@@ -45,7 +47,9 @@ import {
 } from "./contracts/directory.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
 import { resolveRecipientName } from "./names.js";
-import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize } from "./planner.js";
+import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl } from "./planner.js";
+import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
+import { policyGate, policyGateActive, type ExposureHandle } from "./policy/gate.js";
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, type PreparedPreview } from "./preview/index.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
@@ -202,10 +206,30 @@ async function commit(before: IntentGraph, after: IntentGraph): Promise<IntentGr
 export interface CreateIntentOptions {
   /** API key id of the caller; enables listing and idempotent clientReference. */
   readonly ownerKeyId?: string;
+  /**
+   * The authenticated key making the request when it differs from the owner
+   * (Rule Book decision log); null for public callers such as link
+   * visitors. Default: the owner.
+   */
+  readonly actorKeyId?: string | null;
   /** Plan and quote without persisting. */
   readonly dryRun?: boolean;
   /** Also compute the asset-change preview (stage `plan`) from the quotes' own transactions. */
   readonly preview?: boolean;
+  /** Stage of that preview: `plan` (default) or `indicative` (placeholder accounts, link quotes). */
+  readonly previewStage?: "plan" | "indicative";
+  /**
+   * Checks the planned graph before the Rule Book evaluates it and before
+   * anything is stored or returned (dry runs too); a throw refuses the
+   * intent. Intent links check their envelope here.
+   */
+  readonly verifyPlan?: (graph: IntentGraph) => void | Promise<void>;
+  /**
+   * The intent link this intent is created through: sets `metadata.linkId`,
+   * which callers can never set themselves (links reserve uses and force
+   * strict simulation by it). Engine-internal (planLinkIntent).
+   */
+  readonly linkId?: string;
 }
 
 export interface CreatedIntent {
@@ -217,13 +241,29 @@ export interface CreatedIntent {
 }
 
 /** Plan-stage preview of a created intent; RPC trouble yields `unavailable` steps, never a failed create. */
-async function planPreview(intent: IntentGraph): Promise<IntentPreview | undefined> {
+async function planPreview(intent: IntentGraph, stage: "plan" | "indicative" = "plan"): Promise<IntentPreview | undefined> {
   try {
-    return await previewIntent(intent, { stage: "plan" });
+    return await previewIntent(intent, { stage });
   } catch (error) {
     console.warn("[platform] plan preview failed:", toPlatformError(error).message);
     return undefined;
   }
+}
+
+/**
+ * Validates a request as the planner does, and applies the link marker:
+ * `metadata.linkId` is reserved for intents created through a link.
+ */
+function intentRequestFor(input: unknown, linkId: string | undefined): IntentRequest {
+  const validated = validateIntentRequest(input);
+  if (!validated.ok) throw new PlatformError("INVALID_REQUEST", "The intent request is invalid.", 400, validated.issues);
+  const request = validated.value;
+  if (request.metadata?.linkId !== undefined) {
+    throw new PlatformError("INVALID_REQUEST", "metadata.linkId is reserved for intents created through an intent link.", 400, [
+      { path: "metadata.linkId", message: "Reserved." },
+    ]);
+  }
+  return linkId === undefined ? request : { ...request, metadata: { ...request.metadata, linkId } };
 }
 
 /** Plans (and unless `dryRun`, stores) an intent, reporting whether it was an idempotent replay. */
@@ -239,7 +279,22 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
         if (existing) return { intent: existing, replayed: true };
       }
-      const { graph, previews } = await planIntentWithPreviews(request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      const gate = policyGate();
+      const actorKeyId = options.actorKeyId === undefined ? options.ownerKeyId : options.actorKeyId ?? undefined;
+      // Rule Book (policy design §4.3): request-level rules first, then the constraints the auction sees are narrowed.
+      const guard = await gate.beforePlan({
+        ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
+        ...(actorKeyId ? { actorKeyId } : {}),
+        request: intentRequestFor(request, options.linkId),
+        dryRun: options.dryRun === true,
+      });
+      const planned = await planIntentWithPreviews(guard.request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      const previews = planned.previews;
+      await options.verifyPlan?.(planned.graph);
+      // The planned graph is evaluated in full: deny refuses here; allow and confirm stamp the intent.
+      const decided = await gate.afterPlan(guard, planned.graph);
+      let graph = decided.ttlMs !== undefined ? withIntentTtl(planned.graph, decided.ttlMs) : planned.graph;
+      if (decided.stamp) graph = { ...graph, policy: decided.stamp };
       // Plan-time quote transactions stay in memory (never in the graph) for previews until the quotes expire.
       rememberPlannedPreviews(graph.id, previews);
       if (options.dryRun) return { intent: graph, replayed: false };
@@ -254,6 +309,8 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         throw error;
       }
       emitGraphChanges(null, graph);
+      // Approval holds reference the stored intent.
+      await gate.afterCreate(guard, graph);
       return { intent: graph, replayed: false };
     };
     // Concurrent retries of one clientReference must not create two intents: the lock covers
@@ -262,7 +319,7 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
       ? await withIntentLock(`client:${options.ownerKeyId}:${clientReference}`, create)
       : await create();
     if (!options.preview) return created;
-    const preview = await planPreview(created.intent);
+    const preview = await planPreview(created.intent, options.previewStage);
     return preview ? { ...created, preview } : created;
   } catch (error) {
     throw toPlatformError(error);
@@ -643,6 +700,10 @@ export async function prepareStep(intentId: string, stepId: string, options: Pre
       const action = actionForStep(graph, step);
       const adapter = adapterForStep(step);
       await assertRecipientNameUnchanged(step);
+      // Rule Book (policy design §6): the owner is read only when a gate is installed.
+      const gate = policyGate();
+      const governed = policyGateActive();
+      const ownerKeyId = governed ? (await getIntentStore().ownerOf(graph.id)) ?? null : null;
       const expiresAt = Math.floor(now / 1000) + PAYLOAD_TTL_SECONDS;
       const contractStep = step.kind === "call" || step.kind === "action";
       let usable: ContractStepUse | null = null;
@@ -662,6 +723,10 @@ export async function prepareStep(intentId: string, stepId: string, options: Pre
       }
       validatePayload(step, prepared);
       if (step.kind === "call") assertCallPayload(step, prepared);
+      // Nonce pinning (§6.3): consecutive pending nonces, so re-prepares on one nonce are mutually exclusive.
+      if (governed && isEvmNetwork(step.network) && (await gate.executionOptions(ownerKeyId)).pinNonce) {
+        prepared = { ...prepared, transactions: await pinNonces(step, prepared.transactions) };
+      }
       const movedCost = extraCostMoved(step, prepared);
       if (movedCost) {
         throw new PlatformError(
@@ -743,12 +808,48 @@ export async function prepareStep(intentId: string, stepId: string, options: Pre
       // Asset-change preview of exactly these transactions (design §5.8): invariants and the
       // acknowledged-preview check run before anything is counted, committed or handed out.
       const preview = await preparedPreview(graph, step, nextStep, adapter, prepared, quoteBinding, options);
-      // The key's daily notional is counted once per step (its first prepare), whatever re-prepares follow.
-      if (usable && usable.usd !== null && firstPreparedAt(step) === null) {
-        await (contractDirectory() as ContractDirectory).recordSpend(usable.ownerKeyId, usable.usd);
-      }
       const next = withSteps(graph, replaceStep(graph.steps, nextStep), now);
-      const intent = await commit(graph, next);
+      // Rule Book clearance (§6.4): re-evaluated with fresh amounts, approval checked, exposure reserved
+      // before the payload leaves. A rejected approval cancels the intent (nothing was submitted).
+      let exposure: ExposureHandle | null = null;
+      if (governed) {
+        try {
+          exposure = await gate.beforePayload({
+            graph: next,
+            step: nextStep,
+            prepared,
+            ownerKeyId,
+            quoteBinding,
+            exposure: payloadExposure({ intentId: graph.id, step, quoteBinding, transactions: prepared.transactions, now }),
+            now,
+            solanaBlockHeight: () => solanaBlockHeight(step.network),
+          });
+        } catch (error) {
+          if (isPlatformError(error) && error.code === "POLICY_APPROVAL_REJECTED") await cancelAfterRejection(graph, now);
+          throw error;
+        }
+      }
+      let intent: IntentGraph;
+      try {
+        // The key's daily notional is counted once per step (its first prepare), whatever re-prepares follow.
+        if (usable && usable.usd !== null && firstPreparedAt(step) === null) {
+          await (contractDirectory() as ContractDirectory).recordSpend(usable.ownerKeyId, usable.usd);
+        }
+        intent = await commit(graph, next);
+      } catch (error) {
+        // The payload never left: its exposure must not count.
+        if (exposure) {
+          await exposure.abort().catch((abortError: unknown) => {
+            console.warn(`[platform] releasing exposure ${exposure?.exposureId} failed:`, abortError instanceof Error ? abortError.message : abortError);
+          });
+        }
+        throw error;
+      }
+      if (exposure) {
+        await exposure.commit().catch((commitError: unknown) => {
+          console.warn(`[platform] committing exposure ${exposure?.exposureId} failed:`, commitError instanceof Error ? commitError.message : commitError);
+        });
+      }
       return {
         intent,
         payload: {
@@ -758,6 +859,16 @@ export async function prepareStep(intentId: string, stepId: string, options: Pre
           quoteBinding,
           ...(review ? { review } : {}),
           ...(preview ? { preview: preview.step } : {}),
+          ...(exposure
+            ? {
+                policy: {
+                  decisionId: exposure.decisionId,
+                  exposureId: exposure.exposureId,
+                  notionalUsd: exposure.notionalUsd,
+                  chainHashes: [...(exposure.chainHashes ?? graph.policy?.chain.map((link) => link.hash) ?? [])],
+                },
+              }
+            : {}),
         },
         ...(preview ? { preview: preview.intent } : {}),
         ...(preview?.ack ? { previewAck: preview.ack } : {}),
@@ -839,6 +950,38 @@ function submittedAt(step: IntentStep): number {
 
 function appendEvidence(step: IntentStep, evidence: readonly StepEvidence[]): StepEvidence[] {
   return [...step.evidence, ...evidence].slice(-50);
+}
+
+const LANDED_STATUSES: readonly StepStatus[] = ["confirmed", "settling", "settled"];
+
+/**
+ * Rule Book reconciliation (policy design §6.2): steps whose references
+ * just verified on-chain turn their exposure landed. Never throws and never
+ * refuses: on-chain facts are recorded whatever the rule book says.
+ */
+async function reconcileVerified(before: IntentGraph, after: IntentGraph): Promise<void> {
+  if (!policyGateActive()) return;
+  const verified = after.steps.filter((step) => {
+    const previous = before.steps.find((candidate) => candidate.id === step.id);
+    return LANDED_STATUSES.includes(step.status) && (!previous || !LANDED_STATUSES.includes(previous.status));
+  });
+  if (verified.length === 0) return;
+  try {
+    const ownerKeyId = (await getIntentStore().ownerOf(after.id)) ?? null;
+    if (!ownerKeyId) return;
+    for (const step of verified) {
+      const landed = landedPayload(step);
+      await policyGate().afterVerification({
+        graph: after,
+        step,
+        ownerKeyId,
+        ...(landed ? { landedNonces: landed.nonces } : {}),
+        quoteBinding: landed?.quoteBinding ?? (CHAINS[step.network].vm === "svm" ? step.prepared?.quoteBinding ?? null : null),
+      });
+    }
+  } catch (error) {
+    console.warn(`[platform] policy reconcile of ${after.id} failed:`, toPlatformError(error).message);
+  }
 }
 
 /** Moves a step to manual review (never auto-retried) with a note saying why. */
@@ -1157,7 +1300,9 @@ export async function submitStep(intentId: string, stepId: string, references: u
       if (isReferenceRejection(result)) throw rejectionError(result.failure);
       const verified = await settleNow(intentId, applyVerification(candidate, result, now), now);
       const steps = unlockDependents(replaceStep(graph.steps, verified));
-      return commit(graph, withSteps(graph, steps, now));
+      const committed = await commit(graph, withSteps(graph, steps, now));
+      await reconcileVerified(graph, committed);
+      return committed;
     });
   } catch (error) {
     throw toPlatformError(error);
@@ -1191,7 +1336,9 @@ async function refreshIntentInternal(id: string, onlySteps?: readonly string[]):
     if (unlocked.some((step, index) => step !== steps[index])) changed = true;
     const status = deriveStatus(graph, unlocked, now);
     if (!changed && status === graph.status) return graph;
-    return commit(graph, withSteps(graph, unlocked, now));
+    const committed = await commit(graph, withSteps(graph, unlocked, now));
+    await reconcileVerified(graph, committed);
+    return committed;
   });
 }
 
@@ -1207,31 +1354,50 @@ export async function refreshIntent(id: string): Promise<IntentGraph> {
 
 /* ---------------------------------------------------------------- cancel */
 
+function hasStarted(graph: IntentGraph): boolean {
+  return graph.steps.some(
+    (step) => (step.references?.length ?? 0) > 0 ||
+      ["submitted", "confirmed", "settling", "settled", "indeterminate"].includes(step.status),
+  );
+}
+
+function cancelledGraph(graph: IntentGraph, now: number): IntentGraph {
+  const steps = graph.steps.map((step): IntentStep => {
+    if (step.status === "skipped") return step;
+    const path: StepStatus[] = step.status === "awaiting_signature" || step.status === "failed" ? ["ready", "skipped"] : ["skipped"];
+    return { ...step, status: transition(step, ...path) };
+  });
+  return {
+    ...graph,
+    steps,
+    status: "cancelled",
+    updatedAt: nextTimestamp(graph.updatedAt, now),
+  };
+}
+
+/**
+ * An approver rejected the intent's Rule Book hold (policy design §7.1): the
+ * intent is cancelled unless a step was already submitted. Runs inside the
+ * intent lock; never masks the refusal.
+ */
+async function cancelAfterRejection(graph: IntentGraph, now: number): Promise<void> {
+  if (graph.status === "cancelled" || hasStarted(graph)) return;
+  try {
+    await commit(graph, cancelledGraph(graph, now));
+  } catch (error) {
+    console.warn(`[platform] cancelling rejected intent ${graph.id} failed:`, toPlatformError(error).message);
+  }
+}
+
 export async function cancelIntent(id: string): Promise<IntentGraph> {
   try {
     return await withIntentLock(id, async () => {
       const graph = await loadIntent(id);
       if (graph.status === "cancelled") return graph;
-      const started = graph.steps.some(
-        (step) => (step.references?.length ?? 0) > 0 ||
-          ["submitted", "confirmed", "settling", "settled", "indeterminate"].includes(step.status),
-      );
-      if (started) {
+      if (hasStarted(graph)) {
         throw new PlatformError("INTENT_NOT_CANCELLABLE", "A step was already submitted on-chain; the intent can no longer be cancelled.", 409);
       }
-      const now = Date.now();
-      const steps = graph.steps.map((step): IntentStep => {
-        if (step.status === "skipped") return step;
-        const path: StepStatus[] = step.status === "awaiting_signature" || step.status === "failed" ? ["ready", "skipped"] : ["skipped"];
-        return { ...step, status: transition(step, ...path) };
-      });
-      const next: IntentGraph = {
-        ...graph,
-        steps,
-        status: "cancelled",
-        updatedAt: nextTimestamp(graph.updatedAt, now),
-      };
-      return commit(graph, next);
+      return commit(graph, cancelledGraph(graph, Date.now()));
     });
   } catch (error) {
     throw toPlatformError(error);

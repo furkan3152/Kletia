@@ -135,7 +135,7 @@ describe("plan-time preview", () => {
     assert.ok(preview.approvals.some((approval) => approval.spender === RELAY_DEPOSITORY.toLowerCase() && approval.leftAfter === "0" && approval.spenderLabel === "Relay depository"));
   });
 
-  it("reports an unfunded ready step as a warning and a need, and gas on arrival", async () => {
+  it("reports an unfunded ready step as a warning and an input-balance need", async () => {
     chain.world.balances.clear();
     chain.world.native.clear();
     const { preview } = await created(transferRequest());
@@ -145,6 +145,16 @@ describe("plan-time preview", () => {
     assert.ok(preview.needs.some((need) => need.reason === "input-balance" && need.have === "0" && need.amount === "100000000"));
     // Shown with its quoted numbers, never as simulated.
     assert.equal(preview.rows.find((row) => row.symbol === "USDC")?.certainty, "quoted");
+  });
+
+  it("tells the user to bring gas where they hold none (gas on arrival), with the simulated fee", async () => {
+    chain.world.native.clear();
+    const { preview } = await created(bridgeThenSwap);
+    const needs = preview.needs.filter((need) => need.reason === "gas-on-arrival");
+    assert.deepEqual(needs.map((need) => [need.network, need.asset.symbol, need.have]), [["base", "ETH", "0"], ["arbitrum", "ETH", "0"]]);
+    const arbitrumFee = preview.fees.filter((fee) => fee.network === "arbitrum" && (fee.kind === "network" || fee.kind === "l1-data")).reduce((total, fee) => total + BigInt(fee.amount ?? "0"), 0n);
+    assert.equal(needs[1]?.amount, arbitrumFee.toString());
+    assert.ok(preview.warnings.some((warning) => /PREVIEW_GAS_ON_ARRIVAL: you need about 0\.\d+ ETH on Arbitrum One to sign step 2\./u.test(warning)), preview.warnings.join("\n"));
   });
 
   it("never fails a plan when simulation is unavailable: steps are labelled unavailable", async () => {

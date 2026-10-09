@@ -25,8 +25,9 @@ function contract(name: string, make: () => Promise<IntentStore>): void {
     it("lists receiptable intents changed since a time, oldest first, bounded", async () => {
       const store = await make();
       assert.ok(store.listChangedSince, "the store implements the scan");
-      // Times far in the future keep rows of earlier runs (shared databases) out of the window.
-      const base = Date.UTC(2100 + Math.floor(Math.random() * 800), 0, 1);
+      // Far-future times that move forward 100x faster than the clock: rows of earlier runs
+      // (shared databases) always fall before this run's window.
+      const base = Date.UTC(3000, 0, 1) + (Date.now() - Date.UTC(2026, 0, 1)) * 100;
       const iso = (minutes: number) => new Date(base + minutes * 60_000).toISOString();
       const a = await planned();
       const b = await planned();

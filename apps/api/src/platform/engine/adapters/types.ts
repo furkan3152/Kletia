@@ -17,6 +17,8 @@
  */
 import type {
   AssetAmount,
+  ContractReview,
+  ContractStepCall,
   ExecutionMode,
   IntentActionKind,
   IntentGraph,
@@ -30,6 +32,32 @@ import type {
   TransactionRequest,
 } from "@kletia/core";
 import type { ResolvedAsset } from "../assets.js";
+import type { RegisteredContract } from "../contracts/directory.js";
+
+/** A call / action step's registration snapshot before the adapter attaches its review. */
+export type ContractCallSnapshot = Omit<ContractStepCall, "review"> & { readonly review?: ContractReview };
+
+/**
+ * What a call (EVM) or action (Solana Actions) step executes: the
+ * self-contained snapshot (`IntentStep.call`) plus the context its bindings
+ * need. The planner builds it from the active revision; at prepare it is the
+ * step's own snapshot and the registration re-read by the service.
+ */
+export interface ContractCallContext {
+  readonly snapshot: ContractCallSnapshot;
+  /** The entry's input asset; null when the entry spends nothing (e.g. claim). */
+  readonly input: ResolvedAsset | null;
+  /** The declared output asset; null when the entry declares none. */
+  readonly output: ResolvedAsset | null;
+  /** Output of the previous step on the same network (`$previous.*`): guaranteed minimum at plan, observed output at prepare. */
+  readonly previousOutput?: AssetAmount;
+  /** The registration (plan, test: the resolved one; prepare: re-read and matched to the snapshot by the service). */
+  readonly registration?: RegisteredContract;
+  /** True when the step spends the previous step's output (it may not be in the wallet at plan time). */
+  readonly funded: boolean;
+  /** `plan` may override the input balance in simulation; `prepare` and `test` simulate real state. */
+  readonly stage: "plan" | "prepare" | "test";
+}
 
 /** The shape an adapter needs to decide whether it can serve an action. */
 export interface AdapterRoute {
@@ -68,6 +96,8 @@ export interface AdapterAction extends AdapterRoute {
    * cancelling an unfilled deBridge DLN order.
    */
   readonly destinationAccount?: ParsedAccountId;
+  /** Call / action steps only: the registration snapshot and binding context (`adapterForProtocol` adapters). */
+  readonly call?: ContractCallContext;
 }
 
 export interface PlannedStep {
@@ -104,6 +134,23 @@ export interface PlannedStep {
   readonly transactionCount: number;
   /** Slippage actually applied (may be tighter than requested). */
   readonly slippageBps: number;
+  /** Call / action steps: the snapshot the step executes (with the plan review). */
+  readonly call?: ContractStepCall;
+  readonly review?: ContractReview;
+}
+
+/**
+ * Plan of a call / action step. Unlike other steps, a non-spending entry
+ * (`claim`) has no input and an entry without a declared output has no
+ * outputs; the planner then leaves those IntentStep fields unset.
+ */
+export interface ContractPlannedStep extends Omit<PlannedStep, "input" | "expectedOutput" | "minimumOutput" | "call" | "review"> {
+  readonly kind: "call";
+  readonly input?: AssetAmount;
+  readonly expectedOutput?: AssetAmount;
+  readonly minimumOutput?: AssetAmount;
+  readonly call: ContractStepCall;
+  readonly review: ContractReview;
 }
 
 export interface PrepareContext {
@@ -112,6 +159,8 @@ export interface PrepareContext {
   /** The step's action rebuilt from the graph with the amount to execute now. */
   readonly action: AdapterAction;
   readonly now: number;
+  /** Unix seconds the payload expires at (call steps bind `$deadline` to it + 900 s). */
+  readonly expiresAt?: number;
 }
 
 export interface PreparedPayload {
@@ -131,6 +180,19 @@ export interface PreparedPayload {
   readonly trackingId?: string;
   readonly quoteId?: string;
   readonly warnings: readonly string[];
+  /** Call / action steps: the review of exactly these transactions (returned as `payload.review`). */
+  readonly review?: ContractReview;
+}
+
+/** Prepared payload of a call / action step (input and outputs optional, review required). */
+export interface ContractPreparedPayload extends Omit<PreparedPayload, "input" | "expectedOutput" | "minimumOutput" | "review"> {
+  readonly kind: "call";
+  readonly input?: AssetAmount;
+  readonly expectedOutput?: AssetAmount;
+  readonly minimumOutput?: AssetAmount;
+  readonly review: ContractReview;
+  /** Evidence binding the payload beyond the quote binding (Solana Actions: the instruction digest). */
+  readonly evidence?: readonly StepEvidence[];
 }
 
 export interface VerifyContext {
@@ -166,4 +228,16 @@ export interface ProtocolAdapter {
   prepare(context: PrepareContext): Promise<PreparedPayload>;
   verify(context: VerifyContext): Promise<VerificationResult>;
   poll?(step: IntentStep, now: number): Promise<SettlementResult>;
+}
+
+/**
+ * Adapters of call / action steps (`custom-call`, `solana-actions`). Route
+ * search never picks them (`supports` is false); the planner selects them by
+ * protocol and uses `planCall` / `prepareCall`, whose results may lack input
+ * and outputs. `plan` / `prepare` refuse.
+ */
+export interface ContractProtocolAdapter extends ProtocolAdapter {
+  readonly contract: true;
+  planCall(action: AdapterAction): Promise<ContractPlannedStep>;
+  prepareCall(context: PrepareContext): Promise<ContractPreparedPayload>;
 }

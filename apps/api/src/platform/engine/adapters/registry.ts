@@ -1,6 +1,7 @@
 import type { IntentConstraints, IntentStep, ProtocolId } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { aaveV3Adapter } from "./aaveV3.js";
+import { contractCallAdapter } from "./contractCall.js";
 import { debridgeDlnAdapter } from "./debridge.js";
 import { evmTransferAdapter } from "./evmTransfer.js";
 import { jupiterAdapter } from "./jupiter.js";
@@ -11,8 +12,17 @@ import { erc4626Adapter } from "./lending/erc4626.js";
 import { moonwellAdapter } from "./lending/moonwell.js";
 import { lifiAdapter } from "./lifi.js";
 import { relayAdapter } from "./relay.js";
+import { solanaActionAdapter } from "./solanaAction.js";
 import { solanaTransferAdapter } from "./solanaTransfer.js";
-import type { AdapterRoute, ProtocolAdapter } from "./types.js";
+import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
+
+/**
+ * Adapters of integrator-registered contracts (call / action steps). Route
+ * search never selects them (`supports` is false); the planner picks them by
+ * protocol. They stay available when embedders configure their own adapter
+ * set, unless that set brings its own adapter for the protocol.
+ */
+export const CONTRACT_ADAPTERS: readonly ContractProtocolAdapter[] = Object.freeze([contractCallAdapter, solanaActionAdapter]);
 
 /** Default preference order when several adapters can serve a route. */
 export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze([
@@ -28,6 +38,7 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze([
   moonwellAdapter,
   jupiterLendAdapter,
   kaminoAdapter,
+  ...CONTRACT_ADAPTERS,
 ]);
 
 export const EXECUTABLE_PROTOCOLS: readonly ProtocolId[] = Object.freeze(
@@ -89,11 +100,31 @@ const TRANSFER_FAMILY: Readonly<Record<"evm" | "svm", ProtocolId>> = { evm: "erc
  * the step's VM.
  */
 export function adapterForStep(step: Pick<IntentStep, "protocol" | "chain">): ProtocolAdapter {
+  if (step.protocol === "custom-call" || step.protocol === "solana-actions") return adapterForProtocol(step.protocol);
   const matches = activeAdapters.filter((entry) => entry.protocols.includes(step.protocol));
   const family = TRANSFER_FAMILY[step.chain.startsWith("solana:") ? "svm" : "evm"];
   const adapter = matches.length > 1 ? (matches.find((entry) => entry.id === family) ?? matches[0]) : matches[0];
   if (!adapter) {
     throw new PlatformError("PROTOCOL_UNSUPPORTED", `No execution adapter for protocol ${step.protocol}.`, 500);
+  }
+  return adapter;
+}
+
+export function isContractAdapter(adapter: ProtocolAdapter): adapter is ContractProtocolAdapter {
+  const candidate = adapter as Partial<ContractProtocolAdapter>;
+  return candidate.contract === true && typeof candidate.planCall === "function" && typeof candidate.prepareCall === "function";
+}
+
+/**
+ * The adapter executing call (`custom-call`) or action (`solana-actions`)
+ * steps: a configured adapter for the protocol when the embedder supplied
+ * one, else the built-in one.
+ */
+export function adapterForProtocol(protocol: ProtocolId): ContractProtocolAdapter {
+  const configured = activeAdapters.find((entry) => entry.protocols.includes(protocol) && isContractAdapter(entry));
+  const adapter = configured ?? CONTRACT_ADAPTERS.find((entry) => entry.protocols.includes(protocol));
+  if (!adapter || !isContractAdapter(adapter)) {
+    throw new PlatformError("PROTOCOL_UNSUPPORTED", `No execution adapter for protocol ${protocol}.`, 500);
   }
   return adapter;
 }

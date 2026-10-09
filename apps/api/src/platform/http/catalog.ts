@@ -7,12 +7,20 @@
  * asset pair and action kind on that network (and every destination in the
  * same capital lane). What the registry lists is therefore exactly what the
  * planner can route today. Results are cached per adapter set.
+ *
+ * Custom contract kinds (`call` on EVM networks, `action` on Solana) are not
+ * routes: they need a registration (POST /v1/contracts). A network lists them
+ * under `customContracts`, and in `actions` while the custom contract adapter
+ * is active and the deployment has not disabled custom contracts.
  */
 import {
   ASSETS,
   CHAINS,
+  CONTRACT_ACTION_KINDS,
+  INTENT_ACTION_KINDS,
   NETWORK_KEYS,
   PROTOCOLS,
+  contractProtocol,
   resolveChain,
   sameCapitalLane,
   type AssetDescriptor,
@@ -23,24 +31,24 @@ import {
   type ProtocolId,
 } from "@kletia/core";
 import { activeProtocolAdapters, effectiveProtocol, type AdapterRoute, type ProtocolAdapter, type ResolvedAsset } from "../index.js";
+import { contractsEnabled } from "./contractChecks.js";
 import { invalidRequest } from "./context.js";
 
 type RouteAsset = ResolvedAsset;
 
-export const ACTION_KINDS = [
-  "swap",
-  "transfer",
-  "bridge",
-  "stake",
-  "unstake",
-  "deposit",
-  "withdraw",
-  "borrow",
-  "repay",
-  "approve",
-  "claim",
-  "read",
-] as const satisfies readonly IntentActionKind[];
+/** Every intent action kind (OpenAPI enum), from @kletia/core. */
+export const ACTION_KINDS: readonly IntentActionKind[] = INTENT_ACTION_KINDS;
+
+/** Kinds the route search probes adapters with (custom contract kinds are bound to registrations, never routed). */
+const ROUTED_ACTION_KINDS: readonly IntentActionKind[] = INTENT_ACTION_KINDS.filter((kind) => !CONTRACT_ACTION_KINDS.includes(kind));
+
+/** How a network takes integrator contracts: EVM networks `call` (custom-call), Solana `action` (solana-actions). */
+export interface CustomContractCapability {
+  readonly kind: "call" | "action";
+  readonly protocol: ProtocolId;
+  /** False while the deployment disables custom contracts or no adapter executes them. */
+  readonly enabled: boolean;
+}
 
 export interface NetworkRoute {
   readonly kind: IntentActionKind;
@@ -58,6 +66,7 @@ export interface NetworkCapabilities extends ChainDescriptor {
   readonly executableProtocols: readonly ProtocolId[];
   readonly routes: readonly NetworkRoute[];
   readonly assetCount: number;
+  readonly customContracts: CustomContractCapability;
 }
 
 export interface ProtocolView extends ProtocolDescriptor {
@@ -92,7 +101,7 @@ function supports(adapter: ProtocolAdapter, route: AdapterRoute): boolean {
 function deriveRoutes(adapters: readonly ProtocolAdapter[], network: NetworkKey): NetworkRoute[] {
   const inputs = ASSETS.filter((asset) => asset.network === network).map(routeAsset);
   const found = new Map<string, { kind: IntentActionKind; protocol: ProtocolId; toNetworks: Set<NetworkKey> }>();
-  for (const kind of ACTION_KINDS) {
+  for (const kind of ROUTED_ACTION_KINDS) {
     for (const destination of NETWORK_KEYS) {
       if (!sameCapitalLane(network, destination)) continue;
       const outputs = ASSETS.filter((asset) => asset.network === destination).map(routeAsset);
@@ -118,25 +127,35 @@ function deriveRoutes(adapters: readonly ProtocolAdapter[], network: NetworkKey)
   }));
 }
 
-let networks: { readonly adapters: readonly ProtocolAdapter[]; readonly value: readonly NetworkCapabilities[] } | null = null;
+let networks: { readonly adapters: readonly ProtocolAdapter[]; readonly enabled: boolean; readonly value: readonly NetworkCapabilities[] } | null = null;
 
 export function networkCapabilities(): readonly NetworkCapabilities[] {
   const adapters = activeProtocolAdapters();
-  if (networks?.adapters === adapters) return networks.value;
+  const enabled = contractsEnabled();
+  if (networks?.adapters === adapters && networks.enabled === enabled) return networks.value;
+  const executable = new Set<ProtocolId>(adapters.flatMap((adapter) => adapter.protocols));
   const value = Object.freeze(
     NETWORK_KEYS.map((key): NetworkCapabilities => {
       const routes = deriveRoutes(adapters, key);
+      const vm = CHAINS[key].vm;
+      const protocol = contractProtocol(vm);
+      const custom: CustomContractCapability = {
+        kind: vm === "evm" ? "call" : "action",
+        protocol,
+        enabled: enabled && executable.has(protocol) && PROTOCOLS.some((entry) => entry.id === protocol && entry.networks.includes(key)),
+      };
       return {
         ...CHAINS[key],
-        actions: ACTION_KINDS.filter((kind) => routes.some((route) => route.kind === kind)),
-        protocols: PROTOCOLS.filter((protocol) => protocol.networks.includes(key)).map((protocol) => protocol.id),
-        executableProtocols: [...new Set(routes.map((route) => route.protocol))],
+        actions: ACTION_KINDS.filter((kind) => routes.some((route) => route.kind === kind) || (custom.enabled && kind === custom.kind)),
+        protocols: PROTOCOLS.filter((entry) => entry.networks.includes(key)).map((entry) => entry.id),
+        executableProtocols: [...new Set([...routes.map((route) => route.protocol), ...(custom.enabled ? [protocol] : [])])],
         routes,
         assetCount: ASSETS.filter((asset) => asset.network === key).length,
+        customContracts: custom,
       };
     }),
   );
-  networks = { adapters, value };
+  networks = { adapters, enabled, value };
   return value;
 }
 

@@ -87,4 +87,31 @@ export {
   NAME_RESOLVERS,
 } from "./engine/nameResolvers.js";
 export type { AdapterRoute, ProtocolAdapter } from "./engine/adapters/types.js";
+
+/* Bring your own contract (engine side; the HTTP layer installs the directory). */
+export {
+  configureContractDirectory,
+  contractDirectory,
+  contractsEnabled,
+  type ActionTransport,
+  type ContractDirectory,
+  type ContractPhrase,
+  type RegisteredContract,
+} from "./engine/contracts/directory.js";
+export {
+  compareEvmPins,
+  inspectEvmContract,
+  proxyRefusalReason,
+  PROXY_REFUSAL_HINTS,
+  type EvmContractInspection,
+} from "./engine/contracts/pins.js";
+export {
+  compareSolanaProgramPins,
+  fetchSolanaActionMetadata,
+  readSolanaProgramPins,
+} from "./engine/contracts/solanaActions.js";
+export { testContractAction } from "./engine/contracts/review.js";
+export { simulationCapability, simulationUrls } from "./engine/contracts/simulationRpc.js";
+export { EVM_NETWORK_KEYS, isEvmNetwork, type EvmNetworkKey } from "./engine/chains/evm.js";
+export type { SolanaNetworkKey } from "../networks/solana/index.js";
 export type { ResolvedAsset } from "./engine/assets.js";

@@ -1,10 +1,13 @@
 /**
  * Webhook dispatcher.
  *
- * Subscribes to the engine's intent event envelopes. For intents created with
- * an API key, each event is POSTed (body = the KletiaEvent JSON) to that key's
- * webhooks subscribed to the event type, signed with
- * `Kletia-Signature: t=<unix>,v1=<hmac>` (signWebhookPayload from @kletia/core).
+ * Subscribes to the engine's intent event envelopes and to the contract
+ * registration events (contracts.ts). For intents created with an API key,
+ * each event is POSTed (body = the KletiaEvent JSON) to that key's webhooks
+ * subscribed to the event type; contract events go to the webhooks of the
+ * registration's owning key (`data.ownerKeyId`) and never to another key.
+ * Deliveries are signed with `Kletia-Signature: t=<unix>,v1=<hmac>`
+ * (signWebhookPayload from @kletia/core).
  *
  * Delivery rules: 5 s timeout, redirects are never followed (3xx is a
  * failure), every socket lookup re-checks that the host is public, a failed
@@ -33,6 +36,7 @@ import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
 import { subscribeIntentEvents, type IntentEvent } from "../index.js";
 import { isKeyRevoked } from "./auth.js";
+import { subscribeContractEvents, type ContractEvent } from "./contracts.js";
 import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
 import { guardedLookup, isPublicAddress } from "./netguard.js";
 import { resolveIntentOwner } from "./owners.js";
@@ -56,11 +60,18 @@ const MAX_TRACKED_WEBHOOKS = 10_000;
 const OWNER_RETRY_DELAYS_MS: readonly number[] = [0, 250, 1_000];
 export const WEBHOOK_USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
 
+/** An intent event (routed by the intent's key) or a contract event (routed by `data.ownerKeyId`). */
+export type DispatchedEvent = IntentEvent | ContractEvent;
+
+function isContractEvent(event: DispatchedEvent): event is ContractEvent {
+  return event.type.startsWith("contract.");
+}
+
 interface Delivery {
   readonly webhookId: string;
   readonly ownerKeyId: string;
   readonly url: string;
-  readonly event: IntentEvent;
+  readonly event: DispatchedEvent;
   readonly body: string;
   readonly attempt: number;
 }
@@ -137,6 +148,7 @@ export class WebhookDispatcher {
   /** Timers that resume the queue when a paused webhook may be probed again. */
   private readonly wakeups = new Set<NodeJS.Timeout>();
   private unsubscribe: (() => void) | null = null;
+  private unsubscribeContracts: (() => void) | null = null;
   private delivered = 0;
   private failed = 0;
   private dropped = 0;
@@ -149,19 +161,23 @@ export class WebhookDispatcher {
 
   start(): void {
     if (this.unsubscribe) return;
-    this.unsubscribe = subscribeIntentEvents((event) => {
+    const onEvent = (event: DispatchedEvent) => {
       // Deferred past the current microtasks so the HTTP layer has recorded the owner of a new intent.
       setImmediate(() => {
         this.route(event, 0).catch((error: unknown) => {
           console.warn("[platform] webhook routing failed:", error instanceof Error ? error.message : error);
         });
       });
-    });
+    };
+    this.unsubscribe = subscribeIntentEvents(onEvent);
+    this.unsubscribeContracts = subscribeContractEvents(onEvent);
   }
 
   stop(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeContracts?.();
+    this.unsubscribeContracts = null;
     for (const timer of [...this.timers, ...this.wakeups]) clearTimeout(timer);
     this.timers.clear();
     this.wakeups.clear();
@@ -215,7 +231,7 @@ export class WebhookDispatcher {
         ownerKeyId: delivery.ownerKeyId,
         eventId: delivery.event.id,
         eventType: delivery.event.type,
-        intentId: delivery.event.data.intentId,
+        ...(isContractEvent(delivery.event) ? {} : { intentId: delivery.event.data.intentId }),
         attempt: delivery.attempt,
         status: outcome.status,
         ...(outcome.httpStatus !== undefined ? { httpStatus: outcome.httpStatus } : {}),
@@ -239,9 +255,9 @@ export class WebhookDispatcher {
     }
   }
 
-  private async route(event: IntentEvent, ownerAttempt: number): Promise<void> {
+  private async route(event: DispatchedEvent, ownerAttempt: number): Promise<void> {
     if (!this.unsubscribe) return;
-    const owner = await resolveIntentOwner(event.data.intentId);
+    const owner = isContractEvent(event) ? event.data.ownerKeyId : await resolveIntentOwner(event.data.intentId);
     if (owner === undefined) {
       const delay = OWNER_RETRY_DELAYS_MS[ownerAttempt + 1];
       if (delay !== undefined) this.later(delay, () => this.route(event, ownerAttempt + 1));

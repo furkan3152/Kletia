@@ -22,6 +22,7 @@ import {
   type ProtocolId,
 } from "@kletia/core";
 import { PlatformError, unsupported } from "../errors.js";
+import type { ContractPhrase } from "./contracts/directory.js";
 
 export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "swap 1 SOL to USDC",
@@ -76,9 +77,37 @@ export const LIQUID_STAKING_TOKENS: Readonly<Record<string, { symbol: string; pr
   sanctum: { symbol: "JupSOL", provider: "Jupiter" },
 });
 
+/**
+ * Every venue word and phrase the built-in sentences recognise (lending,
+ * bridge and liquid-staking venues). Contract aliases may never use them: the
+ * engine's drift test checks each is in @kletia/core RESERVED_CONTRACT_PHRASES
+ * and still matches the patterns above.
+ */
+export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
+  "aave", "aave v3", "aavev3", "aave-v3",
+  "compound", "compound v3", "compoundv3", "compound-v3", "comet",
+  "morpho", "morpho vault", "morpho vaults",
+  "moonwell",
+  "jupiter lend", "jupiter earn", "jup lend", "jup earn",
+  "kamino", "kamino lend",
+  "lifi", "li.fi", "debridge", "debridge dln", "dln", "relay",
+  ...Object.keys(LIQUID_STAKING_TOKENS),
+]);
+
+/** True when `word` is a venue the built-in patterns match (drift test). */
+export function isGrammarVenueWord(word: string): boolean {
+  return [...LENDING_VENUES, ...BRIDGE_VENUES].some((venue) => venue.pattern.test(word)) || Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase());
+}
+
 export interface GrammarContext {
   readonly defaultNetwork?: NetworkKey;
   readonly accounts?: readonly AccountId[];
+  /**
+   * Phrases of the contract registrations the caller's API key may use: a
+   * clause naming one of their aliases with one of their verbs becomes a
+   * `call` / `action` step (tried before the built-in sentences).
+   */
+  readonly contracts?: readonly ContractPhrase[];
 }
 
 export interface GrammarResult {
@@ -194,8 +223,9 @@ function normalizeText(text: string): string {
   return value;
 }
 
-export function splitClauses(text: string): string[] {
-  const verbLookahead = `(?=(?:${VERB_ALT})\\b)`;
+export function splitClauses(text: string, extraVerbs: readonly string[] = []): string[] {
+  const verbs = [...VERBS, ...extraVerbs.filter((verb) => /^[a-z]{2,16}$/u.test(verb) && !VERBS.includes(verb))];
+  const verbLookahead = `(?=(?:${verbs.join("|")})\\b)`;
   return text
     .split(/\s*;\s*|\s*,?\s+and\s+then\s+|\s*,\s*then\s+|\s+then\s+/iu)
     .flatMap((part) => part.split(new RegExp(`\\s*,?\\s+and\\s+${verbLookahead}|\\s*,\\s*${verbLookahead}`, "iu")))
@@ -335,6 +365,97 @@ function matchClause(clause: string): Draft {
     GRAMMAR_EXAMPLES,
     [{ path: "text", message: `Could not interpret "${clause.slice(0, 120)}".` }],
   );
+}
+
+/* ------------------------------------------------- contract clauses (BYOC) */
+
+const CONTRACT_SUFFIX = "(?:\\s+(?:vault|pool|contract|program))?";
+const CONTRACT_CONNECTOR = "(?:into|to|in|on|at|with|via|using|through|from|out\\s+of)";
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/ /gu, "\\s+");
+}
+
+interface ContractMatcher {
+  readonly regex: RegExp;
+  readonly phrases: readonly ContractPhrase[];
+}
+
+/** One regex over every verb and alias the key's registrations declare (longest alternatives first). */
+function contractMatcher(phrases: readonly ContractPhrase[]): ContractMatcher | null {
+  const verbs = [...new Set(phrases.flatMap((phrase) => phrase.verbs))].filter((verb) => /^[a-z]{2,16}$/u.test(verb));
+  const aliases = [...new Set(phrases.flatMap((phrase) => phrase.aliases))].filter((alias) => alias.length > 1);
+  if (verbs.length === 0 || aliases.length === 0) return null;
+  const byLength = (a: string, b: string) => b.length - a.length;
+  const regex = new RegExp(
+    `^(?<verb>${verbs.sort(byLength).map(escapeRegex).join("|")})\\s+` +
+      `(?:${AMOUNT}(?:\\s+${ASSET("a")})?\\s+|(?:my\\s+)?(?<obj>[a-z][a-z0-9.-]{0,31})\\s+)?` +
+      `${CONTRACT_CONNECTOR}\\s+(?:the\\s+|my\\s+)?(?<alias>${aliases.sort(byLength).map(escapeRegex).join("|")})${CONTRACT_SUFFIX}${ON_NETWORK}?$`,
+    "iu",
+  );
+  return { regex, phrases };
+}
+
+/**
+ * A clause naming a registered alias: `<verb> [<amount> [<asset>]] <connector>
+ * [the|my] <alias> [vault|pool|contract|program] [on <network>]`. Ambiguous
+ * aliases are settled by `on <network>`, then by the previous step's
+ * destination network. Returns null when the clause names no alias (built-in
+ * sentences then apply unchanged).
+ */
+function matchContractClause(clause: string, matcher: ContractMatcher, previousDestination: NetworkKey | undefined, index: number): IntentActionSpec | null {
+  const match = matcher.regex.exec(clause);
+  if (!match?.groups) return null;
+  const groups = match.groups;
+  const verb = (groups.verb ?? "").toLowerCase();
+  const alias = (groups.alias ?? "").toLowerCase().replace(/\s+/gu, " ");
+  const network = networkFromGroup(groups.net, clause);
+  const named = matcher.phrases.filter((phrase) => phrase.aliases.includes(alias));
+  const byVerb = named.filter((phrase) => phrase.verbs.includes(verb));
+  if (byVerb.length === 0) {
+    const verbs = [...new Set(named.flatMap((phrase) => phrase.verbs))];
+    throw clauseError(clause, `"${alias}" accepts ${verbs.map((entry) => `"${entry}"`).join(", ")}, not "${verb}".`);
+  }
+  let candidates = network ? byVerb.filter((phrase) => phrase.network === network) : byVerb;
+  if (candidates.length === 0) {
+    throw clauseError(clause, `"${alias}" is registered on ${[...new Set(byVerb.map((phrase) => CHAINS[phrase.network].name))].join(", ")}, not ${CHAINS[network as NetworkKey].name}.`);
+  }
+  const distinct = (list: readonly ContractPhrase[]) => new Set(list.map((phrase) => `${phrase.contract}#${phrase.entry}`)).size;
+  if (distinct(candidates) > 1 && previousDestination) {
+    const onPrevious = candidates.filter((phrase) => phrase.network === previousDestination);
+    if (onPrevious.length > 0) candidates = onPrevious;
+  }
+  if (distinct(candidates) > 1) {
+    throw clauseError(clause, `"${alias}" names several registered actions (${[...new Set(candidates.map((phrase) => CHAINS[phrase.network].name))].join(", ")}); add "on <network>".`);
+  }
+  const phrase = candidates[0] as ContractPhrase;
+  const raw = groups.amt;
+  let amount: AmountPhrase | null = raw ? parseAmount(raw, clause) : null;
+  if (!phrase.spends) {
+    if (amount) throw clauseError(clause, `"${verb} … ${alias}" spends nothing; leave out the amount.`);
+  } else if (!amount) {
+    throw clauseError(clause, `Say how much to ${verb}, e.g. "${verb} 100 ${groups.obj ?? "USDC"} into ${alias}".`);
+  }
+  if (amount?.type === "previous" && index === 0) {
+    throw clauseError(clause, "\"all\", \"half\", \"it\" and percentages refer to a previous step; give an explicit amount.");
+  }
+  let from = groups.a;
+  if (amount?.type === "exact" && amount.usd) {
+    if (from && !["USDC", "USDT", "PYUSD", "DAI"].includes(from.toUpperCase())) throw clauseError(clause, "A $ amount must be paid in a USD stablecoin.");
+    from = from ?? "USDC";
+  }
+  const params: Record<string, string | number | boolean> = {};
+  if (amount?.type === "previous" && amount.portionBps !== 10_000) params.portionBps = amount.portionBps;
+  amount = amount ?? null;
+  return {
+    kind: phrase.vm === "evm" ? "call" : "action",
+    network: phrase.network,
+    contract: phrase.contract,
+    entry: phrase.entry,
+    ...(from ? { from } : {}),
+    ...(amount ? { amount: amount.type === "exact" ? amount.value : "max" } : {}),
+    ...(Object.keys(params).length > 0 ? { params } : {}),
+  };
 }
 
 interface InferenceContext {
@@ -487,7 +608,8 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentA
 export function compileIntentText(text: string, context: GrammarContext = {}): GrammarResult {
   const normalizedText = normalizeText(text);
   if (!normalizedText) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
-  const clauses = splitClauses(normalizedText);
+  const matcher = context.contracts && context.contracts.length > 0 ? contractMatcher(context.contracts) : null;
+  const clauses = splitClauses(normalizedText, matcher ? matcher.phrases.flatMap((phrase) => phrase.verbs) : []);
   if (clauses.length === 0) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
   if (clauses.length > MAX_INTENT_ACTIONS) {
     throw unsupported(`An intent may contain at most ${MAX_INTENT_ACTIONS} actions.`, GRAMMAR_EXAMPLES);
@@ -502,9 +624,14 @@ export function compileIntentText(text: string, context: GrammarContext = {}): G
   const actions: IntentActionSpec[] = [];
   let previousDestination: NetworkKey | undefined;
   clauses.forEach((clause, index) => {
-    const draft = matchClause(clause);
-    const network = inferNetwork(draft, previousDestination, inference);
-    const action = toActionSpec(draft, network, index);
+    const contract = matcher ? matchContractClause(clause, matcher, previousDestination, index) : null;
+    let action: IntentActionSpec;
+    if (contract) action = contract;
+    else {
+      const draft = matchClause(clause);
+      const network = inferNetwork(draft, previousDestination, inference);
+      action = toActionSpec(draft, network, index);
+    }
     actions.push(action);
     previousDestination = action.toNetwork ?? action.network;
   });

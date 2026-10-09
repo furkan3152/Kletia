@@ -14,6 +14,7 @@ import {
   isEvmAddress,
   isStepDone,
   parseAccountId,
+  parseAssetId,
   type IntentGraph,
   type IntentStatus,
   type IntentStep,
@@ -22,14 +23,24 @@ import {
   type StepStatus,
 } from "@kletia/core";
 import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
-import { adapterForStep, configureAdapters } from "./adapters/registry.js";
-import type { PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
-import { isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
+import { adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
+import type { ContractPreparedPayload, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
+import { firstPreparedAt, isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
 import { quoteBindingFor } from "./binding.js";
 import { sameAddress } from "./accounts.js";
-import { sameAsset } from "./assets.js";
+import { assetFromRef, sameAsset } from "./assets.js";
 import { evmChainId, isEvmNetwork } from "./chains/evm.js";
 import { assertSolanaTransactionOwner } from "./chains/solana.js";
+import { decodeContractCall, isCanonicalCall, boundValues } from "./contracts/bindings.js";
+import { assertContractAmount } from "./contracts/caps.js";
+import {
+  configureContractDirectory,
+  contractDirectory,
+  contractsEnabled,
+  reportContractAnomaly,
+  type ContractDirectory,
+  type RegisteredContract,
+} from "./contracts/directory.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
 import { resolveRecipientName } from "./names.js";
 import { actionForStep, planIntent, stepRecipientName, summarize } from "./planner.js";
@@ -57,12 +68,15 @@ export interface PlatformConfiguration {
   readonly store?: IntentStore;
   /** Protocol adapters to plan and execute with; `null` restores the built-in set. */
   readonly adapters?: readonly ProtocolAdapter[] | null;
+  /** Contract registry hook for call / action steps; `null` removes it (steps then fail with CONTRACTS_DISABLED). */
+  readonly contracts?: ContractDirectory | null;
 }
 
-/** Overrides the intent store and/or the protocol adapters (tests, embedders). */
+/** Overrides the intent store, the protocol adapters and/or the contract directory (tests, embedders). */
 export function configurePlatform(options: PlatformConfiguration): void {
   if (options.store) store = options.store;
   if (options.adapters !== undefined) configureAdapters(options.adapters);
+  if (options.contracts !== undefined) configureContractDirectory(options.contracts);
 }
 
 const locks = new Map<string, Promise<unknown>>();
@@ -208,7 +222,7 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
         if (existing) return { intent: existing, replayed: true };
       }
-      const graph = await planIntent(request);
+      const graph = await planIntent(request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
       if (options.dryRun) return { intent: graph, replayed: false };
       try {
         await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
@@ -305,7 +319,7 @@ const HEX_DATA = /^0x(?:[0-9a-fA-F]{2})*$/u;
  * network and sent / fee-paid (and, on Solana, solely signed) by the step
  * account, whatever the adapter claims about itself.
  */
-function validatePayload(step: IntentStep, prepared: PreparedPayload): void {
+function validatePayload(step: IntentStep, prepared: Pick<PreparedPayload, "transactions" | "records">): void {
   const account = parseAccountId(step.account);
   if (!account) throw new PlatformError("STEP_INVALID", "Step account is invalid.", 500);
   const count = prepared.transactions.length;
@@ -343,6 +357,62 @@ function validatePayload(step: IntentStep, prepared: PreparedPayload): void {
   }
 }
 
+const APPROVE_SELECTOR = "0x095ea7b3";
+
+function payloadInvalid(message: string): PlatformError {
+  return new PlatformError("PAYLOAD_INVALID", message, 502);
+}
+
+/**
+ * Engine-level guard on a custom call payload, independent of the adapter
+ * (design §4.6): at most a reset-approve and an exact approve of the step's
+ * input token to the pinned spender, then the registered function on the
+ * registered target, canonically encoded with the step amount, and a value
+ * equal to the bound value and within its cap. Nothing else.
+ */
+export function assertCallPayload(step: IntentStep, prepared: Pick<ContractPreparedPayload, "transactions" | "input">): void {
+  const snapshot = step.call;
+  if (!snapshot || snapshot.vm !== "evm" || !snapshot.fragment || !snapshot.bindings || !snapshot.selector) {
+    throw new PlatformError("STEP_INVALID", "The call step has no EVM contract snapshot.", 500);
+  }
+  const transactions = prepared.transactions;
+  if (transactions.length < 1 || transactions.length > 3 || transactions.some((transaction) => transaction.vm !== "evm")) {
+    throw payloadInvalid("A custom call payload has 1-3 EVM transactions.");
+  }
+  const call = transactions[transactions.length - 1];
+  if (!call || call.vm !== "evm") throw payloadInvalid("The custom call is missing.");
+  if (call.to.toLowerCase() !== snapshot.target.toLowerCase()) throw payloadInvalid("The custom call targets another contract.");
+  if (call.data.slice(0, 10).toLowerCase() !== snapshot.selector.toLowerCase()) throw payloadInvalid("The custom call is not the registered function.");
+  if (!isCanonicalCall(snapshot.fragment, call.data)) throw payloadInvalid("The custom call's calldata is not the canonical encoding of the registered function.");
+  const amount = prepared.input ? BigInt(prepared.input.amount) : null;
+  if ((step.input === undefined) !== (amount === null)) throw payloadInvalid("The custom call's input does not match the step.");
+  const args = decodeContractCall(snapshot.fragment, call.data) ?? [];
+  for (const value of boundValues(snapshot.fragment, snapshot.bindings, args, "$amount")) {
+    if (value !== amount) throw payloadInvalid("The custom call encodes another amount than the step's.");
+  }
+  const value = BigInt(call.value);
+  const bound = snapshot.value
+    ? snapshot.value.bind === "$amount" ? amount : /^\d+$/u.test(snapshot.value.bind) ? BigInt(snapshot.value.bind) : null
+    : 0n;
+  if (bound === null || value !== bound || (snapshot.value && value > BigInt(snapshot.value.max))) throw payloadInvalid("The custom call sends another value than bound.");
+  const approvals = transactions.slice(0, -1);
+  if (approvals.length > 0) {
+    const token = step.input ? parseAssetId(step.input.asset) : null;
+    if (!snapshot.approvalSpender || !token || token.assetNamespace !== "erc20" || amount === null) throw payloadInvalid("This custom call takes no approval.");
+    approvals.forEach((approval, index) => {
+      if (approval.vm !== "evm" || approval.to.toLowerCase() !== token.reference.toLowerCase() || BigInt(approval.value) !== 0n) {
+        throw payloadInvalid("An approval targets another token or sends value.");
+      }
+      if (approval.data.slice(0, 10).toLowerCase() !== APPROVE_SELECTOR || approval.data.length !== 10 + 128) throw payloadInvalid("An approval is not approve(address,uint256).");
+      const spender = `0x${approval.data.slice(34, 74)}`.toLowerCase();
+      const approved = BigInt(`0x${approval.data.slice(74, 138)}`);
+      if (/^0x0{24}/u.test(approval.data.slice(10, 34)) === false || spender !== (snapshot.approvalSpender as string).toLowerCase()) throw payloadInvalid("An approval names another spender than the pinned one.");
+      const last = index === approvals.length - 1;
+      if (last ? approved !== amount : approved !== 0n) throw payloadInvalid("Approvals are a reset to 0 and an exact approval of the step amount.");
+    });
+  }
+}
+
 interface PriceFloor {
   readonly input: bigint;
   readonly minimum: bigint;
@@ -357,6 +427,8 @@ interface PriceFloor {
  */
 function plannedFloor(step: IntentStep): PriceFloor | null {
   if (!step.input || !step.minimumOutput || step.kind === "transfer" || step.kind === "deposit" || step.kind === "withdraw") return null;
+  // Call / action adapters hold prepares to the plan themselves (share prices are not swap rates).
+  if (step.kind === "call" || step.kind === "action") return null;
   const ref = decodeStepRef(step.quoteRef);
   const planned = ref?.plannedInput && ref.plannedMinimum
     ? { input: ref.plannedInput, minimum: ref.plannedMinimum }
@@ -368,7 +440,7 @@ function plannedFloor(step: IntentStep): PriceFloor | null {
   };
 }
 
-function priceMoved(floor: PriceFloor | null, prepared: PreparedPayload): boolean {
+function priceMoved(floor: PriceFloor | null, prepared: Pick<PreparedPayload, "input" | "expectedOutput">): boolean {
   if (!floor) return false;
   return BigInt(prepared.expectedOutput.amount) * floor.input < floor.minimum * BigInt(prepared.input.amount);
 }
@@ -378,7 +450,7 @@ function priceMoved(floor: PriceFloor | null, prepared: PreparedPayload): boolea
  * prepared extra cost needs a planned cost in the same asset, and may exceed it
  * by at most the step's slippage. Returns the offending cost's description.
  */
-function extraCostMoved(step: IntentStep, prepared: PreparedPayload): string | null {
+function extraCostMoved(step: IntentStep, prepared: Pick<PreparedPayload, "extraCosts">): string | null {
   const slippageBps = BigInt(decodeStepRef(step.quoteRef)?.slippageBps ?? 0);
   for (const cost of prepared.extraCosts ?? []) {
     if (!isBaseUnitAmount(cost.amount)) return `${cost.symbol} (malformed amount)`;
@@ -398,9 +470,9 @@ const POSITION_ACCRUAL_BPS = 100n;
  * beyond the planned size plus accrual (a later deposit, a supply on the
  * account's behalf) is not what was approved: returns the planned size.
  */
-function positionGrown(step: IntentStep, prepared: PreparedPayload): string | null {
+function positionGrown(step: IntentStep, prepared: { readonly input?: PreparedPayload["input"] }): string | null {
   const ref = decodeStepRef(step.quoteRef);
-  if (step.kind !== "withdraw" || !ref?.closePosition || !ref.plannedInput || !step.input) return null;
+  if (step.kind !== "withdraw" || !ref?.closePosition || !ref.plannedInput || !step.input || !prepared.input) return null;
   const planned = BigInt(ref.plannedInput);
   if (BigInt(prepared.input.amount) * 10_000n <= planned * (10_000n + POSITION_ACCRUAL_BPS)) return null;
   return `${fromBaseUnits(planned, step.input.decimals)} ${step.input.symbol}`;
@@ -426,6 +498,61 @@ async function assertRecipientNameUnchanged(step: IntentStep): Promise<void> {
   }
 }
 
+interface ContractStepUse {
+  readonly registration: RegisteredContract;
+  readonly ownerKeyId: string;
+  /** Priced notional of the step (null when unpriced). */
+  readonly usd: number | null;
+}
+
+/**
+ * Prepare-time checks of a call / action step against the live registry
+ * (design §4.4): the intent's owner key may still use the registration, it is
+ * active on the very revision and definition the step was planned on, its
+ * targets are not deny-listed, and the amount is within the entry limits and
+ * the USD cap. Pins are re-read by the adapter.
+ */
+async function assertContractStepUsable(graph: IntentGraph, step: IntentStep, amount: string): Promise<ContractStepUse> {
+  const directory = contractDirectory();
+  if (!contractsEnabled() || !directory) {
+    throw new PlatformError("CONTRACTS_DISABLED", "Custom contract and Solana Action steps are disabled on this deployment.", 503);
+  }
+  const snapshot = step.call;
+  if (!snapshot) throw new PlatformError("STEP_INVALID", "The call step has no contract snapshot.", 500);
+  const owner = await getIntentStore().ownerOf(graph.id);
+  if (!owner || !(await directory.usableBy(snapshot.contract, owner))) {
+    throw new PlatformError("CONTRACT_NOT_USABLE", "The API key that created this intent may no longer use its contract registration.", 409);
+  }
+  const registration = await directory.current(snapshot.contract);
+  if (!registration) throw new PlatformError("CONTRACT_NOT_USABLE", "The contract registration of this step no longer exists.", 409);
+  if (registration.status === "suspended") {
+    throw new PlatformError("CONTRACT_SUSPENDED", `${registration.id} is suspended; the integrator must inspect and reverify it.`, 409);
+  }
+  if (registration.status === "pending" || registration.activeRevision === null) {
+    throw new PlatformError("CONTRACT_PENDING", `${registration.id} is waiting for activation.`, 409);
+  }
+  if (registration.activeRevision !== snapshot.revision || registration.definitionHash !== snapshot.definitionHash) {
+    throw new PlatformError(
+      "CONTRACT_REVISION_CHANGED",
+      `${registration.id} revision ${registration.activeRevision} is active; this step was planned on revision ${snapshot.revision}. Create a new intent.`,
+      409,
+    );
+  }
+  const definition = registration.definition;
+  const targets = definition.vm === "evm" ? [definition.address, ...(definition.addresses ?? []).map((entry) => entry.address)] : definition.programs;
+  for (const target of targets) {
+    const denied = directory.denied(step.network, target);
+    if (denied) throw new PlatformError("CONTRACT_DENIED", `${target} is ${denied}; Kletia does not call it.`, 422);
+  }
+  let usd: number | null = null;
+  const entry = definition.actions.find((candidate) => candidate.id === snapshot.entry);
+  if (!entry) throw new PlatformError("CONTRACT_REVISION_CHANGED", `${registration.id} no longer has the action ${snapshot.entry}. Create a new intent.`, 409);
+  if (step.input) {
+    usd = await assertContractAmount(entry.limits, assetFromRef(step.input), BigInt(amount), registration.verification.domain.verified, entry.label);
+  }
+  return { registration, ownerKeyId: owner, usd };
+}
+
 export async function prepareStep(intentId: string, stepId: string): Promise<PreparedStepResult> {
   try {
     return await withIntentLock(intentId, async () => {
@@ -447,8 +574,25 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
       const action = actionForStep(graph, step);
       const adapter = adapterForStep(step);
       await assertRecipientNameUnchanged(step);
-      const prepared = await adapter.prepare({ graph, step, action, now });
+      const expiresAt = Math.floor(now / 1000) + PAYLOAD_TTL_SECONDS;
+      const contractStep = step.kind === "call" || step.kind === "action";
+      let usable: ContractStepUse | null = null;
+      let prepared: PreparedPayload | ContractPreparedPayload;
+      if (contractStep) {
+        usable = await assertContractStepUsable(graph, step, action.amount);
+        if (!isContractAdapter(adapter) || !action.call) throw new PlatformError("PROTOCOL_UNSUPPORTED", `No contract adapter for protocol ${step.protocol}.`, 500);
+        prepared = await adapter.prepareCall({
+          graph,
+          step,
+          action: { ...action, call: { ...action.call, registration: usable.registration } },
+          now,
+          expiresAt,
+        });
+      } else {
+        prepared = await adapter.prepare({ graph, step, action, now, expiresAt });
+      }
       validatePayload(step, prepared);
+      if (step.kind === "call") assertCallPayload(step, prepared);
       const movedCost = extraCostMoved(step, prepared);
       if (movedCost) {
         throw new PlatformError(
@@ -458,7 +602,7 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
         );
       }
       const plannedPosition = positionGrown(step, prepared);
-      if (plannedPosition) {
+      if (plannedPosition && prepared.input) {
         throw new PlatformError(
           "QUOTE_MOVED",
           `The position is now ${prepared.input.formatted} ${prepared.input.symbol}, more than the ${plannedPosition} planned for "withdraw all". Create a new intent to re-quote.`,
@@ -469,7 +613,7 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
       const quoteSpecific = /^(?:Route:|Price |Fees and price impact|Slippage capped|Simulation was unavailable)/u;
       const warnings = [...(step.warnings ?? []).filter((warning) => !quoteSpecific.test(warning)), ...prepared.warnings];
       const floor = plannedFloor(step);
-      if (priceMoved(floor, prepared)) {
+      if (!contractStep && prepared.input && prepared.expectedOutput && prepared.minimumOutput && priceMoved(floor, prepared as PreparedPayload)) {
         if (!funded) {
           throw new PlatformError(
             "QUOTE_MOVED",
@@ -479,8 +623,11 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
         }
         warnings.push(`Price moved since planning; the fresh quote guarantees ${prepared.minimumOutput.formatted} ${prepared.minimumOutput.symbol}.`);
       }
+      // The key's daily notional is counted once per step (its first prepare), whatever re-prepares follow.
+      if (usable && usable.usd !== null && firstPreparedAt(step) === null) {
+        await (contractDirectory() as ContractDirectory).recordSpend(usable.ownerKeyId, usable.usd);
+      }
       const quoteBinding = quoteBindingFor(prepared.transactions);
-      const expiresAt = Math.floor(now / 1000) + PAYLOAD_TTL_SECONDS;
       const preparedAt = new Date(now).toISOString();
       const status = step.status === "failed" || step.status === "pending"
         ? transition(step, "ready", "awaiting_signature")
@@ -499,25 +646,30 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
         : [];
       // step.extraCosts keeps the planned values: every prepare is held to them (extraCostMoved).
       const { references: _references, failure: _failure, ...rest } = step;
+      const review = "review" in prepared ? prepared.review : undefined;
+      const bound = "evidence" in prepared && Array.isArray(prepared.evidence) ? prepared.evidence : [];
       const nextStep: IntentStep = {
         ...rest,
         status,
-        input: prepared.input,
-        expectedOutput: prepared.expectedOutput,
-        minimumOutput: prepared.minimumOutput,
+        ...(prepared.input ? { input: prepared.input } : {}),
+        ...(prepared.expectedOutput ? { expectedOutput: prepared.expectedOutput } : {}),
+        ...(prepared.minimumOutput ? { minimumOutput: prepared.minimumOutput } : {}),
+        ...(step.call && review ? { call: { ...step.call, review } } : {}),
         ...(prepared.feesUsd !== undefined ? { feesUsd: roundUsd(prepared.feesUsd) } : {}),
         ...(step.settlement
           ? { settlement: { ...step.settlement, ...(prepared.trackingId ? { trackingId: prepared.trackingId } : {}) } }
           : {}),
         prepared: { quoteBinding, preparedAt, expiresAt, transactions: prepared.records },
-        evidence: appendEvidence(step, [evidence, ...tracking]),
+        evidence: appendEvidence(step, [evidence, ...tracking, ...bound]),
         ...(ref
           ? {
               quoteRef: encodeStepRef({
                 ...ref,
                 ...(prepared.quoteId ? { quote: prepared.quoteId } : {}),
                 // Each payload's own guarantee: an earlier payload that lands after this re-prepare still verifies.
-                floors: [...(ref.floors ?? []), { at: Math.floor(now / 1000), min: prepared.minimumOutput.amount }].slice(-MAX_PREPARED_FLOORS),
+                ...(prepared.minimumOutput
+                  ? { floors: [...(ref.floors ?? []), { at: Math.floor(now / 1000), min: prepared.minimumOutput.amount }].slice(-MAX_PREPARED_FLOORS) }
+                  : {}),
               }),
             }
           : {}),
@@ -532,6 +684,7 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
           transactions: prepared.transactions,
           expiresAt,
           quoteBinding,
+          ...(review ? { review } : {}),
         },
       };
     });
@@ -564,6 +717,12 @@ function toIndeterminate(step: IntentStep, now: number, detail: string): IntentS
 }
 
 function applyVerification(step: IntentStep, result: VerificationResult, now: number): IntentStep {
+  if (result.status === "failed" && result.failure.code === "CONTRACT_CHANGED_DURING_EXECUTION") {
+    // The contract's code identity differed at the receipt block: manual review, never a plain failure or retry.
+    if (step.status === "indeterminate") return step;
+    const moved = toIndeterminate({ ...step, evidence: appendEvidence(step, result.evidence) }, now, `Contract changed during execution: ${result.failure.message}`.slice(0, 300));
+    return { ...moved, failure: result.failure };
+  }
   if (result.status === "pending") {
     if (!result.stale || step.status === "indeterminate") return step;
     return toIndeterminate(step, now, "Submitted transactions were not observed for over an hour; manual review needed.");
@@ -677,10 +836,25 @@ async function pollSettlement(intentId: string, step: IntentStep, adapter: Proto
   return applySettlement(step, await claimSettlement(intentId, step, await adapter.poll(step, now)), now);
 }
 
+/**
+ * A call / action step whose landed outcome does not match (OUTCOME_NOT_PROVEN)
+ * or whose code changed during execution suspends its registration; the
+ * directory emits contract.suspended. Never blocks verification.
+ */
+async function reportVerificationAnomaly(step: IntentStep, result: VerificationResult): Promise<void> {
+  if (!step.call || result.status !== "failed") return;
+  if (result.failure.code === "OUTCOME_NOT_PROVEN") {
+    await reportContractAnomaly(step.call.contract, "outcome_mismatch", result.failure.message);
+  } else if (result.failure.code === "CONTRACT_CHANGED_DURING_EXECUTION") {
+    await reportContractAnomaly(step.call.contract, step.call.vm === "evm" ? "pins_changed" : "program_changed", result.failure.message);
+  }
+}
+
 /** Verifies a step's current references on-chain and claims them when confirmed. */
 async function verifyReferences(intentId: string, step: IntentStep, now: number): Promise<VerificationResult> {
   const references = step.references ?? [];
   const result = await adapterForStep(step).verify({ step, references, submittedAt: submittedAt(step), now });
+  await reportVerificationAnomaly(step, result);
   return claimVerified(intentId, step, result);
 }
 

@@ -6,7 +6,12 @@
  *   stored sealed with AES-256-GCM (secrets.ts), bound to the webhook id.
  * - Storage: memory, or Postgres `kletia_webhooks` when KLETIA_DATABASE_URL is set.
  * - Revoking a key deletes its webhooks (deleteWebhooksOfKey, from keys.ts).
+ * - Event types: the intent events of the key's intents and the contract
+ *   registration events of the key's registrations. A webhook created without
+ *   `events` subscribes to every type that exists at creation time, so older
+ *   webhooks never start receiving types added later.
  */
+import { CONTRACT_EVENT_TYPES, type ContractEventType } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import type { IntentEventType } from "../index.js";
 import { HttpError, invalidRequest, isRecord } from "./context.js";
@@ -21,7 +26,13 @@ const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
   "intent.step_updated": true,
 };
 
-export const WEBHOOK_EVENT_TYPES: readonly IntentEventType[] = Object.freeze(Object.keys(EVENT_TYPE_SET) as IntentEventType[]);
+/** Intent events (routed by the intent's key) and contract events (routed by the registration's key). */
+export type WebhookEventType = IntentEventType | ContractEventType;
+
+export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
+  ...(Object.keys(EVENT_TYPE_SET) as IntentEventType[]),
+  ...CONTRACT_EVENT_TYPES,
+]);
 
 export const MAX_WEBHOOKS_PER_KEY = 10;
 
@@ -29,7 +40,7 @@ export interface WebhookRecord {
   readonly id: string;
   readonly ownerKeyId: string;
   readonly url: string;
-  readonly events: readonly IntentEventType[];
+  readonly events: readonly WebhookEventType[];
   readonly createdAt: string;
   readonly sealedSecret: string;
 }
@@ -38,7 +49,7 @@ export interface WebhookRecord {
 export interface WebhookView {
   readonly id: string;
   readonly url: string;
-  readonly events: readonly IntentEventType[];
+  readonly events: readonly WebhookEventType[];
   readonly createdAt: string;
   readonly secret?: string;
 }
@@ -122,9 +133,9 @@ interface WebhookRow {
   created_at: Date | string;
 }
 
-function eventTypes(value: unknown): IntentEventType[] {
+function eventTypes(value: unknown): WebhookEventType[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is IntentEventType => WEBHOOK_EVENT_TYPES.includes(entry as IntentEventType));
+  return value.filter((entry): entry is WebhookEventType => WEBHOOK_EVENT_TYPES.includes(entry as WebhookEventType));
 }
 
 function fromRow(row: WebhookRow): WebhookRecord {
@@ -232,7 +243,7 @@ export function assertWebhooksAvailable(): void {
   }
 }
 
-function parseEvents(value: unknown): IntentEventType[] {
+function parseEvents(value: unknown): WebhookEventType[] {
   if (value === undefined) return [...WEBHOOK_EVENT_TYPES];
   if (!Array.isArray(value) || value.length === 0 || value.length > WEBHOOK_EVENT_TYPES.length) {
     throw invalidRequest(`events must be a non-empty list drawn from ${WEBHOOK_EVENT_TYPES.join(", ")}.`, [
@@ -240,12 +251,12 @@ function parseEvents(value: unknown): IntentEventType[] {
     ]);
   }
   const issues = value.flatMap((entry, index) =>
-    typeof entry === "string" && WEBHOOK_EVENT_TYPES.includes(entry as IntentEventType)
+    typeof entry === "string" && WEBHOOK_EVENT_TYPES.includes(entry as WebhookEventType)
       ? []
       : [{ path: `events[${index}]`, message: `Unknown event type. Use one of ${WEBHOOK_EVENT_TYPES.join(", ")}.` }],
   );
   if (issues.length > 0) throw invalidRequest("events contains an unknown event type.", issues);
-  return [...new Set(value as IntentEventType[])];
+  return [...new Set(value as WebhookEventType[])];
 }
 
 export async function createWebhook(ownerKeyId: string, body: unknown): Promise<WebhookView> {

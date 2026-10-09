@@ -1,18 +1,27 @@
 /**
  * MCP tools served at /v1/mcp. Every tool is read-only: it reads registries,
- * quotes, dry-run plans, intents or balances through the same engine calls
- * as the REST handlers. No tool prepares, signs, submits or stores anything,
- * and no calldata reaches an agent; `create_signing_link` hands the user a
- * Studio link to plan and sign with their own wallet.
+ * quotes, dry-run plans, intents, balances or the caller's contract
+ * registrations through the same engine calls as the REST handlers. No tool
+ * prepares, signs, submits or stores anything, and no calldata reaches an
+ * agent; `create_signing_link` hands the user a Studio link to plan and sign
+ * with their own wallet. Custom contract steps (registered with the caller's
+ * key) can be planned and test-simulated, never handed off: Studio is keyless,
+ * so those go through sessions created by the integrator's backend.
  *
  * Outputs are compact summaries (agents pay for every token) and never carry
  * provider error text: failures become `isError` results with the stable
  * Platform API error code, message, hints and docs link.
  */
 import {
+  CONTRACT_ENTRY_ID_PATTERN,
+  CONTRACT_ID_PATTERN,
   NETWORK_KEYS,
   sameAddressAccount,
+  validateContractTestRequest,
   type AssetAmount,
+  type ContractReview,
+  type ContractTestResult,
+  type ContractView,
   type IntentGraph,
   type IntentStep,
 } from "@kletia/core";
@@ -28,6 +37,9 @@ import {
 } from "../../index.js";
 import { assetRegistry, networkCapabilities, protocolRegistry } from "../catalog.js";
 import { HttpError, invalidRequest, type ApiTier } from "../context.js";
+import { createContractDirectory, getContract, keyContext, listContracts, parseContractListFilter, testContract } from "../contracts.js";
+import { contractTestLimiter } from "../limits.js";
+import { PlatformError } from "../../errors.js";
 import { errorDocsLink } from "../errorsRoute.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
 
@@ -84,6 +96,45 @@ function compact<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
+/** What an agent needs from a review: who, what, permissions, simulated result, provenance, notices. Never calldata. */
+function reviewView(review: ContractReview | undefined): Record<string, unknown> | undefined {
+  if (!review) return undefined;
+  return compact({
+    kind: review.kind,
+    integrator: review.integrator,
+    notices: review.notices,
+    contract: review.contract
+      ? compact({
+          network: review.contract.network,
+          address: review.contract.address,
+          source: review.contract.source,
+          proxy: review.contract.proxy,
+          revision: review.contract.revision,
+        })
+      : undefined,
+    call: review.call
+      ? compact({
+          label: review.call.label,
+          function: review.call.function,
+          args: review.call.args.map((arg) => ({ name: arg.name, value: arg.display, source: arg.source })),
+          value: amount(review.call.value),
+        })
+      : undefined,
+    approvals: review.approvals.length > 0
+      ? review.approvals.map((approval) => ({ token: approval.token.symbol, spender: approval.spender, amount: amount(approval.amount) }))
+      : undefined,
+    action: review.action
+      ? compact({ url: review.action.url, domain: review.action.domain, title: review.action.title, programs: review.action.programs, instructionCount: review.action.instructionCount })
+      : undefined,
+    simulation: compact({
+      status: review.simulation.status,
+      assetChanges: review.simulation.assetChanges.map((change) => `${change.formatted} ${change.symbol}${change.listed ? "" : " (unlisted)"}`),
+      networkFee: amount(review.simulation.networkFee),
+      warnings: review.simulation.warnings.length > 0 ? review.simulation.warnings : undefined,
+    }),
+  });
+}
+
 function stepView(step: IntentStep): Record<string, unknown> {
   return compact({
     id: step.id,
@@ -110,7 +161,97 @@ function stepView(step: IntentStep): Record<string, unknown> {
       ? step.evidence.slice(-MAX_EVIDENCE).map((entry) => compact({ kind: entry.kind, reference: entry.reference, url: entry.url, observedAt: entry.observedAt }))
       : undefined,
     failure: step.failure,
+    contract: step.call?.contract,
+    entry: step.call?.entry,
+    review: reviewView(step.call?.review),
   });
+}
+
+/** Compact registration for agents: entries and verification status, never ABIs or pins beyond code hashes. */
+function contractSummary(view: ContractView): Record<string, unknown> {
+  const evmPins = "codeHash" in view.pins ? view.pins : null;
+  return compact({
+    id: view.id,
+    vm: view.vm,
+    network: view.network,
+    target: view.address ?? view.origin,
+    status: view.status,
+    suspendedReason: view.suspendedReason ?? undefined,
+    revision: view.revision,
+    activeRevision: view.activeRevision,
+    pendingRevision: view.pendingRevision ?? undefined,
+    activatesAt: view.activatesAt ?? undefined,
+    visibility: view.visibility,
+    integrator: view.integrator,
+    source: view.verification.source?.status,
+    implementationSource: view.verification.implementationSource?.status,
+    programs: view.verification.programs?.map((program) => ({ program: program.program, verified: program.verified })),
+    codeHash: evmPins?.codeHash,
+    implementationCodeHash: evmPins?.proxy?.implementationCodeHash,
+    definitionHash: view.definitionHash,
+    entries: view.actions.map((action) =>
+      compact({
+        id: action.id,
+        label: action.label,
+        input: action.input?.token,
+        verbs: action.phrases?.verbs,
+        aliases: action.phrases?.aliases,
+        maxAmount: action.limits?.maxAmount,
+      }),
+    ),
+  });
+}
+
+function testView(result: ContractTestResult): Record<string, unknown> {
+  return compact({
+    contract: result.contract,
+    revision: result.revision,
+    entry: result.entry,
+    network: result.network,
+    account: result.account,
+    input: amount(result.input),
+    expectedOutput: amount(result.expectedOutput),
+    minimumOutput: amount(result.minimumOutput),
+    transactions: result.transactions.map((transaction) => compact({ description: transaction.description, to: transaction.to, selector: transaction.selector, value: transaction.value, programs: transaction.programs })),
+    gas: result.gas,
+    feesUsd: result.feesUsd,
+    review: reviewView(result.review),
+    warnings: result.warnings.length > 0 ? result.warnings : undefined,
+  });
+}
+
+function keyRequired(tool: string, caller: ToolCaller): string {
+  if (!caller.keyId) throw new HttpError(401, "API_KEY_REQUIRED", `${tool} needs an API key: connect with Authorization: Bearer <key>.`);
+  return caller.keyId;
+}
+
+const CONTRACT_REFERENCE_IN_TEXT = /\bct_[0-9a-f]{24}\b/iu;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+/**
+ * Signing links lead to keyless Studio, which can never plan registered
+ * contracts: refuse text that names one (an id, or an alias of the caller's
+ * registrations) with a pointer to sessions.
+ */
+async function assertNoContractHandoff(text: unknown, caller: ToolCaller): Promise<void> {
+  if (typeof text !== "string") return;
+  const lower = text.toLowerCase();
+  let named = CONTRACT_REFERENCE_IN_TEXT.test(lower);
+  if (!named && caller.keyId) {
+    const phrases = await createContractDirectory().phrases(caller.keyId).catch(() => []);
+    named = phrases.some((phrase) => phrase.aliases.some((alias) => new RegExp(`(^|[^a-z0-9])${escapeRegExp(alias)}($|[^a-z0-9])`, "u").test(lower)));
+  }
+  if (named) {
+    throw new PlatformError(
+      "CONTRACT_HANDOFF_UNSUPPORTED",
+      "This intent uses a registered custom contract, which Kletia Studio (keyless) cannot plan. Create a session with POST /v1/sessions from the integrator's backend and embed it instead.",
+      422,
+      [{ path: "text", message: "Names a custom contract." }],
+    );
+  }
 }
 
 /**
@@ -280,7 +421,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
           items: {
             type: "object",
             properties: {
-              kind: { type: "string", maxLength: 16 },
+              kind: { type: "string", maxLength: 16, description: "swap, transfer, bridge, stake, deposit, …, or call / action for a registered custom contract." },
               network: NETWORK,
               from: { type: "string", maxLength: 128 },
               to: { type: "string", maxLength: 128 },
@@ -288,6 +429,12 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
               toNetwork: NETWORK,
               recipient: { type: "string", maxLength: 128 },
               protocol: { type: "string", maxLength: 40 },
+              contract: {
+                type: "string",
+                maxLength: 64,
+                description: "Custom contract steps (kind call or action): a registration id (ct_…) or alias of the connecting key (see list_contracts).",
+              },
+              entry: { type: "string", pattern: CONTRACT_ENTRY_ID_PATTERN.source, description: "The registration's action id, e.g. deposit." },
               params: {
                 type: "object",
                 maxProperties: 10,
@@ -315,11 +462,12 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
       additionalProperties: false,
     },
     annotations: annotations("Plan an intent (dry run)", true, false),
-    async run(args) {
+    async run(args, caller) {
       if (typeof args.text !== "string" && !Array.isArray(args.actions)) {
         throw invalidRequest("Provide text or actions.", [{ path: "text", message: "Required unless actions are given." }]);
       }
-      const { intent } = await createIntentDetailed(args, { dryRun: true });
+      // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run.
+      const { intent } = await createIntentDetailed(args, { dryRun: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
       return {
         dryRun: true,
         summary: summaryView(intent),
@@ -407,8 +555,75 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
       additionalProperties: false,
     },
     annotations: annotations("Create a signing link", false),
-    async run(args) {
-      return { ...signingLink(args.text) };
+    async run(args, caller) {
+      const link = signingLink(args.text);
+      await assertNoContractHandoff(link.text, caller);
+      return { ...link };
+    },
+  },
+  {
+    name: "list_contracts",
+    description:
+      "List the custom contracts and Solana Actions registered with the API key this MCP connection authenticates with (and project-visible ones of its project): status, entries with their verbs and aliases, source and domain verification. Requires an API key. Kletia has not audited these contracts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        network: NETWORK,
+        status: { type: "string", enum: ["pending", "active", "suspended"] },
+      },
+      additionalProperties: false,
+    },
+    annotations: annotations("List contract registrations", false),
+    async run(args, caller) {
+      const keyId = keyRequired("list_contracts", caller);
+      const filter = parseContractListFilter({ network: stringArg(args, "network"), status: stringArg(args, "status") });
+      const views = await listContracts(await keyContext(caller.tier, keyId), filter);
+      return { contracts: views.map(contractSummary) };
+    },
+  },
+  {
+    name: "get_contract",
+    description: "Read one custom contract registration (ct_…) of the connecting API key or its project: status, entries, verification and code hashes. Requires an API key.",
+    inputSchema: {
+      type: "object",
+      properties: { contractId: { type: "string", pattern: CONTRACT_ID_PATTERN.source, description: "ct_ followed by 24 hex characters." } },
+      required: ["contractId"],
+      additionalProperties: false,
+    },
+    annotations: annotations("Read a contract registration", false),
+    async run(args, caller) {
+      const keyId = keyRequired("get_contract", caller);
+      const id = stringArg(args, "contractId") ?? "";
+      if (!CONTRACT_ID_PATTERN.test(id)) throw invalidRequest("contractId must be ct_ followed by 24 hex characters.", [{ path: "contractId", message: "Invalid contract id." }]);
+      return contractSummary(await getContract(await keyContext(caller.tier, keyId), id));
+    },
+  },
+  {
+    name: "test_contract_action",
+    description:
+      "Dry-run one entry of a custom contract registration for an account: Kletia builds and simulates the call (EVM) or fetches and simulates the Solana Action, then returns the review (approvals, simulated asset changes, notices). Nothing is stored or signed and no calldata is returned. Requires an API key; at most 20 tests per minute per key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contractId: { type: "string", pattern: CONTRACT_ID_PATTERN.source },
+        entry: { type: "string", pattern: CONTRACT_ENTRY_ID_PATTERN.source, description: "Action id of the registration, e.g. deposit." },
+        account: ACCOUNT,
+        amount: { type: "string", pattern: "^(0|[1-9][0-9]*)(\\.[0-9]+)?$", description: "Decimal amount of the entry's input token." },
+        params: { type: "object", maxProperties: 8, additionalProperties: { type: ["string", "number", "boolean"] } },
+      },
+      required: ["contractId", "entry", "account"],
+      additionalProperties: false,
+    },
+    annotations: annotations("Simulate a contract action", true, false),
+    async run(args, caller) {
+      const keyId = keyRequired("test_contract_action", caller);
+      const id = stringArg(args, "contractId") ?? "";
+      if (!CONTRACT_ID_PATTERN.test(id)) throw invalidRequest("contractId must be ct_ followed by 24 hex characters.", [{ path: "contractId", message: "Invalid contract id." }]);
+      const { contractId: _contractId, ...rest } = args;
+      const parsed = validateContractTestRequest(rest);
+      if (!parsed.ok) throw invalidRequest("The test request is invalid.", parsed.issues);
+      contractTestLimiter.take(keyId);
+      return testView(await testContract(await keyContext(caller.tier, keyId), id, parsed.value));
     },
   },
 ] satisfies KletiaTool[]);

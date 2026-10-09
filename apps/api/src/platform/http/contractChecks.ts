@@ -20,6 +20,7 @@ import {
   CHAINS,
   CONTRACT_LIMITS,
   type ContractAbiItem,
+  type ContractAddressEntry,
   type ContractTestRequest,
   type ContractTestResult,
   type EvmContractPins,
@@ -32,15 +33,21 @@ import {
 } from "@kletia/core";
 import {
   compareEvmPins,
+  compareSolanaProgramPins,
+  contractsEnabled,
   fetchSolanaActionMetadata,
   inspectEvmContract,
   readSolanaProgramPins,
   simulationCapability,
   testContractAction,
   type ActionTransport,
+  type EvmContractInspection,
+  type EvmNetworkKey,
   type RegisteredContract,
+  type SolanaNetworkKey,
 } from "../index.js";
 import { domainListsContract } from "./actionTransport.js";
+import { assertPublicActionUrl } from "./netguard.js";
 
 const PROVIDER_TIMEOUT_MS = 5_000;
 const MAX_PROVIDER_BYTES = 2_000_000;
@@ -56,11 +63,8 @@ function envNumber(name: string, fallback: number, min = 0): number {
   return Number.isFinite(value) && value >= min ? value : fallback;
 }
 
-/** Kill switch: KLETIA_CONTRACTS_ENABLED=false disables registration, plan and prepare of call/action steps. */
-export function contractsEnabled(): boolean {
-  const raw = process.env.KLETIA_CONTRACTS_ENABLED?.trim().toLowerCase();
-  return !(raw === "false" || raw === "0" || raw === "off" || raw === "no");
-}
+/** Kill switch (engine): KLETIA_CONTRACTS_ENABLED=false disables registration, plan and prepare of call/action steps. */
+export { contractsEnabled };
 
 /** Seconds a mainnet registration or security-relevant revision waits before it activates (testnets: 0). */
 export function activationDelaySeconds(network: NetworkKey): number {
@@ -234,21 +238,14 @@ async function risk(network: NetworkKey, address: string): Promise<RiskScreening
 
 /* ------------------------------------------------------------- injection */
 
-/** What `inspectEvmContract` (engine) returns. */
-export interface EvmInspection {
-  readonly codeSize: number;
-  readonly eip7702: boolean;
-  readonly pins: EvmContractPins;
-  /** Signals of a proxy pattern the engine cannot pin (e.g. an EIP-2535 diamond). */
-  readonly proxyHints: readonly string[];
-}
+/** What `inspectEvmContract` (engine) returns: pins plus proxy-shape hints (see `proxyRefusalReason`). */
+export type EvmInspection = EvmContractInspection;
 
-/** Engine functions the HTTP layer calls (design §8.2). */
+/** Engine functions the HTTP layer calls (design §8.2). Pure helpers (pin comparison, refusal reasons) are used directly. */
 export interface ContractEngine {
-  inspectEvmContract(network: NetworkKey, address: string, extra?: readonly string[]): Promise<EvmInspection>;
-  compareEvmPins(pinned: EvmContractPins, current: EvmContractPins): string | null;
-  readSolanaProgramPins(network: NetworkKey, programs: readonly string[]): Promise<SolanaProgramPin[]>;
-  fetchSolanaActionMetadata(transport: ActionTransport, href: string, network: NetworkKey): Promise<SolanaActionMetadata>;
+  inspectEvmContract(network: EvmNetworkKey, address: string, extra?: readonly (string | ContractAddressEntry)[]): Promise<EvmInspection>;
+  readSolanaProgramPins(network: SolanaNetworkKey, programs: readonly string[]): Promise<SolanaProgramPin[]>;
+  fetchSolanaActionMetadata(transport: ActionTransport, href: string, network: SolanaNetworkKey): Promise<SolanaActionMetadata>;
   testContractAction(contract: RegisteredContract, request: ContractTestRequest): Promise<ContractTestResult>;
   simulationCapability(): Promise<Partial<Record<NetworkKey, "ok" | "unavailable">>>;
 }
@@ -260,18 +257,27 @@ export interface ContractChecks {
   /** True when the website's `/.well-known/kletia.json` lists the registration id. */
   domain(website: string | undefined, contractId: string): Promise<boolean>;
   risk(network: NetworkKey, address: string): Promise<RiskScreening | null>;
+  /** DNS check of a Solana Actions origin (public addresses only; ACTION_URL_FORBIDDEN otherwise). */
+  actionOrigin(origin: string): Promise<void>;
 }
 
 const ENGINE: ContractEngine = {
-  inspectEvmContract: (network, address, extra) => inspectEvmContract(network as never, address, extra) as Promise<EvmInspection>,
-  compareEvmPins: (pinned, current) => compareEvmPins(pinned, current),
-  readSolanaProgramPins: (network, programs) => readSolanaProgramPins(network as never, programs),
-  fetchSolanaActionMetadata: (transport, href, network) => fetchSolanaActionMetadata(transport, href, network as never),
+  inspectEvmContract: (network, address, extra) => inspectEvmContract(network, address, extra),
+  readSolanaProgramPins: (network, programs) => readSolanaProgramPins(network, programs),
+  fetchSolanaActionMetadata: (transport, href, network) => fetchSolanaActionMetadata(transport, href, network),
   testContractAction: (contract, request) => testContractAction(contract, request),
   simulationCapability: () => simulationCapability(),
 };
 
-const CHECKS: ContractChecks = { sourcify, ottersec, domain: domainListsContract, risk };
+const CHECKS: ContractChecks = {
+  sourcify,
+  ottersec,
+  domain: domainListsContract,
+  risk,
+  actionOrigin: async (origin) => {
+    await assertPublicActionUrl(origin, "origin");
+  },
+};
 
 let engine: ContractEngine = ENGINE;
 let checks: ContractChecks = CHECKS;
@@ -291,15 +297,11 @@ export function configureContractEngine(options: { readonly engine?: Partial<Con
   if (options.checks !== undefined) checks = options.checks === null ? CHECKS : { ...CHECKS, ...options.checks };
 }
 
-/** Compares Solana program pins (same program list, same loader, program data, deploy slot, authority and data hash). */
-export function compareSolanaPins(pinned: readonly SolanaProgramPin[], current: readonly SolanaProgramPin[]): string | null {
-  for (const before of pinned) {
-    const after = current.find((entry) => entry.program === before.program);
-    if (!after) return `program ${before.program} could not be read`;
-    for (const field of ["loader", "programData", "lastDeploySlot", "upgradeAuthority"] as const) {
-      if ((before[field] ?? null) !== (after[field] ?? null)) return `program ${before.program} ${field} changed`;
-    }
-    if ((before.dataHash ?? null) !== (after.dataHash ?? null)) return `program ${before.program} data changed`;
-  }
-  return null;
+/** First difference between pinned and current pins (EVM code / proxy, Solana program deployments), or null. */
+export function comparePins(pinned: EvmContractPins | readonly SolanaProgramPin[], current: EvmContractPins | readonly SolanaProgramPin[]): string | null {
+  const pinnedPrograms = Array.isArray(pinned);
+  if (pinnedPrograms !== Array.isArray(current)) return "pins of another kind";
+  return pinnedPrograms
+    ? compareSolanaProgramPins(pinned as readonly SolanaProgramPin[], current as readonly SolanaProgramPin[])
+    : compareEvmPins(pinned as EvmContractPins, current as EvmContractPins);
 }

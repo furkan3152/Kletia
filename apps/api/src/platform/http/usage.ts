@@ -10,12 +10,15 @@
  * most once a minute.
  *
  * The report adds the caller's live rate-limit window from this process's
- * limiter and the intents the key created in the window, by status.
+ * limiter, the intents the key created in the window, by status, and its
+ * custom contract activity (registrations, suspensions, and today's prepared
+ * custom contract steps with their priced notional, UTC day).
  */
 import type { Request, RequestHandler } from "express";
 import type { RateLimitRequestHandler } from "express-rate-limit";
 import { getIntentStore, listIntents } from "../index.js";
 import { apiKeyStore, type KeyTier } from "./auth.js";
+import { contractUsage, type ContractUsage } from "./contracts.js";
 import { authOf, invalidRequest, queryParam } from "./context.js";
 import { dbQuery, platformDatabaseUrl } from "./db.js";
 import { TIER_LIMITS } from "./limits.js";
@@ -255,6 +258,7 @@ export interface UsageReport {
   readonly byRoute: readonly { readonly route: string; readonly requests: number; readonly byStatusClass: Readonly<Record<string, number>> }[];
   readonly series: readonly { readonly hour: string; readonly requests: number }[];
   readonly intents: { readonly created: number; readonly byStatus: Readonly<Record<string, number>> };
+  readonly contracts: ContractUsage;
 }
 
 export function parseUsageWindow(req: Request): UsageWindow {
@@ -320,6 +324,7 @@ export async function usageReport(
   }
 
   const intents = await intentCounts(auth.keyId, since);
+  const contracts = await contractUsage(auth.keyId);
   return {
     keyId: auth.keyId,
     tier: auth.tier,
@@ -333,5 +338,6 @@ export async function usageReport(
       .sort((a, b) => b.requests - a.requests || (a.route < b.route ? -1 : 1)),
     series: [...series.entries()].map(([hour, count]) => ({ hour, requests: count })),
     intents: { created: Object.values(intents).reduce((sum, count) => sum + count, 0), byStatus: intents },
+    contracts,
   };
 }

@@ -12,6 +12,7 @@ import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestSe
 
 useTestEnvironment();
 const { buildOpenApiDocument, createPlatformRouter, platformErrorHandler } = await import("../index.js");
+const { configureContractEngine } = await import("../contractChecks.js");
 const { createCorsMiddleware } = await import("../../../shared/http/cors.js");
 
 const MODERN = "2026-07-28";
@@ -140,14 +141,17 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     const names = tools.map((tool) => tool.name).sort();
     assert.deepEqual(names, [
       "create_signing_link",
+      "get_contract",
       "get_intent",
       "get_portfolio",
       "get_quote",
       "list_assets",
+      "list_contracts",
       "list_intents",
       "list_networks",
       "list_protocols",
       "plan_intent",
+      "test_contract_action",
     ]);
     for (const tool of tools) {
       assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} is read-only`);
@@ -255,6 +259,112 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     });
     assert.equal(batch.status, 400);
     assert.equal(batch.body.error?.code, -32600);
+  });
+});
+
+describe("custom contracts over MCP", () => {
+  const VAULT = "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
+  let contractId = "";
+  before(async () => {
+    configureContractEngine({
+      engine: {
+        inspectEvmContract: async () => ({
+          codeSize: 512,
+          eip7702: false,
+          pins: { codeHash: `0x${"ab".repeat(32)}`, codeSize: 512, proxy: null, addresses: [], blockNumber: "1", checkedAt: new Date().toISOString() },
+          proxyHints: [],
+        }),
+        testContractAction: async (contract, request) => ({
+          contract: contract.id,
+          revision: 1,
+          entry: request.entry,
+          network: "arbitrum-sepolia",
+          account: request.account,
+          transactions: [{ description: "Approve USDC", to: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", selector: "0x095ea7b3" }, { description: "Deposit", to: VAULT, selector: "0x6e553f65" }],
+          gas: "120000",
+          review: {
+            kind: "evm-call",
+            integrator: { name: "Acme Yield", domainVerified: false },
+            notices: ["Not audited by Kletia."],
+            call: { label: "Deposit", function: "deposit(uint256 assets, address receiver)", args: [{ name: "assets", type: "uint256", display: "10 USDC", source: "amount" }] },
+            approvals: [],
+            simulation: { status: "ok", at: new Date().toISOString(), assetChanges: [{ asset: "eip155:421614/erc20:0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", symbol: "USDC", decimals: 6, listed: true, delta: "-10000000", formatted: "-10" }], warnings: [] },
+          },
+          warnings: [],
+        }),
+      },
+      checks: {
+        sourcify: async () => ({ verification: { status: "exact_match", provider: "sourcify", checkedAt: new Date().toISOString() }, proxy: null, abi: null }),
+        risk: async () => null,
+      },
+    });
+    const registered = await call<{ contract: { id: string } }>(server, "POST", "/contracts", {
+      key: developerKey,
+      body: {
+        vm: "evm",
+        network: "arbitrum-sepolia",
+        address: VAULT,
+        integrator: { name: "Acme Yield", website: "https://acme.example" },
+        abi: [
+          { type: "function", name: "deposit", stateMutability: "nonpayable", inputs: [{ name: "assets", type: "uint256" }, { name: "receiver", type: "address" }], outputs: [] },
+          { type: "event", name: "Deposit", inputs: [{ name: "owner", type: "address", indexed: true }, { name: "assets", type: "uint256", indexed: false }] },
+        ],
+        actions: [
+          {
+            id: "deposit",
+            label: "Deposit into Acme vault",
+            function: "deposit(uint256,address)",
+            args: ["$amount", "$account"],
+            input: { token: "USDC", approval: { spender: "$self" } },
+            events: [{ event: "Deposit", emitter: "$self", where: { owner: "$account", assets: "$amount" } }],
+            phrases: { verbs: ["deposit"], aliases: ["acme vault"] },
+          },
+        ],
+      },
+    });
+    assert.equal(registered.status, 201, JSON.stringify(registered.body));
+    contractId = registered.body.contract.id;
+  });
+  after(() => configureContractEngine({ engine: null, checks: null }));
+
+  it("lists and reads the key's registrations compactly (no ABI, no pins beyond code hashes)", async () => {
+    const anonymous = await callTool("list_contracts", {}, null);
+    assert.equal((anonymous.structuredContent.error as { code: string }).code, "API_KEY_REQUIRED");
+    const listed = await callTool("list_contracts", {});
+    const entries = listed.structuredContent.contracts as { id: string; status: string; codeHash: string; entries: { id: string; aliases: string[] }[] }[];
+    assert.deepEqual(entries.map((entry) => entry.id), [contractId]);
+    assert.equal(entries[0]?.status, "active");
+    assert.deepEqual(entries[0]?.entries[0]?.aliases, ["acme vault"]);
+    assert.equal(entries[0]?.codeHash, `0x${"ab".repeat(32)}`);
+    const text = JSON.stringify(listed);
+    for (const forbidden of ["\"abi\"", "stateMutability", "blockNumber", "\"args\""]) assert.ok(!text.includes(forbidden), `no ${forbidden}`);
+    const other = await call<{ key: { key: string } }>(server, "POST", "/keys", { body: { name: "mcp-other" } });
+    const foreign = await callTool("get_contract", { contractId }, other.body.key.key);
+    assert.equal((foreign.structuredContent.error as { code: string }).code, "CONTRACT_NOT_FOUND");
+    const own = await callTool("get_contract", { contractId });
+    assert.equal(own.structuredContent.id, contractId);
+    assert.equal((await callTool("list_contracts", {}, other.body.key.key)).structuredContent.contracts instanceof Array, true);
+  });
+
+  it("test-simulates an entry without returning calldata", async () => {
+    const result = await callTool("test_contract_action", { contractId, entry: "deposit", account: `eip155:421614:${VAULT.replace("5a", "6b")}`, amount: "10" });
+    assert.equal(result.isError, undefined, JSON.stringify(result));
+    assert.equal(result.structuredContent.entry, "deposit");
+    const review = result.structuredContent.review as { notices: string[]; simulation: { assetChanges: string[] } };
+    assert.deepEqual(review.simulation.assetChanges, ["-10 USDC"]);
+    assert.match(review.notices[0] ?? "", /Not audited/u);
+    assert.ok(!JSON.stringify(result).includes("\"data\""), "no calldata");
+    const anonymous = await callTool("test_contract_action", { contractId, entry: "deposit", account: `eip155:421614:${VAULT}` }, null);
+    assert.equal((anonymous.structuredContent.error as { code: string }).code, "API_KEY_REQUIRED");
+  });
+
+  it("refuses signing links for intents that name a registered contract", async () => {
+    const byAlias = await callTool("create_signing_link", { text: "deposit 10 USDC into acme vault on arbitrum sepolia" });
+    assert.equal((byAlias.structuredContent.error as { code: string }).code, "CONTRACT_HANDOFF_UNSUPPORTED");
+    const byId = await callTool("create_signing_link", { text: `deposit 10 USDC into ${contractId}` }, null);
+    assert.equal((byId.structuredContent.error as { code: string }).code, "CONTRACT_HANDOFF_UNSUPPORTED");
+    const plain = await callTool("create_signing_link", { text: "deposit 10 USDC into aave on base" });
+    assert.equal(plain.isError, undefined);
   });
 });
 

@@ -269,8 +269,9 @@ describe("GET /v1/health", () => {
       time: string;
       uptimeSeconds: number;
       networks: { network: string; chain: string; ok: boolean; latencyMs: number; height?: string; environment: string }[];
-      storage: { intents: string; apiKeys: string; webhooks: string };
+      storage: { intents: string; apiKeys: string; webhooks: string; contracts: string; sessions: string };
       webhooks: { status: string; sealing: string; dispatcher: unknown };
+      contracts: { enabled: boolean; simulation: unknown };
     };
     assert.equal(body.status, "ok");
     assert.equal(body.api, "v1");
@@ -284,7 +285,9 @@ describe("GET /v1/health", () => {
       assert.equal(entry.height, "123");
       assert.ok(entry.environment === "mainnet" || entry.environment === "testnet");
     }
-    assert.deepEqual(body.storage, { intents: "memory", apiKeys: "memory", webhooks: "memory" });
+    assert.deepEqual(body.storage, { intents: "memory", apiKeys: "memory", webhooks: "memory", contracts: "memory", sessions: "memory" });
+    // A custom health probe also stands in for the live simulation probe (not probed: null).
+    assert.deepEqual(body.contracts, { enabled: true, simulation: null });
     assert.equal(body.webhooks.status, "enabled", "the development sealing key enables webhooks outside production");
     assert.equal(body.webhooks.sealing, "development_fallback");
     assert.equal(reply.headers.get("cache-control"), "no-store");
@@ -474,13 +477,21 @@ describe("GET /v1/openapi.json", () => {
     const key = await issueKey(server, "openapi-idempotency");
     const honoured: string[] = [];
     const refused: string[] = [];
-    for (const route of PLATFORM_ROUTES.filter((entry) => entry.method === "post")) {
-      const path = route.path
-        .replace(":id", route.path.startsWith("/keys") ? `key_${"0".repeat(24)}` : route.path.startsWith("/webhooks") ? `wh_${"0".repeat(24)}` : `int_${"0".repeat(32)}`)
-        .replace(":stepId", "s1");
-      const reply = await call<ErrorEnvelope>(server, "POST", path, { key, body: {}, headers: { "idempotency-key": "not a valid key!" } });
+    const sampleId = (path: string) =>
+      path.startsWith("/keys")
+        ? `key_${"0".repeat(24)}`
+        : path.startsWith("/webhooks")
+          ? `wh_${"0".repeat(24)}`
+          : path.startsWith("/contracts")
+            ? `ct_${"0".repeat(24)}`
+            : path.startsWith("/sessions")
+              ? `cs_${"0".repeat(32)}`
+              : `int_${"0".repeat(32)}`;
+    for (const route of PLATFORM_ROUTES.filter((entry) => entry.method === "post" || entry.method === "patch")) {
+      const path = route.path.replace(":id", sampleId(route.path)).replace(":stepId", "s1");
+      const reply = await call<ErrorEnvelope>(server, route.method.toUpperCase(), path, { key, body: {}, headers: { "idempotency-key": "not a valid key!" } });
       const code = (reply.body as Partial<ErrorEnvelope>).error?.code;
-      const operation = `POST /v1${route.path.replace(/:([A-Za-z]+)/gu, "{$1}")}`;
+      const operation = `${route.method.toUpperCase()} /v1${route.path.replace(/:([A-Za-z]+)/gu, "{$1}")}`;
       if (code === "IDEMPOTENCY_KEY_INVALID") honoured.push(operation);
       if (code === "IDEMPOTENCY_NOT_SUPPORTED") refused.push(operation);
     }
@@ -494,7 +505,18 @@ describe("GET /v1/openapi.json", () => {
     assert.deepEqual(declaring.sort(), [...honoured].sort());
     assert.deepEqual(
       honoured.sort(),
-      ["POST /v1/intents", "POST /v1/intents/{id}/cancel", "POST /v1/intents/{id}/steps/{stepId}/submit", "POST /v1/keys", "POST /v1/keys/{id}/rotate", "POST /v1/webhooks"].sort(),
+      [
+        "POST /v1/intents",
+        "POST /v1/intents/{id}/cancel",
+        "POST /v1/intents/{id}/steps/{stepId}/submit",
+        "POST /v1/keys",
+        "POST /v1/keys/{id}/rotate",
+        "POST /v1/webhooks",
+        "POST /v1/contracts",
+        "PATCH /v1/contracts/{id}",
+        "POST /v1/contracts/{id}/reverify",
+        "POST /v1/sessions",
+      ].sort(),
     );
     assert.deepEqual(refused, ["POST /v1/intents/{id}/steps/{stepId}/prepare"]);
   });
@@ -1066,7 +1088,16 @@ describe("webhooks", () => {
     assert.equal(created.status, 201);
     assert.match(created.body.webhook.id, /^wh_[0-9a-f]{24}$/u);
     assert.match(created.body.webhook.secret ?? "", /^whsec_[0-9A-Za-z]{32}$/u);
-    assert.deepEqual(created.body.webhook.events, ["intent.created", "intent.status_changed", "intent.step_updated"]);
+    // Without `events`: every type that exists now, contract registration events included.
+    assert.deepEqual(created.body.webhook.events, [
+      "intent.created",
+      "intent.status_changed",
+      "intent.step_updated",
+      "contract.registered",
+      "contract.activated",
+      "contract.suspended",
+      "contract.reactivated",
+    ]);
     const listed = await call<{ webhooks: Record<string, unknown>[] }>(server, "GET", "/webhooks", { key });
     assert.equal(listed.body.webhooks.length, 1);
     assert.equal("secret" in (listed.body.webhooks[0] ?? {}), false);

@@ -9,6 +9,7 @@ this same API for Solana and cross-network flows.
 - Types: [`@kletia/core`](../../packages/core/README.md) (intent spec), [`@kletia/sdk`](../../packages/sdk/README.md) (client)
 - Errors: [errors.md](errors.md) (also `GET /v1/errors`)
 - Agents: [mcp.md](mcp.md) (read-only MCP server at `/v1/mcp`)
+- Custom contracts and sessions: [contracts.md](contracts.md)
 
 ## Design rules
 
@@ -30,8 +31,8 @@ this same API for Solana and cross-network flows.
 | Tier | How | Limits | Capabilities |
 |---|---|---|---|
 | Public | No key | 30 requests/min per IP | Read registries, quotes, create and run intents |
-| Developer | `Authorization: Bearer kl_dev_…` | 300 requests/min per key | Everything above, plus intent listing and webhooks |
-| Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above |
+| Developer | `Authorization: Bearer kl_dev_…` | 300 requests/min per key | Everything above, plus intent listing, webhooks, [custom contracts and sessions](contracts.md) |
+| Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above, plus suspending any contract registration |
 
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
 hash). It is rate-limited per IP. Keys are managed per project; see
@@ -61,14 +62,15 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 |---|---|
 | 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
-| 403 | A rotated-out secret managing keys (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`) |
-| 404 | Unknown intent, step, webhook, key or path |
+| 403 | A rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`) |
+| 404 | Unknown intent, step, webhook, key, contract registration (`CONTRACT_NOT_FOUND`, also for other keys' private ones), session or path |
 | 405 | Wrong method (with an `Allow` header) |
-| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`) |
+| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`, `CONTRACT_EXISTS`, `CONTRACT_LIMIT_REACHED`, `CONTRACT_PENDING`, `CONTRACT_SUSPENDED`, `CONTRACT_CHANGED`, `CONTRACT_REVISION_CHANGED`, `SESSION_USED`) |
+| 410 | Expired (`INTENT_EXPIRED`, `DEADLINE_PASSED`, `SESSION_EXPIRED`) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
-| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, the custom contract refusals (`CONTRACT_UNKNOWN`, `CONTRACT_DENIED`, `CONTRACT_FUNCTION_FORBIDDEN`, `CONTRACT_NOT_DEPLOYED`, `SIMULATION_ASSET_CHANGE_REFUSED`, `ACTION_TRANSACTION_REJECTED`, …), and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
-| 502 / 503 | Upstream provider unavailable, or a feature not configured (`WEBHOOKS_NOT_CONFIGURED`) |
+| 502 / 503 | Upstream provider unavailable (`ACTION_ENDPOINT_UNAVAILABLE` for an integrator's Solana Action server), or a feature not configured or disabled (`WEBHOOKS_NOT_CONFIGURED`, `CONTRACTS_DISABLED`, `SIMULATION_UNAVAILABLE`) |
 
 ## Endpoints
 
@@ -98,7 +100,19 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | GET | `/v1/keys` | key | List the keys of the caller's project |
 | POST | `/v1/keys/{id}/rotate` | key | New secret for a key, same id, with a grace window |
 | DELETE | `/v1/keys/{id}` | key | Revoke a key |
-| GET | `/v1/usage` | key | Requests, status classes, rate-limit window and intents of the caller's key |
+| GET | `/v1/usage` | key | Requests, status classes, rate-limit window, intents and custom contract activity of the caller's key |
+| POST | `/v1/contracts` | key | Register a custom EVM contract or Solana Actions origin ([contracts.md](contracts.md)) |
+| GET | `/v1/contracts` | key | The key's registrations and its project's visible ones (`?network=&vm=&status=`) |
+| GET | `/v1/contracts/inspect` | key | What registering an address (`?network=&address=`) or programs (`?network=solana&programs=`) would pin and allow |
+| GET | `/v1/contracts/{id}` | key | One registration |
+| PATCH | `/v1/contracts/{id}` | key | Update (security-relevant changes become a new revision) |
+| DELETE | `/v1/contracts/{id}` | key | Soft delete |
+| POST | `/v1/contracts/{id}/test` | key | Dry-run one entry for an account (simulation and review) |
+| POST | `/v1/contracts/{id}/reverify` | key | Re-pin and re-check after an intended upgrade |
+| POST | `/v1/contracts/{id}/suspend` | operator | Suspend any registration |
+| POST | `/v1/sessions` | key | Create a session the embed turns into an intent for a visitor |
+| GET | `/v1/sessions/{id}` | public | Session view for the embed |
+| POST | `/v1/sessions/{id}/intents` | public | Turn a session into an intent for the visitor's accounts |
 | GET | `/v1/errors` | public | Error catalog |
 | GET | `/v1/status/badge` | public | Status badge (SVG, or `?format=shields`) |
 | POST | `/v1/mcp` | public | Model Context Protocol server ([mcp.md](mcp.md)) |
@@ -159,6 +173,12 @@ recipient was resolved from) and `extraCosts` (value paid on top of the input,
 such as a deBridge fixed fee in the native asset, with `usd` when priced).
 
 `GET /v1/intents` accepts `?limit=1..100` (default 20).
+
+Custom contract steps: `{ "kind": "call", "network": "arbitrum", "contract": "ct_…" | "<alias>", "entry": "deposit", "amount": "100" }`
+(`kind: "action"` on Solana networks) call a registration the request's API
+key may use; text plans with the key's aliases too ("deposit 100 USDC into
+acme vault"). Such steps carry `step.call` (the registration snapshot and its
+`review`). See [Custom contracts](#custom-contracts).
 
 ### `POST /v1/quotes`
 
@@ -239,6 +259,11 @@ submission replaces them (for example after a wallet speed-up or a resend with
 a fresh blockhash). Once a reference is verified, it is bound to the step and
 cannot be reused by any other step.
 
+For custom contract steps (`call` / `action`), `payload.review` is the review
+of exactly these transactions (simulated asset changes, approvals,
+provenance, "Not audited by Kletia"): show it to the user before handing the
+transactions to the wallet.
+
 A payload expires at `payload.expiresAt`; prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
 
 EVM steps verify plain wallets (the receipt sender must be the step account). Smart-contract wallets that relay through bundlers are not yet supported.
@@ -259,8 +284,12 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 { "id": "evt_…", "type": "intent.step_updated", "at": "2026-10-08T12:00:00.000Z", "data": { "intentId": "…", "stepId": "…", "network": "solana", "status": "settled" } }
 ```
 
-Types: `intent.created`, `intent.status_changed`, `intent.step_updated`, and
-`webhook.test` (only from `POST /v1/webhooks/{id}/test`).
+Types: `intent.created`, `intent.status_changed`, `intent.step_updated`, the
+contract registration events `contract.registered`, `contract.activated`,
+`contract.suspended` and `contract.reactivated` (webhooks only, routed to the
+registration's own key; see [contracts.md](contracts.md#webhooks)), and
+`webhook.test` (only from `POST /v1/webhooks/{id}/test`). A webhook created
+without `events` subscribes to every type that exists at creation time.
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
@@ -290,7 +319,9 @@ delivery queue of the answering API process.
 Keyed `POST` requests that create or change state accept an
 `Idempotency-Key` header (draft-ietf-httpapi-idempotency-key-header):
 `POST /v1/intents`, `/intents/{id}/cancel`, `/intents/{id}/steps/{stepId}/submit`,
-`POST /v1/webhooks`, `POST /v1/keys` and `/keys/{id}/rotate`.
+`POST /v1/webhooks`, `POST /v1/keys`, `/keys/{id}/rotate`, `POST /v1/contracts`,
+`PATCH /v1/contracts/{id}`, `POST /v1/contracts/{id}/reverify` and
+`POST /v1/sessions`.
 
 ```http
 POST /v1/intents
@@ -313,7 +344,9 @@ Idempotency-Key: 7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14
 - Without an API key: `400 IDEMPOTENCY_KEY_REQUIRES_API_KEY`. On `prepare`
   (which re-quotes on every call and must never be replayed):
   `400 IDEMPOTENCY_NOT_SUPPORTED`. Dry runs ignore the header. Other POSTs
-  (quotes, refresh, webhook tests, MCP) are safe to repeat and ignore it.
+  (quotes, refresh, webhook tests, contract tests, session intents, MCP) are
+  safe to repeat and ignore it (a session's use count already makes
+  `POST /v1/sessions/{id}/intents` single-use).
 - Responses that carry a secret (API keys, webhook signing secrets) are stored
   encrypted with `KLETIA_PLATFORM_SECRET`, with a hash of the secret that
   made the request. After a rotation they are replayed to the key's current
@@ -378,13 +411,43 @@ use one key per environment.
   "totals": { "requests": 1342, "byStatusClass": { "2xx": 1301, "4xx": 41 } },
   "byRoute": [{ "route": "POST /intents", "requests": 120, "byStatusClass": { "2xx": 118, "4xx": 2 } }],
   "series": [{ "hour": "…", "requests": 51 }],
-  "intents": { "created": 120, "byStatus": { "completed": 97, "planned": 23 } }
+  "intents": { "created": 120, "byStatus": { "completed": 97, "planned": 23 } },
+  "contracts": { "registered": 2, "suspended": 0, "preparedToday": 14, "notionalTodayUsd": 4210.5 }
 }
 ```
 
 Requests are counted per hour, route template and status class and written
 every 30 seconds (per request on serverless hosts). `rateLimit` is the current
-window on the answering instance.
+window on the answering instance. `contracts` counts the key's registrations
+and, for the current UTC day, its prepared custom contract steps and their
+priced notional (the daily cap's counter).
+
+## Custom contracts
+
+Integrators register their own EVM contracts (ABI actions) and Solana Actions
+endpoints, and intents created with their key can call them. The full guide,
+with the definition reference, the safety model and sessions, is
+[contracts.md](contracts.md). In short:
+
+- `POST /v1/contracts` validates the definition (the same rules as
+  `validateContractDefinition` in `@kletia/core`: no approvals, transfers,
+  upgrades, multicall or arbitrary calldata; beneficiary arguments bound to
+  the user), pins the contract's code identity (proxy implementations
+  included) or the Solana programs' deployments, and records Sourcify /
+  OtterSec verification. Mainnet registrations activate after a delay
+  (default 15 minutes) and announce themselves with `contract.registered`.
+- Only intents created with the registration's key (or its project, for
+  `visibility: "project"`) can use it; every other caller gets
+  `CONTRACT_UNKNOWN`.
+- Every call or action step is simulated at plan and again at prepare against
+  the user's real state, carries a `review`, re-reads the pins at prepare and
+  at the receipt block, and is verified from the declared events and the
+  user's asset changes. Any anomaly suspends the registration.
+- Sessions (`POST /v1/sessions`) let the embed run your fixed actions for a
+  visitor's wallet; see [contracts.md](contracts.md#sessions) and
+  [embed.md](embed.md).
+- MCP agents can list, read and test-simulate registrations and plan intents
+  that use them; signing links refuse them ([mcp.md](mcp.md)).
 
 ## Status badge
 
@@ -407,6 +470,8 @@ shields.io endpoint document:
 | `deposit` / `withdraw` | Base, Arbitrum One, Ethereum | Morpho vaults (MetaMorpho, Vault V2; allowlisted) |
 | `deposit` / `withdraw` | Base, OP Mainnet | Moonwell (WETH markets pay withdrawals in ETH) |
 | `deposit` / `withdraw` | Solana | Jupiter Lend, Kamino (Kamino withdrawals take an exact amount) |
+| `call` | Every EVM network | A registered custom contract action ([contracts.md](contracts.md)) |
+| `action` | Solana, Solana Devnet | A registered Solana Action ([contracts.md](contracts.md)) |
 
 `GET /v1/venues` lists the EVM lending venues (Aave V3, Compound V3, Morpho,
 Moonwell) with their registry id (usable as `params.venue`), supply APY,

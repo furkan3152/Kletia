@@ -4,7 +4,27 @@
  * @kletia/core so they never drift from the registries; shapes mirror the
  * handlers in router.ts and the types in @kletia/core.
  */
-import { CHAINS, ERROR_CATEGORIES, INTENT_SPEC_VERSION, MAX_MAX_SECONDS, MIN_MAX_SECONDS, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
+import {
+  CHAINS,
+  CONTRACT_ADDRESS_LABEL_PATTERN,
+  CONTRACT_ALIAS_PATTERN,
+  CONTRACT_ENTRY_ID_PATTERN,
+  CONTRACT_EVENT_TYPES,
+  CONTRACT_ID_PATTERN,
+  CONTRACT_LIMITS,
+  CONTRACT_PARAM_NAME_PATTERN,
+  CONTRACT_REFERENCE_PATTERN,
+  CONTRACT_REVIEW_NOTICE,
+  CONTRACT_VERB_PATTERN,
+  ERROR_CATEGORIES,
+  INTENT_SPEC_VERSION,
+  KLETIA_WELL_KNOWN_PATH,
+  MAX_MAX_SECONDS,
+  MIN_MAX_SECONDS,
+  NETWORK_KEYS,
+  PROTOCOLS,
+  SESSION_ID_PATTERN,
+} from "@kletia/core";
 import { REJECTION_CODES } from "../index.js";
 import { ACTION_KINDS } from "./catalog.js";
 import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
@@ -12,7 +32,7 @@ import { DELIVERY_ERRORS, MAX_DELIVERIES_PER_WEBHOOK, MEMORY_DELIVERIES_PER_WEBH
 import { PLATFORM_API_VERSION } from "./health.js";
 import { IDEMPOTENCY_LOCK_MS, IDEMPOTENCY_TTL_MS } from "./idempotency.js";
 import { API_KEY_ID_PATTERN, DEFAULT_ROTATION_GRACE_SECONDS, MAX_ACTIVE_KEYS_PER_PROJECT, MAX_ROTATION_GRACE_SECONDS } from "./keys.js";
-import { KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
+import { CONTRACT_TESTS_PER_MINUTE, CONTRACT_WRITES_PER_HOUR, KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
 import { HANDOFF_MAX_TEXT } from "./mcp/handoff.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
@@ -37,6 +57,569 @@ const obj = (properties: JsonObject, required: readonly string[] = [], extra: Js
 const INTENT_STATUSES = ["planned", "executing", "settling", "completed", "partially_completed", "failed", "expired", "cancelled", "indeterminate"];
 const STEP_STATUSES = ["pending", "ready", "awaiting_signature", "submitted", "confirmed", "settling", "settled", "failed", "skipped", "indeterminate"];
 const ACCOUNT_EXAMPLE = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+
+
+const EVM_ADDRESS = "^0x[0-9a-fA-F]{40}$";
+const BASE58 = "^[1-9A-HJ-NP-Za-km-z]{32,44}$";
+const WEI = "^(0|[1-9][0-9]*)$";
+const DECIMAL = "^(0|[1-9][0-9]*)(\\.[0-9]+)?$";
+
+/** Custom contracts (BYOC): registrations, reviews, tests, inspections and sessions. */
+function contractSchemas(): JsonObject {
+  const sourceStatus = str({ enum: ["exact_match", "match", "unverified", "unknown"] });
+  const phrases = obj(
+    {
+      verbs: arrayOf(str({ pattern: CONTRACT_VERB_PATTERN.source }), { minItems: 1, maxItems: CONTRACT_LIMITS.verbsPerAction }),
+      aliases: arrayOf(str({ pattern: CONTRACT_ALIAS_PATTERN.source }), {
+        minItems: 1,
+        maxItems: CONTRACT_LIMITS.aliasesPerAction,
+        description: "Not a network, asset symbol, built-in venue word, `kletia` or grammar keyword.",
+      }),
+    },
+    ["verbs", "aliases"],
+    { description: "Natural-language phrases: `<verb> <amount> into <alias>`." },
+  );
+  const limits = obj({ minAmount: str({ pattern: DECIMAL }), maxAmount: str({ pattern: DECIMAL, description: "Required on mainnet for spending actions." }) });
+  return {
+    ContractVm: str({ enum: ["evm", "svm"] }),
+    AbiParameter: obj(
+      {
+        name: str(),
+        type: str({ description: "Canonical ABI type (`uint256`, `address[]`, `tuple`)." }),
+        internalType: str(),
+        indexed: bool(),
+        components: arrayOf(ref("AbiParameter")),
+      },
+      ["type"],
+    ),
+    AbiItem: obj(
+      {
+        type: str({ enum: ["function", "event", "error"] }),
+        name: str(),
+        stateMutability: str({ enum: ["nonpayable", "payable", "view", "pure"] }),
+        anonymous: bool(),
+        inputs: arrayOf(ref("AbiParameter")),
+        outputs: arrayOf(ref("AbiParameter")),
+      },
+      ["type", "name", "inputs"],
+    ),
+    ArgBinding: {
+      description:
+        "An argument's value source: `$amount`, `$account`, `$recipient`, `$token`, `$self`, `$minimumOutput`, `$deadline`, `$previous.output.amount`, `$previous.output.asset`, `$param.<name>`, a literal, a tuple or a literal-only array. Kletia encodes every call from the ABI and these bindings; arbitrary calldata never exists.",
+      oneOf: [
+        str({ pattern: "^\\$(amount|account|recipient|token|self|minimumOutput|deadline|previous\\.output\\.amount|previous\\.output\\.asset|param\\.[a-z][A-Za-z0-9_]{0,31})$" }),
+        obj({ literal: { type: ["string", "boolean"] } }, ["literal"], { additionalProperties: false }),
+        obj({ tuple: arrayOf(ref("ArgBinding")) }, ["tuple"], { additionalProperties: false }),
+        obj({ array: arrayOf(ref("ArgBinding"), { maxItems: CONTRACT_LIMITS.arrayElements }) }, ["array"], { additionalProperties: false }),
+      ],
+    },
+    EventBinding: obj(
+      {
+        event: str({ description: "Name or full signature of an ABI event (normalised to the signature)." }),
+        emitter: str({ description: "`$self` or an `addresses` label; the log must come from that pinned address." }),
+        where: {
+          type: "object",
+          additionalProperties: {
+            oneOf: [str({ enum: ["$account", "$recipient", "$amount", "$token", "$self"] }), obj({ literal: { type: ["string", "boolean"] } }, ["literal"])],
+          },
+          description: "Event input name → binding; at least one binds `$account` or `$recipient`.",
+        },
+        output: str({ description: "Event input reporting the output amount (needs the action's `output`)." }),
+      },
+      ["event", "emitter", "where"],
+    ),
+    ActionParam: obj(
+      {
+        name: str({ pattern: CONTRACT_PARAM_NAME_PATTERN.source }),
+        type: str({ enum: ["uint", "int", "bool", "enum"] }),
+        min: str(),
+        max: str(),
+        enum: arrayOf(str()),
+        default: { type: ["string", "boolean"] },
+        required: bool(),
+      },
+      ["name", "type"],
+    ),
+    EvmContractAction: obj(
+      {
+        id: str({ pattern: CONTRACT_ENTRY_ID_PATTERN.source }),
+        label: str({ maxLength: CONTRACT_LIMITS.labelLength }),
+        function: str({ description: "Canonical signature, e.g. `deposit(uint256,address)`; nonpayable or payable." }),
+        args: arrayOf(ref("ArgBinding"), { description: "One binding per ABI input, in order." }),
+        input: obj(
+          {
+            token: str({ description: "Registry symbol on the network, CAIP-19 id, or `native`." }),
+            approval: obj({ spender: str({ description: "`$self` or an `addresses` label: always an exact approve of the step amount." }) }, ["spender"]),
+          },
+          ["token"],
+        ),
+        value: obj({ bind: str({ description: "`$amount` (native input) or a wei literal." }), max: str({ pattern: WEI, description: "Wei cap." }) }, ["bind", "max"]),
+        output: obj({ token: str({ description: "`$self`, an `addresses` label or an ERC-20 address." }), toleranceBps: int({ minimum: 0, maximum: CONTRACT_LIMITS.maxToleranceBps, default: CONTRACT_LIMITS.defaultToleranceBps }) }, ["token"]),
+        events: arrayOf(ref("EventBinding"), { minItems: 1, maxItems: CONTRACT_LIMITS.eventsPerAction }),
+        params: arrayOf(ref("ActionParam"), { maxItems: CONTRACT_LIMITS.paramsPerAction }),
+        recipient: str({ enum: ["account", "any"], default: "account" }),
+        phrases,
+        limits,
+        selector: str({ pattern: "^0x[0-9a-f]{8}$", description: "In responses." }),
+      },
+      ["id", "label", "function", "args", "events"],
+    ),
+    SolanaActionEndpoint: obj(
+      {
+        id: str({ pattern: CONTRACT_ENTRY_ID_PATTERN.source }),
+        label: str({ maxLength: CONTRACT_LIMITS.labelLength }),
+        href: str({ maxLength: CONTRACT_LIMITS.hrefLength, description: "Action URL on `origin`; placeholders `{amount}`, `{amountBaseUnits}` and `{<param>}` only." }),
+        primaryProgram: str({ pattern: BASE58 }),
+        input: obj({ token: str() }, ["token"]),
+        output: obj({ mint: str({ pattern: BASE58 }), toleranceBps: int({ minimum: 0, maximum: CONTRACT_LIMITS.maxToleranceBps }) }, ["mint"]),
+        params: arrayOf(ref("ActionParam"), { maxItems: CONTRACT_LIMITS.paramsPerAction }),
+        phrases,
+        limits,
+        metadata: { oneOf: [ref("SolanaActionMetadata"), { type: "null" }], description: "In responses: the action's metadata as fetched at registration." },
+      },
+      ["id", "label", "href", "primaryProgram"],
+    ),
+    ContractIntegrator: obj(
+      {
+        name: str({ minLength: 2, maxLength: 40, description: "Reserved brand names need the brand's own website and a verified domain." }),
+        website: str({ format: "uri", description: "HTTPS origin; required on mainnet. Publish `" + KLETIA_WELL_KNOWN_PATH + "` listing the registration id to verify it." }),
+      },
+      ["name"],
+    ),
+    EvmContractDefinition: obj(
+      {
+        vm: str({ const: "evm" }),
+        network: ref("NetworkKey"),
+        address: str({ pattern: EVM_ADDRESS }),
+        integrator: ref("ContractIntegrator"),
+        visibility: str({ enum: ["private", "project"], default: "private" }),
+        abi: arrayOf(ref("AbiItem"), { minItems: 1, maxItems: CONTRACT_LIMITS.abiItems, description: "An allowlist: every function item must be used by an action." }),
+        addresses: arrayOf(obj({ label: str({ pattern: CONTRACT_ADDRESS_LABEL_PATTERN.source }), address: str({ pattern: EVM_ADDRESS }) }, ["label", "address"]), {
+          maxItems: CONTRACT_LIMITS.extraAddresses,
+          description: "Other contracts an action may name as approval spender or event emitter (pinned like the target).",
+        }),
+        actions: arrayOf(ref("EvmContractAction"), { minItems: 1, maxItems: CONTRACT_LIMITS.actionsPerRegistration }),
+      },
+      ["vm", "network", "address", "integrator", "abi", "actions"],
+    ),
+    SolanaActionDefinition: obj(
+      {
+        vm: str({ const: "svm" }),
+        network: ref("NetworkKey"),
+        integrator: ref("ContractIntegrator"),
+        visibility: str({ enum: ["private", "project"], default: "private" }),
+        origin: str({ format: "uri", description: "HTTPS origin every `href` is on (public DNS name, port 443 or 1024+)." }),
+        programs: arrayOf(str({ pattern: BASE58 }), { minItems: 1, maxItems: CONTRACT_LIMITS.programs, description: "Allowlisted top-level programs (pinned)." }),
+        payees: arrayOf(obj({ label: str(), address: str({ pattern: BASE58 }), maxLamports: str({ pattern: WEI }) }, ["label", "address", "maxLamports"]), {
+          maxItems: CONTRACT_LIMITS.payees,
+          description: "The only third parties a top-level System transfer may pay, each with a lamport cap.",
+        }),
+        actions: arrayOf(ref("SolanaActionEndpoint"), { minItems: 1, maxItems: CONTRACT_LIMITS.actionsPerRegistration }),
+      },
+      ["vm", "network", "integrator", "origin", "programs", "actions"],
+    ),
+    ContractDefinition: {
+      oneOf: [ref("EvmContractDefinition"), ref("SolanaActionDefinition")],
+      discriminator: {
+        propertyName: "vm",
+        mapping: { evm: "#/components/schemas/EvmContractDefinition", svm: "#/components/schemas/SolanaActionDefinition" },
+      },
+      description: `Validated by validateContractDefinition (@kletia/core), which reports the same issues locally. At most ${CONTRACT_LIMITS.definitionBytes / 1024} KB as canonical JSON.`,
+    },
+    ContractDefinitionPatch: {
+      type: "object",
+      minProperties: 1,
+      description:
+        "Fields of the definition to replace (`null` removes an optional field); `vm`, `network`, `address` and `origin` cannot change. Changing only labels and phrases updates the current revision; any other change creates a new revision, pending for the activation delay on mainnet.",
+      properties: {
+        integrator: ref("ContractIntegrator"),
+        visibility: str({ enum: ["private", "project"] }),
+        abi: arrayOf(ref("AbiItem")),
+        addresses: { type: ["array", "null"], items: obj({ label: str(), address: str({ pattern: EVM_ADDRESS }) }, ["label", "address"]) },
+        programs: arrayOf(str({ pattern: BASE58 })),
+        payees: { type: ["array", "null"], items: obj({ label: str(), address: str(), maxLamports: str() }, ["label", "address", "maxLamports"]) },
+        actions: arrayOf({ oneOf: [ref("EvmContractAction"), ref("SolanaActionEndpoint")] }),
+      },
+    },
+    EvmProxyPin: obj(
+      {
+        kind: str({ enum: ["eip1967", "eip1967-beacon", "eip1822", "zeppelinos", "eip1167"] }),
+        implementation: str({ pattern: EVM_ADDRESS }),
+        implementationCodeHash: str(),
+        admin: { type: ["string", "null"] },
+        beacon: { type: ["string", "null"] },
+        beaconCodeHash: { type: ["string", "null"] },
+      },
+      ["kind", "implementation", "implementationCodeHash", "admin", "beacon", "beaconCodeHash"],
+    ),
+    EvmContractPins: obj(
+      {
+        codeHash: str(),
+        codeSize: int({ minimum: 0 }),
+        proxy: { oneOf: [ref("EvmProxyPin"), { type: "null" }] },
+        addresses: arrayOf(
+          obj(
+            { label: str(), address: str(), codeHash: str(), codeSize: int(), proxy: { oneOf: [ref("EvmProxyPin"), { type: "null" }] } },
+            ["label", "address", "codeHash", "codeSize", "proxy"],
+          ),
+        ),
+        blockNumber: ref("BaseUnits"),
+        checkedAt: str({ format: "date-time" }),
+      },
+      ["codeHash", "codeSize", "proxy", "addresses", "blockNumber", "checkedAt"],
+      { description: "Code identity re-read at every prepare and at the receipt block; any change suspends the registration." },
+    ),
+    SolanaProgramPin: obj(
+      {
+        program: str({ pattern: BASE58 }),
+        loader: str(),
+        programData: { type: ["string", "null"] },
+        lastDeploySlot: { type: ["string", "null"] },
+        upgradeAuthority: { type: ["string", "null"] },
+        dataHash: { type: ["string", "null"] },
+      },
+      ["program", "loader", "programData", "lastDeploySlot", "upgradeAuthority"],
+    ),
+    SourceVerification: obj(
+      {
+        status: sourceStatus,
+        provider: str({ const: "sourcify" }),
+        checkedAt: { type: ["string", "null"], format: "date-time" },
+        url: str({ format: "uri" }),
+        proxyType: { type: ["string", "null"] },
+      },
+      ["status", "provider", "checkedAt"],
+    ),
+    ProgramVerification: obj(
+      {
+        program: str(),
+        verified: { type: ["boolean", "null"] },
+        provider: str({ const: "ottersec" }),
+        checkedAt: { type: ["string", "null"], format: "date-time" },
+        repository: str({ format: "uri" }),
+        commit: str(),
+      },
+      ["program", "verified", "provider", "checkedAt"],
+    ),
+    ContractVerification: obj(
+      {
+        source: { oneOf: [ref("SourceVerification"), { type: "null" }] },
+        implementationSource: { oneOf: [ref("SourceVerification"), { type: "null" }] },
+        programs: arrayOf(ref("ProgramVerification")),
+        domain: obj({ verified: bool(), checkedAt: { type: ["string", "null"], format: "date-time" } }, ["verified", "checkedAt"]),
+        risk: { oneOf: [obj({ provider: str({ const: "webacy" }), score: { type: ["number", "null"] }, level: str(), checkedAt: str({ format: "date-time" }) }, ["provider", "score", "checkedAt"]), { type: "null" }] },
+      },
+      ["domain"],
+    ),
+    SolanaActionMetadata: obj(
+      {
+        url: str({ format: "uri" }),
+        title: str(),
+        label: str(),
+        description: str(),
+        icon: str(),
+        disabled: bool(),
+        actionVersion: str(),
+        blockchainIds: arrayOf(str()),
+        fetchedAt: str({ format: "date-time" }),
+      },
+      ["url", "title", "label", "disabled", "fetchedAt"],
+    ),
+    ContractRevisionSummary: obj({ revision: int({ minimum: 1 }), definitionHash: str(), createdAt: str({ format: "date-time" }) }, ["revision", "definitionHash", "createdAt"]),
+    ContractView: obj(
+      {
+        id: str({ pattern: CONTRACT_ID_PATTERN.source }),
+        vm: ref("ContractVm"),
+        network: ref("NetworkKey"),
+        address: str({ pattern: EVM_ADDRESS, description: "EVM: checksummed contract address." }),
+        origin: str({ format: "uri", description: "Solana Actions: the registered origin." }),
+        integrator: obj({ name: str(), website: str({ format: "uri" }), domainVerified: bool() }, ["name", "domainVerified"]),
+        visibility: str({ enum: ["private", "project"] }),
+        status: str({ enum: ["pending", "active", "suspended"] }),
+        revision: int({ minimum: 1, description: "Latest revision; the definition fields describe it." }),
+        activeRevision: { type: ["integer", "null"], description: "The revision intents use; null while the first revision waits for activation." },
+        pendingRevision: { type: ["integer", "null"] },
+        activatesAt: { type: ["string", "null"], format: "date-time" },
+        definitionHash: str({ pattern: "^[0-9a-f]{64}$", description: "sha256 of the canonical security-relevant fields." }),
+        pins: { oneOf: [ref("EvmContractPins"), arrayOf(ref("SolanaProgramPin"))] },
+        verification: ref("ContractVerification"),
+        actions: arrayOf({ oneOf: [ref("EvmContractAction"), ref("SolanaActionEndpoint")] }),
+        abi: arrayOf(ref("AbiItem"), { description: "Owner only." }),
+        addresses: arrayOf(obj({ label: str(), address: str() }, ["label", "address"]), { description: "Owner only." }),
+        programs: arrayOf(str(), { description: "Owner only." }),
+        payees: arrayOf(obj({ label: str(), address: str(), maxLamports: str() }, ["label", "address", "maxLamports"]), { description: "Owner only." }),
+        revisions: arrayOf(ref("ContractRevisionSummary"), { description: "Owner only, GET /v1/contracts/{id}: newest first." }),
+        createdAt: str({ format: "date-time" }),
+        updatedAt: str({ format: "date-time" }),
+        suspendedReason: { type: ["string", "null"], description: "pins_changed, outcome_mismatch, program_changed, domain_unverified or `operator: <reason>`." },
+      },
+      ["id", "vm", "network", "integrator", "visibility", "status", "revision", "activeRevision", "pendingRevision", "activatesAt", "definitionHash", "pins", "verification", "actions", "createdAt", "updatedAt", "suspendedReason"],
+    ),
+    AssetChange: obj(
+      {
+        asset: str({ description: "CAIP-19 id." }),
+        symbol: str(),
+        decimals: int(),
+        listed: bool({ description: "True for registry assets." }),
+        delta: str({ pattern: "^-?(0|[1-9][0-9]*)$", description: "Signed base units (negative: debit)." }),
+        formatted: str(),
+      },
+      ["asset", "symbol", "decimals", "listed", "delta", "formatted"],
+    ),
+    ContractReview: obj(
+      {
+        kind: str({ enum: ["evm-call", "solana-action"] }),
+        integrator: obj({ name: str(), website: str({ format: "uri" }), domainVerified: bool() }, ["name", "domainVerified"]),
+        notices: arrayOf(str(), { minItems: 1, description: `Always starts with "${CONTRACT_REVIEW_NOTICE}"` }),
+        contract: obj(
+          {
+            network: ref("NetworkKey"),
+            address: str(),
+            explorerUrl: str({ format: "uri" }),
+            source: sourceStatus,
+            proxy: obj({ kind: str(), implementation: str(), implementationSource: sourceStatus }, ["kind", "implementation", "implementationSource"]),
+            registeredAt: str({ format: "date-time" }),
+            revision: int(),
+          },
+          ["network", "address", "explorerUrl", "source", "registeredAt", "revision"],
+        ),
+        call: obj(
+          {
+            label: str(),
+            function: str({ examples: ["deposit(uint256 assets, address receiver)"] }),
+            args: arrayOf(
+              obj(
+                {
+                  name: str(),
+                  type: str(),
+                  display: str(),
+                  source: str({ enum: ["amount", "account", "recipient", "token", "self", "minimumOutput", "deadline", "previousOutput", "param", "literal"] }),
+                },
+                ["name", "type", "display", "source"],
+              ),
+            ),
+            value: ref("AssetAmount"),
+          },
+          ["label", "function", "args"],
+        ),
+        approvals: arrayOf(
+          obj(
+            {
+              token: obj({ asset: ref("AssetId"), symbol: str(), decimals: int() }, ["asset", "symbol", "decimals"]),
+              spender: str(),
+              amount: ref("AssetAmount"),
+              existingAllowance: ref("AssetAmount"),
+            },
+            ["token", "spender", "amount"],
+          ),
+        ),
+        action: obj(
+          {
+            url: str({ format: "uri" }),
+            domain: str(),
+            title: str(),
+            programs: arrayOf(obj({ id: str(), verified: { type: ["boolean", "null"] }, upgradeable: bool(), upgradeAuthority: { type: ["string", "null"] } }, ["id", "verified", "upgradeable", "upgradeAuthority"])),
+            instructionCount: int(),
+          },
+          ["url", "domain", "programs", "instructionCount"],
+        ),
+        simulation: obj(
+          {
+            status: str({ enum: ["ok", "unavailable"] }),
+            at: str({ format: "date-time" }),
+            block: str(),
+            slot: str(),
+            assetChanges: arrayOf(ref("AssetChange")),
+            networkFee: ref("AssetAmount"),
+            warnings: arrayOf(str()),
+          },
+          ["status", "at", "assetChanges", "warnings"],
+        ),
+      },
+      ["kind", "integrator", "notices", "approvals", "simulation"],
+      { description: "What the user reviews before signing a custom contract step: who, what, permissions, result, provenance, notice. Kletia has not audited the contract." },
+    ),
+    ContractStepCall: obj(
+      {
+        contract: str({ pattern: CONTRACT_ID_PATTERN.source }),
+        revision: int({ minimum: 1 }),
+        definitionHash: str(),
+        entry: str({ pattern: CONTRACT_ENTRY_ID_PATTERN.source }),
+        vm: ref("ContractVm"),
+        target: str({ description: "EVM contract address or the Solana Action's primary program." }),
+        integrator: obj({ name: str(), website: str(), domainVerified: bool() }, ["name", "domainVerified"]),
+        label: str(),
+        function: str(),
+        selector: str(),
+        fragment: ref("AbiItem"),
+        bindings: arrayOf(ref("ArgBinding")),
+        approvalSpender: str(),
+        value: obj({ bind: str(), max: str() }, ["bind", "max"]),
+        events: arrayOf(obj({ fragment: ref("AbiItem"), emitter: str(), where: { type: "object" }, output: str() }, ["fragment", "emitter", "where"])),
+        pins: ref("EvmContractPins"),
+        recipientMode: str({ enum: ["account", "any"] }),
+        toleranceBps: int(),
+        origin: str(),
+        href: str(),
+        programs: arrayOf(ref("SolanaProgramPin")),
+        payees: arrayOf(obj({ address: str(), maxLamports: str() }, ["address", "maxLamports"])),
+        params: { type: "object", additionalProperties: { type: ["string", "number", "boolean"] } },
+        output: obj({ asset: ref("AssetId"), symbol: str(), decimals: int() }, ["asset", "symbol", "decimals"]),
+        review: ref("ContractReview"),
+      },
+      ["contract", "revision", "definitionHash", "entry", "vm", "target", "integrator", "review"],
+      { description: "Self-contained snapshot of the registration a call/action step was planned with; verification never needs the registry." },
+    ),
+    ContractTestRequest: obj(
+      {
+        entry: str({ pattern: CONTRACT_ENTRY_ID_PATTERN.source }),
+        account: ref("AccountId"),
+        amount: ref("DecimalAmount"),
+        params: { type: "object", maxProperties: 8, additionalProperties: { type: ["string", "number", "boolean"] } },
+        recipient: str({ maxLength: 128 }),
+      },
+      ["entry", "account"],
+    ),
+    ContractTestResult: obj(
+      {
+        contract: str({ pattern: CONTRACT_ID_PATTERN.source }),
+        revision: int(),
+        entry: str(),
+        network: ref("NetworkKey"),
+        account: ref("AccountId"),
+        input: ref("AssetAmount"),
+        expectedOutput: ref("AssetAmount"),
+        minimumOutput: ref("AssetAmount"),
+        transactions: arrayOf(
+          obj({ description: str(), to: str(), selector: str(), value: ref("BaseUnits"), programs: arrayOf(str()) }, ["description"]),
+          { description: "What would be signed (never calldata to persist)." },
+        ),
+        gas: ref("BaseUnits"),
+        feesUsd: num(),
+        review: ref("ContractReview"),
+        warnings: arrayOf(str()),
+      },
+      ["contract", "revision", "entry", "network", "account", "transactions", "review", "warnings"],
+    ),
+    AbiFunctionClassification: obj(
+      {
+        name: str(),
+        signature: str(),
+        selector: str(),
+        stateMutability: str({ enum: ["nonpayable", "payable", "view", "pure"] }),
+        allowed: bool(),
+        code: { type: ["string", "null"], enum: ["CONTRACT_FUNCTION_FORBIDDEN", "CONTRACT_ARGUMENT_FORBIDDEN", null] },
+        reason: { type: ["string", "null"] },
+        notes: arrayOf(str()),
+      },
+      ["name", "signature", "selector", "stateMutability", "allowed", "code", "reason", "notes"],
+    ),
+    EvmContractInspection: obj(
+      {
+        vm: str({ const: "evm" }),
+        network: ref("NetworkKey"),
+        address: str(),
+        deployed: bool(),
+        codeSize: int({ minimum: 0 }),
+        eip7702: bool({ description: "EIP-7702 delegated account (cannot be registered)." }),
+        denied: { type: ["string", "null"], description: "Why the address can never be registered, or null." },
+        pins: { oneOf: [ref("EvmContractPins"), { type: "null" }] },
+        verification: obj({ source: ref("SourceVerification"), implementationSource: { oneOf: [ref("SourceVerification"), { type: "null" }] } }, ["source", "implementationSource"]),
+        abi: { type: ["array", "null"], items: ref("AbiItem"), description: "From Sourcify when verified (the implementation's for a proxy)." },
+        functions: arrayOf(ref("AbiFunctionClassification")),
+      },
+      ["vm", "network", "address", "deployed", "codeSize", "eip7702", "denied", "pins", "verification", "abi", "functions"],
+    ),
+    SolanaProgramInspection: obj(
+      {
+        vm: str({ const: "svm" }),
+        network: ref("NetworkKey"),
+        programs: arrayOf(
+          obj(
+            { program: str(), pin: { oneOf: [ref("SolanaProgramPin"), { type: "null" }] }, denied: { type: ["string", "null"] }, verification: ref("ProgramVerification") },
+            ["program", "pin", "denied", "verification"],
+          ),
+        ),
+      },
+      ["vm", "network", "programs"],
+    ),
+    ContractInspection: {
+      oneOf: [ref("EvmContractInspection"), ref("SolanaProgramInspection")],
+      discriminator: { propertyName: "vm", mapping: { evm: "#/components/schemas/EvmContractInspection", svm: "#/components/schemas/SolanaProgramInspection" } },
+    },
+    ContractSuspendRequest: obj({ reason: str({ minLength: 1, maxLength: 200 }) }, ["reason"]),
+    ContractResponse: obj({ contract: ref("ContractView") }, ["contract"]),
+    ContractListResponse: obj({ contracts: arrayOf(ref("ContractView")) }, ["contracts"]),
+    ContractTestResponse: obj({ test: ref("ContractTestResult") }, ["test"]),
+    ContractInspectionResponse: obj({ inspection: ref("ContractInspection") }, ["inspection"]),
+
+    SessionCreateRequest: obj(
+      {
+        actions: arrayOf(ref("IntentActionSpec"), { minItems: 1, maxItems: 8, description: "Structured actions only (no text)." }),
+        amount: obj(
+          {
+            action: int({ minimum: 0, description: "Index of the action whose amount the visitor may choose (its amount is the default)." }),
+            min: ref("DecimalAmount"),
+            max: ref("DecimalAmount"),
+          },
+          ["action", "min", "max"],
+        ),
+        allowedOrigins: arrayOf(str({ format: "uri" }), {
+          minItems: 1,
+          maxItems: CONTRACT_LIMITS.sessionAllowedOrigins,
+          description: "Origins of the pages that may embed the session (https, or http://localhost for development).",
+        }),
+        expiresInSeconds: int({ minimum: CONTRACT_LIMITS.sessionMinTtlSeconds, maximum: CONTRACT_LIMITS.sessionMaxTtlSeconds, default: CONTRACT_LIMITS.sessionDefaultTtlSeconds }),
+        maxIntents: int({ minimum: 1, maximum: CONTRACT_LIMITS.sessionMaxIntents, default: 1 }),
+        constraints: ref("IntentConstraints"),
+        metadata: { type: "object", maxProperties: 19, additionalProperties: str({ maxLength: 500 }), description: "Copied to every intent, plus `sessionId`." },
+        clientReference: str({ pattern: "^[A-Za-z0-9_.:-]{1,80}$" }),
+      },
+      ["actions", "allowedOrigins"],
+    ),
+    SessionView: obj(
+      {
+        id: str({ pattern: SESSION_ID_PATTERN.source }),
+        status: str({ enum: ["active", "expired", "used"] }),
+        expiresAt: str({ format: "date-time" }),
+        createdAt: str({ format: "date-time" }),
+        integrator: obj({ name: str(), website: str({ format: "uri" }), domainVerified: bool() }, ["name", "domainVerified"]),
+        allowedOrigins: arrayOf(str()),
+        actions: arrayOf(
+          obj(
+            {
+              kind: ref("IntentActionKind"),
+              network: ref("NetworkKey"),
+              toNetwork: ref("NetworkKey"),
+              from: str(),
+              to: str(),
+              amount: str(),
+              contract: str(),
+              entry: str(),
+              label: str(),
+            },
+            ["kind", "network", "label"],
+          ),
+        ),
+        amount: obj({ action: int(), min: ref("DecimalAmount"), max: ref("DecimalAmount"), default: ref("DecimalAmount"), symbol: str() }, ["action", "min", "max"]),
+        maxIntents: int({ minimum: 1 }),
+        used: int({ minimum: 0 }),
+        embedUrl: str({ format: "uri", description: "Creation response only: the embed page with the id in the URL fragment." }),
+      },
+      ["id", "status", "expiresAt", "createdAt", "integrator", "allowedOrigins", "actions", "maxIntents", "used"],
+      { description: "Never carries the API key or the project." },
+    ),
+    SessionIntentRequest: obj(
+      {
+        accounts: arrayOf(ref("AccountId"), { minItems: 1, maxItems: 6, description: "The visitor's connected accounts." }),
+        amount: ref("DecimalAmount"),
+        hostOrigin: str({ format: "uri", description: "Origin of the page hosting the frame; must be one of the session's allowedOrigins." }),
+      },
+      ["accounts", "hostOrigin"],
+    ),
+    SessionResponse: obj({ session: ref("SessionView") }, ["session"]),
+  };
+}
 
 function schemas(): JsonObject {
   return {
@@ -117,6 +700,12 @@ function schemas(): JsonObject {
         recipient: str({ maxLength: 128, description: "Address or CAIP-10 account. Defaults to the acting account." }),
         protocol: ref("ProtocolId"),
         params: { type: "object", additionalProperties: { type: ["string", "number", "boolean"] } },
+        contract: str({
+          maxLength: CONTRACT_LIMITS.referenceLength,
+          pattern: CONTRACT_REFERENCE_PATTERN.source,
+          description: "`call` / `action` only (required there): a contract registration id (ct_…) or one of its aliases. Only intents created with the registration's key (or a key of its project, for project-visible registrations) can use it.",
+        }),
+        entry: str({ pattern: CONTRACT_ENTRY_ID_PATTERN.source, description: "`call` / `action` only (required there): the registration's action id, e.g. `deposit`." }),
       },
       ["kind", "network"],
     ),
@@ -231,6 +820,7 @@ function schemas(): JsonObject {
         references: arrayOf(str(), { description: "Submitted transaction hashes / signatures, in order." }),
         actualOutput: ref("AssetAmount"),
         failure: obj({ code: str(), message: str() }, ["code", "message"]),
+        call: ref("ContractStepCall"),
       },
       ["id", "index", "kind", "title", "network", "chain", "account", "protocol", "mode", "dependsOn", "status", "evidence"],
     ),
@@ -316,6 +906,7 @@ function schemas(): JsonObject {
         transactions: arrayOf(ref("TransactionRequest"), { minItems: 1 }),
         expiresAt: int({ description: "Unix seconds; prepare again after this." }),
         quoteBinding: str(),
+        review: { ...ref("ContractReview"), description: "Custom contract steps: the review of exactly these transactions. Show it to the user before handing the transactions to the wallet." },
       },
       ["vm", "transactions", "expiresAt", "quoteBinding"],
     ),
@@ -368,14 +959,35 @@ function schemas(): JsonObject {
       },
       ["id", "type", "at", "data"],
     ),
+    ContractEvent: obj(
+      {
+        id: ref("EventId"),
+        type: str({ enum: [...CONTRACT_EVENT_TYPES] }),
+        at: str({ format: "date-time" }),
+        data: obj(
+          {
+            contractId: str({ pattern: CONTRACT_ID_PATTERN.source }),
+            ownerKeyId: str(),
+            network: ref("NetworkKey"),
+            target: str({ description: "Lower-case contract address (EVM) or the Solana Actions origin." }),
+            revision: int({ minimum: 1 }),
+            reason: str({ description: "Suspensions: pins_changed, outcome_mismatch, program_changed, domain_unverified or `operator: <reason>`." }),
+          },
+          ["contractId", "ownerKeyId", "network", "target", "revision"],
+        ),
+      },
+      ["id", "type", "at", "data"],
+      { description: "Contract registration lifecycle, delivered to the webhooks of the registration's own key only." },
+    ),
     KletiaEvent: {
-      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent")],
+      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ContractEvent")],
       discriminator: {
         propertyName: "type",
         mapping: {
           "intent.created": "#/components/schemas/IntentCreatedEvent",
           "intent.status_changed": "#/components/schemas/IntentStatusChangedEvent",
           "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent",
+          ...Object.fromEntries(CONTRACT_EVENT_TYPES.map((type) => [type, "#/components/schemas/ContractEvent"])),
         },
       },
     },
@@ -413,8 +1025,17 @@ function schemas(): JsonObject {
               obj({ kind: ref("IntentActionKind"), protocol: ref("ProtocolId"), toNetworks: arrayOf(ref("NetworkKey")) }, ["kind", "protocol", "toNetworks"]),
             ),
             assetCount: int({ minimum: 0 }),
+            customContracts: obj(
+              {
+                kind: str({ enum: ["call", "action"] }),
+                protocol: ref("ProtocolId"),
+                enabled: bool({ description: "False while the deployment disables custom contracts or no adapter executes them." }),
+              },
+              ["kind", "protocol", "enabled"],
+              { description: "How this network takes integrator contracts: EVM `call` steps, Solana `action` steps (registrations: POST /v1/contracts)." },
+            ),
           },
-          ["actions", "protocols", "executableProtocols", "routes", "assetCount"],
+          ["actions", "protocols", "executableProtocols", "routes", "assetCount", "customContracts"],
         ),
       ],
     },
@@ -422,7 +1043,7 @@ function schemas(): JsonObject {
       {
         id: ref("ProtocolId"),
         name: str(),
-        category: str({ enum: ["dex-aggregator", "dex", "bridge", "intent-network", "lending", "liquid-staking", "yield", "naming", "payments", "security", "data", "token-program"] }),
+        category: str({ enum: [...new Set(["dex-aggregator", "dex", "bridge", "intent-network", "lending", "liquid-staking", "yield", "naming", "payments", "security", "data", "token-program", "custom", ...PROTOCOLS.map((protocol) => protocol.category)])] }),
         networks: arrayOf(ref("NetworkKey")),
         capabilities: arrayOf(str({ enum: ["execute", "quote", "discover"] })),
         website: str({ format: "uri" }),
@@ -570,7 +1191,7 @@ function schemas(): JsonObject {
             ["network", "chain", "name", "environment", "ok", "latencyMs"],
           ),
         ),
-        storage: obj({ intents: str(), apiKeys: str(), webhooks: str() }, ["intents", "apiKeys", "webhooks"]),
+        storage: obj({ intents: str(), apiKeys: str(), webhooks: str(), contracts: str(), sessions: str() }, ["intents", "apiKeys", "webhooks", "contracts", "sessions"]),
         webhooks: obj(
           {
             status: str({ enum: ["enabled", "needs_configuration"] }),
@@ -599,8 +1220,19 @@ function schemas(): JsonObject {
           },
           ["status", "dispatcher"],
         ),
+        contracts: obj(
+          {
+            enabled: bool({ description: "False when the deployment's kill switch disables custom contracts." }),
+            simulation: {
+              type: ["object", "null"],
+              additionalProperties: str({ enum: ["ok", "unavailable"] }),
+              description: "Per network: whether a configured endpoint can simulate now (custom contract steps are never prepared unsimulated). Null when not probed.",
+            },
+          },
+          ["enabled", "simulation"],
+        ),
       },
-      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "webhooks"],
+      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "webhooks", "contracts"],
     ),
 
     Webhook: obj(
@@ -616,7 +1248,11 @@ function schemas(): JsonObject {
     WebhookCreateRequest: obj(
       {
         url: str({ format: "uri", pattern: "^https://", maxLength: 2048, description: "Public HTTPS endpoint (private, loopback and link-local targets are refused)." }),
-        events: arrayOf(str({ enum: [...WEBHOOK_EVENT_TYPES] }), { minItems: 1, uniqueItems: true, description: "Defaults to every intent event." }),
+        events: arrayOf(str({ enum: [...WEBHOOK_EVENT_TYPES] }), {
+          minItems: 1,
+          uniqueItems: true,
+          description: "Defaults to every event type that exists when the webhook is created (intent events of the key's intents, contract events of its registrations).",
+        }),
       },
       ["url"],
     ),
@@ -726,8 +1362,18 @@ function schemas(): JsonObject {
           ["created", "byStatus"],
           { description: "Intents the key created in the window, by current status." },
         ),
+        contracts: obj(
+          {
+            registered: int({ minimum: 0 }),
+            suspended: int({ minimum: 0 }),
+            preparedToday: int({ minimum: 0, description: "Priced custom contract steps prepared today (UTC)." }),
+            notionalTodayUsd: num({ minimum: 0, description: "Their notional, counted against the key's daily cap." }),
+          },
+          ["registered", "suspended", "preparedToday", "notionalTodayUsd"],
+          { description: "The key's contract registrations and today's custom contract activity." },
+        ),
       },
-      ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents"],
+      ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents", "contracts"],
     ),
     ShieldsBadge: obj(
       {
@@ -777,6 +1423,8 @@ function schemas(): JsonObject {
       },
       ["references"],
     ),
+
+    ...contractSchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentListResponse: obj({ intents: arrayOf(ref("IntentGraph")) }, ["intents"]),
@@ -877,6 +1525,8 @@ const stepIdParam: JsonObject = { $ref: "#/components/parameters/StepId" };
 const idempotencyKeyParam: JsonObject = { $ref: "#/components/parameters/IdempotencyKey" };
 const webhookIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: WEBHOOK_ID_PATTERN.source }) };
 const keyIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: API_KEY_ID_PATTERN.source }) };
+const contractIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: CONTRACT_ID_PATTERN.source }) };
+const sessionIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: SESSION_ID_PATTERN.source }) };
 const REPLAYED_HEADER: JsonObject = { "Idempotent-Replayed": { $ref: "#/components/headers/Idempotent-Replayed" } };
 const IDEMPOTENCY_NOTE =
   " Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.";
@@ -1159,6 +1809,152 @@ function paths(): JsonObject {
         responses: { "200": ok("UsageReport", "Usage report."), ...errors() },
       },
     },
+    "/v1/contracts": {
+      post: {
+        operationId: "registerContract",
+        tags: ["Contracts"],
+        summary: "Register a custom contract (EVM) or Solana Actions endpoint",
+        description:
+          `Validates the definition (the same rules as validateContractDefinition in @kletia/core: forbidden functions, argument and event bindings, reserved names, deny lists), pins the code identity on-chain (code hash, proxy implementation; Solana program data, deploy slot, upgrade authority), records source (Sourcify) / program (OtterSec) verification and, for Solana, each action's metadata. Mainnet registrations stay \`pending\` for the activation delay (default ${CONTRACT_LIMITS.defaultActivationDelaySeconds / 60} minutes; testnets activate at once) and send \`contract.registered\` then \`contract.activated\` webhooks; integrator names that use a reserved brand also wait for domain verification. At most ${CONTRACT_LIMITS.registrationsPerKey} registrations per key; registrations, updates and reverifications share ${CONTRACT_WRITES_PER_HOUR} per hour per key. A rotated-out secret cannot register (403 KEY_SECRET_ROTATED).${IDEMPOTENCY_NOTE}`,
+        security: KEY_REQUIRED,
+        parameters: [idempotencyKeyParam],
+        requestBody: jsonBody("ContractDefinition"),
+        responses: {
+          "201": ok("ContractResponse", "The registration (status pending or active).", REPLAYED_HEADER),
+          ...errors("403", "409", "413", "415", "422", "502", "504"),
+        },
+      },
+      get: {
+        operationId: "listContracts",
+        tags: ["Contracts"],
+        summary: "List the caller's registrations and its project's visible ones",
+        security: KEY_REQUIRED,
+        parameters: [
+          { name: "network", in: "query", required: false, schema: str({ maxLength: 128 }) },
+          { name: "vm", in: "query", required: false, schema: ref("ContractVm") },
+          { name: "status", in: "query", required: false, schema: str({ enum: ["pending", "active", "suspended"] }) },
+        ],
+        responses: { "200": ok("ContractListResponse", "Registrations, oldest first."), ...errors() },
+      },
+    },
+    "/v1/contracts/inspect": {
+      get: {
+        operationId: "inspectContract",
+        tags: ["Contracts"],
+        summary: "What registering an address or programs would pin and allow",
+        description: `EVM (\`network\` + \`address\`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, and every function marked allowed or forbidden with the reason. Solana (\`network\` + \`programs\`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares ${CONTRACT_TESTS_PER_MINUTE} calls per minute per key with the test endpoint.`,
+        security: KEY_REQUIRED,
+        parameters: [
+          { name: "network", in: "query", required: true, schema: str({ maxLength: 128 }) },
+          { name: "address", in: "query", required: false, schema: str({ pattern: EVM_ADDRESS }) },
+          { name: "programs", in: "query", required: false, schema: str({ maxLength: 400 }) },
+        ],
+        responses: { "200": ok("ContractInspectionResponse", "Inspection."), ...errors("422", "502", "504") },
+      },
+    },
+    "/v1/contracts/{id}": {
+      get: {
+        operationId: "getContract",
+        tags: ["Contracts"],
+        summary: "Read a registration",
+        description: "The owner also gets the ABI (or programs and payees) and the revision history. Unknown ids and other keys' private registrations both answer 404 CONTRACT_NOT_FOUND.",
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam],
+        responses: { "200": ok("ContractResponse", "Registration."), ...errors("404") },
+      },
+      patch: {
+        operationId: "updateContract",
+        tags: ["Contracts"],
+        summary: "Change a registration (owner only)",
+        description: `Labels and phrases change in place. Any other change is re-validated, re-pinned and stored as a new revision: pending for the activation delay on mainnet (the active revision keeps serving until then; intents planned on it stop preparing once the new one activates, 409 CONTRACT_REVISION_CHANGED), immediate on testnets.${IDEMPOTENCY_NOTE}`,
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam, idempotencyKeyParam],
+        requestBody: jsonBody("ContractDefinitionPatch"),
+        responses: { "200": ok("ContractResponse", "The registration.", REPLAYED_HEADER), ...errors("403", "404", "409", "413", "415", "422", "502", "504") },
+      },
+      delete: {
+        operationId: "deleteContract",
+        tags: ["Contracts"],
+        summary: "Delete a registration (owner only; idempotent)",
+        description: "Planned intents that use it stop preparing (409 CONTRACT_NOT_USABLE); verification of submitted steps continues.",
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam],
+        responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("403", "404") },
+      },
+    },
+    "/v1/contracts/{id}/test": {
+      post: {
+        operationId: "testContract",
+        tags: ["Contracts"],
+        summary: "Dry-run an action for an account (simulation + review)",
+        description: `Runs the plan and prepare pipeline of one entry for \`account\` (the owner tests the latest revision, also while it is pending): bindings, approvals, simulation and the review users will see. Never stored, never signed, and the response carries no calldata to persist. ${CONTRACT_TESTS_PER_MINUTE} per minute per key (shared with inspect).`,
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam],
+        requestBody: jsonBody("ContractTestRequest"),
+        responses: { "200": ok("ContractTestResponse", "The dry run."), ...errors("404", "409", "413", "415", "422", "502", "504") },
+      },
+    },
+    "/v1/contracts/{id}/reverify": {
+      post: {
+        operationId: "reverifyContract",
+        tags: ["Contracts"],
+        summary: "Re-read pins and verification after an intended upgrade (owner only)",
+        description: `Re-pins the code, re-checks Sourcify / OtterSec and the domain file (\`${KLETIA_WELL_KNOWN_PATH}\` listing the id). Changed pins, or a suspension for pins_changed, program_changed or outcome_mismatch, create a new revision (pending on mainnet; the registration becomes active again when it activates). Unchanged code only refreshes the verification. Operator suspensions cannot be lifted here.${IDEMPOTENCY_NOTE}`,
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam, idempotencyKeyParam],
+        responses: { "200": ok("ContractResponse", "The registration.", REPLAYED_HEADER), ...errors("403", "404", "409", "422", "502", "504") },
+      },
+    },
+    "/v1/contracts/{id}/suspend": {
+      post: {
+        operationId: "suspendContract",
+        tags: ["Contracts"],
+        summary: "Suspend any registration (operator key)",
+        description: "Abuse handling. Sends contract.suspended to the owner's webhooks; the owner cannot lift it.",
+        security: KEY_REQUIRED,
+        parameters: [contractIdParam],
+        requestBody: jsonBody("ContractSuspendRequest"),
+        responses: { "200": ok("ContractResponse", "The suspended registration."), ...errors("404", "413", "415") },
+      },
+    },
+    "/v1/sessions": {
+      post: {
+        operationId: "createSession",
+        tags: ["Sessions"],
+        summary: "Create a session the embed turns into an intent for a visitor",
+        description: `A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's \`embedUrl\` carries the id in the URL fragment. At most ${CONTRACT_LIMITS.activeSessionsPerKey} active sessions per key (429 RATE_LIMITED beyond).${IDEMPOTENCY_NOTE}`,
+        security: KEY_REQUIRED,
+        parameters: [idempotencyKeyParam],
+        requestBody: jsonBody("SessionCreateRequest"),
+        responses: { "201": ok("SessionResponse", "The session.", REPLAYED_HEADER), ...errors("409", "413", "415", "422", "502", "504") },
+      },
+    },
+    "/v1/sessions/{id}": {
+      get: {
+        operationId: "getSession",
+        tags: ["Sessions"],
+        summary: "Session view for the embed (public; the id is the capability)",
+        description: "Integrator identity, allowed origins, action labels, amount bounds, status and expiry. Never the key or the project.",
+        parameters: [sessionIdParam],
+        responses: { "200": ok("SessionResponse", "The session."), ...errors("404") },
+      },
+    },
+    "/v1/sessions/{id}/intents": {
+      post: {
+        operationId: "createSessionIntent",
+        tags: ["Sessions"],
+        summary: "Turn a session into an intent for the visitor's accounts (public)",
+        description:
+          "Re-checks expiry (410 SESSION_EXPIRED), the use count (409 SESSION_USED; one atomic use) and that `hostOrigin` is an allowed origin (403 SESSION_ORIGIN_FORBIDDEN), then plans the template with the visitor's accounts under the session owner's key, with `metadata.sessionId` set. A plan that fails gives the use back. The visitor reviews and signs every step in their own wallet.",
+        parameters: [sessionIdParam],
+        requestBody: jsonBody("SessionIntentRequest"),
+        responses: {
+          "201": ok("IntentResponse", "The intent."),
+          "200": ok("IntentResponse", "The intent this visitor already created with the session's clientReference.", REPLAYED_HEADER),
+          ...errors("403", "404", "409", "410", "413", "415", "422", "502", "504"),
+        },
+      },
+    },
     "/v1/errors": {
       get: {
         operationId: "listErrors",
@@ -1271,6 +2067,8 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Webhooks", description: "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs." },
       { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
       { name: "Usage", description: "Per-key request counts and rate-limit state." },
+      { name: "Contracts", description: "Register your own EVM contracts and Solana Actions so your key's intents can call them: pinned, simulated, verified, never audited by Kletia." },
+      { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet." },
       { name: "MCP", description: "Read-only Model Context Protocol server for agents." },
     ],
     paths: paths(),
@@ -1284,11 +2082,28 @@ export function buildOpenApiDocument(): JsonObject {
           parameters: [
             { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
             { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
-            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...WEBHOOK_EVENT_TYPES] }) },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: WEBHOOK_EVENT_TYPES.filter((type) => type.startsWith("intent.")) }) },
             { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
             { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
           ],
           requestBody: { required: true, content: { "application/json": { schema: ref("KletiaEvent") } } },
+          responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
+        },
+      },
+      contractEvent: {
+        post: {
+          operationId: "receiveContractEvent",
+          summary: "Contract registration event delivery",
+          description:
+            "Sent to the webhooks of the registration's own key that subscribe to the type: contract.registered (a registration or a new revision; on mainnet it activates after the delay), contract.activated, contract.suspended (pins changed, outcome mismatch, program changed, domain no longer verified, operator) and contract.reactivated. Same signing, retries and queueing as intent events. Webhooks created before these types existed do not receive them unless re-created.",
+          parameters: [
+            { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
+            { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...CONTRACT_EVENT_TYPES] }) },
+            { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
+            { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
+          ],
+          requestBody: { required: true, content: { "application/json": { schema: ref("ContractEvent") } } },
           responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
         },
       },
@@ -1335,20 +2150,20 @@ export function buildOpenApiDocument(): JsonObject {
       responses: {
         BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
-        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, NOT_FOUND)."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, ...)."),
-        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED)."),
+        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN)."),
+        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, NOT_FOUND)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, ...)."),
+        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },
         },
         InternalError: errorResponse("Unexpected error (INTERNAL_ERROR)."),
-        BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE)."),
-        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED)."),
+        BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE, ACTION_ENDPOINT_UNAVAILABLE)."),
+        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE)."),
         GatewayTimeout: errorResponse("An upstream provider timed out (UPSTREAM_TIMEOUT, RPC_TIMEOUT)."),
       },
       schemas: schemas(),

@@ -49,6 +49,64 @@ widget with an iframe:
 
 The hosted page accepts `theme=light|dark|auto`, `text=<default intent>`, `examples=<comma-separated>` (up to 6) and `bg=transparent`. It never reads an API key from the URL and always uses the public tier. Users connect their own EVM and Solana wallets inside the frame; for `theme=dark&bg=transparent` on a light page, add `style="color-scheme: dark"` to the iframe.
 
+## Hooks
+
+`@kletia/widget/hooks` gives you the widget's logic without its UI, for your
+own components. It reuses the React peer dependency and needs no
+data-fetching library.
+
+```tsx
+import { KletiaProvider, useKletiaIntent, useIntent, useQuote } from "@kletia/widget/hooks";
+
+<KletiaProvider options={{ baseUrl: "https://your-app.example/kletia" } /* never a kl_dev_ key in the browser */}>
+  <Checkout />
+</KletiaProvider>;
+
+function Checkout({ accounts, signers }) {
+  const { plan, execute, cancel, reset, intent, phase, error, pendingReferences } = useKletiaIntent({
+    accounts,
+    signers,
+    metadata: { orderId: "A-1029" },
+    maxSlippageBps: 50,
+  });
+  return (
+    <>
+      <button disabled={phase === "planning"} onClick={() => plan("bridge 25 USDC from base to solana")}>Plan</button>
+      <button disabled={phase !== "planned"} onClick={() => execute()}>Execute</button>
+      {intent ? <p>{intent.summary.title}: {intent.status}</p> : null}
+    </>
+  );
+}
+```
+
+| Hook | Returns |
+|---|---|
+| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun? })` | `plan(text)`, `execute()`, `cancel()`, `reset()`, `intent`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences` |
+| `useIntent(intentId)` | `intent`, `status` (`loading`, `live` on the event stream, `polling`, `done`, `error`), `error`, `lastEvent` |
+| `useQuote(request, { debounceMs: 400 })` | `data`, `status`, `error`, `reload()`; pass `null` to quote nothing |
+| `useNetworks()`, `usePortfolio(accountId)` | `data`, `status`, `error`, `reload()` |
+| `useKletiaClient()` | The client from `KletiaProvider` |
+
+Safety behaviour:
+
+- Unmounting, planning again or `reset()` aborts a running execution, and the
+  signers it was given stop reaching the wallet, so no prompt opens for a
+  component that is gone. Late responses of a replaced plan are ignored.
+- If a wallet broadcast a step but Kletia could not record it, the
+  references stay in `pendingReferences` and the next `execute()` reports
+  them instead of signing the step again.
+- `cancel()` stops a running execution first, then asks Kletia to cancel the
+  intent (refused once a step was submitted; follow it to settlement then).
+- `useQuote` debounces input changes, compares inputs by value, aborts the
+  request in flight when the input changes or the component unmounts, and
+  does not show a quote for a different input unless `keepPreviousData`.
+- `useIntent` follows the event stream (resuming with `Last-Event-ID`) and
+  polls while the stream is unavailable, until the intent is terminal.
+
+The state machines behind the hooks (`createIntentSession`,
+`createIntentFollower`, `createRequestLoader`) are exported too, for other
+frameworks.
+
 ## Props
 
 | Prop | Type | Notes |

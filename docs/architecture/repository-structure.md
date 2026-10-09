@@ -4,10 +4,13 @@ Kletia is one npm workspace: a dependency-free intent specification, client libr
 
 ```text
 packages/
-  core/                             @kletia/core: chains, CAIP identities, assets, protocols,
-                                    intent graph, lifecycle, validation, events, webhooks
-  sdk/                              @kletia/sdk: v1 client, SSE, EVM/Solana signers, executeIntent
-  widget/                           @kletia/widget: embeddable React intent widget
+  core/                             @kletia/core: chains, CAIP identities, assets, protocols and
+                                    pinned venues, intent graph, lifecycle, validation, events,
+                                    webhooks, error catalog
+  sdk/                              @kletia/sdk: v1 client (retries, idempotency), SSE, EVM/Solana
+                                    signers, executeIntent; @kletia/sdk/server webhook handlers
+  widget/                           @kletia/widget: embeddable React intent widget and hooks
+  cli/                              @kletia/cli: the kletia command line
 apps/
   api/
     src/index.ts                    Entry point (Vercel and Node); imports environment first
@@ -15,10 +18,13 @@ apps/
                                     limiters, route mounts, /v1 mount point
     src/http/server.ts              Startup attestation (degraded mode), shutdown
     src/http/routes/                Health and capabilities, console intent, on-ramp
-    src/platform/engine/            Chain-agnostic grammar, planner, adapters (Jupiter, Relay,
-                                    Aave V3, transfers), verification, store, events, poller
-    src/platform/http/              Platform API v1: keys, rate limits, intents, SSE, webhooks,
-                                    OpenAPI
+    src/platform/engine/            Chain-agnostic grammar, planner, bridge auction, name
+                                    resolvers, adapters (Jupiter, Relay, LI.FI, deBridge DLN,
+                                    Aave V3, Compound V3, Morpho, Moonwell, Jupiter Lend, Kamino,
+                                    transfers), verification, store, events, poller
+    src/platform/http/              Platform API v1: keys, rate limits, idempotency, intents, SSE,
+                                    webhooks and delivery logs, usage, venues, errors, badge,
+                                    MCP server (mcp/), OpenAPI
     src/networks/base/              Base adapters, assets, routes, security, Intent Router V2
     src/networks/arc/               Arc contracts, App Kit and intents
     src/networks/arbitrum/          Arbitrum One adapters and readiness

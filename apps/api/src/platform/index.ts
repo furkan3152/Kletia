@@ -66,5 +66,25 @@ export {
 export { activeProtocolAdapters, ADAPTERS, effectiveProtocol, EXECUTABLE_PROTOCOLS } from "./engine/adapters/registry.js";
 export { REJECTION_CODES } from "./engine/adapters/verification.js";
 export { AAVE_V3_MARKETS } from "./engine/adapters/aaveV3.js";
+export {
+  compoundV3Adapter,
+  erc4626Adapter,
+  moonwellAdapter,
+  listLendingMetrics,
+  readLendingMetrics,
+  type LendingMetrics,
+  type LendingMetricsListing,
+} from "./engine/adapters/lending/index.js";
+export { jupiterLendAdapter } from "./engine/adapters/jupiterLend.js";
+export { kaminoAdapter } from "./engine/adapters/kamino.js";
+export { lifiAdapter } from "./engine/adapters/lifi.js";
+export { debridgeDlnAdapter } from "./engine/adapters/debridge.js";
+export {
+  createBasenamesResolver,
+  createEnsResolver,
+  createSnsResolver,
+  installNameResolvers,
+  NAME_RESOLVERS,
+} from "./engine/nameResolvers.js";
 export type { AdapterRoute, ProtocolAdapter } from "./engine/adapters/types.js";
 export type { ResolvedAsset } from "./engine/assets.js";

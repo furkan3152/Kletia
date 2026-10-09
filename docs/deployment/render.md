@@ -37,7 +37,7 @@ Frontend Static Site:
 - SPA rewrite: `/*` → `/index.html`
 - Node: `22.23.1`
 
-`npm ci` runs the root `postinstall`, which builds `@kletia/core`, `@kletia/sdk` and `@kletia/widget` before the applications.
+`npm ci` runs the root `postinstall`, which builds `@kletia/core`, `@kletia/sdk`, `@kletia/widget` and `@kletia/cli` before the applications.
 
 ## Domains
 
@@ -53,8 +53,10 @@ Keep the Render subdomains available until custom-domain DNS, TLS, CORS and wall
 These values belong only to the API service:
 
 - `BASE_RPC_URL`, `ARBITRUM_RPC_URL`, `ARBITRUM_SEPOLIA_RPC_URL`, `SOLANA_RPC_URL`
+- `ETHEREUM_RPC_URL`, `OPTIMISM_RPC_URL`, `POLYGON_RPC_URL` (intent-platform networks; keyless public RPCs when unset)
 - `OPENROUTER_API_KEY`, `WEBACY_API_KEY`, `ALLORA_API_KEY`, `ALCHEMY_API_KEY`, `JUPITER_API_KEY`
-- `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID`, `RELAY_API_KEY`
+- `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID`, `RELAY_API_KEY`, `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN`
+- `KLETIA_WEB_ORIGIN` (error docs and MCP hand-off links) and the optional `KLETIA_MCP_ALLOWED_ORIGINS`
 - Coinbase/CDP credentials for the on-ramp, x402 facilitator and paymaster
 - `X402_TREASURY_ADDRESS`
 - `KLETIA_DATABASE_URL`, `KLETIA_PLATFORM_SECRET` (webhook secret encryption), `KLETIA_OPERATOR_API_KEYS`, `WORKFLOW_SIGNING_SECRET`

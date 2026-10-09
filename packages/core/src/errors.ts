@@ -204,6 +204,9 @@ export const ERROR_CATALOG = {
   VENUE_UNKNOWN: intent("Unknown venue", "Use a venue listed for this network and protocol (see error.message for known ones)."),
   VENUE_UNSUPPORTED: intent("Venue not executable", "The venue is listed for discovery only. Choose an executable venue."),
   VENUE_ASSET_MISMATCH: intent("Venue holds another asset", "Choose a venue for the asset you are moving."),
+  VENUE_UNVERIFIED: intent("Venue failed verification", "The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue."),
+  VENUE_ILLIQUID: intent("Venue lacks exit liquidity", "Borrowers hold the venue's funds right now. Withdraw less, use another venue, or retry later."),
+  VENUE_BORROW_OPEN: intent("Open borrow on this market", "A supply would repay the account's borrow instead of earning. Repay it first or choose another venue."),
   WEBHOOK_URL_FORBIDDEN: intent("Webhook URL refused", "Use a public HTTPS endpoint on port 443 or 8443; private, loopback and metadata hosts are refused."),
   WEBHOOK_URL_UNRESOLVABLE: intent("Webhook host does not resolve", "Use a host name with public DNS records."),
   JUPITER_SIMULATION_FAILED: intent("Swap simulation failed", "The swap would fail on-chain. Check the balance or try a smaller amount."),
@@ -221,10 +224,13 @@ export const ERROR_CATALOG = {
   REFERENCE_WRONG_CHAIN: verification("Transaction on another chain", "Send the prepared transaction on the step's network."),
   REFERENCE_WRONG_SENDER: verification("Transaction from another account", "The step account must send (or fee-pay) the prepared transaction."),
   STEP_NOT_PREPARED: verification("Step not prepared", "Prepare the step, sign the payload, then submit.", null),
+  VENUE_INVALID: { status: 500, category: "internal", retryable: false, title: "Venue does not match its adapter", remedy: "The step's registry venue does not fit the adapter executing it. Create a new intent." },
   STEP_INVALID: { status: 500, category: "internal", retryable: false, step: true, title: "Step invalid", remedy: "The stored step cannot be executed. Create a new intent." },
   TRANSACTION_EXPIRED: verification("Transaction expired", "The transaction never landed before its blockhash expired. Prepare the step again.", null),
   TRANSACTION_FAILED: verification("Transaction failed", "The transaction landed but failed on-chain. Inspect it in the explorer; prepare again if appropriate.", null),
   TRANSACTION_REVERTED: verification("Transaction reverted", "The transaction reverted on-chain. Inspect it in the explorer; prepare again if appropriate.", null),
+  SUPPLY_REPAID_DEBT: verification("Supply repaid a borrow", "The deposit repaid an open Compound borrow instead of opening a supply position. Inspect the account's position.", null),
+  VENUE_REJECTED: verification("Venue rejected the operation", "The transaction succeeded but the venue returned an error code instead of acting. Funds stayed in the account; plan again.", null),
   OUTCOME_NOT_PROVEN: verification("Outcome not proven", "The transactions landed, but their on-chain effect does not match the plan. Inspect them; contact support with the intent id.", null),
 
   /* ---------------------------------------------------------- settlement */

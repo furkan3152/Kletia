@@ -22,6 +22,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -32,7 +36,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepublishOnly": "npm run build"
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@kletia/core": "0.1.0",

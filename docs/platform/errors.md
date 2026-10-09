@@ -179,8 +179,11 @@ and leave the step unchanged.
 | <a id="error-TOKEN_UNKNOWN"></a>`TOKEN_UNKNOWN` | 422 | no | Unknown token | Use a listed symbol (GET /v1/assets) or the token's address or mint. |
 | <a id="error-TOKEN_UNVERIFIED"></a>`TOKEN_UNVERIFIED` | 422 | no | Unverified token | Use the token's mint address to proceed deliberately. |
 | <a id="error-VENUE_ASSET_MISMATCH"></a>`VENUE_ASSET_MISMATCH` | 422 | no | Venue holds another asset | Choose a venue for the asset you are moving. |
+| <a id="error-VENUE_BORROW_OPEN"></a>`VENUE_BORROW_OPEN` | 422 | no | Open borrow on this market | A supply would repay the account's borrow instead of earning. Repay it first or choose another venue. |
+| <a id="error-VENUE_ILLIQUID"></a>`VENUE_ILLIQUID` | 422 | no | Venue lacks exit liquidity | Borrowers hold the venue's funds right now. Withdraw less, use another venue, or retry later. |
 | <a id="error-VENUE_UNKNOWN"></a>`VENUE_UNKNOWN` | 422 | no | Unknown venue | Use a venue listed for this network and protocol (see error.message for known ones). |
 | <a id="error-VENUE_UNSUPPORTED"></a>`VENUE_UNSUPPORTED` | 422 | no | Venue not executable | The venue is listed for discovery only. Choose an executable venue. |
+| <a id="error-VENUE_UNVERIFIED"></a>`VENUE_UNVERIFIED` | 422 | no | Venue failed verification | The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue. |
 | <a id="error-WEBHOOK_URL_FORBIDDEN"></a>`WEBHOOK_URL_FORBIDDEN` | 422 | no | Webhook URL refused | Use a public HTTPS endpoint on port 443 or 8443; private, loopback and metadata hosts are refused. |
 | <a id="error-WEBHOOK_URL_UNRESOLVABLE"></a>`WEBHOOK_URL_UNRESOLVABLE` | 422 | no | Webhook host does not resolve | Use a host name with public DNS records. |
 
@@ -195,9 +198,11 @@ and leave the step unchanged.
 | <a id="error-REFERENCE_WRONG_CHAIN"></a>`REFERENCE_WRONG_CHAIN` | 422 · step | no | Transaction on another chain | Send the prepared transaction on the step's network. |
 | <a id="error-REFERENCE_WRONG_SENDER"></a>`REFERENCE_WRONG_SENDER` | 422 · step | no | Transaction from another account | The step account must send (or fee-pay) the prepared transaction. |
 | <a id="error-STEP_NOT_PREPARED"></a>`STEP_NOT_PREPARED` | step | no | Step not prepared | Prepare the step, sign the payload, then submit. |
+| <a id="error-SUPPLY_REPAID_DEBT"></a>`SUPPLY_REPAID_DEBT` | step | no | Supply repaid a borrow | The deposit repaid an open Compound borrow instead of opening a supply position. Inspect the account's position. |
 | <a id="error-TRANSACTION_EXPIRED"></a>`TRANSACTION_EXPIRED` | step | no | Transaction expired | The transaction never landed before its blockhash expired. Prepare the step again. |
 | <a id="error-TRANSACTION_FAILED"></a>`TRANSACTION_FAILED` | step | no | Transaction failed | The transaction landed but failed on-chain. Inspect it in the explorer; prepare again if appropriate. |
 | <a id="error-TRANSACTION_REVERTED"></a>`TRANSACTION_REVERTED` | step | no | Transaction reverted | The transaction reverted on-chain. Inspect it in the explorer; prepare again if appropriate. |
+| <a id="error-VENUE_REJECTED"></a>`VENUE_REJECTED` | step | no | Venue rejected the operation | The transaction succeeded but the venue returned an error code instead of acting. Funds stayed in the account; plan again. |
 
 ### Settlement (step failures)
 
@@ -257,6 +262,7 @@ and leave the step unchanged.
 | <a id="error-RELAY_REQUEST_INVALID"></a>`RELAY_REQUEST_INVALID` | 500 | yes | Relay request invalid | Retry later. If it persists, report it with the requestId. |
 | <a id="error-STEP_INVALID"></a>`STEP_INVALID` | 500 · step | no | Step invalid | The stored step cannot be executed. Create a new intent. |
 | <a id="error-TRANSFER_BUILD_FAILED"></a>`TRANSFER_BUILD_FAILED` | 500 | yes | Transfer could not be built | Retry later. If it persists, report it with the requestId. |
+| <a id="error-VENUE_INVALID"></a>`VENUE_INVALID` | 500 | no | Venue does not match its adapter | The step's registry venue does not fit the adapter executing it. Create a new intent. |
 
 ## Adding a code
 

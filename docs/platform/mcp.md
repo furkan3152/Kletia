@@ -94,7 +94,11 @@ the grammar understands, so an agent can correct its own wording.
 1. `list_networks` → pick networks and actions.
 2. `get_quote` or `plan_intent` with the user's accounts → show the plan.
    Check `externalRecipients`: any address there is not one of the user's own
-   accounts and must be confirmed by the user.
+   accounts and must be confirmed by the user. The user's own address on
+   another network of the same VM (a bridge's default recipient) is not listed.
+   Steps also show `venue` (lending venue id), `recipientName` (the ENS,
+   Basenames or SNS name a recipient came from) and `extraCosts` (value paid on
+   top of the input, such as a bridge's fixed fee).
 3. `create_signing_link` with the same text → give the link to the user.
 4. After the user signs in Studio, `get_intent` (with the id Studio shows)
    follows settlement.

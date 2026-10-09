@@ -11,7 +11,7 @@
  */
 import {
   NETWORK_KEYS,
-  sameAccount,
+  sameAddressAccount,
   type AssetAmount,
   type IntentGraph,
   type IntentStep,
@@ -91,6 +91,7 @@ function stepView(step: IntentStep): Record<string, unknown> {
     kind: step.kind,
     network: step.network,
     protocol: step.protocol,
+    venue: step.venue,
     account: step.account,
     status: step.status,
     input: amount(step.input),
@@ -101,6 +102,7 @@ function stepView(step: IntentStep): Record<string, unknown> {
     recipientName: step.recipientName,
     dependsOn: step.dependsOn.length > 0 ? step.dependsOn : undefined,
     feesUsd: step.feesUsd,
+    extraCosts: step.extraCosts && step.extraCosts.length > 0 ? step.extraCosts.map((cost) => amount(cost)) : undefined,
     estimatedSeconds: step.estimatedSeconds,
     warnings: step.warnings && step.warnings.length > 0 ? step.warnings : undefined,
     references: step.references && step.references.length > 0 ? step.references : undefined,
@@ -111,13 +113,17 @@ function stepView(step: IntentStep): Record<string, unknown> {
   });
 }
 
-/** Recipients that are not one of the request's own accounts: the user must confirm them before signing. */
+/**
+ * Recipients that are not one of the request's own accounts: the user must
+ * confirm them before signing. The user's own address on another network of
+ * the same VM (a bridge's default recipient) is theirs, as in the planner.
+ */
 function externalRecipients(intent: IntentGraph): string[] {
   const own = intent.request.accounts;
   const external = intent.steps
     .map((step) => step.recipient)
     .filter((recipient): recipient is NonNullable<typeof recipient> => recipient !== undefined)
-    .filter((recipient) => !own.some((account) => sameAccount(account, recipient)));
+    .filter((recipient) => !own.some((account) => sameAddressAccount(account, recipient)));
   return [...new Set(external)];
 }
 
@@ -144,9 +150,12 @@ function routeView(route: QuoteRoute): Record<string, unknown> {
     input: amount(route.input),
     output: amount(route.output),
     minimumOutput: amount(route.minimumOutput),
+    netMinimumOutput: route.extraCosts && route.extraCosts.length > 0 ? amount(route.netMinimumOutput) : undefined,
     feesUsd: route.feesUsd,
+    extraCosts: route.extraCosts && route.extraCosts.length > 0 ? route.extraCosts.map((cost) => amount(cost)) : undefined,
     estimatedSeconds: route.estimatedSeconds,
     transactionCount: route.transactionCount,
+    eligible: route.eligible ? undefined : false,
     warnings: route.warnings.length > 0 ? route.warnings : undefined,
   });
 }

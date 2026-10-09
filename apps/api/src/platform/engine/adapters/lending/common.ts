@@ -87,7 +87,8 @@ export interface LendingContext<V extends EvmLendingVenue> {
   /** The step account: sender, beneficiary, receiver and owner of every venue call. */
   readonly owner: Address;
   /** The venue's underlying ERC-20 as pinned in ASSETS; baseToken() / asset() / underlying() must equal it. */
-  readonly underlying: AssetDescriptor & { readonly address: string };
+  readonly underlying: AssetDescriptor;
+  /** The underlying's pinned ERC-20 address. */
   readonly token: Address;
   /** The action moves native ETH: wrapped before a deposit, unwrapped after a withdraw. */
   readonly native: boolean;
@@ -119,6 +120,8 @@ export function supportsLending(
   if ((route.kind !== "deposit" && route.kind !== "withdraw") || route.network !== route.destinationNetwork || !isEvmNetwork(route.network)) {
     return false;
   }
+  // The planner routes deposits and withdrawals with output = input (the receipt is the adapter's).
+  if (route.input.id.toLowerCase() !== route.output.id.toLowerCase()) return false;
   const allowNative = route.kind === "deposit" ? native.deposit : native.withdraw;
   return yieldVenuesFor(route.network, protocol).some((venue) =>
     venue.kind === kind &&
@@ -164,7 +167,7 @@ export function lendingContext<K extends EvmLendingKind>(action: AdapterAction, 
     chainId: evmChainId(network),
     kind: action.kind,
     owner: getAddress(action.account.address),
-    underlying: underlying as AssetDescriptor & { readonly address: string },
+    underlying,
     token: getAddress(underlying.address),
     native,
   };
@@ -295,16 +298,24 @@ export async function simulate(
   } catch (error) {
     if (!isRevert(error)) return { status: "unavailable" };
     const raw = revertData(error);
-    let reason = error.shortMessage.split("\n")[0]?.slice(0, 160) ?? "Execution reverted.";
+    let reason = "execution reverted";
+    const detailed = error.walk((cause) => /revert/iu.test((cause as BaseError).details ?? ""));
+    const details = (detailed as BaseError | null)?.details;
+    if (details) reason = details.split("\n")[0]?.slice(0, 160) ?? reason;
     if (raw && raw.length >= 10 && abi) {
       try {
-        reason = `${decodeErrorResult({ abi, data: raw }).errorName} (${reason})`;
+        reason = decodeErrorResult({ abi, data: raw }).errorName;
       } catch {
         // Unknown selector: keep the node's message.
       }
     }
     return { status: "reverted", reason };
   }
+}
+
+/** The first uint256 a successful simulation returned (null when it returned none). */
+export function simulatedUint(simulation: Simulation): bigint | null {
+  return simulation.status === "ok" && /^0x[0-9a-fA-F]{64}/u.test(simulation.data) ? BigInt(simulation.data.slice(0, 66)) : null;
 }
 
 /** Refuses a plan / prepare whose venue call reverts in simulation. */
@@ -458,6 +469,20 @@ export function nativeLegFailure(receipts: readonly LandedEvmReceipt[], weth: st
   return null;
 }
 
+/** WETH unwrapped by the step's own unwrap transaction (null when it has none). */
+export function unwrappedWeth(receipts: readonly LandedEvmReceipt[], weth: string): bigint | null {
+  for (const receipt of receipts) {
+    if (!sameAddress(receipt.to, weth)) continue;
+    try {
+      const call = decodeFunctionData({ abi: WETH_ABI, data: receipt.input as Hex });
+      if (call.functionName === "withdraw") return call.args[0];
+    } catch {
+      // Not a WETH call (an approval of the same token).
+    }
+  }
+  return null;
+}
+
 /**
  * The lowest output guarantee of any payload prepared for the step (the
  * current minimum and every recorded prepare floor): a payload that lands
@@ -480,8 +505,9 @@ export function eventEvidence(step: IntentStep, receipt: LandedEvmReceipt | null
   };
 }
 
-export function outcomeFailure(code: string, message: string): { failure: { code: string; message: string } } {
-  return { failure: { code, message } };
+/** An outcome the receipts do not prove (written as a `{ code, message }` literal so the error-catalog scan sees the code). */
+export function outcomeFailure(failure: { readonly code: string; readonly message: string }): { failure: { code: string; message: string } } {
+  return { failure: { code: failure.code, message: failure.message } };
 }
 
 /** An observed amount of a recorded asset (actualOutput). */
@@ -553,9 +579,5 @@ export async function bestEffort<T>(read: () => Promise<T>, timeoutMs = 4_000): 
   } catch {
     return null;
   }
-}
-
-export function zeroIfMissing(value: unknown): bigint {
-  return typeof value === "bigint" ? value : 0n;
 }
 

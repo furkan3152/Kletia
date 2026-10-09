@@ -20,7 +20,9 @@ import {
   cancelIntent,
   createIntentDetailed,
   getIntent,
+  installNameResolvers,
   listIntents,
+  listLendingMetrics,
   prepareStep,
   quoteRoutes,
   readAccountPortfolio,
@@ -31,7 +33,7 @@ import {
 } from "../index.js";
 import { authenticate, enforceAuthentication, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
 import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
-import { assetRegistry, networkCapabilities, protocolRegistry } from "./catalog.js";
+import { assetRegistry, networkCapabilities, protocolRegistry, venueFilter } from "./catalog.js";
 import {
   authOf,
   booleanQuery,
@@ -83,6 +85,7 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/networks", auth: "public" },
   { method: "get", path: "/protocols", auth: "public" },
   { method: "get", path: "/assets", auth: "public" },
+  { method: "get", path: "/venues", auth: "public" },
   { method: "post", path: "/quotes", auth: "public" },
   { method: "get", path: "/portfolio/:accountId", auth: "public" },
   { method: "post", path: "/intents", auth: "public" },
@@ -261,6 +264,14 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const assets = assetRegistry(queryParam(req, "network"));
         cachePublicly(res);
         sendJson(res, 200, { assets });
+      }),
+    ],
+    "get /venues": [
+      handle(async (req, res) => {
+        const filter = venueFilter(queryParam(req, "network"), queryParam(req, "protocol", 40));
+        const listing = await listLendingMetrics(filter);
+        cachePublicly(res);
+        sendJson(res, 200, listing);
       }),
     ],
     "get /openapi.json": [
@@ -459,6 +470,9 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
 
 /** Builds the /v1 router. Mount it at "/v1". */
 export function createPlatformRouter(options: PlatformRouterOptions = {}): Router {
+  // Recipient-name resolvers (ENS, Basenames, SNS) register here rather than
+  // in a long-running entry point so serverless hosts get them too; idempotent.
+  installNameResolvers();
   // Boot-time configuration: operator key hashes and the webhook sealing key.
   loadOperatorKeys();
   platformSecretStatus();

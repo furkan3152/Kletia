@@ -77,6 +77,8 @@ export interface QuoteRequest {
     readonly recipient?: string;
   };
   readonly slippageBps?: number;
+  /** Longest acceptable settlement estimate in seconds (10-86400, default 600); slower routes are not eligible as best. */
+  readonly maxSeconds?: number;
 }
 
 export interface QuoteRoute {
@@ -87,12 +89,44 @@ export interface QuoteRoute {
   readonly input: AssetAmount;
   readonly output: AssetAmount;
   readonly minimumOutput: AssetAmount;
+  /** Guaranteed output net of extra costs; absent when those costs cannot be priced. */
+  readonly netMinimumOutput?: AssetAmount;
   readonly feesUsd?: number;
+  /** Value paid on top of the input (e.g. a bridge's fixed native fee). */
+  readonly extraCosts?: readonly AssetAmount[];
   readonly estimatedSeconds: number;
   readonly transactionCount: number;
   readonly settlement: StepSettlement;
   readonly warnings: readonly string[];
   readonly quoteId?: string;
+  /** False when the route cannot be chosen as best (too slow, unpriced extra costs, another asset). Absent on older API versions. */
+  readonly eligible?: boolean;
+}
+
+/** One EVM lending venue from `GET /v1/venues` (advisory, read on-chain and cached for 60 s). */
+export interface LendingVenueMetrics {
+  /** Registry venue id, e.g. `base:aave-v3:usdc` (use as `params.venue`). */
+  readonly venue: string;
+  readonly protocol: ProtocolId;
+  readonly network: NetworkKey;
+  readonly name: string;
+  /** Underlying asset symbol. */
+  readonly asset: string;
+  /** Variable supply APY as a fraction (0.045 = 4.5%); null when unreadable. */
+  readonly supplyApy: number | null;
+  readonly apySource: "rate" | "share-price" | "unavailable";
+  readonly apyWindowSeconds?: number;
+  readonly totalSupplied: AssetAmount | null;
+  readonly exitLiquidity: AssetAmount | null;
+  readonly utilization: number | null;
+  readonly observedAt: string;
+  readonly warnings: readonly string[];
+}
+
+export interface VenuesResponse {
+  readonly venues: readonly LendingVenueMetrics[];
+  /** Venues whose on-chain reads failed or no longer match the registry. */
+  readonly unavailable: readonly { readonly venue: string; readonly code: string; readonly message: string }[];
 }
 
 export interface QuoteResponse {

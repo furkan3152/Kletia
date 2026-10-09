@@ -5,6 +5,7 @@ import type {
   IntentRequest,
   NetworkKey,
   ProtocolDescriptor,
+  ProtocolId,
 } from "@kletia/core";
 import { KletiaApiError, type ApiIssue } from "./errors.js";
 import {
@@ -31,6 +32,7 @@ import type {
   RotatedApiKey,
   UsageReport,
   UsageWindow,
+  VenuesResponse,
   WebhookDelivery,
   WebhookRecord,
 } from "./types.js";
@@ -348,6 +350,17 @@ export class KletiaClient {
     return body.assets;
   }
 
+  /** EVM lending venues with supply APY, size and exit liquidity (`GET /v1/venues`), optionally filtered. */
+  venues(
+    filter: { readonly network?: NetworkKey; readonly protocol?: ProtocolId } = {},
+    options: RequestOptions = {},
+  ): Promise<VenuesResponse> {
+    return this.request<VenuesResponse>("GET", "/venues", undefined, {
+      ...options,
+      query: { network: filter.network, protocol: filter.protocol },
+    });
+  }
+
   /** Best routes for one movement. Read-only, so it is retried like a GET. */
   quote(request: QuoteRequest, options: RequestOptions = {}): Promise<QuoteResponse> {
     return this.request<QuoteResponse>("POST", "/quotes", request, options);
@@ -479,23 +492,40 @@ export class KletiaClient {
         });
       }
       options.onOpen?.();
+      const body = response.body;
+      const messages = readServerSentEvents(body, options.signal);
+      let ended = false;
       try {
-        for await (const message of readServerSentEvents(response.body, options.signal)) {
-          if (!message.data) continue;
+        while (true) {
+          let next: IteratorResult<{ readonly data: string }>;
+          try {
+            next = await messages.next();
+          } catch (error) {
+            if (options.signal?.aborted) return;
+            // A dropped connection mid-stream; reconnect with the last event id.
+            throw transportError(error, options.signal);
+          }
+          if (next.done) {
+            ended = true;
+            return;
+          }
+          if (!next.value.data) continue;
           let event: AnyKletiaEvent;
           try {
-            event = JSON.parse(message.data) as AnyKletiaEvent;
+            event = JSON.parse(next.value.data) as AnyKletiaEvent;
           } catch {
             // Ignore malformed frames; the server only sends JSON envelopes.
             continue;
           }
+          // Errors thrown by the callback reach the caller unchanged.
           onEvent(event);
         }
-      } catch (error) {
-        if (options.signal?.aborted) return;
-        if (error instanceof KletiaApiError) throw error;
-        // A dropped connection mid-stream; reconnect with the last event id.
-        throw transportError(error, options.signal);
+      } finally {
+        if (!ended) {
+          // Stopped early (abort or a throwing callback): close the connection.
+          await messages.return(undefined).catch(() => undefined);
+          await body.cancel().catch(() => undefined);
+        }
       }
     },
     /**

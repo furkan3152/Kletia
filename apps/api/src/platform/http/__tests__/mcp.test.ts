@@ -192,6 +192,16 @@ describe("POST /v1/mcp (2026-07-28)", () => {
       accounts: [SOL_ACCOUNT],
     });
     assert.deepEqual(external.structuredContent.externalRecipients, [`${SOL_ACCOUNT.slice(0, SOL_ACCOUNT.lastIndexOf(":"))}:5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1`]);
+
+    // The planner re-homes the user's EVM address onto the bridge's destination: that is not an external recipient.
+    const rehomed = await callTool("plan_intent", { text: "bridge 25 USDC from base to arbitrum", accounts: ACCOUNTS });
+    assert.equal(rehomed.isError, undefined, JSON.stringify(rehomed));
+    assert.match(String((rehomed.structuredContent.steps as { account?: string; recipient?: string }[])[0]?.recipient), /^eip155:42161:/u);
+    assert.deepEqual(rehomed.structuredContent.externalRecipients, []);
+
+    const deposit = await callTool("plan_intent", { text: "deposit 10 USDC into aave on base", accounts: ACCOUNTS });
+    assert.equal(deposit.isError, undefined, JSON.stringify(deposit));
+    assert.equal((deposit.structuredContent.steps as { venue?: string }[])[0]?.venue, "base:aave-v3:usdc", "agents see the registry venue");
   });
 
   it("turns platform errors into isError results with the stable code, hints and docs link", async () => {

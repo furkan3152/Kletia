@@ -4,7 +4,7 @@ import { applySlippage, CHAINS, type EvmTransactionRequest, type IntentStep } fr
 import { PlatformError } from "../../errors.js";
 import { jupiterAdapter } from "../adapters/jupiter.js";
 import { relayAdapter, relayRequestIds } from "../adapters/relay.js";
-import { fetchRelayQuote } from "../adapters/relayClient.js";
+import { configureRelayApiKey, fetchRelayQuote } from "../adapters/relayClient.js";
 import type { VerificationResult } from "../adapters/types.js";
 import {
   effectiveSolDelta,
@@ -386,26 +386,37 @@ function relayDepositStep(requestId: string, overrides: Partial<IntentStep> = {}
   });
 }
 
-function relayRequest(id: string, overrides: Record<string, unknown> = {}, outTx?: string): Record<string, unknown> {
+/** A `GET /requests/v3` entry for `deposit` (v3 shape: `txHash`, output under `data.route`). */
+function relayRequest(
+  deposit: string,
+  id: string,
+  overrides: Record<string, unknown> = {},
+  outTx?: string,
+  output: { chainId: number; address: string } = { chainId: 8453, address: USDC_BASE.toLowerCase() },
+): Record<string, unknown> {
   return {
     id,
     status: "success",
     recipient: EVM_ADDRESS.toLowerCase(),
     data: {
-      outTxs: outTx ? [{ hash: outTx, chainId: 8453 }] : [],
-      inTxs: [],
-      metadata: { currencyOut: { currency: { chainId: 8453, address: USDC_BASE.toLowerCase() }, amount: "9950000" } },
+      outTxs: outTx ? [{ txHash: outTx, chainId: 8453 }] : [],
+      inTxs: [{ txHash: deposit, chainId: 792703809 }],
+      route: { actual: { destination: { outputCurrency: { currency: output, amount: "9950000" } } } },
     },
     ...overrides,
   };
 }
 
 describe("Relay deposits from Solana are bound through Relay's request record", () => {
+  // `/requests/v3` needs an API key; without one Kletia makes no by-hash lookup (see crosschainRelay.test.ts).
+  beforeEach(() => configureRelayApiKey("test-relay-key"));
+  afterEach(() => configureRelayApiKey(null));
+
   it("confirms a deposit Relay attributes to a request quoted for the step", async () => {
     const requestId = randomRequestId();
     const signature = randomSolanaSignature();
     landSolana(signature, { programs: [RELAY_PROGRAM] });
-    mock.relayRequests.set(signature, [relayRequest(requestId, { status: "pending" })]);
+    mock.relayRequests.set(signature, [relayRequest(signature, requestId, { status: "pending" })]);
     const step = relayDepositStep(requestId);
     assert.deepEqual(relayRequestIds(step), [requestId.toLowerCase()]);
     assert.equal(code(await relayAdapter.verify({ step, references: [signature], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 })), "confirmed");
@@ -415,7 +426,7 @@ describe("Relay deposits from Solana are bound through Relay's request record", 
     const requestId = randomRequestId();
     const foreign = randomSolanaSignature();
     landSolana(foreign, { programs: [RELAY_PROGRAM] });
-    mock.relayRequests.set(foreign, [relayRequest(randomRequestId())]);
+    mock.relayRequests.set(foreign, [relayRequest(foreign, randomRequestId())]);
     const step = relayDepositStep(requestId);
     const rejected = await relayAdapter.verify({ step, references: [foreign], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 });
     assert.equal(code(rejected), "REFERENCE_MISMATCH");
@@ -433,7 +444,7 @@ describe("Relay deposits from Solana are bound through Relay's request record", 
     const inner = globalThis.fetch;
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/requests/v2")) return new Response("Too Many Requests", { status: answer.status });
+      if (url.includes("/requests/v3")) return new Response("Too Many Requests", { status: answer.status });
       return inner(input, init);
     }) as typeof fetch;
     for (const status of [400, 410, 429, 503]) {
@@ -459,12 +470,15 @@ describe("Relay deposits from Solana are bound through Relay's request record", 
     const requestId = randomRequestId();
     const signature = randomSolanaSignature();
     landSolana(signature, { programs: [RELAY_PROGRAM], usdcAfter: "15000000" });
-    mock.relayRequests.set(signature, [relayRequest(requestId)]);
+    mock.relayRequests.set(signature, [relayRequest(signature, requestId)]);
     assert.equal(code(await relayAdapter.verify({ step: relayDepositStep(requestId), references: [signature], submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 })), "REFERENCE_MISMATCH");
   });
 });
 
 describe("Relay settlement requires destination evidence", () => {
+  beforeEach(() => configureRelayApiKey("test-relay-key"));
+  afterEach(() => configureRelayApiKey(null));
+
   function settlingStep(requestId: string, deposit: string): IntentStep {
     return relayDepositStep(requestId, { status: "settling", references: [deposit] });
   }
@@ -481,7 +495,7 @@ describe("Relay settlement requires destination evidence", () => {
     const requestId = randomRequestId();
     const deposit = randomSolanaSignature();
     const fill = randomEvmHash();
-    mock.relayRequests.set(deposit, [relayRequest(requestId, {}, fill)]);
+    mock.relayRequests.set(deposit, [relayRequest(deposit, requestId, {}, fill)]);
     landEvm(fill, { to: USDC_BASE, chainId: 8453, logs: [creditLog(EVM_ADDRESS, 9_950_000n)] });
     const result = await relayAdapter.poll?.(settlingStep(requestId, deposit), Date.now());
     assert.equal(result?.status, "settled");
@@ -493,28 +507,28 @@ describe("Relay settlement requires destination evidence", () => {
     const requestId = randomRequestId();
     const deposit = randomSolanaSignature();
     const fill = randomEvmHash();
-    mock.relayRequests.set(deposit, [relayRequest(requestId, {}, fill)]);
+    mock.relayRequests.set(deposit, [relayRequest(deposit, requestId, {}, fill)]);
     landEvm(fill, { to: USDC_BASE, chainId: 8453, logs: [creditLog(OTHER_EVM_ADDRESS, 9_950_000n)] });
     assert.equal((await relayAdapter.poll?.(settlingStep(requestId, deposit), Date.now()))?.status, "settling");
   });
 
   it("fails on recipient / asset mismatch and refunds; ignores foreign requests", async () => {
     const requestId = randomRequestId();
-    const cases: [Record<string, unknown>, string][] = [
-      [{ recipient: OTHER_EVM_ADDRESS }, "SETTLEMENT_MISMATCH"],
-      [{ data: { outTxs: [], inTxs: [], metadata: { currencyOut: { currency: { chainId: 8453, address: OTHER_EVM_ADDRESS } } } } }, "SETTLEMENT_MISMATCH"],
-      [{ data: { outTxs: [], inTxs: [], metadata: { currencyOut: { currency: { chainId: 42161, address: USDC_BASE } } } } }, "SETTLEMENT_MISMATCH"],
-      [{ status: "refund" }, "SETTLEMENT_REFUNDED"],
-      [{ status: "failure" }, "SETTLEMENT_FAILED"],
+    const cases: [Record<string, unknown>, { chainId: number; address: string } | undefined, string][] = [
+      [{ recipient: OTHER_EVM_ADDRESS }, undefined, "SETTLEMENT_MISMATCH"],
+      [{}, { chainId: 8453, address: OTHER_EVM_ADDRESS }, "SETTLEMENT_MISMATCH"],
+      [{}, { chainId: 42161, address: USDC_BASE }, "SETTLEMENT_MISMATCH"],
+      [{ status: "refund" }, undefined, "SETTLEMENT_REFUNDED"],
+      [{ status: "failure" }, undefined, "SETTLEMENT_FAILED"],
     ];
-    for (const [overrides, expected] of cases) {
+    for (const [overrides, output, expected] of cases) {
       const deposit = randomSolanaSignature();
-      mock.relayRequests.set(deposit, [relayRequest(requestId, overrides)]);
+      mock.relayRequests.set(deposit, [relayRequest(deposit, requestId, overrides, undefined, output)]);
       const result = await relayAdapter.poll?.(settlingStep(requestId, deposit), Date.now());
       assert.equal(result?.status === "failed" ? result.failure.code : result?.status, expected);
     }
     const deposit = randomSolanaSignature();
-    mock.relayRequests.set(deposit, [relayRequest(randomRequestId(), { recipient: OTHER_EVM_ADDRESS })]);
+    mock.relayRequests.set(deposit, [relayRequest(deposit, randomRequestId(), { recipient: OTHER_EVM_ADDRESS })]);
     assert.equal((await relayAdapter.poll?.(settlingStep(requestId, deposit), Date.now()))?.status, "settling");
   });
 });

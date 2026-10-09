@@ -78,43 +78,145 @@ transaction landed, `executeIntent` throws a `KletiaExecutionError` whose
 A step that stopped after only token approvals has no `references`: an
 approval moves no funds, so it is prepared and signed again normally.
 
-## Stream events
+## Stream events and wait for completion
 
 ```ts
 await kletia.intents.stream(intent.id, (event) => {
   if (event.type === "intent.step_updated") console.log(event.data.stepId, event.data.status);
 });
-```
 
-## Verify webhooks
-
-Verify against the exact raw body, before parsing it. With a Fetch `Request`
-(edge runtimes, Next.js route handlers, Deno, Bun):
-
-```ts
-import { verifyWebhookSignature } from "@kletia/sdk";
-
-const rawBody = await request.text();
-const { valid } = await verifyWebhookSignature(secret, rawBody, request.headers.get("kletia-signature"));
-```
-
-With Node or Express, read the body raw (`express.raw`) and pass the header
-value as is (`string | string[] | undefined`; the first value is used):
-
-```ts
-app.post("/webhooks/kletia", express.raw({ type: "application/json" }), async (req, res) => {
-  const { valid } = await verifyWebhookSignature(secret, req.body.toString("utf8"), req.headers["kletia-signature"]);
-  res.sendStatus(valid ? 204 : 400);
+// Resolves once the intent is completed, partially_completed, failed, expired or cancelled.
+const final = await kletia.intents.wait(intent.id, {
+  timeoutMs: 10 * 60_000,
+  onUpdate: (next) => render(next),
 });
+```
+
+`intents.wait` (and the lower-level `watchIntent`) follows the event stream,
+reconnects with `Last-Event-ID` when the API closes it, and polls `refresh`
+while streams are unavailable (for example `429 TOO_MANY_STREAMS`). It rejects
+with `WAIT_TIMEOUT` after `timeoutMs`, with `REQUEST_ABORTED` when its signal
+aborts, and with the API error for an unknown intent.
+
+## Retries and idempotency
+
+Requests that are safe to repeat are retried twice by default (`maxRetries`,
+per client or per call) on network errors, timeouts, `429`, `5xx` and codes the
+error catalog marks retryable. Backoff is exponential with jitter and honours
+`Retry-After`; a server that asks for more than 60 seconds gets the error
+back instead of an early retry.
+
+| Request | Retried |
+|---|---|
+| `GET`, `DELETE`, quotes, dry runs, `refresh` | Yes |
+| Create intent, cancel, submit, create webhook, create or rotate key | Only with an `Idempotency-Key` |
+| Webhook tests and other POSTs | No |
+| `prepareStep` | **Never**, and never with an `Idempotency-Key` |
+
+With an `apiKey`, the client generates one `Idempotency-Key` (a UUID) per call
+for the state-changing POSTs and reuses it on every retry, so a retry after a
+lost response gets the first response back (`Idempotent-Replayed: true`)
+instead of creating a second intent or webhook. Pass your own key to make a
+call idempotent across processes, or `false` to send none:
+
+```ts
+await kletia.intents.create(request, { idempotencyKey: `order-${order.id}` });
+```
+
+The public tier refuses the header, so keyless clients send none and do not
+retry those POSTs. `prepareStep` builds fresh transactions from a new quote on
+every call, so it is never repeated automatically.
+
+## Receive webhooks
+
+`@kletia/sdk/server` verifies `Kletia-Signature` against the exact raw body
+and gives you a typed event. It uses Web Crypto only (no `node:` imports), so
+it runs on Node 20+, Bun, Deno, edge runtimes and Workers.
+
+Fetch handlers: Next.js App Router, Bun, Deno, Workers, Hono:
+
+```ts
+// app/api/kletia/route.ts
+import { createWebhookHandler } from "@kletia/sdk/server";
+
+export const POST = createWebhookHandler({
+  secret: process.env.KLETIA_WEBHOOK_SECRET!,
+  isDuplicate: (eventId) => db.processedEvents.has(eventId),
+  onEvent: async (event) => {
+    if (event.type === "intent.status_changed" && event.data.status === "completed") {
+      await fulfil(event.data.intentId); // record event.id in the same transaction
+    }
+  },
+});
+```
+
+Express (mount `express.raw` on the route, before any JSON parser):
+
+```ts
+import { expressWebhookHandler } from "@kletia/sdk/server";
+
+app.post("/webhooks/kletia", express.raw({ type: "application/json" }), expressWebhookHandler({ secret, onEvent }));
+```
+
+Hono: `app.post("/webhooks/kletia", honoWebhookHandler({ secret, onEvent }))`.
+Plain `node:http` and the Next.js pages router (with
+`export const config = { api: { bodyParser: false } }`) work with
+`expressWebhookHandler`, which then reads the request stream itself.
+
+The handlers answer `200` once `onEvent` resolved (or the event is a
+duplicate), `400` with a reason when the delivery does not verify
+(`malformed`, `expired`, `mismatch`, `invalid_body`, `header_mismatch`),
+`413` above `maxBodyBytes` (256 KB), and `500` when `onEvent` throws, so
+Kletia retries. A body some framework already parsed cannot be verified: the
+handler answers `500` with instructions instead of guessing.
+
+Delivery is at least once: retries, tests and replays can repeat an event, so
+de-duplicate by `event.id` (`isDuplicate` / `markProcessed`, or
+`memoryDeduplication()` for a single process). During a secret rotation pass
+both secrets: `secret: [newSecret, oldSecret]`.
+
+Lower level: `constructWebhookEvent(rawBody, signatureHeader, secret)` returns
+the event or throws `KletiaWebhookError` with a `reason`, and
+`verifyWebhookSignature` from `@kletia/core` checks a signature only.
+
+## Keys, webhooks and usage
+
+```ts
+const keys = await kletia.keys.list();                       // last4 only, never secrets
+const rotated = await kletia.keys.rotate(keys[0].id, { graceSeconds: 3600 });
+await kletia.keys.revoke(oldKeyId);
+
+const delivery = await kletia.webhooks.test(webhook.id);     // signed webhook.test, sent now
+const log = await kletia.webhooks.deliveries(webhook.id, { limit: 50 });
+const usage = await kletia.usage({ window: "7d" });
+const catalog = await kletia.errors();
+const lending = await kletia.venues({ network: "base", protocol: "morpho" }); // APY, TVL, exit liquidity
 ```
 
 ## Errors
 
-Every non-2xx response throws `KletiaApiError` with a stable `code`, the HTTP
-`status`, validation `issues`, `retryAfterSeconds` when the API sent
-`Retry-After`, and the `requestId` for support. Wallet or execution failures
-throw `KletiaExecutionError` with the `intentId`, `stepId` and, when
-transactions were already broadcast but not recorded, their `references`.
+Every non-2xx response throws `KletiaApiError` with a stable `code` (typed as
+the catalog codes from `@kletia/core`, plus SDK codes such as
+`NETWORK_ERROR`, `REQUEST_TIMEOUT`, `REQUEST_ABORTED` and `WAIT_TIMEOUT`), the
+HTTP `status`, validation `issues`, `hints`, `retryAfterSeconds` when the API
+sent `Retry-After`, the `requestId` for support, its catalog `category`,
+`docsUrl`, and `retryable` (from the catalog).
+
+```ts
+import { isKletiaError } from "@kletia/sdk";
+
+try {
+  await kletia.intents.create(request);
+} catch (error) {
+  if (isKletiaError(error, "INSUFFICIENT_BALANCE")) showTopUp();
+  else if (isKletiaError(error, "PROVIDER_UNAVAILABLE")) retryLater(); // also matches RELAY_UNAVAILABLE, …
+  else throw error;
+}
+```
+
+Wallet or execution failures throw `KletiaExecutionError` with the
+`intentId`, `stepId` and, when transactions were already broadcast but not
+recorded, their `references`.
 
 ## License
 

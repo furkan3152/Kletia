@@ -126,6 +126,8 @@ export const ERROR_CATALOG = {
   SOLANA_SELF_TRANSFER: request("Transfer to self", "Send to a different account."),
   SOLANA_SWAP_SAME_TOKEN: request("Swap to the same token", "Choose different input and output tokens."),
   SOLANA_SLIPPAGE_OUT_OF_RANGE: request("Slippage out of range", "Use a slippage between 1 and 1000 basis points."),
+  CONTRACT_DEFINITION_INVALID: request("Invalid contract definition", "Fix the fields listed in error.issues. validateContractDefinition in @kletia/core reports the same issues locally."),
+  ACTION_URL_FORBIDDEN: request("Action URL refused", "Use public HTTPS URLs on the registered origin (port 443 or 1024+); private, loopback, credential and redirecting URLs are refused.", 422),
 
   /* ------------------------------------------------------ authentication */
   API_KEY_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "API key required", remedy: "Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>." },
@@ -133,6 +135,8 @@ export const ERROR_CATALOG = {
   INVALID_AUTHORIZATION: { status: 401, category: "authentication", retryable: false, title: "Malformed credentials", remedy: "Send Authorization: Bearer <key> or X-Kletia-Key: <key>, not both with different keys." },
   KEY_SECRET_ROTATED: { status: 403, category: "permission", retryable: false, title: "Rotated key secret", remedy: "This secret still authenticates during its grace window but cannot manage keys. Use the current secret." },
   MCP_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for MCP", remedy: "Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin." },
+  CONTRACT_DENIED: { status: 422, category: "permission", retryable: false, title: "Contract not allowed", remedy: "Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action." },
+  SESSION_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for this session", remedy: "Embed the session only on one of its allowedOrigins, or create a session that lists this origin." },
 
   /* ---------------------------------------------------------------- keys */
   KEY_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "API key not found", remedy: "List your project's keys with GET /v1/keys; only active keys of your own project can be managed." },
@@ -144,6 +148,8 @@ export const ERROR_CATALOG = {
   INTENT_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Intent not found", remedy: "Check the intent id. Dry runs are never stored." },
   STEP_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Step not found", remedy: "Use a step id from intent.steps (s1, s2, ...)." },
   WEBHOOK_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Webhook not found", remedy: "List your webhooks with GET /v1/webhooks; each key sees only its own." },
+  CONTRACT_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Contract registration not found", remedy: "List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project." },
+  SESSION_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Session not found", remedy: "Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions." },
 
   /* ------------------------------------------------------------ conflict */
   INTENT_CONFLICT: conflict("Concurrent update", "The intent changed while the request ran. Read it again and retry.", true),
@@ -161,10 +167,20 @@ export const ERROR_CATALOG = {
   WEBHOOK_LIMIT_REACHED: conflict("Too many webhooks", "A key can register at most 10 webhooks. Delete one first."),
   IDEMPOTENCY_REQUEST_IN_PROGRESS: conflict("Request with this key in progress", "The first request with this Idempotency-Key is still running. Retry after Retry-After seconds.", true),
   RECIPIENT_NAME_CHANGED: conflict("Recipient name changed", "The recipient's name now resolves to another address. Create a new intent to pay the new address."),
+  CONTRACT_EXISTS: conflict("Contract already registered", "This key already registered this address (or origin) on this network. Change it with PATCH /v1/contracts/{id}."),
+  CONTRACT_LIMIT_REACHED: conflict("Too many contract registrations", "A key holds at most 25 registrations. Delete one with DELETE /v1/contracts/{id} first."),
+  CONTRACT_PENDING: conflict("Contract pending activation", "Mainnet registrations and security-relevant revisions activate after a delay. Retry after Retry-After seconds; POST /v1/contracts/{id}/test works meanwhile.", true),
+  CONTRACT_SUSPENDED: conflict("Contract suspended", "The registration is suspended (code change, outcome mismatch or operator). Inspect it with GET /v1/contracts/{id}; after an intended upgrade call reverify."),
+  CONTRACT_NOT_USABLE: conflict("Contract not usable by this intent", "The intent's API key may no longer use this registration (deleted, or visibility changed). Create a new intent with a key that may use it."),
+  CONTRACT_CHANGED: conflict("Contract code changed", "The contract's code or proxy implementation no longer matches its pins, so the registration is suspended. The integrator must inspect it and call reverify."),
+  CONTRACT_REVISION_CHANGED: conflict("Contract revision changed", "A newer revision of the registration is active than the one this intent was planned on. Create a new intent."),
+  PROGRAM_CHANGED: conflict("Program changed", "An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify."),
+  SESSION_USED: conflict("Session already used", "The session reached its maxIntents. Ask the integrator's backend for a new session."),
 
   /* ------------------------------------------------------------- expired */
   INTENT_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Intent expired", remedy: "The plan expired before execution started. Create a new intent to re-quote." },
   DEADLINE_PASSED: { status: 410, otherStatuses: [422], category: "expired", retryable: false, title: "Deadline passed", remedy: "constraints.deadline is in the past. Plan again with a later deadline." },
+  SESSION_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Session expired", remedy: "Sessions live 60-3600 seconds. Ask the integrator's backend for a new session." },
 
   /* -------------------------------------------------------------- intent */
   INTENT_UNSUPPORTED: intent("Intent not supported", "Rephrase using one of the examples in error.hints, or send structured actions."),
@@ -216,6 +232,22 @@ export const ERROR_CATALOG = {
   SOLANA_RECIPIENT_NOT_WALLET: intent("Recipient is not a wallet", "Send to a wallet address, not a program or token account."),
   SOLANA_TOKEN_UNKNOWN: intent("Unknown Solana token", "Use a listed symbol or the token's mint address."),
   IDEMPOTENCY_KEY_REUSED: intent("Idempotency-Key reused", "This key was used for a different request. Use a new key for a new request."),
+  CONTRACT_UNKNOWN: intent("Unknown contract", "Use a registration id or alias that the intent's API key registered (or a project-visible one). Intents created without a key cannot call registered contracts."),
+  CONTRACT_FUNCTION_FORBIDDEN: intent("Function not allowed", "Approvals, permits, transfers, ownership, upgrades, multicall, execute and read-only functions cannot be registered. Register the function that performs the action."),
+  CONTRACT_ARGUMENT_FORBIDDEN: intent("Argument type not allowed", "bytes arguments accept only the empty literal 0x; bytes[] and function arguments cannot be registered (no arbitrary calldata)."),
+  CONTRACT_BINDING_INVALID: intent("Invalid argument binding", "Bind every argument to a compatible source or literal; receiver-like addresses must bind to $account or $recipient. See error.issues."),
+  CONTRACT_NOT_DEPLOYED: intent("No contract at this address", "Register an address that holds deployed code on this network."),
+  CONTRACT_DELEGATED_EOA: intent("Delegated account (EIP-7702)", "EIP-7702 delegated accounts can swap their code at any time and cannot be registered."),
+  CONTRACT_PROXY_UNSUPPORTED: intent("Proxy pattern not supported", "Only EIP-1967, beacon, EIP-1822, ZeppelinOS and EIP-1167 proxies can be pinned; diamonds and unrecognised proxies are refused."),
+  CONTRACT_ACTION_UNKNOWN: intent("Unknown contract action", "Use an entry id listed in the registration's actions."),
+  CONTRACT_PARAM_INVALID: intent("Invalid contract parameter", "Send only the parameters the action declares, within their types and bounds."),
+  CONTRACT_AMOUNT_LIMIT: intent("Amount outside the contract's limits", "Use an amount within the action's minAmount and maxAmount and the per-step USD cap (lower while the integrator's domain is unverified)."),
+  CONTRACT_SPEND_LIMIT: intent("Daily contract volume reached", "This key reached its 24-hour notional cap for custom contract steps. Retry when the window moves on, or ask the operator for a higher cap.", { retryable: true }),
+  CONTRACT_HANDOFF_UNSUPPORTED: intent("Signing link not available", "Intents with custom contract steps cannot become signing links. Create a session from your backend with POST /v1/sessions instead."),
+  SIMULATION_ASSET_CHANGE_REFUSED: intent("Simulated asset changes refused", "The simulation moves the user's assets differently than declared (extra debit or approval, leftover allowance, missing output). Fix the registration or the amount."),
+  ACTION_RESPONSE_UNSUPPORTED: intent("Action response not supported", "Kletia executes Solana Actions that return a transaction. Sign-message, post, external-link and chained responses are refused."),
+  ACTION_TRANSACTION_REJECTED: intent("Action transaction refused", "The action server's transaction broke Kletia's rules (signers, programs, instructions or simulated effects); see error.message. The integrator must fix the server."),
+  PROGRAM_NOT_ALLOWED: intent("Program not allowed", "Allowlist the action's top-level programs in the registration. Built-in, native and deny-listed programs cannot be allowlisted."),
 
   /* -------------------------------------------------------- verification */
   REFERENCE_ALREADY_USED: verification("Transaction already used", "This transaction already completed another step. " + RESUBMIT),
@@ -232,6 +264,7 @@ export const ERROR_CATALOG = {
   SUPPLY_REPAID_DEBT: verification("Supply repaid a borrow", "The deposit repaid an open Compound borrow instead of opening a supply position. Inspect the account's position.", null),
   VENUE_REJECTED: verification("Venue rejected the operation", "The transaction succeeded but the venue returned an error code instead of acting. Funds stayed in the account; plan again.", null),
   OUTCOME_NOT_PROVEN: verification("Outcome not proven", "The transactions landed, but their on-chain effect does not match the plan. Inspect them; contact support with the intent id.", null),
+  CONTRACT_CHANGED_DURING_EXECUTION: verification("Contract changed during execution", "The contract's code or implementation differed at the receipt block. The step is indeterminate and the registration suspended; inspect the transaction.", null),
 
   /* ---------------------------------------------------------- settlement */
   SETTLEMENT_FAILED: { status: null, category: "settlement", retryable: false, step: true, title: "Settlement failed", remedy: "The cross-network fill failed. Check the source transaction for a refund." },
@@ -264,11 +297,15 @@ export const ERROR_CATALOG = {
   UPSTREAM_TIMEOUT: upstream("Provider timed out", "Retry shortly.", 504),
   RPC_TIMEOUT: upstream("Network read timed out", "Retry shortly.", 504),
   VENUE_TIMEOUT: upstream("Venue timed out", "A venue did not quote in time. Retry shortly.", 504),
+  ACTION_ENDPOINT_UNAVAILABLE: upstream("Action server unavailable", "The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly."),
+  ACTION_RESPONSE_INVALID: upstream("Invalid action response", "The integrator's Solana Action server returned malformed JSON or an error. Retry shortly; the integrator may need to fix it."),
 
   /* --------------------------------------------------------- unavailable */
   STORE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Storage unavailable", remedy: "Retry shortly. Presented API keys cannot be verified meanwhile." },
   WEBHOOKS_NOT_CONFIGURED: { status: 503, category: "unavailable", retryable: false, title: "Webhooks not configured", remedy: "The operator must set KLETIA_PLATFORM_SECRET (at least 32 characters)." },
   NAME_RESOLUTION_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Name records unavailable", remedy: "The name's records could not be read. Retry shortly, or use an address." },
+  CONTRACTS_DISABLED: { status: 503, category: "unavailable", retryable: true, title: "Custom contracts unavailable", remedy: "Custom contract and Solana Action steps are disabled on this deployment, or need an API key. Retry later, use a key, or plan without them." },
+  SIMULATION_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Simulation unavailable", remedy: "No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly." },
 
   /* ------------------------------------------------------------ internal */
   INTERNAL_ERROR: internal("Internal error"),

@@ -10,7 +10,7 @@
 
 <p align="center">
   Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Ethereum, OP Mainnet, Polygon, Arc and Solana.<br>
-  Use it as an app, or put cross-network intents into your own product with one API, SDK, widget, CLI and MCP server.
+  Use it as an app, or put cross-network intents into your own product with one API, SDK, React widget, web component, CLI and MCP server.
 </p>
 
 <p align="center">
@@ -41,10 +41,41 @@ Kletia turns an outcome into an **intent graph**: a DAG of network-bound steps, 
 | For | Kletia gives you |
 |---|---|
 | **Users** | One console for Base, Arbitrum, Arc and Solana: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
-| **Builders** | Platform API v1, a typed SDK with webhook helpers, a drop-in React widget and hooks, and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
+| **Builders** | Platform API v1 (with OpenAPI and a Postman collection), a typed SDK with webhook helpers, a drop-in React widget and hooks, a `<kletia-intent>` web component and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
 | **Agents** | A read-only MCP server at `/v1/mcp`, deterministic intent compilation, x402 pay-per-call and REST — a safe planning surface for autonomous software that never holds keys and hands signing to the user. |
 
-## Build with Kletia
+## Infrastructure
+
+Every surface below talks to the same Platform API v1 and the same planner the
+Kletia app uses. None of them holds keys or signs: value-moving transactions are
+always signed in the user's own wallet.
+
+| Surface | Use it for |
+|---|---|
+| [Platform API v1](docs/platform/api-v1.md) | REST + Server-Sent Events + signed webhooks: plan, quote, prepare, submit and track intents. Developer keys with rotation and revocation, `Idempotency-Key`, usage, lending venue rates (`/v1/venues`), an [error catalog](docs/platform/errors.md) and a status badge. Machine-readable as [OpenAPI 3.1](docs/platform/openapi.json) (also `GET /v1/openapi.json`) and a [Postman collection](docs/platform/collections/README.md). |
+| [`@kletia/sdk`](packages/sdk/README.md) | Typed TypeScript client with retries and idempotency keys, SSE, `intents.wait`, EIP-1193 and Wallet Standard signers and `executeIntent`; `@kletia/sdk/server` verifies webhooks for fetch runtimes, Next.js, Hono, Express and `node:http`. |
+| [`@kletia/widget`](packages/widget/README.md) | Drop-in React widget with scoped styles, and `@kletia/widget/hooks` (`useKletiaIntent`, `useIntent`, `useQuote`, …) for your own UI. |
+| [`@kletia/embed`](packages/embed/README.md) | The `<kletia-intent>` web component for any page, framework or not: a sandboxed frame that sizes itself and reports progress as DOM events. |
+| [`@kletia/cli`](packages/cli/README.md) | `kletia` on the command line: quote, plan (dry run), watch intents, manage keys and webhooks, forward webhooks to localhost. |
+| [MCP server](docs/platform/mcp.md) | `/v1/mcp`: read-only tools (`get_quote`, `plan_intent`, `get_portfolio`, …) for AI agents, with a Studio hand-off link so the user signs. |
+| [Self-hosting](docs/deployment/self-hosting.md) | Docker Compose with PostgreSQL, and API and web images on GHCR with provenance and an SBOM. |
+
+The npm packages are released together from a `packages-v*` tag
+([release workflow](.github/workflows/release-packages.yml)); until the first
+release is on npm, use them from this workspace (`npm ci` builds them).
+
+### REST
+
+```bash
+curl -X POST 'https://api.kletiaai.xyz/v1/intents?dryRun=true' \
+  -H 'content-type: application/json' \
+  -d '{"text":"swap 1 SOL to USDC","accounts":["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"]}'
+```
+
+The public tier needs no key. A developer key (`POST /v1/keys`) raises the
+rate limit and unlocks listing, webhooks and usage; keep it on your server.
+
+### SDK
 
 ```bash
 npm install @kletia/sdk
@@ -69,34 +100,90 @@ await executeIntent(kletia, intent, {
 });
 ```
 
-Or over REST:
+Webhooks on your server (Next.js App Router shown; Hono, Express and
+`node:http` handlers are in the same module):
 
-```bash
-curl -X POST https://api.kletiaai.xyz/v1/intents?dryRun=true \
-  -H 'content-type: application/json' \
-  -d '{"text":"swap 1 SOL to USDC","accounts":["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"]}'
+```ts
+import { createWebhookHandler } from "@kletia/sdk/server";
+
+export const POST = createWebhookHandler({
+  secret: process.env.KLETIA_WEBHOOK_SECRET!,
+  onEvent: async (event) => {
+    if (event.type === "intent.status_changed") await markOrder(event);
+  },
+});
 ```
 
-Or as a component:
+### React widget and hooks
 
 ```tsx
-<KletiaIntentWidget accounts={accounts} signers={signers} />
+import { KletiaIntentWidget } from "@kletia/widget";
+
+<KletiaIntentWidget accounts={accounts} signers={signers} onComplete={(intent) => console.log(intent.status)} />;
 ```
 
-Or with no build step at all, as an iframe:
+`@kletia/widget/hooks` exposes the same flow without the UI:
+`const { plan, execute, intent, phase } = useKletiaIntent({ accounts, signers })`.
+
+### Web component
+
+No framework and no build step: one script (pin the version and add its
+[Subresource Integrity hash](docs/platform/embed.md#quick-start)) and one element.
 
 ```html
-<iframe src="https://kletiaai.xyz/embed?theme=dark&text=swap%201%20SOL%20to%20USDC" width="420" height="640" style="border:0"></iframe>
+<script
+  src="https://cdn.jsdelivr.net/npm/@kletia/embed@0.1.0/dist/kletia-embed.min.js"
+  integrity="sha384-…"
+  crossorigin="anonymous"
+></script>
+
+<kletia-intent text="swap 1 SOL to USDC" reference="order-42"></kletia-intent>
+
+<script>
+  document.addEventListener("kletia:completed", (event) => {
+    // A hint, not a payment: confirm with GET /v1/intents/:id on your server.
+    console.log(event.detail.intentId, event.detail.status);
+  });
+</script>
 ```
 
-| Package | What it is |
-|---|---|
-| [`@kletia/core`](packages/core/README.md) | The intent specification: CAIP-2/10/19 identities, chain, asset and protocol registries, intent graph, lifecycle rules, validation, events, webhook signatures. Zero dependencies. |
-| [`@kletia/sdk`](packages/sdk/README.md) | Typed client for Platform API v1 with retries and idempotency keys, Server-Sent Events, `intents.wait`, EIP-1193 and Wallet Standard signers, `executeIntent`; `@kletia/sdk/server` verifies webhooks for fetch, Hono, Express and `node:http`. |
-| [`@kletia/widget`](packages/widget/README.md) | Embeddable React widget with scoped styles, plus `@kletia/widget/hooks` (`useKletiaIntent`, `useQuote`, `useIntent`, …). |
-| [`@kletia/cli`](packages/cli/README.md) | `kletia` command line: quote, plan (dry run), watch intents, manage keys and webhooks, forward webhooks to localhost. |
-| [Platform API v1](docs/platform/api-v1.md) | REST + SSE + signed webhooks, developer keys with rotation, `Idempotency-Key`, usage, lending venue rates (`/v1/venues`), an [error catalog](docs/platform/errors.md), a status badge and OpenAPI at `/v1/openapi.json`. |
-| [MCP server](docs/platform/mcp.md) | `/v1/mcp`: read-only tools (`get_quote`, `plan_intent`, `get_portfolio`, …) for AI agents, with a hand-off link so the user signs in Kletia Studio. |
+The element renders the hosted `/embed` page in a sandboxed frame and connects
+to it over a `MessageChannel` bound to Kletia's origin; your page receives ids,
+statuses and heights, never calldata, addresses or amounts. A plain
+`<iframe src="https://kletiaai.xyz/embed">` still works; see the
+[embed guide](docs/platform/embed.md).
+
+### CLI
+
+```bash
+npx @kletia/cli quote 25 USDC --from base --to solana
+npx @kletia/cli plan "bridge 25 USDC from base to solana then swap half to JitoSOL" \
+  --account base:0xYourEvmAddress --account solana:YourSolanaAddress
+```
+
+### MCP for agents
+
+```bash
+claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp
+```
+
+Agents can list networks, quote, dry-run plans and read intents and balances.
+No tool moves funds: `create_signing_link` hands the user a Studio link where
+their own wallet plans again and signs.
+
+### Self-hosting and images
+
+```bash
+export KLETIA_PLATFORM_SECRET=$(openssl rand -hex 32)
+docker compose up --build          # PostgreSQL + API (:3001) + web (:10000)
+```
+
+[`images.yml`](.github/workflows/images.yml) publishes
+`ghcr.io/furkan3152/kletia-api` and `ghcr.io/furkan3152/kletia-web` for every
+push to `main` (`main`, `sha-<commit>`) and every `v*` release tag
+(`<version>`, `<major>.<minor>`, `latest`), with SLSA provenance and an SPDX
+SBOM attached. Set `KLETIA_API_IMAGE` and `KLETIA_WEB_IMAGE` to run them through
+the same Compose file; see [self-hosting](docs/deployment/self-hosting.md).
 
 ## How it works
 
@@ -149,6 +236,7 @@ flowchart TB
       Console[Console /app]
       Studio[Intent Studio]
       Widget["@kletia/widget"]
+      Embed["@kletia/embed<br/>&lt;kletia-intent&gt;"]
       SDK["@kletia/sdk"]
       CLI["@kletia/cli"]
     end
@@ -159,6 +247,7 @@ flowchart TB
       Store[(Intent store<br/>Postgres or memory)]
       AppApi["/api console engines<br/>Base · Arc · Arbitrum · Solana"]
     end
+    Embed -->|"sandboxed /embed frame"| Widget
     Site & Studio & Widget & SDK & CLI --> V1
     Agents[AI agents] --> MCP --> Engine
     Console --> V1
@@ -177,6 +266,7 @@ packages/
   core/       Intent specification (zero dependencies)
   sdk/        TypeScript SDK (and @kletia/sdk/server webhook helpers)
   widget/     React widget (and @kletia/widget/hooks)
+  embed/      <kletia-intent> web component (no dependencies)
   cli/        kletia command line
 apps/
   api/        Express API: /v1 platform (src/platform), console engines, network modules
@@ -184,8 +274,8 @@ apps/
 contracts/
   base/       Base Mainnet Solidity contracts and deployment evidence
   arc/        Arc Testnet Solidity contracts and migration evidence
-docs/         Architecture, platform API, networks, deployment and runbooks
-tooling/      Repository, documentation and privacy verification gates
+docs/         Architecture, platform API (with OpenAPI and a Postman collection), networks, deployment and runbooks
+tooling/      Verification gates, OpenAPI and collection export, package checks and version bumps
 ```
 
 ## Run it locally
@@ -210,9 +300,11 @@ Every feature that needs no secret works out of the box: public, identity-pinned
 ## Verification
 
 ```bash
-npm run verify          # structure, docs, privacy gates, package tests, typecheck,
-                        # builds, intent matrices, lint, contract compilation
-npm run verify:mvp-live # live, no-mock dependency preflight
+npm run verify            # structure, docs, privacy gates, package tests and tarballs,
+                          # OpenAPI and collection drift, embed bridge tests, typecheck,
+                          # builds, intent matrices, lint, contract compilation
+npm run verify:mvp-live   # live, no-mock dependency preflight
+npm run generate:openapi  # refresh docs/platform/openapi.json and the Postman collection
 ```
 
 | Evidence | What it proves | What it does not prove |
@@ -243,7 +335,7 @@ The app runs at [kletiaai.xyz](https://kletiaai.xyz) and the API at [api.kletiaa
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md) and [Vercel](docs/deployment/vercel.md) deployment.
+Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [embed web component](docs/platform/embed.md), [OpenAPI document](docs/platform/openapi.json) and [API collections](docs/platform/collections/README.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md), [Vercel](docs/deployment/vercel.md) and [self-hosted](docs/deployment/self-hosting.md) deployment.
 
 ## Contributing and license
 

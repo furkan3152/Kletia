@@ -6,6 +6,21 @@ import type { NetworkKey } from "./chains.js";
 import type { AccountId } from "./caip.js";
 import type { IntentStatus, IntentSummary, StepEvidence, StepStatus } from "./intent.js";
 
+/**
+ * Payload of the contract registration events (webhooks route them by
+ * `ownerKeyId`, never to other keys).
+ */
+export interface ContractEventData {
+  readonly contractId: string;
+  readonly ownerKeyId: string;
+  readonly network: NetworkKey;
+  /** Lower-case contract address (EVM) or the Solana Actions origin. */
+  readonly target: string;
+  readonly revision: number;
+  /** Suspensions: `pins_changed`, `outcome_mismatch`, `program_changed` or an operator reason. */
+  readonly reason?: string;
+}
+
 export interface KletiaEventMap {
   "intent.created": {
     readonly intentId: string;
@@ -24,6 +39,14 @@ export interface KletiaEventMap {
     readonly status: StepStatus;
     readonly evidence?: StepEvidence;
   };
+  /** A registration was created (mainnet: still pending activation). */
+  "contract.registered": ContractEventData;
+  /** A registration or a new revision became active. */
+  "contract.activated": ContractEventData;
+  /** A registration was suspended (pin change, outcome mismatch, program change, operator). */
+  "contract.suspended": ContractEventData;
+  /** A suspended registration became usable again (reverify or operator). */
+  "contract.reactivated": ContractEventData;
   /** Sent by POST /v1/webhooks/{id}/test to check an endpoint; never emitted for intents. */
   "webhook.test": { readonly webhookId: string };
   "wallet.connected": { readonly account: AccountId; readonly wallet: string };
@@ -41,6 +64,16 @@ export interface KletiaEventMap {
 }
 
 export type KletiaEventType = keyof KletiaEventMap;
+
+export type ContractEventType = Extract<KletiaEventType, `contract.${string}`>;
+
+/** Contract registration event types, in lifecycle order. */
+export const CONTRACT_EVENT_TYPES: readonly ContractEventType[] = Object.freeze([
+  "contract.registered",
+  "contract.activated",
+  "contract.suspended",
+  "contract.reactivated",
+]);
 
 export interface KletiaEvent<T extends KletiaEventType = KletiaEventType> {
   readonly id: string;

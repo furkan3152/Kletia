@@ -10,8 +10,13 @@
  * POST /v1/keys is additionally limited to 5 per hour per IP. Requests with a
  * rejected credential count against the caller's IP at the public limit, and
  * store lookups of uncached API keys are throttled per IP in auth.ts.
+ *
+ * Custom contracts, per API key on top of the tier limit: registrations,
+ * PATCH and reverify share 20 per hour; `test` and `inspect` (and the MCP
+ * `test_contract_action` tool) share 20 per minute.
  */
 import type { Request, RequestHandler } from "express";
+import { CONTRACT_LIMITS } from "@kletia/core";
 import { ipKeyGenerator, rateLimit, type RateLimitRequestHandler } from "express-rate-limit";
 import { authOf, HttpError, sendError, type ApiTier } from "./context.js";
 
@@ -92,6 +97,80 @@ export function createKeyIssuanceLimiter(): RequestHandler {
     },
   });
 }
+
+/* ------------------------------------------------------ contract limits */
+
+export const CONTRACT_WRITES_PER_HOUR = CONTRACT_LIMITS.registrationsPerHour;
+export const CONTRACT_TESTS_PER_MINUTE = CONTRACT_LIMITS.testsPerMinute;
+
+interface Window {
+  count: number;
+  readonly startedAt: number;
+}
+
+/**
+ * A fixed-window counter per API key, shared by HTTP routes and MCP tools
+ * (process-local, like the tier limiter). `take` throws 429 RATE_LIMITED with
+ * Retry-After when the key's window is spent.
+ */
+export class KeyWindowLimiter {
+  private readonly windows = new Map<string, Window>();
+
+  constructor(
+    readonly limit: number,
+    readonly windowMs: number,
+    private readonly what: string,
+    private readonly maxKeys = 20_000,
+  ) {}
+
+  take(keyId: string, now = Date.now()): void {
+    let window = this.windows.get(keyId);
+    if (!window || now - window.startedAt >= this.windowMs) {
+      window = { count: 0, startedAt: now };
+      this.windows.delete(keyId);
+      this.windows.set(keyId, window);
+      while (this.windows.size > this.maxKeys) {
+        const oldest = this.windows.keys().next().value;
+        if (oldest === undefined) break;
+        this.windows.delete(oldest);
+      }
+    }
+    if (window.count >= this.limit) {
+      const seconds = Math.max(1, Math.ceil((window.startedAt + this.windowMs - now) / 1000));
+      throw new HttpError(429, "RATE_LIMITED", `At most ${this.limit} ${this.what} per API key. Retry in ${seconds}s.`, {
+        headers: { "Retry-After": String(seconds) },
+      });
+    }
+    window.count += 1;
+  }
+
+  reset(): void {
+    this.windows.clear();
+  }
+
+  /** Express guard for keyed routes (mount after requireApiKey). */
+  middleware(): RequestHandler {
+    return (req, res, next) => {
+      const keyId = authOf(req).keyId;
+      if (!keyId) {
+        next();
+        return;
+      }
+      try {
+        this.take(keyId);
+      } catch (error) {
+        sendError(req, res, error);
+        return;
+      }
+      next();
+    };
+  }
+}
+
+/** Registrations, PATCH and reverify: 20 per hour per key. */
+export const contractWriteLimiter = new KeyWindowLimiter(CONTRACT_WRITES_PER_HOUR, 60 * 60_000, "contract registrations, updates and reverifications per hour");
+/** `test` and `inspect` (HTTP and MCP): 20 per minute per key. */
+export const contractTestLimiter = new KeyWindowLimiter(CONTRACT_TESTS_PER_MINUTE, 60_000, "contract tests and inspections per minute");
 
 /* ------------------------------------------------------- stream slots */
 

@@ -40,6 +40,27 @@ Provider failures carry the provider in the code: `RELAY_UNAVAILABLE`,
 means `PROVIDER_UNAVAILABLE` and any `<PROVIDER>_REJECTED` code means
 `PROVIDER_REJECTED`.
 
+`ACTION_ENDPOINT_UNAVAILABLE` (an integrator's Solana Action server) and
+`SIMULATION_UNAVAILABLE` are catalog entries of their own, not provider
+families.
+
+## Custom contracts
+
+A refused contract registration (`POST`/`PATCH /v1/contracts`) lists every
+problem in `issues` and returns the most specific code among them, in this
+order: `CONTRACT_DENIED`, `CONTRACT_FUNCTION_FORBIDDEN`,
+`CONTRACT_ARGUMENT_FORBIDDEN`, `PROGRAM_NOT_ALLOWED`, `ACTION_URL_FORBIDDEN`,
+`CONTRACT_BINDING_INVALID`, `CONTRACT_DEFINITION_INVALID`.
+`validateContractDefinition` in `@kletia/core` returns the same issues and
+code before any request is sent (`CONTRACT_ISSUE_PRECEDENCE`).
+
+Registrations owned by another API key are indistinguishable from unknown
+ones: the registry routes answer `CONTRACT_NOT_FOUND` and planning answers
+`CONTRACT_UNKNOWN` for both. A call step whose contract
+code changes between prepare and the receipt block fails with
+`CONTRACT_CHANGED_DURING_EXECUTION`, moves to `indeterminate`, and the
+registration is suspended.
+
 ## Step failures
 
 Codes with status **step** never come back as an HTTP error. They appear as
@@ -57,7 +78,9 @@ and leave the step unchanged.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-ACCOUNT_INVALID"></a>`ACCOUNT_INVALID` | 400 / 500 | no | Invalid account | Send accounts as CAIP-10 ids such as eip155:8453:0x… or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:<address>. |
+| <a id="error-ACTION_URL_FORBIDDEN"></a>`ACTION_URL_FORBIDDEN` | 422 | no | Action URL refused | Use public HTTPS URLs on the registered origin (port 443 or 1024+); private, loopback, credential and redirecting URLs are refused. |
 | <a id="error-AMOUNT_REQUIRED"></a>`AMOUNT_REQUIRED` | 400 | no | Amount required | Give every action an amount (a decimal, or max on a dependent step). |
+| <a id="error-CONTRACT_DEFINITION_INVALID"></a>`CONTRACT_DEFINITION_INVALID` | 400 | no | Invalid contract definition | Fix the fields listed in error.issues. validateContractDefinition in @kletia/core reports the same issues locally. |
 | <a id="error-IDEMPOTENCY_KEY_INVALID"></a>`IDEMPOTENCY_KEY_INVALID` | 400 | no | Invalid Idempotency-Key | Use 1-128 characters from A-Z a-z 0-9 _ . : - (optionally as a quoted string), for example a UUID. |
 | <a id="error-IDEMPOTENCY_KEY_REQUIRES_API_KEY"></a>`IDEMPOTENCY_KEY_REQUIRES_API_KEY` | 400 | no | Idempotency-Key needs an API key | Send the request with an API key, or drop the Idempotency-Key header on the public tier. |
 | <a id="error-IDEMPOTENCY_NOT_SUPPORTED"></a>`IDEMPOTENCY_NOT_SUPPORTED` | 400 | no | Idempotency-Key not supported here | Drop the Idempotency-Key header on this endpoint; prepare re-quotes on every call. |
@@ -90,16 +113,20 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-CONTRACT_DENIED"></a>`CONTRACT_DENIED` | 422 | no | Contract not allowed | Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action. |
 | <a id="error-KEY_SECRET_ROTATED"></a>`KEY_SECRET_ROTATED` | 403 | no | Rotated key secret | This secret still authenticates during its grace window but cannot manage keys. Use the current secret. |
 | <a id="error-MCP_ORIGIN_FORBIDDEN"></a>`MCP_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for MCP | Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin. |
+| <a id="error-SESSION_ORIGIN_FORBIDDEN"></a>`SESSION_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this session | Embed the session only on one of its allowedOrigins, or create a session that lists this origin. |
 
 ### Not found
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-CONTRACT_NOT_FOUND"></a>`CONTRACT_NOT_FOUND` | 404 | no | Contract registration not found | List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project. |
 | <a id="error-INTENT_NOT_FOUND"></a>`INTENT_NOT_FOUND` | 404 | no | Intent not found | Check the intent id. Dry runs are never stored. |
 | <a id="error-KEY_NOT_FOUND"></a>`KEY_NOT_FOUND` | 404 | no | API key not found | List your project's keys with GET /v1/keys; only active keys of your own project can be managed. |
 | <a id="error-NOT_FOUND"></a>`NOT_FOUND` | 404 | no | Unknown route | Check the path against GET /v1/openapi.json. |
+| <a id="error-SESSION_NOT_FOUND"></a>`SESSION_NOT_FOUND` | 404 | no | Session not found | Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions. |
 | <a id="error-STEP_NOT_FOUND"></a>`STEP_NOT_FOUND` | 404 | no | Step not found | Use a step id from intent.steps (s1, s2, ...). |
 | <a id="error-WEBHOOK_NOT_FOUND"></a>`WEBHOOK_NOT_FOUND` | 404 | no | Webhook not found | List your webhooks with GET /v1/webhooks; each key sees only its own. |
 
@@ -108,6 +135,13 @@ and leave the step unchanged.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-CLIENT_REFERENCE_EXISTS"></a>`CLIENT_REFERENCE_EXISTS` | 409 | no | clientReference already used | Use a new clientReference, or read the existing intent. |
+| <a id="error-CONTRACT_CHANGED"></a>`CONTRACT_CHANGED` | 409 | no | Contract code changed | The contract's code or proxy implementation no longer matches its pins, so the registration is suspended. The integrator must inspect it and call reverify. |
+| <a id="error-CONTRACT_EXISTS"></a>`CONTRACT_EXISTS` | 409 | no | Contract already registered | This key already registered this address (or origin) on this network. Change it with PATCH /v1/contracts/{id}. |
+| <a id="error-CONTRACT_LIMIT_REACHED"></a>`CONTRACT_LIMIT_REACHED` | 409 | no | Too many contract registrations | A key holds at most 25 registrations. Delete one with DELETE /v1/contracts/{id} first. |
+| <a id="error-CONTRACT_NOT_USABLE"></a>`CONTRACT_NOT_USABLE` | 409 | no | Contract not usable by this intent | The intent's API key may no longer use this registration (deleted, or visibility changed). Create a new intent with a key that may use it. |
+| <a id="error-CONTRACT_PENDING"></a>`CONTRACT_PENDING` | 409 | yes | Contract pending activation | Mainnet registrations and security-relevant revisions activate after a delay. Retry after Retry-After seconds; POST /v1/contracts/{id}/test works meanwhile. |
+| <a id="error-CONTRACT_REVISION_CHANGED"></a>`CONTRACT_REVISION_CHANGED` | 409 | no | Contract revision changed | A newer revision of the registration is active than the one this intent was planned on. Create a new intent. |
+| <a id="error-CONTRACT_SUSPENDED"></a>`CONTRACT_SUSPENDED` | 409 | no | Contract suspended | The registration is suspended (code change, outcome mismatch or operator). Inspect it with GET /v1/contracts/{id}; after an intended upgrade call reverify. |
 | <a id="error-IDEMPOTENCY_REQUEST_IN_PROGRESS"></a>`IDEMPOTENCY_REQUEST_IN_PROGRESS` | 409 | yes | Request with this key in progress | The first request with this Idempotency-Key is still running. Retry after Retry-After seconds. |
 | <a id="error-INTENT_CANCELLED"></a>`INTENT_CANCELLED` | 409 | no | Intent cancelled | Create a new intent. |
 | <a id="error-INTENT_COMPLETED"></a>`INTENT_COMPLETED` | 409 | no | Intent completed | Nothing is left to execute. |
@@ -117,8 +151,10 @@ and leave the step unchanged.
 | <a id="error-KEY_COLLISION"></a>`KEY_COLLISION` | 409 | yes | Key generation collided | Send the request again. |
 | <a id="error-KEY_LIMIT_REACHED"></a>`KEY_LIMIT_REACHED` | 409 | no | Too many active keys | A project holds at most 5 active keys. Revoke one with DELETE /v1/keys/{id} first. |
 | <a id="error-KEY_NOT_MANAGEABLE"></a>`KEY_NOT_MANAGEABLE` | 409 | no | Operator keys are immutable | Operator keys come from server configuration; change KLETIA_OPERATOR_API_KEYS instead. |
+| <a id="error-PROGRAM_CHANGED"></a>`PROGRAM_CHANGED` | 409 | no | Program changed | An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify. |
 | <a id="error-QUOTE_MOVED"></a>`QUOTE_MOVED` | 409 | no | Price moved | The price moved beyond the slippage limit since planning. Create a new intent to re-quote. |
 | <a id="error-RECIPIENT_NAME_CHANGED"></a>`RECIPIENT_NAME_CHANGED` | 409 | no | Recipient name changed | The recipient's name now resolves to another address. Create a new intent to pay the new address. |
+| <a id="error-SESSION_USED"></a>`SESSION_USED` | 409 | no | Session already used | The session reached its maxIntents. Ask the integrator's backend for a new session. |
 | <a id="error-STEP_NOT_AWAITING_SIGNATURE"></a>`STEP_NOT_AWAITING_SIGNATURE` | 409 | no | Step not awaiting a signature | Prepare the step before submitting references. |
 | <a id="error-STEP_NOT_PREPARABLE"></a>`STEP_NOT_PREPARABLE` | 409 | no | Step cannot be prepared | Only ready or awaiting_signature steps can be prepared. |
 | <a id="error-STEP_NOT_READY"></a>`STEP_NOT_READY` | 409 | yes | Step not ready | Wait until the steps it depends on have settled, then prepare it. |
@@ -132,6 +168,7 @@ and leave the step unchanged.
 |---|---|---|---|---|
 | <a id="error-DEADLINE_PASSED"></a>`DEADLINE_PASSED` | 410 / 422 | no | Deadline passed | constraints.deadline is in the past. Plan again with a later deadline. |
 | <a id="error-INTENT_EXPIRED"></a>`INTENT_EXPIRED` | 410 | no | Intent expired | The plan expired before execution started. Create a new intent to re-quote. |
+| <a id="error-SESSION_EXPIRED"></a>`SESSION_EXPIRED` | 410 | no | Session expired | Sessions live 60-3600 seconds. Ask the integrator's backend for a new session. |
 
 ### Intent (understood but not executable)
 
@@ -139,6 +176,8 @@ and leave the step unchanged.
 |---|---|---|---|---|
 | <a id="error-ACCOUNT_AMBIGUOUS"></a>`ACCOUNT_AMBIGUOUS` | 422 | no | Ambiguous account | Several accounts of this kind were given; add the one to use on this network. |
 | <a id="error-ACCOUNT_REQUIRED"></a>`ACCOUNT_REQUIRED` | 422 | no | Account missing | Add a CAIP-10 account for every network the intent touches. |
+| <a id="error-ACTION_RESPONSE_UNSUPPORTED"></a>`ACTION_RESPONSE_UNSUPPORTED` | 422 | no | Action response not supported | Kletia executes Solana Actions that return a transaction. Sign-message, post, external-link and chained responses are refused. |
+| <a id="error-ACTION_TRANSACTION_REJECTED"></a>`ACTION_TRANSACTION_REJECTED` | 422 | no | Action transaction refused | The action server's transaction broke Kletia's rules (signers, programs, instructions or simulated effects); see error.message. The integrator must fix the server. |
 | <a id="error-AMOUNT_INVALID"></a>`AMOUNT_INVALID` | 422 | no | Invalid amount | Use a positive decimal within the asset's precision, or max on a dependent step. |
 | <a id="error-AMOUNT_TOO_SMALL"></a>`AMOUNT_TOO_SMALL` | 422 | no | Amount too small | Increase the amount; it rounds to zero or is below the venue minimum. |
 | <a id="error-ASSET_INVALID"></a>`ASSET_INVALID` | 422 / 500 | no | Invalid asset | Use a symbol, an address or mint, or a CAIP-19 id. |
@@ -146,6 +185,18 @@ and leave the step unchanged.
 | <a id="error-ASSET_NETWORK_MISMATCH"></a>`ASSET_NETWORK_MISMATCH` | 422 | no | Asset on another network | Use an asset that lives on the step's network, or bridge first. |
 | <a id="error-ASSET_REQUIRED"></a>`ASSET_REQUIRED` | 422 | no | Asset required | Name the input and output assets. |
 | <a id="error-CAPITAL_LANE_MIXED"></a>`CAPITAL_LANE_MIXED` | 422 | no | Mainnet and testnet mixed | Keep every network of one intent on mainnet, or every one on testnet. |
+| <a id="error-CONTRACT_ACTION_UNKNOWN"></a>`CONTRACT_ACTION_UNKNOWN` | 422 | no | Unknown contract action | Use an entry id listed in the registration's actions. |
+| <a id="error-CONTRACT_AMOUNT_LIMIT"></a>`CONTRACT_AMOUNT_LIMIT` | 422 | no | Amount outside the contract's limits | Use an amount within the action's minAmount and maxAmount and the per-step USD cap (lower while the integrator's domain is unverified). |
+| <a id="error-CONTRACT_ARGUMENT_FORBIDDEN"></a>`CONTRACT_ARGUMENT_FORBIDDEN` | 422 | no | Argument type not allowed | bytes arguments accept only the empty literal 0x; bytes[] and function arguments cannot be registered (no arbitrary calldata). |
+| <a id="error-CONTRACT_BINDING_INVALID"></a>`CONTRACT_BINDING_INVALID` | 422 | no | Invalid argument binding | Bind every argument to a compatible source or literal; receiver-like addresses must bind to $account or $recipient. See error.issues. |
+| <a id="error-CONTRACT_DELEGATED_EOA"></a>`CONTRACT_DELEGATED_EOA` | 422 | no | Delegated account (EIP-7702) | EIP-7702 delegated accounts can swap their code at any time and cannot be registered. |
+| <a id="error-CONTRACT_FUNCTION_FORBIDDEN"></a>`CONTRACT_FUNCTION_FORBIDDEN` | 422 | no | Function not allowed | Approvals, permits, transfers, ownership, upgrades, multicall, execute and read-only functions cannot be registered. Register the function that performs the action. |
+| <a id="error-CONTRACT_HANDOFF_UNSUPPORTED"></a>`CONTRACT_HANDOFF_UNSUPPORTED` | 422 | no | Signing link not available | Intents with custom contract steps cannot become signing links. Create a session from your backend with POST /v1/sessions instead. |
+| <a id="error-CONTRACT_NOT_DEPLOYED"></a>`CONTRACT_NOT_DEPLOYED` | 422 | no | No contract at this address | Register an address that holds deployed code on this network. |
+| <a id="error-CONTRACT_PARAM_INVALID"></a>`CONTRACT_PARAM_INVALID` | 422 | no | Invalid contract parameter | Send only the parameters the action declares, within their types and bounds. |
+| <a id="error-CONTRACT_PROXY_UNSUPPORTED"></a>`CONTRACT_PROXY_UNSUPPORTED` | 422 | no | Proxy pattern not supported | Only EIP-1967, beacon, EIP-1822, ZeppelinOS and EIP-1167 proxies can be pinned; diamonds and unrecognised proxies are refused. |
+| <a id="error-CONTRACT_SPEND_LIMIT"></a>`CONTRACT_SPEND_LIMIT` | 422 | yes | Daily contract volume reached | This key reached its 24-hour notional cap for custom contract steps. Retry when the window moves on, or ask the operator for a higher cap. |
+| <a id="error-CONTRACT_UNKNOWN"></a>`CONTRACT_UNKNOWN` | 422 | no | Unknown contract | Use a registration id or alias that the intent's API key registered (or a project-visible one). Intents created without a key cannot call registered contracts. |
 | <a id="error-FEE_LIMIT_EXCEEDED"></a>`FEE_LIMIT_EXCEEDED` | 422 | no | Fees above the limit | Raise constraints.maxFeeUsd or move a larger amount. |
 | <a id="error-IDEMPOTENCY_KEY_REUSED"></a>`IDEMPOTENCY_KEY_REUSED` | 422 | no | Idempotency-Key reused | This key was used for a different request. Use a new key for a new request. |
 | <a id="error-INSUFFICIENT_BALANCE"></a>`INSUFFICIENT_BALANCE` | 422 | no | Insufficient balance | Fund the account or lower the amount. |
@@ -155,6 +206,7 @@ and leave the step unchanged.
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
 | <a id="error-PRICE_IMPACT_TOO_HIGH"></a>`PRICE_IMPACT_TOO_HIGH` | 422 | no | Price impact too high | Move a smaller amount; routes that cost more than 5% are refused. |
+| <a id="error-PROGRAM_NOT_ALLOWED"></a>`PROGRAM_NOT_ALLOWED` | 422 | no | Program not allowed | Allowlist the action's top-level programs in the registration. Built-in, native and deny-listed programs cannot be allowlisted. |
 | <a id="error-RECIPIENT_INVALID"></a>`RECIPIENT_INVALID` | 422 | no | Invalid recipient | Use an address or CAIP-10 account on the destination network. |
 | <a id="error-RECIPIENT_NAME_UNRESOLVED"></a>`RECIPIENT_NAME_UNRESOLVED` | 422 | no | Name does not resolve | The name has no address for this network. Use the recipient's address. |
 | <a id="error-RECIPIENT_NAME_UNSUPPORTED"></a>`RECIPIENT_NAME_UNSUPPORTED` | 422 | no | Name not supported | This deployment cannot resolve this kind of name on this network. Use the recipient's address. |
@@ -167,6 +219,7 @@ and leave the step unchanged.
 | <a id="error-ROUTE_UNPRICED"></a>`ROUTE_UNPRICED` | 422 | no | Route costs not priceable | No venue quoted costs Kletia can price for this route. Try another amount or asset. |
 | <a id="error-ROUTE_UNSUPPORTED"></a>`ROUTE_UNSUPPORTED` | 422 | no | Route not supported | No venue routes this pair between these networks; see GET /v1/networks. |
 | <a id="error-SELF_TRANSFER"></a>`SELF_TRANSFER` | 422 | no | Transfer to self | Send to a different account. |
+| <a id="error-SIMULATION_ASSET_CHANGE_REFUSED"></a>`SIMULATION_ASSET_CHANGE_REFUSED` | 422 | no | Simulated asset changes refused | The simulation moves the user's assets differently than declared (extra debit or approval, leftover allowance, missing output). Fix the registration or the amount. |
 | <a id="error-SIMULATION_FAILED"></a>`SIMULATION_FAILED` | 422 | no | Simulation failed | The transaction would fail on-chain. Check the sending account's balance. |
 | <a id="error-SOLANA_MINT_DECIMALS_MISMATCH"></a>`SOLANA_MINT_DECIMALS_MISMATCH` | 422 | no | Mint decimals changed | Plan the intent again. |
 | <a id="error-SOLANA_MINT_NOT_FOUND"></a>`SOLANA_MINT_NOT_FOUND` | 422 | no | Mint not found | Use a mint that exists on this network. |
@@ -191,6 +244,7 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-CONTRACT_CHANGED_DURING_EXECUTION"></a>`CONTRACT_CHANGED_DURING_EXECUTION` | step | no | Contract changed during execution | The contract's code or implementation differed at the receipt block. The step is indeterminate and the registration suspended; inspect the transaction. |
 | <a id="error-OUTCOME_NOT_PROVEN"></a>`OUTCOME_NOT_PROVEN` | step | no | Outcome not proven | The transactions landed, but their on-chain effect does not match the plan. Inspect them; contact support with the intent id. |
 | <a id="error-REFERENCE_ALREADY_USED"></a>`REFERENCE_ALREADY_USED` | 422 · step | no | Transaction already used | This transaction already completed another step. Submit the hashes or signatures of the transactions prepared for this step, sent by the step account. |
 | <a id="error-REFERENCE_MISMATCH"></a>`REFERENCE_MISMATCH` | 422 · step | no | Not the prepared transaction | The transaction does not match the payload prepared for this step. Submit the hashes or signatures of the transactions prepared for this step, sent by the step account. |
@@ -223,6 +277,8 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-ACTION_ENDPOINT_UNAVAILABLE"></a>`ACTION_ENDPOINT_UNAVAILABLE` | 502 | yes | Action server unavailable | The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly. |
+| <a id="error-ACTION_RESPONSE_INVALID"></a>`ACTION_RESPONSE_INVALID` | 502 | yes | Invalid action response | The integrator's Solana Action server returned malformed JSON or an error. Retry shortly; the integrator may need to fix it. |
 | <a id="error-JUPITER_QUOTE_INVALID"></a>`JUPITER_QUOTE_INVALID` | 502 | yes | Jupiter quote refused | Retry shortly. |
 | <a id="error-JUPITER_QUOTE_MISMATCH"></a>`JUPITER_QUOTE_MISMATCH` | 502 | yes | Jupiter quote mismatch | Jupiter returned a quote for another request. Retry shortly. |
 | <a id="error-JUPITER_SWAP_INVALID"></a>`JUPITER_SWAP_INVALID` | 502 | yes | Jupiter swap refused | Retry shortly. |
@@ -246,7 +302,9 @@ and leave the step unchanged.
 
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
+| <a id="error-CONTRACTS_DISABLED"></a>`CONTRACTS_DISABLED` | 503 | yes | Custom contracts unavailable | Custom contract and Solana Action steps are disabled on this deployment, or need an API key. Retry later, use a key, or plan without them. |
 | <a id="error-NAME_RESOLUTION_UNAVAILABLE"></a>`NAME_RESOLUTION_UNAVAILABLE` | 503 | yes | Name records unavailable | The name's records could not be read. Retry shortly, or use an address. |
+| <a id="error-SIMULATION_UNAVAILABLE"></a>`SIMULATION_UNAVAILABLE` | 503 | yes | Simulation unavailable | No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly. |
 | <a id="error-STORE_UNAVAILABLE"></a>`STORE_UNAVAILABLE` | 503 | yes | Storage unavailable | Retry shortly. Presented API keys cannot be verified meanwhile. |
 | <a id="error-WEBHOOKS_NOT_CONFIGURED"></a>`WEBHOOKS_NOT_CONFIGURED` | 503 | no | Webhooks not configured | The operator must set KLETIA_PLATFORM_SECRET (at least 32 characters). |
 

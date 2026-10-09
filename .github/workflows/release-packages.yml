@@ -1,8 +1,15 @@
 name: Release packages
 
-# Publishes @kletia/core, @kletia/sdk, @kletia/widget and @kletia/cli to npm with provenance
-# when a tag such as `packages-v0.1.0` is pushed. The tag version must equal the
-# version in every package manifest. Requires the NPM_TOKEN repository secret.
+# Publishes @kletia/core, @kletia/sdk, @kletia/widget, @kletia/embed and @kletia/cli
+# to npm with provenance when a tag such as `packages-v0.2.0` is pushed. The tag
+# version must equal the version in every package manifest (bump them together
+# with `npm run bump:packages -- <version>`). Versions that are already on npm
+# are skipped, so a failed run can be re-run safely.
+#
+# Authentication: npm trusted publishing (OIDC, `id-token: write`) once a
+# trusted publisher is configured for each package (this repository, workflow
+# `release-packages.yml`, environment `npm`); until then, and for the first
+# publish of a new package, the NPM_TOKEN repository secret.
 on:
   push:
     tags:
@@ -26,15 +33,23 @@ jobs:
       id-token: write
     steps:
       - name: Check out repository
+        # actions/checkout v4.4.0
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
+        # actions/setup-node v4.4.0
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22.23.1
           cache: npm
           cache-dependency-path: package-lock.json
           registry-url: https://registry.npmjs.org
+
+      # Node 22.23.1 ships npm 10.9.8; trusted publishing needs npm 11.5.1 or later.
+      - name: Install npm 11
+        run: npm install --global npm@11.20.0
 
       - name: Install workspace dependencies
         run: npm ci
@@ -44,7 +59,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           expected="${TAG#packages-v}"
-          for name in core sdk widget cli; do
+          for name in core sdk widget embed cli; do
             actual=$(node -p "require('./packages/$name/package.json').version")
             if [ "$actual" != "$expected" ]; then
               echo "packages/$name is $actual but the tag is $expected" >&2
@@ -60,7 +75,16 @@ jobs:
       - name: Publish in dependency order
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
-          for name in core sdk widget cli; do
-            npm publish --workspace "@kletia/$name" --access public --provenance
+          version="${TAG#packages-v}"
+          # Prereleases (0.3.0-rc.1) go to the `next` dist-tag, never `latest`.
+          dist_tag=latest
+          case "$version" in *-*) dist_tag=next ;; esac
+          for name in core sdk widget embed cli; do
+            if npm view "@kletia/$name@$version" version >/dev/null 2>&1; then
+              echo "@kletia/$name@$version is already published; skipping"
+              continue
+            fi
+            npm publish --workspace "@kletia/$name" --access public --provenance --tag "$dist_tag"
           done

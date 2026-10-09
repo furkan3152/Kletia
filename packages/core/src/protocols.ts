@@ -31,7 +31,9 @@ export type ProtocolCategory =
   | "payments"
   | "security"
   | "data"
-  | "token-program";
+  | "token-program"
+  /** Integrator-registered contracts and Solana Actions (bring your own contract). */
+  | "custom";
 
 /**
  * - `execute`: Kletia builds wallet-ready transactions.
@@ -69,7 +71,9 @@ export type ProtocolId =
   | "arc-native"
   | "circle-app-kit"
   | "webacy"
-  | "allora";
+  | "allora"
+  | "custom-call"
+  | "solana-actions";
 
 export interface ProtocolDescriptor {
   readonly id: ProtocolId;
@@ -371,6 +375,26 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["discover"],
     website: "https://allora.network",
     summary: "Decentralised price inference used as advisory market context.",
+  },
+  {
+    id: "custom-call",
+    name: "Custom contract call",
+    category: "custom",
+    networks: [...EVM_PRODUCTION, "arc", "arbitrum-sepolia"],
+    capabilities: ["execute"],
+    website: "https://kletiaai.xyz/developers",
+    summary: "Integrator-registered EVM contract actions: encoded from the registered ABI and bindings, code-pinned, simulated and verified. Not audited by Kletia.",
+    kinds: ["call"],
+  },
+  {
+    id: "solana-actions",
+    name: "Solana Actions",
+    category: "custom",
+    networks: ["solana", "solana-devnet"],
+    capabilities: ["execute"],
+    website: "https://solana.com/developers/guides/advanced/actions",
+    summary: "Integrator-registered Solana Actions: program-allowlisted, instruction-checked, simulated and verified transactions. Not audited by Kletia.",
+    kinds: ["action"],
   },
 ] satisfies readonly ProtocolDescriptor[]);
 

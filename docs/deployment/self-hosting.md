@@ -11,6 +11,15 @@ export KLETIA_PLATFORM_SECRET=$(openssl rand -hex 32)
 docker compose up --build
 ```
 
+To run the published images instead of building (see
+[Published images](#published-images)):
+
+```bash
+export KLETIA_API_IMAGE=ghcr.io/furkan3152/kletia-api:main
+export KLETIA_WEB_IMAGE=ghcr.io/furkan3152/kletia-web:main
+docker compose up --pull always --no-build
+```
+
 | Service | URL | Notes |
 |---|---|---|
 | Web | http://localhost:10000 | Home, console, Studio, developer portal, `/embed` |
@@ -23,8 +32,10 @@ over local HTTP. Optional variables are read from your shell:
 `POLYGON_RPC_URL`, `SOLANA_RPC_URL`, `JUPITER_API_KEY`, `RELAY_API_KEY`,
 `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN`, `KLETIA_WEB_ORIGIN` (default
 `http://localhost:10000`, used for error docs and MCP hand-off links),
-`KLETIA_OPERATOR_API_KEYS`, `KLETIA_POSTGRES_PASSWORD` and
-`VITE_WALLETCONNECT_PROJECT_ID`. Without private RPC URLs the API uses
+`KLETIA_MCP_ALLOWED_ORIGINS`, `KLETIA_OPERATOR_API_KEYS`,
+`KLETIA_POSTGRES_PASSWORD`, and for the web build `VITE_WALLETCONNECT_PROJECT_ID`
+and the optional wallet RPCs `VITE_ETHEREUM_RPC_URL`, `VITE_OPTIMISM_RPC_URL`
+and `VITE_POLYGON_RPC_URL`. Without private RPC URLs the API uses
 rate-limited public endpoints and `GET /api/capabilities` reports anything that
 still needs configuration.
 
@@ -48,6 +59,39 @@ docker build -f apps/web/Dockerfile -t kletia-web --build-arg VITE_BACKEND_URL=h
 `VITE_*` build arguments are compiled into the public bundle; never pass a
 secret. Behind a TLS-intercepting proxy, give npm the proxy CA as a build
 secret: `--secret id=npm_ca,src=/path/to/ca.pem`.
+
+Both images listen on port `10000` (`PORT`); the API image also has a
+`HEALTHCHECK` on `/health`. Docker Compose runs the API on `3001`.
+
+## Published images
+
+[`images.yml`](../../.github/workflows/images.yml) builds both images on every
+push to `main` and on every `v*` release tag, and pushes them to the GitHub
+Container Registry:
+
+| Image | Tags |
+|---|---|
+| `ghcr.io/furkan3152/kletia-api` | `main`, `sha-<short commit>`; for a tag `v2.1.0`: `2.1.0`, `2.1`, `latest` |
+| `ghcr.io/furkan3152/kletia-web` | the same |
+
+Each image is `linux/amd64` and carries SLSA provenance (`mode=max`) and an
+SPDX SBOM as registry attestations. Inspect them before you deploy:
+
+```bash
+docker buildx imagetools inspect ghcr.io/furkan3152/kletia-api:main --format '{{ json .Provenance }}'
+docker buildx imagetools inspect ghcr.io/furkan3152/kletia-api:main --format '{{ json .SBOM }}'
+```
+
+Deploy by digest (`ghcr.io/furkan3152/kletia-api@sha256:…`) rather than a
+moving tag. The workflow also starts each pushed image and checks `/health`
+(API) and the framing headers (web) before it finishes.
+
+The published web image is built with the Dockerfile defaults: it calls the
+API at `http://localhost:3001`, which suits Docker Compose. `VITE_*` values are
+compiled into the bundle, so for any other API origin build the web image
+yourself with `--build-arg VITE_BACKEND_URL=https://api.example.com` (and
+`VITE_ALLOW_LOCAL_BACKEND=false`). The API image needs no build arguments; it is
+configured entirely through environment variables.
 
 ## Public deployment checklist
 

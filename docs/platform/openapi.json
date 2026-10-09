@@ -1,0 +1,5615 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/base",
+  "info": {
+    "title": "Kletia Platform API",
+    "version": "1.0.0",
+    "summary": "Non-custodial, chain-agnostic intents for EVM networks and Solana.",
+    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the read-only MCP server at /v1/mcp.",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "contact": {
+      "name": "Kletia",
+      "url": "https://kletiaai.xyz"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.kletiaai.xyz",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3001",
+      "description": "Local development"
+    }
+  ],
+  "security": [
+    {},
+    {
+      "bearerAuth": []
+    },
+    {
+      "apiKeyHeader": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health, the error catalog, the status badge and this document."
+    },
+    {
+      "name": "Registry",
+      "description": "Networks, protocols and assets, derived from the engine's live adapters."
+    },
+    {
+      "name": "Quotes",
+      "description": "Advisory route quotes; nothing is stored."
+    },
+    {
+      "name": "Portfolio",
+      "description": "Balances of one CAIP-10 account."
+    },
+    {
+      "name": "Intents",
+      "description": "Plan, prepare, submit, verify and cancel intents."
+    },
+    {
+      "name": "Events",
+      "description": "Server-Sent Events per intent."
+    },
+    {
+      "name": "Webhooks",
+      "description": "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs."
+    },
+    {
+      "name": "Keys",
+      "description": "Issue, list, rotate and revoke the API keys of your project."
+    },
+    {
+      "name": "Usage",
+      "description": "Per-key request counts and rate-limit state."
+    },
+    {
+      "name": "MCP",
+      "description": "Read-only Model Context Protocol server for agents."
+    }
+  ],
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "System"
+        ],
+        "summary": "API and per-network RPC health",
+        "description": "Never fails: degraded networks are reported with ok=false. Results are cached for 10 seconds.",
+        "responses": {
+          "200": {
+            "description": "Health report.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/networks": {
+      "get": {
+        "operationId": "listNetworks",
+        "tags": [
+          "Registry"
+        ],
+        "summary": "Chain registry plus per-network capabilities",
+        "description": "Capabilities are derived from the engine's execution adapters. Cacheable for 60 seconds.",
+        "responses": {
+          "200": {
+            "description": "Networks.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/protocols": {
+      "get": {
+        "operationId": "listProtocols",
+        "tags": [
+          "Registry"
+        ],
+        "summary": "Protocol registry",
+        "responses": {
+          "200": {
+            "description": "Protocols.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProtocolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/assets": {
+      "get": {
+        "operationId": "listAssets",
+        "tags": [
+          "Registry"
+        ],
+        "summary": "Canonical asset registry",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "Network key, CAIP-2 id or EVM chain id.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assets.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/venues": {
+      "get": {
+        "operationId": "listVenues",
+        "tags": [
+          "Registry"
+        ],
+        "summary": "EVM lending venues with rates, size and exit liquidity",
+        "description": "Every executable EVM lending venue in the registry (Aave V3, Compound V3, Morpho vaults, Moonwell), read on-chain and cached for 60 seconds. Values are advisory: plan and prepare re-read what they gate on. Solana venues (Jupiter Lend, Kamino) report their rate in plan notes.",
+        "parameters": [
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "description": "Network key, CAIP-2 id or EVM chain id.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "protocol",
+            "in": "query",
+            "required": false,
+            "description": "Lending protocol id, e.g. aave-v3, compound-v3, morpho, moonwell.",
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Venues.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenuesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/quotes": {
+      "post": {
+        "operationId": "quoteRoutes",
+        "tags": [
+          "Quotes"
+        ],
+        "summary": "Best routes for one asset movement (same- or cross-network)",
+        "description": "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Routes.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/portfolio/{accountId}": {
+      "get": {
+        "operationId": "getPortfolio",
+        "tags": [
+          "Portfolio"
+        ],
+        "summary": "Balances for one CAIP-10 account",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolio.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/intents": {
+      "post": {
+        "operationId": "createIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Plan an intent into an IntentGraph",
+        "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "parameters": [
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dry run, or idempotent replay of an existing intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Intent planned and stored.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listIntents",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "List intents created with the caller's key",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Most recent first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}": {
+      "get": {
+        "operationId": "getIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Read an intent",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/steps/{stepId}/prepare": {
+      "post": {
+        "operationId": "prepareStep",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Build wallet-ready transactions for a ready step",
+        "description": "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "$ref": "#/components/parameters/StepId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payload and updated intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedStepResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "504": {
+            "$ref": "#/components/responses/GatewayTimeout"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/steps/{stepId}/submit": {
+      "post": {
+        "operationId": "submitStep",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Submit transaction hashes / signatures for on-chain verification",
+        "description": "A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become `settled`; cross-network steps become `settling` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED) and leave the step unchanged. References not yet visible on-chain are stored (`submitted`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "$ref": "#/components/parameters/StepId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/refresh": {
+      "post": {
+        "operationId": "refreshIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Re-read verification and settlement state now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/cancel": {
+      "post": {
+        "operationId": "cancelIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Cancel an intent with no submitted steps",
+        "description": "Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled intent.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/events": {
+      "get": {
+        "operationId": "streamIntentEvents",
+        "tags": [
+          "Events"
+        ],
+        "summary": "Server-Sent Events stream of intent events",
+        "description": "Starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=`; the whole buffer when absent, or when the id is no longer buffered, so de-duplicate by event id), then streams live events. Each frame is `id: <event id>`, `event: <type>`, `data: <KletiaEvent JSON>`. A comment heartbeat is sent every 15 s and the stream ends after 30 minutes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event stream. Every `data` line is a KletiaEvent (see components.schemas.KletiaEvent).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "retry: 3000\n\nid: evt_0123456789abcdef0123456789abcdef\nevent: intent.created\ndata: {\"id\":\"evt_0123456789abcdef0123456789abcdef\",\"type\":\"intent.created\",\"at\":\"2026-10-08T12:00:00.000Z\",\"data\":{\"intentId\":\"int_0123456789abcdef0123456789abcdef\",\"summary\":{}}}\n\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/webhooks": {
+      "post": {
+        "operationId": "createWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Register a webhook (secret returned once)",
+        "description": "At most 10 webhooks per key. Deliveries are signed with `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, \"<t>.<raw body>\")>`; verify with verifyWebhookSignature from @kletia/core. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response (with the secret) is encrypted at rest.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook with its signing secret.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listWebhooks",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List webhooks",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhooks (without secrets).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}": {
+      "delete": {
+        "operationId": "deleteWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Delete a webhook (and its delivery log)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^wh_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/test": {
+      "post": {
+        "operationId": "testWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Send a signed webhook.test event now",
+        "description": "Makes one synchronous delivery attempt of a `webhook.test` event (see the webhookTest webhook) with the same signing, network rules, 5 s timeout and no-redirect policy as real deliveries, records it in the delivery log and returns the outcome. Always 200 when the attempt was made, whatever the endpoint answered. Test deliveries never pause a webhook. At most 5 per minute per webhook.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^wh_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The delivery attempt.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeliveryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/deliveries": {
+      "get": {
+        "operationId": "listWebhookDeliveries",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Delivery log of a webhook",
+        "description": "Every attempt, drop and test delivery, newest first. Payloads and error text are never stored. Kept for 7 days (at most 1000 per webhook; 100 with in-memory storage).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^wh_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliveries, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeliveryListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/keys": {
+      "post": {
+        "operationId": "createApiKey",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "Issue a developer key",
+        "description": "The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most 5 active keys, else 409 KEY_LIMIT_REACHED). Limited to 5 keys per hour per IP. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new key.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listApiKeys",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "List the keys of the caller's project",
+        "description": "Never returns secrets, only `last4`. Operator keys cannot be listed (409 KEY_NOT_MANAGEABLE); a secret inside its rotation grace window cannot manage keys (403 KEY_SECRET_ROTATED).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's keys.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/keys/{id}/rotate": {
+      "post": {
+        "operationId": "rotateApiKey",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "Replace a key's secret (same id)",
+        "description": "Issues a new secret for an active key of the caller's project. The key id is unchanged, so intents, webhooks and usage stay attached. The previous secret keeps authenticating for `graceSeconds` (default 24 h, at most 7 days, 0 = stop now) but cannot manage keys; rotating again ends an earlier grace window. Other instances notice within 15 s. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest and replayed only to the current secret or to the secret that made the request (a key that rotated itself can retry with its old secret during the grace window); any other rotated-out secret gets 403 KEY_SECRET_ROTATED.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyRotateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The key with its new secret.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotatedApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/keys/{id}": {
+      "delete": {
+        "operationId": "revokeApiKey",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "Revoke a key of the caller's project",
+        "description": "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself. Its webhooks and their delivery logs are deleted and its intents' events are no longer delivered; repeating the call finishes a cleanup that failed (503).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "operationId": "getUsage",
+        "tags": [
+          "Usage"
+        ],
+        "summary": "Requests, status classes and intents of the caller's key",
+        "description": "Counts every request made with the key, by hour, route and status class (flushed every 30 s), plus the live rate-limit window of the answering instance and the intents the key created in the window.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d"
+              ],
+              "default": "24h"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage report.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/errors": {
+      "get": {
+        "operationId": "listErrors",
+        "tags": [
+          "System"
+        ],
+        "summary": "Error catalog",
+        "description": "Every error code the API returns, and every step failure code, with its status, category, retryability and remedy. Cacheable for 5 minutes.",
+        "responses": {
+          "200": {
+            "description": "The catalog, sorted by code.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorCatalogResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/status/badge": {
+      "get": {
+        "operationId": "getStatusBadge",
+        "tags": [
+          "System"
+        ],
+        "summary": "API status badge",
+        "description": "operational / degraded / down from the health report. SVG by default; `format=shields` returns a shields.io endpoint document for `https://img.shields.io/endpoint?url=<encoded URL>`. Cacheable for 60 seconds.",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "svg",
+                "shields"
+              ],
+              "default": "svg"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Badge.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShieldsBadge"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/mcp": {
+      "post": {
+        "operationId": "mcp",
+        "tags": [
+          "MCP"
+        ],
+        "summary": "Model Context Protocol server (Streamable HTTP)",
+        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonRpcRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response (application/json), or an event stream for 2025-era requests.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Notification accepted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "description": "A JSON-RPC error for a batch, a body that is not one JSON-RPC message, an unsupported protocol revision or MCP headers that disagree with the body; the platform error envelope (INVALID_JSON) for a body that is not JSON.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/JsonRpcErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "A JSON-RPC error (-32601) for an unknown method on the 2026-07-28 revision.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcErrorResponse"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "A JSON-RPC error when Accept does not list both application/json and text/event-stream.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "description": "A JSON-RPC error (-32603) when the MCP server fails; the platform error envelope (INTERNAL_ERROR) for a failure before it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/JsonRpcErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "tags": [
+          "System"
+        ],
+        "summary": "This OpenAPI document",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "intentEvent": {
+      "post": {
+        "operationId": "receiveIntentEvent",
+        "summary": "Intent event delivery",
+        "description": "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile.",
+        "parameters": [
+          {
+            "name": "Kletia-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^t=[0-9]+,v1=[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "Kletia-Event-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "Kletia-Event-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "intent.created",
+                "intent.status_changed",
+                "intent.step_updated"
+              ]
+            }
+          },
+          {
+            "name": "Kletia-Webhook-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Kletia-Delivery-Attempt",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-4]$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KletiaEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        }
+      }
+    },
+    "webhookTest": {
+      "post": {
+        "operationId": "receiveWebhookTest",
+        "summary": "Test delivery",
+        "description": "Sent once by POST /v1/webhooks/{id}/test, signed like every delivery. Never retried. Acknowledge with any 2xx.",
+        "parameters": [
+          {
+            "name": "Kletia-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^t=[0-9]+,v1=[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "Kletia-Event-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "Kletia-Event-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "webhook.test"
+            }
+          },
+          {
+            "name": "Kletia-Webhook-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Kletia-Delivery-Attempt",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookTestEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "kl_dev_<32 base62>",
+        "description": "Developer or operator API key."
+      },
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Kletia-Key",
+        "description": "Alternative to the Authorization header."
+      }
+    },
+    "parameters": {
+      "IntentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IntentId"
+        }
+      },
+      "StepId": {
+        "name": "stepId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/StepId"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Makes a retry safe: the first response with this key (per API key) is stored for 24 hours and replayed for the same request. The same key with a different request → 422 IDEMPOTENCY_KEY_REUSED; while the first request runs → 409 IDEMPOTENCY_REQUEST_IN_PROGRESS (Retry-After: 1; an abandoned reservation is taken over after 120 s). 5xx, 429 and retryable errors are never stored. Requires an API key (400 IDEMPOTENCY_KEY_REQUIRES_API_KEY).",
+        "schema": {
+          "type": "string",
+          "pattern": "^\"?[A-Za-z0-9_.:-]{1,128}\"?$",
+          "examples": [
+            "7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14"
+          ]
+        }
+      }
+    },
+    "headers": {
+      "X-Request-Id": {
+        "description": "Request id (echoes a valid incoming UUID).",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "RateLimit": {
+        "description": "IETF draft-8 rate limit state.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RateLimit-Policy": {
+        "description": "IETF draft-8 rate limit policy.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds until a retry may succeed.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "Idempotent-Replayed": {
+        "description": "`true` when the response replays an earlier request (Idempotency-Key or clientReference).",
+        "schema": {
+          "type": "string",
+          "const": "true"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, NOT_FOUND).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, ...).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "Expired (INTENT_EXPIRED, DEADLINE_PASSED).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Request body larger than 64 KB.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Request body is not application/json.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected error (INTERNAL_ERROR).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "GatewayTimeout": {
+        "description": "An upstream provider timed out (UPSTREAM_TIMEOUT, RPC_TIMEOUT).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "NetworkKey": {
+        "type": "string",
+        "enum": [
+          "base",
+          "arbitrum",
+          "ethereum",
+          "optimism",
+          "polygon",
+          "arc",
+          "arbitrum-sepolia",
+          "solana",
+          "solana-devnet"
+        ],
+        "description": "Kletia network key."
+      },
+      "CaipChainId": {
+        "type": "string",
+        "enum": [
+          "eip155:8453",
+          "eip155:42161",
+          "eip155:1",
+          "eip155:10",
+          "eip155:137",
+          "eip155:5042002",
+          "eip155:421614",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+        ],
+        "description": "CAIP-2 chain id."
+      },
+      "AccountId": {
+        "type": "string",
+        "description": "CAIP-10 account id: `<CAIP-2>:<address>`.",
+        "pattern": "^(eip155|solana):[-_a-zA-Z0-9]{1,32}:[A-Za-z0-9]{32,44}$",
+        "examples": [
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          "eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D"
+        ]
+      },
+      "AssetId": {
+        "type": "string",
+        "description": "CAIP-19 asset id. Natives use `slip44`, ERC-20s `erc20`, SPL mints `token`.",
+        "pattern": "^(eip155|solana):[-_a-zA-Z0-9]{1,32}/(slip44|erc20|token):[A-Za-z0-9]+$",
+        "examples": [
+          "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501"
+        ]
+      },
+      "BaseUnits": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$",
+        "description": "Integer amount in base units, as a string."
+      },
+      "DecimalAmount": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+        "description": "Decimal amount in human units, as a string."
+      },
+      "ProtocolId": {
+        "type": "string",
+        "enum": [
+          "kletia-router-v2",
+          "uniswap-v3",
+          "aerodrome",
+          "aave-v3",
+          "compound-v3",
+          "moonwell",
+          "morpho",
+          "basenames",
+          "ens",
+          "sns",
+          "x402",
+          "across",
+          "cctp-v2",
+          "relay",
+          "lifi",
+          "debridge-dln",
+          "jupiter",
+          "jupiter-lend",
+          "kamino",
+          "jito",
+          "marinade",
+          "sanctum",
+          "spl-token",
+          "system-transfer",
+          "erc20-transfer",
+          "arc-native",
+          "circle-app-kit",
+          "webacy",
+          "allora",
+          "custom-call",
+          "solana-actions"
+        ]
+      },
+      "IntentActionKind": {
+        "type": "string",
+        "enum": [
+          "swap",
+          "transfer",
+          "bridge",
+          "stake",
+          "unstake",
+          "deposit",
+          "withdraw",
+          "borrow",
+          "repay",
+          "approve",
+          "claim",
+          "read"
+        ]
+      },
+      "IntentStatus": {
+        "type": "string",
+        "enum": [
+          "planned",
+          "executing",
+          "settling",
+          "completed",
+          "partially_completed",
+          "failed",
+          "expired",
+          "cancelled",
+          "indeterminate"
+        ]
+      },
+      "StepStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "ready",
+          "awaiting_signature",
+          "submitted",
+          "confirmed",
+          "settling",
+          "settled",
+          "failed",
+          "skipped",
+          "indeterminate"
+        ]
+      },
+      "IntentId": {
+        "type": "string",
+        "pattern": "^int_[0-9a-f]{32}$"
+      },
+      "StepId": {
+        "type": "string",
+        "pattern": "^s[1-9]\\d{0,2}$"
+      },
+      "EventId": {
+        "type": "string",
+        "pattern": "^evt_[0-9a-f]{32}$"
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
+                "description": "Stable UPPER_SNAKE_CASE code from the error catalog (GET /v1/errors). Provider failures name the provider (`RELAY_UNAVAILABLE`) and resolve to a catalog family entry.",
+                "examples": [
+                  "INTENT_UNSUPPORTED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "message"
+                  ]
+                }
+              },
+              "hints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Optional guidance, e.g. example phrases on INTENT_UNSUPPORTED."
+              },
+              "docs": {
+                "type": "string",
+                "format": "uri",
+                "description": "Documentation of the code: `https://kletiaai.xyz/developers#error-<CODE>`."
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "error",
+          "requestId"
+        ]
+      },
+      "ErrorCatalogEntry": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "HTTP status when returned as an API error; null when the code only appears as `step.failure.code`."
+          },
+          "otherStatuses": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Statuses the code is also returned with on another path."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "request",
+              "authentication",
+              "permission",
+              "not_found",
+              "conflict",
+              "expired",
+              "intent",
+              "verification",
+              "settlement",
+              "rate_limit",
+              "upstream",
+              "unavailable",
+              "internal"
+            ]
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "True when repeating the same request later can succeed without changing it."
+          },
+          "step": {
+            "type": "boolean",
+            "description": "Also reported as `step.failure.code`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "remedy": {
+            "type": "string"
+          },
+          "docs": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "code",
+          "status",
+          "category",
+          "retryable",
+          "title",
+          "remedy",
+          "docs"
+        ]
+      },
+      "ErrorCatalogResponse": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorCatalogEntry"
+            }
+          },
+          "families": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "examples": [
+                    "<PROVIDER>_UNAVAILABLE"
+                  ]
+                },
+                "code": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pattern",
+                "code"
+              ]
+            },
+            "description": "Dynamic provider codes and the catalog entry describing them."
+          }
+        },
+        "required": [
+          "errors",
+          "families"
+        ]
+      },
+      "IntentActionSpec": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/IntentActionKind"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "from": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Input asset: symbol on `network`, address/mint or CAIP-19 id."
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Output asset (on `toNetwork` for bridges)."
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(max|(0|[1-9][0-9]*)(\\.[0-9]+)?)$",
+            "description": "Decimal amount of `from`, or `max` (on a dependent step: the guaranteed output of the previous step)."
+          },
+          "toNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "recipient": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Address or CAIP-10 account. Defaults to the acting account."
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "network"
+        ]
+      },
+      "IntentConstraints": {
+        "type": "object",
+        "properties": {
+          "maxSlippageBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 50
+          },
+          "deadline": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Unix seconds after which the plan must not be executed."
+          },
+          "maxFeeUsd": {
+            "type": "number",
+            "minimum": 0
+          },
+          "preferProtocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProtocolId"
+            }
+          },
+          "avoidProtocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProtocolId"
+            }
+          },
+          "allowTestnets": {
+            "type": "boolean"
+          },
+          "maxSeconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 86400,
+            "default": 600,
+            "description": "Longest settlement estimate a cross-network step may take; slower venue quotes lose the bridge auction."
+          }
+        }
+      },
+      "IntentRequest": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "examples": [
+              "bridge 25 USDC from base to solana then swap half to JitoSOL"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentActionSpec"
+            },
+            "minItems": 1,
+            "maxItems": 8
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            },
+            "minItems": 1,
+            "maxItems": 6
+          },
+          "defaultNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/IntentConstraints"
+          },
+          "metadata": {
+            "type": "object",
+            "maxProperties": 20,
+            "propertyNames": {
+              "maxLength": 40
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "clientReference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,80}$",
+            "description": "Idempotency key (honoured for callers with an API key)."
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "text"
+            ]
+          },
+          {
+            "required": [
+              "actions"
+            ]
+          }
+        ]
+      },
+      "AssetAmount": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetId"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36
+          },
+          "amount": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "formatted": {
+            "$ref": "#/components/schemas/DecimalAmount"
+          },
+          "usd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "asset",
+          "symbol",
+          "decimals",
+          "amount",
+          "formatted"
+        ]
+      },
+      "StepEvidence": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "transaction",
+              "receipt",
+              "settlement",
+              "quote",
+              "balance",
+              "note"
+            ]
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "network",
+          "observedAt"
+        ]
+      },
+      "StepSettlement": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "same-network",
+              "cross-network"
+            ]
+          },
+          "destinationNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "trackingId": {
+            "type": "string",
+            "description": "Settlement-network reference (e.g. Relay request id)."
+          },
+          "expectedSeconds": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "PreparedStepRecord": {
+        "type": "object",
+        "properties": {
+          "quoteBinding": {
+            "type": "string",
+            "description": "SHA-256 binding of the prepared transactions."
+          },
+          "preparedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "description": "Unix seconds."
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vm": {
+                  "type": "string",
+                  "enum": [
+                    "evm",
+                    "svm"
+                  ]
+                },
+                "network": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "to": {
+                  "type": "string",
+                  "description": "EVM call target; for Solana steps, the program invoked."
+                },
+                "feePayer": {
+                  "type": "string",
+                  "description": "Solana fee payer."
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "vm",
+                "network",
+                "description"
+              ]
+            }
+          }
+        },
+        "required": [
+          "quoteBinding",
+          "preparedAt",
+          "expiresAt",
+          "transactions"
+        ]
+      },
+      "IntentStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/StepId"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IntentActionKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/CaipChainId"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "wallet",
+              "settlement",
+              "read"
+            ]
+          },
+          "input": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "expectedOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "minimumOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "recipientName": {
+            "type": "string",
+            "description": "Name the recipient was resolved from (ENS, Basenames, SNS); resolved again before every prepare."
+          },
+          "venue": {
+            "type": "string",
+            "description": "Registry venue id (e.g. base:aave-v3:usdc) a deposit or withdraw executes against."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/StepSettlement"
+          },
+          "feesUsd": {
+            "type": "number"
+          },
+          "extraCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetAmount"
+            },
+            "description": "Value paid on top of the input, such as a bridge's fixed native fee."
+          },
+          "estimatedSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/StepStatus"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepEvidence"
+            }
+          },
+          "quoteRef": {
+            "type": "string",
+            "description": "Opaque adapter quote handle."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prepared": {
+            "$ref": "#/components/schemas/PreparedStepRecord"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Submitted transaction hashes / signatures, in order."
+          },
+          "actualOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "failure": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "index",
+          "kind",
+          "title",
+          "network",
+          "chain",
+          "account",
+          "protocol",
+          "mode",
+          "dependsOn",
+          "status",
+          "evidence"
+        ]
+      },
+      "IntentEdge": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "funds",
+              "orders"
+            ]
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "kind"
+        ]
+      },
+      "IntentSummary": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NetworkKey"
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetAmount"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetAmount"
+            }
+          },
+          "totalFeesUsd": {
+            "type": "number"
+          },
+          "estimatedSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "signaturesRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "crossNetwork": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "networks",
+          "inputs",
+          "outputs",
+          "signaturesRequired",
+          "crossNetwork"
+        ]
+      },
+      "IntentGraph": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "string",
+            "const": "kletia.intent/v1"
+          },
+          "id": {
+            "$ref": "#/components/schemas/IntentId"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IntentStatus"
+          },
+          "request": {
+            "$ref": "#/components/schemas/IntentRequest"
+          },
+          "interpretation": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "structured",
+                  "grammar",
+                  "assistant"
+                ]
+              },
+              "normalizedText": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "optimizations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "source",
+              "confidence"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentStep"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentEdge"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/IntentSummary"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "spec",
+          "id",
+          "createdAt",
+          "updatedAt",
+          "expiresAt",
+          "status",
+          "request",
+          "interpretation",
+          "steps",
+          "edges",
+          "summary",
+          "warnings"
+        ]
+      },
+      "EvmTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "evm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "chainId": {
+            "type": "integer"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{40}$"
+          },
+          "data": {
+            "type": "string",
+            "pattern": "^0x([0-9a-fA-F]{2})*$"
+          },
+          "value": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "gas": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "chainId",
+          "from",
+          "to",
+          "data",
+          "value",
+          "description"
+        ],
+        "description": "Send with eth_sendTransaction { from, to, data, value } from `from`."
+      },
+      "SolanaTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "const": "svm"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "feePayer": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "description": "Serialized, unsigned v0 transaction."
+          },
+          "encoding": {
+            "type": "string",
+            "const": "base64"
+          },
+          "lastValidBlockHeight": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vm",
+          "network",
+          "feePayer",
+          "transaction",
+          "encoding",
+          "description"
+        ],
+        "description": "Sign and send with the wallet that owns `feePayer` (solana:signAndSendTransaction)."
+      },
+      "TransactionRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EvmTransactionRequest"
+          },
+          {
+            "$ref": "#/components/schemas/SolanaTransactionRequest"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "vm",
+          "mapping": {
+            "evm": "#/components/schemas/EvmTransactionRequest",
+            "svm": "#/components/schemas/SolanaTransactionRequest"
+          }
+        }
+      },
+      "StepExecutionPayload": {
+        "type": "object",
+        "properties": {
+          "vm": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "svm"
+            ]
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionRequest"
+            },
+            "minItems": 1
+          },
+          "expiresAt": {
+            "type": "integer",
+            "description": "Unix seconds; prepare again after this."
+          },
+          "quoteBinding": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vm",
+          "transactions",
+          "expiresAt",
+          "quoteBinding"
+        ]
+      },
+      "IntentCreatedEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "const": "intent.created"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "$ref": "#/components/schemas/IntentId"
+              },
+              "summary": {
+                "$ref": "#/components/schemas/IntentSummary"
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "intentId",
+              "summary"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ]
+      },
+      "IntentStatusChangedEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "const": "intent.status_changed"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "$ref": "#/components/schemas/IntentId"
+              },
+              "status": {
+                "$ref": "#/components/schemas/IntentStatus"
+              },
+              "previous": {
+                "$ref": "#/components/schemas/IntentStatus"
+              }
+            },
+            "required": [
+              "intentId",
+              "status",
+              "previous"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ]
+      },
+      "IntentStepUpdatedEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "const": "intent.step_updated"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "$ref": "#/components/schemas/IntentId"
+              },
+              "stepId": {
+                "type": "string"
+              },
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "status": {
+                "$ref": "#/components/schemas/StepStatus"
+              },
+              "evidence": {
+                "$ref": "#/components/schemas/StepEvidence"
+              }
+            },
+            "required": [
+              "intentId",
+              "stepId",
+              "network",
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ]
+      },
+      "WebhookTestEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "const": "webhook.test"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "webhookId": {
+                "type": "string",
+                "pattern": "^wh_[0-9a-f]{24}$"
+              }
+            },
+            "required": [
+              "webhookId"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ]
+      },
+      "KletiaEvent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IntentCreatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/IntentStatusChangedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/IntentStepUpdatedEvent"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "intent.created": "#/components/schemas/IntentCreatedEvent",
+            "intent.status_changed": "#/components/schemas/IntentStatusChangedEvent",
+            "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent"
+          }
+        }
+      },
+      "Chain": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "id": {
+            "$ref": "#/components/schemas/CaipChainId"
+          },
+          "namespace": {
+            "type": "string",
+            "enum": [
+              "eip155",
+              "solana"
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "vm": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "svm"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "mainnet",
+              "testnet"
+            ]
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "production",
+              "beta",
+              "testnet"
+            ]
+          },
+          "nativeAsset": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "decimals": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "symbol",
+              "name",
+              "decimals"
+            ]
+          },
+          "explorer": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "tx": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "tx",
+              "address"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "evmChainId": {
+            "type": "integer"
+          },
+          "walletChain": {
+            "type": "string"
+          },
+          "settlement": {
+            "type": "object",
+            "properties": {
+              "cctpDomain": {
+                "type": "integer"
+              },
+              "relayChainId": {
+                "type": "integer"
+              },
+              "debridgeChainId": {
+                "type": "integer"
+              },
+              "acrossChainId": {
+                "type": "integer"
+              }
+            }
+          },
+          "counterpart": {
+            "$ref": "#/components/schemas/NetworkKey"
+          }
+        },
+        "required": [
+          "key",
+          "id",
+          "namespace",
+          "reference",
+          "vm",
+          "name",
+          "shortName",
+          "environment",
+          "lane",
+          "nativeAsset",
+          "explorer",
+          "color",
+          "settlement"
+        ]
+      },
+      "NetworkCapabilities": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Chain"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "actions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IntentActionKind"
+                },
+                "description": "Action kinds executable with this network as the source."
+              },
+              "protocols": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProtocolId"
+                },
+                "description": "Registry protocols present on this network."
+              },
+              "executableProtocols": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProtocolId"
+                }
+              },
+              "routes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "$ref": "#/components/schemas/IntentActionKind"
+                    },
+                    "protocol": {
+                      "$ref": "#/components/schemas/ProtocolId"
+                    },
+                    "toNetworks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/NetworkKey"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "protocol",
+                    "toNetworks"
+                  ]
+                }
+              },
+              "assetCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "actions",
+              "protocols",
+              "executableProtocols",
+              "routes",
+              "assetCount"
+            ]
+          }
+        ]
+      },
+      "Protocol": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "dex-aggregator",
+              "dex",
+              "bridge",
+              "intent-network",
+              "lending",
+              "liquid-staking",
+              "yield",
+              "naming",
+              "payments",
+              "security",
+              "data",
+              "token-program"
+            ]
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NetworkKey"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "execute",
+                "quote",
+                "discover"
+              ]
+            }
+          },
+          "website": {
+            "type": "string",
+            "format": "uri"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "crossChain": {
+            "type": "boolean"
+          },
+          "executable": {
+            "type": "boolean",
+            "description": "True when the engine has an execution adapter for this protocol."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "category",
+          "networks",
+          "capabilities",
+          "website",
+          "summary",
+          "executable"
+        ]
+      },
+      "Asset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AssetId"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ERC-20 contract or SPL mint; null for the native asset."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "native",
+              "stablecoin",
+              "wrapped",
+              "liquid-staking",
+              "governance",
+              "meme",
+              "btc"
+            ]
+          },
+          "tokenProgram": {
+            "type": "string",
+            "enum": [
+              "spl-token",
+              "token-2022"
+            ]
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "USDC",
+              "USDT",
+              "ETH",
+              "BTC",
+              "EURC",
+              "SOL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "network",
+          "symbol",
+          "name",
+          "decimals",
+          "address",
+          "category"
+        ]
+      },
+      "QuoteRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "from": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Input asset on `network`: symbol, address/mint or CAIP-19 id."
+              },
+              "to": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Output asset on `toNetwork`."
+              },
+              "toNetwork": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "amount": {
+                "$ref": "#/components/schemas/DecimalAmount"
+              },
+              "account": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Sender address or CAIP-10 account (placeholder when omitted)."
+              },
+              "recipient": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "slippageBps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "maxSeconds": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 86400,
+                "default": 600,
+                "description": "Longest acceptable settlement estimate; slower routes are not eligible as best."
+              }
+            },
+            "required": [
+              "network",
+              "from",
+              "to",
+              "amount"
+            ],
+            "title": "Flat"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "$ref": "#/components/schemas/NetworkKey"
+                  },
+                  "asset": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/DecimalAmount"
+                  },
+                  "account": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "Sender address or CAIP-10 account (overrides top-level `account`)."
+                  }
+                },
+                "required": [
+                  "network",
+                  "asset",
+                  "amount"
+                ]
+              },
+              "to": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "$ref": "#/components/schemas/NetworkKey",
+                    "description": "Defaults to `from.network`."
+                  },
+                  "asset": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "recipient": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "description": "Recipient address or CAIP-10 account (overrides top-level `recipient`)."
+                  }
+                },
+                "required": [
+                  "asset"
+                ]
+              },
+              "account": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "recipient": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "slippageBps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "maxSeconds": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 86400,
+                "default": 600,
+                "description": "Longest acceptable settlement estimate; slower routes are not eligible as best."
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "title": "Nested (SDK)"
+          }
+        ]
+      },
+      "QuoteRoute": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "label": {
+            "type": "string"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "toNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "input": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "output": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "minimumOutput": {
+            "$ref": "#/components/schemas/AssetAmount"
+          },
+          "netMinimumOutput": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "Guaranteed output net of extra costs; absent when those costs cannot be priced."
+          },
+          "feesUsd": {
+            "type": "number"
+          },
+          "extraCosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetAmount"
+            },
+            "description": "Value paid on top of the input (e.g. a fixed native fee)."
+          },
+          "estimatedSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "transactionCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "settlement": {
+            "$ref": "#/components/schemas/StepSettlement"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "quoteId": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean",
+            "description": "False when the route cannot be chosen as best (too slow, unpriced extra costs, another asset)."
+          }
+        },
+        "required": [
+          "protocol",
+          "label",
+          "network",
+          "toNetwork",
+          "input",
+          "output",
+          "minimumOutput",
+          "estimatedSeconds",
+          "transactionCount",
+          "settlement",
+          "warnings",
+          "eligible"
+        ]
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteRoute"
+            }
+          },
+          "best": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuoteRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quotedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "$ref": "#/components/schemas/ProtocolId"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "protocol",
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "routes",
+          "best",
+          "quotedAt",
+          "unavailable"
+        ]
+      },
+      "PortfolioHolding": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetId"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "formatted": {
+            "$ref": "#/components/schemas/DecimalAmount"
+          },
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "isNative": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "asset",
+          "symbol",
+          "name",
+          "decimals",
+          "amount",
+          "formatted",
+          "usd",
+          "verified",
+          "isNative"
+        ]
+      },
+      "Portfolio": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortfolioHolding"
+            }
+          },
+          "totalUsd": {
+            "type": "number"
+          },
+          "unpricedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "account",
+          "network",
+          "holdings",
+          "totalUsd",
+          "unpricedCount",
+          "observedAt"
+        ]
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "down"
+            ]
+          },
+          "api": {
+            "type": "string",
+            "const": "v1"
+          },
+          "version": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "chain": {
+                  "$ref": "#/components/schemas/CaipChainId"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string",
+                  "enum": [
+                    "mainnet",
+                    "testnet"
+                  ]
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "latencyMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "height": {
+                  "type": "string",
+                  "description": "Latest block (EVM) or slot (Solana)."
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "network",
+                "chain",
+                "name",
+                "environment",
+                "ok",
+                "latencyMs"
+              ]
+            }
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "intents": {
+                "type": "string"
+              },
+              "apiKeys": {
+                "type": "string"
+              },
+              "webhooks": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "intents",
+              "apiKeys",
+              "webhooks"
+            ]
+          },
+          "webhooks": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "enabled",
+                  "needs_configuration"
+                ]
+              },
+              "sealing": {
+                "type": "string",
+                "enum": [
+                  "configured",
+                  "development_fallback",
+                  "missing"
+                ],
+                "description": "`development_fallback` (a published key) is only used by development processes with in-memory stores."
+              },
+              "dispatcher": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "running": {
+                        "type": "boolean"
+                      },
+                      "queued": {
+                        "type": "integer"
+                      },
+                      "inFlight": {
+                        "type": "integer"
+                      },
+                      "scheduledRetries": {
+                        "type": "integer"
+                      },
+                      "delivered": {
+                        "type": "integer"
+                      },
+                      "failed": {
+                        "type": "integer"
+                      },
+                      "dropped": {
+                        "type": "integer"
+                      },
+                      "pausedWebhooks": {
+                        "type": "integer",
+                        "description": "Webhooks paused after consecutive delivery failures."
+                      }
+                    },
+                    "required": [
+                      "running",
+                      "queued",
+                      "inFlight",
+                      "scheduledRetries",
+                      "delivered",
+                      "failed",
+                      "dropped",
+                      "pausedWebhooks"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "dispatcher"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "api",
+          "version",
+          "time",
+          "uptimeSeconds",
+          "networks",
+          "storage",
+          "webhooks"
+        ]
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^wh_[0-9a-f]{24}$"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "intent.created",
+                "intent.status_changed",
+                "intent.step_updated"
+              ]
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "secret": {
+            "type": "string",
+            "pattern": "^whsec_[0-9A-Za-z]{32}$",
+            "description": "Signing secret. Returned only by POST /v1/webhooks."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "events",
+          "createdAt"
+        ]
+      },
+      "WebhookCreateRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048,
+            "description": "Public HTTPS endpoint (private, loopback and link-local targets are refused)."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "intent.created",
+                "intent.status_changed",
+                "intent.step_updated"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "Defaults to every intent event."
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "ApiKeyCreateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "developer",
+              "operator"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^kl_dev_[0-9A-Za-z]{32}$",
+            "description": "The raw key. Shown once; only its SHA-256 hash is stored."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tier",
+          "createdAt",
+          "key"
+        ]
+      },
+      "RotatedApiKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiKey"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "rotatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "previousExpiresAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "When the previous secret stops authenticating; null when it already has (graceSeconds 0)."
+              }
+            },
+            "required": [
+              "rotatedAt",
+              "previousExpiresAt"
+            ]
+          }
+        ]
+      },
+      "ApiKeyRotateRequest": {
+        "type": "object",
+        "properties": {
+          "graceSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 604800,
+            "default": 86400,
+            "description": "How long the previous secret keeps authenticating (it can never manage keys). 0 revokes it immediately."
+          }
+        }
+      },
+      "ApiKeyView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "developer"
+            ]
+          },
+          "last4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last four characters of the current secret (null for keys issued before they were recorded)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Updated at most once a minute."
+          },
+          "rotatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "previousExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "End of the open grace window of the previous secret."
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The key that made this request."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tier",
+          "last4",
+          "createdAt",
+          "lastUsedAt",
+          "rotatedAt",
+          "previousExpiresAt",
+          "revokedAt",
+          "current"
+        ]
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^whd_[0-9a-f]{24}$"
+          },
+          "webhookId": {
+            "type": "string",
+            "pattern": "^wh_[0-9a-f]{24}$"
+          },
+          "eventId": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "intent.created",
+              "intent.status_changed",
+              "intent.step_updated",
+              "webhook.test"
+            ]
+          },
+          "intentId": {
+            "$ref": "#/components/schemas/IntentId"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed",
+              "dropped"
+            ]
+          },
+          "httpStatus": {
+            "type": "integer",
+            "description": "Status the endpoint answered with."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "timeout",
+              "connection_failed",
+              "http_status",
+              "redirect",
+              "forbidden_address",
+              "queue_full",
+              "paused"
+            ],
+            "description": "Failure class (error text and payloads are never stored). `redirect`: a 3xx answer, which is never followed; `queue_full`: dropped before sending."
+          },
+          "nextRetryAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When a failed attempt is retried."
+          },
+          "test": {
+            "type": "boolean",
+            "description": "A POST /v1/webhooks/{id}/test delivery."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "webhookId",
+          "eventId",
+          "eventType",
+          "attempt",
+          "status",
+          "at"
+        ]
+      },
+      "UsageReport": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "developer",
+              "operator"
+            ]
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "24h",
+              "7d"
+            ]
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the first hour in the window."
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rateLimit": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "remaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "resetAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "windowSeconds": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "limit",
+              "remaining",
+              "resetAt",
+              "windowSeconds"
+            ],
+            "description": "The current 1-minute window as seen by the answering instance."
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "requests": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byStatusClass": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "examples": [
+                  {
+                    "2xx": 120,
+                    "4xx": 3
+                  }
+                ]
+              }
+            },
+            "required": [
+              "requests",
+              "byStatusClass"
+            ]
+          },
+          "byRoute": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "examples": [
+                    "POST /intents"
+                  ]
+                },
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "byStatusClass": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "required": [
+                "route",
+                "requests",
+                "byStatusClass"
+              ]
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hour": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "hour",
+                "requests"
+              ]
+            },
+            "description": "One entry per hour of the window, oldest first."
+          },
+          "intents": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "byStatus": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "required": [
+              "created",
+              "byStatus"
+            ],
+            "description": "Intents the key created in the window, by current status."
+          }
+        },
+        "required": [
+          "keyId",
+          "tier",
+          "window",
+          "since",
+          "generatedAt",
+          "rateLimit",
+          "totals",
+          "byRoute",
+          "series",
+          "intents"
+        ]
+      },
+      "ShieldsBadge": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "enum": [
+              "operational",
+              "degraded",
+              "down"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "cacheSeconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "label",
+          "message",
+          "color"
+        ]
+      },
+      "JsonRpcRequest": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "examples": [
+              "server/discover",
+              "tools/list",
+              "tools/call",
+              "initialize"
+            ]
+          },
+          "params": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "method"
+        ],
+        "description": "One MCP JSON-RPC message (batches are refused)."
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ]
+          },
+          "result": {
+            "type": "object"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "data": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "jsonrpc"
+        ]
+      },
+      "JsonRpcErrorResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "integer",
+                "examples": [
+                  -32600
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "data": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "error",
+          "id"
+        ],
+        "description": "A JSON-RPC error sent with a non-2xx status by the MCP server: the code is a JSON-RPC integer and there is no `requestId` (read the X-Request-Id header)."
+      },
+      "SubmitRequest": {
+        "type": "object",
+        "properties": {
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "One transaction hash (EVM) or signature (Solana) per prepared transaction, in order."
+          }
+        },
+        "required": [
+          "references"
+        ]
+      },
+      "IntentResponse": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/IntentGraph"
+          }
+        },
+        "required": [
+          "intent"
+        ]
+      },
+      "IntentListResponse": {
+        "type": "object",
+        "properties": {
+          "intents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentGraph"
+            }
+          }
+        },
+        "required": [
+          "intents"
+        ]
+      },
+      "PreparedStepResponse": {
+        "type": "object",
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/StepExecutionPayload"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/IntentGraph"
+          }
+        },
+        "required": [
+          "payload",
+          "intent"
+        ]
+      },
+      "NetworksResponse": {
+        "type": "object",
+        "properties": {
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NetworkCapabilities"
+            }
+          }
+        },
+        "required": [
+          "networks"
+        ]
+      },
+      "ProtocolsResponse": {
+        "type": "object",
+        "properties": {
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Protocol"
+            }
+          }
+        },
+        "required": [
+          "protocols"
+        ]
+      },
+      "AssetsResponse": {
+        "type": "object",
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          }
+        },
+        "required": [
+          "assets"
+        ]
+      },
+      "LendingMetrics": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "description": "Registry venue id, e.g. base:aave-v3:usdc (use as params.venue)."
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "name": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string",
+            "description": "Underlying asset symbol."
+          },
+          "supplyApy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Variable supply APY as a fraction (0.045 = 4.5%); advisory, null when unreadable."
+          },
+          "apySource": {
+            "type": "string",
+            "enum": [
+              "rate",
+              "share-price",
+              "unavailable"
+            ],
+            "description": "`rate`: the current on-chain supply rate; `share-price`: realised share-price growth over apyWindowSeconds."
+          },
+          "apyWindowSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalSupplied": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetAmount"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Underlying supplied to the venue (TVL)."
+          },
+          "exitLiquidity": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetAmount"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Underlying that can leave the venue now."
+          },
+          "utilization": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "protocol",
+          "network",
+          "name",
+          "asset",
+          "supplyApy",
+          "apySource",
+          "totalSupplied",
+          "exitLiquidity",
+          "utilization",
+          "observedAt",
+          "warnings"
+        ]
+      },
+      "VenuesResponse": {
+        "type": "object",
+        "properties": {
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LendingMetrics"
+            }
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "venue": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "venue",
+                "code",
+                "message"
+              ]
+            },
+            "description": "Venues whose on-chain reads failed or no longer match the registry."
+          }
+        },
+        "required": [
+          "venues",
+          "unavailable"
+        ]
+      },
+      "WebhookResponse": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          }
+        },
+        "required": [
+          "webhook"
+        ]
+      },
+      "WebhookListResponse": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Webhook"
+            }
+          }
+        },
+        "required": [
+          "webhooks"
+        ]
+      },
+      "WebhookDeliveryResponse": {
+        "type": "object",
+        "properties": {
+          "delivery": {
+            "$ref": "#/components/schemas/WebhookDelivery"
+          }
+        },
+        "required": [
+          "delivery"
+        ]
+      },
+      "WebhookDeliveryListResponse": {
+        "type": "object",
+        "properties": {
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDelivery"
+            },
+            "description": "Newest first."
+          }
+        },
+        "required": [
+          "deliveries"
+        ]
+      },
+      "ApiKeyResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ApiKey"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "RotatedApiKeyResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/RotatedApiKey"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "ApiKeyListResponse": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyView"
+            },
+            "description": "The project's keys, newest first (at most 50)."
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      }
+    }
+  }
+}

@@ -76,3 +76,69 @@ test("retryability follows the catalog, falling back to the status", () => {
   assert.equal(isRetryableError("SOMETHING_NEW", 503), true);
   assert.equal(isRetryableError("SOMETHING_NEW", 400), false);
 });
+
+test("bring-your-own-contract codes carry the design's statuses (design 7.8)", () => {
+  // [status, category, retryable, step]
+  const expected = {
+    CONTRACT_NOT_FOUND: [404, "not_found", false],
+    CONTRACT_UNKNOWN: [422, "intent", false],
+    CONTRACT_EXISTS: [409, "conflict", false],
+    CONTRACT_LIMIT_REACHED: [409, "conflict", false],
+    CONTRACT_DEFINITION_INVALID: [400, "request", false],
+    CONTRACT_FUNCTION_FORBIDDEN: [422, "intent", false],
+    CONTRACT_ARGUMENT_FORBIDDEN: [422, "intent", false],
+    CONTRACT_BINDING_INVALID: [422, "intent", false],
+    CONTRACT_NOT_DEPLOYED: [422, "intent", false],
+    CONTRACT_DELEGATED_EOA: [422, "intent", false],
+    CONTRACT_DENIED: [422, "permission", false],
+    CONTRACT_PROXY_UNSUPPORTED: [422, "intent", false],
+    CONTRACT_PENDING: [409, "conflict", true],
+    CONTRACT_SUSPENDED: [409, "conflict", false],
+    CONTRACT_NOT_USABLE: [409, "conflict", false],
+    CONTRACT_CHANGED: [409, "conflict", false],
+    CONTRACT_REVISION_CHANGED: [409, "conflict", false],
+    CONTRACT_ACTION_UNKNOWN: [422, "intent", false],
+    CONTRACT_PARAM_INVALID: [422, "intent", false],
+    CONTRACT_AMOUNT_LIMIT: [422, "intent", false],
+    CONTRACT_SPEND_LIMIT: [422, "intent", true],
+    CONTRACT_CHANGED_DURING_EXECUTION: [null, "verification", false, true],
+    CONTRACT_HANDOFF_UNSUPPORTED: [422, "intent", false],
+    CONTRACTS_DISABLED: [503, "unavailable", true],
+    SIMULATION_UNAVAILABLE: [503, "unavailable", true],
+    SIMULATION_ASSET_CHANGE_REFUSED: [422, "intent", false],
+    ACTION_URL_FORBIDDEN: [422, "request", false],
+    ACTION_ENDPOINT_UNAVAILABLE: [502, "upstream", true],
+    ACTION_RESPONSE_INVALID: [502, "upstream", true],
+    ACTION_RESPONSE_UNSUPPORTED: [422, "intent", false],
+    ACTION_TRANSACTION_REJECTED: [422, "intent", false],
+    PROGRAM_NOT_ALLOWED: [422, "intent", false],
+    PROGRAM_CHANGED: [409, "conflict", false],
+    SESSION_NOT_FOUND: [404, "not_found", false],
+    SESSION_EXPIRED: [410, "expired", false],
+    SESSION_USED: [409, "conflict", false],
+    SESSION_ORIGIN_FORBIDDEN: [403, "permission", false],
+  };
+  for (const [code, [status, category, retryable, step]] of Object.entries(expected)) {
+    const entry = ERROR_CATALOG[code];
+    assert.ok(entry, `${code} is catalogued`);
+    assert.equal(entry.status, status, `${code} status`);
+    assert.equal(entry.category, category, `${code} category`);
+    assert.equal(entry.retryable, retryable, `${code} retryable`);
+    assert.equal(Boolean(entry.step), Boolean(step), `${code} step`);
+  }
+  // Exact entries win over the provider families they look like.
+  assert.equal(resolveErrorCode("ACTION_ENDPOINT_UNAVAILABLE"), "ACTION_ENDPOINT_UNAVAILABLE");
+  assert.equal(resolveErrorCode("SIMULATION_UNAVAILABLE"), "SIMULATION_UNAVAILABLE");
+  assert.equal(describeError("ACTION_ENDPOINT_UNAVAILABLE").category, "upstream");
+  assert.equal(isRetryableError("CONTRACT_PENDING", 409), true);
+  assert.equal(isRetryableError("CONTRACT_CHANGED", 409), false);
+  // Reused codes keep their meaning.
+  for (const code of ["SIMULATION_FAILED", "QUOTE_MOVED", "OUTCOME_NOT_PROVEN", "REFERENCE_MISMATCH", "INSUFFICIENT_BALANCE", "KEY_SECRET_ROTATED", "API_KEY_REQUIRED"]) {
+    assert.ok(isKletiaErrorCode(code), code);
+  }
+});
+
+test("every contract validation issue code is a catalogued error", async () => {
+  const { CONTRACT_ISSUE_PRECEDENCE } = await import("../dist/index.js");
+  for (const code of CONTRACT_ISSUE_PRECEDENCE) assert.ok(isKletiaErrorCode(code), code);
+});

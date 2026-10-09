@@ -7,10 +7,11 @@ This index separates current product truth from deployment procedure, network-sp
 | Goal | Start here | Then read |
 |---|---|---|
 | Understand the product and trust model | [Architecture overview](architecture/overview.md) | [Repository structure](architecture/repository-structure.md) |
-| Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Error catalog](platform/errors.md), [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md), [widget and hooks](../packages/widget/README.md), [CLI](../packages/cli/README.md) |
+| Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Error catalog](platform/errors.md), [OpenAPI document](platform/openapi.json), [API collections](platform/collections/README.md), [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md), [widget and hooks](../packages/widget/README.md), [CLI](../packages/cli/README.md) |
+| Put the intent widget on any website | [Embed web component](platform/embed.md) | [@kletia/embed](../packages/embed/README.md), [widget and hooks](../packages/widget/README.md) for React apps |
 | Connect an AI agent | [MCP server](platform/mcp.md) | [Platform API v1](platform/api-v1.md) |
 | Bridge between networks | [Cross-chain venues](networks/cross-chain-venues.md) (Relay, LI.FI, deBridge DLN auction) | [Platform API v1](platform/api-v1.md) |
-| Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting](deployment/self-hosting.md) |
+| Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting and container images](deployment/self-hosting.md) |
 | Work on Base | [Base DeFi registry](networks/base-defi-registry.md) | [Base contracts](../contracts/base/README.md), [Base MCP notes](base-mcp/README.md) |
 | Work on Arc | [Arc contracts](../contracts/arc/README.md) | [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md) |
 | Work on Arbitrum | [Arbitrum workflow](networks/arbitrum-workflow.md) | [Architecture overview](architecture/overview.md) |
@@ -25,7 +26,9 @@ This index separates current product truth from deployment procedure, network-sp
 - [Platform API v1](platform/api-v1.md) — public integration contract (REST, events, webhooks, keys, idempotency, usage).
 - [Error catalog](platform/errors.md) — every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
 - [MCP server](platform/mcp.md) — read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
-- Packages: [@kletia/core](../packages/core/README.md), [@kletia/sdk](../packages/sdk/README.md) (with `@kletia/sdk/server` webhook helpers), [@kletia/widget](../packages/widget/README.md) (with `@kletia/widget/hooks`) and the [@kletia/cli](../packages/cli/README.md) command line.
+- [Embed web component](platform/embed.md) — `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.
+- [OpenAPI document](platform/openapi.json) and [API collections](platform/collections/README.md) — the machine-readable contract (generated from the API source, drift-checked by `npm run check:openapi`) and a Postman v2.1 collection for Postman, Insomnia, Bruno and Hoppscotch.
+- Packages: [@kletia/core](../packages/core/README.md), [@kletia/sdk](../packages/sdk/README.md) (with `@kletia/sdk/server` webhook helpers), [@kletia/widget](../packages/widget/README.md) (with `@kletia/widget/hooks`), the [@kletia/embed](../packages/embed/README.md) web component and the [@kletia/cli](../packages/cli/README.md) command line. All five are versioned in lockstep and published by `.github/workflows/release-packages.yml`.
 - [Root README](../README.md) — project overview, setup, verification, and current release boundary.
 - [API README](../apps/api/README.md) and [web README](../apps/web/README.md) — application development.
 - [Security policy](../SECURITY.md), [contribution guide](../CONTRIBUTING.md), and [changelog](../CHANGELOG.md).
@@ -45,7 +48,7 @@ This index separates current product truth from deployment procedure, network-sp
 
 - [Render Blueprint runbook](deployment/render.md) — canonical public deployment topology.
 - [Vercel deployment constraints](deployment/vercel.md) — supported frontend/API alternative and state limitations.
-- [Self-hosting](deployment/self-hosting.md) — Docker images, Docker Compose and a public deployment checklist.
+- [Self-hosting](deployment/self-hosting.md) — Docker Compose, the GHCR images (provenance and SBOM) and a public deployment checklist.
 - [Real-data MVP test](runbooks/mvp-live-test.md) — evidence ladder and user-signed smoke procedure.
 
 ## Historical material

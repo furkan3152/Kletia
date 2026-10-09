@@ -31,6 +31,16 @@ const PREVIEW_ACCOUNT_LIST: readonly AccountId[] = [
 const EMBED_METADATA: Readonly<Record<string, string>> = Object.freeze({ surface: "embed" });
 
 /**
+ * Who owns an account, without its network: an EVM wallet that switches
+ * chain in the middle of a step (approve on one call, switch, supply on the
+ * next) is still the same wallet and must not reset the widget.
+ */
+function ownerKey(accountId: string): string {
+  if (!accountId.startsWith("eip155:")) return accountId;
+  return `eip155:${accountId.slice(accountId.lastIndexOf(":") + 1).toLowerCase()}`;
+}
+
+/**
  * The prompt can be prefilled by the site that embeds this page, so a plan
  * that pays an address outside the user's own accounts is called out before
  * the Execute button, with the full address (no truncation to spoof).
@@ -141,7 +151,7 @@ export default function EmbedPage() {
   }, [params]);
 
   const live = wallet.accounts.length > 0 && wallet.signers !== undefined;
-  const accountsKey = wallet.accounts.join(",");
+  const accountsKey = wallet.accounts.map(ownerKey).join(",");
 
   // The widget's executor checks for cancellation only between steps, so a
   // step being prepared when the widget remounts (wallet switched or
@@ -153,6 +163,7 @@ export default function EmbedPage() {
   const accounts = live ? wallet.accounts : PREVIEW_ACCOUNT_LIST;
 
   // A new account set invalidates any plan on screen: start fresh with the last prompt.
+  // Keyed on owners, not networks, so a mid-step chain switch keeps the running execution.
   const widgetKey = live ? `live:${accountsKey}` : "plan";
   const plannedIntent = planned?.key === widgetKey ? planned.intent : null;
 

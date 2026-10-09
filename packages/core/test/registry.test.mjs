@@ -91,6 +91,14 @@ test("protocol registry: ids, networks, kinds and the new venues", () => {
     assert.ok(protocolExecutesKind(id, "deposit") && protocolExecutesKind(id, "withdraw"), id);
   }
   assert.ok(!protocolExecutesKind("jupiter", "deposit"));
+  // Bring your own contract: one protocol per VM, category custom, only their own kinds.
+  assert.deepEqual(PROTOCOLS.filter((protocol) => protocol.category === "custom").map((protocol) => protocol.id), ["custom-call", "solana-actions"]);
+  assert.deepEqual(getProtocol("custom-call").kinds, ["call"]);
+  assert.deepEqual(getProtocol("solana-actions").kinds, ["action"]);
+  assert.deepEqual(getProtocol("solana-actions").networks, ["solana", "solana-devnet"]);
+  for (const protocol of PROTOCOLS.filter((entry) => entry.category !== "custom")) {
+    assert.ok(!(protocol.kinds ?? []).some((kind) => kind === "call" || kind === "action"), `${protocol.id} never executes custom calls`);
+  }
   assert.equal(getProtocol("ens").category, "naming");
   assert.equal(getProtocol("sns").category, "naming");
   for (const network of ["ethereum", "optimism", "polygon"]) {
@@ -189,4 +197,8 @@ test("request validation bounds maxSeconds and venue params", () => {
   assert.equal(validateIntentRequest({ actions: [{ ...action, params: { venue: "" } }], accounts }).ok, false);
   assert.equal(validateIntentRequest({ actions: [{ ...action, params: { venue: { id: 1 } } }], accounts }).ok, false);
   assert.equal(validateIntentRequest({ actions: [{ ...action, protocol: "lifi" }], accounts }).ok, true, "protocol ids include the new venues");
+  assert.equal(validateIntentRequest({ actions: [{ ...action, protocol: "custom-call" }], accounts }).ok, true, "custom-call is a protocol id");
+  const call = { kind: "call", network: "base", contract: "acme vault", entry: "deposit", amount: "100" };
+  assert.equal(validateIntentRequest({ actions: [call], accounts }).ok, true);
+  assert.equal(validateIntentRequest({ actions: [{ ...call, entry: undefined }], accounts }).ok, false);
 });

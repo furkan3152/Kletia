@@ -1,0 +1,156 @@
+name: Container images
+
+# Builds the API and web images from the repository root and pushes them to the
+# GitHub Container Registry with SLSA provenance (mode=max) and an SPDX SBOM
+# attached as attestations:
+#
+#   ghcr.io/<owner>/kletia-api   ghcr.io/<owner>/kletia-web
+#
+# Tags: `main` and `sha-<short sha>` for every push to main; `<version>`,
+# `<major>.<minor>` and `latest` for a release tag such as `v2.1.0`.
+# The web image is built with the Dockerfile's default VITE_* arguments
+# (API at http://localhost:3001, for Docker Compose); VITE_* values are compiled
+# into the bundle, so a public deployment rebuilds the web image with its own
+# values (docs/deployment/self-hosting.md).
+#
+# Actions are pinned to full commit SHAs of releases at least two weeks old
+# (looked up 2026-10-09 with `git ls-remote --tags` and the tagged commits' dates).
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+
+jobs:
+  image:
+    name: kletia-${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+            title: Kletia API
+            description: Kletia intent API for EVM networks and Solana (console routes under /api, Platform API v1 and MCP under /v1). Non-custodial; never holds keys.
+          - image: web
+            dockerfile: apps/web/Dockerfile
+            title: Kletia web
+            description: Kletia web app (home, console, Studio, developer portal and the embeddable /embed widget) with the production static server.
+    env:
+      # Put OCI annotations on the image index too, where GHCR reads the description.
+      DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+    steps:
+      - name: Check out repository
+        # actions/checkout v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Image name
+        id: name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image }}
+        run: echo "image=ghcr.io/${OWNER,,}/kletia-${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        # docker/setup-buildx-action v4.4.1 (2026-09-16)
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+
+      - name: Log in to GHCR
+        # docker/login-action v4.6.0 (2026-07-29)
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        # docker/metadata-action v6.2.0 (2026-07-02)
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: |
+            latest=auto
+          labels: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=MIT
+          annotations: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push
+        id: build
+        # docker/build-push-action v7.4.0 (2026-09-15)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=kletia-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=kletia-${{ matrix.image }}
+
+      - name: Check attestations
+        env:
+          REF: ${{ steps.name.outputs.image }}@${{ steps.build.outputs.digest }}
+        run: |
+          provenance=$(docker buildx imagetools inspect "$REF" --format '{{ json .Provenance }}')
+          sbom=$(docker buildx imagetools inspect "$REF" --format '{{ json .SBOM }}')
+          if [ -z "$provenance" ] || [ "$provenance" = "null" ] || [ "$provenance" = "{}" ]; then
+            echo "$REF has no provenance attestation" >&2
+            exit 1
+          fi
+          if [ -z "$sbom" ] || [ "$sbom" = "null" ] || [ "$sbom" = "{}" ]; then
+            echo "$REF has no SBOM attestation" >&2
+            exit 1
+          fi
+          echo "$REF carries provenance and an SBOM."
+
+      - name: Smoke test the pushed image
+        env:
+          REF: ${{ steps.name.outputs.image }}@${{ steps.build.outputs.digest }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --detach --name smoke --publish 127.0.0.1:10000:10000 "$REF"
+          trap 'docker logs smoke 2>&1 | tail -n 50; docker rm --force smoke >/dev/null' EXIT
+          probe=/
+          if [ "$IMAGE" = api ]; then probe=/health; fi
+          for _ in $(seq 1 60); do
+            if curl --silent --fail --output /dev/null "http://127.0.0.1:10000$probe"; then break; fi
+            sleep 2
+          done
+          if [ "$IMAGE" = api ]; then
+            curl --silent --show-error --fail http://127.0.0.1:10000/health
+            curl --silent --show-error --fail --output /dev/null http://127.0.0.1:10000/v1/openapi.json
+          else
+            curl --silent --show-error --fail --output /dev/null http://127.0.0.1:10000/
+            # Only /embed may be framed by other sites.
+            curl --silent --show-error --fail --head http://127.0.0.1:10000/embed | grep -i '^content-security-policy: frame-ancestors \*'
+            curl --silent --show-error --fail --head http://127.0.0.1:10000/developers | grep -i '^x-frame-options: sameorigin'
+          fi

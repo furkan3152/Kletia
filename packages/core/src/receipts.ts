@@ -515,7 +515,7 @@ function decimalText(value: number): string | null {
   const text = String(Object.is(value, -0) ? 0 : value);
   if (!/e/iu.test(text)) return text;
   const negative = value < 0;
-  const [mantissa = "0", exponentText = "0"] = text.replace("-", "").toLowerCase().split("e");
+  const [mantissa = "0", exponentText = "0"] = text.replace(/^-/u, "").toLowerCase().split("e");
   const exponent = Number(exponentText);
   const [whole = "0", fraction = ""] = mantissa.split(".");
   const digits = whole + fraction;
@@ -1335,8 +1335,8 @@ export async function verifyEd25519(x: string, message: string, signature: strin
   const subtle = (globalThis as { crypto?: Crypto }).crypto?.subtle;
   if (!subtle) return false;
   try {
-    const key = await subtle.importKey("raw", publicKey, { name: "Ed25519" }, false, ["verify"]);
-    return await subtle.verify({ name: "Ed25519" }, key, signatureBytes, new TextEncoder().encode(message));
+    const key = await subtle.importKey("raw", new Uint8Array(publicKey), { name: "Ed25519" }, false, ["verify"]);
+    return await subtle.verify({ name: "Ed25519" }, key, new Uint8Array(signatureBytes), new TextEncoder().encode(message));
   } catch {
     return false;
   }

@@ -80,6 +80,8 @@ export interface LifiQuote {
   readonly toAmountMin: string;
   readonly executionSeconds: number;
   readonly feesUsd: number | null;
+  /** LI.FI `feeCosts` in USD (fees taken from the amount; gas costs excluded), for the asset-change preview. */
+  readonly feeCostsUsd: number | null;
   readonly fromAmountUsd: number | null;
   readonly toAmountUsd: number | null;
   readonly transaction: {
@@ -193,6 +195,7 @@ export async function fetchLifiQuote(request: LifiQuoteRequest): Promise<LifiQuo
     toAmountMin,
     executionSeconds: duration !== null && duration >= 0 && duration < 86_400 ? Math.ceil(duration) : 1_800,
     feesUsd: fees.length > 0 ? fees.reduce((total, entry) => total + entry, 0) : null,
+    feeCostsUsd: sumUsd(estimate.feeCosts),
     fromAmountUsd: finiteNumber(estimate.fromAmountUSD),
     toAmountUsd: finiteNumber(estimate.toAmountUSD),
     transaction: {

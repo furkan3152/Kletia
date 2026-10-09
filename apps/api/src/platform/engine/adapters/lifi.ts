@@ -52,7 +52,7 @@ import { isRecord } from "../util.js";
 import { assertEvmBalance } from "./evmTransfer.js";
 import { fetchLifiQuote, fetchLifiStatus, type LifiQuote } from "./lifiClient.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
-import type { AdapterAction, AdapterRoute, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
+import type { AdapterAction, AdapterRoute, PlannedStep, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
 import { evmEvents, fillNotBefore, verifyEvmReceipts } from "./verification.js";
 
 /** Networks LI.FI serves in the registry (origins additionally need a pinned diamond). */
@@ -421,6 +421,54 @@ function settlementSeconds(quote: LifiQuote): number {
   return Math.max(quote.executionSeconds, 5);
 }
 
+/** The payload of a checked quote: an exact approval when the allowance is short, then the diamond call (plan preview and prepare). */
+function lifiTransactions(action: AdapterAction, network: EvmNetworkKey, quote: LifiQuote, diamond: string, allowance: bigint): TransactionRequest[] {
+  const amount = BigInt(action.amount);
+  const chainId = evmChainId(network);
+  const from = getAddress(action.account.address);
+  const transactions: TransactionRequest[] = [];
+  if (allowance < amount) {
+    transactions.push({
+      vm: "evm",
+      network,
+      chainId,
+      from,
+      to: getAddress(action.input.address as string),
+      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(diamond), amount] }),
+      value: "0",
+      gas: APPROVE_GAS,
+      description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for LI.FI`,
+    });
+  }
+  transactions.push({
+    vm: "evm",
+    network,
+    chainId,
+    from,
+    to: getAddress(diamond),
+    data: quote.transaction.data,
+    value: "0",
+    ...(quote.transaction.gasLimit ? { gas: quote.transaction.gasLimit } : {}),
+    description: title(action),
+  });
+  return transactions;
+}
+
+/** Seconds a LI.FI quote's transactions are previewed for. */
+const PREVIEW_TTL_SECONDS = 60;
+
+function lifiPreview(action: AdapterAction, quote: LifiQuote, diamond: string, allowance: bigint): PlannedStepPreview | undefined {
+  if (!isEvmNetwork(action.network)) return undefined;
+  return {
+    transactions: lifiTransactions(action, action.network, quote, diamond, allowance),
+    approvalSpender: diamond.toLowerCase(),
+    ...(quote.feeCostsUsd !== null && quote.feeCostsUsd > 0
+      ? { venueFees: [{ kind: "venue" as const, label: "LI.FI fees", usd: quote.feeCostsUsd, paid: "deducted" as const, certainty: "quoted" as const }] }
+      : {}),
+    expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
+  };
+}
+
 export const lifiAdapter: ProtocolAdapter = {
   id: "lifi",
   protocols: ["lifi"],
@@ -437,8 +485,9 @@ export const lifiAdapter: ProtocolAdapter = {
   },
 
   async plan(action): Promise<PlannedStep> {
-    const { quote, allowance } = await checkedQuote(action, action.slippageBps, "plan");
+    const { quote, allowance, diamond } = await checkedQuote(action, action.slippageBps, "plan");
     const seconds = settlementSeconds(quote);
+    const preview = lifiPreview(action, quote, diamond, allowance);
     return {
       protocol: "lifi",
       title: title(action),
@@ -453,6 +502,7 @@ export const lifiAdapter: ProtocolAdapter = {
       provider: quote.tool,
       transactionCount: allowance >= BigInt(action.amount) ? 1 : 2,
       slippageBps: action.slippageBps,
+      ...(preview ? { preview } : {}),
     };
   },
 
@@ -473,33 +523,7 @@ export const lifiAdapter: ProtocolAdapter = {
         409,
       );
     }
-    const chainId = evmChainId(network);
-    const from = getAddress(action.account.address);
-    const transactions: TransactionRequest[] = [];
-    if (allowance < amount) {
-      transactions.push({
-        vm: "evm",
-        network,
-        chainId,
-        from,
-        to: getAddress(action.input.address as string),
-        data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(diamond), amount] }),
-        value: "0",
-        gas: APPROVE_GAS,
-        description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for LI.FI`,
-      });
-    }
-    transactions.push({
-      vm: "evm",
-      network,
-      chainId,
-      from,
-      to: getAddress(diamond),
-      data: quote.transaction.data,
-      value: "0",
-      ...(quote.transaction.gasLimit ? { gas: quote.transaction.gasLimit } : {}),
-      description: title(action),
-    });
+    const transactions = lifiTransactions(action, network, quote, diamond, allowance);
     return {
       transactions,
       records: transactions.map((transaction) => ({

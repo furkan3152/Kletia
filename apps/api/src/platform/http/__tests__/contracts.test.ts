@@ -788,6 +788,25 @@ describe("engine integration (offline EVM world)", () => {
     const account = `eip155:8453:${harnessModule.USER}`;
     const text = { text: "deposit 100 USDC into acme vault", accounts: [account] };
     await assert.rejects(createIntentDetailed(text, { ownerKeyId: owner.id, dryRun: true }), (error: { code?: string }) => error.code === "CONTRACT_PENDING");
+    // Over HTTP the retryable 409 tells the client when to come back (design §4.3). node:http, because the
+    // offline harness answers every fetch.
+    const pendingReply = await new Promise<{ status: number; retryAfter: string | undefined; body: string }>((resolve, reject) => {
+      const payload = JSON.stringify(text);
+      const request = http.request(`${server.base}/intents?dryRun=true`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${owner.key}`, "content-type": "application/json", "content-length": Buffer.byteLength(payload) },
+      }, (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => { body += chunk; });
+        response.on("end", () => resolve({ status: response.statusCode ?? 0, retryAfter: response.headers["retry-after"], body }));
+      });
+      request.on("error", reject);
+      request.end(payload);
+    });
+    assert.equal(pendingReply.status, 409, pendingReply.body);
+    assert.equal((JSON.parse(pendingReply.body) as { error: { code: string } }).error.code, "CONTRACT_PENDING");
+    assert.match(pendingReply.retryAfter ?? "", /^[1-9]\d*$/u, "CONTRACT_PENDING carries Retry-After");
 
     now = START + 900_000;
     const { intent } = await createIntentDetailed(text, { ownerKeyId: owner.id, dryRun: true });
@@ -1031,5 +1050,16 @@ describe("contract webhook events", () => {
     } finally {
       dispatcher.stop();
     }
+  });
+});
+
+describe("browser access to the contract routes", () => {
+  it("the /v1 CORS policy allows every method the platform routes use (PATCH /v1/contracts/{id})", async () => {
+    const { platformCorsOptions } = await import("../../../shared/http/cors.js");
+    const { PLATFORM_ROUTES } = await import("../router.js");
+    const allowed = new Set((platformCorsOptions.methods as readonly string[]).map((method) => method.toUpperCase()));
+    const used = new Set(PLATFORM_ROUTES.map((route) => route.method.toUpperCase()));
+    assert.ok(used.has("PATCH"), "the contract routes use PATCH");
+    for (const method of used) assert.ok(allowed.has(method), `${method} is allowed by the /v1 CORS policy`);
   });
 });

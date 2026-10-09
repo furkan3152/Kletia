@@ -99,6 +99,25 @@ export function contractsEnabled(): boolean {
   return !(raw === "false" || raw === "0" || raw === "off" || raw === "no");
 }
 
+/** An error that tells HTTP clients when a retry may succeed (the HTTP layer writes `Retry-After`). */
+export interface RetryAfterHint {
+  readonly retryAfterSeconds?: number;
+}
+
+/**
+ * Attaches the seconds until `activatesAt` (at least 1, at most a day) to a
+ * CONTRACT_PENDING error. Without an activation time (a reserved name waiting
+ * for its domain) waiting does not help, so no hint is attached.
+ */
+export function withActivationRetry<E extends Error>(error: E, activatesAt: string | null, now: number = Date.now()): E & RetryAfterHint {
+  const at = activatesAt ? Date.parse(activatesAt) : Number.NaN;
+  if (Number.isFinite(at)) {
+    const seconds = Math.min(86_400, Math.max(1, Math.ceil((at - now) / 1000)));
+    Object.defineProperty(error, "retryAfterSeconds", { value: seconds, enumerable: false });
+  }
+  return error;
+}
+
 /** Reports an anomaly without ever failing the caller (verification must not depend on the registry). */
 export async function reportContractAnomaly(id: string, reason: ContractAnomalyReason, detail: string): Promise<void> {
   const directory = installed;

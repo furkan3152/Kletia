@@ -104,6 +104,16 @@ describe("call steps: registration state and entry", () => {
     registration.activeRevision = null;
     registration.activatesAt = "2026-10-09T12:15:00.000Z";
     await assert.rejects(plan([call()]), rejects("CONTRACT_PENDING", /2026-10-09T12:15/u));
+    // The HTTP layer turns the hint into Retry-After: seconds until activation, at least 1.
+    registration.activatesAt = new Date(Date.now() + 120_000).toISOString();
+    await assert.rejects(plan([call()]), (error: unknown) => {
+      const seconds = (error as { retryAfterSeconds?: number }).retryAfterSeconds ?? 0;
+      assert.ok(seconds >= 110 && seconds <= 120, `retryAfterSeconds ${seconds}`);
+      assert.ok(!Object.keys(error as object).includes("retryAfterSeconds"), "the hint is not serialised into the error body");
+      return true;
+    });
+    registration.activatesAt = null;
+    await assert.rejects(plan([call()]), (error: unknown) => (error as { retryAfterSeconds?: number }).retryAfterSeconds === undefined);
     registration.status = "suspended";
     registration.activeRevision = 1;
     await assert.rejects(plan([call()]), rejects("CONTRACT_SUSPENDED"));

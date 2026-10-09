@@ -111,7 +111,8 @@ export const PLATFORM_API_PREFIX = "/v1";
 export const platformCorsOptions: CorsOptions = {
   origin: "*",
   credentials: false,
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  // PATCH: PATCH /v1/contracts/{id} (custom contract registrations).
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
     "Authorization",

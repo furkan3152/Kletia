@@ -7,9 +7,10 @@
  * rules and the plan, and replaces its blockhash with one Kletia read (no
  * signatures exist, the instructions are untouched). Verification binds the
  * landed instructions to a prepared payload (ComputeBudget and Lighthouse
- * instructions a wallet adds or tunes are tolerated), then proves the
- * user's deltas and that no authority or delegate changed on the user's
- * accounts.
+ * assertion instructions a wallet adds or tunes are tolerated; anything else
+ * is another transaction), then proves the user's deltas, that no authority
+ * or delegate changed on the user's accounts, and that the user's signature
+ * reached only the allowlisted and built-in programs (the CPI scan).
  */
 import {
   CHAINS,
@@ -45,6 +46,7 @@ import { contractDirectory, reportContractAnomaly } from "../contracts/directory
 import { solanaActionReview } from "../contracts/review.js";
 import {
   actionInstructionDigest,
+  authorityStateRefusal,
   checkActionTransaction,
   compareSolanaProgramPins,
   currentProgramPins,
@@ -57,6 +59,7 @@ import {
   outcomeRefusal,
   staticKeysOf,
   tokenDeltasOf,
+  walletAdditionRefusal,
   withBlockhash,
   type ActionSimulationRules,
 } from "../contracts/solanaActions.js";
@@ -161,7 +164,7 @@ async function runAction(action: AdapterAction, now: number): Promise<ActionRun>
   const changed = compareSolanaProgramPins(pinned, current);
   if (changed) {
     await reportContractAnomaly(snapshot.contract, "program_changed", changed);
-    throw new PlatformError("PROGRAM_CHANGED", `${snapshot.integrator.name}'s action changed since it was registered: ${changed} The registration is suspended until the integrator reverifies it.`, 409);
+    throw new PlatformError("PROGRAM_CHANGED", `${snapshot.integrator.name}'s action changed since it was registered: ${changed.replace(/([^.])$/u, "$1.")} The registration is suspended until the integrator reverifies it.`, 409);
   }
 
   // 2. Fetch the transaction for this account.
@@ -201,7 +204,7 @@ async function runAction(action: AdapterAction, now: number): Promise<ActionRun>
       throw new PlatformError("SIMULATION_FAILED", `${label} would fail on-chain: ${simulation.error}${simulation.logs.length ? ` (${simulation.logs.slice(-2).join(" | ").slice(0, 200)})` : ""}`, 422);
     }
   } else {
-    evaluated = evaluateSimulation(network, simulation, before, watched, user, {
+    evaluated = evaluateSimulation(network, simulation, before, watched, pinned.map((pin) => pin.program), {
       user,
       input: input && amount !== null ? { mint: input.isNative ? null : (input.address as string), amount } : null,
       output: call.output?.address ? { mint: call.output.address } : null,
@@ -265,15 +268,23 @@ async function runAction(action: AdapterAction, now: number): Promise<ActionRun>
   };
 }
 
+/** Token account → owner before the transaction (else after it), from token balances and decoded account states. */
+function tokenOwnersOf(pre: readonly SolanaTokenBalance[], post: readonly SolanaTokenBalance[], states: ReadonlyMap<string, string> = new Map()): Map<string, string> {
+  const owners = new Map(states);
+  for (const entry of [...pre, ...post]) if (entry.owner && !owners.has(entry.account)) owners.set(entry.account, entry.owner);
+  return owners;
+}
+
 /** Safety and amount rules over a successful simulation; throws on any violation. */
 function evaluateSimulation(
   network: SolanaNetworkKey,
   simulation: NonNullable<Awaited<ReturnType<typeof simulateSolanaTransactionDetailed>>>,
   before: Awaited<ReturnType<typeof readSolanaAccounts>>,
   watched: readonly string[],
-  user: string,
+  programs: readonly string[],
   rules: ActionSimulationRules,
 ): { expected: bigint | null; rows: AssetChange[]; fee: bigint; slot: bigint | null } {
+  const user = rules.user;
   // The wallet stays a plain System account.
   const wallet = simulation.accounts[0];
   if (!wallet || wallet.owner !== SYSTEM_PROGRAM || wallet.data.length !== 0) {
@@ -281,11 +292,16 @@ function evaluateSimulation(
   }
   // The user's token accounts keep their owner, delegate and close authority.
   const userTokenAccounts = new Set<string>();
+  const stateOwners = new Map<string, string>();
   watched.forEach((account, index) => {
     if (index === 0) return;
     const pre = decodeTokenAccount(before[index] ?? null);
     const postState = simulation.accounts[index] ?? null;
     const post = decodeTokenAccount(postState);
+    if (pre) stateOwners.set(account, pre.owner);
+    // Accounts the user holds authority over outside SPL balances keep their value and hands.
+    const authority = authorityStateRefusal(account, before[index] ?? null, postState, user);
+    if (authority) throw rejected(authority);
     if (pre?.owner === user) {
       userTokenAccounts.add(account);
       if (postState && postState.lamports > 0n) {
@@ -306,7 +322,10 @@ function evaluateSimulation(
     if (after && after.owner !== user) throw rejected(`The transaction would move ownership of the user's token account ${entry.account}.`);
   }
   for (const entry of simulation.postTokenBalances) if (entry.owner === user) userTokenAccounts.add(entry.account);
-  const inner = innerInstructionRefusal(simulation.innerInstructions, user, userTokenAccounts);
+  const inner = innerInstructionRefusal(simulation.innerInstructions, user, userTokenAccounts, {
+    programs,
+    tokenOwners: tokenOwnersOf(simulation.preTokenBalances, simulation.postTokenBalances, stateOwners),
+  });
   if (inner) throw rejected(inner);
   // Amounts.
   const index = simulation.accountKeys.indexOf(user);
@@ -342,8 +361,11 @@ async function verifyAction(context: Parameters<ContractProtocolAdapter["verify"
   const { result } = await verifySolanaReferences(context, (observations) => {
     for (const observation of observations) {
       if (!digests.has(actionInstructionDigest(observation.instructions ?? []))) {
-        return { failure: { code: "REFERENCE_MISMATCH", message: "The landed transaction's instructions differ from every payload prepared for this step (only compute-budget and Lighthouse instructions may be added)." } };
+        return { failure: { code: "REFERENCE_MISMATCH", message: "The landed transaction's instructions differ from every payload prepared for this step (only compute-budget and Lighthouse assertion instructions may be added)." } };
       }
+      // Tolerated wallet additions move nothing: a Lighthouse MemoryWrite (funded by the user) or a CPI makes it another transaction.
+      const addition = walletAdditionRefusal(observation.instructions ?? [], observation.innerInstructions ?? []);
+      if (addition) return { failure: { code: "REFERENCE_MISMATCH", message: addition } };
     }
     const pre: SolanaTokenBalance[] = observations.flatMap((observation) => [...(observation.tokenBalances?.pre ?? [])]);
     const post: SolanaTokenBalance[] = observations.flatMap((observation) => [...(observation.tokenBalances?.post ?? [])]);
@@ -353,7 +375,10 @@ async function verifyAction(context: Parameters<ContractProtocolAdapter["verify"
       const after = post.find((candidate) => candidate.account === entry.account);
       if (after && after.owner !== user) return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The user's token account ${entry.account} changed owner.` } };
     }
-    const inner = innerInstructionRefusal(observations.flatMap((observation) => [...(observation.innerInstructions ?? [])]), user, userTokenAccounts);
+    const inner = innerInstructionRefusal(observations.flatMap((observation) => [...(observation.innerInstructions ?? [])]), user, userTokenAccounts, {
+      programs: (snapshot.programs ?? []).map((pin) => pin.program),
+      tokenOwners: tokenOwnersOf(pre, post),
+    });
     if (inner) return { failure: { code: "OUTCOME_NOT_PROVEN", message: inner } };
     const { deltas } = tokenDeltasOf(pre, post, user);
     const solDelta = observations.reduce((total, observation) => {

@@ -99,6 +99,40 @@ const config = createConfig({
 });
 
 const queryClient = new QueryClient();
+const walletTheme = darkTheme({
+  accentColor: "#0052FF",
+  borderRadius: "small",
+});
+
+/** The subtree rendered inside the providers; read through context (see `ProviderShell`). */
+const ProvidedChildren = React.createContext<React.ReactNode>(null);
+
+function ProvidedChildrenSlot() {
+  return <>{React.useContext(ProvidedChildren)}</>;
+}
+
+/**
+ * The provider stack, rendered once. wagmi's `WagmiProvider` (its Hydrate
+ * step) starts a reconnect on every render; when a parent re-rendered the
+ * providers, an EVM connection went `reconnecting` and back each time, which
+ * looped on /embed (wallet state -> page state -> providers re-render). The
+ * children arrive through context instead of props, so a parent re-render
+ * only updates the slot and never re-renders this shell.
+ */
+const ProviderShell = React.memo(function ProviderShell() {
+  return (
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider locale="en-US" theme={walletTheme}>
+          <SolanaWalletProvider>
+            <WalletSyncBridge />
+            <ProvidedChildrenSlot />
+          </SolanaWalletProvider>
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+});
 
 /**
  * Wallet and data providers for every route that talks to a wallet: wagmi +
@@ -107,22 +141,9 @@ const queryClient = new QueryClient();
  */
 export function WalletProviders({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          locale="en-US"
-          theme={darkTheme({
-            accentColor: "#0052FF",
-            borderRadius: "small",
-          })}
-        >
-          <SolanaWalletProvider>
-            <WalletSyncBridge />
-            {children}
-          </SolanaWalletProvider>
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <ProvidedChildren.Provider value={children}>
+      <ProviderShell />
+    </ProvidedChildren.Provider>
   );
 }
 

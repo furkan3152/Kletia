@@ -60,8 +60,6 @@ export const STUDIO_EXAMPLE_GROUPS: readonly StudioExampleGroup[] = [
   },
 ];
 
-export const STUDIO_EXAMPLES: readonly string[] = STUDIO_EXAMPLE_GROUPS.flatMap((group) => group.examples);
-
 /** Prompt in the composer before the user types (a two-network, two-step plan). */
 export const STUDIO_DEFAULT_PROMPT = "bridge 50 USDC from base to solana then swap half to JitoSOL";
 

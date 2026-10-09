@@ -22,8 +22,9 @@ import {
   signature as toSignature,
 } from "@solana/kit";
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
-import { explorerTxUrl, isSolanaAddress, isSolanaSignature, WRAPPED_SOL_MINT } from "@kletia/core";
-import { solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
+import { createHash } from "node:crypto";
+import { explorerTxUrl, isSolanaAddress, isSolanaSignature, WRAPPED_SOL_MINT, type SolanaProgramPin } from "@kletia/core";
+import { SOLANA_RPC_URLS, solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
 import { PlatformError } from "../../errors.js";
 import { isRecord } from "../util.js";
@@ -386,8 +387,39 @@ export interface SolanaTransactionObservation {
    * hand-built observations stay valid; a missing list proves no instruction.
    */
   readonly instructions?: readonly SolanaInstructionView[];
+  /** Token balances before / after with their owners (empty when the body is not readable). */
+  readonly tokenBalances?: { readonly pre: readonly SolanaTokenBalance[]; readonly post: readonly SolanaTokenBalance[] };
+  /** Inner (CPI) instructions of the landed transaction, accounts resolved. */
+  readonly innerInstructions?: readonly SolanaInnerInstruction[];
   /** True when the transaction body could be read (statuses alone are not enough to accept). */
   readonly detailsAvailable: boolean;
+}
+
+/** One token balance entry of a transaction meta (or a simulation), owner included. */
+export interface SolanaTokenBalance {
+  readonly account: string;
+  readonly mint: string;
+  readonly owner: string | null;
+  readonly programId: string | null;
+  readonly amount: bigint;
+  readonly decimals: number | null;
+}
+
+/**
+ * An inner instruction of a landed or simulated transaction. RPCs return
+ * them compiled (account indexes, base58 data), partially decoded (account
+ * addresses, base58 data) or parsed (`{ type, info }` for known programs);
+ * all three are normalised here.
+ */
+export interface SolanaInnerInstruction {
+  /** Index of the top-level instruction that issued it. */
+  readonly index: number;
+  readonly program: string;
+  readonly accounts: readonly string[];
+  /** Raw data when the RPC returned it (null for parsed instructions). */
+  readonly data: Uint8Array | null;
+  /** RPC-parsed form for known programs (spl-token, system, ...). */
+  readonly parsed: { readonly type: string; readonly info: Readonly<Record<string, unknown>> } | null;
 }
 
 function toBigInt(value: unknown): bigint | null {
@@ -437,6 +469,76 @@ function instructionView(instruction: Record<string, unknown>, program: string |
   }
 }
 
+/** Token balance entries with owners (json `getTransaction` meta or `simulateTransaction`). */
+export function tokenBalanceList(value: unknown, keys: readonly string[]): SolanaTokenBalance[] {
+  const out: SolanaTokenBalance[] = [];
+  if (!Array.isArray(value)) return out;
+  for (const entry of value) {
+    if (!isRecord(entry) || !isRecord(entry.uiTokenAmount)) continue;
+    const index = typeof entry.accountIndex === "number" ? entry.accountIndex : typeof entry.accountIndex === "bigint" ? Number(entry.accountIndex) : null;
+    const account = index !== null ? keys[index] : undefined;
+    const amount = toBigInt(entry.uiTokenAmount.amount);
+    if (!account || typeof entry.mint !== "string" || amount === null) continue;
+    const decimals = toBigInt(entry.uiTokenAmount.decimals);
+    out.push({
+      account,
+      mint: entry.mint,
+      owner: typeof entry.owner === "string" ? entry.owner : null,
+      programId: typeof entry.programId === "string" ? entry.programId : null,
+      amount,
+      decimals: decimals === null ? null : Number(decimals),
+    });
+  }
+  return out;
+}
+
+function base58Bytes(value: unknown): Uint8Array | null {
+  if (typeof value !== "string") return null;
+  try {
+    return Uint8Array.from(getBase58Encoder().encode(value));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Normalises `innerInstructions` of a transaction meta or a simulation:
+ * compiled (`programIdIndex`, index accounts), partially decoded
+ * (`programId`, address accounts, base58 data) or parsed (`parsed`).
+ * Entries that cannot be read are kept with an empty program so a scan
+ * treats them as unknown (callers fail closed on them).
+ */
+export function innerInstructionList(value: unknown, keys: readonly string[]): SolanaInnerInstruction[] {
+  const out: SolanaInnerInstruction[] = [];
+  if (!Array.isArray(value)) return out;
+  for (const group of value) {
+    if (!isRecord(group) || !Array.isArray(group.instructions)) continue;
+    const index = Number(group.index ?? -1);
+    for (const raw of group.instructions) {
+      if (!isRecord(raw)) {
+        out.push({ index, program: "", accounts: [], data: null, parsed: null });
+        continue;
+      }
+      const programIndex = toBigInt(raw.programIdIndex);
+      const program = typeof raw.programId === "string" ? raw.programId : programIndex !== null ? keys[Number(programIndex)] ?? "" : "";
+      const accounts: string[] = [];
+      if (Array.isArray(raw.accounts)) {
+        for (const account of raw.accounts) {
+          const position = toBigInt(account);
+          if (typeof account === "string") accounts.push(account);
+          else if (position !== null && keys[Number(position)] !== undefined) accounts.push(keys[Number(position)] as string);
+          else accounts.push("");
+        }
+      }
+      const parsed = isRecord(raw.parsed) && typeof raw.parsed.type === "string"
+        ? { type: raw.parsed.type, info: isRecord(raw.parsed.info) ? raw.parsed.info : {} }
+        : null;
+      out.push({ index, program, accounts, data: raw.parsed !== undefined ? null : base58Bytes(raw.data), parsed });
+    }
+  }
+  return out;
+}
+
 interface SolanaTransactionDetails {
   readonly feePayer: string | null;
   readonly programs: readonly string[];
@@ -445,6 +547,8 @@ interface SolanaTransactionDetails {
   readonly lamportDeltas: ReadonlyMap<string, bigint>;
   readonly fee: bigint | null;
   readonly instructions: readonly SolanaInstructionView[];
+  readonly tokenBalances: { readonly pre: readonly SolanaTokenBalance[]; readonly post: readonly SolanaTokenBalance[] };
+  readonly innerInstructions: readonly SolanaInnerInstruction[];
   readonly executionError: string | null;
 }
 
@@ -520,6 +624,8 @@ async function readSolanaSignature(network: SolanaNetworkKey, signatureValue: st
       lamportDeltas,
       fee: toBigInt(meta.fee),
       instructions,
+      tokenBalances: { pre: tokenBalanceList(meta.preTokenBalances, keys), post: tokenBalanceList(meta.postTokenBalances, keys) },
+      innerInstructions: innerInstructionList(meta.innerInstructions, keys),
       executionError: meta.err !== null && meta.err !== undefined ? rpcErrorText(meta.err) : null,
     },
   };
@@ -556,6 +662,8 @@ export async function observeSolanaTransaction(
     lamportDeltas: new Map<string, bigint>(),
     fee: null,
     instructions: [],
+    tokenBalances: { pre: [], post: [] },
+    innerInstructions: [],
     detailsAvailable: false,
   };
   if (read.confirmation === null) return { ...base, ...empty, status: "not_found", error: null };
@@ -579,6 +687,8 @@ export async function observeSolanaTransaction(
     lamportDeltas: details.lamportDeltas,
     fee: details.fee,
     instructions: details.instructions,
+    tokenBalances: details.tokenBalances,
+    innerInstructions: details.innerInstructions,
     detailsAvailable: true,
   };
 }
@@ -619,4 +729,236 @@ export async function readSolanaCredit(
     ? (read.details.lamportDeltas.get(owner) ?? 0n) + (read.details.tokenDeltas.get(`${owner}:${WRAPPED_SOL_MINT}`) ?? 0n)
     : (read.details.tokenDeltas.get(`${owner}:${mint}`) ?? 0n);
   return { status: "success", credited, blockTime: read.details.blockTime };
+}
+
+/* ------------------------------------------------- Solana Actions support */
+
+type ExactReviver = (this: unknown, key: string, value: unknown, context?: { readonly source?: string }) => unknown;
+
+/**
+ * JSON.parse that keeps integers beyond 2^53 exact (as bigint): lamport
+ * balances of large accounts and `rentEpoch` (u64::MAX) exceed a double.
+ */
+export function parseJsonExact(text: string): unknown {
+  const reviver: ExactReviver = (_key, value, context) =>
+    typeof value === "number" && !Number.isSafeInteger(value) && typeof context?.source === "string" && /^-?\d+$/u.test(context.source)
+      ? BigInt(context.source)
+      : value;
+  return (JSON.parse as (text: string, reviver: ExactReviver) => unknown)(text, reviver);
+}
+
+/** Raw JSON-RPC to the network's Solana RPC (exact integers, unknown fields kept). */
+async function solanaJsonRpc(network: SolanaNetworkKey, method: string, params: readonly unknown[], timeoutMs = 10_000): Promise<{ ok: true; result: unknown } | { ok: false; error: string }> {
+  const response = await fetch(SOLANA_RPC_URLS[network], {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const body = parseJsonExact(await response.text());
+  if (!isRecord(body)) throw new Error("malformed JSON-RPC response");
+  if (isRecord(body.error)) return { ok: false, error: String(body.error.message ?? "error").slice(0, 200) };
+  if (!("result" in body)) throw new Error(`HTTP ${response.status}: no result`);
+  return { ok: true, result: body.result };
+}
+
+/** An account as returned with base64 encoding (null when it does not exist). */
+export interface SolanaAccountState {
+  readonly owner: string;
+  readonly lamports: bigint;
+  readonly executable: boolean;
+  readonly data: Uint8Array;
+}
+
+function accountState(value: unknown): SolanaAccountState | null {
+  if (!isRecord(value) || typeof value.owner !== "string" || !Array.isArray(value.data)) return null;
+  const lamports = toBigInt(value.lamports);
+  if (lamports === null) return null;
+  try {
+    return {
+      owner: value.owner,
+      lamports,
+      executable: value.executable === true,
+      data: Uint8Array.from(getBase64Encoder().encode(String(value.data[0] ?? ""))),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Reads up to 100 accounts (base64); null entries for accounts that do not exist. Throws SOLANA_RPC_UNAVAILABLE. */
+export async function readSolanaAccounts(network: SolanaNetworkKey, addresses: readonly string[], slice?: { readonly offset: number; readonly length: number }): Promise<(SolanaAccountState | null)[]> {
+  if (addresses.length === 0) return [];
+  if (addresses.length > 100) throw new PlatformError("ACTION_TRANSACTION_REJECTED", "The transaction writes too many accounts.", 422);
+  try {
+    const outcome = await solanaJsonRpc(network, "getMultipleAccounts", [
+      addresses,
+      { encoding: "base64", commitment: "confirmed", ...(slice ? { dataSlice: slice } : {}) },
+    ]);
+    if (!outcome.ok || !isRecord(outcome.result) || !Array.isArray(outcome.result.value)) throw new Error("unreadable");
+    return (outcome.result.value as unknown[]).map(accountState);
+  } catch {
+    throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "Solana accounts could not be read. Try again shortly.", 502);
+  }
+}
+
+export interface DetailedSolanaSimulation {
+  /** Transaction error text, or null when it would succeed. */
+  readonly error: string | null;
+  readonly logs: readonly string[];
+  readonly unitsConsumed: bigint | null;
+  /** Fee the fee payer would pay (lamports), when the RPC reports it. */
+  readonly fee: bigint | null;
+  /** Static keys followed by loaded (lookup-table) keys, as the balance arrays index them. */
+  readonly accountKeys: readonly string[];
+  readonly preBalances: readonly bigint[] | null;
+  readonly postBalances: readonly bigint[] | null;
+  readonly preTokenBalances: readonly SolanaTokenBalance[];
+  readonly postTokenBalances: readonly SolanaTokenBalance[];
+  readonly innerInstructions: readonly SolanaInnerInstruction[];
+  /** Post-simulation states of the requested accounts, in request order. */
+  readonly accounts: readonly (SolanaAccountState | null)[];
+  readonly slot: bigint | null;
+}
+
+/**
+ * Simulates an unsigned wire transaction with balances, token balances,
+ * inner instructions and the post states of `accounts` (sigVerify off, fresh
+ * blockhash). Returns null when the RPC cannot simulate right now.
+ */
+export async function simulateSolanaTransactionDetailed(
+  network: SolanaNetworkKey,
+  base64: string,
+  staticKeys: readonly string[],
+  accounts: readonly string[],
+): Promise<DetailedSolanaSimulation | null> {
+  let outcome;
+  try {
+    outcome = await solanaJsonRpc(network, "simulateTransaction", [
+      base64,
+      {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+        commitment: "confirmed",
+        innerInstructions: true,
+        ...(accounts.length > 0 ? { accounts: { encoding: "base64", addresses: accounts } } : {}),
+      },
+    ], 15_000);
+  } catch {
+    return null;
+  }
+  if (!outcome.ok || !isRecord(outcome.result) || !isRecord(outcome.result.value)) return null;
+  const value = outcome.result.value;
+  const loaded = isRecord(value.loadedAddresses) ? value.loadedAddresses : {};
+  const keys = [...staticKeys, ...stringList(loaded.writable), ...stringList(loaded.readonly)];
+  const numbers = (list: unknown) => (Array.isArray(list) ? list.map(toBigInt) : null);
+  const pre = numbers(value.preBalances);
+  const post = numbers(value.postBalances);
+  const context = isRecord(outcome.result.context) ? outcome.result.context : {};
+  return {
+    error: value.err === null || value.err === undefined ? null : rpcErrorText(value.err),
+    logs: stringList(value.logs).slice(-40),
+    unitsConsumed: toBigInt(value.unitsConsumed),
+    fee: toBigInt(value.fee),
+    accountKeys: keys,
+    preBalances: pre && pre.every((entry) => entry !== null) ? (pre as bigint[]) : null,
+    postBalances: post && post.every((entry) => entry !== null) ? (post as bigint[]) : null,
+    preTokenBalances: tokenBalanceList(value.preTokenBalances, keys),
+    postTokenBalances: tokenBalanceList(value.postTokenBalances, keys),
+    innerInstructions: innerInstructionList(value.innerInstructions, keys),
+    accounts: Array.isArray(value.accounts) ? value.accounts.map(accountState) : accounts.map(() => null),
+    slot: toBigInt(context.slot),
+  };
+}
+
+const UPGRADEABLE_LOADER = "BPFLoaderUpgradeab1e11111111111111111111111";
+const IMMUTABLE_LOADERS = new Set(["BPFLoader2111111111111111111111111111111111", "BPFLoader1111111111111111111111111111111111"]);
+
+/**
+ * Pins of Solana programs: owner loader, program data account, last deploy
+ * slot and upgrade authority (upgradeable loader: program account data
+ * `[u32 2][programData]`, program data header `[u32 3][u64 slot][Option<Pubkey>]`),
+ * or the sha256 of the account data for the immutable loaders. Refuses
+ * (PROGRAM_NOT_ALLOWED) accounts that are not executable programs of a
+ * supported loader.
+ */
+export async function readProgramPins(network: SolanaNetworkKey, programs: readonly string[]): Promise<SolanaProgramPin[]> {
+  const accounts = await readSolanaAccounts(network, programs);
+  const decoder = getAddressDecoder();
+  const programData = new Map<string, string>();
+  for (const [index, program] of programs.entries()) {
+    const account = accounts[index];
+    if (!account || !account.executable) {
+      throw new PlatformError("PROGRAM_NOT_ALLOWED", `${program} is not an executable program on ${network}.`, 422);
+    }
+    if (account.owner === UPGRADEABLE_LOADER) {
+      const view = new DataView(account.data.buffer, account.data.byteOffset, account.data.byteLength);
+      if (account.data.length < 36 || view.getUint32(0, true) !== 2) {
+        throw new PlatformError("PROGRAM_NOT_ALLOWED", `${program} is not a deployed upgradeable program.`, 422);
+      }
+      programData.set(program, String(decoder.decode(account.data.subarray(4, 36))));
+    } else if (!IMMUTABLE_LOADERS.has(account.owner)) {
+      throw new PlatformError("PROGRAM_NOT_ALLOWED", `${program} is owned by ${account.owner}, a loader Kletia does not pin.`, 422);
+    }
+  }
+  const dataAddresses = [...programData.values()];
+  const headers = await readSolanaAccounts(network, dataAddresses, { offset: 0, length: 45 });
+  return programs.map((program, index): SolanaProgramPin => {
+    const account = accounts[index] as SolanaAccountState;
+    const dataAddress = programData.get(program);
+    if (!dataAddress) {
+      return {
+        program,
+        loader: account.owner,
+        programData: null,
+        lastDeploySlot: null,
+        upgradeAuthority: null,
+        dataHash: createHash("sha256").update(account.data).digest("hex"),
+      };
+    }
+    const header = headers[dataAddresses.indexOf(dataAddress)];
+    const bytes = header?.data;
+    if (!bytes || bytes.length < 13 || new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true) !== 3) {
+      throw new PlatformError("PROGRAM_NOT_ALLOWED", `The program data account of ${program} is unreadable.`, 422);
+    }
+    const slot = readU64(bytes, 4);
+    const authority = bytes[12] === 1 && bytes.length >= 45 ? String(decoder.decode(bytes.subarray(13, 45))) : null;
+    return {
+      program,
+      loader: UPGRADEABLE_LOADER,
+      programData: dataAddress,
+      lastDeploySlot: slot === null ? null : slot.toString(),
+      upgradeAuthority: authority,
+    };
+  });
+}
+
+/** A recent blockhash and its last valid block height (re-blockhashing Solana Action payloads). */
+export async function latestBlockhash(network: SolanaNetworkKey): Promise<{ readonly blockhash: string; readonly lastValidBlockHeight: number }> {
+  try {
+    const { value } = await solanaRpc(network).getLatestBlockhash({ commitment: "confirmed" }).send({ abortSignal: rpcAbortSignal() });
+    return { blockhash: String(value.blockhash), lastValidBlockHeight: Number(value.lastValidBlockHeight) };
+  } catch {
+    throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "The Solana RPC could not provide a recent blockhash. Try again shortly.", 502);
+  }
+}
+
+/** A legacy transaction with one empty signature and no instructions: any RPC that can simulate answers it. */
+const PROBE_TRANSACTION = "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAABBpuIV/6rgYT7aH9jRhjANdrEOdwa6ztVmKDwAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const solanaProbes = new Map<SolanaNetworkKey, { ok: boolean; at: number }>();
+
+/** Whether the network's RPC answers simulateTransaction (cached 10 minutes; health). */
+export async function probeSolanaSimulation(network: SolanaNetworkKey): Promise<boolean> {
+  const cached = solanaProbes.get(network);
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.ok;
+  let ok = false;
+  try {
+    const outcome = await solanaJsonRpc(network, "simulateTransaction", [PROBE_TRANSACTION, { encoding: "base64", sigVerify: false, replaceRecentBlockhash: true }], 6_000);
+    ok = outcome.ok && isRecord(outcome.result) && isRecord(outcome.result.value);
+  } catch {
+    ok = false;
+  }
+  solanaProbes.set(network, { ok, at: Date.now() });
+  return ok;
 }

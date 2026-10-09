@@ -2,7 +2,8 @@
 
 Kletia serves a [Model Context Protocol](https://modelcontextprotocol.io)
 server at `https://api.kletiaai.xyz/v1/mcp`. Agents can learn what Kletia
-supports, quote routes, dry-run intents, read intents and balances, and hand
+supports, quote routes, dry-run intents, read intents and balances, read and
+test-simulate the custom contracts registered with their API key, and hand
 the user a link to sign in Kletia Studio.
 
 **No tool moves funds.** There is no prepare, submit or signing tool, and no
@@ -16,7 +17,7 @@ Claude Code:
 
 ```bash
 claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp
-# with an API key (higher limits, list_intents):
+# with an API key (higher limits, list_intents, custom contracts):
 claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp \
   --header "Authorization: Bearer kl_dev_…"
 ```
@@ -74,8 +75,11 @@ per-call `Mcp-Param-*` headers.
 
 Authentication is optional. With an API key the server passes
 `{ clientId: <key id>, scopes: [<tier>] }` to the MCP layer as its auth info;
-the key itself never leaves the authentication middleware. Only
-`list_intents` needs a key.
+the key itself never leaves the authentication middleware. `list_intents`,
+`list_contracts`, `get_contract` and `test_contract_action` need a key, and
+with a key `plan_intent` also plans the key's [custom contracts](contracts.md)
+(ids, aliases and `{ "kind": "call" | "action", "contract", "entry" }`
+actions).
 
 ## Tools
 
@@ -87,11 +91,14 @@ All tools are annotated `readOnlyHint: true`, `destructiveHint: false`.
 | `list_protocols` | `network?`, `executableOnly?` (default true) | Registry protocols and whether Kletia executes them |
 | `list_assets` | `network` | Canonical assets (symbol, address or mint, decimals) |
 | `get_quote` | `network`, `from`, `to`, `amount`, `toNetwork?`, `account?`, `recipient?`, `slippageBps?` | Best route and alternatives (output, guaranteed minimum, fees, time) |
-| `plan_intent` | `text` or `actions`, `accounts`, `defaultNetwork?`, `constraints?` | Dry-run plan: summary, steps, warnings, `externalRecipients`; never stored |
+| `plan_intent` | `text` or `actions` (`contract` / `entry` for custom contract steps), `accounts`, `defaultNetwork?`, `constraints?` | Dry-run plan: summary, steps (custom contract steps with `contract`, `entry` and their `review`), warnings, `externalRecipients`; never stored |
 | `get_intent` | `intentId` | Status, steps, amounts, recipients and the latest on-chain evidence |
 | `list_intents` | `limit?` | The key's most recent intents (needs an API key) |
 | `get_portfolio` | `accountId` (CAIP-10) | Balances with USD values where priced |
-| `create_signing_link` | `text` (≤ 500 characters) | `https://kletiaai.xyz/studio?q=<text>` and instructions for the user |
+| `create_signing_link` | `text` (≤ 500 characters) | `https://kletiaai.xyz/studio?q=<text>` and instructions for the user. Refused (`CONTRACT_HANDOFF_UNSUPPORTED`) when the text names a registered contract (an id, or an alias of the key's registrations): Studio is keyless, so those intents go through sessions |
+| `list_contracts` | `network?`, `status?` | The key's contract registrations (and its project's visible ones): status, entries with verbs and aliases, source / domain / program verification, code hashes. Never ABIs or pins beyond hashes (needs an API key) |
+| `get_contract` | `contractId` | The same view of one registration (needs an API key) |
+| `test_contract_action` | `contractId`, `entry`, `account`, `amount?`, `params?` | Dry run of one entry for an account: the simulated review (approvals, asset changes, notices) and the transactions that would be signed, without calldata; nothing stored (needs an API key; 20 per minute per key) |
 
 Results carry `structuredContent` and the same JSON as text. Failures are
 `isError: true` results whose `structuredContent.error` holds the Platform API
@@ -110,6 +117,9 @@ the grammar understands, so an agent can correct its own wording.
    Basenames or SNS name a recipient came from) and `extraCosts` (value paid on
    top of the input, such as a bridge's fixed fee).
 3. `create_signing_link` with the same text → give the link to the user.
+   Intents with custom contract steps cannot be handed off this way; the
+   integrator's backend creates a session (`POST /v1/sessions`) and embeds it
+   instead.
 4. After the user signs in Studio, `get_intent` (with the id Studio shows)
    follows settlement.
 
@@ -120,6 +130,8 @@ the grammar understands, so an agent can correct its own wording.
 - Intent ids are read capabilities: whoever holds one can read the intent,
   including its accounts. Share them only with the user who owns the intent.
 - Quotes and plans are advisory and expire; Studio re-plans before signing.
+- Custom contracts are integrator code that Kletia has not audited. Relay the
+  review's notices and simulated asset changes to the user as they are.
 - Never ask a user for a private key or seed phrase. Kletia never needs one.
 
 ## Configuration

@@ -32,12 +32,14 @@ import {
   type SettlementPollerOptions,
 } from "../index.js";
 import { authenticate, enforceAuthentication, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
+import { validateContractTestRequest } from "@kletia/core";
 import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
 import { assetRegistry, networkCapabilities, protocolRegistry, venueFilter } from "./catalog.js";
 import {
   authOf,
   booleanQuery,
   cachePublicly,
+  contractIdParam,
   handle,
   HttpError,
   intentIdParam,
@@ -49,34 +51,51 @@ import {
   queryParam,
   requestContext,
   sendError,
+  sessionIdParam,
   stepIdParam,
   WEBHOOK_ID_PATTERN,
 } from "./context.js";
+import {
+  deleteContract,
+  getContract,
+  inspectContract,
+  installContractDirectory,
+  listContracts,
+  operatorSuspend,
+  parseContractListFilter,
+  registerContract,
+  reverifyContract,
+  testContract,
+  updateContract,
+} from "./contracts.js";
+import { startContractWatcher } from "./contractWatcher.js";
 import { deliveryStore, listDeliveries, sendTestDelivery, startDeliveryPruner } from "./deliveries.js";
 import { startWebhookDispatcher, webhookDeliveryTransport, WEBHOOK_USER_AGENT, type WebhookTransport } from "./dispatcher.js";
 import { errorCatalogView } from "./errorsRoute.js";
 import { readPlatformHealth } from "./health.js";
 import { idempotencyUnsupported, idempotent, startIdempotencyPruner } from "./idempotency.js";
 import { issueKey, keyIdParam, listProjectKeys, parseRotateRequest, revokeKey, rotateKey } from "./keys.js";
-import { createKeyIssuanceLimiter, createTierLimiter } from "./limits.js";
+import { contractTestLimiter, contractWriteLimiter, createKeyIssuanceLimiter, createTierLimiter } from "./limits.js";
 import { mcpOriginGuard } from "./mcp/origin.js";
 import { serveMcp } from "./mcp/server.js";
 import { openApiJson } from "./openapi.js";
 import { rememberIntentOwner } from "./owners.js";
 import { platformSecretStatus } from "./secrets.js";
+import { createSession, createSessionIntent, getSession, startSessionPruner } from "./sessions.js";
 import { streamIntentEvents, type StreamOptions } from "./sse.js";
 import { parseUsageWindow, startUsageFlusher, usageCounter, usageReport } from "./usage.js";
 import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 
-type Method = "get" | "post" | "delete";
+type Method = "get" | "post" | "patch" | "delete";
 
 export interface PlatformRoute {
   readonly method: Method;
   /** Express path relative to the /v1 mount point. */
   readonly path: string;
-  readonly auth: "public" | "key";
+  /** `operator`: an operator API key (developer keys are refused). */
+  readonly auth: "public" | "key" | "operator";
 }
 
 /** Every endpoint the router serves (also used to keep the OpenAPI document honest). */
@@ -106,6 +125,19 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/keys/:id/rotate", auth: "key" },
   { method: "delete", path: "/keys/:id", auth: "key" },
   { method: "get", path: "/usage", auth: "key" },
+  { method: "post", path: "/contracts", auth: "key" },
+  { method: "get", path: "/contracts", auth: "key" },
+  // Before /contracts/:id, which would otherwise capture "inspect".
+  { method: "get", path: "/contracts/inspect", auth: "key" },
+  { method: "get", path: "/contracts/:id", auth: "key" },
+  { method: "patch", path: "/contracts/:id", auth: "key" },
+  { method: "delete", path: "/contracts/:id", auth: "key" },
+  { method: "post", path: "/contracts/:id/test", auth: "key" },
+  { method: "post", path: "/contracts/:id/reverify", auth: "key" },
+  { method: "post", path: "/contracts/:id/suspend", auth: "operator" },
+  { method: "post", path: "/sessions", auth: "key" },
+  { method: "get", path: "/sessions/:id", auth: "public" },
+  { method: "post", path: "/sessions/:id/intents", auth: "public" },
   { method: "get", path: "/errors", auth: "public" },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public" },
@@ -344,6 +376,101 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       }),
     ],
     "post /mcp": [mcpOriginGuard, serveMcp],
+    "post /contracts": [
+      requireApiKey,
+      idempotent({ route: "POST /contracts" }),
+      contractWriteLimiter.middleware(),
+      handle(async (req, res) => {
+        sendJson(res, 201, { contract: await registerContract(authOf(req), req.body) });
+      }),
+    ],
+    "get /contracts": [
+      requireApiKey,
+      handle(async (req, res) => {
+        const filter = parseContractListFilter({
+          network: queryParam(req, "network"),
+          vm: queryParam(req, "vm", 8),
+          status: queryParam(req, "status", 16),
+        });
+        sendJson(res, 200, { contracts: await listContracts(authOf(req), filter) });
+      }),
+    ],
+    "get /contracts/inspect": [
+      requireApiKey,
+      contractTestLimiter.middleware(),
+      handle(async (req, res) => {
+        const inspection = await inspectContract({
+          network: queryParam(req, "network"),
+          address: queryParam(req, "address", 64),
+          programs: queryParam(req, "programs", 400),
+        });
+        sendJson(res, 200, { inspection });
+      }),
+    ],
+    "get /contracts/:id": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { contract: await getContract(authOf(req), contractIdParam(req)) });
+      }),
+    ],
+    "patch /contracts/:id": [
+      requireApiKey,
+      idempotent({ route: "PATCH /contracts/:id" }),
+      contractWriteLimiter.middleware(),
+      handle(async (req, res) => {
+        sendJson(res, 200, { contract: await updateContract(authOf(req), contractIdParam(req), req.body) });
+      }),
+    ],
+    "delete /contracts/:id": [
+      requireApiKey,
+      handle(async (req, res) => {
+        await deleteContract(authOf(req), contractIdParam(req));
+        res.status(204).end();
+      }),
+    ],
+    "post /contracts/:id/test": [
+      requireApiKey,
+      contractTestLimiter.middleware(),
+      handle(async (req, res) => {
+        const id = contractIdParam(req);
+        const parsed = validateContractTestRequest(req.body);
+        if (!parsed.ok) throw invalidRequest("The test request is invalid.", parsed.issues);
+        sendJson(res, 200, { test: await testContract(authOf(req), id, parsed.value) });
+      }),
+    ],
+    "post /contracts/:id/reverify": [
+      requireApiKey,
+      idempotent({ route: "POST /contracts/:id/reverify" }),
+      contractWriteLimiter.middleware(),
+      handle(async (req, res) => {
+        sendJson(res, 200, { contract: await reverifyContract(authOf(req), contractIdParam(req)) });
+      }),
+    ],
+    "post /contracts/:id/suspend": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { contract: await operatorSuspend(authOf(req), contractIdParam(req), req.body) });
+      }),
+    ],
+    "post /sessions": [
+      requireApiKey,
+      idempotent({ route: "POST /sessions" }),
+      handle(async (req, res) => {
+        sendJson(res, 201, { session: await createSession(authOf(req), req.body) });
+      }),
+    ],
+    "get /sessions/:id": [
+      handle(async (req, res) => {
+        sendJson(res, 200, { session: await getSession(sessionIdParam(req)) });
+      }),
+    ],
+    "post /sessions/:id/intents": [
+      handle(async (req, res) => {
+        const { intent, replayed } = await createSessionIntent(sessionIdParam(req), req.body);
+        if (replayed) res.setHeader("Idempotent-Replayed", "true");
+        sendJson(res, replayed ? 200 : 201, { intent });
+      }),
+    ],
     "post /quotes": [
       handle(async (req, res) => {
         // The engine accepts both the flat body and the nested SDK body (including from.account / to.recipient).
@@ -473,6 +600,8 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   // Recipient-name resolvers (ENS, Basenames, SNS) register here rather than
   // in a long-running entry point so serverless hosts get them too; idempotent.
   installNameResolvers();
+  // The engine resolves integrator contract registrations through this directory (idempotent).
+  installContractDirectory();
   // Boot-time configuration: operator key hashes and the webhook sealing key.
   loadOperatorKeys();
   platformSecretStatus();
@@ -516,9 +645,9 @@ export interface PlatformBackgroundOptions {
 let stopBackground: (() => void) | null = null;
 
 /**
- * Starts the settlement poller, the webhook dispatcher, the usage flusher
- * and the hourly pruning of idempotency records and delivery logs, once per
- * process. Returns an idempotent stop function. Call it on long-running
+ * Starts the settlement poller, the webhook dispatcher, the usage flusher,
+ * the contract pin watcher and the hourly pruning of idempotency records,
+ * delivery logs and expired sessions, once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
  * per request and expired rows wait for a long-running instance).
  */
@@ -530,6 +659,8 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startUsageFlusher(),
     startIdempotencyPruner(),
     startDeliveryPruner(),
+    startContractWatcher(),
+    startSessionPruner(),
   ];
   const stop = () => {
     if (stopBackground !== stop) return;

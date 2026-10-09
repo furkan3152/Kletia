@@ -3,6 +3,11 @@
  * getSlot/getVersion, EVM via eth_blockNumber). Never throws; results are
  * cached for 10 s and concurrent callers share one probe. Provider error
  * text is never returned (it can contain keyed RPC URLs).
+ *
+ * Custom contracts: whether they are enabled and, per network, whether a
+ * configured endpoint can simulate (`eth_simulateV1` / `simulateTransaction`),
+ * which custom contract steps need before they can be prepared. That probe is
+ * cached for 60 s and bounded to 4 s.
  */
 import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 import type { PublicClient } from "viem";
@@ -11,8 +16,11 @@ import { arbitrumSepoliaPublicClient } from "../../networks/arbitrum-sepolia/con
 import { NETWORK_CLIENTS, PLATFORM_NETWORK_CLIENTS } from "../../shared/config/networks.js";
 import { getIntentStore } from "../index.js";
 import { apiKeyStoreKind } from "./auth.js";
+import { contractEngine, contractsEnabled } from "./contractChecks.js";
+import { contractStoreKind } from "./contracts.js";
 import { webhookDispatcherStats, type DispatcherStats } from "./dispatcher.js";
 import { platformSecretStatus, type PlatformSecretStatus } from "./secrets.js";
+import { sessionStore } from "./sessions.js";
 import { webhookStoreKind } from "./webhooks.js";
 
 export const PLATFORM_API_VERSION = "1.0.0";
@@ -39,12 +47,17 @@ export interface PlatformHealth {
   readonly time: string;
   readonly uptimeSeconds: number;
   readonly networks: readonly NetworkHealth[];
-  readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string };
+  readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string; readonly contracts: string; readonly sessions: string };
   readonly webhooks: {
     readonly status: "enabled" | "needs_configuration";
     /** How webhook secrets are sealed: a configured secret, the development key (memory stores only) or none. */
     readonly sealing: PlatformSecretStatus;
     readonly dispatcher: DispatcherStats | null;
+  };
+  readonly contracts: {
+    readonly enabled: boolean;
+    /** Per network: can a configured endpoint simulate now? Null when not probed (custom health probe) or unavailable. */
+    readonly simulation: Partial<Record<NetworkKey, "ok" | "unavailable">> | null;
   };
 }
 
@@ -114,14 +127,41 @@ let cached: { readonly at: number; readonly networks: readonly NetworkHealth[] }
 let inflight: Promise<readonly NetworkHealth[]> | null = null;
 let activeProbe: (network: NetworkKey) => Promise<NetworkHealth> = probe;
 
+type SimulationProbe = () => Promise<Partial<Record<NetworkKey, "ok" | "unavailable">>>;
+
+const liveSimulationProbe: SimulationProbe = () => contractEngine().simulationCapability();
+let simulationProbe: SimulationProbe | null = liveSimulationProbe;
+let simulationCache: { readonly at: number; readonly value: Partial<Record<NetworkKey, "ok" | "unavailable">> | null } | null = null;
+const SIMULATION_CACHE_MS = 60_000;
+
 /**
  * Replaces the per-network RPC probe (tests, embedders with their own
- * monitoring); `null` restores the live probe. Clears the cached result.
+ * monitoring); `null` restores the live probes. A custom probe also replaces
+ * the simulation capability probe (`simulation`, not probed when omitted).
+ * Clears the cached results.
  */
-export function configureHealthProbe(custom: ((network: NetworkKey) => Promise<NetworkHealth>) | null): void {
+export function configureHealthProbe(custom: ((network: NetworkKey) => Promise<NetworkHealth>) | null, simulation?: SimulationProbe): void {
   activeProbe = custom ?? probe;
+  simulationProbe = custom ? (simulation ?? null) : liveSimulationProbe;
   cached = null;
   inflight = null;
+  simulationCache = null;
+}
+
+async function simulationHealth(): Promise<Partial<Record<NetworkKey, "ok" | "unavailable">> | null> {
+  const now = Date.now();
+  if (simulationCache && now - simulationCache.at < SIMULATION_CACHE_MS) return simulationCache.value;
+  const probeUsed = simulationProbe;
+  let value: Partial<Record<NetworkKey, "ok" | "unavailable">> | null = null;
+  if (probeUsed && contractsEnabled()) {
+    try {
+      value = await withTimeout(probeUsed(), PROBE_TIMEOUT_MS);
+    } catch {
+      value = null;
+    }
+  }
+  if (simulationProbe === probeUsed) simulationCache = { at: Date.now(), value };
+  return value;
 }
 
 async function safeProbe(network: NetworkKey): Promise<NetworkHealth> {
@@ -152,12 +192,8 @@ async function networkHealth(): Promise<readonly NetworkHealth[]> {
 }
 
 export async function readPlatformHealth(): Promise<PlatformHealth> {
-  let networks: readonly NetworkHealth[];
-  try {
-    networks = await networkHealth();
-  } catch {
-    networks = [];
-  }
+  // The RPC probes and the simulation probe run side by side (both bounded).
+  const [networks, simulation] = await Promise.all([networkHealth().catch((): readonly NetworkHealth[] => []), simulationHealth()]);
   const healthy = networks.filter((entry) => entry.ok).length;
   const sealing = platformSecretStatus();
   const webhooksEnabled = sealing !== "missing";
@@ -172,11 +208,14 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
       intents: storeKind(() => getIntentStore().kind),
       apiKeys: storeKind(apiKeyStoreKind),
       webhooks: storeKind(webhookStoreKind),
+      contracts: storeKind(contractStoreKind),
+      sessions: storeKind(() => sessionStore().kind),
     },
     webhooks: {
       status: webhooksEnabled ? "enabled" : "needs_configuration",
       sealing,
       dispatcher: webhookDispatcherStats(),
     },
+    contracts: { enabled: contractsEnabled(), simulation },
   };
 }

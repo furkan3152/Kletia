@@ -16,7 +16,9 @@
  */
 import {
   CHAINS,
+  contractActionInput,
   counterpartAsset,
+  CUSTOM_CONTRACT_WARNING,
   deriveIntentStatus,
   findAssetBySymbol,
   findYieldVenue,
@@ -24,9 +26,12 @@ import {
   getAsset,
   getProtocol,
   getYieldVenue,
+  CONTRACT_ID_PATTERN,
   INTENT_SPEC_VERSION,
+  nativeAssetId,
   parseAccountId,
   PROTOCOLS,
+  resolveContractParams,
   sameCapitalLane,
   toBaseUnits,
   validateIntentGraph,
@@ -34,6 +39,7 @@ import {
   YIELD_VENUES,
   yieldVenuesFor,
   type AssetAmount,
+  type EvmContractAction,
   type IntentActionKind,
   type IntentActionSpec,
   type IntentEdge,
@@ -44,6 +50,7 @@ import {
   type NetworkKey,
   type ParsedAccountId,
   type ProtocolId,
+  type SolanaActionEndpoint,
   type StepEvidence,
   type YieldVenue,
   type YieldVenueAction,
@@ -51,8 +58,11 @@ import {
 import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
 import { recordedVenueId } from "./adapters/lending/common.js";
-import { activeProtocolAdapters, candidateAdapters } from "./adapters/registry.js";
-import type { AdapterAction, AdapterRoute, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
+import { activeProtocolAdapters, adapterForProtocol, candidateAdapters } from "./adapters/registry.js";
+import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
+import { assertContractAmount } from "./contracts/caps.js";
+import { contractDirectory, contractsEnabled, type ContractPhrase, type RegisteredContract } from "./contracts/directory.js";
+import { evmOutputToken, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
 import { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS } from "./grammar.js";
@@ -63,7 +73,9 @@ import { newIntentId, portionOf, roundUsd } from "./util.js";
 export const DEFAULT_SLIPPAGE_BPS = 50;
 export const INTENT_TTL_MS = 30 * 60 * 1000;
 
-const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridge", "stake", "deposit", "withdraw"];
+const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridge", "stake", "deposit", "withdraw", "call", "action"];
+/** Kinds bound to an integrator contract registration (`contract` + `entry`). */
+const CONTRACT_KINDS: readonly IntentActionKind[] = ["call", "action"];
 /** Lending protocols in the order a deposit / withdraw without a named protocol tries them. */
 export const LENDING_PROTOCOLS: readonly ProtocolId[] = ["aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino"];
 const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
@@ -81,7 +93,9 @@ const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
 type AmountSpec =
   | { readonly type: "exact"; readonly value: string }
   | { readonly type: "previous"; readonly portionBps: number }
-  | { readonly type: "position" };
+  | { readonly type: "position" }
+  /** Call / action entries that spend nothing (e.g. claim). */
+  | { readonly type: "none" };
 
 /** An action after normalisation, before assets are resolved. */
 export interface NormalizedAction {
@@ -97,11 +111,21 @@ export interface NormalizedAction {
   readonly provider?: string;
   /** Deposit / withdraw venue reference from `params.venue` (id, slug or address). */
   readonly venue?: string;
+  /** Call / action: registration id or alias, entry id and the entry's parameter values. */
+  readonly contract?: string;
+  readonly entry?: string;
+  readonly params?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export interface PlanOptions {
   readonly now?: number;
   readonly id?: string;
+  /**
+   * API key id the intent is created with: registrations this key may use
+   * can be called (structured `call` / `action` actions and their aliases in
+   * text). Intents without a key can never contain call / action steps.
+   */
+  readonly ownerKeyId?: string;
 }
 
 function issue(path: string, message: string) {
@@ -118,6 +142,57 @@ function portionFrom(spec: IntentActionSpec, path: string): number {
   return value;
 }
 
+/** Call / action specs: the VM must match the network; the amount is optional (non-spending entries). */
+function normalizeContractAction(spec: IntentActionSpec, index: number): NormalizedAction {
+  const path = `actions[${index}]`;
+  const vm = spec.kind === "call" ? "evm" : "svm";
+  if (CHAINS[spec.network].vm !== vm) {
+    throw new PlatformError(
+      "NETWORK_UNSUPPORTED",
+      spec.kind === "call"
+        ? `call steps run registered EVM contracts; ${CHAINS[spec.network].name} is not an EVM network (use kind "action" for Solana Actions).`
+        : `action steps run registered Solana Actions; ${CHAINS[spec.network].name} is not a Solana network (use kind "call" for EVM contracts).`,
+      422,
+      issue(`${path}.network`, "Wrong VM for this kind."),
+    );
+  }
+  const expected: ProtocolId = spec.kind === "call" ? "custom-call" : "solana-actions";
+  if (spec.protocol && spec.protocol !== expected) {
+    throw unsupported(`${spec.kind} steps execute under ${expected}, not ${spec.protocol}.`, GRAMMAR_EXAMPLES, issue(`${path}.protocol`, "Unsupported."));
+  }
+  if (spec.params?.venue !== undefined) {
+    throw unsupported("params.venue applies to deposit and withdraw actions only.", GRAMMAR_EXAMPLES, issue(`${path}.params.venue`, "Unsupported."));
+  }
+  if (spec.toNetwork !== undefined && spec.toNetwork !== spec.network) {
+    throw unsupported(`${spec.kind} steps run on one network; move funds with a bridge step first.`, GRAMMAR_EXAMPLES, issue(`${path}.toNetwork`, "Unsupported."));
+  }
+  const amount: AmountSpec = spec.amount === undefined
+    ? { type: "none" }
+    : spec.amount === "max"
+      ? { type: "previous", portionBps: portionFrom(spec, path) }
+      : { type: "exact", value: spec.amount };
+  if (amount.type === "previous" && index === 0) {
+    throw unsupported(
+      "\"max\" means the output of the previous step, so the first action needs an explicit amount.",
+      GRAMMAR_EXAMPLES,
+      issue(`${path}.amount`, "No previous step."),
+    );
+  }
+  return {
+    index,
+    kind: spec.kind,
+    network: spec.network,
+    destinationNetwork: spec.network,
+    amount,
+    ...(spec.from ? { from: spec.from } : {}),
+    ...(spec.recipient ? { recipient: spec.recipient } : {}),
+    protocol: expected,
+    contract: spec.contract ?? "",
+    entry: spec.entry ?? "",
+    ...(spec.params ? { params: spec.params } : {}),
+  };
+}
+
 /** Normalises structured or grammar-produced actions and enforces one capital lane. */
 export function normalizeActions(actions: readonly IntentActionSpec[], request: IntentRequest): NormalizedAction[] {
   const normalized = actions.map((spec, index): NormalizedAction => {
@@ -125,11 +200,12 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     let kind = spec.kind;
     if (!SUPPORTED_KINDS.includes(kind)) {
       throw unsupported(
-        `"${kind}" intents are not executable yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit and withdraw (lending venues).`,
+        `"${kind}" intents are not executable yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit and withdraw (lending venues), and call / action steps of registered contracts.`,
         GRAMMAR_EXAMPLES,
         issue(`${path}.kind`, "Unsupported action kind."),
       );
     }
+    if (CONTRACT_KINDS.includes(kind)) return normalizeContractAction(spec, index);
     if (spec.amount === undefined) {
       throw new PlatformError("AMOUNT_REQUIRED", "Every action needs an amount (decimal or \"max\").", 400, issue(`${path}.amount`, "Required."));
     }
@@ -219,7 +295,8 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
 
 interface PreviousStep {
   readonly step: IntentStep;
-  readonly output: ResolvedAsset;
+  /** Null after a call / action step that declares no output. */
+  readonly output: ResolvedAsset | null;
   readonly network: NetworkKey;
   /** Account the previous step pays its output to. */
   readonly recipient: ParsedAccountId;
@@ -274,23 +351,32 @@ function noCandidates(route: AdapterRoute, requested: ProtocolId | undefined): P
 async function resolveInput(action: NormalizedAction, previous: PreviousStep | null): Promise<ResolvedAsset> {
   if (action.amount.type === "previous") {
     if (!previous) throw unsupported("\"max\" needs a previous step.", GRAMMAR_EXAMPLES);
+    if (!previous.output) {
+      throw new PlatformError(
+        "AMOUNT_REQUIRED",
+        `Step ${action.index + 1} spends the previous step's output, but the previous step produces nothing to spend. Give an explicit amount.`,
+        400,
+        issue(`actions[${action.index}].amount`, "The previous step has no output."),
+      );
+    }
     if (previous.network !== action.network) {
       throw unsupported(
         `Step ${action.index + 1} spends funds on ${CHAINS[action.network].name}, but step ${action.index} delivers them on ${CHAINS[previous.network].name}.`,
         GRAMMAR_EXAMPLES,
       );
     }
+    const produced = previous.output;
     if (action.from) {
       const named = await resolveAsset(action.network, action.from);
-      if (!sameAsset(named, previous.output)) {
+      if (!sameAsset(named, produced)) {
         throw new PlatformError(
           "ASSET_MISMATCH",
-          `Step ${action.index + 1} spends ${named.symbol}, but the previous step produces ${previous.output.symbol}.`,
+          `Step ${action.index + 1} spends ${named.symbol}, but the previous step produces ${produced.symbol}.`,
           422,
         );
       }
     }
-    return previous.output;
+    return produced;
   }
   if (!action.from) {
     throw new PlatformError("ASSET_REQUIRED", `Step ${action.index + 1} needs an input token (e.g. "5 USDC").`, 422, issue(`actions[${action.index}].from`, "Required."));
@@ -463,6 +549,8 @@ function baseUnits(value: string, asset: ResolvedAsset, index: number): string {
   return units;
 }
 
+type AnyPlannedStep = PlannedStep | ContractPlannedStep;
+
 interface CandidateSelection {
   readonly adapter: ProtocolAdapter;
   readonly planned: PlannedStep;
@@ -502,7 +590,7 @@ async function planWithCandidates(
 interface StepDraft {
   readonly action: NormalizedAction;
   readonly adapter: ProtocolAdapter;
-  readonly planned: PlannedStep;
+  readonly planned: AnyPlannedStep;
   readonly account: ParsedAccountId;
   readonly recipient: ParsedAccountId;
   /** Name the recipient was resolved from. */
@@ -511,7 +599,8 @@ interface StepDraft {
   readonly auction?: AuctionResult;
   /** Planner warnings for the step (venue defaults, auction notes). */
   readonly notes: readonly string[];
-  readonly output: ResolvedAsset;
+  /** Null for a call / action step without a declared output. */
+  readonly output: ResolvedAsset | null;
   readonly funded: boolean;
   readonly portionBps?: number;
   readonly merged?: string;
@@ -535,7 +624,9 @@ async function draftStep(
   previous: PreviousStep | null,
   accounts: readonly ParsedAccountId[],
   request: IntentRequest,
+  ownerKeyId?: string,
 ): Promise<StepDraft> {
+  if (CONTRACT_KINDS.includes(action.kind)) return draftContractStep(action, previous, accounts, request, ownerKeyId);
   if (action.kind === "stake" && action.network !== "solana") {
     throw unsupported(
       `Liquid staking runs on Solana mainnet (SOL → JitoSOL, mSOL or JupSOL), not ${CHAINS[action.network].name}.`,
@@ -562,7 +653,9 @@ async function draftStep(
     ? baseUnits(action.amount.value, input, action.index)
     : action.amount.type === "position"
       ? "0"
-      : portionOf((previous as PreviousStep).step.minimumOutput?.amount ?? "0", action.amount.portionBps);
+      : action.amount.type === "previous"
+        ? portionOf((previous as PreviousStep).step.minimumOutput?.amount ?? "0", action.amount.portionBps)
+        : "0";
   if (amount === "0" && !closePosition) {
     throw new PlatformError("AMOUNT_TOO_SMALL", `Step ${action.index + 1} would spend zero ${input.symbol}.`, 422);
   }
@@ -597,7 +690,7 @@ async function draftStep(
   if (choice && planned.protocol !== choice.venue.protocol) {
     throw new PlatformError("PLAN_INVALID", `${adapter.label} planned ${planned.protocol} for a ${choice.venue.protocol} venue.`, 502);
   }
-  const plannedOutput = planned.minimumOutput;
+  const plannedOutput = planned.minimumOutput as AssetAmount;
   return {
     action,
     adapter,
@@ -611,6 +704,209 @@ async function draftStep(
     output: sameAsset(plannedOutput, output) ? output : assetFromRef(plannedOutput),
     funded: action.amount.type === "previous",
     ...(action.amount.type === "previous" ? { portionBps: action.amount.portionBps } : {}),
+  };
+}
+
+/** The network's native asset as a placeholder input of non-spending call / action steps. */
+function nativePlaceholder(network: NetworkKey): ResolvedAsset {
+  const native = CHAINS[network].nativeAsset;
+  return assetFromRef({ asset: nativeAssetId(network), symbol: native.symbol, decimals: native.decimals });
+}
+
+/** True when an argument binding (or a tuple member) reads `$previous.*`. */
+function usesPrevious(binding: unknown): boolean {
+  if (typeof binding === "string") return binding.startsWith("$previous.");
+  if (typeof binding === "object" && binding !== null && "tuple" in binding) return (binding as { tuple: unknown[] }).tuple.some(usesPrevious);
+  return false;
+}
+
+/** The declared output asset of an entry (receipt-style for unlisted tokens), or null. */
+async function contractOutputAsset(registration: RegisteredContract, entry: EvmContractAction | SolanaActionEndpoint): Promise<ResolvedAsset | null> {
+  const definition = registration.definition;
+  if (definition.vm === "evm") {
+    const token = evmOutputToken(definition, entry as EvmContractAction);
+    return token ? resolveAsset(definition.network, token) : null;
+  }
+  const mint = (entry as SolanaActionEndpoint).output?.mint;
+  return mint ? resolveAsset(definition.network, mint) : null;
+}
+
+/**
+ * Plans a call (EVM) or action (Solana Actions) step against a registration
+ * the intent's API key may use (design §6.3): scoping, status and revision,
+ * deny list, parameters, input and amount (exact, or the previous step's
+ * guaranteed minimum), limits and USD caps, recipient, `$previous` bindings;
+ * then the contract adapter pins, simulates and reviews it.
+ */
+async function draftContractStep(
+  action: NormalizedAction,
+  previous: PreviousStep | null,
+  accounts: readonly ParsedAccountId[],
+  request: IntentRequest,
+  ownerKeyId: string | undefined,
+): Promise<StepDraft> {
+  const path = `actions[${action.index}]`;
+  const network = action.network;
+  const chain = CHAINS[network];
+  const directory = contractDirectory();
+  if (!contractsEnabled() || !directory) {
+    throw new PlatformError("CONTRACTS_DISABLED", "Custom contract and Solana Action steps are not enabled on this deployment.", 503);
+  }
+  const reference = (action.contract ?? "").trim();
+  const registration = ownerKeyId
+    ? await directory.resolve(ownerKeyId, CONTRACT_ID_PATTERN.test(reference) ? reference : reference.toLowerCase(), network)
+    : null;
+  if (!registration) {
+    throw new PlatformError(
+      "CONTRACT_UNKNOWN",
+      ownerKeyId
+        ? `No contract registration "${reference.slice(0, 64)}" usable by this API key on ${chain.name}.`
+        : "Intents created without an API key cannot call registered contracts.",
+      422,
+      issue(`${path}.contract`, "Unknown contract."),
+    );
+  }
+  const definition = registration.definition;
+  if (registration.status === "suspended") {
+    throw new PlatformError("CONTRACT_SUSPENDED", `${registration.id} is suspended; the integrator must inspect and reverify it.`, 409, issue(`${path}.contract`, "Suspended."));
+  }
+  if (registration.status === "pending" || registration.activeRevision === null) {
+    throw new PlatformError(
+      "CONTRACT_PENDING",
+      `${registration.id} activates${registration.activatesAt ? ` at ${registration.activatesAt}` : " after its activation delay"}; retry then.`,
+      409,
+      issue(`${path}.contract`, "Pending activation."),
+    );
+  }
+  if (definition.network !== network) {
+    throw new PlatformError(
+      "NETWORK_UNSUPPORTED",
+      `${registration.id} is registered on ${CHAINS[definition.network].name}, not ${chain.name}.`,
+      422,
+      issue(`${path}.network`, "The registration is on another network."),
+    );
+  }
+  if ((definition.vm === "evm") !== (action.kind === "call")) {
+    throw unsupported(`${registration.id} is ${definition.vm === "evm" ? "an EVM contract (kind call)" : "a Solana Actions registration (kind action)"}.`, GRAMMAR_EXAMPLES, issue(`${path}.kind`, "Wrong kind."));
+  }
+  const entry = (definition.actions as readonly (EvmContractAction | SolanaActionEndpoint)[]).find((candidate) => candidate.id === action.entry);
+  if (!entry) {
+    throw new PlatformError(
+      "CONTRACT_ACTION_UNKNOWN",
+      `${registration.id} has no action "${(action.entry ?? "").slice(0, 40)}". Known: ${definition.actions.map((candidate) => candidate.id).join(", ")}.`,
+      422,
+      issue(`${path}.entry`, "Unknown entry."),
+    );
+  }
+  const targets = definition.vm === "evm" ? [definition.address, ...(definition.addresses ?? []).map((item) => item.address)] : definition.programs;
+  for (const target of targets) {
+    const denied = directory.denied(network, target);
+    if (denied) throw new PlatformError("CONTRACT_DENIED", `${target} on ${chain.name} is ${denied}; Kletia does not call it.`, 422, issue(`${path}.contract`, "Denied."));
+  }
+  const params = resolveContractParams(entry.params, action.params);
+  if (!params.ok) {
+    throw new PlatformError(
+      "CONTRACT_PARAM_INVALID",
+      `Invalid parameters for ${entry.label}: ${params.issues.map((item) => `${item.path} ${item.message}`).join(" ").slice(0, 300)}`,
+      422,
+      params.issues.map((item) => ({ path: `${path}.${item.path}`, message: item.message })),
+    );
+  }
+  // Input and amount.
+  const descriptor = contractActionInput(network, entry);
+  const input = descriptor ? await resolveAsset(network, descriptor.id) : null;
+  const account = accountForNetwork(accounts, network);
+  let amount: string | null = null;
+  if (!input) {
+    if (action.amount.type !== "none") {
+      throw unsupported(`${entry.label} spends nothing; remove the amount.`, GRAMMAR_EXAMPLES, issue(`${path}.amount`, "This action takes no amount."));
+    }
+  } else if (action.amount.type === "none") {
+    throw new PlatformError("AMOUNT_REQUIRED", `${entry.label} spends ${input.symbol}: give an amount (a decimal, or max after a step that produces ${input.symbol}).`, 400, issue(`${path}.amount`, "Required."));
+  } else {
+    const resolved = action.amount.type === "previous" || action.from ? await resolveInput(action, previous) : input;
+    if (!sameAsset(resolved, input)) {
+      throw new PlatformError("ASSET_MISMATCH", `${entry.label} spends ${input.symbol}, not ${resolved.symbol}.`, 422, issue(`${path}.from`, "Asset mismatch."));
+    }
+    if (action.amount.type === "previous") {
+      if (previous && !sameAddress(previous.recipient, account)) {
+        throw unsupported(
+          `Step ${action.index + 1} spends the output of step ${action.index}, but that output is paid to ${previous.recipient.address}, not to your account. Give step ${action.index + 1} an explicit amount.`,
+          GRAMMAR_EXAMPLES,
+          issue(`${path}.amount`, "The previous step pays another account."),
+        );
+      }
+      const minimum = previous?.step.minimumOutput?.amount;
+      if (!minimum) {
+        throw new PlatformError("AMOUNT_REQUIRED", `Step ${action.index + 1} spends the previous step's output, whose amount could not be estimated. Give an explicit amount.`, 400, issue(`${path}.amount`, "Unknown previous output."));
+      }
+      amount = portionOf(minimum, action.amount.portionBps);
+    } else if (action.amount.type === "exact") {
+      amount = baseUnits(action.amount.value, input, action.index);
+    }
+    if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", `Step ${action.index + 1} would spend zero ${input.symbol}.`, 422);
+  }
+  if (input && amount !== null) {
+    await assertContractAmount(entry.limits, input, BigInt(amount), registration.verification.domain.verified, entry.label, `${path}.amount`);
+  }
+  // Recipient: the account unless the entry allows third parties.
+  const recipientMode = definition.vm === "evm" ? (entry as EvmContractAction).recipient ?? "account" : "account";
+  let recipient = account;
+  if (action.recipient) {
+    const named = await recipientOn(action.recipient, network);
+    if (recipientMode !== "any" && !sameAddress(named.recipient, account)) {
+      throw unsupported(`${entry.label} pays the acting account; send the result with a separate "send" step.`, GRAMMAR_EXAMPLES, issue(`${path}.recipient`, "Third-party recipients are not allowed by this action."));
+    }
+    recipient = named.recipient;
+  }
+  // $previous.* bindings need a previous step on the same network with an output.
+  const samePrevious = previous && previous.network === network && previous.step.minimumOutput ? previous : null;
+  if (definition.vm === "evm" && (entry as EvmContractAction).args.some(usesPrevious) && !samePrevious) {
+    throw new PlatformError(
+      "CONTRACT_BINDING_INVALID",
+      `${entry.label} binds $previous.output, but step ${action.index + 1} has no previous step on ${chain.name} that produces an output.`,
+      422,
+      issue(`${path}.entry`, "No previous output on this network."),
+    );
+  }
+  const output = await contractOutputAsset(registration, entry);
+  const snapshot = definition.vm === "evm"
+    ? evmSnapshot(registration, entry as EvmContractAction, params.values, output)
+    : solanaSnapshot(registration, entry as SolanaActionEndpoint, params.values, output);
+  const adapter = adapterForProtocol(definition.vm === "evm" ? "custom-call" : "solana-actions");
+  const funded = action.amount.type === "previous";
+  const placeholder = input ?? nativePlaceholder(network);
+  const adapterAction: AdapterAction = {
+    kind: action.kind,
+    network,
+    destinationNetwork: network,
+    input: placeholder,
+    output: output ?? placeholder,
+    amount: amount ?? "0",
+    account,
+    recipient,
+    slippageBps: request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS,
+    call: {
+      snapshot,
+      input,
+      output,
+      ...(samePrevious?.step.minimumOutput ? { previousOutput: samePrevious.step.minimumOutput } : {}),
+      registration,
+      funded,
+      stage: "plan",
+    },
+  };
+  const planned = await adapter.planCall(adapterAction);
+  return {
+    action,
+    adapter,
+    planned,
+    account,
+    recipient,
+    notes: [],
+    output,
+    funded,
+    ...(funded && action.amount.type === "previous" ? { portionBps: action.amount.portionBps } : {}),
   };
 }
 
@@ -651,10 +947,14 @@ function quoteEvidence(draft: StepDraft, now: string): StepEvidence[] {
 }
 
 function buildStep(draft: StepDraft, index: number, previous: PreviousStep | null, now: string): IntentStep {
-  const { planned, action } = draft;
-  const paysRecipient = action.kind === "transfer" || action.kind === "bridge";
+  const { action } = draft;
+  const contract = "kind" in draft.planned && draft.planned.kind === "call";
+  // Call steps record a third-party recipient (entries with recipient "any") so prepare rebuilds it.
+  const paysRecipient = action.kind === "transfer" || action.kind === "bridge" || (contract && !sameAddress(draft.recipient, draft.account));
   const recipient = paysRecipient ? draft.recipient.id : undefined;
-  const warnings = [...new Set([...draft.notes, ...planned.warnings, ...(draft.name?.warnings ?? [])])];
+  const warnings = [...new Set([...draft.notes, ...draft.planned.warnings, ...(draft.name?.warnings ?? [])])];
+  if (contract) return buildContractStep(draft, draft.planned as ContractPlannedStep, index, previous, now, recipient, warnings);
+  const planned = draft.planned as PlannedStep;
   return {
     id: `s${index + 1}`,
     index,
@@ -690,6 +990,48 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
       ...(action.amount.type === "position" ? { closePosition: true as const } : {}),
     }),
     ...(warnings.length > 0 ? { warnings: warnings.slice(0, 12) } : {}),
+  };
+}
+
+/** IntentStep of a call / action step: input and outputs only when the entry has them; the snapshot in `call`. */
+function buildContractStep(
+  draft: StepDraft,
+  planned: ContractPlannedStep,
+  index: number,
+  previous: PreviousStep | null,
+  now: string,
+  recipient: IntentStep["recipient"],
+  warnings: readonly string[],
+): IntentStep {
+  const { action } = draft;
+  return {
+    id: `s${index + 1}`,
+    index,
+    kind: action.kind,
+    title: planned.title,
+    network: action.network,
+    chain: CHAINS[action.network].id,
+    account: draft.account.id,
+    protocol: planned.protocol,
+    mode: planned.mode,
+    ...(planned.input ? { input: planned.input } : {}),
+    ...(planned.expectedOutput ? { expectedOutput: planned.expectedOutput } : {}),
+    ...(planned.minimumOutput ? { minimumOutput: planned.minimumOutput } : {}),
+    ...(recipient ? { recipient } : {}),
+    dependsOn: previous ? [previous.step.id] : [],
+    settlement: planned.settlement,
+    ...(planned.feesUsd !== undefined ? { feesUsd: roundUsd(planned.feesUsd) } : {}),
+    estimatedSeconds: planned.estimatedSeconds,
+    status: previous ? "pending" : "ready",
+    evidence: quoteEvidence(draft, now),
+    quoteRef: encodeStepRef({
+      v: 1,
+      slippageBps: planned.slippageBps,
+      ...(draft.portionBps !== undefined ? { portionBps: draft.portionBps } : {}),
+      ...(planned.input && planned.minimumOutput ? { plannedInput: planned.input.amount, plannedMinimum: planned.minimumOutput.amount } : {}),
+    }),
+    ...(warnings.length > 0 ? { warnings: warnings.slice(0, 12) } : {}),
+    call: planned.call,
   };
 }
 
@@ -740,6 +1082,13 @@ export function summarize(steps: readonly IntentStep[], edges: readonly IntentEd
   };
 }
 
+/** Phrases of the registrations the key may use (none without a key, a directory or with the kill switch on). */
+async function contractPhrases(ownerKeyId: string | undefined): Promise<readonly ContractPhrase[]> {
+  const directory = contractDirectory();
+  if (!ownerKeyId || !directory || !contractsEnabled()) return [];
+  return directory.phrases(ownerKeyId);
+}
+
 /** Plans an intent into a quote-backed IntentGraph (not persisted). */
 export async function planIntent(input: unknown, options: PlanOptions = {}): Promise<IntentGraph> {
   const validated = validateIntentRequest(input);
@@ -762,9 +1111,11 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
     source = "structured";
     specs = request.actions;
   } else {
+    const contracts = await contractPhrases(options.ownerKeyId);
     const compiled = compileIntentText(request.text ?? "", {
       ...(request.defaultNetwork ? { defaultNetwork: request.defaultNetwork } : {}),
       accounts: request.accounts,
+      ...(contracts.length > 0 ? { contracts } : {}),
     });
     source = "grammar";
     specs = compiled.actions;
@@ -788,9 +1139,9 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
         ...(next.provider ? { provider: next.provider } : {}),
       };
       try {
-        const candidate = await draftStep(merged, previous, accounts, request);
+        const candidate = await draftStep(merged, previous, accounts, request, options.ownerKeyId);
         const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
-        draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output.symbol}; saves a signature and a settlement wait.` };
+        draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output?.symbol ?? next.to}; saves a signature and a settlement wait.` };
         index += 1;
       } catch (error) {
         // Name resolution failures are the user's input, not a missing merged route: report them.
@@ -799,7 +1150,7 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
         draft = null;
       }
     }
-    draft ??= await draftStep(action, previous, accounts, request);
+    draft ??= await draftStep(action, previous, accounts, request, options.ownerKeyId);
     if (draft.merged) optimizations.push(draft.merged);
     const step = buildStep(draft, steps.length, previous, now);
     steps.push(step);
@@ -823,9 +1174,10 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
   if (drafts.some((draft) => draft.funded)) {
     warnings.push("Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known).");
   }
-  if (drafts.some((draft) => draft.funded && draft.action.network.startsWith("solana") && draft.planned.input.asset.endsWith("/slip44:501"))) {
+  if (drafts.some((draft) => draft.funded && draft.action.network.startsWith("solana") && draft.planned.input?.asset.endsWith("/slip44:501"))) {
     warnings.push("Keep a little SOL outside this intent for Solana network fees.");
   }
+  if (steps.some((step) => CONTRACT_KINDS.includes(step.kind))) warnings.push(CUSTOM_CONTRACT_WARNING);
   const totalFees = steps.reduce((total, step) => total + (step.feesUsd ?? 0), 0);
   const maxFee = request.constraints?.maxFeeUsd;
   if (maxFee !== undefined) {
@@ -879,6 +1231,7 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
  * otherwise of its guaranteed minimum.
  */
 export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterAction {
+  if (CONTRACT_KINDS.includes(step.kind)) return contractActionForStep(graph, step);
   if (!step.input || !step.minimumOutput) {
     throw new PlatformError("STEP_INVALID", "The step has no input or output amounts.", 500);
   }
@@ -931,6 +1284,77 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     ...(venue ? { venue: venue.id } : {}),
     ...(ref?.closePosition && step.kind === "withdraw" ? { closePosition: true } : {}),
     ...(destinationAccount ? { destinationAccount } : {}),
+  };
+}
+
+/** The amount a step executes now: its share of the funding step's observed output (else guaranteed minimum). */
+function fundedAmount(graph: IntentGraph, step: IntentStep, input: AssetAmount, portionBps: number | undefined): { amount: string; funded: boolean } {
+  const fundingEdge = graph.edges.find((edge) => edge.to === step.id && edge.kind === "funds");
+  if (!fundingEdge) return { amount: input.amount, funded: false };
+  const parent = graph.steps.find((candidate) => candidate.id === fundingEdge.from);
+  const source = parent?.actualOutput && sameAsset(parent.actualOutput, input)
+    ? parent.actualOutput
+    : parent?.minimumOutput && sameAsset(parent.minimumOutput, input)
+      ? parent.minimumOutput
+      : null;
+  const amount = source ? portionOf(source.amount, portionBps ?? 10_000) : input.amount;
+  if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", "The funding step produced too little to continue.", 422);
+  return { amount, funded: true };
+}
+
+/**
+ * Prepare-time action of a call / action step: the step's own snapshot, its
+ * (funded) amount, and the previous step's observed output for `$previous`
+ * bindings. The service adds the re-read registration before the adapter runs.
+ */
+function contractActionForStep(graph: IntentGraph, step: IntentStep): AdapterAction {
+  if (!step.call) throw new PlatformError("STEP_INVALID", "The call step has no contract snapshot.", 500);
+  const account = parseAccountId(step.account);
+  if (!account) throw new PlatformError("STEP_INVALID", "The step account is invalid.", 500);
+  const recipient = step.recipient ? parseAccountId(step.recipient) : account;
+  if (!recipient) throw new PlatformError("STEP_INVALID", "The step recipient is invalid.", 500);
+  const ref = decodeStepRef(step.quoteRef);
+  const input = step.input ? assetFromRef(step.input) : null;
+  const output = step.call.output ? assetFromRef(step.call.output) : null;
+  let amount = "0";
+  let funded = false;
+  if (step.input) {
+    ({ amount, funded } = fundedAmount(graph, step, step.input, ref?.portionBps));
+    const accounts = parseAccounts(graph.request.accounts);
+    const slippageBps = ref?.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
+    if (funded && !accounts.some((own) => sameAddress(own, recipient))) {
+      const cap = (BigInt(ref?.plannedInput ?? step.input.amount) * BigInt(10_000 + slippageBps)) / 10_000n;
+      if (BigInt(amount) > cap) amount = cap.toString();
+    }
+  }
+  const parent = graph.steps.find((candidate) => candidate.id === step.dependsOn[0]);
+  // `$previous.*` reads the previous step's output when it lands on this step's network.
+  const previousOutput = parent && (parent.settlement?.destinationNetwork ?? parent.network) === step.network
+    ? parent.actualOutput ?? parent.minimumOutput
+    : undefined;
+  const placeholder = input ?? assetFromRef({
+    asset: nativeAssetId(step.network),
+    symbol: CHAINS[step.network].nativeAsset.symbol,
+    decimals: CHAINS[step.network].nativeAsset.decimals,
+  });
+  return {
+    kind: step.kind,
+    network: step.network,
+    destinationNetwork: step.network,
+    input: placeholder,
+    output: output ?? placeholder,
+    amount,
+    account,
+    recipient,
+    slippageBps: ref?.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
+    call: {
+      snapshot: step.call,
+      input,
+      output,
+      ...(previousOutput ? { previousOutput } : {}),
+      funded,
+      stage: "prepare",
+    },
   };
 }
 

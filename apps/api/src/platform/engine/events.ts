@@ -10,6 +10,7 @@
  */
 import {
   createEventBus,
+  RECEIPT_EVENT_TYPE,
   type AnyKletiaEvent,
   type IntentGraph,
   type KletiaEvent,
@@ -19,6 +20,14 @@ import { canonicalJson, newEventId } from "./util.js";
 
 export type IntentEventType = "intent.created" | "intent.status_changed" | "intent.step_updated";
 export type IntentEvent = Extract<AnyKletiaEvent, { type: IntentEventType }>;
+/**
+ * `intent.receipt_issued` (receipts design §13.1). Published by the receipt
+ * issuer with `publishReceiptEvent`: it reaches the typed bus and receipt
+ * envelope subscribers. It stays apart from `IntentEventType` until the HTTP
+ * layer lists it among webhook event types (stored webhooks keep their lists).
+ */
+export type ReceiptEventType = typeof RECEIPT_EVENT_TYPE;
+export type ReceiptEvent = KletiaEvent<ReceiptEventType>;
 
 const MAX_EVENTS_PER_INTENT = 100;
 const MAX_BUFFERED_INTENTS = 2_000;
@@ -62,6 +71,30 @@ export function publishIntentEvent<K extends IntentEventType>(type: K, data: Kle
     }
   }
   return event;
+}
+
+const receiptListeners = new Set<(event: ReceiptEvent) => void>();
+
+/** Records and fans out one `intent.receipt_issued` event (typed bus and receipt envelope subscribers). */
+export function publishReceiptEvent(data: KletiaEventMap[ReceiptEventType]): ReceiptEvent {
+  const event = buildEvent(RECEIPT_EVENT_TYPE, data);
+  platformEvents.emit(RECEIPT_EVENT_TYPE, data);
+  for (const listener of [...receiptListeners]) {
+    try {
+      listener(event);
+    } catch (error) {
+      console.error("[platform] receipt listener failed:", error instanceof Error ? error.message : error);
+    }
+  }
+  return event;
+}
+
+/** Subscribe to `intent.receipt_issued` envelopes (webhook dispatch, SSE). Returns an unsubscribe function. */
+export function subscribeReceiptEvents(listener: (event: ReceiptEvent) => void): () => void {
+  receiptListeners.add(listener);
+  return () => {
+    receiptListeners.delete(listener);
+  };
 }
 
 /** Subscribe to every intent event envelope (all intents). Returns an unsubscribe function. */

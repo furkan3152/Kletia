@@ -55,6 +55,8 @@ import type { AdapterAction, AdapterRoute, PreparedPayload } from "../types.js";
 import { evmEvents, type LandedEvmReceipt } from "../verification.js";
 
 /** Wei tolerance for receipt-token rounding (aToken / Comet mints credit amount - 1). */
+/** Seconds a plan-time lending payload stays valid for the asset-change preview (the plan expires first). */
+export const LENDING_PREVIEW_TTL_SECONDS = 30 * 60;
 export const ROUNDING_WEI = 2n;
 export const MAX_UINT256 = (1n << 256n) - 1n;
 /** Share-price drift (bps) tolerated between prepare and execution for share-based receipts. */

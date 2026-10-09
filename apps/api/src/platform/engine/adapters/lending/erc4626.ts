@@ -75,6 +75,7 @@ import {
   wrapTransaction,
   type LendingContext,
   type LendingMetrics,
+  LENDING_PREVIEW_TTL_SECONDS,
 } from "./common.js";
 
 export const VAULT_ABI = parseAbi([
@@ -481,6 +482,8 @@ export const erc4626Adapter: ProtocolAdapter = {
       warnings: planned.warnings,
       transactionCount: planned.transactions.length,
       slippageBps: action.slippageBps,
+      // The plan already encodes the payload (no provider involved): the preview simulates it.
+      preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
     };
   },
 

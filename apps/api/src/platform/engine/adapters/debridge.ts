@@ -84,7 +84,7 @@ import {
 } from "./debridgeClient.js";
 import { accountBytes, accountBytes32, cushionedMinimum } from "./lifi.js";
 import { cappedOutput } from "./relay.js";
-import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
+import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult, PlannedStepPreview } from "./types.js";
 import {
   effectiveSolDelta,
   evmEvents,
@@ -472,6 +472,55 @@ async function checkedOrder(action: AdapterAction, stage: "plan" | "prepare"): P
   };
 }
 
+/** The EVM payload of a checked order: an exact approval when the allowance is short, then createOrder (plan preview and prepare). */
+function dlnEvmTransactions(action: AdapterAction, network: EvmNetworkKey, order: CheckedOrder): TransactionRequest[] {
+  const amount = BigInt(action.amount);
+  const chainId = evmChainId(network);
+  const from = getAddress(action.account.address);
+  const transactions: TransactionRequest[] = [];
+  if (order.allowance !== null && order.allowance < amount) {
+    transactions.push({
+      vm: "evm",
+      network,
+      chainId,
+      from,
+      to: getAddress(action.input.address as string),
+      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(order.source), amount] }),
+      value: "0",
+      gas: APPROVE_GAS,
+      description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for deBridge`,
+    });
+  }
+  transactions.push({
+    vm: "evm",
+    network,
+    chainId,
+    from,
+    to: getAddress(order.source),
+    data: order.quote.tx.data,
+    value: order.quote.tx.value ?? "0",
+    description: title(action),
+  });
+  return transactions;
+}
+
+/** Seconds a DLN order quote's transactions are previewed for. */
+const PREVIEW_TTL_SECONDS = 60;
+
+/** The create-order response the plan already fetched, for the plan-time preview (EVM origins). */
+function dlnPreview(action: AdapterAction, order: CheckedOrder): PlannedStepPreview | undefined {
+  if (!isEvmNetwork(action.network)) return undefined;
+  const protocolFee = order.quote.protocolFeeUsd;
+  return {
+    transactions: dlnEvmTransactions(action, action.network, order),
+    approvalSpender: order.source.toLowerCase(),
+    ...(protocolFee !== null && protocolFee > 0
+      ? { venueFees: [{ kind: "venue" as const, label: "deBridge protocol fee", usd: protocolFee, paid: "deducted" as const, certainty: "quoted" as const }] }
+      : {}),
+    expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
+  };
+}
+
 function title(action: Pick<AdapterAction, "network" | "destinationNetwork" | "input" | "output" | "amount">): string {
   const amount = `${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol}`;
   const base = `Bridge ${amount} from ${CHAINS[action.network].name} to ${CHAINS[action.destinationNetwork].name} via deBridge`;
@@ -620,6 +669,7 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
 
   async plan(action): Promise<PlannedStep> {
     const order = await checkedOrder(action, "plan");
+    const preview = dlnPreview(action, order);
     const seconds = Math.max(order.quote.fulfillmentSeconds, 5);
     const approval = order.allowance !== null && order.allowance < BigInt(action.amount) ? 1 : 0;
     const fees = feesUsd(order);
@@ -636,6 +686,7 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
       quoteId: order.quote.orderId,
       transactionCount: 1 + approval,
       slippageBps: action.slippageBps,
+      ...(preview ? { preview } : {}),
     };
   },
 
@@ -650,32 +701,7 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
     let records: PreparedPayload["records"];
     if (isEvmNetwork(action.network)) {
       const network: EvmNetworkKey = action.network;
-      const chainId = evmChainId(network);
-      const from = getAddress(action.account.address);
-      transactions = [];
-      if (order.allowance !== null && order.allowance < amount) {
-        transactions.push({
-          vm: "evm",
-          network,
-          chainId,
-          from,
-          to: getAddress(action.input.address as string),
-          data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(order.source), amount] }),
-          value: "0",
-          gas: APPROVE_GAS,
-          description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for deBridge`,
-        });
-      }
-      transactions.push({
-        vm: "evm",
-        network,
-        chainId,
-        from,
-        to: getAddress(order.source),
-        data: order.quote.tx.data,
-        value: order.quote.tx.value ?? "0",
-        description,
-      });
+      transactions = dlnEvmTransactions(action, network, order);
       records = transactions.map((transaction) => ({
         vm: "evm" as const,
         network,

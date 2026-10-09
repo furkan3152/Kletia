@@ -157,3 +157,15 @@ test("every chain declares a unique CAIP-2 id", () => {
   const ids = Object.values(CHAINS).map((chain) => chain.id);
   assert.equal(new Set(ids).size, ids.length);
 });
+
+test("round-5 event types and registry flags", async () => {
+  const { KEY_EVENT_TYPES, LINK_EVENT_TYPES, POLICY_EVENT_TYPES, RECEIPT_EVENT_TYPE, getAsset } = await import("../dist/index.js");
+  assert.equal(RECEIPT_EVENT_TYPE, "intent.receipt_issued");
+  assert.deepEqual(LINK_EVENT_TYPES, ["link.created", "link.activated", "link.updated", "link.paused", "link.suspended", "link.exhausted", "link.expired", "link.deleted"]);
+  assert.deepEqual(POLICY_EVENT_TYPES, ["policy.violation", "policy.approval_requested", "policy.approval_decided", "policy.amendment_pending", "policy.amended", "policy.spend_threshold"]);
+  assert.deepEqual(KEY_EVENT_TYPES, ["key.created", "key.revoked"]);
+  const arcUsdc = ASSETS.find((asset) => asset.network === "arc" && asset.symbol === "USDC");
+  assert.equal(arcUsdc.nativeBalanceView, true, "Arc USDC is a view of the native balance");
+  assert.equal(getAsset(arcUsdc.id), arcUsdc);
+  assert.equal(ASSETS.filter((asset) => asset.nativeBalanceView).length, 1);
+});

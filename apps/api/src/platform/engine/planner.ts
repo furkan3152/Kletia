@@ -38,6 +38,8 @@ import {
   validateIntentRequest,
   YIELD_VENUES,
   yieldVenuesFor,
+  buildPlanRecord,
+  planRecordDigest,
   type AssetAmount,
   type EvmContractAction,
   type IntentActionKind,
@@ -59,7 +61,7 @@ import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
 import { recordedVenueId } from "./adapters/lending/common.js";
 import { activeProtocolAdapters, adapterForProtocol, candidateAdapters } from "./adapters/registry.js";
-import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
+import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, PlannedStepPreview, ProtocolAdapter } from "./adapters/types.js";
 import { assertContractAmount } from "./contracts/caps.js";
 import { contractDirectory, contractsEnabled, withActivationRetry, type ContractPhrase } from "./contracts/directory.js";
 import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
@@ -1080,6 +1082,24 @@ async function contractPhrases(ownerKeyId: string | undefined): Promise<readonly
 
 /** Plans an intent into a quote-backed IntentGraph (not persisted). */
 export async function planIntent(input: unknown, options: PlanOptions = {}): Promise<IntentGraph> {
+  return (await planIntentWithPreviews(input, options)).graph;
+}
+
+export interface PlannedIntent {
+  readonly graph: IntentGraph;
+  /**
+   * Plan-time quote transactions by step id (asset-change preview, design
+   * §5.1): what the winning quotes already returned, never stored in the graph.
+   */
+  readonly previews: ReadonlyMap<string, PlannedStepPreview>;
+}
+
+/**
+ * Plans an intent and also returns the winning quotes' transactions for the
+ * plan-time preview. The graph carries its immutable plan record
+ * (`graph.plan`, receipts design §4.5), dry runs included.
+ */
+export async function planIntentWithPreviews(input: unknown, options: PlanOptions = {}): Promise<PlannedIntent> {
   const validated = validateIntentRequest(input);
   if (!validated.ok) {
     throw new PlatformError("INVALID_REQUEST", "The intent request is invalid.", 400, validated.issues);
@@ -1211,7 +1231,15 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
   if (issues.length > 0) {
     throw new PlatformError("PLAN_INVALID", "The planned graph failed validation.", 422, issues);
   }
-  return graph;
+  // The plan as created: prepare replaces amounts in the steps, never this record (receipts commit to it).
+  const record = buildPlanRecord(graph);
+  const previews = new Map<string, PlannedStepPreview>();
+  drafts.forEach((draft, index) => {
+    const preview = draft.planned.preview;
+    const step = steps[index];
+    if (preview && step && preview.transactions.length > 0) previews.set(step.id, preview);
+  });
+  return { graph: { ...graph, plan: { digest: planRecordDigest(record), record } }, previews };
 }
 
 /**

@@ -12,7 +12,7 @@
  * still carries `expectedUpdatedAt`; otherwise it throws 409 INTENT_CONFLICT.
  */
 import pg from "pg";
-import type { IntentGraph, StepStatus } from "@kletia/core";
+import type { IntentGraph, IntentStatus, StepStatus } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 
 export interface IntentRecordMeta {
@@ -51,6 +51,19 @@ export interface IntentStore {
   close(): Promise<void>;
   /** Intents created by one API key since `since` (ISO), counted by status (usage reporting; optional for custom stores). */
   countByOwner?(ownerKeyId: string, since: string): Promise<Record<string, number>>;
+  /**
+   * Intents in one of `statuses` whose graph changed at or after `sinceIso`,
+   * oldest change first, at most `limit` (receipt issuer scan; optional for
+   * custom stores).
+   */
+  listChangedSince?(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]>;
+}
+
+/** One row of `listChangedSince`. */
+export interface IntentChange {
+  readonly id: string;
+  readonly status: IntentStatus;
+  readonly updatedAt: string;
 }
 
 const ACTIVE_STEP_STATUSES: readonly StepStatus[] = ["submitted", "confirmed", "settling"];
@@ -184,6 +197,17 @@ export class MemoryIntentStore implements IntentStore {
         this.claims.delete(oldest);
       }
     }
+  }
+
+  async listChangedSince(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]> {
+    const since = Date.parse(sinceIso);
+    if (!Number.isFinite(since) || statuses.length === 0) return [];
+    return [...this.records.values()]
+      .map((record) => record.graph)
+      .filter((graph) => statuses.includes(graph.status) && Date.parse(graph.updatedAt) >= since)
+      .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .slice(0, clampLimit(limit, 1_000))
+      .map((graph) => ({ id: graph.id, status: graph.status, updatedAt: graph.updatedAt }));
   }
 
   async close(): Promise<void> {
@@ -378,6 +402,22 @@ export class PostgresIntentStore implements IntentStore {
     } finally {
       client.release();
     }
+  }
+
+  async listChangedSince(statuses: readonly IntentStatus[], sinceIso: string, limit: number): Promise<IntentChange[]> {
+    if (statuses.length === 0 || !Number.isFinite(Date.parse(sinceIso))) return [];
+    // Served by kletia_intents_status_idx (status, updated_at).
+    const result = await this.query<{ id: string; status: string; updated_at: Date | string }>(
+      `SELECT id, status, updated_at FROM kletia_intents
+       WHERE status = ANY($1::text[]) AND updated_at >= $2
+       ORDER BY updated_at ASC, id ASC LIMIT $3`,
+      [[...statuses], sinceIso, clampLimit(limit, 1_000)],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      status: row.status as IntentStatus,
+      updatedAt: new Date(row.updated_at).toISOString(),
+    }));
   }
 
   async close(): Promise<void> {

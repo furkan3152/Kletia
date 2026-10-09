@@ -16,6 +16,7 @@ import {
   parseAccountId,
   parseAssetId,
   type IntentGraph,
+  type IntentPreview,
   type IntentStatus,
   type IntentStep,
   type StepEvidence,
@@ -23,8 +24,8 @@ import {
   type StepStatus,
 } from "@kletia/core";
 import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
-import { adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
-import type { ContractPreparedPayload, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
+import { ADAPTERS, adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
+import type { ContractPreparedPayload, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
 import { firstPreparedAt, isReferenceRejection, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
 import { quoteBindingFor } from "./binding.js";
 import { sameAddress } from "./accounts.js";
@@ -44,7 +45,8 @@ import {
 } from "./contracts/directory.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
 import { resolveRecipientName } from "./names.js";
-import { actionForStep, planIntent, stepRecipientName, summarize } from "./planner.js";
+import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize } from "./planner.js";
+import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, type PreparedPreview } from "./preview/index.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
@@ -202,12 +204,26 @@ export interface CreateIntentOptions {
   readonly ownerKeyId?: string;
   /** Plan and quote without persisting. */
   readonly dryRun?: boolean;
+  /** Also compute the asset-change preview (stage `plan`) from the quotes' own transactions. */
+  readonly preview?: boolean;
 }
 
 export interface CreatedIntent {
   readonly intent: IntentGraph;
   /** True when a repeated `clientReference` returned the intent created by an earlier request. */
   readonly replayed: boolean;
+  /** The plan-stage asset-change preview, when requested. */
+  readonly preview?: IntentPreview;
+}
+
+/** Plan-stage preview of a created intent; RPC trouble yields `unavailable` steps, never a failed create. */
+async function planPreview(intent: IntentGraph): Promise<IntentPreview | undefined> {
+  try {
+    return await previewIntent(intent, { stage: "plan" });
+  } catch (error) {
+    console.warn("[platform] plan preview failed:", toPlatformError(error).message);
+    return undefined;
+  }
 }
 
 /** Plans (and unless `dryRun`, stores) an intent, reporting whether it was an idempotent replay. */
@@ -223,7 +239,9 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         const existing = await getIntentStore().findByClientReference(options.ownerKeyId, clientReference);
         if (existing) return { intent: existing, replayed: true };
       }
-      const graph = await planIntent(request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      const { graph, previews } = await planIntentWithPreviews(request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      // Plan-time quote transactions stay in memory (never in the graph) for previews until the quotes expire.
+      rememberPlannedPreviews(graph.id, previews);
       if (options.dryRun) return { intent: graph, replayed: false };
       try {
         await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
@@ -240,9 +258,12 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
     };
     // Concurrent retries of one clientReference must not create two intents: the lock covers
     // this process, the store's unique (owner, clientReference) constraint covers instances.
-    return options.ownerKeyId && clientReference && !options.dryRun
+    const created = options.ownerKeyId && clientReference && !options.dryRun
       ? await withIntentLock(`client:${options.ownerKeyId}:${clientReference}`, create)
       : await create();
+    if (!options.preview) return created;
+    const preview = await planPreview(created.intent);
+    return preview ? { ...created, preview } : created;
   } catch (error) {
     throw toPlatformError(error);
   }
@@ -299,7 +320,21 @@ export async function getIntentOwner(id: string): Promise<string | null | undefi
 
 export interface PreparedStepResult {
   readonly intent: IntentGraph;
+  /** The payload; `payload.preview` is the simulated effect of exactly these transactions. */
   readonly payload: StepExecutionPayload;
+  /** The whole intent's preview with this step freshly simulated (stage `prepare`). */
+  readonly preview?: IntentPreview;
+  /**
+   * `matched`: the acknowledged preview was found and nothing material changed;
+   * `unknown`: the digest is not in the preview store (expired, another
+   * instance): not an error, the client should show the fresh preview.
+   */
+  readonly previewAck?: "matched" | "unknown";
+}
+
+export interface PrepareStepOptions {
+  /** Digest (`sha256:…`) of the preview the user saw; a materially worse payload is refused (PREVIEW_CHANGED). */
+  readonly acknowledgedPreview?: string;
 }
 
 function assertExecutable(graph: IntentGraph, now: number): void {
@@ -554,7 +589,40 @@ async function assertContractStepUsable(graph: IntentGraph, step: IntentStep, am
   return { registration, ownerKeyId: owner, usd };
 }
 
-export async function prepareStep(intentId: string, stepId: string): Promise<PreparedStepResult> {
+/**
+ * Simulates the prepared payload and checks it (asset-preview design §5.8,
+ * §7.2). Refusals (invariants, PREVIEW_CHANGED, SIMULATION_UNAVAILABLE where
+ * simulation is enforced) propagate; an unexpected preview failure on a
+ * built-in venue leaves the payload without a preview (adapters already pin
+ * their calldata), on an enforced step it refuses.
+ */
+async function preparedPreview(
+  graph: IntentGraph,
+  step: IntentStep,
+  nextStep: IntentStep,
+  adapter: ProtocolAdapter,
+  prepared: PreparedPayload | ContractPreparedPayload,
+  quoteBinding: string,
+  options: PrepareStepOptions,
+): Promise<PreparedPreview | null> {
+  // The step as the preview sees it: prepared amounts, and the extra costs this payload really pays.
+  const view: IntentStep = { ...nextStep, ...(prepared.extraCosts ? { extraCosts: prepared.extraCosts } : {}) };
+  try {
+    return await previewPreparedStep(graph, view, { transactions: prepared.transactions, quoteBinding }, {
+      ...(options.acknowledgedPreview ? { acknowledgedPreview: options.acknowledgedPreview } : {}),
+      simulate: ADAPTERS.includes(adapter) || adapter.previewAtPrepare === true,
+    });
+  } catch (error) {
+    if (isPlatformError(error)) throw error;
+    console.warn(`[platform] preview of ${graph.id}/${step.id} failed:`, error instanceof Error ? error.message : error);
+    if (previewEnforced(graph, step)) {
+      throw new PlatformError("SIMULATION_UNAVAILABLE", `Step ${step.id} could not be simulated right now, and it is never prepared unsimulated. Retry shortly.`, 503);
+    }
+    return null;
+  }
+}
+
+export async function prepareStep(intentId: string, stepId: string, options: PrepareStepOptions = {}): Promise<PreparedStepResult> {
   try {
     return await withIntentLock(intentId, async () => {
       const graph = await loadIntent(intentId);
@@ -624,10 +692,6 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
         }
         warnings.push(`Price moved since planning; the fresh quote guarantees ${prepared.minimumOutput.formatted} ${prepared.minimumOutput.symbol}.`);
       }
-      // The key's daily notional is counted once per step (its first prepare), whatever re-prepares follow.
-      if (usable && usable.usd !== null && firstPreparedAt(step) === null) {
-        await (contractDirectory() as ContractDirectory).recordSpend(usable.ownerKeyId, usable.usd);
-      }
       const quoteBinding = quoteBindingFor(prepared.transactions);
       const preparedAt = new Date(now).toISOString();
       const status = step.status === "failed" || step.status === "pending"
@@ -676,6 +740,13 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
           : {}),
         ...(warnings.length > 0 ? { warnings: [...new Set(warnings)].slice(0, 12) } : {}),
       };
+      // Asset-change preview of exactly these transactions (design §5.8): invariants and the
+      // acknowledged-preview check run before anything is counted, committed or handed out.
+      const preview = await preparedPreview(graph, step, nextStep, adapter, prepared, quoteBinding, options);
+      // The key's daily notional is counted once per step (its first prepare), whatever re-prepares follow.
+      if (usable && usable.usd !== null && firstPreparedAt(step) === null) {
+        await (contractDirectory() as ContractDirectory).recordSpend(usable.ownerKeyId, usable.usd);
+      }
       const next = withSteps(graph, replaceStep(graph.steps, nextStep), now);
       const intent = await commit(graph, next);
       return {
@@ -686,9 +757,71 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
           expiresAt,
           quoteBinding,
           ...(review ? { review } : {}),
+          ...(preview ? { preview: preview.step } : {}),
         },
+        ...(preview ? { preview: preview.intent } : {}),
+        ...(preview?.ack ? { previewAck: preview.ack } : {}),
       };
     });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* --------------------------------------------------------------- preview */
+
+/** One quote refresh per intent per 20 s (asset-preview design §8.3); at most 4 ready steps re-quoted. */
+const REFRESH_QUOTES_INTERVAL_MS = 20_000;
+const REFRESH_QUOTES_MAX_STEPS = 4;
+const quoteRefreshes = new Map<string, number>();
+
+export interface RefreshPreviewOptions {
+  /** Re-quote ready steps (one provider quote each, rate limited); default false re-simulates cached quote transactions. */
+  readonly refreshQuotes?: boolean;
+}
+
+/**
+ * Recomputes an intent's asset-change preview (stage `refresh`). By default
+ * no provider is called: cached plan-time transactions are re-simulated while
+ * their quotes are valid, other steps are quoted. With `refreshQuotes`, ready
+ * steps are re-quoted first (RATE_LIMITED when asked again within 20 s).
+ */
+export async function refreshIntentPreview(intentId: string, options: RefreshPreviewOptions = {}): Promise<IntentPreview> {
+  try {
+    const graph = await getIntent(intentId);
+    const sources = new Map<string, PlannedStepPreview>();
+    if (options.refreshQuotes) {
+      const now = Date.now();
+      const last = quoteRefreshes.get(intentId);
+      if (last !== undefined && now - last < REFRESH_QUOTES_INTERVAL_MS) {
+        const wait = Math.ceil((REFRESH_QUOTES_INTERVAL_MS - (now - last)) / 1000);
+        throw Object.assign(new PlatformError("RATE_LIMITED", `Quotes of this intent were refreshed moments ago; retry in ${wait} s.`, 429), { retryAfterSeconds: wait });
+      }
+      quoteRefreshes.delete(intentId);
+      quoteRefreshes.set(intentId, now);
+      while (quoteRefreshes.size > 20_000) {
+        const oldest = quoteRefreshes.keys().next().value;
+        if (oldest === undefined) break;
+        quoteRefreshes.delete(oldest);
+      }
+      const ready = graph.steps
+        .filter((step) => (step.status === "ready" || step.status === "awaiting_signature") && step.kind !== "call" && step.kind !== "action" &&
+          step.dependsOn.every((dependency) => {
+            const parent = graph.steps.find((candidate) => candidate.id === dependency);
+            return parent !== undefined && isStepDone(parent);
+          }))
+        .slice(0, REFRESH_QUOTES_MAX_STEPS);
+      await Promise.all(ready.map(async (step) => {
+        try {
+          const planned = await adapterForStep(step).plan(actionForStep(graph, step));
+          if (planned.preview) sources.set(step.id, planned.preview);
+        } catch (error) {
+          console.warn(`[platform] preview re-quote of ${intentId}/${step.id} failed:`, toPlatformError(error).message);
+        }
+      }));
+      if (sources.size > 0) rememberPlannedPreviews(intentId, new Map([...plannedPreviews(intentId), ...sources]));
+    }
+    return await previewIntent(graph, { stage: "refresh", ...(sources.size > 0 ? { sources } : {}) });
   } catch (error) {
     throw toPlatformError(error);
   }

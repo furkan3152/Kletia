@@ -377,13 +377,16 @@ function decimalsOf(value: string): number {
 }
 
 function compareDecimal(a: string, b: string): number {
-  const width = Math.max(decimalsOf(a), decimalsOf(b));
-  const left = BigInt(toBaseUnits(a, width));
-  const right = BigInt(toBaseUnits(b, width));
+  const [aWhole = "0", aFraction = ""] = a.split(".");
+  const [bWhole = "0", bFraction = ""] = b.split(".");
+  const width = Math.max(aFraction.length, bFraction.length);
+  const left = BigInt(aWhole + aFraction.padEnd(width, "0"));
+  const right = BigInt(bWhole + bFraction.padEnd(width, "0"));
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-const isPositiveDecimal = (value: unknown): value is string => isDecimalAmount(value) && !/^0(?:\.0*)?$/u.test(value);
+/** Positive decimal text of a sane length (amounts never need more than 40 characters). */
+const isPositiveDecimal = (value: unknown): value is string => isDecimalAmount(value) && value.length <= 40 && !/^0(?:\.0*)?$/u.test(value);
 
 /* ============================================================== validation */
 
@@ -584,7 +587,7 @@ export function validateLinkDefinition(input: unknown, options: LinkValidationOp
   for (const symbol of assets) {
     if (!options_.some((option) => option.symbol === symbol)) source(`funding.assets`, `${symbol} exists on none of the funding networks.`);
   }
-  for (const network of networks) {
+  for (const network of assets.length > 0 ? networks : []) {
     if (!options_.some((option) => option.network === network)) source(`funding.networks`, `None of the funding assets exists on ${CHAINS[network].name}.`);
   }
   let bounds: Record<string, LinkAmountBounds> | undefined;
@@ -899,7 +902,12 @@ export function expandLink(link: StoredLinkDefinition, choice: LinkFundingChoice
       throw new LinkExpansionError("LINK_SOURCE_NOT_ALLOWED", `On ${CHAINS[destinationNetwork].name} only ${destinationAsset.symbol} itself can pay this link.`, [{ path: "source.asset", message: `Use ${destinationAsset.symbol}.` }]);
     } else {
       expansionCase = "deliver-bridge";
-      const target = toBaseUnits(head.amount as string, destinationAsset.decimals);
+      let target: string;
+      try {
+        target = toBaseUnits(head.amount as string, destinationAsset.decimals);
+      } catch {
+        throw new LinkExpansionError("LINK_PLAN_OUT_OF_BOUNDS", "The delivered amount does not fit the pinned destination asset.");
+      }
       rootAmount = options.deliverInput ?? fromBaseUnits(linkDeliverFirstGuess(target, destinationAsset.decimals, resolved.decimals), resolved.decimals);
       if (!isPositiveDecimal(rootAmount) || decimalsOf(rootAmount) > resolved.decimals) {
         throw new LinkExpansionError("LINK_PLAN_OUT_OF_BOUNDS", "The sized deliver input is not a valid amount.");

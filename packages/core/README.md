@@ -22,6 +22,13 @@ npm install @kletia/core
 | Errors | `ERROR_CATALOG` (every API error and step-failure code with status, category, retry rule and remedy), `describeError`, `resolveErrorCode`, `isRetryableError`, `errorDocsUrl`, `errorCatalogRows` |
 | Events | `KletiaEventMap`, `KletiaEvent`, `createEventBus` |
 | Webhooks | `signWebhookPayload`, `verifyWebhookSignature` |
+| Receipts | `verifyReceipt` (offline: JCS profile, SHA-256 digest, Ed25519 over `kletia.receipt.v1:<digest>`, salted path-bound disclosures, inclusion proofs), `buildReceipt`, `buildPlanRecord`, `projectRequest`, `receiptJcs`, `intentRef`, `receiptCommitment`, `receiptKeyId`, `RECEIPT_PROFILES`, `KLETIA_RECEIPT_KEY_PINS` |
+| Receipt anchors | `RpcTransport`, `readEvmAnchor`, `readSvmAnchor` (Solana version 1 transactions included), `compareAnchors`, `evmQuoteBinding`, `AnchorUnavailableError` |
+| Transparency log | `merkleRoot`, `merkleAuditPath`, `verifyMerkleInclusion` (RFC 6962 / RFC 9162), `receiptLogBatchDigest` |
+| Rule Book | `validatePolicy`, `canonicalPolicy`, `policyHash`, `comparePolicies` (tighten now, loosen later), `POLICY_TEMPLATES`, `evaluatePolicy` / `evaluatePolicyChain`, `buildPolicyFacts`, `narrowConstraints`, `scheduleState`, `approvalDigest`, `approvalTypedData`, `approvalMessageText`, `verifyDecisionChain`, `POLICY_RULES` |
+| Intent links | `validateLinkDefinition`, `expandLink`, `blinkEligibility`, `linkDeliverFirstGuess` / `linkDeliverRescale`, `boardText`, `LINK_ID_PATTERN`, `LINK_LIMITS` |
+| Asset-change preview | `IntentPreview`, `StepPreview`, `aggregatePreview`, `previewDigest`, `materialChange`, `validatePreviewAck` |
+| Hashing | `sha256` / `sha256Hex` (synchronous), `base64UrlEncode` / `base64UrlDecode` |
 
 ## Example
 
@@ -97,6 +104,75 @@ execute functions are refused by selector and by name; `bytes` arguments only
 accept `0x`; receiver-like addresses must bind to the user; tokens, routers,
 Permit2, Multicall3, precompiles and system contracts can never be targets.
 See [docs/platform/contracts.md](../../docs/platform/contracts.md).
+
+## Receipts
+
+Every finished intent gets a signed receipt (`kletia.receipt/v1`) once its
+transactions are final. Anyone can check it offline, with Web Crypto only:
+
+```ts
+import { verifyReceipt } from "@kletia/core";
+
+const check = await verifyReceipt(receipt, {
+  keys,                    // receipt keys you fetched from two origins; pinned keys are always consulted first
+  intentId: "int_…",       // optional: checks that the receipt is about this intent
+  requireGroups: ["steps.*.evidence"],
+});
+check.valid;               // signature, digest, key status and every disclosed group
+check.sealed;              // groups the holder did not disclose
+check.problems;            // e.g. [{ code: "DISCLOSURE_MISMATCH", path: "disclosures.steps.s1.evidence" }]
+```
+
+The payload holds a public skeleton (networks, step kinds, protocols,
+assets, statuses, day) and salted SHA-256 commitments to private groups;
+holders share any subset of the disclosures and the signature still verifies.
+`readEvmAnchor` and `readSvmAnchor` re-read each anchor through any JSON-RPC
+transport, and a source that cannot show it (pruned, `-32015`, an error)
+reports `AnchorUnavailableError`, never a mismatch.
+
+## Rule Book policies
+
+```ts
+import { evaluatePolicy, buildPolicyFacts, validatePolicy } from "@kletia/core";
+
+const { ok, value: policy, issues, warnings } = validatePolicy({
+  schema: "kletia.policy/v1",
+  kinds: { allow: ["transfer", "bridge"] },
+  recipients: { mode: "own" },
+  accounts: { allow: ["eip155:*:0x8f3c…a21b"] },
+  caps: { perStepUsd: "200", dailyUsd: "1000" },
+}, { defaults: "agent" });
+
+const facts = buildPolicyFacts(intent, { stage: "sign", stored: true });
+const decision = evaluatePolicy(policy, facts, { scope: "key", defaults: "agent" });
+decision.outcome;          // "allow" | "confirm" | "deny"
+decision.violations;       // [{ rule: "recipients.mode", path: "steps[1].recipient", observed, limit, … }]
+```
+
+USD limits are decimal strings; an amount a USD rule needs but no price
+covers fails closed (`pricing.unavailable`). `comparePolicies` says which
+fields of an amendment tighten (they apply at once) and which loosen (they
+wait the active version's delay).
+
+## Intent links
+
+```ts
+import { expandLink, validateLinkDefinition } from "@kletia/core";
+
+const result = validateLinkDefinition(body);                   // the API's static rules, locally
+const plan = expandLink(storedLink, { network: "arbitrum", asset: "USDC", amount: "250" });
+plan.actions;              // [bridge arbitrum → base, deposit "max"] with pinned recipients and contracts
+plan.requiredVms;          // ["evm"]: one visitor account per virtual machine
+```
+
+## Asset-change preview
+
+`aggregatePreview` nets the simulated (or quoted) effect of every step of an
+intent per network, account and asset, collapses money that only passes
+through a wallet, prices it, and labels every number with its certainty
+(`simulated`, `simulated-assumed-funds`, `venue-minimum`, `quoted`,
+`estimated`). Its `digest` pins what moves; `materialChange` tells whether a
+fresh preview is materially worse than the one the user acknowledged.
 
 ## Model
 

@@ -15,6 +15,7 @@ export {
   listIntents,
   prepareStep,
   refreshIntent,
+  refreshIntentPreview,
   startSettlementPoller,
   submitStep,
   MAX_STEP_TRANSACTIONS,
@@ -22,14 +23,36 @@ export {
   type CreatedIntent,
   type CreateIntentOptions,
   type PlatformConfiguration,
+  type PrepareStepOptions,
   type PreparedStepResult,
+  type RefreshPreviewOptions,
   type SettlementPollerOptions,
 } from "./engine/service.js";
+
+/* Asset-change preview (engine side; the HTTP layer installs the store and serves the routes). */
+export {
+  configurePreviewPricer,
+  configurePreviewStore,
+  getPreviewStore,
+  materialPreviewChanges,
+  MemoryPreviewStore,
+  plannedPreviews,
+  previewChangedError,
+  previewEnforced,
+  previewIntent,
+  previewPreparedStep,
+  PREVIEW_TTL_MS,
+  type PreparedPreview,
+  type PreviewContext,
+  type PreviewPricer,
+  type PreviewStore,
+} from "./engine/preview/index.js";
+export type { PlannedStepPreview, PlannedVenueFee } from "./engine/adapters/types.js";
 
 /** Id formats shared by the engine and the HTTP layer. */
 export { INTENT_ID_PATTERN, STEP_ID_PATTERN } from "./engine/util.js";
 
-export { planIntent, DEFAULT_SLIPPAGE_BPS, INTENT_TTL_MS, type PlanOptions } from "./engine/planner.js";
+export { planIntent, planIntentWithPreviews, DEFAULT_SLIPPAGE_BPS, INTENT_TTL_MS, type PlannedIntent, type PlanOptions } from "./engine/planner.js";
 export { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, type GrammarContext, type GrammarResult } from "./engine/grammar.js";
 export { quoteRoutes, type QuoteRoute, type QuoteRoutesInput, type QuoteRoutesResult } from "./engine/quotes.js";
 export { LENDING_PROTOCOLS } from "./engine/planner.js";
@@ -48,16 +71,31 @@ export {
   emitGraphChanges,
   platformEvents,
   publishIntentEvent,
+  publishReceiptEvent,
   readIntentEvents,
   subscribeIntentEvents,
+  subscribeReceiptEvents,
   type IntentEvent,
   type IntentEventType,
+  type ReceiptEvent,
+  type ReceiptEventType,
 } from "./engine/events.js";
+
+/* Verifiable receipts (engine side: inputs gated on finality; the HTTP layer signs, stores and serves). */
+export {
+  collectReceiptInputs,
+  plannedAnchors,
+  RECEIPT_FINALITY_LAG_SECONDS,
+  resetReceiptHeads,
+  type CollectReceiptOptions,
+} from "./engine/receipts/collect.js";
+export type { ReceiptCollection } from "@kletia/core";
 
 export {
   createIntentStore,
   MemoryIntentStore,
   PostgresIntentStore,
+  type IntentChange,
   type IntentRecordMeta,
   type IntentStore,
   type ReferenceClaim,

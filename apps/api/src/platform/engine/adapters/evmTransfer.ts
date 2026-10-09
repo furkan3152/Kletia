@@ -54,6 +54,22 @@ export async function estimateGas(network: EvmNetworkKey, request: { from: strin
   }
 }
 
+/** The transfer call (deterministic: no reads), shared by plan (preview) and prepare. */
+function transferCall(action: AdapterAction): { readonly to: string; readonly data: string; readonly value: string } {
+  const recipient = getAddress(action.recipient.address);
+  const value = BigInt(action.amount);
+  return action.input.isNative
+    ? { to: recipient as string, data: "0x", value: value.toString() }
+    : {
+        to: getAddress(action.input.address as string) as string,
+        data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [recipient, value] }),
+        value: "0",
+      };
+}
+
+/** Seconds a plan-time transfer preview stays valid (it is deterministic; the plan expires first). */
+const PREVIEW_TTL_SECONDS = 30 * 60;
+
 export const evmTransferAdapter: ProtocolAdapter = {
   id: "erc20-transfer",
   protocols: ["erc20-transfer", "system-transfer"],
@@ -85,6 +101,17 @@ export const evmTransferAdapter: ProtocolAdapter = {
       warnings: action.input.verified ? [] : [`${action.input.symbol} is not in Kletia's canonical registry.`],
       transactionCount: 1,
       slippageBps: action.slippageBps,
+      preview: {
+        transactions: [{
+          vm: "evm",
+          network,
+          chainId: evmChainId(network),
+          from: getAddress(action.account.address),
+          ...transferCall(action),
+          description: title(action),
+        }],
+        expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
+      },
     };
   },
 
@@ -94,13 +121,7 @@ export const evmTransferAdapter: ProtocolAdapter = {
     const recipient = getAddress(action.recipient.address);
     const value = BigInt(action.amount);
     await assertEvmBalance(network, from, action.input.address, value, action.input.symbol, action.input.decimals);
-    const call = action.input.isNative
-      ? { to: recipient as string, data: "0x", value: value.toString() }
-      : {
-          to: getAddress(action.input.address as string) as string,
-          data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [recipient, value] }),
-          value: "0",
-        };
+    const call = transferCall({ ...action, recipient: { ...action.recipient, address: recipient } });
     const gas = await estimateGas(network, { from, ...call });
     const description = title(action);
     const transaction: EvmTransactionRequest = {

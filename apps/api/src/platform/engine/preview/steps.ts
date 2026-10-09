@@ -663,18 +663,28 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
     const simulation = entry.simulation;
     const keys = simulation.accountKeys;
     const index = keys.indexOf(user);
+    const balances = [...simulation.preTokenBalances, ...simulation.postTokenBalances].filter((balance) => balance.owner === user);
+    const owned = new Set(balances.map((balance) => balance.account));
+    // Wrapped-SOL accounts of the user hold the user's SOL (wrapped amount and reserve alike): their
+    // lamports count as the user's SOL, so wrapping, unwrapping and closing them nets out (live: a
+    // Jupiter swap that closes a pre-existing wSOL account).
+    const wrapped = new Set(balances.filter((balance) => balance.mint === WRAPPED_SOL_MINT).map((balance) => balance.account));
     if (index >= 0 && simulation.preBalances && simulation.postBalances) {
       const pre = simulation.preBalances[index] ?? 0n;
       lamports += (simulation.postBalances[index] ?? 0n) - pre;
-      if (position === 0 && inputNative) inputBefore = pre;
+      let wrappedBefore = 0n;
+      for (const [keyIndex, key] of keys.entries()) {
+        if (!wrapped.has(key)) continue;
+        const keyPre = simulation.preBalances[keyIndex] ?? 0n;
+        lamports += (simulation.postBalances[keyIndex] ?? 0n) - keyPre;
+        wrappedBefore += keyPre;
+      }
+      if (position === 0 && inputNative) inputBefore = pre + wrappedBefore;
     }
     fee += simulation.fee ?? 0n;
-    const owned = new Set(
-      [...simulation.preTokenBalances, ...simulation.postTokenBalances].filter((balance) => balance.owner === user).map((balance) => balance.account),
-    );
     if (simulation.preBalances && simulation.postBalances) {
       for (const [keyIndex, key] of keys.entries()) {
-        if (key === user || !owned.has(key)) continue;
+        if (key === user || !owned.has(key) || wrapped.has(key)) continue;
         const pre = simulation.preBalances[keyIndex] ?? 0n;
         const post = simulation.postBalances[keyIndex] ?? 0n;
         if (pre === 0n && post > 0n) rent += post;
@@ -692,9 +702,9 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
       if (state) tokenAccounts.push({ account, owner: state.owner, delegate: state.delegate });
     }
   }
-  const wsol = tokenDeltas.get(WRAPPED_SOL_MINT) ?? 0n;
+  // Wrapped SOL is already counted through its accounts' lamports above.
   tokenDeltas.delete(WRAPPED_SOL_MINT);
-  const solDelta = lamports + wsol;
+  const solDelta = lamports;
   const solSpent = -solDelta - fee - rent;
   const recipient = step.recipient ?? step.account;
   const cross = step.settlement?.kind === "cross-network";

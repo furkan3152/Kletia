@@ -384,7 +384,7 @@ function relayVenueFees(action: AdapterAction, result: RelayQuote): PlannedVenue
       label: fee.kind === "relayer" ? "Relay relayer fee" : "Relay app fee",
       ...(asset ? { asset: { asset, symbol: fee.symbol, decimals: fee.decimals }, amount: fee.amount } : {}),
       formatted: fromBaseUnits(fee.amount, fee.decimals),
-      ...(fee.amountUsd !== null ? { usd: fee.amountUsd } : {}),
+      ...(fee.amountUsd !== null ? { usd: Math.round(fee.amountUsd * 1e6) / 1e6 } : {}),
       paid: "deducted",
       certainty: "quoted",
     };

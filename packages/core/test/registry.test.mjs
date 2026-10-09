@@ -126,6 +126,16 @@ test("yield venues: ids, assets, protocols and addresses are consistent", () => 
   for (const venue of YIELD_VENUES.filter((entry) => entry.kind === "comet" || entry.kind === "ctoken" || entry.kind === "aave-reserve")) {
     assert.equal(venue.spender, venue.target, `${venue.id} approves the contract it calls`);
   }
+  for (const venue of YIELD_VENUES.filter((entry) => entry.kind === "ctoken")) {
+    // Moonwell WETH markets (MWethDelegate) pay redeems in native ETH through a pinned unwrapper.
+    assert.equal(Boolean(venue.nativeRouter), Boolean(venue.nativePayout), `${venue.id} pins router and payout together`);
+    if (venue.nativePayout) {
+      assert.ok(isEvmAddress(venue.nativePayout), `${venue.id} nativePayout`);
+      assert.equal(venue.asset, "WETH", `${venue.id} pays native ETH only for a WETH market`);
+    }
+  }
+  assert.equal(getYieldVenue("base:moonwell:weth")?.nativePayout, "0x1382cFf3CeE10D283DccA55A30496187759e4cAf");
+  assert.equal(getYieldVenue("optimism:moonwell:weth")?.nativePayout, "0xa962F2974A846b30366251f4634384C1e42aeF16");
   const slugs = new Set(YIELD_VENUES.map((venue) => `${venue.network}:${venue.protocol}:${venue.slug}`));
   assert.equal(slugs.size, YIELD_VENUES.length, "slugs are unique per network and protocol");
 });

@@ -1,6 +1,13 @@
 /**
  * Relay API client (https://docs.relay.link). Every response is validated
  * field-by-field; anything unexpected fails closed.
+ *
+ * Settlement reads use `GET /intents/status/v3` (keyless). The by-hash lookup
+ * uses `GET /requests/v3?depositTxHash=` only when RELAY_API_KEY is set: v3
+ * requires `x-api-key` and returns only requests created under the same
+ * integrator's keys, so the key is also sent on every quote. Without a key no
+ * by-hash lookup is made (v2 is throttled and retires 2026-11-24); deposits
+ * then bind only through the status of a request id quoted for the step.
  */
 import { applySlippage, isBaseUnitAmount, isEvmAddress, isSolanaAddress } from "@kletia/core";
 import type { ExternalSolanaInstruction } from "../../../networks/solana/index.js";
@@ -24,10 +31,20 @@ function readRelayUrl(): string {
 }
 
 export const RELAY_API_URL = readRelayUrl();
-const RELAY_API_KEY = process.env.RELAY_API_KEY?.trim() || null;
+let relayApiKey: string | null = process.env.RELAY_API_KEY?.trim() || null;
+
+/** Overrides RELAY_API_KEY (tests, embedders); `null` disables keyed endpoints. */
+export function configureRelayApiKey(key: string | null): void {
+  relayApiKey = key?.trim() || null;
+}
+
+/** True when deposits can be looked up by hash (`/requests/v3` needs a key). */
+export function relayRequestLookupEnabled(): boolean {
+  return relayApiKey !== null;
+}
 
 function headers(): Record<string, string> {
-  return RELAY_API_KEY ? { "x-api-key": RELAY_API_KEY } : {};
+  return relayApiKey ? { "x-api-key": relayApiKey } : {};
 }
 
 /** Floor applied when Relay omits minimumAmount and no slippage was requested. */
@@ -222,7 +239,7 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
       destinationCurrency: request.destinationCurrency,
       amount: request.amount,
       tradeType: "EXACT_INPUT",
-      ...(RELAY_API_KEY ? { referrer: "kletia" } : {}),
+      ...(relayApiKey ? { referrer: "kletia" } : {}),
       ...(request.slippageBps !== undefined ? { slippageTolerance: String(request.slippageBps) } : {}),
     },
   });
@@ -275,6 +292,7 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
 export type RelayRequestStatus =
   | "waiting"
   | "pending"
+  | "depositing"
   | "submitted"
   | "delayed"
   | "success"
@@ -282,7 +300,16 @@ export type RelayRequestStatus =
   | "refund"
   | "unknown";
 
-const KNOWN_STATUSES: readonly RelayRequestStatus[] = ["waiting", "pending", "submitted", "delayed", "success", "failure", "refund"];
+const KNOWN_STATUSES: readonly RelayRequestStatus[] = [
+  "waiting",
+  "pending",
+  "depositing",
+  "submitted",
+  "delayed",
+  "success",
+  "failure",
+  "refund",
+];
 
 function parseStatus(value: unknown): RelayRequestStatus {
   return typeof value === "string" && (KNOWN_STATUSES as readonly string[]).includes(value) ? (value as RelayRequestStatus) : "unknown";
@@ -294,6 +321,11 @@ function hashList(value: unknown): string[] {
     : [];
 }
 
+/** A Relay reason string; "N/A" and empty values read as none. */
+function reason(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" && value !== "N/A" ? value.slice(0, 80) : null;
+}
+
 export interface RelayRequestState {
   readonly requestId: string;
   readonly status: RelayRequestStatus;
@@ -303,38 +335,58 @@ export interface RelayRequestState {
   readonly outputAmount: string | null;
   readonly outputCurrency: string | null;
   readonly outputChainId: number | null;
+  /** Relay's failure / refund-failure reason when it reports one. */
+  readonly failReason?: string | null;
 }
 
+function sameHash(a: string, b: string): boolean {
+  return a.startsWith("0x") || b.startsWith("0x") ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** The delivered (or, before execution, quoted) destination output of a v3 request. */
+function v3Output(data: Record<string, unknown>): Record<string, unknown> {
+  const route = isRecord(data.route) ? data.route : {};
+  for (const phase of [route.actual, route.quoted]) {
+    const destination = isRecord(phase) && isRecord(phase.destination) ? phase.destination : null;
+    if (destination && isRecord(destination.outputCurrency)) return destination.outputCurrency;
+  }
+  return {};
+}
+
+/** Parses one `GET /requests/v3` entry (`inTxs[].txHash`, output under `data.route`). */
 function parseRequest(request: Record<string, unknown>): RelayRequestState | null {
   if (typeof request.id !== "string" || !/^0x[0-9a-fA-F]{64}$/u.test(request.id)) return null;
   const data = isRecord(request.data) ? request.data : {};
-  const metadata = isRecord(data.metadata) ? data.metadata : {};
-  const currencyOut = isRecord(metadata.currencyOut) ? metadata.currencyOut : {};
-  const currency = isRecord(currencyOut.currency) ? currencyOut.currency : {};
+  const output = v3Output(data);
+  const currency = isRecord(output.currency) ? output.currency : {};
   const outTxs = Array.isArray(data.outTxs) ? data.outTxs : [];
   const inTxs = Array.isArray(data.inTxs) ? data.inTxs : [];
   return {
     requestId: request.id,
     status: parseStatus(request.status),
-    destinationTxHashes: hashList(outTxs.map((tx) => (isRecord(tx) ? tx.hash : null))),
-    originTxHashes: hashList(inTxs.map((tx) => (isRecord(tx) ? tx.hash : null))),
+    destinationTxHashes: hashList(outTxs.map((tx) => (isRecord(tx) ? tx.txHash : null))),
+    originTxHashes: hashList(inTxs.map((tx) => (isRecord(tx) ? tx.txHash : null))),
     recipient: typeof request.recipient === "string" ? request.recipient : null,
-    outputAmount: isBaseUnitAmount(currencyOut.amount) ? currencyOut.amount : null,
+    outputAmount: isBaseUnitAmount(output.amount) ? output.amount : null,
     outputCurrency: typeof currency.address === "string" ? currency.address : null,
     outputChainId: typeof currency.chainId === "number" ? currency.chainId : null,
+    failReason: reason(data.failReason) ?? reason(data.refundFailReason),
   };
 }
 
 /**
- * Looks up the Relay requests a deposit transaction created (usually one).
- * The by-hash index is best effort (throttled, and deprecated by Relay): any
- * failure reads as "not indexed", so callers fall back to the status of the
- * request ids quoted for the step, which binds a deposit only on positive proof.
+ * Looks up the Relay requests a deposit transaction created (usually one)
+ * through `GET /requests/v3?depositTxHash=` (needs RELAY_API_KEY; without it
+ * nothing is requested). Only requests that list the deposit among their
+ * origin transactions are returned. The index is best effort: any failure
+ * reads as "not indexed", so callers fall back to the status of the request
+ * ids quoted for the step, which binds a deposit only on positive proof.
  */
 export async function fetchRelayRequestsByHash(hash: string): Promise<RelayRequestState[]> {
+  if (!relayApiKey || hash.length > 100) return [];
   let body: unknown;
   try {
-    body = await fetchProviderJson(`${RELAY_API_URL}/requests/v2?hash=${encodeURIComponent(hash)}`, {
+    body = await fetchProviderJson(`${RELAY_API_URL}/requests/v3?depositTxHash=${encodeURIComponent(hash)}`, {
       provider: "Relay",
       headers: headers(),
       allowStatus: [404],
@@ -347,14 +399,15 @@ export async function fetchRelayRequestsByHash(hash: string): Promise<RelayReque
   return body.requests
     .slice(0, 8)
     .map((entry) => (isRecord(entry) ? parseRequest(entry) : null))
-    .filter((entry): entry is RelayRequestState => entry !== null);
+    .filter((entry): entry is RelayRequestState => entry !== null && entry.originTxHashes.some((origin) => sameHash(origin, hash)));
 }
 
+/** `GET /intents/status/v3`: keyless status of one request id ("unknown" for ids Relay never saw). */
 export async function fetchRelayStatus(requestId: string): Promise<RelayRequestState> {
   if (!/^0x[0-9a-fA-F]{64}$/u.test(requestId)) {
     throw new PlatformError("RELAY_REQUEST_INVALID", "Invalid Relay request id.", 500);
   }
-  const body = await fetchProviderJson(`${RELAY_API_URL}/intents/status/v2?requestId=${requestId}`, {
+  const body = await fetchProviderJson(`${RELAY_API_URL}/intents/status/v3?requestId=${requestId}`, {
     provider: "Relay",
     headers: headers(),
   });
@@ -368,5 +421,6 @@ export async function fetchRelayStatus(requestId: string): Promise<RelayRequestS
     outputAmount: null,
     outputCurrency: null,
     outputChainId: typeof record.destinationChainId === "number" ? record.destinationChainId : null,
+    failReason: reason(record.failReason) ?? reason(record.refundFailReason),
   };
 }

@@ -1,16 +1,26 @@
 /**
- * Relay adapter: cross-network bridges and bridge-and-swap between Base,
- * Arbitrum One and Solana, plus same-network swaps on Base and Arbitrum.
- * A cross-network step settles only when Relay reports the fill and the
- * destination transaction is visible on the destination network.
+ * Relay adapter: cross-network bridges and bridge-and-swap between the EVM
+ * networks Relay serves in the registry and Solana, plus same-network swaps on
+ * Base and Arbitrum. A cross-network step settles only when Relay reports the
+ * fill and the destination transaction is visible on the destination network.
+ *
+ * Every Relay call is checked against the pinned contracts in
+ * `VENUE_CONTRACTS` at plan and at prepare: EVM calls may only approve the
+ * input token for, and call, the depository (same-asset bridges) or the
+ * depository / ERC-20 router / approval proxy (routes with a swap); depository
+ * calls are decoded (depositor, token, exact amount). Solana deposits may only
+ * invoke the pinned depository program plus ComputeBudget / Token / ATA.
  */
-import { decodeFunctionData, erc20Abi, getAddress, type Hex } from "viem";
+import { decodeFunctionData, erc20Abi, getAddress, parseAbi, type Hex } from "viem";
 import {
   CHAINS,
   explorerTxUrl,
   formatAmount,
   fromBaseUnits,
+  getProtocol,
+  isVenueContract,
   parseAccountId,
+  venueContracts,
   type IntentStep,
   type NetworkKey,
   type StepEvidence,
@@ -20,7 +30,14 @@ import {
 import { assembleSolanaTransaction, assertSolanaWalletRecipient, isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef, providerCurrency, sameAsset, type ResolvedAsset } from "../assets.js";
-import { erc20CreditFromLogs, evmChainId, isEvmNetwork, observeEvmTransaction, readEvmReceiptStatus } from "../chains/evm.js";
+import {
+  erc20CreditFromLogs,
+  evmChainId,
+  isEvmNetwork,
+  observeEvmTransaction,
+  readEvmReceiptStatus,
+  type EvmNetworkKey,
+} from "../chains/evm.js";
 import { assertSolanaTransactionOwner, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { decodeStepRef } from "../stepRef.js";
 import { assertEvmBalance } from "./evmTransfer.js";
@@ -30,6 +47,7 @@ import {
   fetchRelayStatus,
   RELAY_NATIVE_SOLANA,
   type RelayCall,
+  type RelayEvmCall,
   type RelayQuote,
   type RelayRequestState,
 } from "./relayClient.js";
@@ -52,10 +70,24 @@ import {
   verifySolanaReferences,
 } from "./verification.js";
 
-export const RELAY_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "solana"];
+/** Networks Relay serves, from the protocol registry (its contracts are pinned per network in VENUE_CONTRACTS). */
+export const RELAY_NETWORKS: readonly NetworkKey[] = Object.freeze([...(getProtocol("relay")?.networks ?? [])]);
 const SAME_NETWORK_SWAP_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum"];
 const APPROVE_SELECTOR = "0x095ea7b3";
 const MAX_TOTAL_IMPACT_PERCENT = 10;
+
+/** Relay Depository v2 entry points (selectors 0xe8017952 / 0x49290c1c). */
+const RELAY_DEPOSITORY_ABI = parseAbi([
+  "function depositErc20(address depositor, address token, uint256 amount, bytes32 id)",
+  "function depositNative(address depositor, bytes32 id)",
+]);
+
+/** Programs a Relay Solana deposit may invoke besides the pinned depository. */
+const RELAY_SOLANA_HELPER_PROGRAMS: ReadonlySet<string> = new Set([
+  SOLANA_PROGRAM_IDS.computeBudget,
+  SOLANA_PROGRAM_IDS.token,
+  SOLANA_PROGRAM_IDS.associatedToken,
+]);
 
 function relayChainId(network: NetworkKey): number {
   const id = CHAINS[network].settlement.relayChainId;
@@ -130,38 +162,130 @@ function sameAddress(a: string, b: string): boolean {
   return a.startsWith("0x") ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
-/** Validates Relay's EVM calls against the step before anything reaches a wallet. */
-function evmTransactions(action: AdapterAction, calls: readonly RelayCall[], description: string): TransactionRequest[] {
-  if (!isEvmNetwork(action.network)) throw new PlatformError("NETWORK_UNSUPPORTED", "Not an EVM network.", 422);
-  const network = action.network;
-  const chainId = evmChainId(network);
+function sameAssetGroup(action: Pick<AdapterAction, "input" | "output">): boolean {
+  return action.input.group !== undefined && action.input.group === action.output.group;
+}
+
+/**
+ * Pinned Relay contracts a non-approval call may target: the depository only
+ * for a same-asset bridge, the depository, ERC-20 router and approval proxy
+ * for routes that swap.
+ */
+function relayTargets(action: AdapterAction): string[] {
+  const depository = venueContracts("relay", action.network, "depository");
+  if (crossNetwork(action) && sameAssetGroup(action)) return depository;
+  return [
+    ...depository,
+    ...venueContracts("relay", action.network, "erc20-router"),
+    ...venueContracts("relay", action.network, "approval-proxy"),
+  ];
+}
+
+function rejectRelayCall(message: string): never {
+  throw new PlatformError("RELAY_QUOTE_INVALID", message, 502);
+}
+
+/** Decodes a depository deposit and checks depositor, token, amount and value against the step. */
+function assertDepositoryCall(action: AdapterAction, call: { readonly data: string; readonly value: string }): void {
+  let decoded;
+  try {
+    decoded = decodeFunctionData({ abi: RELAY_DEPOSITORY_ABI, data: call.data as Hex });
+  } catch {
+    rejectRelayCall("Relay call to the depository is not a deposit.");
+  }
   const amount = BigInt(action.amount);
+  const account = action.account.address.toLowerCase();
+  if (decoded.functionName === "depositErc20") {
+    const [depositor, token, deposited] = decoded.args;
+    if (depositor.toLowerCase() !== account) rejectRelayCall("Relay deposit is credited to another depositor.");
+    if (action.input.isNative || !action.input.address || token.toLowerCase() !== action.input.address.toLowerCase()) {
+      rejectRelayCall("Relay deposit names another token.");
+    }
+    if (deposited !== amount) rejectRelayCall("Relay deposit amount differs from the step amount.");
+    if (call.value !== "0") rejectRelayCall("Relay token deposit must not carry value.");
+    return;
+  }
+  const [depositor] = decoded.args;
+  if (depositor.toLowerCase() !== account) rejectRelayCall("Relay deposit is credited to another depositor.");
+  if (!action.input.isNative || BigInt(call.value) !== amount) rejectRelayCall("Relay native deposit value differs from the step amount.");
+}
+
+/**
+ * Validates Relay's EVM calls against the step and the pinned contracts
+ * (runs at plan and at prepare, so a quote that would be refused at prepare
+ * never wins the auction).
+ */
+function assertRelayEvmCalls(action: AdapterAction, calls: readonly RelayCall[]): RelayEvmCall[] {
+  if (!isEvmNetwork(action.network)) throw new PlatformError("NETWORK_UNSUPPORTED", "Not an EVM network.", 422);
+  const chainId = evmChainId(action.network);
+  const amount = BigInt(action.amount);
+  const targets = relayTargets(action);
+  if (targets.length === 0) throw new PlatformError("NETWORK_UNSUPPORTED", `Relay has no pinned contracts on ${CHAINS[action.network].name}.`, 422);
   const evmCalls = calls.map((call) => {
-    if (call.kind !== "evm") throw new PlatformError("RELAY_QUOTE_INVALID", "Relay returned a Solana call for an EVM origin.", 502);
+    if (call.kind !== "evm") rejectRelayCall("Relay returned a Solana call for an EVM origin.");
     return call;
   });
-  return evmCalls.map((call, index) => {
-    if (call.chainId !== chainId) throw new PlatformError("RELAY_QUOTE_INVALID", "Relay call targets another chain.", 502);
-    if (call.from.toLowerCase() !== action.account.address.toLowerCase()) {
-      throw new PlatformError("RELAY_QUOTE_INVALID", "Relay call is not sent by the step account.", 502);
-    }
-    const isApprove = call.data.toLowerCase().startsWith(APPROVE_SELECTOR);
-    if (isApprove) {
+  const pinned = (to: string) => targets.some((target) => target.toLowerCase() === to.toLowerCase());
+  let deposits = 0;
+  evmCalls.forEach((call, index) => {
+    if (call.chainId !== chainId) rejectRelayCall("Relay call targets another chain.");
+    if (call.from.toLowerCase() !== action.account.address.toLowerCase()) rejectRelayCall("Relay call is not sent by the step account.");
+    if (call.data.toLowerCase().startsWith(APPROVE_SELECTOR)) {
       if (action.input.isNative || !action.input.address || call.to.toLowerCase() !== action.input.address.toLowerCase()) {
-        throw new PlatformError("RELAY_QUOTE_INVALID", "Relay approval targets an unexpected token.", 502);
+        rejectRelayCall("Relay approval targets an unexpected token.");
       }
       const decoded = decodeFunctionData({ abi: erc20Abi, data: call.data as Hex });
-      if (decoded.functionName !== "approve") throw new PlatformError("RELAY_QUOTE_INVALID", "Unexpected approval call.", 502);
+      if (decoded.functionName !== "approve") rejectRelayCall("Unexpected approval call.");
       const [spender, approved] = decoded.args;
       const next = evmCalls[index + 1];
-      if (!next || next.to.toLowerCase() !== spender.toLowerCase()) {
-        throw new PlatformError("RELAY_QUOTE_INVALID", "Relay approval spender is not the contract it then calls.", 502);
-      }
-      if (approved > amount) throw new PlatformError("RELAY_QUOTE_INVALID", "Relay approval exceeds the step amount.", 502);
-      if (call.value !== "0") throw new PlatformError("RELAY_QUOTE_INVALID", "Approval must not carry value.", 502);
-    } else if (action.input.isNative ? BigInt(call.value) > amount : call.value !== "0") {
-      throw new PlatformError("RELAY_QUOTE_INVALID", "Relay call value does not match the step amount.", 502);
+      if (!next || next.to.toLowerCase() !== spender.toLowerCase()) rejectRelayCall("Relay approval spender is not the contract it then calls.");
+      if (!pinned(spender)) rejectRelayCall("Relay approval spender is not a pinned Relay contract.");
+      if (approved > amount) rejectRelayCall("Relay approval exceeds the step amount.");
+      if (call.value !== "0") rejectRelayCall("Approval must not carry value.");
+      return;
     }
+    if (!pinned(call.to)) rejectRelayCall(`Relay call target ${call.to} is not a pinned Relay contract on ${CHAINS[action.network].name}.`);
+    if (isVenueContract("relay", action.network, call.to, "depository")) {
+      assertDepositoryCall(action, call);
+      deposits += 1;
+    } else if (action.input.isNative ? BigInt(call.value) > amount : call.value !== "0") {
+      rejectRelayCall("Relay call value does not match the step amount.");
+    }
+  });
+  if (crossNetwork(action) && sameAssetGroup(action) && deposits !== 1) rejectRelayCall("A Relay bridge must make exactly one depository deposit.");
+  return evmCalls;
+}
+
+/** Solana deposits may only invoke the pinned depository (primary) and ComputeBudget / Token / ATA. */
+function assertRelaySolanaCalls(action: AdapterAction, calls: readonly RelayCall[]): string[] {
+  if (action.network !== "solana") throw new PlatformError("NETWORK_UNSUPPORTED", "Relay Solana deposits run on Solana mainnet.", 422);
+  const depository = venueContracts("relay", "solana", "depository");
+  return calls.map((call) => {
+    if (call.kind !== "svm") rejectRelayCall("Relay returned an EVM call for a Solana origin.");
+    for (const instruction of call.instructions) {
+      if (!depository.includes(instruction.programId) && !RELAY_SOLANA_HELPER_PROGRAMS.has(instruction.programId)) {
+        rejectRelayCall(`Relay deposit invokes ${instruction.programId}, which is not a pinned Relay program.`);
+      }
+    }
+    const primary = [...call.instructions].reverse().find((instruction) => instruction.programId !== SOLANA_PROGRAM_IDS.computeBudget);
+    if (!primary || !depository.includes(primary.programId)) rejectRelayCall("Relay deposit does not invoke the pinned Relay depository program.");
+    return primary.programId;
+  });
+}
+
+/** Validates Relay's calls for the action's VM (plan and prepare). */
+function assertRelayCalls(action: AdapterAction, calls: readonly RelayCall[]): void {
+  if (isEvmNetwork(action.network)) assertRelayEvmCalls(action, calls);
+  else assertRelaySolanaCalls(action, calls);
+}
+
+/** Validates Relay's EVM calls against the step before anything reaches a wallet. */
+function evmTransactions(action: AdapterAction, calls: readonly RelayCall[], description: string): TransactionRequest[] {
+  const evmCalls = assertRelayEvmCalls(action, calls);
+  const network = action.network as EvmNetworkKey;
+  const chainId = evmChainId(network);
+  return evmCalls.map((call) => {
+    const isApprove = call.data.toLowerCase().startsWith(APPROVE_SELECTOR);
     return {
       vm: "evm" as const,
       network,
@@ -181,10 +305,10 @@ async function solanaTransactions(
   calls: readonly RelayCall[],
   description: string,
 ): Promise<{ transactions: TransactionRequest[]; programs: string[] }> {
-  if (action.network !== "solana") throw new PlatformError("NETWORK_UNSUPPORTED", "Relay Solana deposits run on Solana mainnet.", 422);
+  const primaries = assertRelaySolanaCalls(action, calls);
   const transactions: TransactionRequest[] = [];
   const programs: string[] = [];
-  for (const call of calls) {
+  for (const [index, call] of calls.entries()) {
     if (call.kind !== "svm") throw new PlatformError("RELAY_QUOTE_INVALID", "Relay returned an EVM call for a Solana origin.", 502);
     const prepared = await assembleSolanaTransaction({
       network: "solana",
@@ -200,10 +324,12 @@ async function solanaTransactions(
         422,
       );
     }
-    assertSolanaTransactionOwner(prepared.transaction, action.account.address);
-    const primary = [...call.instructions].reverse().find((instruction) => instruction.programId !== SOLANA_PROGRAM_IDS.computeBudget);
-    if (!primary) throw new PlatformError("RELAY_QUOTE_INVALID", "Relay deposit has no program instruction.", 502);
-    programs.push(primary.programId);
+    const info = assertSolanaTransactionOwner(prepared.transaction, action.account.address);
+    // The assembled transaction may only add ComputeBudget instructions to the validated ones.
+    if (info.programs.some((program) => program !== primaries[index] && !RELAY_SOLANA_HELPER_PROGRAMS.has(program))) {
+      throw new PlatformError("RELAY_QUOTE_INVALID", "The assembled Relay deposit invokes an unpinned program.", 502);
+    }
+    programs.push(primaries[index] as string);
     transactions.push({
       vm: "svm",
       network: "solana",
@@ -218,18 +344,19 @@ async function solanaTransactions(
 }
 
 function settlementFailure(state: RelayRequestState): SettlementResult | null {
+  const why = state.failReason ? ` (${state.failReason})` : "";
   if (state.status === "refund") {
     return {
       status: "failed",
       evidence: [],
-      failure: { code: "SETTLEMENT_REFUNDED", message: "Relay refunded the deposit on the origin network." },
+      failure: { code: "SETTLEMENT_REFUNDED", message: `Relay refunded the deposit on the origin network${why}.` },
     };
   }
   if (state.status === "failure") {
     return {
       status: "failed",
       evidence: [],
-      failure: { code: "SETTLEMENT_FAILED", message: "Relay could not fill the request." },
+      failure: { code: "SETTLEMENT_FAILED", message: `Relay could not fill the request${why}.` },
     };
   }
   return null;
@@ -279,7 +406,7 @@ async function requestForDeposit(step: IntentStep, deposit: string): Promise<Dep
   return { kind: "unknown" };
 }
 
-interface DestinationCheck {
+export interface DestinationCheck {
   readonly confirmed: boolean;
   /** Amount observed arriving at the recipient; null when it cannot be measured. */
   readonly credited: bigint | null;
@@ -287,9 +414,10 @@ interface DestinationCheck {
 
 /**
  * Destination-network evidence for a fill: the transaction succeeded and, where
- * measurable, credited the recipient with the output asset.
+ * measurable, credited the recipient with the output asset. Shared by every
+ * cross-network venue (Relay, LI.FI, deBridge DLN).
  */
-async function destinationCredit(
+export async function destinationCredit(
   network: NetworkKey,
   hash: string,
   output: ResolvedAsset,
@@ -333,6 +461,8 @@ export const relayAdapter: ProtocolAdapter = {
 
   async plan(action): Promise<PlannedStep> {
     const result = await quote(action, action.slippageBps);
+    // Same target / program checks as prepare: a quote that prepare would refuse never wins the auction.
+    assertRelayCalls(action, result.calls);
     const warnings = quoteWarnings(result);
     if (!action.output.verified) warnings.push(`${action.output.symbol} is not a verified token.`);
     const cross = crossNetwork(action);

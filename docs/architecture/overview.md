@@ -7,7 +7,7 @@ Kletia is intent infrastructure for EVM networks and Solana. It converts an outc
 It ships in two forms that share one engine:
 
 - **The Kletia app** — a home page, the intent console (`/app`), Intent Studio (`/studio`), a developer portal and a network status page.
-- **The Kletia platform** — Platform API v1 (`/v1`), [`@kletia/core`](../../packages/core/README.md) (the intent specification), [`@kletia/sdk`](../../packages/sdk/README.md) and [`@kletia/widget`](../../packages/widget/README.md), so other products can embed cross-network intents.
+- **The Kletia platform** — Platform API v1 (`/v1`), [`@kletia/core`](../../packages/core/README.md) (the intent specification), [`@kletia/sdk`](../../packages/sdk/README.md), [`@kletia/widget`](../../packages/widget/README.md) and [`@kletia/cli`](../../packages/cli/README.md), plus a read-only [MCP server](../platform/mcp.md) for AI agents, so other products can embed cross-network intents.
 
 | Network key | Network | CAIP-2 | Lane | Primary role |
 |---|---|---|---|---|

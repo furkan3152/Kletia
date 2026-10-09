@@ -42,6 +42,14 @@ services:
         value: "true"
       - key: SOLANA_RPC_URL
         sync: false
+      # Intent-platform networks; unset falls back to keyless public RPCs.
+      # Every endpoint must report chain id 1 / 10 / 137 before it is used.
+      - key: ETHEREUM_RPC_URL
+        sync: false
+      - key: OPTIMISM_RPC_URL
+        sync: false
+      - key: POLYGON_RPC_URL
+        sync: false
       - key: SOLANA_DEVNET_RPC_URL
         value: https://api.devnet.solana.com
       - key: JUPITER_API_KEY
@@ -56,6 +64,20 @@ services:
       - key: KLETIA_PLATFORM_SECRET
         generateValue: true
       - key: KLETIA_OPERATOR_API_KEYS
+        sync: false
+      # Origin of Studio hand-off links (MCP) and error docs links.
+      - key: KLETIA_WEB_ORIGIN
+        value: https://kletiaai.xyz
+      # Optional exact browser origins allowed to call /v1/mcp.
+      - key: KLETIA_MCP_ALLOWED_ORIGINS
+        sync: false
+      # Cross-network venues (bridge auction). Relay requires a key in
+      # production; LI.FI and deBridge DLN work keyless at low limits.
+      - key: RELAY_API_KEY
+        sync: false
+      - key: LIFI_API_KEY
+        sync: false
+      - key: DEBRIDGE_ACCESS_TOKEN
         sync: false
       - key: ARBITRUM_SEPOLIA_RPC_URL
         sync: false

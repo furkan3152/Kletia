@@ -144,6 +144,8 @@ export interface VenueScript {
 }
 
 export const venueScripts: Record<string, VenueScript> = {};
+/** Every action the bridge stubs planned or prepared, in order. */
+export const bridgeCalls: AdapterAction[] = [];
 export const BRIDGE_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "ethereum", "optimism", "polygon", "solana"];
 
 function scaled(action: AdapterAction, bps: number): string {
@@ -181,12 +183,14 @@ export function stubBridge(protocol: ProtocolId, label: string): ProtocolAdapter
     supports: (route) => route.kind === "bridge" && route.network !== route.destinationNetwork &&
       BRIDGE_NETWORKS.includes(route.network) && BRIDGE_NETWORKS.includes(route.destinationNetwork),
     plan: async (action) => {
+      bridgeCalls.push(action);
       const script = venueScripts[protocol];
       if (script?.hang) await new Promise<never>(() => undefined);
       if (script?.fail) throw new PlatformError(script.fail, `${label} refused the route.`, 422);
       return venuePlan(protocol, action, false);
     },
     prepare: async ({ action }): Promise<PreparedPayload> => {
+      bridgeCalls.push(action);
       const plan = venuePlan(protocol, action, true);
       const target = venueContracts(protocol, action.network)[0] ?? "0x000000000000000000000000000000000000bEEF";
       const value = (plan.extraCosts ?? []).filter((cost) => cost.asset.endsWith("/slip44:60")).reduce((sum, cost) => sum + BigInt(cost.amount), 0n);
@@ -226,6 +230,7 @@ export function resetVenueEngine(options: { bridges?: boolean } = {}): MemoryInt
   resetEngine();
   lending.position = "123450000";
   lending.calls.length = 0;
+  bridgeCalls.length = 0;
   for (const key of Object.keys(venueScripts)) delete venueScripts[key];
   const store = new MemoryIntentStore();
   const base = options.bridges ? STUB_ADAPTERS.filter((adapter) => adapter.id !== "relay") : STUB_ADAPTERS;

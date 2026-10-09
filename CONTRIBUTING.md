@@ -18,7 +18,7 @@ npm --prefix contracts/base ci --include=dev --legacy-peer-deps
 npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 ```
 
-The repository is an npm workspace: `packages/core`, `packages/sdk`, `packages/widget`, `apps/api` and `apps/web` share one root lockfile, and `npm ci` builds the packages. The Hardhat contract workspaces keep their own lockfiles.
+The repository is an npm workspace: `packages/core`, `packages/sdk`, `packages/widget`, `packages/cli`, `apps/api` and `apps/web` share one root lockfile, and `npm ci` builds the packages. The Hardhat contract workspaces keep their own lockfiles.
 
 Copy the environment templates only for local runtime work:
 
@@ -35,7 +35,7 @@ Never commit environment files, private keys, seed phrases, API keys, webhook se
 - Network-specific assets, contracts, transaction builders, receipts, and wallet behavior belong in `apps/*/src/networks/<network>`.
 - Chain-agnostic planning, adapters, persistence and the `/v1` API belong in `apps/api/src/platform`.
 - Shared parsing, HTTP, disclosure, validation, and presentation primitives belong in `shared` only when they do not import protocol identity.
-- Client libraries belong in `packages/sdk` (framework-free) and `packages/widget` (React).
+- Client libraries belong in `packages/sdk` (framework-free), `packages/widget` (React) and `packages/cli` (command line).
 - Base and Arc contract workspaces retain separate toolchains, manifests, and operator environments.
 
 Read the [architecture](docs/architecture/overview.md) and [repository ownership rules](docs/architecture/repository-structure.md) before a cross-package change.

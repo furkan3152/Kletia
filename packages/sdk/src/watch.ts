@@ -161,8 +161,9 @@ export function watchIntent(
       } catch {
         return;
       }
+      // refresh re-reads chain state for steps being settled; get suffices otherwise.
       const inFlight = latest?.steps.some((step) => IN_FLIGHT.includes(step.status)) ?? false;
-      await readSafely(inFlight || streaming);
+      await readSafely(inFlight);
     }
   };
 

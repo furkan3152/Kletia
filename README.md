@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Arc and Solana.<br>
-  Use it as an app, or put cross-network intents into your own product with one API, SDK and widget.
+  Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Ethereum, OP Mainnet, Polygon, Arc and Solana.<br>
+  Use it as an app, or put cross-network intents into your own product with one API, SDK, widget, CLI and MCP server.
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 
 > [!IMPORTANT]
-> Kletia is non-custodial and fail-closed, with public Base Mainnet deployments and live Solana, Relay and Jupiter integrations. It has not been independently audited. Builds, quotes, testnet evidence and funded production execution are different claims; see the [security model](#security-model).
+> Kletia is non-custodial and fail-closed, with public Base Mainnet deployments and live Solana, Jupiter, Relay, LI.FI, deBridge and lending integrations. It has not been independently audited. Builds, quotes, testnet evidence and funded production execution are different claims; see the [security model](#security-model).
 
 ## Why Kletia
 
@@ -41,8 +41,8 @@ Kletia turns an outcome into an **intent graph**: a DAG of network-bound steps, 
 | For | Kletia gives you |
 |---|---|
 | **Users** | One console for Base, Arbitrum, Arc and Solana: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
-| **Builders** | Platform API v1, a typed SDK and a drop-in React widget: plan, quote, execute and track cross-network intents without running bridge, DEX or wallet plumbing. |
-| **Agents** | Deterministic intent compilation, x402 pay-per-call and REST — a safe execution surface for autonomous software that still never holds keys. |
+| **Builders** | Platform API v1, a typed SDK with webhook helpers, a drop-in React widget and hooks, and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
+| **Agents** | A read-only MCP server at `/v1/mcp`, deterministic intent compilation, x402 pay-per-call and REST — a safe planning surface for autonomous software that never holds keys and hands signing to the user. |
 
 ## Build with Kletia
 
@@ -92,9 +92,11 @@ Or with no build step at all, as an iframe:
 | Package | What it is |
 |---|---|
 | [`@kletia/core`](packages/core/README.md) | The intent specification: CAIP-2/10/19 identities, chain, asset and protocol registries, intent graph, lifecycle rules, validation, events, webhook signatures. Zero dependencies. |
-| [`@kletia/sdk`](packages/sdk/README.md) | Typed client for Platform API v1, Server-Sent Events, EIP-1193 and Wallet Standard signers, `executeIntent`. |
-| [`@kletia/widget`](packages/widget/README.md) | Embeddable React widget with scoped styles: plan, review and execute intents. |
-| [Platform API v1](docs/platform/api-v1.md) | REST + SSE + signed webhooks, developer keys, OpenAPI at `/v1/openapi.json`. |
+| [`@kletia/sdk`](packages/sdk/README.md) | Typed client for Platform API v1 with retries and idempotency keys, Server-Sent Events, `intents.wait`, EIP-1193 and Wallet Standard signers, `executeIntent`; `@kletia/sdk/server` verifies webhooks for fetch, Hono, Express and `node:http`. |
+| [`@kletia/widget`](packages/widget/README.md) | Embeddable React widget with scoped styles, plus `@kletia/widget/hooks` (`useKletiaIntent`, `useQuote`, `useIntent`, …). |
+| [`@kletia/cli`](packages/cli/README.md) | `kletia` command line: quote, plan (dry run), watch intents, manage keys and webhooks, forward webhooks to localhost. |
+| [Platform API v1](docs/platform/api-v1.md) | REST + SSE + signed webhooks, developer keys with rotation, `Idempotency-Key`, usage, lending venue rates (`/v1/venues`), an [error catalog](docs/platform/errors.md), a status badge and OpenAPI at `/v1/openapi.json`. |
+| [MCP server](docs/platform/mcp.md) | `/v1/mcp`: read-only tools (`get_quote`, `plan_intent`, `get_portfolio`, …) for AI agents, with a hand-off link so the user signs in Kletia Studio. |
 
 ## How it works
 
@@ -110,8 +112,8 @@ flowchart LR
     G --> H[Events<br/>SSE + signed webhooks]
 ```
 
-1. **Express** — natural language or structured actions, plus the CAIP-10 accounts the user controls.
-2. **Plan** — a deterministic compiler (no model in the execution path) resolves exact network identities, picks a venue, quotes it live, chains amounts through guaranteed minimum outputs and merges bridge + swap into one cross-network swap when possible.
+1. **Express** — natural language or structured actions, plus the CAIP-10 accounts the user controls. Recipients may be addresses or ENS, Basenames and SNS names.
+2. **Plan** — a deterministic compiler (no model in the execution path) resolves exact network identities, picks a venue, quotes it live, chains amounts through guaranteed minimum outputs and merges bridge + swap into one cross-network swap when possible. Cross-network steps run an auction between Relay, LI.FI and deBridge DLN on guaranteed output net of fees, then time.
 3. **Sign** — every value-moving transaction is signed in the user's own wallet: EIP-1193 for EVM, Wallet Standard for Solana.
 4. **Prove** — a step advances only when Kletia observes it on-chain from the bound account; cross-network steps settle only on a verified destination fill.
 
@@ -119,14 +121,24 @@ flowchart LR
 
 | Network | Lane | What runs today |
 |---|---|---|
-| **Base** (`eip155:8453`) | Production | Kletia Intent Router V2 swaps, Relay swaps and bridges, Aave V3 supply, lending and vault discovery, token launch (LaunchFactory V2), Basenames, x402 |
-| **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Aave V3, Relay swaps and bridges, staged Base → Arbitrum workflows |
-| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Relay bridges to Base and Arbitrum, Kamino rate discovery |
+| **Base** (`eip155:8453`) | Production | Kletia Intent Router V2 swaps, Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3, Morpho vaults and Moonwell deposit/withdraw; token launch (LaunchFactory V2), Basenames, x402 |
+| **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3 and Morpho vaults; staged Base → Arbitrum workflows |
+| **Ethereum** (`eip155:1`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Morpho vaults; ENS recipients |
+| **OP Mainnet** (`eip155:10`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Moonwell |
+| **Polygon PoS** (`eip155:137`) | Production (intent platform) | Transfers (POL and ERC-20), bridges (Relay, LI.FI; deBridge DLN from Polygon only when named, since its POL fee has no price source yet), Aave V3 |
+| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Jupiter Lend and Kamino deposit/withdraw, bridges to every EVM network above (Relay, deBridge DLN; LI.FI into Solana), SNS recipients |
 | **Arc Testnet** (`eip155:5042002`) | Testnet | Native-USDC swap, lending, staking, Vault V2, batch and memo payments, Circle App Kit |
 | **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Circle Testnet USDC and Aave supply |
 | **Solana Devnet** | Testnet | Transfers and portfolio |
 
-Production and testnet capital never share one intent. The full protocol registry lives in [`packages/core/src/protocols.ts`](packages/core/src/protocols.ts) and is served at `GET /v1/protocols`.
+Production and testnet capital never share one intent. Every venue contract,
+program, vault and market is pinned in the registry
+([`packages/core/src/protocols.ts`](packages/core/src/protocols.ts): `PROTOCOLS`,
+`YIELD_VENUES`, `VENUE_CONTRACTS`), re-checked on-chain before a payload is
+built, and served at `GET /v1/protocols`. Network guides:
+[Ethereum](docs/networks/ethereum.md), [OP Mainnet](docs/networks/optimism.md),
+[Polygon](docs/networks/polygon.md), [Solana](docs/networks/solana.md) and
+[cross-chain venues](docs/networks/cross-chain-venues.md).
 
 ## Architecture
 
@@ -138,18 +150,21 @@ flowchart TB
       Studio[Intent Studio]
       Widget["@kletia/widget"]
       SDK["@kletia/sdk"]
+      CLI["@kletia/cli"]
     end
     subgraph API[Kletia API]
       V1["/v1 Platform API<br/>keys · intents · SSE · webhooks"]
-      Engine[Planner + adapters<br/>Jupiter · Relay · Aave · transfers]
+      MCP["/v1/mcp<br/>read-only agent tools"]
+      Engine[Planner + venue auction + adapters<br/>Jupiter · Relay · LI.FI · deBridge · Aave · Compound · Morpho · Moonwell · Jupiter Lend · Kamino · transfers]
       Store[(Intent store<br/>Postgres or memory)]
       AppApi["/api console engines<br/>Base · Arc · Arbitrum · Solana"]
     end
-    Site & Studio & Widget & SDK --> V1
+    Site & Studio & Widget & SDK & CLI --> V1
+    Agents[AI agents] --> MCP --> Engine
     Console --> V1
     Console --> AppApi
     V1 --> Engine --> Store
-    Engine --> Chains[(Base · Arbitrum · Solana · Relay)]
+    Engine --> Chains[(Base · Arbitrum · Ethereum · OP · Polygon · Solana<br/>Relay · LI.FI · deBridge)]
     AppApi --> Chains2[(Base · Arc · Arbitrum · Solana)]
 ```
 
@@ -160,8 +175,9 @@ The first-party app is built on the same API integrators use. See the [architect
 ```text
 packages/
   core/       Intent specification (zero dependencies)
-  sdk/        TypeScript SDK
-  widget/     React widget
+  sdk/        TypeScript SDK (and @kletia/sdk/server webhook helpers)
+  widget/     React widget (and @kletia/widget/hooks)
+  cli/        kletia command line
 apps/
   api/        Express API: /v1 platform (src/platform), console engines, network modules
   web/        React app: home, console, Studio, developer portal, networks status
@@ -227,7 +243,7 @@ The app runs at [kletiaai.xyz](https://kletiaai.xyz) and the API at [api.kletiaa
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md) and [Vercel](docs/deployment/vercel.md) deployment.
+Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md) and [Vercel](docs/deployment/vercel.md) deployment.
 
 ## Contributing and license
 

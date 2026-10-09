@@ -4,12 +4,24 @@
  * submitted (status, fee payer, invoked programs, balance deltas).
  */
 import {
+  address as toAddress,
+  appendTransactionMessageInstructions,
   type Base64EncodedWireTransaction,
+  compileTransaction,
+  createTransactionMessage,
+  getAddressDecoder,
+  getBase58Encoder,
+  getBase64EncodedWireTransaction,
   getBase64Encoder,
   getCompiledTransactionMessageDecoder,
   getTransactionDecoder,
+  type Instruction,
+  pipe,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
   signature as toSignature,
 } from "@solana/kit";
+import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
 import { explorerTxUrl, isSolanaAddress, isSolanaSignature, WRAPPED_SOL_MINT } from "@kletia/core";
 import { solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
@@ -23,7 +35,30 @@ export const SOLANA_PROGRAM_IDS = Object.freeze({
   associatedToken: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
   computeBudget: "ComputeBudget111111111111111111111111111111",
   jupiterV6: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+  addressLookupTable: "AddressLookupTab1e1111111111111111111111111",
+  memo: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
 });
+
+/**
+ * One top-level instruction with every account resolved to its address
+ * (address-lookup-table entries included), in instruction order.
+ */
+export interface SolanaInstructionView {
+  readonly program: string;
+  readonly accounts: readonly string[];
+  readonly data: Uint8Array;
+}
+
+export interface DecodedSolanaAccountMeta {
+  readonly address: string;
+  readonly signer: boolean;
+  readonly writable: boolean;
+}
+
+/** A top-level instruction of an unsigned transaction, with account roles. */
+export interface DecodedSolanaInstruction extends SolanaInstructionView {
+  readonly metas: readonly DecodedSolanaAccountMeta[];
+}
 
 export interface UnsignedSolanaTransactionInfo {
   readonly feePayer: string;
@@ -75,6 +110,137 @@ export function assertSolanaTransactionOwner(base64: string, owner: string): Uns
   return info;
 }
 
+export interface DecodedSolanaTransaction extends UnsignedSolanaTransactionInfo {
+  readonly version: 0 | "legacy";
+  /** Every top-level instruction, lookup-table accounts resolved. */
+  readonly instructions: readonly DecodedSolanaInstruction[];
+  /** Address lookup tables the message loads accounts from. */
+  readonly lookupTables: readonly string[];
+}
+
+/** Lookup tables one provider transaction may load (Kamino uses one or two). */
+const MAX_LOOKUP_TABLES = 4;
+/** LookupTableMeta size; addresses follow it, 32 bytes each. */
+const LOOKUP_TABLE_HEADER_BYTES = 56;
+
+/**
+ * Reads address lookup tables (base64 account data). Every table must exist,
+ * be owned by the Address Lookup Table program and hold whole 32-byte
+ * entries. Table entries are append-only, so an index resolved now resolves
+ * to the same address when the transaction lands.
+ */
+async function readLookupTables(network: SolanaNetworkKey, tables: readonly string[]): Promise<Map<string, string[]>> {
+  const resolved = new Map<string, string[]>();
+  if (tables.length === 0) return resolved;
+  let accounts: readonly unknown[];
+  try {
+    const response = await solanaRpc(network)
+      .getMultipleAccounts(tables.map((table) => toAddress(table)), { encoding: "base64", commitment: "confirmed" })
+      .send({ abortSignal: rpcAbortSignal() });
+    accounts = response.value;
+  } catch {
+    throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "The transaction's lookup tables could not be read. Try again shortly.", 502);
+  }
+  const decoder = getAddressDecoder();
+  tables.forEach((table, index) => {
+    const account = accounts[index];
+    if (!isRecord(account) || String(account.owner) !== SOLANA_PROGRAM_IDS.addressLookupTable || !Array.isArray(account.data)) {
+      throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider transaction loads accounts from a missing or foreign lookup table.", 502);
+    }
+    const bytes = getBase64Encoder().encode(String(account.data[0] ?? ""));
+    if (bytes.length < LOOKUP_TABLE_HEADER_BYTES || (bytes.length - LOOKUP_TABLE_HEADER_BYTES) % 32 !== 0 || bytes[0] !== 1) {
+      throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider transaction loads accounts from a malformed lookup table.", 502);
+    }
+    const entries: string[] = [];
+    for (let offset = LOOKUP_TABLE_HEADER_BYTES; offset < bytes.length; offset += 32) {
+      entries.push(String(decoder.decode(bytes.subarray(offset, offset + 32))));
+    }
+    resolved.set(table, entries);
+  });
+  return resolved;
+}
+
+/**
+ * Decodes an unsigned wire transaction completely: fee payer, signers and
+ * every top-level instruction with its accounts resolved through the address
+ * lookup tables it loads (read from `network`). Use it when a provider builds
+ * the transaction and the program, accounts and data of each instruction must
+ * be checked against pinned values before a wallet sees it.
+ */
+export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64: string): Promise<DecodedSolanaTransaction> {
+  const info = inspectUnsignedSolanaTransaction(base64);
+  let message;
+  try {
+    message = getCompiledTransactionMessageDecoder().decode(getTransactionDecoder().decode(getBase64Encoder().encode(base64)).messageBytes);
+  } catch {
+    throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an undecodable Solana transaction.", 502);
+  }
+  if (message.version !== 0 && message.version !== "legacy") {
+    throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an unsupported Solana transaction version.", 502);
+  }
+  const staticAccounts = message.staticAccounts.map(String);
+  const { numSignerAccounts, numReadonlySignerAccounts, numReadonlyNonSignerAccounts } = message.header;
+  const metas: DecodedSolanaAccountMeta[] = staticAccounts.map((address, index) => {
+    const signer = index < numSignerAccounts;
+    const writable = signer
+      ? index < numSignerAccounts - numReadonlySignerAccounts
+      : index < staticAccounts.length - numReadonlyNonSignerAccounts;
+    return { address, signer, writable };
+  });
+  const lookups = message.version === 0 ? (message.addressTableLookups ?? []) : [];
+  if (lookups.length > MAX_LOOKUP_TABLES) {
+    throw new PlatformError("PROVIDER_TRANSACTION_REJECTED", "The provider transaction loads too many lookup tables.", 502);
+  }
+  const tables = await readLookupTables(network, lookups.map((lookup) => String(lookup.lookupTableAddress)));
+  const entry = (table: string, index: number) => {
+    const address = tables.get(table)?.[index];
+    if (address === undefined) {
+      throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider transaction references a lookup-table entry that does not exist.", 502);
+    }
+    return address;
+  };
+  // Message account order: static keys, then every table's writable entries, then every table's read-only entries.
+  for (const lookup of lookups) {
+    for (const index of lookup.writableIndexes) metas.push({ address: entry(String(lookup.lookupTableAddress), index), signer: false, writable: true });
+  }
+  for (const lookup of lookups) {
+    for (const index of lookup.readonlyIndexes) metas.push({ address: entry(String(lookup.lookupTableAddress), index), signer: false, writable: false });
+  }
+  const instructions = message.instructions.map((instruction): DecodedSolanaInstruction => {
+    const program = staticAccounts[instruction.programAddressIndex];
+    const accountMetas = (instruction.accountIndices ?? []).map((index) => metas[index]);
+    if (program === undefined || accountMetas.some((meta) => meta === undefined)) {
+      throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider transaction references an account outside its message.", 502);
+    }
+    const resolved = accountMetas as DecodedSolanaAccountMeta[];
+    return {
+      program,
+      accounts: resolved.map((meta) => meta.address),
+      metas: resolved,
+      data: Uint8Array.from(instruction.data ?? []),
+    };
+  });
+  return {
+    ...info,
+    version: message.version,
+    instructions,
+    lookupTables: lookups.map((lookup) => String(lookup.lookupTableAddress)),
+  };
+}
+
+/** Little-endian u64 at `offset` (null when out of range). */
+export function readU64(data: Uint8Array, offset: number): bigint | null {
+  if (offset < 0 || offset + 8 > data.length) return null;
+  let value = 0n;
+  for (let index = 7; index >= 0; index -= 1) value = (value << 8n) | BigInt(data[offset + index] as number);
+  return value;
+}
+
+/** Hex form of a byte prefix (instruction discriminators). */
+export function bytesHex(data: Uint8Array, length = data.length): string {
+  return Buffer.from(data.subarray(0, length)).toString("hex");
+}
+
 /**
  * Text form of an RPC transaction error. @solana/kit decodes the numbers inside
  * errors (e.g. `InstructionError: [2, { Custom: 1 }]`) as bigint, which plain
@@ -113,6 +279,52 @@ export async function simulateSolanaTransaction(
   }
 }
 
+export interface BuiltSolanaTransaction {
+  /** Unsigned v0 wire transaction (base64), fee-paid by `feePayer`. */
+  readonly transaction: string;
+  readonly lastValidBlockHeight: number;
+  /** Simulation of the exact payload; null when the RPC could not simulate. */
+  readonly simulation: { readonly ok: true } | { readonly ok: false; readonly error: string } | null;
+}
+
+/** Priority fee for engine-built transactions (micro-lamports per compute unit). */
+const ENGINE_COMPUTE_UNIT_PRICE = 50_000n;
+
+/**
+ * Compiles engine-built instructions into an unsigned v0 transaction with a
+ * compute budget (limit plus a small priority fee) and the latest blockhash,
+ * then simulates that exact payload.
+ */
+export async function buildSolanaTransaction(
+  network: SolanaNetworkKey,
+  feePayer: string,
+  instructions: readonly Instruction[],
+  computeUnits: number,
+): Promise<BuiltSolanaTransaction> {
+  let blockhash;
+  try {
+    ({ value: blockhash } = await solanaRpc(network).getLatestBlockhash({ commitment: "confirmed" }).send({ abortSignal: rpcAbortSignal() }));
+  } catch {
+    throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "The Solana RPC could not provide a recent blockhash. Try again shortly.", 502);
+  }
+  const message = pipe(
+    createTransactionMessage({ version: 0 }),
+    (draft) => setTransactionMessageFeePayer(toAddress(feePayer), draft),
+    (draft) => setTransactionMessageLifetimeUsingBlockhash(blockhash, draft),
+    (draft) => appendTransactionMessageInstructions([
+      getSetComputeUnitLimitInstruction({ units: computeUnits }),
+      getSetComputeUnitPriceInstruction({ microLamports: ENGINE_COMPUTE_UNIT_PRICE }),
+      ...instructions,
+    ], draft),
+  );
+  const transaction = getBase64EncodedWireTransaction(compileTransaction(message));
+  return {
+    transaction,
+    lastValidBlockHeight: Number(blockhash.lastValidBlockHeight),
+    simulation: await simulateSolanaTransaction(network, transaction),
+  };
+}
+
 /**
  * Settles a simulation reported by the Solana module. That module reports any
  * simulation it could not serialise as "Simulation unavailable" (including
@@ -146,6 +358,13 @@ export interface SolanaTransactionObservation {
   readonly lamportDeltas: ReadonlyMap<string, bigint>;
   /** Transaction fee in lamports (paid by the fee payer); null when unknown. */
   readonly fee: bigint | null;
+  /**
+   * Top-level instructions with lookup-table accounts resolved (empty when
+   * the body is not readable). Adapters bind a landed transaction to its
+   * prepared payload by program, accounts and instruction data. Optional so
+   * hand-built observations stay valid; a missing list proves no instruction.
+   */
+  readonly instructions?: readonly SolanaInstructionView[];
   /** True when the transaction body could be read (statuses alone are not enough to accept). */
   readonly detailsAvailable: boolean;
 }
@@ -177,6 +396,26 @@ function parseTokenBalances(value: unknown, keys: readonly string[]): Map<string
   return balances;
 }
 
+/**
+ * An instruction of a `getTransaction` (json encoding) body: account indexes
+ * into static keys plus loaded addresses, base58 data. Null when malformed
+ * (the instruction then cannot satisfy any binding check).
+ */
+function instructionView(instruction: Record<string, unknown>, program: string | undefined, keys: readonly string[]): SolanaInstructionView | null {
+  if (!program || !Array.isArray(instruction.accounts) || typeof instruction.data !== "string") return null;
+  const accounts: string[] = [];
+  for (const index of instruction.accounts) {
+    const key = typeof index === "number" ? keys[index] : undefined;
+    if (key === undefined) return null;
+    accounts.push(key);
+  }
+  try {
+    return { program, accounts, data: Uint8Array.from(getBase58Encoder().encode(instruction.data)) };
+  } catch {
+    return null;
+  }
+}
+
 interface SolanaTransactionDetails {
   readonly feePayer: string | null;
   readonly programs: readonly string[];
@@ -184,6 +423,7 @@ interface SolanaTransactionDetails {
   readonly tokenDeltas: ReadonlyMap<string, bigint>;
   readonly lamportDeltas: ReadonlyMap<string, bigint>;
   readonly fee: bigint | null;
+  readonly instructions: readonly SolanaInstructionView[];
   readonly executionError: string | null;
 }
 
@@ -222,11 +462,14 @@ async function readSolanaSignature(network: SolanaNetworkKey, signatureValue: st
   const loaded = isRecord(meta.loadedAddresses) ? meta.loadedAddresses : {};
   const keys = [...staticKeys, ...stringList(loaded.writable), ...stringList(loaded.readonly)];
   const programs: string[] = [];
+  const instructions: SolanaInstructionView[] = [];
   if (Array.isArray(message.instructions)) {
     for (const instruction of message.instructions) {
       if (!isRecord(instruction) || typeof instruction.programIdIndex !== "number") continue;
       const program = staticKeys[instruction.programIdIndex];
       if (program && !programs.includes(program)) programs.push(program);
+      const view = instructionView(instruction, program, keys);
+      if (view) instructions.push(view);
     }
   }
   const pre = parseTokenBalances(meta.preTokenBalances, keys);
@@ -255,6 +498,7 @@ async function readSolanaSignature(network: SolanaNetworkKey, signatureValue: st
       tokenDeltas,
       lamportDeltas,
       fee: toBigInt(meta.fee),
+      instructions,
       executionError: meta.err !== null && meta.err !== undefined ? rpcErrorText(meta.err) : null,
     },
   };
@@ -290,6 +534,7 @@ export async function observeSolanaTransaction(
     tokenDeltas: new Map<string, bigint>(),
     lamportDeltas: new Map<string, bigint>(),
     fee: null,
+    instructions: [],
     detailsAvailable: false,
   };
   if (read.confirmation === null) return { ...base, ...empty, status: "not_found", error: null };
@@ -312,6 +557,7 @@ export async function observeSolanaTransaction(
     tokenDeltas: details.tokenDeltas,
     lamportDeltas: details.lamportDeltas,
     fee: details.fee,
+    instructions: details.instructions,
     detailsAvailable: true,
   };
 }

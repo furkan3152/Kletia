@@ -1,7 +1,8 @@
 /**
  * Webhook dispatcher.
  *
- * Subscribes to the engine's intent event envelopes and to the contract
+ * Subscribes to the engine's intent event envelopes, its receipt events
+ * (`intent.receipt_issued`, routed like intent events) and to the contract
  * registration events (contracts.ts). For intents created with an API key,
  * each event is POSTed (body = the KletiaEvent JSON) to that key's webhooks
  * subscribed to the event type; contract events go to the webhooks of the
@@ -34,7 +35,7 @@ import https from "node:https";
 import { isIP } from "node:net";
 import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
-import { subscribeIntentEvents, type IntentEvent } from "../index.js";
+import { subscribeIntentEvents, subscribeReceiptEvents, type IntentEvent, type ReceiptEvent } from "../index.js";
 import { isKeyRevoked } from "./auth.js";
 import { subscribeContractEvents, type ContractEvent } from "./contracts.js";
 import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
@@ -60,8 +61,8 @@ const MAX_TRACKED_WEBHOOKS = 10_000;
 const OWNER_RETRY_DELAYS_MS: readonly number[] = [0, 250, 1_000];
 export const WEBHOOK_USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
 
-/** An intent event (routed by the intent's key) or a contract event (routed by `data.ownerKeyId`). */
-export type DispatchedEvent = IntentEvent | ContractEvent;
+/** An intent or receipt event (routed by the intent's key) or a contract event (routed by `data.ownerKeyId`). */
+export type DispatchedEvent = IntentEvent | ReceiptEvent | ContractEvent;
 
 function isContractEvent(event: DispatchedEvent): event is ContractEvent {
   return event.type.startsWith("contract.");
@@ -149,6 +150,7 @@ export class WebhookDispatcher {
   private readonly wakeups = new Set<NodeJS.Timeout>();
   private unsubscribe: (() => void) | null = null;
   private unsubscribeContracts: (() => void) | null = null;
+  private unsubscribeReceipts: (() => void) | null = null;
   private delivered = 0;
   private failed = 0;
   private dropped = 0;
@@ -171,6 +173,7 @@ export class WebhookDispatcher {
     };
     this.unsubscribe = subscribeIntentEvents(onEvent);
     this.unsubscribeContracts = subscribeContractEvents(onEvent);
+    this.unsubscribeReceipts = subscribeReceiptEvents(onEvent);
   }
 
   stop(): void {
@@ -178,6 +181,8 @@ export class WebhookDispatcher {
     this.unsubscribe = null;
     this.unsubscribeContracts?.();
     this.unsubscribeContracts = null;
+    this.unsubscribeReceipts?.();
+    this.unsubscribeReceipts = null;
     for (const timer of [...this.timers, ...this.wakeups]) clearTimeout(timer);
     this.timers.clear();
     this.wakeups.clear();

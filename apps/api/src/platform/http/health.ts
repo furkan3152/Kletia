@@ -19,6 +19,8 @@ import { apiKeyStoreKind } from "./auth.js";
 import { contractEngine, contractsEnabled } from "./contractChecks.js";
 import { contractStoreKind } from "./contracts.js";
 import { webhookDispatcherStats, type DispatcherStats } from "./dispatcher.js";
+import { previewStoreKind } from "./preview.js";
+import { receiptHealth, type ReceiptHealth } from "./receipts/health.js";
 import { platformSecretStatus, type PlatformSecretStatus } from "./secrets.js";
 import { sessionStore } from "./sessions.js";
 import { webhookStoreKind } from "./webhooks.js";
@@ -59,6 +61,10 @@ export interface PlatformHealth {
     /** Per network: can a configured endpoint simulate now? Null when not probed (custom health probe) or unavailable. */
     readonly simulation: Partial<Record<NetworkKey, "ok" | "unavailable">> | null;
   };
+  /** Verifiable receipts: signer state, issuance queue and the last log batch. */
+  readonly receipts: ReceiptHealth;
+  /** Asset-change previews: where acknowledged digests are kept. */
+  readonly preview: { readonly store: "memory" | "postgres" | "custom" };
 }
 
 function evmClientFor(network: NetworkKey): PublicClient | null {
@@ -193,7 +199,7 @@ async function networkHealth(): Promise<readonly NetworkHealth[]> {
 
 export async function readPlatformHealth(): Promise<PlatformHealth> {
   // The RPC probes and the simulation probe run side by side (both bounded).
-  const [networks, simulation] = await Promise.all([networkHealth().catch((): readonly NetworkHealth[] => []), simulationHealth()]);
+  const [networks, simulation, receipts] = await Promise.all([networkHealth().catch((): readonly NetworkHealth[] => []), simulationHealth(), receiptHealth()]);
   const healthy = networks.filter((entry) => entry.ok).length;
   const sealing = platformSecretStatus();
   const webhooksEnabled = sealing !== "missing";
@@ -217,5 +223,7 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
       dispatcher: webhookDispatcherStats(),
     },
     contracts: { enabled: contractsEnabled(), simulation },
+    receipts,
+    preview: { store: previewStoreKind() },
   };
 }

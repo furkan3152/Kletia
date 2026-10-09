@@ -188,7 +188,8 @@ function columnCenter(index: number): string {
 
 export function HowItWorks() {
   const reduced = useReducedMotion();
-  const [ref, inView] = useInView<HTMLOListElement>({ once: true, threshold: 0.3 });
+  // Starts once the top of the cards passes 65% of the viewport height (any card count, any screen).
+  const [ref, inView] = useInView<HTMLOListElement>({ once: true, rootMargin: "0px 0px -35% 0px" });
   const [count, setCount] = useState(0);
   const activeCount = reduced ? STEPS.length : count;
   const animate = !reduced;

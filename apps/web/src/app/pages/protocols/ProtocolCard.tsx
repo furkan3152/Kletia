@@ -26,7 +26,11 @@ const MAX_NETWORK_CHIPS = 4;
 
 export interface ProtocolCardProps {
   readonly protocol: ProtocolEntry;
-  /** `view-transition-name`, unique on the page (cards glide when filters change). */
+  /**
+   * `view-transition-name`, unique on the page. Applied only while a filter
+   * View Transition runs (`html[data-kl-vt=filter]`), so route transitions
+   * still move the page as one piece.
+   */
   readonly transitionName?: string;
   /** Rise in on first render with this stagger index (null = no entrance). */
   readonly introIndex?: number | null;
@@ -56,7 +60,7 @@ export function ProtocolCard({ protocol, transitionName, introIndex = null, head
 
   const cardStyle: React.CSSProperties = {
     ...style,
-    ...(transitionName ? { viewTransitionName: transitionName } : null),
+    ...(transitionName ? ({ "--kl-vt-name": transitionName } as React.CSSProperties) : null),
     ...(introIndex !== null ? ({ "--kl-i": introIndex } as React.CSSProperties) : null),
   };
 
@@ -73,6 +77,7 @@ export function ProtocolCard({ protocol, transitionName, introIndex = null, head
         LIFT,
         SPOTLIGHT,
         introIndex !== null && "kl-rise",
+        transitionName && "[html[data-kl-vt=filter]_&]:[view-transition-name:var(--kl-vt-name)]",
       )}
     >
       <span
@@ -87,7 +92,7 @@ export function ProtocolCard({ protocol, transitionName, introIndex = null, head
             <Heading className="break-words font-display text-[20px] font-bold leading-tight tracking-[-0.01em]">
               {protocol.name}
             </Heading>
-            <p className="mt-1 truncate font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]" title={protocol.id}>
+            <p className="mt-1 font-code text-[11px] text-[#45464B] [overflow-wrap:anywhere] dark:text-[#A9B6C8]">
               {protocol.id}
             </p>
           </div>

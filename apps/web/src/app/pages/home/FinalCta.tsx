@@ -13,7 +13,9 @@ const DOT_PERIOD = 22;
 export function FinalCta() {
   const reduced = useReducedMotion();
   const [paused, setPaused] = useState(false);
-  const { ref, active } = useAutoPause<HTMLElement>({ paused });
+  // Runs only while the CTA fills the middle of the viewport, so a sliver
+  // above the footer stays still.
+  const { ref, active } = useAutoPause<HTMLElement>({ paused, rootMargin: "-30% 0px -30% 0px" });
   const dotsRef = useRef<HTMLDivElement | null>(null);
   const driftRef = useRef<Animation | null>(null);
 
@@ -58,7 +60,7 @@ export function FinalCta() {
             id="final-cta-heading"
             className="mt-4 text-balance font-display text-[clamp(2.4rem,7vw,5rem)] font-bold leading-[0.95] tracking-[-0.045em] lg:text-[4.25rem]"
           >
-            Put cross-chain intents in your product.
+            Put <span className="whitespace-nowrap">cross-chain</span> intents in your product.
           </h2>
           <p className="mt-6 max-w-xl text-lg text-[#1A1A1A]/80">
             Get a developer key, plan your first intent with a dry run, and execute it with the wallets your users

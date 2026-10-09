@@ -87,7 +87,7 @@ export const ActivityDrawer: React.FC<ActivityDrawerProps> = ({ isOpen, onClose 
       </div>
       <div className="flex flex-1 flex-col gap-4 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
         <p className="text-xs font-bold text-gray-700 dark:text-slate-300">
-          Transactions signed in this browser across Base, Arbitrum, Arc and Solana. Stored locally
+          Transactions signed in this browser across EVM networks and Solana. Stored locally
           on this device only.
         </p>
         <ActivityFeed compact limit={100} title="All networks" />

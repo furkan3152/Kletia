@@ -5,7 +5,7 @@ The Kletia browser application: the product site (home, developer portal, networ
 ## Architecture Overview
 
 - **`src/main.tsx`, `src/app/router.tsx`, `src/app/routes/`**: Entry (privacy egress guard first), history router and route table; every page is a lazy chunk and only wallet routes load wallet SDKs.
-- **`src/app/pages/`**: Home, Developers, Networks, Studio, Embed and 404.
+- **`src/app/pages/`**: Home, Developers, Protocols (venue directory, live from `/v1/protocols`), Networks, Studio, Embed and 404.
 - **`src/app/site/`**: Site shell, design primitives and the intent UI (graph view, review, progress, execution flow).
 - **`src/app/App.tsx`**: The intent console (EVM chat workspaces and the Solana workspace).
 - **`src/networks/`**: Network-owned UI and bindings (`base`, `arc`, `arbitrum`, `solana`).

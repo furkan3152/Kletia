@@ -34,7 +34,7 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
           </p>
         </div>
 
-        <Reveal as="ul" stagger className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal as="ul" stagger className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {FEATURED.map((chain) => (
             <li
               key={chain.key}
@@ -50,15 +50,15 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
                 aria-hidden="true"
                 className="absolute inset-y-0 left-3 w-[3px] bg-[#1A1A1A] transition-transform duration-240 ease-kl-snap group-hover:translate-x-1 group-focus-within:translate-x-1 motion-reduce:transition-none dark:bg-[#4B5563]"
               />
-              <div className="min-w-0 flex-1 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 font-display text-xl font-bold leading-tight">{chain.name}</p>
+              <div className="min-w-0 flex-1 p-3 sm:p-4">
+                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+                  <p className="min-w-0 font-display text-base font-bold leading-tight sm:text-xl">{chain.name}</p>
                   <Badge tone={chain.vm === "svm" ? "purple" : "blue"}>{chain.vm === "svm" ? "SVM" : "EVM"}</Badge>
                 </div>
-                <p className="mt-2 truncate font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]" title={chain.id}>
+                <p className="mt-2 hidden font-code text-[11px] text-[#45464B] [overflow-wrap:anywhere] dark:text-[#A9B6C8] sm:block">
                   {chain.id}
                 </p>
-                <p className={cx(LABEL, "mt-3 !text-[10px]", chain.lane === "testnet" ? "text-[#B45309] dark:text-[#FFD60A]" : "text-[#0B7A4B] dark:text-[#14F195]")}>
+                <p className={cx(LABEL, "mt-2 whitespace-nowrap !text-[10px] !tracking-[0.1em] sm:mt-3 sm:!tracking-[0.18em]", chain.lane === "testnet" ? "text-[#B45309] dark:text-[#FFD60A]" : "text-[#0B7A4B] dark:text-[#14F195]")}>
                   {chain.lane === "testnet" ? "Testnet lane" : "Production lane"}
                 </p>
               </div>
@@ -68,13 +68,14 @@ export function NetworkStrip({ protocols }: NetworkStripProps) {
             <Link
               to="/networks"
               className={cx(
-                "group/all flex w-full flex-col justify-between gap-3 border-[3px] border-dashed border-[#1A1A1A]/50 p-4 transition-colors duration-150 hover:border-[#1A1A1A] hover:bg-[#FFF7CC] motion-reduce:transition-none dark:border-white/25 dark:hover:border-white/60 dark:hover:bg-[#1A2841]",
+                "group/all flex w-full flex-col justify-between gap-3 border-[3px] border-dashed border-[#1A1A1A]/50 p-3 sm:p-4 transition-colors duration-150 hover:border-[#1A1A1A] hover:bg-[#FFF7CC] motion-reduce:transition-none dark:border-white/25 dark:hover:border-white/60 dark:hover:bg-[#1A2841]",
                 FOCUS_RING,
               )}
             >
-              <span className="font-display text-xl font-bold leading-tight">Live network status</span>
+              <span className="font-display text-base font-bold leading-tight sm:text-xl">Live network status</span>
               <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
-                RPC health & capabilities
+                <span className="hidden sm:inline">RPC health & capabilities</span>
+                <span className="sm:hidden">Status</span>
                 <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover/all:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
               </span>
             </Link>

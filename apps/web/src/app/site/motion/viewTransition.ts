@@ -10,6 +10,42 @@ interface ViewTransitionLike {
   readonly finished: Promise<unknown>;
   readonly ready: Promise<unknown>;
   readonly updateCallbackDone: Promise<unknown>;
+  readonly skipTransition?: () => void;
+}
+
+/**
+ * While a transition runs the browser hit-tests the root element, so a click
+ * would vanish. A click then ends the transition at once and, when it landed
+ * on something that sits in the same place before and after this kind of
+ * transition, is replayed on it: the site header for route changes (sticky,
+ * identical on every page), plus the filter bar for filter changes, and any
+ * control for a theme change (nothing moves).
+ */
+const REPLAY_SCOPE: Record<ViewTransitionKind, string> = {
+  route: "[data-kl-vt-stable]",
+  filter: "[data-kl-vt-stable], [data-kl-vt-stable-filter]",
+  theme: "body",
+};
+
+function interceptClicks(kind: ViewTransitionKind, root: HTMLElement, transition: ViewTransitionLike): () => void {
+  const onClick = (event: MouseEvent) => {
+    if (event.target !== root || event.button !== 0) return;
+    const { clientX: x, clientY: y } = event;
+    try {
+      transition.skipTransition?.();
+    } catch {
+      // Already finished.
+    }
+    void transition.finished
+      .catch(() => undefined)
+      .then(() => {
+        const hit = document.elementFromPoint(x, y);
+        const control = hit?.closest<HTMLElement>("a[href], button:not(:disabled), summary");
+        if (control && control.closest(REPLAY_SCOPE[kind])) control.click();
+      });
+  };
+  root.addEventListener("click", onClick);
+  return () => root.removeEventListener("click", onClick);
 }
 
 type StartViewTransition = (update: () => void) => ViewTransitionLike;
@@ -87,9 +123,14 @@ export function runViewTransition(
   // A skipped transition rejects `ready`; that is expected, not an error.
   transition.ready.catch(() => undefined);
   transition.updateCallbackDone.catch(() => undefined);
+  const release = interceptClicks(kind, root, transition);
   return transition.finished.then(
-    () => cleanup(),
     () => {
+      release();
+      cleanup();
+    },
+    () => {
+      release();
       guardedUpdate();
       cleanup();
     },

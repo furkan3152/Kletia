@@ -1379,3 +1379,10 @@ html[data-kl-vt]::view-transition {
     opacity: 0;
   }
 }
+
+/* @kletia/widget's dark theme draws its brand accent and footer link in #0052FF, 3.1:1 on its dark card.
+   On Kletia's own /embed those two text uses take the site's dark-mode blue (7.3:1, WCAG AA). */
+.kw-root[data-theme="dark"] .kw-brand b,
+.kw-root[data-theme="dark"] .kw-link {
+  color: #7ea6ff;
+}

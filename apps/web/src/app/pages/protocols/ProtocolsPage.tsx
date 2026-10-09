@@ -57,7 +57,7 @@ function HeaderStat({ label, value, accent }: { readonly label: string; readonly
 
 function GridSkeleton() {
   return (
-    <SkeletonGroup label="Loading protocols" className="grid gap-5 md:grid-cols-2 xl:grid-cols-3" wrapperClassName="mt-8">
+    <SkeletonGroup label="Loading protocols" className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: 6 }, (_, index) => (
         <div key={index} className={cx("flex h-[22rem] flex-col gap-4 p-5", INK_BORDER, SURFACE)}>
           <div className="flex items-start gap-4">
@@ -137,7 +137,6 @@ const LEGEND: readonly { readonly title: string; readonly body: string; readonly
 export default function ProtocolsPage() {
   const protocolsResource = useApiResource("protocols", fetchProtocols);
   const networksResource = useApiResource("networks", fetchNetworks);
-  const api = useProtocolFilters();
 
   const liveProtocols = (protocolsResource.data?.length ?? 0) > 0;
   const protocolsLoading = protocolsResource.status === "loading" && !liveProtocols;
@@ -171,7 +170,9 @@ export default function ProtocolsPage() {
     };
   }, [protocols, networkOrder]);
 
+  const api = useProtocolFilters(protocolsLoading ? null : available);
   const effective = sanitizeFilters(api.filters, available);
+  const shownApi = useMemo(() => ({ ...api, filters: effective }), [api, effective]);
   const filtered = useMemo(() => applyFilters(protocols, effective), [protocols, effective]);
   const totals = useMemo(() => protocolTotals(protocols), [protocols]);
   const live = liveProtocols;
@@ -184,7 +185,7 @@ export default function ProtocolsPage() {
             <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Protocol directory</p>
             <SourceBadge live={live} loading={protocolsLoading} />
           </div>
-          <h1 className="mt-4 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.75rem)] font-bold leading-[0.95] tracking-[-0.045em]">
+          <h1 className="mt-4 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.75rem)] font-bold leading-[1.06] tracking-[-0.045em] sm:leading-[0.95]">
             Every venue, <span className="bg-[#FFD60A] px-1.5 text-[#1A1A1A]">one intent.</span>
           </h1>
           <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
@@ -219,7 +220,7 @@ export default function ProtocolsPage() {
       </header>
 
       <ProtocolFilters
-        api={api}
+        api={shownApi}
         networks={networkOptions}
         categories={categories}
         shown={filtered.length}

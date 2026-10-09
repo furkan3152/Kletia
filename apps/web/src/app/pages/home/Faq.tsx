@@ -1,9 +1,11 @@
-import { ArrowRight, ArrowUpRight, BookOpen, CircleHelp } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BookOpen } from "lucide-react";
 
 import { Link } from "../../routes/Link";
+import { Icon } from "../../site/art/Icon";
+import { PlatformNumber } from "../../site/art/Ornaments";
 import { Reveal } from "../../site/motion/Reveal";
 import { GITHUB_URL } from "../../site/siteLinks";
-import { CONTAINER, cx, FOCUS_RING, INK_BORDER, LABEL, SHADOW_HARD, TEXT_MUTED } from "../../site/ui/styles";
+import { CONTAINER, cx, FOCUS_RING, INK_BORDER, SHADOW_HARD, TEXT_MUTED } from "../../site/ui/styles";
 import { FAQ_ITEMS, fillCounts } from "./faqContent";
 
 export interface FaqProps {
@@ -22,24 +24,23 @@ export function Faq({ networks, protocols }: FaqProps) {
       <div className={cx(CONTAINER, "grid gap-10 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:gap-14")}>
         <div className="flex flex-col gap-8 lg:sticky lg:top-28 lg:self-start">
           <Reveal stagger>
-            <p data-reveal-item className={cx(LABEL, "mb-4 inline-flex items-center gap-2 text-[#0052FF] dark:text-[#7EA6FF]")}>
-              <span aria-hidden="true" className="inline-block h-[3px] w-6 bg-current" />
-              FAQ
-            </p>
+            <div data-reveal-item className="mb-5">
+              <PlatformNumber n={9}>FAQ</PlatformNumber>
+            </div>
             <h2 data-reveal-item id="faq-heading" className="text-balance font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl">
-              Questions, answered plainly.
+              Questions teams ask before they integrate.
             </h2>
             <p data-reveal-item className={cx("mt-5 text-base leading-relaxed sm:text-lg", TEXT_MUTED)}>
-              Custody, coverage, integration and what happens when something goes wrong.
+              Custody, coverage, failure handling and what we have not done yet.
             </p>
           </Reveal>
           <div className={cx("flex flex-col gap-4 bg-[#FFD60A] p-6 text-[#1A1A1A]", INK_BORDER, SHADOW_HARD)}>
-            <p className="flex items-center gap-2 font-display text-xl font-bold">
-              <CircleHelp className="h-5 w-5" aria-hidden="true" />
-              Still curious?
+            <p className="flex items-center gap-2.5 font-display text-xl font-bold [--kla-plate:#FFFFFF]">
+              <Icon name="board" size={24} />
+              Something missing here?
             </p>
             <p className="text-sm leading-relaxed text-[#1A1A1A]/85">
-              The developer docs cover every endpoint, and issues are open on GitHub.
+              The developer docs cover every endpoint, and the issue tracker on GitHub is open.
             </p>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               <Link
@@ -99,7 +100,7 @@ export function Faq({ networks, protocols }: FaqProps) {
                         key={link.to}
                         to={link.to}
                         className={cx(
-                          "inline-flex min-h-9 items-center gap-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0052FF] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
+                          "inline-flex min-h-9 items-center gap-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#0047E0] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
                           FOCUS_RING,
                         )}
                       >

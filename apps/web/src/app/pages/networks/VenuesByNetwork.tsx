@@ -3,9 +3,11 @@ import { ArrowRight } from "lucide-react";
 import { Link } from "../../routes/Link";
 import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
 import { Reveal } from "../../site/motion/Reveal";
+import { categoryIcon, categoryWord, lineFor } from "../../site/art";
+import { Icon } from "../../site/art/Icon";
+import { LineBullet } from "../../site/art/LineBullet";
 import { Badge } from "../../site/ui/Badge";
-import { Monogram } from "../../site/ui/Monogram";
-import { cx, FOCUS_RING, INK_BORDER, LABEL, LIFT, SHADOW_HARD, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
+import { cx, FOCUS_RING, INK_BORDER, LABEL, SHADOW_HARD, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import {
   capabilityCounts,
   networkLabel,
@@ -14,7 +16,6 @@ import {
   type ProtocolEntry,
 } from "../protocols/protocolStats";
 
-const MAX_MONOGRAMS = 6;
 const RANK = { execute: 0, quote: 1, discover: 2 } as const;
 
 export interface VenuesByNetworkProps {
@@ -23,7 +24,7 @@ export interface VenuesByNetworkProps {
   readonly protocols: readonly ProtocolEntry[];
 }
 
-/** One compact card per network: venue count, capability mix, a monogram stack and a link into /protocols. */
+/** One compact card per network: venue count, capability mix, the kinds of venue as pictograms and a link into /protocols. */
 export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
   return (
     <Reveal as="ul" stagger className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -33,21 +34,32 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
           (a, b) => RANK[strongestCapability(a)] - RANK[strongestCapability(b)] || a.name.localeCompare(b.name),
         );
         const counts = capabilityCounts(venues);
-        const stack = venues.slice(0, MAX_MONOGRAMS);
+        // One pictogram per kind of venue (swap, lend, stake, ...), in the order the venues are listed.
+        const kinds = [...new Map(venues.map((protocol) => [categoryIcon(protocol.category), categoryWord(protocol.category)])).entries()];
         const testnet = network.environment === "testnet";
+        const line = lineFor(network.key);
         return (
-          <li key={network.key} data-reveal-item className={cx("flex min-w-0", INK_BORDER, SHADOW_HARD, SURFACE, LIFT)}>
+          <li key={network.key} data-reveal-item className={cx("flex min-w-0", INK_BORDER, SHADOW_HARD, SURFACE)}>
             <span
               aria-hidden="true"
               className="w-3 shrink-0 border-r-[3px] border-[#1A1A1A] dark:border-[#4B5563]"
-              style={{ backgroundColor: label.color ?? "#94A3B8" }}
+              style={{
+                backgroundColor: label.color ?? "#94A3B8",
+                backgroundImage: line?.gauge === "svm" ? "repeating-linear-gradient(180deg, #1A1A1A 0 4px, transparent 4px 9px)" : undefined,
+                backgroundSize: "3px 100%",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+              }}
             />
             <div className="flex min-w-0 flex-1 flex-col gap-4 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate font-display text-xl font-bold leading-tight">{label.name}</h3>
-                  <p className={cx(LABEL, "mt-1 !text-[10px]", testnet ? "text-[#B45309] dark:text-[#FFD60A]" : "text-[#0B7A4B] dark:text-[#14F195]")}>
-                    {testnet ? "Testnet lane" : "Production lane"}
+                  <h3 className="flex min-w-0 items-center gap-2.5 font-display text-xl font-bold leading-tight">
+                    {line ? <LineBullet line={line} decorative className={line.yard ? "kla-bullet--yard" : undefined} /> : null}
+                    <span className="truncate">{label.name}</span>
+                  </h3>
+                  <p className={cx(LABEL, "mt-1.5 !text-[10px]", TEXT_MUTED)}>
+                    {testnet ? "Test yard" : "Production line"}
                   </p>
                 </div>
                 <p className="text-right">
@@ -64,21 +76,22 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                 <Badge tone="neutral">Discover {counts.discover}</Badge>
               </p>
 
-              {stack.length > 0 ? (
-                <div className="flex items-center">
-                  <ul aria-hidden="true" className="flex items-center pl-1">
-                    {stack.map((protocol, index) => (
-                      <li key={protocol.id} className={index > 0 ? "-ml-2" : undefined} style={{ zIndex: MAX_MONOGRAMS - index }}>
-                        <Monogram name={protocol.name} category={protocol.category} size="sm" className="[&>span]:hidden" />
+              {kinds.length > 0 ? (
+                <div>
+                  <ul aria-hidden="true" className="flex flex-wrap gap-1.5">
+                    {kinds.map(([icon, word]) => (
+                      <li
+                        key={icon}
+                        title={word}
+                        className="flex h-9 w-9 items-center justify-center border-2 border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]"
+                      >
+                        <Icon name={icon} size={22} />
                       </li>
                     ))}
                   </ul>
-                  {venues.length > stack.length ? (
-                    <span className="ml-3 font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
-                      +{venues.length - stack.length}
-                    </span>
-                  ) : null}
-                  <span className="sr-only">Includes {stack.map((protocol) => protocol.name).join(", ")}.</span>
+                  <p className="sr-only">
+                    Kinds of venue: {kinds.map(([, word]) => word).join(", ")}. Includes {venues.map((protocol) => protocol.name).join(", ")}.
+                  </p>
                 </div>
               ) : (
                 <p className={cx("text-sm", TEXT_MUTED)}>No venues in the registry yet.</p>

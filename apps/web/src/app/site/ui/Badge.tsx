@@ -8,8 +8,9 @@ const TONES: Record<BadgeTone, string> = {
   neutral: "bg-[#F1EFE8] text-[#1A1A1A] dark:bg-[#1A2841] dark:text-[#E2E8F0]",
   blue: "bg-[#0052FF] text-white",
   yellow: "bg-[#FFD60A] text-[#1A1A1A]",
-  green: "bg-[#14F195] text-[#0B1120]",
-  purple: "bg-[#9945FF] text-white",
+  // Status green (the departure board lamp), not a network colour.
+  green: "bg-[#4ADE80] text-[#0B1120]",
+  purple: "bg-[#6D28D9] text-white",
   red: "bg-[#FF5A5F] text-[#1A1A1A]",
   ink: "bg-[#1A1A1A] text-white dark:bg-white dark:text-[#0B1120]",
   outline: "bg-transparent text-[#1A1A1A] dark:text-[#E2E8F0]",

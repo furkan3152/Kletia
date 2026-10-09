@@ -22,15 +22,15 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: "custody",
     question: "Does Kletia ever hold my keys or funds?",
     answer: [
-      "No. The API only returns unsigned transactions. Your own wallet signs every value-moving step, each step is bound to one account, and the SDK refuses to sign with a different wallet.",
+      "No. The API only returns unsigned transactions. Your own wallet signs every leg that moves value, each leg is bound to one account, and the SDK refuses to sign it with a different wallet.",
     ],
     links: [{ label: "Security model", to: "/#security" }],
   },
   {
     id: "coverage",
-    question: "Which networks and protocols are supported?",
+    question: "Which networks and venues are supported?",
     answer: [
-      "Kletia currently knows {networks} networks and {protocols} protocols. Each protocol is marked execute, quote or discover, so you can see exactly what Kletia does with it today. Mainnet and testnet networks are separate lanes.",
+      "Kletia knows {networks} networks and {protocols} venues today. Each venue is marked execute, quote or discover, so you can see what Kletia does with it. Mainnet and testnet networks are separate capital and never share a plan.",
     ],
     links: [
       { label: "Network status", to: "/networks" },
@@ -41,7 +41,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: "model",
     question: "Is an AI model deciding my transactions?",
     answer: [
-      "No. A deterministic grammar compiles your sentence into an intent graph; the same request always produces the same graph for the same quotes. Wording the grammar does not support returns a 422 error with examples instead of a guess.",
+      "No. A grammar compiles your sentence into a plan, and the same request with the same quotes always gives the same plan. Wording the grammar does not know returns a 422 error with phrases it does know, never a guess.",
     ],
     links: [{ label: "Try Intent Studio", to: "/studio" }],
   },
@@ -49,7 +49,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: "integrate",
     question: "Can I integrate Kletia into my own product?",
     answer: [
-      "Yes. The same /v1 REST API the console uses is public, with an OpenAPI 3.1 document. On top of it there is the typed @kletia/sdk, the drop-in @kletia/widget React component and an /embed page you can place in an iframe.",
+      "Yes. The /v1 REST API the console uses is public and described by an OpenAPI 3.1 document. On top of it there is the typed @kletia/sdk, the @kletia/widget React component and an /embed page you can place in an iframe.",
     ],
     links: [
       { label: "Quickstart", to: "/developers#quickstart" },
@@ -66,23 +66,23 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   },
   {
     id: "failure",
-    question: "What happens if a step fails halfway?",
+    question: "What happens if a leg fails halfway?",
     answer: [
-      "Steps advance only on evidence observed on-chain or from the settlement network. A transaction whose outcome is uncertain becomes indeterminate and is recovered by its hash, never silently resent. Before anything is submitted you can retry or cancel.",
+      "A leg moves forward only on evidence read on-chain or reported by the settlement network. A transaction whose outcome is unknown is marked held and recovered by its hash, never sent twice. Before anything is submitted you can retry or cancel.",
     ],
   },
   {
     id: "lanes",
     question: "Why are mainnet and testnet separate?",
     answer: [
-      "They are separate capital lanes. A mainnet network and a testnet network never appear in the same intent graph, so testnet assets can never fund a production step.",
+      "They are separate capital. A mainnet network and a testnet network never appear in the same plan, so test tokens can never pay for a production leg.",
     ],
   },
   {
     id: "audit",
     question: "Is Kletia audited?",
     answer: [
-      "Not yet. Kletia is development-stage software and has not been audited. The code is MIT licensed and open for review, and the security policy explains how to report a vulnerability.",
+      "Not yet. Kletia is in development and has not been audited. The code is MIT licensed and open for review, and the security policy explains how to report a vulnerability.",
     ],
   },
 ];

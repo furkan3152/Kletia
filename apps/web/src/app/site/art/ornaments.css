@@ -124,10 +124,12 @@
   width: 22px;
   height: 22px;
 }
+/* Process colour bar: outside the trim, above the top-left corner (the bottom
+   edge is where tickets and stubs get laid over a card). */
 .kla-crop__bar {
   position: absolute;
-  bottom: -26px;
-  right: 40px;
+  top: -21px;
+  left: 14px;
   display: flex;
   border: 1.5px solid currentColor;
 }

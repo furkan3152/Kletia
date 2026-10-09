@@ -83,7 +83,7 @@ function UtilizationBar({ value }: { value: number | null }) {
   return (
     <span className="flex min-w-[6rem] items-center gap-2">
       <span className="h-2 w-14 shrink-0 border-2 border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]" aria-hidden="true">
-        <span className={cx("block h-full", width > 92 ? "bg-[#FF5A5F]" : width > 80 ? "bg-[#FFD60A]" : "bg-[#14F195]")} style={{ width: `${width}%` }} />
+        <span className={cx("block h-full", width > 92 ? "bg-[#FF5A5F]" : width > 80 ? "bg-[#FFD60A]" : "bg-[#4ADE80]")} style={{ width: `${width}%` }} />
       </span>
       <span className="font-code text-xs">{percent(value, 1)}</span>
     </span>

@@ -1,24 +1,27 @@
 import type { HealthReport, NetworkCapabilities } from "@kletia/sdk";
 import { ArrowRight, Check, Minus, RefreshCw } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, useEffect } from "react";
 
 import { describePlatformError, PLATFORM_ORIGIN } from "../../../shared/platform/kletiaClient";
 import { fetchHealth, fetchNetworks, fetchProtocols } from "../../../shared/platform/platformApi";
 import { registryNetworks, registryProtocols, sortNetworks } from "../../../shared/platform/registry";
 import { useApiResource, type ApiResource } from "../../../shared/platform/useApiResource";
 import { Link } from "../../routes/Link";
-import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
+import { formatBoardClock, lineFor } from "../../site/art";
+import { DepartureBoard } from "../../site/art/DepartureBoard";
+import { LineBullet } from "../../site/art/LineBullet";
 import { Reveal } from "../../site/motion/Reveal";
 import { useInView } from "../../site/motion/useInView";
 import { usePageVisible } from "../../site/motion/usePageVisible";
 import { useReducedMotion } from "../../site/motion/useReducedMotion";
+import { countWordTitle, PRODUCTION } from "../../site/registryCopy";
 import { Badge } from "../../site/ui/Badge";
 import { Section } from "../../site/ui/Section";
 import { StatusDot, type HealthState } from "../../site/ui/StatusDot";
 import { CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { actionsOf, networkLabel, type ProtocolEntry } from "../protocols/protocolStats";
-import { LatencyBar } from "./LatencyBar";
-import { formatMs, formatUptime, healthChanges, useHealthHistory } from "./useHealthHistory";
+import { boardData } from "./boardRows";
+import { formatMs, formatUptime, healthChanges } from "./useHealthHistory";
 import { VenuesByNetwork } from "./VenuesByNetwork";
 
 const ACTION_ORDER = ["swap", "bridge", "transfer", "stake", "unstake", "deposit", "withdraw", "borrow", "repay", "claim", "read"];
@@ -35,64 +38,15 @@ function overallState(health: ApiResource<HealthReport>): HealthState {
   return health.data.status === "ok" ? "ok" : health.data.status === "degraded" ? "degraded" : "down";
 }
 
+function originHost(): string {
+  try {
+    return new URL(PLATFORM_ORIGIN).host;
+  } catch {
+    return PLATFORM_ORIGIN;
+  }
+}
+
 /** Live summary under the page title: API state, networks online and the browser round trip. */
-function LiveSummary({ health }: { health: ApiResource<HealthReport> }) {
-  const state = overallState(health);
-  const live = health.status === "success" ? health.data : undefined;
-  const entries = live?.networks ?? [];
-  const online = entries.filter((entry) => entry.ok).length;
-  return (
-    <div className={cx("mt-10 inline-flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3", INK_BORDER, HARD_SHADOW, SURFACE)}>
-      <StatusDot
-        state={state}
-        pulse="once"
-        pulseKey={health.updatedAt ?? undefined}
-        label={state === "loading" ? "Checking API" : live ? `API ${live.status}` : "Status unavailable"}
-      />
-      <p className="text-sm">
-        <span className="font-display text-2xl font-bold tracking-[-0.03em]">
-          <AnimatedNumber value={live ? online : null} />
-        </span>
-        <span className="font-display text-2xl font-bold tracking-[-0.03em]">/{live ? entries.length : "—"}</span>{" "}
-        <span className={cx("font-semibold", TEXT_MUTED)}>networks online</span>
-      </p>
-      <p className="text-sm">
-        <span className="font-display text-2xl font-bold tracking-[-0.03em]">
-          <AnimatedNumber value={live ? health.latencyMs : null} format={formatMs} />
-        </span>{" "}
-        <span className={cx("font-semibold", TEXT_MUTED)}>round trip, from your browser</span>
-      </p>
-    </div>
-  );
-}
-
-/** A one-shot highlight sweep across its parent each time `token` changes (WAAPI, transform only). */
-function CheckSweep({ token }: { token: number | null }) {
-  const ref = useRef<HTMLSpanElement | null>(null);
-  const first = useRef(token);
-  const reduced = useReducedMotion();
-  useEffect(() => {
-    if (token === null || token === first.current || reduced) return undefined;
-    const element = ref.current;
-    if (!element || typeof element.animate !== "function") return undefined;
-    const animation = element.animate(
-      [
-        { transform: "translateX(-100%)", opacity: 1 },
-        { transform: "translateX(100%)", opacity: 1 },
-      ],
-      { duration: 600, easing: "linear" },
-    );
-    return () => animation.cancel();
-  }, [token, reduced]);
-  return (
-    <span
-      ref={ref}
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(90deg,transparent,rgba(255,214,10,0.35),transparent)] opacity-0 dark:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)]"
-    />
-  );
-}
-
 function CountdownRing({ remaining, active }: { remaining: number; active: boolean }) {
   const reduced = useReducedMotion();
   if (reduced) return <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />;
@@ -133,7 +87,6 @@ function HealthPanel({ health }: HealthPanelProps) {
   const running = auto && visible && inView && health.status !== "loading";
 
   const fresh = health.status === "success" ? health.data : undefined;
-  const history = useHealthHistory(fresh, fresh ? health.updatedAt : null);
 
   // Announce only changes (and the result of a manual re-check), never every refresh.
   const [speech, setSpeech] = useState<{ readonly at: number | null; readonly report?: HealthReport; readonly text: string }>({
@@ -177,18 +130,17 @@ function HealthPanel({ health }: HealthPanelProps) {
 
   const state = overallState(health);
   const live = health.status === "success" ? health.data : undefined;
-  const byNetwork = new Map((health.data?.networks ?? []).map((entry) => [entry.network as string, entry]));
-  const networks = sortNetworks(registryNetworks());
-  const known = new Set<string>(networks.map((network) => network.key));
-  const extra = (health.data?.networks ?? []).filter((entry) => !known.has(entry.network));
+  const board = boardData(health);
   const uptime = formatUptime(live?.uptimeSeconds);
+  const notices = (health.data?.networks ?? []).filter((entry) => entry.detail && !entry.ok);
+  const clock = board.live && health.updatedAt ? formatBoardClock(new Date(health.updatedAt)) : board.loading ? "--:-- UTC" : "OFFLINE";
 
   return (
-    <div ref={panelRef} className={cx(INK_BORDER, HARD_SHADOW, SURFACE)}>
+    <div ref={panelRef} className="flex flex-col gap-6">
       <p className="sr-only" role="status" aria-live="polite">
         {speech.text}
       </p>
-      <div className="flex flex-col gap-4 border-b-[3px] border-[#1A1A1A] p-5 dark:border-[#4B5563] sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className={cx("flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)}>
         <div aria-busy={health.status === "loading"}>
           <StatusDot
             state={state}
@@ -198,11 +150,11 @@ function HealthPanel({ health }: HealthPanelProps) {
           />
           <p className={cx("mt-2 min-h-10 text-sm", TEXT_MUTED)}>
             {live
-              ? `GET /v1/health answered in ${health.latencyMs ?? "—"} ms${live.version ? ` · version ${live.version}` : ""}${
-                  uptime ? ` · up ${uptime}` : ""
-                }${health.updatedAt ? ` · checked ${new Date(health.updatedAt).toLocaleTimeString()}` : ""}.`
+              ? `GET /v1/health answered in ${health.latencyMs ?? "?"} ms${live.version ? `, version ${live.version}` : ""}${
+                  uptime ? `, up ${uptime}` : ""
+                }${health.updatedAt ? `, checked ${new Date(health.updatedAt).toLocaleTimeString()}` : ""}.`
               : health.error
-                ? `${describePlatformError(health.error)} Network rows below show the registry, not live RPC health.`
+                ? `${describePlatformError(health.error)} The board shows the registry, not live RPC readings.`
                 : "Contacting the API…"}
           </p>
         </div>
@@ -230,7 +182,7 @@ function HealthPanel({ health }: HealthPanelProps) {
             )}
           >
             {health.status === "loading" ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              <RefreshCw className="kl-loop h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
             ) : auto ? (
               <CountdownRing remaining={remaining} active={running} />
             ) : (
@@ -240,58 +192,42 @@ function HealthPanel({ health }: HealthPanelProps) {
           </button>
         </div>
       </div>
-      <ul className="grid sm:grid-cols-2 lg:grid-cols-3">
-        {networks.map((network) => {
-          const entry = byNetwork.get(network.key);
-          const rowState: HealthState =
-            health.status === "loading" && !health.data ? "loading" : entry ? (entry.ok ? "ok" : "down") : "unknown";
-          return (
-            <li
-              key={network.key}
-              className="flex min-w-0 flex-col gap-2.5 border-b-2 border-dashed border-[#1A1A1A]/15 p-5 dark:border-white/10 sm:border-r-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="flex min-w-0 items-center gap-2 font-display text-lg font-bold">
-                  <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
-                  <span className="truncate">{network.name}</span>
-                </p>
-                <Badge tone={network.environment === "mainnet" ? "green" : "yellow"}>{network.environment}</Badge>
-              </div>
-              <p className="break-all font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{network.id}</p>
-              <div className="flex items-center justify-between gap-2">
-                <StatusDot
-                  state={rowState}
-                  pulse="once"
-                  pulseKey={entry ? (health.updatedAt ?? undefined) : undefined}
-                  label={rowState === "ok" ? "RPC ok" : rowState === "down" ? "RPC down" : rowState === "loading" ? "Checking" : "No live data"}
-                />
-                <span className="relative overflow-hidden font-code text-xs">
-                  {entry && typeof entry.latencyMs === "number" ? <AnimatedNumber value={entry.latencyMs} format={formatMs} /> : null}
-                  <CheckSweep token={entry ? health.updatedAt : null} />
-                </span>
-              </div>
-              {entry && typeof entry.latencyMs === "number" ? (
-                <LatencyBar ms={entry.latencyMs} history={history[network.key]} />
-              ) : rowState === "loading" ? (
-                <LatencyBar ms={null} />
-              ) : null}
-              {entry?.detail ? <p className={cx("text-xs", TEXT_MUTED)}>{entry.detail}</p> : null}
+
+      <DepartureBoard
+        rows={board.rows}
+        clock={clock}
+        busy={health.status === "loading"}
+        note={
+          board.live
+            ? `RPC round trips measured by ${originHost()} and read from your browser every ${REFRESH_SECONDS} seconds while auto-refresh is on.`
+            : "The API did not answer from this browser, so the board shows the registry compiled into @kletia/core and no timings."
+        }
+      />
+
+      {notices.length || board.unknown.length ? (
+        <ul className={cx("flex flex-col gap-2 text-sm", TEXT_MUTED)} aria-label="Notices">
+          {notices.map((entry) => (
+            <li key={entry.network} className="border-l-[3px] border-[#FF5A5F] pl-3">
+              <strong className="text-[#1A1A1A] dark:text-white">{networkLabel(entry.network).name}:</strong> {entry.detail}
             </li>
-          );
-        })}
-        {extra.map((entry) => (
-          <li key={entry.network} className="flex min-w-0 flex-col gap-2.5 border-b-2 border-dashed border-[#1A1A1A]/15 p-5 dark:border-white/10 sm:border-r-2">
-            <p className="truncate font-display text-lg font-bold">{entry.name || entry.network}</p>
-            <div className="flex items-center justify-between gap-2">
-              <StatusDot state={entry.ok ? "ok" : "down"} pulse="none" label={entry.ok ? "RPC ok" : "RPC down"} />
-              {typeof entry.latencyMs === "number" ? <span className="font-code text-xs">{formatMs(entry.latencyMs)}</span> : null}
-            </div>
-            {typeof entry.latencyMs === "number" ? <LatencyBar ms={entry.latencyMs} history={history[entry.network]} /> : null}
-          </li>
-        ))}
-      </ul>
+          ))}
+          {board.unknown.map((entry) => (
+            <li key={`unknown-${entry.network}`} className="border-l-[3px] border-dashed border-[#1A1A1A]/40 pl-3 dark:border-white/30">
+              <strong className="text-[#1A1A1A] dark:text-white">{entry.name || entry.network}</strong> is reported by the API but not
+              yet in this page&apos;s registry: {entry.ok ? "running" : "no service"}
+              {typeof entry.latencyMs === "number" ? `, ${formatMs(entry.latencyMs)}` : ""}.
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
+}
+
+/** The network's line bullet (dashed in the test yard); nothing for a network this bundle does not know. */
+function MatrixBullet({ network }: { network: string }) {
+  const line = lineFor(network);
+  return line ? <LineBullet line={line} decorative className={line.yard ? "kla-bullet--yard" : undefined} /> : null;
 }
 
 function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabilities[]; live: boolean; loading: boolean }) {
@@ -350,8 +286,8 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
                     scope="row"
                     className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 font-bold transition-colors duration-150 group-hover/row:bg-[#FFF9DB] motion-reduce:transition-none dark:bg-[#131E32] dark:group-hover/row:bg-[#18243A]"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <span aria-hidden="true" className="h-3 w-3 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
+                    <span className="inline-flex items-center gap-2.5">
+                      <MatrixBullet network={network.key} />
                       {network.name}
                     </span>
                   </th>
@@ -361,7 +297,7 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
                       <td key={action} className="px-3 py-3 text-center">
                         {ok ? (
                           <Check
-                            className="mx-auto h-5 w-5 text-[#0B7A4B] group-data-[reveal=shown]/matrix:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] dark:text-[#14F195] motion-reduce:!animate-none"
+                            className="mx-auto h-5 w-5 text-[#0B7A4B] group-data-[reveal=shown]/matrix:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] dark:text-[#4ADE80] motion-reduce:!animate-none"
                             style={{ animationDelay: `${280 + column * 70}ms` }}
                             aria-hidden="true"
                           />
@@ -402,33 +338,42 @@ export default function NetworksPage() {
 
   return (
     <>
-      <header className="kl-grid-backdrop border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      {/* The departures board is the hero: the page is the station hall. */}
+      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
-          <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Networks & status</p>
-          <h1 className="mt-4 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.75rem)] font-bold leading-[0.95] tracking-[-0.045em]">
-            Every network. Every venue. <span className="text-[#0052FF] dark:text-[#7EA6FF]">Live.</span>
-          </h1>
-          <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-            What Kletia can do on each network right now, read from the public API at{" "}
-            <code className="break-words font-code text-[0.9em]">{PLATFORM_ORIGIN}/v1</code>. When the API is unreachable this
-            page falls back to the registries compiled into <code className="font-code text-[0.9em]">@kletia/core</code>.
-          </p>
-          <LiveSummary health={health} />
+          <div className="grid gap-x-16 gap-y-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end">
+            <div className="min-w-0">
+              <p className={cx(LABEL, "font-code text-[#0047E0] dark:text-[#7EA6FF]")}>Networks and status</p>
+              <h1 className="mt-6 text-balance font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">
+                {countWordTitle(PRODUCTION.length)} production networks and a test yard.
+              </h1>
+            </div>
+            <p className={cx("max-w-2xl text-lg leading-relaxed lg:pb-1", TEXT_MUTED)}>
+              Status comes from <code className="font-code text-[0.9em]">GET /v1/health</code> at{" "}
+              <code className="break-words font-code text-[0.9em]">{PLATFORM_ORIGIN}</code> and is re-read from your browser every{" "}
+              {REFRESH_SECONDS} seconds. The lamp and the flaps turn yellow when an RPC is slow and red when it stops answering. If
+              the API cannot be reached, the board falls back to the registry compiled into{" "}
+              <code className="font-code text-[0.9em]">@kletia/core</code> and says so.
+            </p>
+          </div>
+          <section id="health" aria-labelledby="health-heading" className="mt-12 scroll-mt-24">
+            <h2 id="health-heading" className="sr-only">
+              RPC status per network
+            </h2>
+            <HealthPanel health={health} />
+          </section>
         </div>
       </header>
-
-      <Section id="health" eyebrow="Health" title="API and RPC status" reveal>
-        <HealthPanel health={health} />
-      </Section>
 
       <Section
         id="capabilities"
         tone="paper"
         bordered
         reveal
+        platform={1}
         eyebrow="Capabilities"
-        title="Capability matrix"
-        intro="Which intent kinds the planner accepts on each network. Mainnet and testnet networks are separate capital lanes."
+        title="What the planner accepts on each line"
+        intro="Intent kinds per network. Production and test networks are separate capital, and a plan never mixes them."
       >
         {networksResource.status === "error" && networksResource.error ? (
           <p className={cx("mb-4 text-sm", TEXT_MUTED)} role="status">
@@ -441,9 +386,10 @@ export default function NetworksPage() {
       <Section
         id="protocols"
         reveal
+        platform={2}
         eyebrow="Venues"
         title="Venues by network"
-        intro="How many protocols Kletia can plan with on each network, and what it can do with them. The full directory, with search and filters, lives on its own page."
+        intro="How many protocols Kletia can plan with on each network, and what it does with them. The full directory, with search and filters, has its own page."
         actions={
           <Link
             to="/protocols"

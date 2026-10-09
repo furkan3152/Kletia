@@ -188,11 +188,6 @@ export function CodeBlock({
   return (
     <div className={cx("flex min-w-0 flex-col bg-[#0D1117] text-[#E6EDF3]", INK_BORDER, HARD_SHADOW, className)}>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-[3px] border-[#1A1A1A] bg-[#161B22] px-3 py-2 dark:border-[#4B5563] sm:flex-nowrap">
-        <span aria-hidden="true" className="hidden shrink-0 gap-1.5 sm:flex">
-          <span className="h-3 w-3 border-2 border-[#0D1117] bg-[#FF5A5F]" />
-          <span className="h-3 w-3 border-2 border-[#0D1117] bg-[#FFD60A]" />
-          <span className="h-3 w-3 border-2 border-[#0D1117] bg-[#14F195]" />
-        </span>
         {list ? (
           <div
             ref={tablistRef}

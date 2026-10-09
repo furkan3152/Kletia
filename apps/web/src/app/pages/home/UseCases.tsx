@@ -1,134 +1,162 @@
-import { ArrowRight, Bot, Gamepad2, Landmark, Wallet, WalletCards } from "lucide-react";
-import React, { useState } from "react";
+import type { NetworkKey } from "@kletia/core";
+import { ArrowRight } from "lucide-react";
+import { Fragment } from "react";
 
 import { Link } from "../../routes/Link";
+import { LINES, type IconName } from "../../site/art";
+import { Icon } from "../../site/art/Icon";
+import { LineBullet } from "../../site/art/LineBullet";
 import { Reveal } from "../../site/motion/Reveal";
-import { Typewriter } from "../../site/motion/Typewriter";
-import { prefersReducedMotion } from "../../site/motion/useReducedMotion";
-import { useSpotlight } from "../../site/motion/useSpotlight";
+import { countWordTitle } from "../../site/registryCopy";
 import { Section } from "../../site/ui/Section";
-import { cx, FOCUS_RING, INK_BORDER, LIFT, SHADOW_HARD, SPOTLIGHT, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
+import { cx, FOCUS_RING } from "../../site/ui/styles";
 import { studioHref } from "../protocols/protocolExamples";
 
 interface UseCase {
   readonly title: string;
   readonly body: string;
   readonly example: string;
-  readonly icon: React.ReactNode;
-  readonly accent: string;
+  /** Networks the example sentence travels, in order (names and colours come from the registry). */
+  readonly route: readonly NetworkKey[];
+  readonly icon: IconName;
 }
 
 const USE_CASES: readonly UseCase[] = [
   {
     title: "Wallets",
-    body: "Offer swaps, bridges and staking across EVM and Solana without integrating every venue yourself.",
+    body: "Offer swaps, bridges and staking on EVM and Solana without integrating each venue yourself.",
     example: "move 0.01 ETH from arbitrum to solana as SOL",
-    icon: <Wallet className="h-6 w-6" aria-hidden="true" />,
-    accent: "#0052FF",
+    route: ["arbitrum", "solana"],
+    icon: "key",
   },
   {
-    title: "Payment & neobank apps",
-    body: "Accept USDC on one network and settle it where your treasury lives, with signed webhooks for reconciliation.",
+    title: "Payments and neobanks",
+    body: "Take USDC on one network, settle it where your treasury lives, and reconcile from signed webhooks.",
     example: "bridge 25 USDC from base to solana",
-    icon: <WalletCards className="h-6 w-6" aria-hidden="true" />,
-    accent: "#FFD60A",
+    route: ["base", "solana"],
+    icon: "transfer",
   },
   {
-    title: "AI agents",
-    body: "Let agents propose deterministic, reviewable plans that a human-controlled wallet signs, and pay per call with x402.",
+    title: "Agents",
+    body: "An agent proposes a plan through the API or MCP, and a person signs it. Paid calls can settle over x402.",
     example: "swap 1 SOL to USDC",
-    icon: <Bot className="h-6 w-6" aria-hidden="true" />,
-    accent: "#9945FF",
+    route: ["solana"],
+    icon: "route",
   },
   {
-    title: "Treasuries & DAOs",
-    body: "Rebalance stablecoins between networks and deposit idle USDC into lending markets with evidence for every step.",
+    title: "Treasuries",
+    body: "Move stablecoins between networks and park idle USDC in a lending market, with evidence for every leg.",
     example: "bridge 20 USDC from solana to base and deposit it into aave",
-    icon: <Landmark className="h-6 w-6" aria-hidden="true" />,
-    accent: "#14F195",
+    route: ["solana", "base"],
+    icon: "lend",
   },
   {
     title: "Games",
-    body: "Top up in-game balances from whatever network a player holds funds on, without leaving the game.",
+    body: "Top up an in-game balance from whichever network the player's funds are on.",
     example: "bridge 50 USDC from base to solana then swap half to JitoSOL",
-    icon: <Gamepad2 className="h-6 w-6" aria-hidden="true" />,
-    accent: "#FF5A5F",
+    route: ["base", "solana"],
+    icon: "swap",
   },
 ];
 
-const DARK_ICON = new Set(["#FFD60A", "#14F195"]);
-
-function UseCaseCard({ useCase, wide }: { readonly useCase: UseCase; readonly wide: boolean }) {
-  const { ref, handlers, style } = useSpotlight<HTMLLIElement>({ tilt: 3, color: useCase.accent });
-  // Each hover or focus re-types the example prompt (never with reduced motion).
-  const [replay, setReplay] = useState(0);
-  const retype = () => {
-    if (!prefersReducedMotion()) setReplay((value) => value + 1);
-  };
-
+/** The lines a route travels: bullets joined by a short length of track. */
+function RouteLines({ route }: { readonly route: readonly NetworkKey[] }) {
+  const lines = route.map((key) => LINES[key]);
   return (
-    <li
-      ref={ref}
-      {...handlers}
-      onPointerEnter={(event) => {
-        handlers.onPointerEnter(event);
-        if (event.pointerType === "mouse") retype();
-      }}
-      onFocus={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) retype();
-      }}
-      data-reveal-item
-      style={style}
-      className={cx("group relative flex flex-col p-6", INK_BORDER, SHADOW_HARD, SURFACE, LIFT, SPOTLIGHT, wide ? "lg:col-span-3" : "lg:col-span-2")}
-    >
-      <div className="flex items-center gap-3">
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] shadow-hard-sm transition-transform duration-240 ease-kl-snap group-hover:-rotate-6 motion-reduce:transition-none motion-reduce:group-hover:rotate-0 dark:border-[#4B5563]"
-          style={{ backgroundColor: useCase.accent, color: DARK_ICON.has(useCase.accent) ? "#1A1A1A" : "#FFFFFF" }}
-        >
-          {useCase.icon}
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <span className="sr-only">{lines.length > 1 ? `${lines.map((line) => line.name).join(" to ")}.` : `On ${lines[0]!.name}.`}</span>
+      {lines.map((line, index) => (
+        <Fragment key={line.key}>
+          {index > 0 ? <span
+              aria-hidden="true"
+              className="h-2.5 w-7 [background:linear-gradient(#1A1A1A,#1A1A1A)_center/100%_2px_no-repeat,repeating-linear-gradient(90deg,#1A1A1A_0_2px,transparent_2px_7px)_center/100%_10px_no-repeat]"
+            /> : null}
+          <LineBullet line={line} decorative />
+        </Fragment>
+      ))}
+      {lines.length === 1 ? (
+        <span aria-hidden="true" className="font-code text-[10.5px] font-bold uppercase tracking-[0.14em] text-[#55565B]">
+          one line
         </span>
-        <h3 className="font-display text-xl font-bold tracking-[-0.01em]">{useCase.title}</h3>
-      </div>
-      <p className={cx("mt-4 flex-1 text-[15px] leading-relaxed", TEXT_MUTED)}>{useCase.body}</p>
-      <p className="mt-5 min-h-[2.75rem] border-2 border-dashed border-[#1A1A1A]/40 bg-[#F4F1EA] px-3 py-2 font-code text-xs leading-relaxed text-[#1A1A1A] [overflow-wrap:anywhere] dark:border-white/20 dark:bg-[#0B1120] dark:text-[#E2E8F0]">
-        <span className="text-[#0052FF] dark:text-[#7EA6FF]" aria-hidden="true">
-          &gt;{" "}
-        </span>
-        {replay > 0 ? <Typewriter key={replay} text={useCase.example} speed={18} /> : useCase.example}
-      </p>
-      <Link
-        to={studioHref(useCase.example)}
-        className={cx(
-          "group/try mt-4 inline-flex min-h-9 items-center gap-1.5 self-start text-xs font-black uppercase tracking-[0.12em] text-[#0052FF] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
-          FOCUS_RING,
-        )}
-      >
-        Try in Studio
-        <ArrowRight
-          className="h-3.5 w-3.5 transition-transform duration-150 group-hover/try:translate-x-1 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover/try:translate-x-0"
-          aria-hidden="true"
-        />
-        <span className="sr-only">: {useCase.example}</span>
-      </Link>
-    </li>
+      ) : null}
+    </p>
   );
 }
 
+/**
+ * Routes people ask for, printed as a timetable: route number, the service,
+ * the lines it travels and the sentence that books it. Printed stock: the
+ * timetable keeps its ink at night.
+ */
 export function UseCases() {
   return (
     <Section
       id="use-cases"
+      platform={7}
+      eyebrow="Routes people ask for"
       reveal
-      eyebrow="Use cases"
-      title="Wherever money needs to move, intents fit."
-      intro="Each example below is a real prompt the v1 grammar accepts. Open any of them in Intent Studio to see the plan."
+      title={`${countWordTitle(USE_CASES.length)} products that move money between networks.`}
+      intro="Each example is a sentence the v1 grammar accepts today. Open one in Studio to see its legs."
     >
-      <Reveal as="ul" stagger className="grid gap-5 md:grid-cols-2 lg:grid-cols-6">
-        {USE_CASES.map((useCase, index) => (
-          <UseCaseCard key={useCase.title} useCase={useCase} wide={index < 2} />
-        ))}
-      </Reveal>
+      <div className="kla-grain border-[3px] border-[#1A1A1A] bg-[#FFFCF2] text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-grain:var(--kla-stock-grain)] [--kla-plate:#FFD60A]">
+        <p className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 bg-[#1A1A1A] px-5 py-3 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#FFD60A] sm:px-6">
+          <span>Timetable · routes in service</span>
+          <span className="font-semibold text-[#F4F1EA]">Valid on the v1 grammar</span>
+        </p>
+        <div
+          aria-hidden="true"
+          className="hidden grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] gap-x-6 border-b-[3px] border-[#1A1A1A] px-6 py-2.5 font-code text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#55565B] lg:grid"
+        >
+          <span>Route</span>
+          <span>Service</span>
+          <span>Lines</span>
+          <span>Say</span>
+          <span />
+        </div>
+        <Reveal as="ol" stagger className="px-5 sm:px-6">
+          {USE_CASES.map((useCase, index) => (
+            <li
+              key={useCase.title}
+              data-reveal-item
+              className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b-[1.5px] border-dashed border-[#1A1A1A]/40 py-6 last:border-b-0 lg:grid-cols-[3rem_minmax(0,1.15fr)_9.5rem_minmax(0,1fr)_9rem] lg:items-start lg:gap-x-6"
+            >
+              <span
+                aria-hidden="true"
+                className="row-span-2 mt-0.5 flex h-8 w-10 items-center justify-center bg-[#1A1A1A] font-code text-[13px] font-extrabold text-[#F4F1EA] lg:row-span-1"
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div className="min-w-0">
+                <h3 className="flex items-center gap-2.5 font-display text-xl font-bold leading-snug tracking-[-0.015em]">
+                  <Icon name={useCase.icon} size={24} />
+                  {useCase.title}
+                </h3>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-[#45464B]">{useCase.body}</p>
+              </div>
+              <div className="col-start-2 lg:col-start-auto lg:pt-1.5">
+                <RouteLines route={useCase.route} />
+              </div>
+              <p className="col-start-2 font-code text-[13px] font-semibold leading-relaxed [overflow-wrap:anywhere] lg:col-start-auto lg:pt-1">
+                <span className="text-[#0047E0]" aria-hidden="true">
+                  &gt;{" "}
+                </span>
+                {useCase.example}
+              </p>
+              <Link
+                to={studioHref(useCase.example)}
+                className={cx(
+                  "group/try col-start-2 inline-flex min-h-9 items-center gap-1.5 self-start justify-self-start whitespace-nowrap text-xs font-black uppercase tracking-[0.12em] text-[#0047E0] underline decoration-2 underline-offset-4 lg:col-start-auto lg:justify-self-end",
+                  FOCUS_RING,
+                )}
+              >
+                Open in Studio
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover/try:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
+                <span className="sr-only">: {useCase.example}</span>
+              </Link>
+            </li>
+          ))}
+        </Reveal>
+      </div>
     </Section>
   );
 }

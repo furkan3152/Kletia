@@ -186,6 +186,30 @@
     display: none;
   }
 }
+/* Between the phone board and the full board every column stays, on smaller
+   tiles: 29 flaps have to fit beside the bullets (about 510 px at 520 px). */
+@container (max-width: 700px) {
+  .kla-flap {
+    font-size: 11.5px;
+  }
+  .kla-flaps {
+    gap: 1.5px;
+  }
+  .kla-board__status {
+    gap: 7px;
+  }
+  .kla-board__table td,
+  .kla-board__table th {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .kla-board__table tr > :first-child {
+    padding-left: 12px;
+  }
+  .kla-board__line .kla-bullet {
+    min-width: 42px;
+  }
+}
 @container (max-width: 520px) {
   .kla-board__rpc {
     display: none;

@@ -19,8 +19,9 @@ export default defineConfig({
   server: {
     port: 5174,
     fs: {
-      // Workspace packages (@kletia/core, @kletia/sdk) are linked from ../../packages.
-      allow: [".", "../../packages"],
+      // Workspace packages (@kletia/core, @kletia/sdk) are linked from ../../packages;
+      // the site fonts are hoisted to the root node_modules.
+      allow: [".", "../../packages", "../../node_modules/@fontsource-variable"],
     },
   },
 });

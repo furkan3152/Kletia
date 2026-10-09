@@ -1,5 +1,6 @@
 import React from "react";
 
+import { PlatformNumber } from "../art/Ornaments";
 import { Reveal } from "../motion/Reveal";
 import { CONTAINER, cx, LABEL, TEXT_MUTED } from "./styles";
 
@@ -9,13 +10,20 @@ const TONES: Record<SectionTone, string> = {
   plain: "",
   paper: "bg-[#EDE9DF] dark:bg-[#0E1729]",
   ink: "bg-[#111318] text-white dark:bg-[#060A14]",
-  yellow: "bg-[#FFD60A] text-[#1A1A1A]",
+  // Printed ink stays ink on yellow in both themes (the art reads --kla-text and --kla-muted).
+  yellow: "bg-[#FFD60A] text-[#1A1A1A] [--kla-muted:#3A3B3F] [--kla-text:#1A1A1A]",
   blue: "bg-[#0052FF] text-white",
 };
 
 export interface SectionProps {
   readonly id?: string;
   readonly eyebrow?: React.ReactNode;
+  /**
+   * Section number on its platform plate (Platform 01, 02, ...). With a
+   * number the eyebrow is printed as a `PlatformNumber`; without one it is a
+   * plain mono label.
+   */
+  readonly platform?: number;
   readonly title?: React.ReactNode;
   readonly intro?: React.ReactNode;
   /** Right-aligned header content (links, filters). */
@@ -45,6 +53,7 @@ function HeaderCopy({ reveal, children }: { readonly reveal: boolean; readonly c
 export function Section({
   id,
   eyebrow,
+  platform,
   title,
   intro,
   actions,
@@ -74,17 +83,24 @@ export function Section({
           <header className="mb-10 flex flex-col gap-6 lg:mb-14 lg:flex-row lg:items-end lg:justify-between">
             <HeaderCopy reveal={reveal}>
               {eyebrow ? (
-                <p
-                  {...item}
-                  className={cx(
-                    LABEL,
-                    "mb-4 inline-flex items-center gap-2",
-                    dark ? "text-[#FFD60A]" : tone === "yellow" ? "text-[#1A1A1A]" : "text-[#0052FF] dark:text-[#7EA6FF]",
-                  )}
-                >
-                  <span aria-hidden="true" className="inline-block h-[3px] w-6 bg-current" />
-                  {eyebrow}
-                </p>
+                platform !== undefined ? (
+                  <div {...item} className="mb-5">
+                    <PlatformNumber n={platform} tone={dark ? "ink" : "paper"}>
+                      {eyebrow}
+                    </PlatformNumber>
+                  </div>
+                ) : (
+                  <p
+                    {...item}
+                    className={cx(
+                      LABEL,
+                      "mb-4 font-code",
+                      dark ? "text-[#FFD60A]" : tone === "yellow" ? "text-[#1A1A1A]" : "text-[#0047E0] dark:text-[#7EA6FF]",
+                    )}
+                  >
+                    {eyebrow}
+                  </p>
+                )
               ) : null}
               {title ? (
                 <h2

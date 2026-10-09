@@ -543,27 +543,6 @@ html.kletia-embed.kletia-embed-transparent body {
   }
 }
 
-/* Paper grid backdrop. */
-.kl-grid-backdrop {
-  background-image:
-    linear-gradient(to right, rgba(26, 26, 26, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(26, 26, 26, 0.07) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-.dark .kl-grid-backdrop {
-  background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-}
-
-.kl-dot-backdrop {
-  background-image: radial-gradient(rgba(26, 26, 26, 0.18) 1.5px, transparent 1.5px);
-  background-size: 22px 22px;
-}
-.dark .kl-dot-backdrop {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px);
-}
-
 /* Status ping. */
 .kl-ping {
   animation: kl-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
@@ -576,36 +555,13 @@ html.kletia-embed.kletia-embed-transparent body {
   }
 }
 
-/* Hero intent graph: typed prompt, staged nodes, flowing edges. */
-.kl-type-char {
-  animation: kl-type-in 0.01s linear both;
-}
-@keyframes kl-type-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
+/* Typing caret (Typewriter, terminal logs). */
 .kl-caret {
   animation: kl-blink 1s steps(1) infinite;
 }
 @keyframes kl-blink {
   50% {
     opacity: 0;
-  }
-}
-
-.kl-pop {
-  animation: kl-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
-}
-@keyframes kl-pop {
-  from {
-    opacity: 0;
-    transform: translate(10px, 10px);
-    box-shadow: 0 0 0 transparent;
   }
 }
 
@@ -618,101 +574,12 @@ html.kletia-embed.kletia-embed-transparent body {
   }
 }
 
-.kl-flow-v {
-  background-image: linear-gradient(to bottom, currentColor 50%, transparent 50%);
-  background-size: 100% 10px;
-  animation: kl-flow-v 0.6s linear infinite;
-}
-@keyframes kl-flow-v {
-  to {
-    background-position: 0 10px;
-  }
-}
-
-.kl-flow-h {
-  background-image: linear-gradient(to right, currentColor 50%, transparent 50%);
-  background-size: 10px 100%;
-  animation: kl-flow-h 0.6s linear infinite;
-}
-@keyframes kl-flow-h {
-  to {
-    background-position: 10px 0;
-  }
-}
-
-.kl-packet {
-  animation: kl-packet 2.4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
-}
-@keyframes kl-packet {
-  0% {
-    top: -6px;
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    top: calc(100% - 6px);
-    opacity: 0;
-  }
-}
-
-/* Protocol marquee. */
-.kl-marquee {
-  animation: kl-marquee 60s linear infinite;
-}
-.kl-marquee-host:hover .kl-marquee,
-.kl-marquee-host:focus-within .kl-marquee {
-  animation-play-state: paused;
-}
-@keyframes kl-marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.kl-float {
-  animation: kl-float 6s ease-in-out infinite;
-}
-@keyframes kl-float {
-  50% {
-    transform: translateY(-8px) rotate(var(--kl-rotate, 0deg));
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .kl-type-char,
   .kl-caret,
-  .kl-pop,
   .kl-fade-in,
-  .kl-flow-v,
-  .kl-flow-h,
-  .kl-packet,
-  .kl-marquee,
-  .kl-float,
   .kl-ping,
   .kl-pending-bar--active {
     animation: none !important;
-  }
-  .kl-packet {
-    display: none;
-  }
-  .kl-marquee-host .kl-marquee-clone {
-    display: none;
-  }
-  .kl-marquee-host .kl-marquee {
-    flex-wrap: wrap;
-    width: auto;
-  }
-  .kl-marquee-host .kl-marquee > ul {
-    flex-wrap: wrap;
-    flex-shrink: 1;
-    justify-content: center;
-    row-gap: 0.75rem;
-    padding: 0 1rem;
   }
 }
 
@@ -1179,13 +1046,8 @@ html.kletia-embed.kletia-embed-transparent body {
 html[data-kl-hidden]
   :is(
     .kl-loop,
-    .kl-marquee,
     .kl-mq-track,
-    .kl-float,
     .kl-ping,
-    .kl-flow-v,
-    .kl-flow-h,
-    .kl-packet,
     .kl-caret,
     .kl-attn-ring,
     .kl-hatch,
@@ -1197,13 +1059,8 @@ html[data-kl-hidden]
 [data-kl-paused]
   :is(
     .kl-loop,
-    .kl-marquee,
     .kl-mq-track,
-    .kl-float,
     .kl-ping,
-    .kl-flow-v,
-    .kl-flow-h,
-    .kl-packet,
     .kl-caret,
     .kl-attn-ring,
     .kl-hatch,
@@ -1211,13 +1068,8 @@ html[data-kl-hidden]
   ),
 :is(
     .kl-loop,
-    .kl-marquee,
     .kl-mq-track,
-    .kl-float,
     .kl-ping,
-    .kl-flow-v,
-    .kl-flow-h,
-    .kl-packet,
     .kl-caret,
     .kl-attn-ring,
     .kl-hatch,

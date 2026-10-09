@@ -4,6 +4,7 @@ import "@fontsource-variable/jetbrains-mono";
 
 import React, { useLayoutEffect } from "react";
 
+import { PaperDefs } from "./art/PaperDefs";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 import { enterSiteMode, leaveSiteMode } from "./theme";
@@ -49,6 +50,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       >
         Skip to content
       </a>
+      {/* Shared print filters (stamp ink, rough edge), mounted once for every page. */}
+      <PaperDefs />
       <SiteHeader theme={theme} onToggleTheme={toggle} />
       <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         <React.Suspense fallback={<PageFallback />}>{children}</React.Suspense>

@@ -20,7 +20,7 @@ export interface AutoPause<T extends Element> {
 /**
  * Pauses looping motion inside a section that is off-screen or in a hidden
  * tab. It toggles `data-kl-paused` on the element, which pauses every CSS
- * loop inside it (`.kl-loop`, `.kl-marquee`, `.kl-ping`, ... see styles.css),
+ * loop inside it (`.kl-loop`, `.kl-mq-track`, `.kl-ping`, ... see styles.css),
  * and returns `active` for JavaScript loops (WAAPI, timers, rAF).
  */
 export function useAutoPause<T extends Element = HTMLElement>(options: AutoPauseOptions = {}): AutoPause<T> {

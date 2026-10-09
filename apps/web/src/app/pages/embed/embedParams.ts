@@ -8,6 +8,9 @@
  * - `examples=<comma separated>` (max 6, 120 characters each)
  * - `bg=transparent` (no page background, for hosts that draw their own)
  *
+ * The host bridge parameters (`bridge`, `origin`, `ref`) are read by
+ * `readBridgeParams` in `embedBridge.ts`, outside the entry bundle.
+ *
  * An API key is never read from the URL: the embed always calls the public
  * tier, so a key cannot leak through referrers, logs or browser history.
  */
@@ -61,6 +64,43 @@ export function readEmbedParams(search: string): EmbedParams {
     if (examples.length === 0) examples = null;
   }
   return { theme, text, examples, transparent: query.get("bg") === "transparent" };
+}
+
+/*
+ * Hosts often send the bridge's connect message on the frame's `load` event,
+ * which can fire before the lazily loaded embed page starts its bridge. On
+ * `/embed?bridge=1` inside a frame, this entry module keeps such messages
+ * (at most 8) for the bridge to judge with its usual rules; nothing is
+ * answered here. See `embedBridge.ts`.
+ */
+const MAX_EARLY_CONNECTS = 8;
+const earlyConnects: MessageEvent[] = [];
+
+function keepEarlyConnect(event: MessageEvent): void {
+  const data: unknown = event.data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    (data as { kletia?: unknown }).kletia === "connect" &&
+    earlyConnects.length < MAX_EARLY_CONNECTS
+  ) {
+    earlyConnects.push(event);
+  }
+}
+
+if (
+  typeof window !== "undefined" &&
+  window.parent !== window &&
+  /^\/embed\/?$/u.test(window.location.pathname) &&
+  new URLSearchParams(window.location.search).get("bridge") === "1"
+) {
+  window.addEventListener("message", keepEarlyConnect);
+}
+
+/** Hands the connect messages kept so far to the bridge, once, and stops keeping them. */
+export function takeEarlyConnects(): MessageEvent[] {
+  if (typeof window !== "undefined") window.removeEventListener("message", keepEarlyConnect);
+  return earlyConnects.splice(0);
 }
 
 export function systemPrefersDark(): boolean {

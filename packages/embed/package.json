@@ -1,0 +1,64 @@
+{
+  "name": "@kletia/embed",
+  "version": "0.1.0",
+  "description": "Framework-agnostic Kletia intent widget: the <kletia-intent> custom element and mountKletiaIntent(), with a sandboxed frame, auto-resize and progress events. No dependencies.",
+  "license": "MIT",
+  "author": "Kletia",
+  "homepage": "https://github.com/furkan3152/Kletia/tree/main/packages/embed#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furkan3152/Kletia.git",
+    "directory": "packages/embed"
+  },
+  "bugs": {
+    "url": "https://github.com/furkan3152/Kletia/issues"
+  },
+  "type": "module",
+  "sideEffects": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/kletia-embed.min.js",
+  "jsdelivr": "./dist/kletia-embed.min.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./kletia-embed.min.js": "./dist/kletia-embed.min.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "keywords": [
+    "kletia",
+    "intents",
+    "web-component",
+    "custom-element",
+    "embed",
+    "iframe",
+    "solana",
+    "evm",
+    "cross-chain"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

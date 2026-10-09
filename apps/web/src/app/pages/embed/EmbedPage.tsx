@@ -9,6 +9,8 @@ import { externalRecipients, leaseSigners, PREVIEW_ACCOUNTS } from "../../../sha
 import { syncIntentActivity } from "../../../shared/platform/intentActivity";
 import { useRoute } from "../../routes/useRoute";
 import { Skeleton } from "../../site/ui/Skeleton";
+import { readBridgeParams } from "./embedBridge";
+import { EmbedBridgeNotice } from "./EmbedBridgeNotice";
 import { createEmbedClient } from "./embedClient";
 import {
   applyEmbedDocumentMode,
@@ -17,6 +19,7 @@ import {
   watchSystemTheme,
 } from "./embedParams";
 import type { EmbedWalletState } from "./EmbedWalletBar";
+import { useEmbedBridge, useEmbedResize } from "./useEmbedBridge";
 
 const EmbedWalletBar = React.lazy(() => import("./EmbedWalletBar"));
 
@@ -25,7 +28,7 @@ const PREVIEW_ACCOUNT_LIST: readonly AccountId[] = [
   PREVIEW_ACCOUNTS.solana as AccountId,
 ];
 
-const EMBED_METADATA = Object.freeze({ surface: "embed" });
+const EMBED_METADATA: Readonly<Record<string, string>> = Object.freeze({ surface: "embed" });
 
 /**
  * The prompt can be prefilled by the site that embeds this page, so a plan
@@ -111,6 +114,14 @@ function WalletBarFallback() {
 export default function EmbedPage() {
   const { location } = useRoute();
   const params = useMemo(() => readEmbedParams(location.search), [location.search]);
+  const bridgeParams = useMemo(() => readBridgeParams(location.search), [location.search]);
+  const { bridge, snapshot: bridgeSnapshot } = useEmbedBridge();
+  useEmbedResize(bridge);
+  // The host's reference travels with the intent so its server can match it (it is publicly readable).
+  const metadata = useMemo(
+    () => (bridgeParams.reference ? Object.freeze({ surface: "embed", hostRef: bridgeParams.reference }) : EMBED_METADATA),
+    [bridgeParams.reference],
+  );
   const [wallet, setWallet] = useState<EmbedWalletState>({ accounts: [], signers: undefined });
   const [lastText, setLastText] = useState(params.text);
   const [planned, setPlanned] = useState<{ key: string; intent: IntentGraph } | null>(null);
@@ -149,9 +160,26 @@ export default function EmbedPage() {
     (intent: IntentGraph) => {
       if (intent.request.text) setLastText(intent.request.text);
       setPlanned({ key: widgetKey, intent });
+      // Previews (no wallet) are dry runs: the host learns that a plan exists, never an id.
+      bridge?.intentCreated(intent, live);
     },
-    [widgetKey],
+    [bridge, live, widgetKey],
   );
+  const onUpdate = useCallback(
+    (intent: IntentGraph) => {
+      syncIntentActivity(intent);
+      bridge?.intentUpdated(intent);
+    },
+    [bridge],
+  );
+  const onComplete = useCallback(
+    (intent: IntentGraph) => {
+      syncIntentActivity(intent);
+      bridge?.intentCompleted(intent);
+    },
+    [bridge],
+  );
+  const onError = useCallback((error: unknown) => bridge?.error(error), [bridge]);
 
   return (
     <main
@@ -159,6 +187,9 @@ export default function EmbedPage() {
       className="mx-auto flex w-full max-w-[492px] flex-col gap-3 px-1.5 pb-3 pt-1.5 font-body text-[#1A1A1A] dark:text-[#F1F5F9]"
     >
       <h1 className="sr-only">Kletia intent widget</h1>
+      {bridge && bridgeParams.hostOrigin ? (
+        <EmbedBridgeNotice bridge={bridge} snapshot={bridgeSnapshot} expectedOrigin={bridgeParams.hostOrigin} />
+      ) : null}
       <LazyBoundary fallback={() => <WalletBarFailed />}>
         <React.Suspense fallback={<WalletBarFallback />}>
           <EmbedWalletBar onChange={setWallet} />
@@ -181,10 +212,11 @@ export default function EmbedPage() {
         defaultText={lastText}
         examples={params.examples ?? DEFAULT_WIDGET_EXAMPLES}
         theme={params.theme}
-        metadata={EMBED_METADATA}
+        metadata={metadata}
         onIntentCreated={onIntentCreated}
-        onUpdate={syncIntentActivity}
-        onComplete={syncIntentActivity}
+        onUpdate={onUpdate}
+        onComplete={onComplete}
+        onError={onError}
         className="!max-w-none"
       />
     </main>

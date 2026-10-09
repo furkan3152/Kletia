@@ -1,38 +1,6 @@
 /**
- * Static developer-portal content mirrored from docs/platform/api-v1.md. The
- * endpoint list is the fallback for the live OpenAPI reference.
+ * Static developer-portal content mirrored from docs/platform/api-v1.md.
  */
-
-export type HttpMethod = "GET" | "POST" | "DELETE" | "PUT" | "PATCH";
-
-export interface EndpointSummary {
-  readonly method: HttpMethod;
-  readonly path: string;
-  readonly summary: string;
-  readonly auth: "public" | "key";
-}
-
-export const STATIC_ENDPOINTS: readonly EndpointSummary[] = [
-  { method: "GET", path: "/v1/health", summary: "API and per-network RPC health", auth: "public" },
-  { method: "GET", path: "/v1/networks", summary: "Chain registry plus per-network capabilities", auth: "public" },
-  { method: "GET", path: "/v1/protocols", summary: "Protocol registry", auth: "public" },
-  { method: "GET", path: "/v1/assets?network=", summary: "Canonical asset registry", auth: "public" },
-  { method: "POST", path: "/v1/quotes", summary: "Best routes for one asset movement (same- or cross-network)", auth: "public" },
-  { method: "GET", path: "/v1/portfolio/{accountId}", summary: "Balances for one CAIP-10 account", auth: "public" },
-  { method: "POST", path: "/v1/intents", summary: "Plan an intent into an IntentGraph (?dryRun=true to skip persistence)", auth: "public" },
-  { method: "GET", path: "/v1/intents", summary: "List intents created with the caller's key", auth: "key" },
-  { method: "GET", path: "/v1/intents/{id}", summary: "Read an intent", auth: "public" },
-  { method: "POST", path: "/v1/intents/{id}/steps/{stepId}/prepare", summary: "Build wallet-ready transactions for a ready step", auth: "public" },
-  { method: "POST", path: "/v1/intents/{id}/steps/{stepId}/submit", summary: "Submit transaction hashes / signatures for verification", auth: "public" },
-  { method: "POST", path: "/v1/intents/{id}/refresh", summary: "Re-read settlement state now", auth: "public" },
-  { method: "POST", path: "/v1/intents/{id}/cancel", summary: "Cancel an intent with no submitted steps", auth: "public" },
-  { method: "GET", path: "/v1/intents/{id}/events", summary: "Server-Sent Events stream of intent events", auth: "public" },
-  { method: "POST", path: "/v1/webhooks", summary: "Register a webhook (secret returned once)", auth: "key" },
-  { method: "GET", path: "/v1/webhooks", summary: "List webhooks", auth: "key" },
-  { method: "DELETE", path: "/v1/webhooks/{id}", summary: "Delete a webhook", auth: "key" },
-  { method: "POST", path: "/v1/keys", summary: "Issue a developer key", auth: "public" },
-  { method: "GET", path: "/v1/openapi.json", summary: "OpenAPI document", auth: "public" },
-];
 
 export interface AuthTier {
   readonly name: string;
@@ -47,21 +15,21 @@ export const AUTH_TIERS: readonly AuthTier[] = [
     name: "Public",
     how: "No key",
     limit: "30 requests/min per IP",
-    capabilities: "Read registries, quotes, create and run intents.",
+    capabilities: "Read registries, quotes, create and run intents. Safe from browsers.",
     accent: "#14F195",
   },
   {
     name: "Developer",
     how: "Authorization: Bearer kl_dev_…",
     limit: "300 requests/min per key",
-    capabilities: "Everything above, plus intent listing and webhooks.",
+    capabilities: "Adds intent listing, webhooks, usage, Idempotency-Key and key management. Server-side only.",
     accent: "#FFD60A",
   },
   {
     name: "Operator",
     how: "Key configured in KLETIA_OPERATOR_API_KEYS",
     limit: "1200 requests/min per key",
-    capabilities: "Everything above, for first-party and partner backends.",
+    capabilities: "Everything above, for first-party and partner backends. Configuration, not self-service.",
     accent: "#0052FF",
   },
 ];
@@ -78,15 +46,36 @@ export const EVENT_TYPES: readonly { type: string; description: string; fields: 
     description: "A step changed status, usually with fresh on-chain or settlement evidence.",
     fields: "intentId, stepId, network, status, evidence?",
   },
+  {
+    type: "webhook.test",
+    description: "Sent only by POST /v1/webhooks/{id}/test, to check an endpoint.",
+    fields: "webhookId",
+  },
 ];
 
-export const TOC: readonly { id: string; label: string }[] = [
-  { id: "quickstart", label: "Quickstart" },
-  { id: "auth", label: "Authentication" },
-  { id: "keys", label: "Developer key" },
-  { id: "explorer", label: "API explorer" },
-  { id: "reference", label: "Endpoint reference" },
-  { id: "events", label: "Events & webhooks" },
-  { id: "embed", label: "Widget & embed" },
-  { id: "agents", label: "Agents" },
+/** Headers every webhook delivery carries. */
+export const DELIVERY_HEADERS: readonly { name: string; description: string }[] = [
+  { name: "Kletia-Signature", description: "t=<unix>,v1=<hex HMAC-SHA256(secret, \"<t>.<raw body>\")>" },
+  { name: "Kletia-Event-Id", description: "The event id: de-duplicate by it." },
+  { name: "Kletia-Event-Type", description: "The event type, e.g. intent.step_updated." },
+  { name: "Kletia-Webhook-Id", description: "The webhook that matched." },
+  { name: "Kletia-Delivery-Attempt", description: "1 for the first attempt, up to 4." },
+];
+
+export interface TocItem {
+  readonly id: string;
+  readonly label: string;
+  /** Short label for the mobile section bar. */
+  readonly short: string;
+}
+
+export const TOC: readonly TocItem[] = [
+  { id: "quickstart", label: "Quickstart", short: "Start" },
+  { id: "keys", label: "Keys & auth", short: "Keys" },
+  { id: "explorer", label: "API explorer", short: "Explorer" },
+  { id: "recipes", label: "Recipes", short: "Recipes" },
+  { id: "events", label: "Events & webhooks", short: "Events" },
+  { id: "venues", label: "Venues & auction", short: "Venues" },
+  { id: "errors", label: "Errors", short: "Errors" },
+  { id: "agents", label: "Agents", short: "Agents" },
 ];

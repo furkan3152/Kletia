@@ -60,11 +60,11 @@ function ParamField({
   const constraints = describeConstraints(param.schema);
   const label = (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span className="font-code normal-case tracking-normal">{param.name}</span>
+      <span className="font-code normal-case tracking-normal">{param.name}</span>{" "}
       <span className="font-code text-[10px] font-semibold normal-case tracking-normal text-[#45464B] dark:text-[#A9B6C8]">
-        {param.in} · {describeSchemaType(param.schema)}
+        ({param.in}, {describeSchemaType(param.schema)})
       </span>
-      {param.required ? <span className="text-[#B91C1C] dark:text-[#FCA5A5]">required</span> : null}
+      {param.required ? <> <span className="text-[#B91C1C] dark:text-[#FCA5A5]">required</span></> : null}
     </span>
   );
   const hint = [param.description, constraints.length > 0 ? constraints.join(" · ") : null].filter(Boolean).join(" ");

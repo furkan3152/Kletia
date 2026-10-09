@@ -88,18 +88,24 @@ function keepEarlyConnect(event: MessageEvent): void {
   }
 }
 
-if (
-  typeof window !== "undefined" &&
-  window.parent !== window &&
-  /^\/embed\/?$/u.test(window.location.pathname) &&
-  new URLSearchParams(window.location.search).get("bridge") === "1"
-) {
-  window.addEventListener("message", keepEarlyConnect);
+function isFramedBridgeEmbed(): boolean {
+  try {
+    return (
+      window.parent !== window &&
+      /^\/embed\/?$/u.test(window.location.pathname) &&
+      new URLSearchParams(window.location.search).get("bridge") === "1"
+    );
+  } catch {
+    return false;
+  }
 }
+
+const canListen = typeof window !== "undefined" && typeof window.addEventListener === "function";
+if (canListen && isFramedBridgeEmbed()) window.addEventListener("message", keepEarlyConnect);
 
 /** Hands the connect messages kept so far to the bridge, once, and stops keeping them. */
 export function takeEarlyConnects(): MessageEvent[] {
-  if (typeof window !== "undefined") window.removeEventListener("message", keepEarlyConnect);
+  if (canListen) window.removeEventListener("message", keepEarlyConnect);
   return earlyConnects.splice(0);
 }
 

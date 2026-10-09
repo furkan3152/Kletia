@@ -253,3 +253,43 @@
     min-width: 42px;
   }
 }
+/* Small phones (360 px screens and below): smaller tiles, names wrap. */
+@container (max-width: 340px) {
+  .kla-flap {
+    font-size: 10px;
+  }
+  .kla-flaps {
+    gap: 1px;
+  }
+  /* Names wrap at a space here rather than lose letters to an ellipsis. */
+  .kla-board__name {
+    max-width: 7em;
+    font-size: 12px;
+    line-height: 1.15;
+    white-space: normal;
+    overflow: visible;
+  }
+  .kla-board__table td,
+  .kla-board__table th {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .kla-board__table tr > :first-child {
+    padding-left: 10px;
+  }
+  .kla-board__line .kla-bullet {
+    min-width: 38px;
+  }
+  .kla-board__status {
+    gap: 5px;
+  }
+}
+/* 320 px screens (WCAG reflow width). */
+@container (max-width: 300px) {
+  .kla-flap {
+    font-size: 9.5px;
+  }
+  .kla-board__name {
+    max-width: 5.6em;
+  }
+}

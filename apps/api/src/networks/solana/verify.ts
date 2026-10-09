@@ -1,8 +1,39 @@
-import { signature as toSignature } from "@solana/kit";
+import { isSolanaError, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION, signature as toSignature } from "@solana/kit";
 import { explorerTxUrl, isSolanaAddress, isSolanaSignature } from "@kletia/core";
 import type { SolanaNetworkKey } from "./config.js";
 import { SolanaProviderError, describeRpcError } from "./http.js";
 import { rpcAbortSignal, solanaRpc } from "./rpc.js";
+
+/**
+ * Newest transaction version the landed-transaction readers understand. RPCs
+ * refuse (`-32015`) to return a transaction newer than the version a request
+ * names, and version 1 transactions are common on mainnet (live 2026-10-09:
+ * 898 of 1,902 non-vote transactions in five blocks). Their json body
+ * (`accountKeys`, `header`, `instructions`, `recentBlockhash`, plus
+ * `transactionConfig`; no lookup tables) is read like legacy and v0 bodies.
+ */
+export const SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION = 1;
+
+/** True when the RPC refused a transaction because it is newer than the requested version (`-32015`). */
+export function isUnsupportedTransactionVersion(error: unknown): boolean {
+  return isSolanaError(error, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION);
+}
+
+const warnedVersions = new Set<string>();
+
+/**
+ * Logs once per signature that a landed transaction cannot be read because
+ * its version is newer than SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION. Callers
+ * keep such a transaction unconfirmed (never failed: it may have succeeded).
+ */
+export function warnUnsupportedTransactionVersion(network: string, signatureValue: string): void {
+  if (warnedVersions.has(signatureValue)) return;
+  if (warnedVersions.size >= 1_000) warnedVersions.clear();
+  warnedVersions.add(signatureValue);
+  console.warn(
+    `[solana] ${network} transaction ${signatureValue} uses a transaction version newer than ${SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION}; its body cannot be read, so it stays unconfirmed.`,
+  );
+}
 
 export type SolanaConfirmationStatus = "not_found" | "processed" | "confirmed" | "finalized" | "failed";
 
@@ -66,9 +97,13 @@ export async function verifySolanaTransaction(
     };
   }
   const transaction = await rpc
-    .getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed", encoding: "json" })
+    .getTransaction(sig, { maxSupportedTransactionVersion: SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION, commitment: "confirmed", encoding: "json" })
     .send({ abortSignal: rpcAbortSignal() })
-    .catch(() => null);
+    .catch((error: unknown) => {
+      // A body that cannot be read (yet) leaves the fee payer unknown; a version refusal is logged, not swallowed.
+      if (isUnsupportedTransactionVersion(error)) warnUnsupportedTransactionVersion(network, signatureValue);
+      return null;
+    });
   const signer = transaction ? String(transaction.transaction.message.accountKeys[0] ?? "") || null : null;
   const signerMismatch = expectedSigner !== undefined && signer !== null && signer !== expectedSigner;
   // Without the body the fee payer is unknown: never report it confirmed for an expected signer.

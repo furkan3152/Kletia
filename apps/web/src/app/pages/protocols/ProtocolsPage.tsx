@@ -67,9 +67,11 @@ function directoryRows(protocols: readonly ProtocolEntry[]): DirectoryRow[] {
 /**
  * The station directory hung in the hall: every kind of venue on this page
  * and how many platforms serve it, with the page totals under it. Printed
- * signage: ink board, paper letters, yellow header, in both themes.
+ * signage: ink board, paper letters, yellow header, in both themes. While
+ * the live list loads it is printed from the registry, so the sign keeps its
+ * size and nothing below it moves.
  */
-function DirectorySign({ protocols, loading }: { readonly protocols: readonly ProtocolEntry[]; readonly loading: boolean }) {
+function DirectorySign({ protocols }: { readonly protocols: readonly ProtocolEntry[] }) {
   const rows = useMemo(() => directoryRows(protocols), [protocols]);
   const totals = useMemo(() => protocolTotals(protocols), [protocols]);
   return (
@@ -82,29 +84,23 @@ function DirectorySign({ protocols, loading }: { readonly protocols: readonly Pr
         className="flex items-baseline justify-between gap-4 bg-[#FFD60A] px-5 py-3 font-code text-xs font-extrabold uppercase tracking-[0.18em] text-[#1A1A1A]"
       >
         <span>Station directory</span>
-        <span className="font-semibold">{loading ? "Loading" : `${totals.protocols} platforms`}</span>
+        <span className="font-semibold">{totals.protocols} platforms</span>
       </h2>
-      {loading ? (
-        <p className="px-5 py-8 font-code text-xs uppercase tracking-[0.14em] text-[#F4F1EA]/80">Reading the registry</p>
-      ) : (
-        <ul className="px-5 py-2">
-          {rows.map((row) => (
-            <li key={row.word} className="flex items-center gap-4 border-b border-dashed border-[#F4F1EA]/25 py-2.5 last:border-b-0">
-              <Icon name={row.icon} size={26} />
-              <span className="font-display text-lg font-bold tracking-[-0.01em]">{row.word}</span>
-              <span aria-hidden="true" className="h-0 min-w-6 flex-1 border-b-2 border-dotted border-[#F4F1EA]/40" />
-              <span className="font-code text-sm font-bold tabular-nums">
-                {row.count}
-                <span className="sr-only"> {row.count === 1 ? "platform" : "platforms"}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="px-5 py-2">
+        {rows.map((row) => (
+          <li key={row.word} className="flex items-center gap-4 border-b border-dashed border-[#F4F1EA]/25 py-2.5 last:border-b-0">
+            <Icon name={row.icon} size={26} />
+            <span className="font-display text-lg font-bold tracking-[-0.01em]">{row.word}</span>
+            <span aria-hidden="true" className="h-0 min-w-6 flex-1 border-b-2 border-dotted border-[#F4F1EA]/40" />
+            <span className="font-code text-sm font-bold tabular-nums">
+              {row.count}
+              <span className="sr-only"> {row.count === 1 ? "platform" : "platforms"}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
       <p className="border-t-[3px] border-[#F4F1EA]/20 px-5 py-3 font-code text-[11px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-[#F4F1EA]/85">
-        {loading
-          ? "Counts follow the registry"
-          : `${totals.execute} built by Kletia · ${totals.crossChain} cross-network · ${totals.networks} networks`}
+        {totals.execute} built by Kletia · {totals.crossChain} cross-network · {totals.networks} networks
       </p>
     </aside>
   );
@@ -250,14 +246,15 @@ export default function ProtocolsPage() {
   return (
     <>
       <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
-        <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center lg:gap-16")}>
+        <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start lg:gap-16")}>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-4">
               <p className={cx(LABEL, "font-code text-[#0047E0] dark:text-[#7EA6FF]")}>Protocol directory</p>
               <SourceBadge live={live} loading={protocolsLoading} />
             </div>
             <h1 className="mt-6 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-[1] tracking-[-0.045em]">
-              {protocolsLoading ? "Venues" : `${totals.protocols} venues`} Kletia can route through.
+              {/* While the live list loads the count comes from the registry, so the heading never re-wraps. */}
+              {totals.protocols} venues Kletia can route through.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
               <strong className="text-[#1A1A1A] dark:text-white">Execute</strong> means Kletia builds the transaction.{" "}
@@ -282,7 +279,7 @@ export default function ProtocolsPage() {
               </Link>
             </div>
           </div>
-          <DirectorySign protocols={protocols} loading={protocolsLoading} />
+          <DirectorySign protocols={protocols} />
         </div>
       </header>
 

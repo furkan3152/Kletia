@@ -200,7 +200,9 @@ function HealthPanel({ health }: HealthPanelProps) {
         note={
           board.live
             ? `RPC round trips measured by ${originHost()} and read from your browser every ${REFRESH_SECONDS} seconds while auto-refresh is on.`
-            : "The API did not answer from this browser, so the board shows the registry compiled into @kletia/core and no timings."
+            : board.loading
+              ? `Asking ${originHost()} for the latest RPC round trips.`
+              : "The API did not answer from this browser, so the board shows the registry compiled into @kletia/core and no timings."
         }
       />
 

@@ -34,7 +34,7 @@ export function Faq({ networks, protocols }: FaqProps) {
               Custody, coverage, failure handling and what we have not done yet.
             </p>
           </Reveal>
-          <div className={cx("flex flex-col gap-4 bg-[#FFD60A] p-6 text-[#1A1A1A]", INK_BORDER, SHADOW_HARD)}>
+          <div className={cx("flex flex-col gap-4 bg-[#FFD60A] p-6 text-[#1A1A1A] [&_:focus-visible]:!outline-[#1A1A1A]", INK_BORDER, SHADOW_HARD)}>
             <p className="flex items-center gap-2.5 font-display text-xl font-bold [--kla-plate:#FFFFFF]">
               <Icon name="board" size={24} />
               Something missing here?

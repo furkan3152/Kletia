@@ -113,7 +113,7 @@ Idempotency-Key: 4c1e…
 | `kinds.allow` | `kinds.allow` | Action kinds (`transfer`, `swap`, `bridge`, `stake`, `deposit`, `withdraw`, `call`, `action`, …). |
 | `protocols.allow` / `deny` | `protocols.allow`, `protocols.deny` | Venues; deny always wins. |
 | `contracts.allow` | `contracts.allow` | Custom contract registrations (and entries) the key may call. Agent default: none. |
-| `assets.allow`, `categories`, `unlisted` | `assets.*` | `SYMBOL`, `SYMBOL@network`, `group:USDC`, CAIP-19 ids; categories such as `stablecoin`; `unlisted: "deny"` refuses assets outside the registry. |
+| `assets.allow`, `categories`, `unlisted` | `assets.*` | `SYMBOL`, `SYMBOL@network`, `group:USDC`, CAIP-19 ids; categories such as `stablecoin`; `unlisted: "deny"` refuses assets outside the registry (position tokens of the registry's lending venues, such as aTokens and vault shares, count as listed). |
 | `accounts.allow` | `accounts.allow` | CAIP-10 accounts (or `eip155:*:<address>`) the intent may spend from. |
 | `recipients` | `recipients.mode`, `recipients.deny`, `recipients.names` | `own` (only the intent's own accounts; agent default), `allowlist` or `any`; names (ENS, Basenames, SNS) `deny`, `resolve` (checked after resolution) or `trusted`. |
 | `limits` | `limits.*` | Steps, slippage, value paid on top of the input, network fees, settlement time. Tightens the intent's own constraints before planning. |

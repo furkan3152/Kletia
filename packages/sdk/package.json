@@ -1,7 +1,7 @@
 {
   "name": "@kletia/sdk",
   "version": "0.1.0",
-  "description": "TypeScript SDK for the Kletia intent API: plan cross-network intents, execute them with EVM and Solana wallets, stream events and verify webhooks.",
+  "description": "TypeScript SDK for the Kletia intent API: plan cross-network intents with asset-change previews, execute them with EVM and Solana wallets under Rule Books, verify receipts, publish intent links, stream events and verify webhooks.",
   "license": "MIT",
   "author": "Kletia",
   "homepage": "https://github.com/furkan3152/Kletia/tree/main/packages/sdk#readme",
@@ -25,6 +25,10 @@
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
+    },
+    "./receipts": {
+      "types": "./dist/receipts.d.ts",
+      "import": "./dist/receipts.js"
     },
     "./package.json": "./package.json"
   },

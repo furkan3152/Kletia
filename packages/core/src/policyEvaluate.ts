@@ -7,11 +7,11 @@
  */
 import { ASSETS, type AssetCategory } from "./assets.js";
 import { CHAINS, type NetworkKey } from "./chains.js";
-import { parseAccountId, parseAssetId, sameAddressAccount, type AccountId, type AssetId } from "./caip.js";
+import { formatAssetId, parseAccountId, parseAssetId, sameAddressAccount, type AccountId, type AssetId } from "./caip.js";
 import { canonicalJson } from "./contracts.js";
 import { sha256Hex } from "./hash.js";
 import type { AssetAmount, IntentActionKind, IntentConstraints, IntentGraph, IntentRequest, PolicyChainLink } from "./intent.js";
-import { PROTOCOLS, type ProtocolId } from "./protocols.js";
+import { PROTOCOLS, YIELD_VENUES, type ProtocolId } from "./protocols.js";
 import {
   accountMatchesPattern,
   AGENT_POLICY_DEFAULTS,
@@ -295,6 +295,25 @@ export interface PolicyEvaluation {
 /** Registry descriptor of an asset id (EVM addresses compared case-insensitively). */
 const REGISTRY = new Map(ASSETS.map((asset) => [normalizeAssetIdText(asset.id), asset]));
 
+/**
+ * Position tokens of core yield venues (aTokens, Comet, vault shares, mTokens, jlTokens). They are
+ * never in `ASSETS` (receipt symbols are ambiguous), but they are fixed by the venue registry rather
+ * than named by a request, so `assets.unlisted` does not treat them as unlisted: otherwise the agent
+ * default would refuse every lending deposit and withdrawal. `assets.allow` and `assets.categories`
+ * still apply to them as written.
+ */
+const VENUE_RECEIPT_TOKENS: ReadonlySet<string> = new Set(
+  YIELD_VENUES.flatMap((venue) =>
+    "receipt" in venue ? [normalizeAssetIdText(formatAssetId(venue.network, CHAINS[venue.network].vm === "svm" ? "token" : "erc20", venue.receipt.address))] : [],
+  ),
+);
+
+/** True when `assets.unlisted` lets the asset through: a registry asset or a core venue's position token. */
+function listedForPolicy(asset: string): boolean {
+  const id = normalizeAssetIdText(asset);
+  return REGISTRY.has(id) || VENUE_RECEIPT_TOKENS.has(id);
+}
+
 function normalizeAssetIdText(asset: string): string {
   const parsed = parseAssetId(asset);
   return parsed && parsed.assetNamespace === "erc20" ? `${parsed.chain.id}/erc20:${parsed.reference.toLowerCase()}` : asset;
@@ -488,7 +507,7 @@ export function evaluatePolicy(policy: PolicyDocument | null, facts: PolicyFacts
   }
   const unlisted = doc.assets?.unlisted ?? (agent ? AGENT_POLICY_DEFAULTS.assetsUnlisted : "allow");
   if (unlisted === "deny") {
-    each("assets.unlisted", stepAssets, (entry) => (REGISTRY.has(normalizeAssetIdText(entry.asset.asset)) ? null : { path: entry.path, message: `${entry.asset.asset} is not a listed token.`, observed: entry.asset.asset }), "listed tokens only");
+    each("assets.unlisted", stepAssets, (entry) => (listedForPolicy(entry.asset.asset) ? null : { path: entry.path, message: `${entry.asset.asset} is not a listed token.`, observed: entry.asset.asset }), "listed tokens only");
   }
 
   // Article 6: passengers.

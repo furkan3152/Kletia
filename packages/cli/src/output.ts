@@ -3,9 +3,10 @@
  * JSON); stderr carries progress, notices and errors.
  *
  * Secrets are never printed by accident: everything written through the
- * printer is redacted (API keys `kl_dev_…`/`kl_op_…`, webhook secrets
- * `whsec_…`, and the configured key and webhook secret verbatim). The one
- * exception is `secret()`, used once by the commands that mint a secret.
+ * printer is redacted (API keys `kl_dev_…`/`kl_op_…`, agent keys
+ * `kl_agt_…`, webhook secrets `whsec_…`, receipt share keys `#…&k=…`, and
+ * the configured key and webhook secret verbatim). The one exception is
+ * `secret()`, used once by the commands that mint a secret.
  */
 
 export interface CliOutput {
@@ -25,15 +26,23 @@ export interface CliIo {
   readonly signal?: AbortSignal;
 }
 
-const KEY_PATTERN = /\b(kl_(?:dev|op)_|whsec_)([0-9A-Za-z]{6,})/gu;
+const KEY_PATTERN = /\b(kl_(?:dev|op|agt)_|whsec_)([0-9A-Za-z]{6,})/gu;
+/** The decryption key in a receipt share link's fragment (`#s=rsh_…&k=<key>`). */
+const SHARE_KEY_PATTERN = /([#&]k=)[A-Za-z0-9_-]{16,}/gu;
 
-/** Replaces anything that looks like a Kletia secret (and the given literal values) with a masked form. */
+/**
+ * Replaces anything that looks like a Kletia secret (API, agent and operator
+ * keys, webhook secrets, the key of a receipt share link, and the given
+ * literal values) with a masked form.
+ */
 export function redact(text: string, literals: readonly string[] = []): string {
   let result = text;
   for (const literal of literals) {
     if (literal.length >= 8) result = result.split(literal).join("[redacted]");
   }
-  return result.replace(KEY_PATTERN, (_match, prefix: string, body: string) => `${prefix}…${body.slice(-4)}`);
+  return result
+    .replace(KEY_PATTERN, (_match, prefix: string, body: string) => `${prefix}…${body.slice(-4)}`)
+    .replace(SHARE_KEY_PATTERN, (_match, prefix: string) => `${prefix}[redacted]`);
 }
 
 export class Printer {

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { RECEIPT_LOG_SPEC_VERSION, receiptLogBatchDigest, type ReceiptLogBatch, type ReceiptPayload } from "@kletia/core";
-import { useTestEnvironment } from "./support.js";
+import { useTestEnvironment, withDatabaseTestLock } from "./support.js";
 
 useTestEnvironment();
 const { MemoryReceiptStore, PostgresReceiptStore } = await import("../receipts/store.js");
@@ -61,7 +61,7 @@ const seal: BatchSealer = async (leaves, previous) => {
   return { document, batchDigest: receiptLogBatchDigest(document), signature: "c2lnbmF0dXJl", paths: tree.paths };
 };
 
-function contract(name: string, make: () => ReceiptStore): void {
+function contract(name: string, make: () => ReceiptStore, databaseUrl?: string): void {
   describe(`${name} receipt store`, () => {
     it("issues sequences under the intent lock: supersession, dedupe, stale candidates", async () => {
       const store = make();
@@ -149,7 +149,7 @@ function contract(name: string, make: () => ReceiptStore): void {
       assert.equal(await store.share(live), null);
     });
 
-    it("closes chained batches with leaf indexes and paths, pages leaves and records one anchor", async () => {
+    it("closes chained batches with leaf indexes and paths, pages leaves and records one anchor", () => withDatabaseTestLock(databaseUrl, "receipt-log", async () => {
       const store = make();
       // Batch whatever earlier runs left unbatched, so the next batch holds exactly ours.
       while (await store.closeBatch(seal, 65_536)) { /* drain */ }
@@ -177,7 +177,7 @@ function contract(name: string, make: () => ReceiptStore): void {
       assert.equal(await store.recordAnchor(batch.seq + 1_000_000, anchor, new Date().toISOString()), "missing");
       assert.deepEqual((await store.batch(batch.seq))?.anchor, anchor);
       assert.equal((await store.batches({ limit: 5, unanchored: true })).some((entry) => entry.seq === batch.seq), false);
-    });
+    }));
 
     it("counts a key's receipts, waiting intents and active shares", async () => {
       const store = make();
@@ -204,5 +204,5 @@ describe("postgres", { skip: databaseUrl ? false : "set KLETIA_TEST_DATABASE_URL
     await closePlatformDatabase();
     delete process.env.KLETIA_DATABASE_URL;
   });
-  contract("postgres", () => new PostgresReceiptStore());
+  contract("postgres", () => new PostgresReceiptStore(), databaseUrl);
 });

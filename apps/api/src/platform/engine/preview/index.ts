@@ -44,6 +44,9 @@ import { priceAssets } from "./pricer.js";
 import { simulateEvmJob, simulateSolanaStep, type SimulatedJob, type SimulatedSolanaStep } from "./simulate.js";
 import { evmStepPreview, quotedStepPreview, solanaStepPreview, type BuiltStep, type StepBuildContext } from "./steps.js";
 
+/** Retry-After of SIMULATION_UNAVAILABLE (503): endpoints usually recover within seconds. */
+export const SIMULATION_RETRY_AFTER_SECONDS = 5;
+
 export { configurePreviewPricer, defaultPreviewPricer, type PreviewPricer } from "./pricer.js";
 export { resetPreviewSimulationCaches } from "./simulate.js";
 export type { StepTransactions } from "./jobs.js";
@@ -312,36 +315,52 @@ async function buildStep(context: StepBuildContext, simulations: Simulations, at
   return quotedStepPreview(context, "quoted", []);
 }
 
-/** Gas-on-arrival needs (design §5.7): a wallet step on a network where the signer holds no native asset. */
+/**
+ * Gas-on-arrival needs (design §5.7): wallet steps on a network where the signer's native balance
+ * (read at plan time) cannot pay their estimated network fees. A dust balance counts as none: the
+ * need is the shortfall against the fees of every unsigned wallet step of that account there.
+ */
 function gasOnArrival(graph: IntentGraph, previews: readonly StepPreview[], balances: ReadonlyMap<string, bigint>): { needs: PreviewNeed[]; warnings: string[] } {
   const needs: PreviewNeed[] = [];
   const warnings: string[] = [];
-  const seen = new Set<string>();
+  const accounts = new Map<string, { readonly step: IntentStep; readonly have: bigint; fee: bigint; readonly steps: number[] }>();
   for (const step of graph.steps) {
     if (started(step) || step.mode !== "wallet") continue;
     const account = parseAccountId(step.account);
     if (!account) continue;
     const address = account.chain.namespace === "eip155" ? account.address.toLowerCase() : account.address;
     const key = `${step.network}:${address}`;
-    if (balances.get(key) !== 0n || seen.has(key)) continue;
+    const have = balances.get(key);
+    if (have === undefined) continue;
     const preview = previews.find((entry) => entry.stepId === step.id);
     const fee = (preview?.fees ?? [])
       .filter((line) => (line.kind === "network" || line.kind === "l1-data") && line.amount !== undefined && line.asset)
       .reduce((total, line) => total + BigInt(line.amount as string), 0n);
     if (fee === 0n) continue;
-    seen.add(key);
+    const entry = accounts.get(key);
+    if (entry) {
+      entry.fee += fee;
+      entry.steps.push(step.index + 1);
+    } else {
+      accounts.set(key, { step, have, fee, steps: [step.index + 1] });
+    }
+  }
+  for (const { step, have, fee, steps } of accounts.values()) {
+    if (have >= fee) continue;
+    const missing = fee - have;
     const chain = CHAINS[step.network];
-    const formatted = formatPreviewAmount(fee, chain.nativeAsset.decimals).replace(/^\+/u, "");
+    const formatted = formatPreviewAmount(missing, chain.nativeAsset.decimals).replace(/^\+/u, "");
     needs.push({
       network: step.network,
       account: step.account,
       asset: { asset: `${chain.id}/slip44:${chain.vm === "svm" ? "501" : "60"}` as AssetId, symbol: chain.nativeAsset.symbol, decimals: chain.nativeAsset.decimals },
-      amount: fee.toString(),
+      amount: missing.toString(),
       formatted,
       reason: "gas-on-arrival",
-      have: "0",
+      have: have.toString(),
     });
-    warnings.push(`${PREVIEW_WARNING_CODES.gasOnArrival}: you need about ${formatted} ${chain.nativeAsset.symbol} on ${chain.name} to sign step ${step.index + 1}.`);
+    const which = steps.length === 1 ? `step ${steps[0]}` : `steps ${steps.slice(0, -1).join(", ")} and ${steps.at(-1)}`;
+    warnings.push(`${PREVIEW_WARNING_CODES.gasOnArrival}: you need about ${formatted}${have > 0n ? " more" : ""} ${chain.nativeAsset.symbol} on ${chain.name} to sign ${which}.`);
   }
   return { needs, warnings };
 }
@@ -532,10 +551,13 @@ export async function previewPreparedStep(
   }
   const own = fresh as BuiltStep;
   if (own.preview.status === "unavailable" && previewEnforced(graph, step)) {
-    throw new PlatformError(
-      "SIMULATION_UNAVAILABLE",
-      `Step ${step.id} could not be simulated on ${CHAINS[step.network].name} right now, and this step is never prepared unsimulated. Retry shortly.`,
-      503,
+    throw Object.assign(
+      new PlatformError(
+        "SIMULATION_UNAVAILABLE",
+        `Step ${step.id} could not be simulated on ${CHAINS[step.network].name} right now, and this step is never prepared unsimulated. Retry shortly.`,
+        503,
+      ),
+      { retryAfterSeconds: SIMULATION_RETRY_AFTER_SECONDS },
     );
   }
   assertInvariants(own.violations, step.id);

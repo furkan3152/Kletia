@@ -103,3 +103,22 @@ export async function waitFor(condition: () => boolean | Promise<boolean>, timeo
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
+
+/**
+ * Runs `task` while holding a session-level Postgres advisory lock named `name`. `node --test`
+ * runs test files in parallel processes against one shared test database, so sections that
+ * depend on global state there (the receipt transparency log) serialise on this lock. Without a
+ * database URL the task runs unlocked.
+ */
+export async function withDatabaseTestLock<T>(databaseUrl: string | undefined, name: string, task: () => Promise<T>): Promise<T> {
+  if (!databaseUrl) return task();
+  const { default: pg } = await import("pg");
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [`kletia_test:${name}`]);
+    return await task();
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}

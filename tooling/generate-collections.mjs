@@ -41,6 +41,14 @@ const VARIABLES = [
   ["keyId", "", "An API key id from issuing or listing keys."],
   ["accountId", SOLANA_ACCOUNT, "A CAIP-10 account for the portfolio request."],
   ["transactionReference", "", "Transaction hash (EVM) or signature (Solana) of a prepared step, for Submit."],
+  ["contractId", "", "A contract registration id (ct_…) from registering or listing contracts."],
+  ["sessionId", "", "A signing session id (cs_…) from creating a session."],
+  ["receiptId", "", "A receipt id (rcpt_…) from an intent's receipt."],
+  ["shareId", "", "A receipt share id (rsh_…) from creating or listing shares."],
+  ["batchSeq", "1", "A transparency log batch number."],
+  ["approvalId", "", "A Rule Book approval id (apr_…) from a held intent."],
+  ["decisionId", "", "A Rule Book decision id (pdc_…) from the decision log."],
+  ["linkId", "", "An intent link id (lk_…) from creating or listing links."],
 ];
 
 /** Request bodies and query values that make a useful first call, keyed by operationId. */
@@ -149,8 +157,10 @@ function generate(document) {
     if (name === "accountId") return "accountId";
     const segments = path.split("/");
     const owner = segments[segments.indexOf(`{${name}}`) - 1] ?? "";
-    const singular = { intents: "intent", webhooks: "webhook", keys: "key" }[owner];
-    return singular ? `${singular}Id` : name;
+    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", approvals: "approval", decisions: "decision" }[owner];
+    if (singular) return `${singular}Id`;
+    if (name === "seq") return "batchSeq";
+    return name;
   };
   const known = new Set(VARIABLES.map(([key]) => key));
 

@@ -1,8 +1,11 @@
 # @kletia/sdk
 
 TypeScript SDK for the Kletia intent API. Plan cross-network intents across
-EVM networks and Solana, execute them with your users' wallets, stream events
-and verify webhooks. Depends only on [`@kletia/core`](../core/README.md).
+EVM networks and Solana, show what they will move before anyone signs,
+execute them with your users' wallets under Rule Books, verify their receipts,
+publish intent links, stream events and verify webhooks. Depends only on
+[`@kletia/core`](../core/README.md) (`viem` is an optional extra for EAS
+envelopes).
 
 ```bash
 npm install @kletia/sdk
@@ -139,9 +142,9 @@ back instead of an early retry.
 
 | Request | Retried |
 |---|---|
-| `GET`, `DELETE`, quotes, dry runs, `refresh`, `contracts.test` | Yes |
-| Create intent, cancel, submit, create webhook, create or rotate key, `contracts.register` / `update` / `reverify`, `sessions.create` | Only with an `Idempotency-Key` |
-| Webhook tests, `sessions.createIntent` and other POSTs | No |
+| `GET`, `DELETE`, quotes, dry runs, `refresh`, `contracts.test`, `intents.preview`, `policies.validate`, `links.quote`, approval decisions (a decision replays) | Yes |
+| Create intent, cancel, submit, create webhook, create or rotate key, `keys.createChild`, `contracts.register` / `update` / `reverify`, `sessions.create`, `receipts.share`, `policies.put`, `links.create` / `update` | Only with an `Idempotency-Key` |
+| Webhook tests, `sessions.createIntent`, `links.createIntent`, `policies.evaluate`, rule book removals and other POSTs | No |
 | `prepareStep` | **Never**, and never with an `Idempotency-Key` |
 
 With an `apiKey`, the client generates one `Idempotency-Key` (a UUID) per call
@@ -295,6 +298,172 @@ const { intent } = await new KletiaClient().sessions.createIntent(session.id, { 
 `sessions.get(id)` returns the public view (integrator, labels, amount
 bounds, expiry). `createIntent` is never retried: each call uses the session.
 
+## Asset-change preview ("fare breakdown")
+
+Every plan can come with what it moves: per account and asset, expected and
+worst case, payments to others, fees and approvals, each with its certainty
+(`simulated`, `quoted`, …). Nothing is prepared or signed to compute it.
+
+```ts
+const { intent, preview } = await kletia.intents.create(request, { preview: true });
+const fresh = await kletia.intents.preview(intent.id, { refreshQuotes: false }); // POST, 6 per minute
+const last = await kletia.intents.getPreview(intent.id);                          // GET, 404 PREVIEW_NOT_FOUND
+
+await executeIntent(kletia, intent.id, signers, {
+  preview,
+  // Before each signature, with the intent preview and the step's own preview.
+  onPreview: async (shown, stepPreview, { reason, changes }) => showFareAndAsk(shown, stepPreview, changes),
+});
+```
+
+`executeIntent` sends the approved digest as `acknowledgedPreview`. When the
+freshly simulated payload is materially worse (409 `PREVIEW_CHANGED`,
+`KletiaPreviewChangedError` carries the fresh preview), when the API no longer
+holds the digest, or when the fresh preview is materially worse by core
+`materialChange` even though the API matched it, `onPreview` is asked again:
+nothing is signed without that second approval. A preview whose digest does
+not match its content, or that describes another payload (quote binding), is
+refused. Without `onPreview`, steps proceed unless a preview issue has severity
+`block`.
+
+## Rule Books and agent keys
+
+Give an AI agent its own key, bound by a rule book: networks, kinds, assets,
+recipients, caps, schedule, confirmations above a threshold. Tightening applies
+at once; loosening waits the rule book's amendment delay.
+
+```ts
+const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });   // a project key
+
+const { key, policy } = await kletia.keys.createChild("key_7d2e…", {
+  name: "research-bot", template: "payments-agent", expiresInSeconds: 30 * 86_400,
+  fill: { recipients: ["eip155:*:0x…"], approverWallets: ["eip155:8453:0x…"] },
+});                                              // key.key is the kl_agt_… secret, shown once
+await kletia.policies.put(key.id, document, { ifMatch: policy.hash }); // Idempotency-Key automatic
+const { policy: head, effective } = await kletia.policies.get(key.id);
+await kletia.policies.cancelPending(key.id);
+await kletia.policies.versions(key.id);
+await kletia.policies.project.put(projectDocument);
+
+const local = validatePolicy(document, { defaults: "agent" });       // offline, from @kletia/core
+const diff = comparePolicies(head.document, document, { defaults: "agent" }); // { tightened, loosened }
+const sim = await kletia.policies.evaluate({ keyId: key.id, request, stage: "plan" }); // every rule, also on deny
+const log = await kletia.policies.decisions({ keyId: key.id, outcome: "deny", limit: 50 });
+verifyDecisionChain(log.decisions, storedHead);                      // hash-chained audit log
+const budget = await kletia.policies.spend(key.id);
+```
+
+Refusals are `KletiaPolicyError` (`decisionId`, `violations` with stable rule
+ids, `retryAt`, `approval`, `stage`). An intent held for approval
+(`POLICY_APPROVAL_REQUIRED`) carries `approval.url` (`<web>/approve#apr_…`),
+which is safe to hand to the agent: reading is not approving.
+
+```ts
+await kletia.approvals.approve("apr_…");                       // a project key, never the requester
+await kletia.approvals.reject("apr_…");                        // cancels the intent
+await kletia.approvals.approveWithWallet("apr_…", eip1193ApprovalSigner(window.ethereum, "eip155:8453:0x…"));
+await kletia.approvals.approveWithWallet("apr_…", walletStandardApprovalSigner(phantom, account)); // Solana signMessage
+```
+
+Wallet decisions sign exactly what `@kletia/core` builds (`approvalTypedData`,
+EIP-712 "Kletia Approvals" on the signer's chain, or `approvalMessageText`),
+after the SDK recomputed the approval digest from the intent it names.
+
+### The policy-bound signer
+
+Run an agent's signer behind a guard pinned by the operator (not the agent):
+
+```ts
+const guard = await createPolicyGuard({
+  client: agentClient,                      // authenticated with the agent key
+  keyId: "key_9a7f…",
+  pinnedHash: process.env.AGENT_POLICY_HASH, // "sha256:…", from the operator's configuration
+  networks: ["base", "solana"],             // optional local allowlist
+});
+await executeIntent(agentClient, intentId, { evm, solana }, {
+  policyGuard: guard,
+  onApprovalRequired: (approval) => notifyHuman(approval?.url), // returns instead of waiting
+});
+```
+
+Before every signature the guard re-reads the key's chain and refuses unless
+the key's rule book still hashes to the pin; the intent is stamped for this key
+(`allow`, or `confirm` with an approved approval of exactly these steps);
+`evaluatePolicyChain` allows it (USD as reported; rolling caps are the
+server's); and the bytes are what the step needs: chain, sender, targets from
+the core registries, approvals never above the step input, transfers to the
+step recipient for exactly its amount, native value within input plus extra
+costs, pinned nonces for signers that declare `honorsNonce`; on Solana the
+network, the fee payer and a single signer. A refusal throws
+`KletiaPolicyError` with `stage: "sign"`; nothing reaches the wallet.
+`eip1193Signer` passes a pinned `nonce` to the wallet; set `honorsNonce` only
+for signers known to use it.
+
+## Verifiable receipts
+
+Every finished intent gets a signed receipt once its transactions are final.
+
+```ts
+const result = await kletia.receipts.get("int_…", { wait: { timeoutMs: 45 * 60_000 } }); // polls 202, Retry-After
+const check = await verifyReceipt(result.receipt!, { intentId: "int_…", keys });           // offline, @kletia/core
+const { share } = await kletia.receipts.share("int_…", { profile: "proof", expiresInSeconds: 7 * 86_400 });
+// share.url carries the decryption key in its fragment, returned once.
+await kletia.receipts.unshare("int_…", share.id);
+await kletia.receipts.list("int_…");
+await kletia.receipts.keys();
+await kletia.receipts.withdraw("int_…");   // delete stored disclosures and every share
+```
+
+`@kletia/sdk/receipts` is browser-safe (fetch and Web Crypto):
+
+```ts
+import { openShareUrl, reverifyReceipt, verifyEasEnvelope, DEFAULT_REVERIFY_RPCS } from "@kletia/sdk/receipts";
+
+const opened = await openShareUrl("https://kletiaai.xyz/r/rcpt_…#s=rsh_…&k=…"); // fetch, decrypt locally, verify
+const report = await reverifyReceipt(opened.receipt, { quorum: 2 });
+// report.verdict: "verified" | "mismatch" | "inconclusive"
+const eas = await verifyEasEnvelope(receipt);  // optional EAS offchain attestation; needs `npm install viem`
+```
+
+`reverifyReceipt` re-reads every anchor of every disclosed evidence group from
+public RPCs (`DEFAULT_REVERIFY_RPCS`, or your own with `rpcs`), requires
+`quorum` distinct sources to agree (1 when only one is configured, with a
+`SINGLE_SOURCE` warning), checks finality, rebuilds the EVM quote binding from
+the landed calldata and reads the log anchor (`EAS.getTimestamp`) on Base.
+Per anchor: `match`, `mismatch`, `conflict`, `unavailable` (a pruned or
+refusing public node is never evidence) or `not_finalized`. Read-only
+throughout; RPC URLs in reports drop query strings and long path tokens.
+
+Key trust: keys pinned in `@kletia/core` (`KLETIA_RECEIPT_KEY_PINS`), keys you
+pass (`keys`), or by default the API's key set cross-checked with the web
+origin's `/.well-known/kletia-receipt-keys.json` (`fetchReceiptKeys`): a key
+only one origin lists is never trusted, and no trusted key means
+`KEY_UNKNOWN`.
+
+## Intent links
+
+A link (`lk_…`, served at `kletiaai.xyz/go/<id>`) is a fixed destination
+anyone can fund from the networks and assets you allow.
+
+```ts
+const { link } = await kletia.links.create(definition);  // validateLinkDefinition locally first; Idempotency-Key automatic
+await kletia.links.list({ status: "active" });
+await kletia.links.get(link.id);
+await kletia.links.update(link.id, { funding: { amount: { mode: "input", bounds: { USDC: { min: "20", max: "5000" } } } } }); // tighten only
+await kletia.links.pause(link.id);
+await kletia.links.resume(link.id, { accept: ["recipient_changed"] });
+await kletia.links.delete(link.id);
+const stats = await kletia.links.stats(link.id, { window: "30d" });
+kletia.links.pageUrl(link.id); kletia.links.cardUrl(link.id, "square");
+const png = await kletia.links.card(link.id, { variant: "square" });
+
+// Browser, no key:
+const visitor = new KletiaClient();
+const { preview } = await visitor.links.quote("lk_…", { source: { network: "arbitrum", asset: "USDC" }, amount: "250" });
+const { intent } = await visitor.links.createIntent("lk_…", { accounts, source: { network: "arbitrum", asset: "USDC" }, amount: "250" });
+await executeIntent(visitor, intent.id, signers, { onPreview });
+```
+
 ## Errors
 
 Every non-2xx response throws `KletiaApiError` with a stable `code` (typed as
@@ -316,6 +485,10 @@ try {
   else throw error;
 }
 ```
+
+Rule Book refusals are `KletiaPolicyError` (`policy` with `decisionId`,
+`violations`, `retryAt`, `approval`, `stage`); a materially worse prepare is
+`KletiaPreviewChangedError` (`preview`, `changes`).
 
 Wallet or execution failures throw `KletiaExecutionError` with the
 `intentId`, `stepId` and, when transactions were already broadcast but not

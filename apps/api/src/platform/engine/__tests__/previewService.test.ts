@@ -157,6 +157,22 @@ describe("plan-time preview", () => {
     assert.ok(preview.warnings.some((warning) => /PREVIEW_GAS_ON_ARRIVAL: you need about 0\.\d+ ETH on Arbitrum One to sign step 2\./u.test(warning)), preview.warnings.join("\n"));
   });
 
+  it("counts a dust native balance that cannot pay the fees as no gas (the need is the shortfall)", async () => {
+    chain.world.native.clear();
+    chain.world.native.set(USER.toLowerCase(), 1n);
+    const { preview } = await created(bridgeThenSwap);
+    const needs = preview.needs.filter((need) => need.reason === "gas-on-arrival");
+    assert.deepEqual(needs.map((need) => [need.network, need.have]), [["base", "1"], ["arbitrum", "1"]]);
+    const arbitrumFee = preview.fees.filter((fee) => fee.network === "arbitrum" && (fee.kind === "network" || fee.kind === "l1-data")).reduce((total, fee) => total + BigInt(fee.amount ?? "0"), 0n);
+    assert.equal(needs[1]?.amount, (arbitrumFee - 1n).toString());
+    assert.ok(preview.warnings.some((warning) => /PREVIEW_GAS_ON_ARRIVAL: you need about 0\.\d+ more ETH on Arbitrum One to sign step 2\./u.test(warning)), preview.warnings.join("\n"));
+    // Enough native balance for the fees: no need (fresh engine: balances are cached 30 s).
+    resetPreviewEngine();
+    chain.world.native.set(USER.toLowerCase(), 10n ** 18n);
+    const funded = await created(bridgeThenSwap);
+    assert.deepEqual(funded.preview.needs.filter((need) => need.reason === "gas-on-arrival"), []);
+  });
+
   it("never fails a plan when simulation is unavailable: steps are labelled unavailable", async () => {
     chain.world.simulateDown = true;
     resetSimulationEndpoints();
@@ -242,6 +258,7 @@ describe("prepare-time preview", () => {
     const strict = await refusal(() => prepareStep(intent.id, "s1"));
     assert.equal(strict.code, "SIMULATION_UNAVAILABLE");
     assert.equal(strict.status, 503);
+    assert.equal((strict as { retryAfterSeconds?: number }).retryAfterSeconds, 5, "the 503 tells clients when to retry (Retry-After)");
   });
 
   it("never overrides balances at prepare (S8): a funded step is simulated against the real wallet", async () => {

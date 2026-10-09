@@ -8,7 +8,9 @@
  * - POST /v1/keys/{id}/rotate: new secret, same id. The previous secret keeps
  *   authenticating for `graceSeconds` (default 24 h, 0 = revoke it now), but
  *   only the newest previous secret: rotating again ends the earlier grace.
- * - DELETE /v1/keys/{id}: revoke (idempotent).
+ * - DELETE /v1/keys/{id}: revoke (idempotent). The key's webhooks and their
+ *   delivery logs are deleted with it; repeating the call finishes a cleanup
+ *   that failed, and the dispatcher never routes a revoked key's events.
  *
  * Operator keys (configuration) are immutable: 409 KEY_NOT_MANAGEABLE. A
  * secret inside its grace window authenticates but cannot manage keys (403
@@ -25,6 +27,8 @@ import {
   type KeyTier,
 } from "./auth.js";
 import { HttpError, invalidRequest, isRecord, type AuthContext } from "./context.js";
+import { deliveryStore } from "./deliveries.js";
+import { deleteWebhooksOfKey } from "./webhooks.js";
 
 export const MAX_ACTIVE_KEYS_PER_PROJECT = 5;
 export const DEFAULT_ROTATION_GRACE_SECONDS = 86_400;
@@ -158,4 +162,11 @@ export async function revokeKey(auth: AuthContext, id: string): Promise<void> {
   const outcome = await apiKeyStore().revoke(id, caller.projectId, new Date().toISOString());
   forgetCachedKey(id);
   if (outcome === "missing") throw keyNotFound();
+  // Also on "already_revoked": a repeated revoke finishes a cleanup that failed (the error makes the client retry).
+  for (const webhookId of await deleteWebhooksOfKey(id)) {
+    // The delivery log goes with the webhook (best effort; it is pruned after 7 days regardless).
+    await deliveryStore()
+      .deleteForWebhook(webhookId)
+      .catch((error: unknown) => console.warn("[platform] webhook delivery log cleanup failed:", error instanceof Error ? error.message : error));
+  }
 }

@@ -278,6 +278,21 @@ describe("service lifecycle", () => {
     assert.equal(step(intent, "s2").input?.amount, "15000000", "half of the observed 30 USDC");
   });
 
+  it("binds a destination fill to one step only: a fill another step settled on never settles a second", async () => {
+    const text = { text: "bridge 25 USDC from base to solana", accounts: ACCOUNTS };
+    const [first, second] = [await createIntent(text), await createIntent(text)];
+    stub.poll = () => ({ status: "settling", evidence: [] });
+    for (const graph of [first, second]) {
+      await prepareStep(graph.id, "s1");
+      assert.equal(statuses(await submitStep(graph.id, "s1", [randomEvmHash(), randomEvmHash()])), "settling:s1=settling");
+    }
+    const fill = randomSolanaSignature();
+    stub.poll = () => ({ status: "settled", evidence: [{ kind: "settlement", network: "solana", reference: fill, observedAt: new Date().toISOString() }] });
+    assert.equal(statuses(await refreshIntent(first.id)), "completed:s1=settled");
+    assert.equal(statuses(await refreshIntent(second.id)), "settling:s1=settling", "the same fill cannot settle another step");
+    assert.equal(statuses(await refreshIntent(first.id)), "completed:s1=settled");
+  });
+
   it("fails a cross-network step on a refund", async () => {
     const created = await createIntent({ text: "bridge 25 USDC from base to solana", accounts: ACCOUNTS });
     await prepareStep(created.id, "s1");

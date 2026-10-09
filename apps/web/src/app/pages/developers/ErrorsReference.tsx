@@ -212,6 +212,26 @@ export function ErrorsReference() {
         </p>
       </div>
 
+      {target && !rows.some((row) => row.code === target) ? (
+        <p
+          id={`error-${target}`}
+          tabIndex={-1}
+          className="kl-attn-ring kl-attn-ring--once scroll-mt-40 border-l-[6px] border-[#FFD60A] bg-[#FFF7CC] px-4 py-3 text-sm text-[#1A1A1A] outline-none dark:bg-[#2B2610] dark:text-[#FDF3C4] lg:scroll-mt-28"
+        >
+          <code className="font-code font-bold">{target}</code>{" "}
+          {resolveErrorCode(target) && resolveErrorCode(target) !== target ? (
+            <>
+              is a provider code: it means{" "}
+              <Link to={`/developers#error-${resolveErrorCode(target)}`} className={cx("font-code font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+                {resolveErrorCode(target)}
+              </Link>
+              .
+            </>
+          ) : (
+            "is not in this catalog. Search for part of it below, or check the API version."
+          )}
+        </p>
+      ) : null}
       {grouped.length === 0 ? (
         <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-6 text-center text-sm dark:border-white/15", TEXT_MUTED)}>
           No code matches “{deferred}”. Try a status such as 422, or part of a code.
@@ -236,7 +256,7 @@ export function ErrorsReference() {
                       id={`error-${row.code}`}
                       tabIndex={-1}
                       className={cx(
-                        "grid min-w-0 scroll-mt-40 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 px-3 py-2.5 outline-none sm:px-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto]",
+                        "grid min-w-0 scroll-mt-40 lg:scroll-mt-28 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1.5 px-3 py-2.5 outline-none sm:px-4 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto]",
                         targeted && "kl-attn-ring kl-attn-ring--once bg-[#FFF7CC] dark:bg-[#22345A]",
                       )}
                     >

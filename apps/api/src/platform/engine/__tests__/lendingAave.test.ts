@@ -10,6 +10,7 @@ import { decodeFunctionData, erc20Abi, zeroAddress, type Abi, type Hex } from "v
 import type { AaveReserveVenue, EvmTransactionRequest, IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { aaveV3Adapter, DATA_PROVIDER_ABI, POOL_ABI } from "../adapters/aaveV3.js";
+import { evmTransferAdapter } from "../adapters/evmTransfer.js";
 import { WETH_ABI } from "../adapters/lending/common.js";
 import { compoundV3Adapter } from "../adapters/lending/compoundV3.js";
 import { erc4626Adapter } from "../adapters/lending/erc4626.js";
@@ -154,6 +155,29 @@ describe("Aave V3 supply", () => {
     assert.match(done.steps[0]?.evidence.map((entry) => entry.detail).join(" ") ?? "", /Aave Pool Supply/u);
   });
 
+  it("prepares and proves a supply step stored without a venue (planned before steps recorded one)", async () => {
+    const store = new MemoryIntentStore();
+    configurePlatform({ store, adapters: [aaveV3Adapter] });
+    const market = mockAave();
+    setBalance(market.underlying, ACCOUNT, 500_000_000n);
+    setAllowance(market.underlying, ACCOUNT, market.reserve.spender, 500_000_000n);
+    const graph = await createIntent({ text: "deposit 100 USDC into aave on base", accounts: ACCOUNTS_BASE });
+    const stored = await store.get(graph.id);
+    assert.ok(stored?.steps[0]);
+    const { venue: _venue, ...legacy } = stored.steps[0];
+    await store.update(graph.id, { ...stored, steps: [legacy] }, stored.updatedAt);
+    const transactions = await prepared(graph);
+    assert.deepEqual(call(POOL_ABI as unknown as Abi, transactions.at(-1)).args, [market.token, 100_000_000n, ACCOUNT, 0]);
+    const done = await submitStep(graph.id, "s1", landPrepared(chain, transactions, [[
+      transferLog(market.token, ACCOUNT, market.reserve.receipt.address, 100_000_000n),
+      transferLog(market.reserve.receipt.address, zeroAddress, ACCOUNT, 99_999_999n),
+      eventLog(market.reserve.target, POOL_ABI as unknown as Abi, "Supply", { reserve: market.token, user: ACCOUNT, onBehalfOf: ACCOUNT, amount: 100_000_000n, referralCode: 0 }),
+    ]]));
+    assert.equal(done.steps[0]?.venue, undefined);
+    assert.equal(done.steps[0]?.status, "settled", JSON.stringify(done.steps[0]?.failure));
+    assert.equal(done.steps[0]?.actualOutput?.amount, "100000000");
+  });
+
   it("fails the step when the receipt succeeded without a matching Supply event or aToken mint", async () => {
     const market = mockAave();
     setBalance(market.underlying, ACCOUNT, 500_000_000n);
@@ -278,6 +302,44 @@ describe("Aave V3 withdraw", () => {
     assert.equal(done.steps[0]?.status, "settled", JSON.stringify(done.steps[0]?.failure));
     assert.equal(done.steps[0]?.actualOutput?.symbol, "ETH");
     assert.equal(done.steps[0]?.actualOutput?.amount, (10n ** 18n).toString());
+  });
+});
+
+describe("Aave V3 withdraw all, then pay a third party", () => {
+  const BOB = "0x2222222222222222222222222222222222222222";
+
+  it("refuses a position that grew since planning and never pays the third party above the planned amount plus slippage", async () => {
+    const store = new MemoryIntentStore();
+    configurePlatform({ store, adapters: [aaveV3Adapter, evmTransferAdapter] });
+    let position = 10_000_000n;
+    const market = mockAave({ position, withdraw: (args) => (args[1] === MAX ? position : args[1]) });
+    const graph = await createIntent({ text: `withdraw all USDC from aave on base then send it to ${BOB}`, accounts: ACCOUNTS_BASE });
+    const planned = BigInt(graph.steps[1]?.input?.amount ?? "0");
+    assert.equal(planned, 9_999_998n);
+    // The account's own 10,000 USDC deposit lands between planning and execution.
+    position = 10_010_000_000n;
+    setBalance(market.aToken, ACCOUNT, position);
+    await assert.rejects(prepareStep(graph.id, "s1"), (error: PlatformError) => error.code === "QUOTE_MOVED" && /withdraw all/u.test(error.message));
+    // Interest-sized growth is still withdrawn in full.
+    position = 10_000_500n;
+    setBalance(market.aToken, ACCOUNT, position);
+    const transactions = await prepared(graph);
+    setBalance(market.underlying, ACCOUNT, 20_000_000_000n);
+    const done = await submitStep(graph.id, "s1", landPrepared(chain, transactions, [[
+      transferLog(market.token, market.reserve.receipt.address, ACCOUNT, position),
+      eventLog(market.reserve.target, POOL_ABI as unknown as Abi, "Withdraw", { reserve: market.token, user: ACCOUNT, to: ACCOUNT, amount: position }),
+    ]]));
+    assert.equal(done.steps[0]?.status, "settled", JSON.stringify(done.steps[0]?.failure));
+    // A funding output far above the plan pays Bob at most the planned amount plus the step's slippage.
+    const stored = await store.get(graph.id);
+    assert.ok(stored);
+    const [withdraw, send] = stored.steps;
+    assert.ok(withdraw?.actualOutput && send);
+    await store.update(graph.id, { ...stored, steps: [{ ...withdraw, actualOutput: { ...withdraw.actualOutput, amount: "10010000000" } }, send] }, stored.updatedAt);
+    const { payload } = await prepareStep(graph.id, "s2");
+    const transfer = call(erc20Abi as unknown as Abi, payload.transactions[0] as EvmTransactionRequest);
+    assert.equal(String(transfer.args?.[0]).toLowerCase(), BOB);
+    assert.equal(transfer.args?.[1], (planned * 10_050n) / 10_000n);
   });
 });
 

@@ -22,6 +22,7 @@
 import { parseEventLogs, type Abi, type ContractEventName, type Log } from "viem";
 import {
   explorerTxUrl,
+  isBaseUnitAmount,
   isEvmTransactionHash,
   isSolanaSignature,
   parseAccountId,
@@ -34,6 +35,7 @@ import { isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import { quoteBindingForViews, type BindingView } from "../binding.js";
 import { evmChainId, isEvmNetwork, observeEvmTransaction, type EvmTransactionObservation } from "../chains/evm.js";
 import { observeSolanaTransaction, type SolanaTransactionObservation } from "../chains/solana.js";
+import { decodeStepRef } from "../stepRef.js";
 import type { StepFailure, VerificationResult, VerifyContext } from "./types.js";
 
 /** Landed transactions older than prepare time (minus clock skew) are refused. */
@@ -95,6 +97,24 @@ export function preparedBindings(step: IntentStep): Map<string, number> {
 export function firstPreparedAt(step: IntentStep): number | null {
   const times = [...preparedBindings(step).values()];
   return times.length > 0 ? Math.min(...times) : null;
+}
+
+/**
+ * Earliest block time (unix seconds) a destination fill of this step can
+ * have: every deposit lands after its payload was prepared (minus clock skew)
+ * and the fill follows the deposit. Null when the step was never prepared.
+ */
+export function fillNotBefore(step: IntentStep): number | null {
+  const prepared = firstPreparedAt(step);
+  return prepared === null ? null : Math.floor(prepared / 1000) - CLOCK_SKEW_SECONDS;
+}
+
+/** Lowest guaranteed output among the payloads prepared for the step (and its current minimum). */
+export function lowestPreparedFloor(step: IntentStep): bigint | null {
+  const values = [step.minimumOutput?.amount, ...(decodeStepRef(step.quoteRef)?.floors ?? []).map((floor) => floor.min)]
+    .filter((value): value is string => isBaseUnitAmount(value))
+    .map((value) => BigInt(value));
+  return values.length > 0 ? values.reduce((low, value) => (value < low ? value : low)) : null;
 }
 
 type LandedEvm = Extract<EvmTransactionObservation, { state: "landed" }>;

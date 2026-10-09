@@ -3,6 +3,7 @@ import { useAccount } from "wagmi";
 import type { AccountId } from "@kletia/core";
 import type { IntentSigners } from "@kletia/sdk";
 
+import { signAndSendSolanaTransaction } from "../wallet/solana/executeSolanaTransaction";
 import { useSolanaWallet } from "../wallet/solana/solanaWalletContext";
 import type { ConnectedAccount } from "../wallet/types";
 import { useWallets } from "../wallet/useWallets";
@@ -31,12 +32,18 @@ export function useIntentSigners(): ConnectedIntentSigners {
   const evmAddress = evm?.address ?? null;
   const evmSigner = useMemo(() => {
     if (!evmAddress || !connector || typeof connector.getProvider !== "function") return undefined;
-    return lazyEip1193Signer(evmAddress, () => connector.getProvider());
+    // The connector's switchChain only accepts chains in the wagmi config
+    // (SUPPORTED_CHAINS) and adds a known one the wallet lacks (e.g. Polygon).
+    const switchChain =
+      typeof connector.switchChain === "function"
+        ? (chainId: number) => connector.switchChain!({ chainId })
+        : undefined;
+    return lazyEip1193Signer(evmAddress, () => connector.getProvider(), switchChain);
   }, [connector, evmAddress]);
 
   const solanaSigner = useMemo(() => {
     if (!solanaWallet || !solanaAccount || !solana) return undefined;
-    return walletStandardIntentSigner(solanaWallet, solanaAccount);
+    return walletStandardIntentSigner(solanaWallet, solanaAccount, signAndSendSolanaTransaction);
   }, [solana, solanaAccount, solanaWallet]);
 
   return useMemo(() => {

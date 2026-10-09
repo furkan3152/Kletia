@@ -9,7 +9,7 @@
  * input token for, and call, the depository (same-asset bridges) or the
  * depository / ERC-20 router / approval proxy (routes with a swap); depository
  * calls are decoded (depositor, token, exact amount). Solana deposits may only
- * invoke the pinned depository program plus ComputeBudget / Token / ATA.
+ * invoke the pinned depository program plus capped ComputeBudget instructions.
  */
 import { decodeFunctionData, erc20Abi, getAddress, parseAbi, type Hex } from "viem";
 import {
@@ -34,11 +34,11 @@ import {
   erc20CreditFromLogs,
   evmChainId,
   isEvmNetwork,
+  nativeBalanceDelta,
   observeEvmTransaction,
-  readEvmReceiptStatus,
   type EvmNetworkKey,
 } from "../chains/evm.js";
-import { assertSolanaTransactionOwner, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
+import { assertSolanaTransactionOwner, computeBudgetMismatch, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { decodeStepRef } from "../stepRef.js";
 import { assertEvmBalance } from "./evmTransfer.js";
 import {
@@ -62,6 +62,8 @@ import type {
 } from "./types.js";
 import {
   effectiveSolDelta,
+  fillNotBefore,
+  lowestPreparedFloor,
   REFERENCE_STALE_MS,
   SOL_RENT_TOLERANCE_LAMPORTS,
   stepOwner,
@@ -82,12 +84,13 @@ const RELAY_DEPOSITORY_ABI = parseAbi([
   "function depositNative(address depositor, bytes32 id)",
 ]);
 
-/** Programs a Relay Solana deposit may invoke besides the pinned depository. */
-const RELAY_SOLANA_HELPER_PROGRAMS: ReadonlySet<string> = new Set([
-  SOLANA_PROGRAM_IDS.computeBudget,
-  SOLANA_PROGRAM_IDS.token,
-  SOLANA_PROGRAM_IDS.associatedToken,
-]);
+/**
+ * Programs a Relay Solana deposit may invoke besides the pinned depository:
+ * ComputeBudget only (its instructions decoded and capped). Relay deposits
+ * need no Token or ATA instruction, and an arbitrary one could hand the
+ * user's token account to someone else (SetAuthority, Approve, Transfer).
+ */
+const RELAY_SOLANA_HELPER_PROGRAMS: ReadonlySet<string> = new Set([SOLANA_PROGRAM_IDS.computeBudget]);
 
 function relayChainId(network: NetworkKey): number {
   const id = CHAINS[network].settlement.relayChainId;
@@ -256,7 +259,7 @@ function assertRelayEvmCalls(action: AdapterAction, calls: readonly RelayCall[])
   return evmCalls;
 }
 
-/** Solana deposits may only invoke the pinned depository (primary) and ComputeBudget / Token / ATA. */
+/** Solana deposits may only invoke the pinned depository (primary) and capped ComputeBudget instructions. */
 function assertRelaySolanaCalls(action: AdapterAction, calls: readonly RelayCall[]): string[] {
   if (action.network !== "solana") throw new PlatformError("NETWORK_UNSUPPORTED", "Relay Solana deposits run on Solana mainnet.", 422);
   const depository = venueContracts("relay", "solana", "depository");
@@ -266,11 +269,27 @@ function assertRelaySolanaCalls(action: AdapterAction, calls: readonly RelayCall
       if (!depository.includes(instruction.programId) && !RELAY_SOLANA_HELPER_PROGRAMS.has(instruction.programId)) {
         rejectRelayCall(`Relay deposit invokes ${instruction.programId}, which is not a pinned Relay program.`);
       }
+      const budget = instruction.programId === SOLANA_PROGRAM_IDS.computeBudget ? computeBudgetMismatch(Buffer.from(instruction.data, "hex")) : null;
+      if (budget) rejectRelayCall(`Relay deposit carries a compute-budget instruction that ${budget}.`);
     }
     const primary = [...call.instructions].reverse().find((instruction) => instruction.programId !== SOLANA_PROGRAM_IDS.computeBudget);
     if (!primary || !depository.includes(primary.programId)) rejectRelayCall("Relay deposit does not invoke the pinned Relay depository program.");
     return primary.programId;
   });
+}
+
+/**
+ * Relay's minimum is its own claim (nothing on-chain binds it before the
+ * fill), yet the auction ranks it against calldata-bound minimums. A
+ * same-asset minimum at or above the amount sent is not an honest quote: a
+ * bridge always charges something.
+ */
+function assertRelayMinimum(action: AdapterAction, result: RelayQuote): void {
+  if (!sameAssetGroup(action)) return;
+  const minimum = BigInt(result.currencyOut.minimumAmount) * 10n ** BigInt(action.input.decimals);
+  if (minimum >= BigInt(action.amount) * 10n ** BigInt(action.output.decimals)) {
+    rejectRelayCall("Relay quoted a same-asset minimum at or above the amount sent.");
+  }
 }
 
 /** Validates Relay's calls for the action's VM (plan and prepare). */
@@ -408,41 +427,62 @@ async function requestForDeposit(step: IntentStep, deposit: string): Promise<Dep
 
 export interface DestinationCheck {
   readonly confirmed: boolean;
-  /** Amount observed arriving at the recipient; null when it cannot be measured. */
+  /** Amount observed arriving at the recipient (always measured when confirmed). */
   readonly credited: bigint | null;
 }
 
+const UNCONFIRMED: DestinationCheck = { confirmed: false, credited: null };
+
 /**
- * Destination-network evidence for a fill: the transaction succeeded and, where
- * measurable, credited the recipient with the output asset. Shared by every
- * cross-network venue (Relay, LI.FI, deBridge DLN).
+ * Destination-network evidence for a fill: the transaction succeeded, was
+ * mined at or after `notBefore` (unix seconds: a transaction older than the
+ * step's first prepare cannot be its fill; an unknown block time proves
+ * nothing) and credited the recipient with the output asset: ERC-20 Transfer
+ * logs, a direct native transfer, or the recipient's native balance change
+ * over the fill block. Shared by every cross-network venue (Relay, LI.FI,
+ * deBridge DLN).
  */
 export async function destinationCredit(
   network: NetworkKey,
   hash: string,
   output: ResolvedAsset,
   recipient: string,
+  notBefore: number | null,
 ): Promise<DestinationCheck> {
+  const fresh = (minedAt: number | null) => notBefore !== null && minedAt !== null && minedAt >= notBefore;
   if (isEvmNetwork(network)) {
-    if (!/^0x[0-9a-fA-F]{64}$/u.test(hash)) return { confirmed: false, credited: null };
-    if (!output.isNative && output.address) {
-      const receipt = await readEvmReceiptStatus(network, hash);
-      if (receipt.status !== "success") return { confirmed: false, credited: null };
-      const credited = erc20CreditFromLogs(receipt.logs, output.address, recipient);
-      // A fill that moved no output token to the recipient is not this request's fill.
-      return credited > 0n ? { confirmed: true, credited } : { confirmed: false, credited: null };
-    }
+    if (!/^0x[0-9a-fA-F]{64}$/u.test(hash)) return UNCONFIRMED;
     const observation = await observeEvmTransaction(network, hash);
-    if (observation.state !== "landed" || observation.status !== "success") return { confirmed: false, credited: null };
-    const direct = observation.to !== null && observation.to.toLowerCase() === recipient.toLowerCase() && observation.value > 0n;
-    return { confirmed: true, credited: direct ? observation.value : null };
+    if (observation.state !== "landed" || observation.status !== "success" || !fresh(observation.blockTimestamp)) return UNCONFIRMED;
+    if (!output.isNative && output.address) {
+      const credited = erc20CreditFromLogs(observation.logs, output.address, recipient);
+      // A fill that moved no output token to the recipient is not this request's fill.
+      return credited > 0n ? { confirmed: true, credited } : UNCONFIRMED;
+    }
+    if (observation.to !== null && observation.to.toLowerCase() === recipient.toLowerCase() && observation.value > 0n) {
+      return { confirmed: true, credited: observation.value };
+    }
+    // A contract-forwarded native fill: the recipient's balance must have grown over the fill block.
+    const delta = await nativeBalanceDelta(network, recipient, observation.blockNumber).catch(() => null);
+    return delta !== null && delta > 0n ? { confirmed: true, credited: delta } : UNCONFIRMED;
   }
   if (isSolanaNetworkKey(network)) {
     const read = await readSolanaCredit(network, hash, recipient, output.isNative ? null : (output.address as string));
-    if (read.status !== "success" || read.credited === null || read.credited <= 0n) return { confirmed: false, credited: null };
+    if (read.status !== "success" || read.credited === null || read.credited <= 0n || !fresh(read.blockTime)) return UNCONFIRMED;
     return { confirmed: true, credited: read.credited };
   }
-  return { confirmed: false, credited: null };
+  return UNCONFIRMED;
+}
+
+/**
+ * The output a settled fill reports, at most `cap` (the order's exact take or
+ * the prepared expected output): credit above it is not attributable to this
+ * step, and dependents must not spend it.
+ */
+export function cappedOutput(credited: bigint, cap: string | bigint | undefined): bigint {
+  if (cap === undefined) return credited;
+  const limit = BigInt(cap);
+  return credited > limit ? limit : credited;
 }
 
 export const relayAdapter: ProtocolAdapter = {
@@ -463,6 +503,7 @@ export const relayAdapter: ProtocolAdapter = {
     const result = await quote(action, action.slippageBps);
     // Same target / program checks as prepare: a quote that prepare would refuse never wins the auction.
     assertRelayCalls(action, result.calls);
+    assertRelayMinimum(action, result);
     const warnings = quoteWarnings(result);
     if (!action.output.verified) warnings.push(`${action.output.symbol} is not a verified token.`);
     const cross = crossNetwork(action);
@@ -489,6 +530,7 @@ export const relayAdapter: ProtocolAdapter = {
       await assertEvmBalance(action.network, action.account.address, action.input.address, BigInt(action.amount), action.input.symbol, action.input.decimals);
     }
     const result = await quote(action, slippageBps);
+    assertRelayMinimum(action, result);
     const warnings = quoteWarnings(result);
     const description = title(action);
     let transactions: TransactionRequest[];
@@ -591,25 +633,30 @@ export const relayAdapter: ProtocolAdapter = {
       return { status: "settling", evidence: [], ...(state.requestId !== step.settlement?.trackingId ? { trackingId: state.requestId } : {}) };
     }
     const observedAt = new Date().toISOString();
+    const notBefore = fillNotBefore(step);
+    // Relay's minimum is copied from its own quote, not bound on-chain: the fill is held to it here.
+    const floor = lowestPreparedFloor(step);
     for (const hash of state.destinationTxHashes) {
-      const check = await destinationCredit(destination, hash, output, recipient.address).catch(
-        (): DestinationCheck => ({ confirmed: false, credited: null }),
+      const check = await destinationCredit(destination, hash, output, recipient.address, notBefore).catch(
+        (): DestinationCheck => UNCONFIRMED,
       );
-      if (!check.confirmed) continue;
+      if (!check.confirmed || check.credited === null) continue;
+      if (floor === null || check.credited < floor) {
+        return mismatch(`The Relay fill credited ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol}, below the guaranteed ${fromBaseUnits(floor ?? 0n, output.decimals)} ${output.symbol}.`);
+      }
       const evidence: StepEvidence = {
         kind: "settlement",
         network: destination,
         reference: hash,
         url: explorerTxUrl(destination, hash),
         observedAt,
-        detail: `Relay fill confirmed on ${CHAINS[destination].name} (request ${state.requestId.slice(0, 10)}…)` +
-          (check.credited !== null ? `; ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol} credited to the recipient.` : "."),
+        detail: `Relay fill confirmed on ${CHAINS[destination].name} (request ${state.requestId.slice(0, 10)}…); ` +
+          `${fromBaseUnits(check.credited, output.decimals)} ${output.symbol} credited to the recipient.`,
       };
-      // Only a measured credit becomes actualOutput; otherwise dependents keep spending the guaranteed minimum.
       return {
         status: "settled",
         evidence: [evidence],
-        ...(check.credited !== null ? { actualOutput: assetAmount(output, check.credited.toString()) } : {}),
+        actualOutput: assetAmount(output, cappedOutput(check.credited, step.expectedOutput?.amount).toString()),
       };
     }
     return { status: "settling", evidence: [] };

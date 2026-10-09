@@ -26,7 +26,9 @@ const {
   WEBHOOK_PAUSE_AFTER_FAILURES,
 } = await import("../dispatcher.js");
 const { rememberIntentOwner } = await import("../owners.js");
-const { createWebhook } = await import("../webhooks.js");
+const { createWebhook, webhooksForOwner } = await import("../webhooks.js");
+const { issueDeveloperKey } = await import("../auth.js");
+const { revokeKey } = await import("../keys.js");
 
 /* ------------------------------------------------------------ helpers */
 
@@ -212,5 +214,43 @@ describe("webhook dispatcher isolation between keys", () => {
     assert.equal(stats.queued, events - WEBHOOK_PAUSE_AFTER_FAILURES, "the paused webhook's deliveries wait in the queue");
     assert.equal(stats.scheduledRetries, WEBHOOK_PAUSE_AFTER_FAILURES, "each failed attempt is retried later");
     assert.equal(stats.dropped, 0);
+  });
+});
+
+describe("webhooks of a revoked key", () => {
+  let dispatcher: Dispatcher | null = null;
+
+  afterEach(() => {
+    dispatcher?.stop();
+    dispatcher = null;
+  });
+
+  it("are deleted with the key, and a revoked key's events are never routed", async () => {
+    const root = await issueDeveloperKey("owner");
+    const leaked = await issueDeveloperKey("leaked", { id: root.id, maxActive: 5 });
+    const [sink] = await hooksFor(leaked.id, 1);
+    assert.ok(sink);
+    const recorder = recordingTransport(() => 204);
+    const current: Dispatcher = new WebhookDispatcher(recorder.transport);
+    dispatcher = current;
+    current.start();
+    emit(leaked.id);
+    await waitFor(() => recorder.count(sink) === 1, 3_000, "the delivery before revocation");
+
+    // The owner revokes the leaked key with a sibling key: its webhooks go with it.
+    await revokeKey({ tier: "developer", keyId: root.id, projectId: root.id }, leaked.id);
+    assert.deepEqual(await webhooksForOwner(leaked.id, { fresh: true }), [], "no webhook outlives its key");
+    emit(leaked.id);
+    await settle();
+    assert.equal(recorder.count(sink), 1, "nothing is delivered after revocation");
+
+    // A webhook left behind (a cleanup that failed) still receives nothing, and repeating the revoke removes it.
+    const leftover = `https://93.184.215.14/${leaked.id}/leftover`;
+    await createWebhook(leaked.id, { url: leftover, events: ["intent.status_changed"] });
+    emit(leaked.id);
+    await settle();
+    assert.equal(recorder.count(leftover), 0, "the dispatcher skips revoked keys");
+    await revokeKey({ tier: "developer", keyId: root.id, projectId: root.id }, leaked.id);
+    assert.deepEqual(await webhooksForOwner(leaked.id, { fresh: true }), []);
   });
 });

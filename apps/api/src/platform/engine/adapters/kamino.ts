@@ -20,7 +20,8 @@
  *   (program, pinned accounts, amount) and proves the outcome from token
  *   deltas: the reserve vault received exactly the amount and collateral was
  *   minted (deposit), or the vault paid out and the step account received it
- *   (withdraw).
+ *   (withdraw), no more than the burned collateral is worth. Other KLend
+ *   instructions in the transaction may only set up or refresh.
  * - "Withdraw all" is refused: KTX takes exact amounts only and its collateral
  *   rounding cannot be bound to the whole position safely.
  */
@@ -41,7 +42,7 @@ import {
 import { readSolanaLendingYields } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, sameAsset, type ResolvedAsset } from "../assets.js";
-import { assertSolanaTransactionOwner, decodeSolanaTransaction, simulateSolanaTransaction, SOLANA_PROGRAM_IDS, type SolanaInstructionView } from "../chains/solana.js";
+import { assertSolanaTransactionOwner, bytesHex, decodeSolanaTransaction, simulateSolanaTransaction, SOLANA_PROGRAM_IDS, type SolanaInstructionView } from "../chains/solana.js";
 import { nativeUsdPrice } from "../prices.js";
 import { decodeStepRef } from "../stepRef.js";
 import {
@@ -50,6 +51,7 @@ import {
   fetchKaminoTransaction,
   kaminoInstructionMismatch,
   liquidityForCollateral,
+  SETUP_DISCRIMINATORS,
   liquidityTokenAccount,
   readKaminoReserve,
   vanillaObligation,
@@ -354,6 +356,14 @@ export const kaminoAdapter: ProtocolAdapter = {
         return { failure: { code: "REFERENCE_MISMATCH", message: `The transaction is not this step's Kamino ${kind}: ${reason}.` } };
       }
       const main = matched[0] as SolanaInstructionView;
+      // Any other KLend instruction may only set up or refresh: a borrow, repay or another reserve's
+      // deposit / withdrawal would move liquidity the token deltas below would attribute to this step.
+      const others = observations
+        .flatMap((observation) => observation.instructions ?? [])
+        .filter((instruction) => instruction !== main && instruction.program === venue.target);
+      if (others.some((instruction) => !SETUP_DISCRIMINATORS.has(bytesHex(instruction.data, 8)))) {
+        return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The transaction carries KLend instructions besides this step's ${kind} that move liquidity.` } };
+      }
       const instructionAmount = new DataView(main.data.buffer, main.data.byteOffset).getBigUint64(8, true);
       const vaultDelta = tokenDelta(observations, authority, mint);
       const collateralDelta = tokenDelta(observations, authority, reserve.collateralMint);
@@ -371,6 +381,13 @@ export const kaminoAdapter: ProtocolAdapter = {
       const credited = mint === WRAPPED_SOL_MINT
         ? effectiveSolDelta(observations, owner) + SOL_RENT_TOLERANCE_LAMPORTS
         : tokenDelta(observations, owner, mint);
+      // The bound instruction alone must cover the floor, and the reserve may pay out no more than the
+      // redeemed collateral is worth (the rate read now is at least the one it executed at).
+      const worth = liquidityForCollateral(reserve, instructionAmount);
+      const tolerance = worth / 1_000n + 2n;
+      if (worth + tolerance < floor || paid > worth + tolerance) {
+        return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The withdrawal redeems collateral worth about ${fromBaseUnits(worth, minimum.decimals)} ${underlying.symbol}; the reserve paid ${fromBaseUnits(paid > 0n ? paid : 0n, minimum.decimals)} against a floor of ${fromBaseUnits(floor, minimum.decimals)}.` } };
+      }
       if (-collateralDelta !== instructionAmount || paid <= 0n || paid < floor || credited < paid) {
         return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The withdrawal did not pay at least ${fromBaseUnits(floor, minimum.decimals)} ${underlying.symbol} from the reserve to the step account.` } };
       }

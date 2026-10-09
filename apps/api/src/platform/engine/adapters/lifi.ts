@@ -51,9 +51,9 @@ import { decodeStepRef } from "../stepRef.js";
 import { isRecord } from "../util.js";
 import { assertEvmBalance } from "./evmTransfer.js";
 import { fetchLifiQuote, fetchLifiStatus, type LifiQuote } from "./lifiClient.js";
-import { destinationCredit, type DestinationCheck } from "./relay.js";
+import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
-import { evmEvents, verifyEvmReceipts } from "./verification.js";
+import { evmEvents, fillNotBefore, verifyEvmReceipts } from "./verification.js";
 
 /** Networks LI.FI serves in the registry (origins additionally need a pinned diamond). */
 export const LIFI_NETWORKS: readonly NetworkKey[] = Object.freeze([...(getProtocol("lifi")?.networks ?? [])]);
@@ -333,13 +333,27 @@ interface CheckedQuote {
   readonly allowance: bigint;
 }
 
-/** Quotes and validates a LI.FI route for the action (plan and prepare run the same checks). */
-async function checkedQuote(action: AdapterAction, slippageBps: number, stage: "plan" | "prepare"): Promise<CheckedQuote> {
+function toolMoved(planned: LifiTool, now: string): PlatformError {
+  return new PlatformError(
+    "QUOTE_MOVED",
+    `LI.FI now routes this transfer via ${TOOLS[now as LifiTool]?.name ?? now.slice(0, 32)}, not the planned ${TOOLS[planned].name} (another settlement time). Create a new intent to re-quote.`,
+    409,
+  );
+}
+
+/**
+ * Quotes and validates a LI.FI route for the action (plan and prepare run the
+ * same checks). `plannedTool` (prepare) restricts the quote to the bridge tool
+ * the auction ranked; another tool is QUOTE_MOVED.
+ */
+async function checkedQuote(action: AdapterAction, slippageBps: number, stage: "plan" | "prepare", plannedTool?: LifiTool): Promise<CheckedQuote> {
   if (!isEvmNetwork(action.network)) throw new PlatformError("NETWORK_UNSUPPORTED", "LI.FI routes start on an EVM network.", 422);
   const diamond = pinnedDiamond(action.network);
   if (!diamond) throw new PlatformError("NETWORK_UNSUPPORTED", `LI.FI has no pinned diamond on ${CHAINS[action.network].name}.`, 422);
-  const tools = toolsFor(action);
-  if (tools.length === 0) throw new PlatformError("ROUTE_UNSUPPORTED", "LI.FI bridges the same canonical ERC-20 asset only (no native assets, no swaps).", 422);
+  const routable = toolsFor(action);
+  if (routable.length === 0) throw new PlatformError("ROUTE_UNSUPPORTED", "LI.FI bridges the same canonical ERC-20 asset only (no native assets, no swaps).", 422);
+  if (plannedTool && !routable.includes(plannedTool)) throw toolMoved(plannedTool, routable[0] as LifiTool);
+  const tools = plannedTool ? [plannedTool] : routable;
   let solanaAta: string | undefined;
   if (isSolanaNetworkKey(action.destinationNetwork)) {
     await assertSolanaWalletRecipient(action.destinationNetwork, action.recipient.address);
@@ -356,6 +370,7 @@ async function checkedQuote(action: AdapterAction, slippageBps: number, stage: "
     slippageBps,
     allowBridges: tools,
   });
+  if (plannedTool && quote.tool !== plannedTool) throw toolMoved(plannedTool, quote.tool);
   const tx = quote.transaction;
   if (!sameEvm(tx.to, diamond)) reject(`the transaction targets ${tx.to}, not the pinned LiFiDiamond`);
   if (!sameEvm(tx.from, action.account.address)) reject("the transaction is not sent by the step account");
@@ -434,18 +449,30 @@ export const lifiAdapter: ProtocolAdapter = {
       settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: seconds },
       warnings: warnings(quote),
       quoteId: quote.transactionId,
+      // The auction ranked this tool's settlement time: prepare re-quotes it only.
+      provider: quote.tool,
       transactionCount: allowance >= BigInt(action.amount) ? 1 : 2,
       slippageBps: action.slippageBps,
     };
   },
 
-  async prepare({ step, action }): Promise<PreparedPayload> {
+  async prepare({ graph, step, action }): Promise<PreparedPayload> {
     if (!isEvmNetwork(action.network)) throw new PlatformError("NETWORK_UNSUPPORTED", "LI.FI routes start on an EVM network.", 422);
     const network: EvmNetworkKey = action.network;
     const slippageBps = decodeStepRef(step.quoteRef)?.slippageBps ?? action.slippageBps;
     const amount = BigInt(action.amount);
     await assertEvmBalance(network, action.account.address, action.input.address, amount, action.input.symbol, action.input.decimals);
-    const { quote, diamond, allowance } = await checkedQuote(action, slippageBps, "prepare");
+    const plannedTool = action.provider !== undefined && Object.hasOwn(TOOLS, action.provider) ? (action.provider as LifiTool) : undefined;
+    const { quote, diamond, allowance } = await checkedQuote(action, slippageBps, "prepare", plannedTool);
+    // The caller's own time limit binds every prepare, as it bound the auction.
+    const maxSeconds = graph.request?.constraints?.maxSeconds;
+    if (maxSeconds !== undefined && settlementSeconds(quote) + 15 > maxSeconds) {
+      throw new PlatformError(
+        "QUOTE_MOVED",
+        `LI.FI now estimates ~${settlementSeconds(quote)} s to settle, beyond constraints.maxSeconds (${maxSeconds} s). Create a new intent to re-quote.`,
+        409,
+      );
+    }
     const chainId = evmChainId(network);
     const from = getAddress(action.account.address);
     const transactions: TransactionRequest[] = [];
@@ -549,24 +576,25 @@ export const lifiAdapter: ProtocolAdapter = {
     }
     const fill = status.receiving.txHash;
     if (!fill) return { status: "settling", evidence: [] };
-    const check = await destinationCredit(destination, fill, output, recipient.address).catch(
+    // The fill must be mined after the step was first prepared; the service claims it for this step only.
+    const check = await destinationCredit(destination, fill, output, recipient.address, fillNotBefore(step)).catch(
       (): DestinationCheck => ({ confirmed: false, credited: null }),
     );
-    if (!check.confirmed) return { status: "settling", evidence: [] };
-    if (check.credited !== null && check.credited < transfer.floor) return mismatch("The destination credit is below the guaranteed output.");
+    if (!check.confirmed || check.credited === null) return { status: "settling", evidence: [] };
+    if (check.credited < transfer.floor) return mismatch("The destination credit is below the guaranteed output.");
     const evidence: StepEvidence = {
       kind: "settlement",
       network: destination,
       reference: fill,
       url: explorerTxUrl(destination, fill),
       observedAt: new Date().toISOString(),
-      detail: `LI.FI transfer ${transfer.transactionId.slice(0, 10)}… completed on ${CHAINS[destination].name}` +
-        (check.credited !== null ? `; ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol} credited to the recipient.` : "."),
+      detail: `LI.FI transfer ${transfer.transactionId.slice(0, 10)}… completed on ${CHAINS[destination].name}; ` +
+        `${fromBaseUnits(check.credited, output.decimals)} ${output.symbol} credited to the recipient.`,
     };
     return {
       status: "settled",
       evidence: [evidence],
-      ...(check.credited !== null ? { actualOutput: assetAmount(output, check.credited.toString()) } : {}),
+      actualOutput: assetAmount(output, cappedOutput(check.credited, step.expectedOutput?.amount).toString()),
     };
   },
 };

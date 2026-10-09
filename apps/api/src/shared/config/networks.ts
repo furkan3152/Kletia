@@ -333,19 +333,16 @@ function platformRpcUrls(
 }
 
 /**
- * HTTP transport (with fallback across several URLs) that refuses every
- * request until the endpoint has reported `chainId`: an RPC on the wrong
- * chain must never answer balance, receipt or log reads.
+ * Wraps one endpoint's transport so it refuses every request until that
+ * endpoint itself has reported `chainId`: an RPC on the wrong chain must never
+ * answer balance, receipt or log reads. The attestation is kept per endpoint
+ * (viem's fallback re-creates the transport on every request) and dropped on
+ * an error, so the endpoint is asked again.
  */
-function attestedHttp(urls: readonly string[], chainId: number): Transport {
-  const transports = urls.map((url) => http(url, { timeout: 8_000 }));
-  const inner =
-    transports.length > 1
-      ? fallback(transports)
-      : (transports[0] as Transport);
+function attested(endpoint: Transport, chainId: number): Transport {
+  let attestation: Promise<void> | null = null;
   return (config) => {
-    const transport = inner(config);
-    let attestation: Promise<void> | null = null;
+    const transport = endpoint(config);
     const attest = (): Promise<void> => {
       attestation ??= (
         transport.request({ method: "eth_chainId" }) as Promise<unknown>
@@ -371,6 +368,18 @@ function attestedHttp(urls: readonly string[], chainId: number): Transport {
       }) as typeof transport.request,
     };
   };
+}
+
+/**
+ * HTTP transport (with fallback across several URLs) in which every URL is
+ * attested on its own before it serves a read: a fallback hop never reaches
+ * an endpoint that has not reported `chainId`.
+ */
+function attestedHttp(urls: readonly string[], chainId: number): Transport {
+  const transports = urls.map((url) => attested(http(url, { timeout: 8_000 }), chainId));
+  return transports.length > 1
+    ? fallback(transports)
+    : (transports[0] as Transport);
 }
 
 export const ethereumPublicClient = createPublicClient({

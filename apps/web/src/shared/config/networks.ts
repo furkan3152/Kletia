@@ -1,5 +1,5 @@
 import { defineChain, type Address, type Chain } from "viem";
-import { arbitrum, arbitrumSepolia, base } from "viem/chains";
+import { arbitrum, arbitrumSepolia, base, mainnet, optimism, polygon } from "viem/chains";
 import { ARC_CONTRACTS } from "../../networks/arc/config";
 import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
 import { BASE_PAYMASTER_ENABLED } from "./runtime";
@@ -590,11 +590,97 @@ export const NETWORKS = {
   },
 } as const satisfies Record<NetworkMode, NetworkDefinition>;
 
+/**
+ * Keyless public RPCs for the intent-only EVM networks, each verified to
+ * answer `eth_chainId` with the right id and to accept browser (CORS) calls.
+ * polygon-rpc.com is not used: it now requires a key.
+ */
+const INTENT_NETWORK_PUBLIC_RPCS = {
+  [mainnet.id]: [
+    "https://ethereum-rpc.publicnode.com",
+    "https://eth.drpc.org",
+    "https://cloudflare-eth.com",
+  ],
+  [optimism.id]: [
+    "https://mainnet.optimism.io",
+    "https://optimism-rpc.publicnode.com",
+    "https://optimism.drpc.org",
+  ],
+  [polygon.id]: [
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon.drpc.org",
+  ],
+} as const satisfies Record<number, readonly [string, ...string[]]>;
+
+/**
+ * The chain as the wallet should see it: the default RPCs are the public
+ * list, so a wallet that does not know the network yet is offered a public
+ * endpoint by `wallet_addEthereumChain` (never a configured, possibly keyed,
+ * one).
+ */
+function withPublicRpcs<T extends Chain>(chain: T, urls: readonly [string, ...string[]]): T {
+  return { ...chain, rpcUrls: { ...chain.rpcUrls, default: { http: urls } } } as T;
+}
+
+const configuredRpcUrl = (value: string | undefined) => value?.trim() || undefined;
+
+export interface IntentWalletNetwork<T extends Chain = Chain> {
+  readonly chain: T;
+  /** Endpoints for the wallet transport: the configured RPC (if any), then the public list. */
+  readonly rpcUrls: readonly [string, ...string[]];
+}
+
+function intentWalletNetwork<T extends Chain>(
+  chain: T,
+  publicRpcs: readonly [string, ...string[]],
+  configured: string | undefined,
+): IntentWalletNetwork<T> {
+  const configuredUrl = configuredRpcUrl(configured);
+  return {
+    chain: withPublicRpcs(chain, publicRpcs),
+    rpcUrls: configuredUrl
+      ? [configuredUrl, ...publicRpcs.filter((url) => url !== configuredUrl)]
+      : publicRpcs,
+  };
+}
+
+/**
+ * EVM networks that Intent Studio and /embed execute Platform API v1 plans on
+ * but that are not console workspaces (so they have no NetworkDefinition).
+ * The wallet is switched to them per step; every step is still bound to its
+ * own chain id before signing (see `transactionBindingProblem`).
+ */
+export const INTENT_WALLET_NETWORKS = {
+  ethereum: intentWalletNetwork(
+    mainnet,
+    INTENT_NETWORK_PUBLIC_RPCS[mainnet.id],
+    import.meta.env.VITE_ETHEREUM_RPC_URL,
+  ),
+  optimism: intentWalletNetwork(
+    optimism,
+    INTENT_NETWORK_PUBLIC_RPCS[optimism.id],
+    import.meta.env.VITE_OPTIMISM_RPC_URL,
+  ),
+  polygon: intentWalletNetwork(
+    polygon,
+    INTENT_NETWORK_PUBLIC_RPCS[polygon.id],
+    import.meta.env.VITE_POLYGON_RPC_URL,
+  ),
+} as const;
+
+/**
+ * Every chain the EVM wallet may be on or be switched to. Base stays first
+ * (RainbowKit's initial chain); the console workspaces follow, then the
+ * intent-only networks.
+ */
 export const SUPPORTED_CHAINS = [
   NETWORKS.base.chain,
   NETWORKS.arc.chain,
   NETWORKS.arbitrum.chain,
   arbitrumSepolia,
+  INTENT_WALLET_NETWORKS.ethereum.chain,
+  INTENT_WALLET_NETWORKS.optimism.chain,
+  INTENT_WALLET_NETWORKS.polygon.chain,
 ] as const;
 
 export const getNetwork = (mode: NetworkMode): NetworkDefinition =>

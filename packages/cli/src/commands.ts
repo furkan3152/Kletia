@@ -17,6 +17,10 @@ import {
   type ProtocolId,
 } from "@kletia/core";
 import {
+  isKletiaError,
+  KletiaApiError,
+  MAX_RETRY_DELAY_MS,
+  TERMINAL_INTENT_STATUSES,
   watchIntent,
   type KletiaClient,
   type QuoteRequest,
@@ -533,6 +537,12 @@ async function follow(context: CommandContext, id: string, waitMs: number, onEve
 
 /* -------------------------------------------------------------------- keys */
 
+/** Id of the key in KLETIA_API_KEY (the one `keys list` marks current). */
+async function currentKeyId(context: CommandContext): Promise<string | undefined> {
+  const list = await context.client().keys.list({ ...(context.signal ? { signal: context.signal } : {}) });
+  return list.find((key) => key.current)?.id;
+}
+
 const keysCreate: Command = {
   name: "keys create",
   summary: "Issue a developer key (a new project without KLETIA_API_KEY, a sibling key with it).",
@@ -595,15 +605,24 @@ const keysRotate: Command = {
   },
   positionals: { min: 1, max: 1 },
   run: async (context) => {
+    const id = positional(context, 0);
     const graceSeconds = integerOption(context.values, "grace-seconds", 0, 604_800, context.usage);
     const sink = await openSecretSink(context);
     let rotated;
     try {
-      rotated = await context.client().keys.rotate(positional(context, 0), {
+      if (graceSeconds === 0 && (await currentKeyId(context)) === id) {
+        // Its secret would stop working at once: a lost response could not be replayed to it.
+        throw new UsageError(
+          `${id} is the key this command uses. With --grace-seconds 0 its secret stops working at once, so if the response were lost the new secret could not be recovered. Rotate it with another key of the project in KLETIA_API_KEY (\`kletia keys create <name>\` makes one), or keep a grace period.`,
+          context.usage,
+        );
+      }
+      rotated = await context.client().keys.rotate(id, {
         ...(graceSeconds !== undefined ? { graceSeconds } : {}),
         ...(context.signal ? { signal: context.signal } : {}),
       });
     } catch (error) {
+      // OUTCOME_UNKNOWN (the response was lost) is reported as such; the file never held a secret.
       await abandonSecretSink(sink);
       throw error;
     }
@@ -626,7 +645,15 @@ const keysRevoke: Command = {
   run: async (context) => {
     if (context.values.yes !== true) throw new UsageError("Revoking a key cannot be undone; pass --yes.", context.usage);
     const id = positional(context, 0);
-    await context.client().keys.revoke(id, { ...(context.signal ? { signal: context.signal } : {}) });
+    // Known before the call: once a key revoked itself, nothing can be read with it.
+    const own = (await currentKeyId(context).catch(() => undefined)) === id;
+    try {
+      await context.client().keys.revoke(id, { ...(context.signal ? { signal: context.signal } : {}) });
+    } catch (error) {
+      // The key revoked itself, the response was lost and the retry was refused: its secret no longer works.
+      if (!own || !isKletiaError(error, "OUTCOME_UNKNOWN")) throw error;
+      if (!context.json) context.print.err("The response was lost; the retry was refused because this key no longer authenticates.");
+    }
     if (context.json) context.print.json({ revoked: id });
     else context.print.out(`Revoked ${id}.`);
     return EXIT_OK;
@@ -848,14 +875,118 @@ const webhooksForward: Command = {
     };
     // Deliver in order, one at a time, like the real dispatcher.
     let queue = Promise.resolve();
-    const final = await follow(context, id, timeoutOption(context, 1800), (event) => {
+    const state: ForwardState = { forwarded: new Set(), lastEventId: undefined, finalForwarded: false };
+    const forward = (event: AnyKletiaEvent) => {
+      if (typeof event?.id !== "string" || state.forwarded.has(event.id)) return;
+      state.forwarded.add(event.id);
+      state.lastEventId = event.id;
+      if (event.type === "intent.status_changed" && TERMINAL_INTENT_STATUSES.includes(event.data.status)) state.finalForwarded = true;
       queue = queue.then(() => deliver(event));
-    });
+    };
+    const waitMs = timeoutOption(context, 1800);
+    const deadline = Date.now() + waitMs;
+    const final = await follow(context, id, waitMs, forward);
+    // A read can see the end before the stream delivered every event (the intent had already ended, or the
+    // stream was unavailable): forward what the API still holds for it.
+    const missing = state.finalForwarded ? null : await replayEndedIntent(context, id, deadline, state, forward);
     await queue;
     if (!context.json) context.print.err(`${final.id} ${final.status}`);
+    if (missing) {
+      const warning = `not every event of ${final.id} was forwarded (${state.forwarded.size} were): ${missing}. Run the command again to replay the events the API still holds.`;
+      if (context.json) context.print.err(JSON.stringify({ warning, forwarded: state.forwarded.size }));
+      else context.print.err(`warning: ${warning}`);
+      return EXIT_ERROR;
+    }
     return final.status === "completed" ? EXIT_OK : EXIT_NOT_COMPLETED;
   },
 };
+
+interface ForwardState {
+  readonly forwarded: Set<string>;
+  lastEventId: string | undefined;
+  /** The intent's terminal `intent.status_changed` was forwarded. */
+  finalForwarded: boolean;
+}
+
+/** How long a replay stream may stay quiet (the API sends what it holds as soon as the stream opens). */
+const REPLAY_IDLE_MS = 2_000;
+
+function pause(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+/**
+ * For an intent that has ended: opens its event stream after the last
+ * forwarded event and forwards what the API replays, until the terminal
+ * `intent.status_changed` or REPLAY_IDLE_MS of quiet. An unavailable stream
+ * (e.g. 429 TOO_MANY_STREAMS) is retried until `deadline`. Resolves with null
+ * once the terminal event was forwarded, else with why it was not.
+ */
+async function replayEndedIntent(
+  context: CommandContext,
+  id: string,
+  deadline: number,
+  state: ForwardState,
+  forward: (event: AnyKletiaEvent) => void,
+): Promise<string | null> {
+  let announced = false;
+  for (let failures = 1; ; failures += 1) {
+    if (context.signal?.aborted) throw new Error("Interrupted.");
+    const controller = new AbortController();
+    const stopped: { by: "quiet" | "deadline" | null } = { by: null };
+    const stop = (reason: "quiet" | "deadline" | null) => () => {
+      if (!controller.signal.aborted) stopped.by = reason;
+      controller.abort();
+    };
+    const interrupt = stop(null);
+    context.signal?.addEventListener("abort", interrupt, { once: true });
+    const cap = setTimeout(stop("deadline"), Math.max(0, deadline - Date.now()));
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    const quiet = () => {
+      clearTimeout(idle);
+      idle = setTimeout(stop("quiet"), REPLAY_IDLE_MS);
+    };
+    let failure: unknown = null;
+    try {
+      const after = state.lastEventId;
+      await context.client().intents.stream(
+        id,
+        (event) => {
+          forward(event);
+          if (state.finalForwarded) controller.abort();
+          else quiet();
+        },
+        { signal: controller.signal, ...(after ? { lastEventId: after } : {}), onOpen: quiet },
+      );
+    } catch (error) {
+      failure = error;
+    } finally {
+      clearTimeout(cap);
+      clearTimeout(idle);
+      context.signal?.removeEventListener("abort", interrupt);
+    }
+    if (state.finalForwarded) return null;
+    if (context.signal?.aborted) throw failure ?? new Error("Interrupted.");
+    if (stopped.by === "deadline") return "--wait ran out before the intent's final event arrived";
+    if (failure === null) return "the API no longer holds the intent's final event";
+    const reason = failure instanceof KletiaApiError ? failure.code : failure instanceof Error ? failure.message : String(failure);
+    if (!(failure instanceof KletiaApiError) || !failure.retryable) return `the event stream could not be opened (${reason})`;
+    const wait =
+      failure.retryAfterSeconds !== null ? failure.retryAfterSeconds * 1000 : Math.min(MAX_RETRY_DELAY_MS, 1_000 * 2 ** failures);
+    if (Date.now() + wait >= deadline) return `the event stream stayed unavailable within --wait (${reason})`;
+    if (!announced && !context.json) context.print.err(`Event stream unavailable (${reason}); retrying to forward the intent's events…`);
+    announced = true;
+    await pause(wait, context.signal);
+  }
+}
 
 /* ------------------------------------------------------------------ misc */
 

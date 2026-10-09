@@ -4,8 +4,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
 import { prefersReducedMotion } from "../../site/motion/useReducedMotion";
-import { useChangeKey } from "../../site/motion/useChangeKey";
-import { INTENT_EXAMPLES } from "../../site/snippets";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Badge } from "../../site/ui/Badge";
 import { Button, ButtonLink } from "../../site/ui/Button";
@@ -14,6 +12,8 @@ import { JsonView } from "../../site/ui/JsonView";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { toast } from "../../site/ui/toast";
 import { ShareLinkButton } from "./ShareLinkButton";
+import { StudioExamples } from "./StudioExamples";
+import { STUDIO_DEFAULT_PROMPT, STUDIO_FALLBACK_EXAMPLES } from "./exampleGroups";
 import { StudioSkeleton } from "./StudioSkeleton";
 import { useStudioPlanner } from "./useStudioPlanner";
 
@@ -70,7 +70,7 @@ function isOutOfView(element: Element | null): boolean {
  * `renderActions` to launch the lazily loaded wallet execution panel.
  */
 export function StudioWorkspace({ initialText = "", renderActions, executionNote }: StudioWorkspaceProps) {
-  const studio = useStudioPlanner(initialText || INTENT_EXAMPLES[2]!);
+  const studio = useStudioPlanner(initialText || STUDIO_DEFAULT_PROMPT);
   const { plan, submit } = studio;
   const resultsRef = useRef<HTMLDivElement>(null);
   const autoPlanned = useRef(false);
@@ -91,10 +91,6 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
   };
 
   const unsupported = plan.status === "error" && plan.error?.code === "INTENT_UNSUPPORTED";
-
-  // Example chips: the chip that just became selected stamps in.
-  const selectedExample = INTENT_EXAMPLES.find((example) => example === studio.text) ?? null;
-  const selectionKey = useChangeKey(selectedExample);
 
   // Preview accounts live in a disclosure that is forced open while either
   // field holds a value or an error, so nothing that affects the plan hides.
@@ -177,38 +173,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
             spellCheck={false}
           />
 
-          <div className="min-w-0">
-            <p className={cx(LABEL, "mb-2 text-[#1A1A1A] dark:text-[#E2E8F0]")} id="studio-examples-label">
-              Examples
-            </p>
-            {/* Phones: one snap row with an overflow cue. Wider: wrapped. */}
-            <div
-              role="group"
-              aria-labelledby="studio-examples-label"
-              className="kl-scroll-shadow -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 pt-1 ![--kl-scroll-bg:#FFFFFF] dark:![--kl-scroll-bg:#131E32] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0"
-            >
-              {INTENT_EXAMPLES.map((example) => {
-                const selected = studio.text === example;
-                return (
-                  <button
-                    key={example}
-                    type="button"
-                    onClick={() => void submit(example)}
-                    className={cx(
-                      "shrink-0 snap-start whitespace-nowrap border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[11px] transition-colors duration-150 dark:border-[#4B5563] md:shrink md:whitespace-normal",
-                      selected
-                        ? "bg-[#FFD60A] text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
-                        : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
-                      selected && selectionKey > 0 && "kl-stamp",
-                      FOCUS_RING,
-                    )}
-                  >
-                    {example}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <StudioExamples text={studio.text} onPick={(example) => void submit(example)} />
 
           <details
             className={cx("kl-details border-[3px] border-dashed border-[#1A1A1A]/30 dark:border-white/15")}
@@ -316,7 +281,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
               <div className={cx("kl-rise p-5", INK_BORDER, SURFACE)} style={{ ["--kl-i" as string]: 1 }}>
                 <p className={LABEL}>Try a supported phrasing</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {INTENT_EXAMPLES.map((example) => (
+                  {STUDIO_FALLBACK_EXAMPLES.map((example) => (
                     <button
                       key={example}
                       type="button"

@@ -16,10 +16,13 @@
  * - Public tier → 400 IDEMPOTENCY_KEY_REQUIRES_API_KEY (an IP is not a safe
  *   scope); routes that re-quote on every call → 400 IDEMPOTENCY_NOT_SUPPORTED.
  * - Responses that carry a secret (API keys, webhook signing secrets) are
- *   stored sealed with the platform secret, are never replayed to a key's
- *   rotated-out secret (403 KEY_SECRET_ROTATED), and such routes refuse the
- *   header when sealing is unavailable. Intent responses over 256 KB are
- *   stored by reference and re-read on replay.
+ *   stored sealed with the platform secret, together with a hash of the
+ *   secret that made the request. They are replayed to a key's rotated-out
+ *   secret only when that secret made the request (a key that rotated itself
+ *   and lost the response can fetch its new secret; any other rotated-out
+ *   secret gets 403 KEY_SECRET_ROTATED), and such routes refuse the header
+ *   when sealing is unavailable. Intent responses over 256 KB are stored by
+ *   reference and re-read on replay.
  *
  * Storage: memory (LRU, 50k entries) or Postgres `kletia_idempotency` when
  * KLETIA_DATABASE_URL is set; expired entries are pruned hourly.
@@ -67,6 +70,8 @@ export interface StoredResponse {
   readonly status: number;
   readonly kind: StoredBodyKind;
   readonly body: string;
+  /** Hash of the secret that made the request (secret-bearing responses only); see `presenterOf`. */
+  readonly presenter?: string;
 }
 
 export type BeginResult =
@@ -174,6 +179,7 @@ CREATE TABLE IF NOT EXISTS kletia_idempotency (
   expires_at timestamptz NOT NULL,
   PRIMARY KEY (owner_key_id, idem_key)
 );
+ALTER TABLE kletia_idempotency ADD COLUMN IF NOT EXISTS presenter_hash text;
 CREATE INDEX IF NOT EXISTS kletia_idempotency_expiry_idx ON kletia_idempotency (expires_at);`,
 } as const;
 
@@ -185,6 +191,7 @@ interface IdempotencyRow {
   response_status: number | null;
   body_kind: string | null;
   response_body: string | null;
+  presenter_hash: string | null;
   expires_at: Date | string;
 }
 
@@ -204,7 +211,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
          ON CONFLICT (owner_key_id, idem_key) DO UPDATE SET
            request_hash = EXCLUDED.request_hash, method = EXCLUDED.method, route = EXCLUDED.route, state = 'in_progress',
            token = EXCLUDED.token, locked_until = EXCLUDED.locked_until, response_status = NULL, body_kind = NULL,
-           response_body = NULL, created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at
+           response_body = NULL, presenter_hash = NULL, created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at
          WHERE kletia_idempotency.expires_at <= EXCLUDED.created_at
             OR (kletia_idempotency.state = 'in_progress' AND kletia_idempotency.locked_until <= EXCLUDED.created_at
                 AND kletia_idempotency.request_hash = EXCLUDED.request_hash)
@@ -224,7 +231,7 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       if (reserved.rows[0]?.token === token) return { state: "acquired", token };
       const existing = await dbQuery<IdempotencyRow>(
         IDEMPOTENCY_SCHEMA,
-        `SELECT request_hash, state, token, locked_until, response_status, body_kind, response_body, expires_at
+        `SELECT request_hash, state, token, locked_until, response_status, body_kind, response_body, presenter_hash, expires_at
          FROM kletia_idempotency WHERE owner_key_id = $1 AND idem_key = $2`,
         [request.owner, request.key],
       );
@@ -233,7 +240,8 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       if (!row) continue;
       if (row.request_hash !== request.fingerprint) return { state: "mismatch" };
       if (row.state === "completed" && row.response_status !== null && BODY_KINDS.includes(row.body_kind as StoredBodyKind)) {
-        return { state: "replay", response: { status: row.response_status, kind: row.body_kind as StoredBodyKind, body: row.response_body ?? "" } };
+        const response: StoredResponse = { status: row.response_status, kind: row.body_kind as StoredBodyKind, body: row.response_body ?? "" };
+        return { state: "replay", response: row.presenter_hash ? { ...response, presenter: row.presenter_hash } : response };
       }
       return { state: "in_progress" };
     }
@@ -243,9 +251,10 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
   async complete(owner: string, key: string, token: string, response: StoredResponse): Promise<void> {
     await dbQuery(
       IDEMPOTENCY_SCHEMA,
-      `UPDATE kletia_idempotency SET state = 'completed', response_status = $4, body_kind = $5, response_body = $6, locked_until = NULL
+      `UPDATE kletia_idempotency SET state = 'completed', response_status = $4, body_kind = $5, response_body = $6, presenter_hash = $7,
+         locked_until = NULL
        WHERE owner_key_id = $1 AND idem_key = $2 AND token = $3`,
-      [owner, key, token, response.status, response.kind, response.body],
+      [owner, key, token, response.status, response.kind, response.body, response.presenter ?? null],
     );
   }
 
@@ -313,10 +322,20 @@ function sealContext(owner: string, key: string): string {
   return `idempotency:${owner}:${key}`;
 }
 
-function encodeResponse(owner: string, key: string, status: number, body: unknown, secret: boolean): StoredResponse {
+/** Identifies the secret a request authenticated with (a hash of its hash; null without a developer secret). */
+function presenterOf(req: Request): string | null {
+  const { secretHash } = authOf(req);
+  return secretHash ? sha256Hex(`idempotency-presenter:${secretHash}`) : null;
+}
+
+function encodeResponse(owner: string, key: string, status: number, body: unknown, secret: boolean, presenter: string | null): StoredResponse {
+  if (secret) {
+    const bound = presenter ? { presenter } : {};
+    if (body === undefined) return { status, kind: "empty", body: "", ...bound };
+    return { status, kind: "sealed", body: sealSecret(JSON.stringify(body), sealContext(owner, key)), ...bound };
+  }
   if (body === undefined) return { status, kind: "empty", body: "" };
   const json = JSON.stringify(body);
-  if (secret) return { status, kind: "sealed", body: sealSecret(json, sealContext(owner, key)) };
   if (Buffer.byteLength(json, "utf8") > MAX_STORED_BODY_BYTES && isRecord(body) && isRecord(body.intent) && typeof body.intent.id === "string") {
     return { status, kind: "intent_ref", body: body.intent.id };
   }
@@ -379,19 +398,25 @@ export function idempotent(options: IdempotencyOptions): RequestHandler {
         });
       }
       if (begun.state === "replay") {
-        // A stored secret (a rotated key, a webhook signing secret) is never replayed to a rotated-out secret.
+        // A stored secret (a rotated key, a webhook signing secret) is replayed to a rotated-out secret only when
+        // that same secret made the request: a key that rotated itself can recover a lost response, a leaked
+        // older secret cannot read what the current one created. Entries without a recorded presenter never are.
         if (options.secret && authOf(req).viaPreviousSecret) {
-          throw new PlatformError("KEY_SECRET_ROTATED", "This secret was rotated; responses that carry secrets are only replayed to the current secret.", 403);
+          const presenter = presenterOf(req);
+          if (!presenter || begun.response.presenter !== presenter) {
+            throw new PlatformError("KEY_SECRET_ROTATED", "This secret was rotated; responses that carry secrets are only replayed to the current secret or to the secret that made the request.", 403);
+          }
         }
         await replay(res, owner, key, begun.response);
         return;
       }
       const { token } = begun;
+      const presenter = presenterOf(req);
       let settled = false;
       const settle = async (status: number, body: unknown): Promise<void> => {
         settled = true;
         try {
-          if (storable(status, body)) await store.complete(owner, key, token, encodeResponse(owner, key, status, body, options.secret === true));
+          if (storable(status, body)) await store.complete(owner, key, token, encodeResponse(owner, key, status, body, options.secret === true, presenter));
           else await store.release(owner, key, token);
         } catch (error) {
           // The reservation stays in progress until its lock lapses; the response is still delivered.

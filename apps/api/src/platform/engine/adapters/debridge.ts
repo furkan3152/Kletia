@@ -14,8 +14,8 @@
  *   fee or permit; the value is exactly the fixed fee (plus the amount for a
  *   native input), and the fixed fee equals DlnSource.globalFixedNativeFee()
  *   read on-chain (the cap).
- * - Solana: the transaction may only invoke ComputeBudget and the pinned DLN
- *   source program; `create_order_with_nonce` is decoded with the same checks
+ * - Solana: the transaction may only invoke ComputeBudget (known opcodes, a
+ *   capped unit limit and priority fee) and the pinned DLN source program; `create_order_with_nonce` is decoded with the same checks
  *   (maker, state PDA, mint, amounts, receiver, authorities) and the fixed fee
  *   must equal the program state's `fixed_fee`. Kletia re-assembles the
  *   transaction from the validated instructions with a fresh blockhash.
@@ -71,7 +71,7 @@ import {
   readEvmReceiptStatus,
   type EvmNetworkKey,
 } from "../chains/evm.js";
-import { assertSolanaTransactionOwner, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
+import { assertSolanaTransactionOwner, computeBudgetMismatch, confirmSimulation, readSolanaCredit, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
 import { nativeUsdPrice } from "../prices.js";
 import { decodeStepRef } from "../stepRef.js";
 import { assertEvmBalance } from "./evmTransfer.js";
@@ -83,10 +83,12 @@ import {
   type DlnOrderQuote,
 } from "./debridgeClient.js";
 import { accountBytes, accountBytes32, cushionedMinimum } from "./lifi.js";
+import { cappedOutput } from "./relay.js";
 import type { AdapterAction, PlannedStep, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
 import {
   effectiveSolDelta,
   evmEvents,
+  fillNotBefore,
   REFERENCE_STALE_MS,
   stepOwner,
   tokenDelta,
@@ -333,6 +335,9 @@ export async function checkSolanaOrder(hexData: string, expect: OrderExpectation
     const indices = instruction.accountIndices ?? [];
     if (indices.some((index) => index >= keys.length)) reject("an instruction references an account outside the transaction");
     const data = Buffer.from(instruction.data ?? new Uint8Array());
+    // The priority fee is paid on top of the order and is not in extraCosts: it stays capped.
+    const budget = programId === SOLANA_PROGRAM_IDS.computeBudget ? computeBudgetMismatch(data) : null;
+    if (budget) reject(`a compute-budget instruction ${budget}`);
     instructions.push({
       programId: programId as string,
       keys: indices.map((index) => ({ pubkey: keys[index] as string, isSigner: index < numSignerAccounts, isWritable: writable(index) })),
@@ -802,9 +807,13 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
       }
       credited = order.takeAmount;
     } else if (isSolanaNetworkKey(destination)) {
+      // The tracking API names the fill: it must land after the step was first prepared (the service claims it for
+      // this step only) and the reported output is at most the order's take amount.
       const read = await readSolanaCredit(destination, fill, recipient.address, output.isNative ? null : (output.address as string)).catch(() => null);
+      const notBefore = fillNotBefore(step);
       if (!read || read.status !== "success" || read.credited === null || read.credited < floor) return { status: "settling", evidence: [] };
-      credited = read.credited;
+      if (notBefore === null || read.blockTime === null || read.blockTime < notBefore) return { status: "settling", evidence: [] };
+      credited = cappedOutput(read.credited, match.takeAmount ?? step.expectedOutput?.amount);
     } else {
       return { status: "settling", evidence: [] };
     }

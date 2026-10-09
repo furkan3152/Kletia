@@ -204,19 +204,50 @@ describe("Idempotency-Key", () => {
     });
     assert.equal(rotatedAgain.headers.get("idempotent-replayed"), "true");
     assert.equal(rotatedAgain.body.key.key, rotated.body.key.key, "a retried rotation returns the same new secret instead of rotating twice");
-    // The rotated-out secret still authenticates (grace window) but never gets the new secret replayed.
+    // The rotated-out secret made the webhook request, so it may replay it; it never gets what the current secret created.
+    const ownWebhook = await call<{ webhook: { secret: string } }>(server, "POST", "/webhooks", { key, body: { url: "https://93.184.215.14/idempotent" }, headers: headers(id) });
+    assert.equal(ownWebhook.status, 201);
+    assert.equal(ownWebhook.body.webhook.secret, first.body.webhook.secret);
+    const currentId = randomUUID();
+    const current = await call(server, "POST", "/webhooks", { key: rotated.body.key.key, body: { url: "https://93.184.215.14/current" }, headers: headers(currentId) });
+    assert.equal(current.status, 201);
     assertError(
-      await call(server, "POST", `/keys/${keyId}/rotate`, { key, body: { graceSeconds: 60 }, headers: headers(rotateKey) }),
-      403,
-      "KEY_SECRET_ROTATED",
-    );
-    assertError(
-      await call(server, "POST", "/webhooks", { key, body: { url: "https://93.184.215.14/idempotent" }, headers: headers(id) }),
+      await call(server, "POST", "/webhooks", { key, body: { url: "https://93.184.215.14/current" }, headers: headers(currentId) }),
       403,
       "KEY_SECRET_ROTATED",
     );
     const storedKeys = JSON.stringify([...(idempotency.idempotencyStore() as unknown as { entries: Map<string, unknown> }).entries.values()]);
     assert.ok(!storedKeys.includes(rotated.body.key.key), "API keys are not stored in clear");
+    assert.ok(!storedKeys.includes(key), "secrets are not stored in clear");
+  });
+
+  it("replays a lost self-rotation to the secret that made it, and to no other rotated-out secret", async () => {
+    const keys = await call<{ keys: { id: string }[] }>(server, "GET", "/keys", { key });
+    const keyId = keys.body.keys[0]?.id ?? "";
+    // The key rotates itself; the response is lost and the client retries with the only secret it has.
+    const retryKey = randomUUID();
+    const rotated = await call<{ key: { key: string } }>(server, "POST", `/keys/${keyId}/rotate`, { key, body: { graceSeconds: 60 }, headers: headers(retryKey) });
+    assert.equal(rotated.status, 200);
+    const recovered = await call<{ key: { key: string } }>(server, "POST", `/keys/${keyId}/rotate`, { key, body: { graceSeconds: 60 }, headers: headers(retryKey) });
+    assert.equal(recovered.status, 200, "the old secret that made the request recovers the new secret");
+    assert.equal(recovered.headers.get("idempotent-replayed"), "true");
+    assert.equal(recovered.body.key.key, rotated.body.key.key, "the same new secret, not a second rotation");
+    // The recovered secret works and manages keys again.
+    assert.equal((await call(server, "GET", "/keys", { key: recovered.body.key.key })).status, 200);
+
+    // Rotate again with the second secret: it becomes the rotated-out secret, and the first one stops authenticating.
+    const second = recovered.body.key.key;
+    const third = await call<{ key: { key: string } }>(server, "POST", `/keys/${keyId}/rotate`, { key: second, body: { graceSeconds: 60 } });
+    assert.equal(third.status, 200);
+    assertError(
+      await call(server, "POST", `/keys/${keyId}/rotate`, { key: second, body: { graceSeconds: 60 }, headers: headers(retryKey) }),
+      403,
+      "KEY_SECRET_ROTATED",
+    );
+    assertError(await call(server, "POST", `/keys/${keyId}/rotate`, { key, body: { graceSeconds: 60 }, headers: headers(retryKey) }), 401, "INVALID_API_KEY");
+    const current = await call<{ key: { key: string } }>(server, "POST", `/keys/${keyId}/rotate`, { key: third.body.key.key, body: { graceSeconds: 60 }, headers: headers(retryKey) });
+    assert.equal(current.status, 200, "the current secret still gets the replay");
+    assert.equal(current.body.key.key, rotated.body.key.key);
   });
 });
 
@@ -238,6 +269,25 @@ function contract(name: string, make: () => import("../idempotency.js").Idempote
       await store.complete(owner, "a", begun.token, { status: 201, kind: "json", body: "{\"ok\":true}" });
       const replay = await store.begin(request("a"), now);
       assert.deepEqual(replay, { state: "replay", response: { status: 201, kind: "json", body: "{\"ok\":true}" } });
+    });
+
+    it("keeps the presenter of a stored secret-bearing response and drops it on takeover", async () => {
+      const store = make();
+      const now = Date.now();
+      const begun = await store.begin(request("p"), now);
+      assert.equal(begun.state, "acquired");
+      if (begun.state !== "acquired") return;
+      await store.complete(owner, "p", begun.token, { status: 200, kind: "sealed", body: "sealed-body", presenter: "presenter-hash" });
+      assert.deepEqual(await store.begin(request("p"), now), {
+        state: "replay",
+        response: { status: 200, kind: "sealed", body: "sealed-body", presenter: "presenter-hash" },
+      });
+      const expired = now + idempotency.IDEMPOTENCY_TTL_MS + 1;
+      const again = await store.begin(request("p"), expired);
+      assert.equal(again.state, "acquired");
+      if (again.state !== "acquired") return;
+      await store.complete(owner, "p", again.token, { status: 200, kind: "sealed", body: "other" });
+      assert.deepEqual(await store.begin(request("p"), expired), { state: "replay", response: { status: 200, kind: "sealed", body: "other" } });
     });
 
     it("releases unfinished reservations and ignores stale tokens", async () => {

@@ -1,3 +1,4 @@
+import { resolveErrorCode } from "@kletia/core";
 import { ArrowDownRight, CircleAlert, Clock, Gauge, Repeat2, WifiOff } from "lucide-react";
 import React, { useId, useRef, useState } from "react";
 
@@ -110,6 +111,8 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
   const replayed = header(exchange, "idempotent-replayed") === "true";
   const retryAfter = header(exchange, "retry-after");
   const error = errorEnvelope(exchange.body);
+  // The catalog entry to link to: the one error.docs names, else the code's family (RELAY_UNAVAILABLE → PROVIDER_UNAVAILABLE).
+  const errorAnchor = error ? (/#error-([A-Z0-9_]+)$/u.exec(error.docs ?? "")?.[1] ?? resolveErrorCode(error.code) ?? error.code) : null;
   const isSvg = exchange.contentType?.includes("image/svg+xml") ?? false;
   const tabs: readonly { id: ViewTab; label: string }[] = [
     { id: "body", label: exchange.frames ? `Events (${exchange.frames.length})` : "Body" },
@@ -170,10 +173,10 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
             </p>
           ) : null}
           <Link
-            to={`/developers#error-${error.code}`}
+            to={`/developers#error-${errorAnchor}`}
             className={cx("inline-flex w-fit items-center gap-1 text-xs font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}
           >
-            What {error.code} means and what to do
+            What {errorAnchor} means and what to do
             <ArrowDownRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>

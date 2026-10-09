@@ -283,6 +283,23 @@ describe("deBridge DLN Solana orders", () => {
     assert.match(await errorOf(() => debridgeDlnAdapter.plan(action)), /^RPC_UNAVAILABLE/u);
   });
 
+  it("refuses compute-budget instructions above the unit and priority-fee caps, at plan and at prepare", async () => {
+    const action = bridgeAction("solana", "base");
+    const limit = (units: number) => new Uint8Array([2, ...new Uint8Array(new Uint32Array([units]).buffer)]);
+    const price = (microLamports: bigint) => new Uint8Array([3, ...new Uint8Array(new BigUint64Array([microLamports]).buffer)]);
+    const prepare = () => debridgeDlnAdapter.prepare(prepareContext(action, preparedStep({ network: "solana", chain: CHAINS.solana.id, account: action.account.id })));
+    // About 5 SOL of priority fee: 1.4M compute units at 3,571,428,571 micro-lamports each.
+    solanaOrder(action, {}, { computeBudget: [limit(1_400_000), price(3_571_428_571n)] });
+    assert.match(await errorOf(() => debridgeDlnAdapter.plan(action)), /^PROVIDER_TRANSACTION_INVALID.*priority fee above the cap/u);
+    assert.match(await errorOf(prepare), /^PROVIDER_TRANSACTION_INVALID.*priority fee above the cap/u);
+    solanaOrder(action, {}, { computeBudget: [limit(1_400_001)] });
+    assert.match(await errorOf(() => debridgeDlnAdapter.plan(action)), /too many compute units/u);
+    solanaOrder(action, {}, { computeBudget: [new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8])] });
+    assert.match(await errorOf(() => debridgeDlnAdapter.plan(action)), /unknown compute-budget instruction/u);
+    solanaOrder(action, {}, { computeBudget: [limit(1_400_000), price(1_000_000n)] });
+    assert.equal((await debridgeDlnAdapter.plan(action)).protocol, "debridge-dln");
+  });
+
   it("re-assembles the validated instructions into a fresh transaction at prepare", async () => {
     const action = bridgeAction("solana", "base");
     const orderId = solanaOrder(action);
@@ -354,6 +371,40 @@ describe("deBridge DLN Solana orders", () => {
     const short = land("1000000");
     mock.dlnOrderIds.set(short, [orderId]);
     assert.equal(code(await verify(short)), "REFERENCE_MISMATCH");
+  });
+});
+
+describe("deBridge DLN settlement to Solana", () => {
+  it("settles only on a credit mined after prepare and reports at most the order's take amount", async () => {
+    const action = bridgeAction("base", "solana");
+    const { data, salt, creation } = dlnEvmCall(action, { takeAmount: 24_002_368n });
+    const orderId = randomEvmHash();
+    mock.dlnOrder = () => dlnOrderBody(action, { data }, { takeAmount: 24_002_368n, orderId });
+    mock.allowance = 25_000_000n;
+    const prepared = await debridgeDlnAdapter.prepare(prepareContext(action));
+    const order = dlnEventOrder(action, creation, salt, 0n);
+    const [deposit] = landPrepared(mock.rpc, prepared.transactions, [createdOrderLog(order, orderId, 0n)]);
+    const step = evmBridgeStep(action, "debridge-dln", prepared.transactions, { references: [deposit as string], trackingIds: [orderId], minimum: "24000000" });
+    const fill = (blockTime: number, amount: string) => {
+      const signature = randomSolanaSignature();
+      mock.rpc.solana.set(signature, {
+        signature, confirmationStatus: "finalized",
+        body: {
+          accountKeys: [OTHER_SOL_ADDRESS, "9SHQTA66Ekh7ZgMnKWsjxXk6DwXku8przs45E8bcEe38"],
+          programIndexes: [], blockTime, fee: 5_000, preBalances: [1_000_000, 2_039_280], postBalances: [995_000, 2_039_280],
+          preTokenBalances: [{ accountIndex: 1, mint: USDC_SOL, owner: SOL_ADDRESS, amount: "0" }],
+          postTokenBalances: [{ accountIndex: 1, mint: USDC_SOL, owner: SOL_ADDRESS, amount }],
+        },
+      });
+      mock.dlnOrders.set(orderId, { orderId: { stringValue: orderId }, state: "Fulfilled", fulfilledDstEventMetadata: { transactionHash: { stringValue: signature } } });
+    };
+    // An unrelated USDC credit to the recipient, a day before the step was prepared.
+    fill(seconds(PREPARED_AT) - 86_400, "30000000");
+    assert.equal(code(await debridgeDlnAdapter.poll?.(step, Date.now())), "settling");
+    // A fresh credit above the order: the step reports the order's take amount, not the whole credit.
+    fill(seconds(PREPARED_AT) + 60, "30000000");
+    const settled = await debridgeDlnAdapter.poll?.(step, Date.now());
+    assert.equal(settled?.status === "settled" ? settled.actualOutput?.amount : code(settled), "24002368");
   });
 });
 

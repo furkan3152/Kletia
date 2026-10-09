@@ -84,6 +84,8 @@ export interface ApiKeyStore {
   insert(record: ApiKeyRecord, keyHash: string, maxActive?: number): Promise<void>;
   /** The key whose current secret, or unexpired previous secret, hashes to `keyHash`. */
   findByHash(keyHash: string, now: number): Promise<ApiKeyMatch | null>;
+  /** The key with this id (revoked or not), null when unknown. */
+  findById(id: string): Promise<ApiKeyRecord | null>;
   /** Keys of one project, newest first (at most 50, revoked ones included). */
   listByProject(projectId: string): Promise<ApiKeyRecord[]>;
   /**
@@ -139,6 +141,10 @@ export class MemoryApiKeyStore implements ApiKeyStore {
     if (entry.keyHash === keyHash) return { record: entry.record, viaPrevious: false };
     const expires = entry.record.previousExpiresAt ? Date.parse(entry.record.previousExpiresAt) : 0;
     return entry.previousHash === keyHash && expires > now ? { record: entry.record, viaPrevious: true } : null;
+  }
+
+  async findById(id: string): Promise<ApiKeyRecord | null> {
+    return this.byId.get(id)?.record ?? null;
   }
 
   async listByProject(projectId: string): Promise<ApiKeyRecord[]> {
@@ -274,6 +280,12 @@ export class PostgresApiKeyStore implements ApiKeyStore {
     const row = result.rows[0];
     const record = row ? recordFromRow(row) : null;
     return row && record ? { record, viaPrevious: row.via_previous === true } : null;
+  }
+
+  async findById(id: string): Promise<ApiKeyRecord | null> {
+    const result = await dbQuery<ApiKeyRow>(API_KEYS_SCHEMA, `SELECT ${KEY_COLUMNS} FROM kletia_api_keys WHERE id = $1`, [id]);
+    const row = result.rows[0];
+    return row ? recordFromRow(row) : null;
   }
 
   async listByProject(projectId: string): Promise<ApiKeyRecord[]> {
@@ -459,6 +471,24 @@ function cacheMatch(keyHash: string, match: ApiKeyMatch, now: number): void {
 export function forgetCachedKey(id: string): void {
   for (const hash of cachedHashesById.get(id) ?? []) lookupCache.delete(hash);
   cachedHashesById.delete(id);
+  revocationCache.delete(id);
+}
+
+/** Key id -> whether it is revoked, for webhook routing (same TTL as verified keys). */
+const revocationCache = new Map<string, { readonly revoked: boolean; readonly expiresAt: number }>();
+
+/**
+ * Whether the key with this id was revoked. Operator and unknown ids are not.
+ * Revocation is seen at once on the instance that handled it and within 15 s
+ * elsewhere; a store failure throws (callers fail closed).
+ */
+export async function isKeyRevoked(id: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = revocationCache.get(id);
+  if (cached && cached.expiresAt > now) return cached.revoked;
+  const revoked = Boolean((await apiKeyStore().findById(id))?.revokedAt);
+  remember(revocationCache, id, { revoked, expiresAt: now + KEY_CACHE_TTL_MS });
+  return revoked;
 }
 
 /*
@@ -567,6 +597,7 @@ export const authenticate: RequestHandler = (req, _res, next) => {
         tier: record.tier,
         keyId: record.id,
         projectId: record.projectId,
+        secretHash: hash,
         ...(match.viaPrevious ? { viaPreviousSecret: true as const } : {}),
       });
     } catch (error) {

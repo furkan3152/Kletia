@@ -11,7 +11,7 @@ import { ACCOUNTS, resetEngine, SOL_ACCOUNT } from "../../engine/__tests__/helpe
 import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestServer } from "./support.js";
 
 useTestEnvironment();
-const { createPlatformRouter, platformErrorHandler } = await import("../index.js");
+const { buildOpenApiDocument, createPlatformRouter, platformErrorHandler } = await import("../index.js");
 const { createCorsMiddleware } = await import("../../../shared/http/cors.js");
 
 const MODERN = "2026-07-28";
@@ -255,6 +255,50 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     });
     assert.equal(batch.status, 400);
     assert.equal(batch.body.error?.code, -32600);
+  });
+});
+
+describe("POST /v1/mcp error contract", () => {
+  interface Documented {
+    readonly $ref?: string;
+    readonly content?: Record<string, { schema: { $ref?: string; oneOf?: { $ref: string }[] } }>;
+  }
+  const document = buildOpenApiDocument() as unknown as {
+    paths: Record<string, Record<string, { responses: Record<string, Documented> }>>;
+    components: { responses: Record<string, Documented> };
+  };
+
+  /** Component schema names the document allows for a status's JSON body on POST /v1/mcp. */
+  function documentedSchemas(status: number): string[] {
+    let response = document.paths["/v1/mcp"]?.post?.responses[String(status)];
+    if (response?.$ref) response = document.components.responses[response.$ref.split("/").pop() ?? ""];
+    const schema = response?.content?.["application/json"]?.schema;
+    if (!schema) return [];
+    return (schema.oneOf ?? [schema]).map((entry) => (entry.$ref ?? "").split("/").pop() ?? "");
+  }
+
+  it("documents the status and body shape of every error it answers, JSON-RPC errors included", async () => {
+    const legacyInit = { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "x", version: "1" } } };
+    const replies = {
+      batch: await call(server, "POST", "/mcp", { key: developerKey, headers: { accept: "application/json, text/event-stream" }, body: [legacyInit] }),
+      "invalid message": await call(server, "POST", "/mcp", { key: developerKey, headers: { accept: "application/json, text/event-stream" }, body: { jsonrpc: "2.0", id: { a: 1 }, method: "tools/list" } }),
+      "not JSON": await call(server, "POST", "/mcp", { key: developerKey, headers: { "content-type": "application/json" }, raw: "{nope" }),
+      "unknown method": await rpc("tools/unknown"),
+      "Accept without event streams": await call(server, "POST", "/mcp", { key: developerKey, headers: { accept: "text/html" }, body: legacyInit }),
+    };
+    const statuses: Record<string, number> = {};
+    for (const [label, reply] of Object.entries(replies)) {
+      statuses[label] = reply.status;
+      const body = reply.body as { jsonrpc?: string; id?: unknown; error?: { code?: unknown }; requestId?: unknown };
+      const shape = body.jsonrpc === "2.0" ? "JsonRpcErrorResponse" : "Error";
+      if (shape === "JsonRpcErrorResponse") {
+        assert.ok(Number.isInteger(body.error?.code) && "id" in body, `${label}: a JSON-RPC error body`);
+      } else {
+        assert.ok(typeof body.error?.code === "string" && typeof body.requestId === "string", `${label}: a platform error body`);
+      }
+      assert.ok(documentedSchemas(reply.status).includes(shape), `${label}: ${reply.status} with a ${shape} body is documented (${documentedSchemas(reply.status).join(", ") || "status not documented"})`);
+    }
+    assert.deepEqual(statuses, { batch: 400, "invalid message": 400, "not JSON": 400, "unknown method": 404, "Accept without event streams": 406 });
   });
 });
 

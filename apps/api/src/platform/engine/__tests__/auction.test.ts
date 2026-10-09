@@ -116,6 +116,27 @@ describe("venue auction (planner)", () => {
     assert.equal(viaLifi.code, "ROUTE_TOO_SLOW", "an explicit limit also binds a named venue");
   });
 
+  it("applies an explicit maxSeconds to a sole venue whose extra costs are also unpriced", async () => {
+    const aero = findAssetBySymbol("base", "AERO");
+    assert.ok(aero);
+    const unpricedSlow: VenueScript = {
+      minimumBps: 9_900,
+      seconds: 75,
+      extraCosts: () => [{ asset: aero.id, symbol: "AERO", decimals: 18, amount: "1000000000000000000", formatted: "1" }],
+    };
+    venueScripts["debridge-dln"] = unpricedSlow;
+    const viaDln = { text: "bridge 25 USDC from base to arbitrum via debridge", accounts: ACCOUNTS };
+    assert.equal((await planError({ ...viaDln, constraints: { maxSeconds: 30 } })).code, "ROUTE_TOO_SLOW");
+    const kept = await planIntent(viaDln);
+    assert.equal(kept.steps[0]?.protocol, "debridge-dln", "without a caller limit the sole venue is still kept");
+    // POST /v1/quotes: a lone route past the caller's own limit is not the best route either.
+    venueScripts.relay = { minimumBps: 9_900, seconds: 1, fail: "AMOUNT_TOO_SMALL" };
+    venueScripts.lifi = { minimumBps: 9_900, seconds: 1, fail: "AMOUNT_TOO_SMALL" };
+    const lone = { network: "base", from: "USDC", to: "USDC", toNetwork: "arbitrum", amount: "25" };
+    assert.equal((await quoteRoutes({ ...lone, maxSeconds: 30 })).best, null);
+    assert.equal((await quoteRoutes(lone)).best?.protocol, "debridge-dln");
+  });
+
   it("honours a named venue (\"via lifi\") without an auction", async () => {
     const graph = await planIntent({ text: "bridge 25 USDC from base to arbitrum via lifi", accounts: ACCOUNTS });
     assert.equal(graph.steps[0]?.protocol, "lifi");

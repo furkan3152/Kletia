@@ -31,6 +31,31 @@
       content="Kletia turns financial intents into verified, wallet-approved execution across EVM networks and Solana — as an app and as an API, SDK and widget other teams can integrate."
     />
     <meta name="base:app_id" content="6a31a6981f144514c3aaa376" />
+    <!--
+      Latin web fonts, fetched while the entry script loads so text first
+      paints in its final font (no swap, no layout shift). The console (/app)
+      uses none of them and /embed only Inter, so the script below skips the
+      rest there. The build fingerprints these hrefs to the same files the
+      @fontsource-variable stylesheets use; the dev server cannot serve them
+      at these paths, so nothing is preloaded under it.
+    -->
+    <template id="kl-font-preloads">
+      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2" data-embed />
+      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/space-grotesk/files/space-grotesk-latin-wght-normal.woff2" />
+      <link rel="preload" as="font" type="font/woff2" crossorigin href="../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2" />
+    </template>
+    <script>
+      (function () {
+        var path = location.pathname;
+        if (/^\/app(?:\/|$)/.test(path) || document.querySelector('script[src$="/@vite/client"]')) return;
+        var embed = /^\/embed(?:\/|$)/.test(path);
+        var template = document.getElementById("kl-font-preloads");
+        var links = template && template.content ? template.content.querySelectorAll("link") : [];
+        for (var i = 0; i < links.length; i += 1) {
+          if (!embed || links[i].hasAttribute("data-embed")) document.head.appendChild(links[i].cloneNode(true));
+        }
+      })();
+    </script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",

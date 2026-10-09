@@ -279,6 +279,56 @@ describe("Kamino adapter", () => {
       assert.equal(result.status === "confirmed" ? result.actualOutput?.amount : null, minted.toString());
     });
 
+    type LandedInstruction = { program: string; accounts: string[]; data: Uint8Array };
+
+    async function landWithdraw(collateral: bigint, paid: bigint, extra: (ownerUsdc: string, obligation: string) => LandedInstruction[] = () => []) {
+      const obligation = await vanillaObligationOf(OWNER);
+      const ownerUsdc = await ata(OWNER, USDC);
+      const signature = randomSolanaSignature();
+      mock.landed.set(signature, {
+        signature,
+        feePayer: OWNER,
+        blockTime: Math.floor(Date.now() / 1000),
+        instructions: [
+          {
+            program: KLEND,
+            accounts: [OWNER, obligation, KAMINO_MARKET, KAMINO_LMA, KAMINO_USDC_RESERVE, USDC, KAMINO_USDC_COLLATERAL_VAULT, KAMINO_USDC_COLLATERAL_MINT, KAMINO_USDC_SUPPLY, ownerUsdc, KLEND, TOKEN_PROGRAM, TOKEN_PROGRAM, INSTRUCTIONS_SYSVAR, OBLIGATION_FARM, RESERVE_FARM, FARMS],
+            data: instructionData(KLEND_DISCRIMINATORS.withdraw, collateral),
+          },
+          ...extra(ownerUsdc, obligation),
+        ],
+        loaded: [KAMINO_MARKET, KAMINO_LMA, KAMINO_USDC_RESERVE, KAMINO_USDC_SUPPLY, KAMINO_USDC_COLLATERAL_MINT, KAMINO_USDC_COLLATERAL_VAULT],
+        tokenBalances: [
+          { owner: OWNER, mint: USDC, account: ownerUsdc, pre: 0n, post: paid },
+          { owner: KAMINO_LMA, mint: USDC, account: KAMINO_USDC_SUPPLY, pre: 1_000_000_000n, post: 1_000_000_000n - paid },
+          { owner: KAMINO_LMA, mint: KAMINO_USDC_COLLATERAL_MINT, account: KAMINO_USDC_COLLATERAL_VAULT, pre: 1_000_000_000n, post: 1_000_000_000n - collateral },
+        ],
+      });
+      return signature;
+    }
+
+    it("proves a withdrawal from its own collateral: a borrow or other liquidity in the same transaction never counts as paid", async () => {
+      const intent = await createIntent({ text: "withdraw 5 USDC from kamino", accounts: ACCOUNTS });
+      const { intent: prepared } = await prepareStep(intent.id, intent.steps[0]!.id);
+      const step = prepared.steps[0]!;
+      const verify = async (signature: string) => {
+        const result = await kaminoAdapter.verify({ step, references: [signature], submittedAt: Date.now(), now: Date.now() });
+        return result.status === "failed" ? result.failure.code : result.status === "confirmed" ? `confirmed ${result.actualOutput?.amount}` : result.status;
+      };
+      const collateral = collateralForLiquidity(RESERVE_STATE, 5_000_000n) + 1n;
+      assert.equal(await verify(await landWithdraw(collateral, 5_000_001n)), "confirmed 5000001");
+      // borrow_obligation_liquidity_v2 of 5 USDC from the same reserve, paid out of the same supply vault.
+      const borrow = (ownerUsdc: string, obligation: string): LandedInstruction[] => [{
+        program: KLEND,
+        accounts: [OWNER, obligation, KAMINO_MARKET, KAMINO_LMA, KAMINO_USDC_RESERVE, USDC, KAMINO_USDC_SUPPLY, KLEND, ownerUsdc, TOKEN_PROGRAM, INSTRUCTIONS_SYSVAR],
+        data: instructionData("a1808ff5abc7c206", 5_000_000n),
+      }];
+      assert.equal(await verify(await landWithdraw(1n, 5_000_001n, borrow)), "OUTCOME_NOT_PROVEN", "one collateral unit plus a borrow");
+      assert.equal(await verify(await landWithdraw(collateral, 10_000_001n, borrow)), "OUTCOME_NOT_PROVEN", "a full withdrawal next to a borrow");
+      // The same payout reached without a top-level KLend borrow (e.g. through another program): more than the collateral is worth.
+      assert.equal(await verify(await landWithdraw(1n, 5_000_001n)), "OUTCOME_NOT_PROVEN", "one collateral unit cannot pay 5 USDC");
+    });
+
     it("rejects a deposit into another reserve and fails one whose reserve vault did not receive the amount", async () => {
       const step = await preparedDeposit();
       const decoy = await kaminoAdapter.verify({ step, references: [(await land({ reserve: KAMINO_DECOY_USDC_RESERVE })).signature], submittedAt: Date.now(), now: Date.now() });

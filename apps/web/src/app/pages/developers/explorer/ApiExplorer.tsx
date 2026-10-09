@@ -393,7 +393,7 @@ export function ApiExplorer({ operations, source, onReloadSpec }: ApiExplorerPro
             <header className="flex min-w-0 flex-col gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <MethodBadge method={operation.method} className="!text-[11px]" />
-                <h3 id={`op-${operation.id}`} className="min-w-0 scroll-mt-40 break-all font-code text-base font-bold sm:text-lg">
+                <h3 id={`op-${operation.id}`} className="min-w-0 scroll-mt-40 break-all font-code lg:scroll-mt-28 text-base font-bold sm:text-lg">
                   {operation.path}
                 </h3>
                 <Badge tone={operation.auth === "key" ? "yellow" : "neutral"}>{operation.auth === "key" ? "Key required" : "Public"}</Badge>

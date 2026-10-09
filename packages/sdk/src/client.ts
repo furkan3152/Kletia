@@ -91,6 +91,40 @@ export interface WaitForIntentOptions extends Omit<WatchIntentOptions, "signal">
 interface CallBehaviour {
   /** A 404 after a retry means an earlier attempt already removed the resource. */
   readonly goneAfterRetryIsDone?: boolean;
+  /**
+   * The call can end the secret that authenticates it (a key rotating or
+   * revoking itself). When an attempt whose outcome is unknown is followed by
+   * a 401 or KEY_SECRET_ROTATED, that attempt may have run, and its response
+   * cannot be replayed to this secret: report OUTCOME_UNKNOWN, not the 401.
+   */
+  readonly mayEndOwnSecret?: "rotate" | "revoke";
+}
+
+/** An attempt that failed this way may still have run on the server. */
+function mayHaveRun(error: KletiaApiError): boolean {
+  return error.status === 0 || error.status >= 500 || error.code === "IDEMPOTENCY_REQUEST_IN_PROGRESS";
+}
+
+function ownSecretEnded(action: "rotate" | "revoke", error: KletiaApiError): KletiaApiError {
+  const happened =
+    action === "rotate"
+      ? "The rotation may have gone through: an earlier attempt got no answer, and the retry was refused because this client's secret no longer authenticates"
+      : "The revoke may have gone through: an earlier attempt got no answer, and the retry was refused because this client's secret no longer authenticates";
+  const consequence =
+    action === "rotate"
+      ? "If the key rotated itself, its new secret was only in the lost response and cannot be recovered."
+      : "If the key revoked itself, it is revoked.";
+  return new KletiaApiError({
+    code: "OUTCOME_UNKNOWN",
+    message: `${happened} (${error.code}). ${consequence}`,
+    status: error.status,
+    hints:
+      action === "rotate"
+        ? ["Check rotatedAt and last4 in the key list with another key of the project, and rotate from that key."]
+        : ["Check revokedAt in the key list with another key of the project."],
+    requestId: error.requestId,
+    cause: error,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -249,6 +283,7 @@ export class KletiaClient {
     }
     const defaultRetries = kind === "safe" || (kind === "idempotent" && idempotencyKey !== null) ? this.maxRetries : 0;
     let retries = kind === "prepare" ? 0 : retriesOption(init.maxRetries, defaultRetries);
+    let earlierAttemptMayHaveRun = false;
 
     for (let attempt = 1; ; attempt += 1) {
       try {
@@ -264,6 +299,14 @@ export class KletiaClient {
           continue;
         }
         if (behaviour.goneAfterRetryIsDone && attempt > 1 && error.status === 404) return null as T;
+        if (
+          behaviour.mayEndOwnSecret &&
+          earlierAttemptMayHaveRun &&
+          (error.code === "INVALID_API_KEY" || error.code === "KEY_SECRET_ROTATED")
+        ) {
+          throw ownSecretEnded(behaviour.mayEndOwnSecret, error);
+        }
+        if (mayHaveRun(error)) earlierAttemptMayHaveRun = true;
         if (attempt > retries || !error.retryable || init.signal?.aborted) throw error;
         const delay = retryDelayMs(attempt, this.retryBaseDelayMs, error.retryAfterSeconds);
         if (delay === null) throw error;
@@ -624,24 +667,32 @@ export class KletiaClient {
     /**
      * New secret for a key, same id. The previous secret keeps authenticating
      * for `graceSeconds` (API default 86400; 0 ends it now) but cannot manage
-     * keys.
+     * keys. A key rotating itself with `graceSeconds: 0` cannot get a lost
+     * response back (its secret stops authenticating at once): the call then
+     * rejects with `OUTCOME_UNKNOWN`. Rotate a key from another key of the
+     * project to avoid that.
      */
     rotate: async (
       id: string,
       options: RequestOptions & { readonly graceSeconds?: number } = {},
     ): Promise<RotatedApiKey> => {
       const { graceSeconds, ...rest } = options;
-      const body = await this.request<{ key: RotatedApiKey }>(
+      const body = await this.call<{ key: RotatedApiKey }>(
         "POST",
         `/keys/${encodeSegment(id, "id")}/rotate`,
         graceSeconds === undefined ? {} : { graceSeconds },
         rest,
+        { mayEndOwnSecret: "rotate" },
       );
       return body.key;
     },
-    /** Revoke a key (idempotent). A key may revoke itself. */
+    /**
+     * Revoke a key (idempotent). A key may revoke itself; when the response to
+     * that is lost, the retry is refused and the call rejects with
+     * `OUTCOME_UNKNOWN` (the key is revoked).
+     */
     revoke: async (id: string, options: RequestOptions = {}): Promise<void> => {
-      await this.request("DELETE", `/keys/${encodeSegment(id, "id")}`, undefined, options);
+      await this.call("DELETE", `/keys/${encodeSegment(id, "id")}`, undefined, options, { mayEndOwnSecret: "revoke" });
     },
   };
 }

@@ -137,7 +137,7 @@ export async function sendExplorerRequest(request: ExplorerRequest, signal: Abor
     if (timeout.aborted) throw new ExplorerNetworkError("timeout", "The Kletia API did not respond within 30 s.");
     throw new ExplorerNetworkError(
       "network",
-      "No response: the API is unreachable from this browser (offline, DNS, CORS or a blocked request).",
+      "The API is unreachable from this browser: offline, DNS, CORS or a blocked request.",
     );
   }
   const contentType = response.headers.get("content-type");

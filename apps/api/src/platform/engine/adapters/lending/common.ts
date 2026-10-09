@@ -173,9 +173,23 @@ export function lendingContext<K extends EvmLendingKind>(action: AdapterAction, 
   };
 }
 
+/**
+ * The registry venue id a recorded step executes against. Aave V3 supply
+ * steps stored before steps recorded their venue carry none: they ran against
+ * the network's default reserve for their input asset (its first
+ * YIELD_VENUES entry), which is what they resolve to here.
+ */
+export function recordedVenueId(step: IntentStep): string | undefined {
+  if (step.venue) return step.venue;
+  if (step.protocol !== "aave-v3" || step.kind !== "deposit" || !step.input) return undefined;
+  const asset = step.input.asset.toLowerCase();
+  return yieldVenuesFor(step.network, "aave-v3").find((venue) =>
+    venue.kind === "aave-reserve" && venue.actions.includes("deposit") && findAssetBySymbol(step.network, venue.asset)?.id.toLowerCase() === asset)?.id;
+}
+
 /** The registry venue a recorded step executes against (verify / poll). */
 export function stepVenue<K extends EvmLendingKind>(step: IntentStep, kind: K): VenueOfKind<K> | null {
-  const venue = getYieldVenue(step.venue ?? "");
+  const venue = getYieldVenue(recordedVenueId(step) ?? "");
   if (!venue || venue.kind !== kind || venue.network !== step.network || venue.protocol !== step.protocol) return null;
   return venue as VenueOfKind<K>;
 }

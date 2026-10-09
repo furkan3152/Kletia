@@ -242,8 +242,8 @@ export async function quoteRoutes(rawInput: unknown): Promise<QuoteRoutesResult>
         eligible: quote.excluded === undefined,
       };
     });
-    // A lone route is still the best one, unless the caller's own time limit rules it out.
-    const fallback = routes.length === 1 && !(input.maxSeconds !== undefined && quotes[0]?.excluded === "slow") ? routes[0] : null;
+    // A lone route is still the best one, unless it delivers another asset or the caller's own time limit rules it out.
+    const fallback = routes.length === 1 && quotes[0]?.excluded !== "asset" && !(input.maxSeconds !== undefined && quotes[0]?.slow) ? routes[0] : null;
     const best = routes.find((route) => route.eligible) ?? fallback ?? null;
     return { routes, best, quotedAt: new Date().toISOString(), unavailable };
   } catch (error) {

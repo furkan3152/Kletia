@@ -41,6 +41,16 @@ public (30/min per IP) and keyed (300/min developer, 1200/min operator) rate
 limits, and `401` for a key that does not authenticate. Each MCP request is
 one API request.
 
+Errors come in two shapes. The `/v1` guards answer with the platform error
+envelope (`{ "error": { "code": "…" }, "requestId" }`): `401`, `403`, `413`,
+`415`, `429`, `503`, and `400 INVALID_JSON` for a body that is not JSON. The
+MCP server answers with a JSON-RPC error object (integer `error.code`, `id`,
+no `requestId`; read the `X-Request-Id` header): `400` for a batch, an
+invalid JSON-RPC message or an unsupported protocol revision, `404` for an
+unknown method on the `2026-07-28` revision, `406` when `Accept` does not list
+both `application/json` and `text/event-stream`, and `500`. The OpenAPI
+document describes both (`JsonRpcErrorResponse` and `Error`).
+
 ### Origin
 
 The transport specification requires servers to validate `Origin`:

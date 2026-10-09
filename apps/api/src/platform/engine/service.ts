@@ -390,6 +390,22 @@ function extraCostMoved(step: IntentStep, prepared: PreparedPayload): string | n
   return null;
 }
 
+/** Interest a "withdraw all" position may accrue between planning and prepare (bps of the planned size). */
+const POSITION_ACCRUAL_BPS = 100n;
+
+/**
+ * "Withdraw all" takes the position read at prepare. A position that grew
+ * beyond the planned size plus accrual (a later deposit, a supply on the
+ * account's behalf) is not what was approved: returns the planned size.
+ */
+function positionGrown(step: IntentStep, prepared: PreparedPayload): string | null {
+  const ref = decodeStepRef(step.quoteRef);
+  if (step.kind !== "withdraw" || !ref?.closePosition || !ref.plannedInput || !step.input) return null;
+  const planned = BigInt(ref.plannedInput);
+  if (BigInt(prepared.input.amount) * 10_000n <= planned * (10_000n + POSITION_ACCRUAL_BPS)) return null;
+  return `${fromBaseUnits(planned, step.input.decimals)} ${step.input.symbol}`;
+}
+
 /**
  * A step planned for a recipient name pays the address the name resolved to
  * at planning. The name is resolved again before every prepare; a different
@@ -438,6 +454,14 @@ export async function prepareStep(intentId: string, stepId: string): Promise<Pre
         throw new PlatformError(
           "QUOTE_MOVED",
           `The venue now charges ${movedCost} on top of the amount, more than planned. Create a new intent to re-quote.`,
+          409,
+        );
+      }
+      const plannedPosition = positionGrown(step, prepared);
+      if (plannedPosition) {
+        throw new PlatformError(
+          "QUOTE_MOVED",
+          `The position is now ${prepared.input.formatted} ${prepared.input.symbol}, more than the ${plannedPosition} planned for "withdraw all". Create a new intent to re-quote.`,
           409,
         );
       }
@@ -619,6 +643,35 @@ async function claimVerified(intentId: string, step: IntentStep, result: Verific
   }
 }
 
+/**
+ * Binds a settled step's destination fill to it globally, like origin
+ * references: one fill can settle one step. A fill already bound elsewhere
+ * leaves the step settling (it times out to manual review); it never settles.
+ */
+async function claimSettlement(intentId: string, step: IntentStep, result: SettlementResult): Promise<SettlementResult> {
+  const destination = step.settlement?.destinationNetwork;
+  if (result.status !== "settled" || !destination) return result;
+  const chain = CHAINS[destination].id;
+  const keys = result.evidence
+    .filter((entry) => entry.kind === "settlement" && entry.reference)
+    .map((entry) => `fill:${chain}:${chain.startsWith("eip155:") ? (entry.reference as string).toLowerCase() : entry.reference}`);
+  if (keys.length === 0) return result;
+  try {
+    await getIntentStore().claimReferences(keys.map((key) => ({ key, intentId, stepId: step.id })));
+    return result;
+  } catch (error) {
+    const platformError = toPlatformError(error);
+    if (platformError.code !== "REFERENCE_ALREADY_USED") throw platformError;
+    return { status: "settling", evidence: [] };
+  }
+}
+
+/** Polls a settling step's venue and claims the fill it reports. */
+async function pollSettlement(intentId: string, step: IntentStep, adapter: ProtocolAdapter, now: number): Promise<IntentStep> {
+  if (!adapter.poll) return step;
+  return applySettlement(step, await claimSettlement(intentId, step, await adapter.poll(step, now)), now);
+}
+
 /** Verifies a step's current references on-chain and claims them when confirmed. */
 async function verifyReferences(intentId: string, step: IntentStep, now: number): Promise<VerificationResult> {
   const references = step.references ?? [];
@@ -661,11 +714,11 @@ function rejectionError(failure: StepFailure): PlatformError {
 }
 
 /** Fast solvers often fill within seconds: poll a freshly settling step once right away. */
-async function settleNow(step: IntentStep, now: number): Promise<IntentStep> {
+async function settleNow(intentId: string, step: IntentStep, now: number): Promise<IntentStep> {
   const adapter = adapterForStep(step);
   if (step.status !== "settling" || !adapter.poll) return step;
   try {
-    return applySettlement(step, await adapter.poll(step, now), now);
+    return await pollSettlement(intentId, step, adapter, now);
   } catch {
     return step;
   }
@@ -687,15 +740,12 @@ async function readProgress(intentId: string, step: IntentStep, now: number): Pr
   const references = step.references ?? [];
   const settlingLike = step.status === "settling" ||
     (step.status === "indeterminate" && step.settlement?.kind === "cross-network" && hasOriginEvidence(step));
-  if (settlingLike) {
-    if (!adapter.poll) return step;
-    return applySettlement(step, await adapter.poll(step, now), now);
-  }
+  if (settlingLike) return pollSettlement(intentId, step, adapter, now);
   if ((step.status === "submitted" || step.status === "indeterminate") && references.length > 0) {
     const result = await verifyReferences(intentId, step, now);
     if (isReferenceRejection(result)) return rejectReferences(step, result.failure, now);
     if (step.status === "indeterminate" && result.status === "pending") return step;
-    return settleNow(applyVerification(step, result, now), now);
+    return settleNow(intentId, applyVerification(step, result, now), now);
   }
   return step;
 }
@@ -792,7 +842,7 @@ export async function submitStep(intentId: string, stepId: string, references: u
         result = { status: "pending", evidence: [], reason: "Verification deferred.", stale: false };
       }
       if (isReferenceRejection(result)) throw rejectionError(result.failure);
-      const verified = await settleNow(applyVerification(candidate, result, now), now);
+      const verified = await settleNow(intentId, applyVerification(candidate, result, now), now);
       const steps = unlockDependents(replaceStep(graph.steps, verified));
       return commit(graph, withSteps(graph, steps, now));
     });

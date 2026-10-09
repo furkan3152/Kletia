@@ -47,6 +47,8 @@ export interface VenueQuote {
   readonly netMinimum: bigint | null;
   /** Why the quote cannot win; absent when eligible. */
   readonly excluded?: "slow" | "unpriced" | "asset";
+  /** Slower than the time limit, whatever else excludes it (an explicit limit refuses every slow quote). */
+  readonly slow: boolean;
 }
 
 export interface VenueFailure {
@@ -162,14 +164,15 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 export async function venueQuote(adapter: ProtocolAdapter, action: AdapterAction, planned: PlannedStep, maxSeconds: number): Promise<VenueQuote> {
   const protocol = planned.protocol;
   const netMinimum = await netMinimumOutput(planned).catch(() => null);
+  const slow = planned.estimatedSeconds > maxSeconds;
   const excluded = !sameAsset(planned.minimumOutput, action.output)
     ? "asset" as const
     : (planned.extraCosts?.length ?? 0) > 0 && netMinimum === null
       ? "unpriced" as const
-      : planned.estimatedSeconds > maxSeconds
+      : slow
         ? "slow" as const
         : undefined;
-  return { adapter, protocol, planned, netMinimum, ...(excluded ? { excluded } : {}) };
+  return { adapter, protocol, planned, netMinimum, slow, ...(excluded ? { excluded } : {}) };
 }
 
 function minutes(seconds: number): string {
@@ -198,8 +201,8 @@ export function exclusionReason(quote: VenueQuote): string | null {
 
 /**
  * Plans `action` with every candidate and picks the winner. With a single
- * candidate there is no auction (and no timeout); the time limit still
- * applies when the caller set it.
+ * candidate there is no auction (and no timeout); the caller's own time limit
+ * still applies, and a quote for another asset is never kept.
  */
 export async function runVenueAuction(
   candidates: readonly ProtocolAdapter[],
@@ -227,8 +230,12 @@ export async function runVenueAuction(
   const warnings: string[] = [];
   let winner = quotes.find((quote) => quote.excluded === undefined);
   if (!winner) {
-    const slow = quotes.filter((quote) => quote.excluded === "slow");
-    if (slow.length > 0 && options.explicitMaxSeconds) {
+    // The caller's own time limit refuses every slower quote, whatever else also excludes it.
+    const kept = quotes.filter((quote) => quote.excluded !== "asset" && !(options.explicitMaxSeconds && quote.slow));
+    // A sole venue is kept despite unpriced costs; in an auction only a slow quote (under the default limit) may still win.
+    winner = single ? kept[0] : kept.find((quote) => quote.excluded === "slow");
+    const slow = quotes.filter((quote) => quote.slow && quote.excluded !== "asset");
+    if (!winner && slow.length > 0 && options.explicitMaxSeconds) {
       throw new PlatformError(
         "ROUTE_TOO_SLOW",
         `Every venue needs longer than constraints.maxSeconds (${options.maxSeconds} s): ${slow.map(describeQuote).join("; ")}.`,
@@ -236,9 +243,7 @@ export async function runVenueAuction(
         [{ path: "constraints.maxSeconds", message: "No route settles in time." }],
       );
     }
-    // A sole venue is kept as it is; in an auction only a slow quote (under the default limit) may still win.
-    winner = single ? quotes[0] : slow[0];
-    if (winner?.excluded === "slow") {
+    if (winner?.slow) {
       warnings.push(`Settlement is estimated at ~${minutes(winner.planned.estimatedSeconds)}, above the default ${minutes(options.maxSeconds)}; no faster venue quoted this route.`);
     }
     if (winner?.excluded === "unpriced") warnings.push("The venue's extra costs could not be priced in the output asset.");

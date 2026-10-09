@@ -3,9 +3,12 @@ import { address } from "@solana/kit";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { afterEach, before, beforeEach, describe, it } from "node:test";
 import { decodeFunctionData, erc20Abi, type Hex } from "viem";
-import { applySlippage, type IntentGraph, type TransactionRequest } from "@kletia/core";
+import { applySlippage, type IntentGraph, type IntentStep, type TransactionRequest } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { lifiAdapter } from "../adapters/lifi.js";
+import { actionForStep, planIntent } from "../planner.js";
+import { configurePlatform } from "../service.js";
+import { decodeStepRef } from "../stepRef.js";
 import { resetLifiClient } from "../adapters/lifiClient.js";
 import type { AdapterAction, VerificationResult } from "../adapters/types.js";
 import {
@@ -212,6 +215,41 @@ describe("LI.FI quote checks (plan and prepare)", () => {
     assert.equal(mock.calls.filter((url) => url.pathname === "/v1/quote").length, 1);
   });
 
+  it("prepares only the bridge tool the auction ranked, and holds prepare to an explicit maxSeconds", async () => {
+    const action = bridgeAction("arbitrum", "base");
+    mock.allowance = 25_000_000n;
+    const allowBridges: (string | null)[] = [];
+    let tool: "across" | "polymerStandard" = "across";
+    mock.lifiQuote = (query) => {
+      allowBridges.push(query.get("allowBridges"));
+      return lifiQuoteBody(action, { tool });
+    };
+    const planned = await lifiAdapter.plan(action);
+    assert.equal(planned.provider, "across");
+    // The planner records the tool in the step ref and hands it back to prepare.
+    configurePlatform({ adapters: [lifiAdapter] });
+    try {
+      const graph = await planIntent({ text: "bridge 25 USDC from arbitrum to base via lifi", accounts: [action.account.id] });
+      const step = graph.steps[0] as IntentStep;
+      assert.equal(decodeStepRef(step.quoteRef)?.provider, "across");
+      assert.equal(actionForStep(graph, step).provider, "across");
+    } finally {
+      configurePlatform({ adapters: null });
+    }
+    const pinned = { ...action, provider: planned.provider };
+    allowBridges.length = 0;
+    tool = "polymerStandard";
+    // An answer for another tool is refused (the client checks it against allowBridges; the adapter again).
+    assert.match(await errorOf(() => lifiAdapter.prepare(prepareContext(pinned))), /^(?:QUOTE_MOVED|PROVIDER_TRANSACTION_INVALID): .*(?:polymerStandard|Polymer)/u);
+    assert.deepEqual(allowBridges, ["across"], "the re-quote asks for the planned tool only");
+    tool = "across";
+    assert.equal((await lifiAdapter.prepare(prepareContext(pinned))).transactions.length, 1);
+    // Without a recorded tool (steps planned before), the caller's time limit still binds the fresh quote.
+    tool = "polymerStandard";
+    const limited = { ...prepareContext(action), graph: { request: { constraints: { maxSeconds: 60 } } } as unknown as IntentGraph };
+    assert.match(await errorOf(() => lifiAdapter.prepare(limited)), /^QUOTE_MOVED: .*beyond constraints\.maxSeconds \(60 s\)/u);
+  });
+
   it("prepares an exact approval of the pinned diamond and the decoded diamond call", async () => {
     const action = bridgeAction("base", "arbitrum");
     const body = lifiQuoteBody(action);
@@ -308,6 +346,31 @@ describe("LI.FI verification and settlement", () => {
     // A fill that credits nobody we know stays settling.
     mock.rpc.evm.set(fill, { ...mock.rpc.evm.get(fill)!, logs: [transferLog(usdcBase, OTHER_EVM_ADDRESS, floor)] });
     assert.equal(await poll(), "settling");
+  });
+
+  it("never settles on a credit mined before the step was prepared, and reports at most the prepared expected output", async () => {
+    const action = bridgeAction("arbitrum", "base");
+    const { transactions, transactionId } = await preparedPayload(action);
+    const floor = (24_937_500n * 999_600_000_000_000_000n) / 10n ** 18n;
+    const [deposit] = landPrepared(mock.rpc, transactions, []);
+    const step = evmBridgeStep(action, "lifi", transactions, { references: [deposit as string], trackingIds: [transactionId] });
+    const usdcBase = action.output.address as string;
+    const fill = (amount: bigint, timestamp: number, blockNumber: bigint) => {
+      const hash = randomEvmHash();
+      mock.rpc.evm.set(hash, { hash, from: OTHER_EVM_ADDRESS, to: usdcBase, input: "0x", value: 0n, chainId: 8453, status: "success", blockNumber, timestamp, logs: [transferLog(usdcBase, EVM_ADDRESS, amount)] });
+      mock.lifiStatus.set(deposit as string, {
+        transactionId, status: "DONE", substatus: "COMPLETED", tool: "across", toAddress: EVM_ADDRESS,
+        receiving: { txHash: hash, chainId: 8453, amount: floor.toString(), token: { address: usdcBase } },
+      });
+    };
+    // An old transfer to the recipient that the status API names as the fill.
+    fill(floor, Math.floor(PREPARED_AT / 1000) - 86_400, 8_000n);
+    assert.equal((await lifiAdapter.poll?.(step, Date.now()))?.status, "settling");
+    // A credit above the prepared expected output does not fund dependents beyond it.
+    fill(30_000_000n, Math.floor(PREPARED_AT / 1000) + 90, 9_300n);
+    const expected = { ...(step.minimumOutput as NonNullable<IntentStep["minimumOutput"]>), amount: "24937500", formatted: "24.9375" };
+    const settled = await lifiAdapter.poll?.({ ...step, expectedOutput: expected }, Date.now());
+    assert.equal(settled?.status === "settled" ? settled.actualOutput?.amount : settled?.status, "24937500");
   });
 
   it("reads Solana destination credits for CCTP mints", async () => {

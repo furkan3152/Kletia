@@ -127,6 +127,14 @@ The public tier refuses the header, so keyless clients send none and do not
 retry those POSTs. `prepareStep` builds fresh transactions from a new quote on
 every call, so it is never repeated automatically.
 
+A key that rotates itself with `graceSeconds: 0`, or revokes itself, ends the
+secret the retry would present, so a lost response cannot be replayed. When
+the retry is refused (`INVALID_API_KEY` or `KEY_SECRET_ROTATED` after an
+attempt that got no answer), `keys.rotate` and `keys.revoke` reject with
+`OUTCOME_UNKNOWN` instead: the change most likely happened, and a new secret
+from that rotation cannot be recovered. Rotate a key from another key of the
+project, or keep a grace period.
+
 ## Receive webhooks
 
 `@kletia/sdk/server` verifies `Kletia-Signature` against the exact raw body
@@ -197,7 +205,8 @@ const lending = await kletia.venues({ network: "base", protocol: "morpho" }); //
 
 Every non-2xx response throws `KletiaApiError` with a stable `code` (typed as
 the catalog codes from `@kletia/core`, plus SDK codes such as
-`NETWORK_ERROR`, `REQUEST_TIMEOUT`, `REQUEST_ABORTED` and `WAIT_TIMEOUT`), the
+`NETWORK_ERROR`, `REQUEST_TIMEOUT`, `REQUEST_ABORTED`, `WAIT_TIMEOUT` and
+`OUTCOME_UNKNOWN`), the
 HTTP `status`, validation `issues`, `hints`, `retryAfterSeconds` when the API
 sent `Retry-After`, the `requestId` for support, its catalog `category`,
 `docsUrl`, and `retryable` (from the catalog).

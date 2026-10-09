@@ -118,14 +118,14 @@ export function UsagePanel() {
       </div>
       {usage.status === "error" && usage.error ? (
         <ApiErrorPanel error={usage.error} title="Could not read usage" onRetry={usage.reload} />
-      ) : !report ? (
+      ) : !report || usage.status === "loading" ? (
         <SkeletonGroup label="Loading usage" className="grid gap-3 sm:grid-cols-4">
           {[0, 1, 2, 3].map((index) => (
             <Skeleton key={index} surface="card" className="h-14" />
           ))}
         </SkeletonGroup>
       ) : (
-        <div className="flex min-w-0 flex-col gap-5" aria-busy={usage.status === "loading"}>
+        <div className="flex min-w-0 flex-col gap-5">
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Figure label={`Requests, ${report.window}`} value={String(report.totals.requests)} note={classes.map(([name, count]) => `${name} ${count}`).join(" · ") || "none yet"} />
             <Figure

@@ -758,6 +758,15 @@ function schemas(): JsonObject {
       },
       ["jsonrpc"],
     ),
+    JsonRpcErrorResponse: obj(
+      {
+        jsonrpc: str({ const: "2.0" }),
+        id: { type: ["string", "integer", "null"] },
+        error: obj({ code: int({ examples: [-32600] }), message: str(), data: {} }, ["code", "message"]),
+      },
+      ["jsonrpc", "error", "id"],
+      { description: "A JSON-RPC error sent with a non-2xx status by the MCP server: the code is a JSON-RPC integer and there is no `requestId` (read the X-Request-Id header)." },
+    ),
     SubmitRequest: obj(
       {
         references: arrayOf(str({ maxLength: MAX_REFERENCE_LENGTH }), {
@@ -1121,7 +1130,7 @@ function paths(): JsonObject {
         operationId: "rotateApiKey",
         tags: ["Keys"],
         summary: "Replace a key's secret (same id)",
-        description: `Issues a new secret for an active key of the caller's project. The key id is unchanged, so intents, webhooks and usage stay attached. The previous secret keeps authenticating for \`graceSeconds\` (default ${DEFAULT_ROTATION_GRACE_SECONDS / 3600} h, at most ${MAX_ROTATION_GRACE_SECONDS / 86_400} days, 0 = stop now) but cannot manage keys; rotating again ends an earlier grace window. Other instances notice within 15 s.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest.`,
+        description: `Issues a new secret for an active key of the caller's project. The key id is unchanged, so intents, webhooks and usage stay attached. The previous secret keeps authenticating for \`graceSeconds\` (default ${DEFAULT_ROTATION_GRACE_SECONDS / 3600} h, at most ${MAX_ROTATION_GRACE_SECONDS / 86_400} days, 0 = stop now) but cannot manage keys; rotating again ends an earlier grace window. Other instances notice within 15 s.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest and replayed only to the current secret or to the secret that made the request (a key that rotated itself can retry with its old secret during the grace window); any other rotated-out secret gets 403 KEY_SECRET_ROTATED.`,
         security: KEY_REQUIRED,
         parameters: [keyIdParam, idempotencyKeyParam],
         requestBody: { ...jsonBody("ApiKeyRotateRequest", false) },
@@ -1133,7 +1142,7 @@ function paths(): JsonObject {
         operationId: "revokeApiKey",
         tags: ["Keys"],
         summary: "Revoke a key of the caller's project",
-        description: "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself.",
+        description: "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself. Its webhooks and their delivery logs are deleted and its intents' events are no longer delivered; repeating the call finishes a cleanup that failed (503).",
         security: KEY_REQUIRED,
         parameters: [keyIdParam],
         responses: { "204": { description: "Revoked.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("403", "404", "409") },
@@ -1190,7 +1199,15 @@ function paths(): JsonObject {
             content: { "application/json": { schema: ref("JsonRpcResponse") }, "text/event-stream": { schema: str() } },
           },
           "202": { description: "Notification accepted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } },
+          // The router's guards (401, 403, 413, 415, 429, 503) answer with the platform error envelope; the MCP server with JSON-RPC errors.
           ...errors("403", "413", "415"),
+          "400": mcpErrorResponse(
+            "A JSON-RPC error for a batch, a body that is not one JSON-RPC message, an unsupported protocol revision or MCP headers that disagree with the body; the platform error envelope (INVALID_JSON) for a body that is not JSON.",
+            true,
+          ),
+          "404": mcpErrorResponse("A JSON-RPC error (-32601) for an unknown method on the 2026-07-28 revision."),
+          "406": mcpErrorResponse("A JSON-RPC error when Accept does not list both application/json and text/event-stream."),
+          "500": mcpErrorResponse("A JSON-RPC error (-32603) when the MCP server fails; the platform error envelope (INTERNAL_ERROR) for a failure before it.", true),
         },
       },
     },
@@ -1213,6 +1230,15 @@ function errorResponse(description: string): JsonObject {
     description,
     headers: { "X-Request-Id": REQUEST_ID_HEADER },
     content: { "application/json": { schema: ref("Error") } },
+  };
+}
+
+/** An error of POST /v1/mcp: a JSON-RPC error body, or (`orPlatform`) also the platform envelope from the router. */
+function mcpErrorResponse(description: string, orPlatform = false): JsonObject {
+  return {
+    description,
+    headers: { "X-Request-Id": REQUEST_ID_HEADER },
+    content: { "application/json": { schema: orPlatform ? { oneOf: [ref("JsonRpcErrorResponse"), ref("Error")] } : ref("JsonRpcErrorResponse") } },
   };
 }
 

@@ -181,6 +181,40 @@ test("webhook tests are not retried; deleting a webhook tolerates a 404 after a 
   await assert.rejects(missing.client.webhooks.delete("wh_1"), (error) => error.code === "WEBHOOK_NOT_FOUND");
 });
 
+test("a key that rotated or revoked itself and lost the response reports OUTCOME_UNKNOWN, not the retry's 401", async () => {
+  const lost = () => {
+    throw new TypeError("fetch failed");
+  };
+  // Rotation with graceSeconds 0: the retry presents the rotated-out secret.
+  const rotate = scripted([lost, failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  const rotateError = await rotate.client.keys.rotate("key_1", { graceSeconds: 0 }).catch((error) => error);
+  assert.ok(isKletiaError(rotateError, "OUTCOME_UNKNOWN"), String(rotateError?.code));
+  assert.equal(rotateError.retryable, false);
+  assert.equal(rotateError.cause.code, "INVALID_API_KEY");
+  assert.match(rotateError.message, /may have gone through/u);
+  assert.match(rotateError.hints.join(" "), /another key/u);
+  assert.equal(rotate.calls.length, 2);
+  assert.equal(rotate.calls[1].headers["idempotency-key"], rotate.calls[0].headers["idempotency-key"]);
+  // A rotated-out secret inside its grace window that is refused the replay.
+  const graced = scripted([failure(504, "UPSTREAM_TIMEOUT"), failure(403, "KEY_SECRET_ROTATED", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(graced.client.keys.rotate("key_1"), (error) => error.code === "OUTCOME_UNKNOWN" && error.cause.code === "KEY_SECRET_ROTATED");
+  // Self-revoke: the first DELETE ran, the retry is refused.
+  const revoke = scripted([lost, failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(revoke.client.keys.revoke("key_1"), (error) => error.code === "OUTCOME_UNKNOWN" && /revoked/u.test(error.message));
+  assert.deepEqual(revoke.calls.map((call) => call.method), ["DELETE", "DELETE"]);
+
+  // A 401 is unchanged when no earlier attempt can have run.
+  const first = scripted([failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(first.client.keys.rotate("key_1"), (error) => error.code === "INVALID_API_KEY");
+  const limited = scripted([failure(429, "RATE_LIMITED"), failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(limited.client.keys.revoke("key_1"), (error) => error.code === "INVALID_API_KEY");
+  const unsealed = scripted([failure(400, "IDEMPOTENCY_NOT_SUPPORTED", {}), failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(unsealed.client.keys.rotate("key_1"), (error) => error.code === "INVALID_API_KEY");
+  // Other calls keep the API's code.
+  const create = scripted([lost, failure(401, "INVALID_API_KEY", {})], { apiKey: "kl_dev_test" });
+  await assert.rejects(create.client.keys.create("ci"), (error) => error.code === "INVALID_API_KEY");
+});
+
 test("a generated key refused with IDEMPOTENCY_NOT_SUPPORTED is dropped once, without further retries", async () => {
   const { client, calls } = scripted(
     [failure(400, "IDEMPOTENCY_NOT_SUPPORTED", {}), failure(503, "STORE_UNAVAILABLE")],

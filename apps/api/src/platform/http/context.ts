@@ -21,6 +21,8 @@ export interface AuthContext {
   readonly projectId?: string;
   /** The key authenticated with a secret that was rotated out and is inside its grace window. */
   readonly viaPreviousSecret?: true;
+  /** SHA-256 of the presented developer secret (never the secret itself): tells a key's current and previous secrets apart. */
+  readonly secretHash?: string;
   /** Set when the caller presented a credential that failed; the request is rejected after rate limiting. */
   readonly rejection?: HttpError | PlatformError;
 }

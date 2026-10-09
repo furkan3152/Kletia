@@ -21,6 +21,8 @@
  * - a webhook whose last 5 attempts failed is paused for 30 s, doubling up to
  *   5 min while the probe after each pause fails; its deliveries wait in the
  *   owner's queue meanwhile.
+ * Events of intents whose key was revoked are not routed (revoking also
+ * deletes the key's webhooks; this covers a cleanup that failed).
  * Every drop is counted and logged. Every attempt and drop is also written to
  * the per-webhook delivery log (deliveries.ts) through a fire-and-forget
  * recorder, so the log never delays delivery.
@@ -30,6 +32,7 @@ import { isIP } from "node:net";
 import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
 import { subscribeIntentEvents, type IntentEvent } from "../index.js";
+import { isKeyRevoked } from "./auth.js";
 import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
 import { guardedLookup, isPublicAddress } from "./netguard.js";
 import { resolveIntentOwner } from "./owners.js";
@@ -247,6 +250,8 @@ export class WebhookDispatcher {
     if (owner === null) return;
     const hooks = (await webhooksForOwner(owner)).filter((hook) => hook.events.includes(event.type));
     if (hooks.length === 0) return;
+    // A revoked key's webhooks never receive its intents' events (a store failure throws: nothing is sent).
+    if (await isKeyRevoked(owner)) return;
     const body = JSON.stringify(event);
     for (const hook of hooks) {
       this.enqueue({ webhookId: hook.id, ownerKeyId: owner, url: hook.url, event, body, attempt: 1 });

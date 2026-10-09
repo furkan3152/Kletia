@@ -30,11 +30,7 @@ export function QuickStart({ activeId, onPick }: QuickStartProps) {
               >
                 <span
                   aria-hidden="true"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-[#1A1A1A] dark:border-[#4B5563]"
-                  style={{
-                    backgroundColor: preset.accent,
-                    color: ["#FFD60A", "#14F195", "#FF5A5F"].includes(preset.accent) ? "#1A1A1A" : "#FFFFFF",
-                  }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#4B5563]"
                 >
                   <preset.icon className="h-4 w-4" />
                 </span>

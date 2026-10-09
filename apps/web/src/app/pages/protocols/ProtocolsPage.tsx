@@ -1,15 +1,16 @@
-import { ArrowRight, ArrowUpRight, Eye, PenLine, Radar, SearchX } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { ArrowRight, ArrowUpRight, SearchX } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { describePlatformError } from "../../../shared/platform/kletiaClient";
 import { fetchNetworks, fetchProtocols } from "../../../shared/platform/platformApi";
 import { registryNetworks, registryProtocols, sortNetworks } from "../../../shared/platform/registry";
 import { useApiResource } from "../../../shared/platform/useApiResource";
 import { Link } from "../../routes/Link";
-import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
 import { Reveal } from "../../site/motion/Reveal";
 import { useReducedMotion } from "../../site/motion/useReducedMotion";
-import { CONTRIBUTING_URL } from "../../site/siteLinks";
+import { categoryIcon, categoryWord, type IconName } from "../../site/art";
+import { Icon } from "../../site/art/Icon";
+import { CONTRIBUTING_URL, GITHUB_URL } from "../../site/siteLinks";
 import { Badge } from "../../site/ui/Badge";
 import { Button, ButtonLink } from "../../site/ui/Button";
 import { Section } from "../../site/ui/Section";
@@ -25,7 +26,7 @@ import {
   protocolTransitionName,
   type ProtocolEntry,
 } from "./protocolStats";
-import { applyFilters, sanitizeFilters, useProtocolFilters } from "./useProtocolFilters";
+import { applyFilters, EMPTY_FILTERS, sanitizeFilters, useProtocolFilters } from "./useProtocolFilters";
 
 /** Above this many cards, filter changes skip the View Transition (too many snapshots). */
 const VT_CARD_LIMIT = 80;
@@ -44,14 +45,68 @@ function SourceBadge({ live, loading }: { readonly live: boolean; readonly loadi
   );
 }
 
-function HeaderStat({ label, value, accent }: { readonly label: string; readonly value: number | null; readonly accent: string }) {
+interface DirectoryRow {
+  readonly word: string;
+  readonly icon: IconName;
+  readonly count: number;
+}
+
+/** Directory rows: one per sign word (two registry categories can share one, e.g. both swap kinds), largest first. */
+function directoryRows(protocols: readonly ProtocolEntry[]): DirectoryRow[] {
+  const rows = new Map<string, { word: string; icon: IconName; count: number }>();
+  for (const protocol of protocols) {
+    const category = protocol.category || "other";
+    const word = categoryWord(category);
+    const row = rows.get(word) ?? { word, icon: categoryIcon(category), count: 0 };
+    row.count += 1;
+    rows.set(word, row);
+  }
+  return [...rows.values()].sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, "en"));
+}
+
+/**
+ * The station directory hung in the hall: every kind of venue on this page
+ * and how many platforms serve it, with the page totals under it. Printed
+ * signage: ink board, paper letters, yellow header, in both themes.
+ */
+function DirectorySign({ protocols, loading }: { readonly protocols: readonly ProtocolEntry[]; readonly loading: boolean }) {
+  const rows = useMemo(() => directoryRows(protocols), [protocols]);
+  const totals = useMemo(() => protocolTotals(protocols), [protocols]);
   return (
-    <div className="flex flex-col gap-2 border-l-[6px] pl-3 sm:pl-4" style={{ borderColor: accent }}>
-      <dt className={cx(LABEL, "order-2 text-[#45464B] dark:text-[#A9B6C8]")}>{label}</dt>
-      <dd className="order-1 font-display text-4xl font-bold leading-none tracking-[-0.04em] sm:text-5xl">
-        <AnimatedNumber value={value} />
-      </dd>
-    </div>
+    <aside
+      aria-labelledby="directory-heading"
+      className="border-[3px] border-[#1A1A1A] bg-[#1A1A1A] text-[#F4F1EA] shadow-[8px_8px_0_#1A1A1A] [--kla-plate:#FFD60A] dark:border-[#4B5563] dark:bg-[#060A14] dark:shadow-[8px_8px_0_#475569]"
+    >
+      <h2
+        id="directory-heading"
+        className="flex items-baseline justify-between gap-4 bg-[#FFD60A] px-5 py-3 font-code text-xs font-extrabold uppercase tracking-[0.18em] text-[#1A1A1A]"
+      >
+        <span>Station directory</span>
+        <span className="font-semibold">{loading ? "Loading" : `${totals.protocols} platforms`}</span>
+      </h2>
+      {loading ? (
+        <p className="px-5 py-8 font-code text-xs uppercase tracking-[0.14em] text-[#F4F1EA]/80">Reading the registry</p>
+      ) : (
+        <ul className="px-5 py-2">
+          {rows.map((row) => (
+            <li key={row.word} className="flex items-center gap-4 border-b border-dashed border-[#F4F1EA]/25 py-2.5 last:border-b-0">
+              <Icon name={row.icon} size={26} />
+              <span className="font-display text-lg font-bold tracking-[-0.01em]">{row.word}</span>
+              <span aria-hidden="true" className="h-0 min-w-6 flex-1 border-b-2 border-dotted border-[#F4F1EA]/40" />
+              <span className="font-code text-sm font-bold tabular-nums">
+                {row.count}
+                <span className="sr-only"> {row.count === 1 ? "platform" : "platforms"}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="border-t-[3px] border-[#F4F1EA]/20 px-5 py-3 font-code text-[11px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-[#F4F1EA]/85">
+        {loading
+          ? "Counts follow the registry"
+          : `${totals.execute} built by Kletia · ${totals.crossChain} cross-network · ${totals.networks} networks`}
+      </p>
+    </aside>
   );
 }
 
@@ -81,10 +136,12 @@ function GridSkeleton() {
 
 interface GridProps {
   readonly protocols: readonly ProtocolEntry[];
+  /** Platform number per protocol id: its place in the whole directory, so filtering never renumbers a sign. */
+  readonly platforms: ReadonlyMap<string, number>;
 }
 
 /** The card grid. Cards present on its first render rise in (first 8 staggered); later cards glide via View Transitions. */
-function ProtocolGrid({ protocols }: GridProps) {
+function ProtocolGrid({ protocols, platforms }: GridProps) {
   const reduced = useReducedMotion();
   const [introIds] = useState(() => new Map(protocols.slice(0, INTRO_CARDS).map((protocol, index) => [protocol.id, index])));
   const names = useMemo(() => {
@@ -104,6 +161,7 @@ function ProtocolGrid({ protocols }: GridProps) {
         <ProtocolCard
           key={protocol.id}
           protocol={protocol}
+          platform={platforms.get(protocol.id) ?? index + 1}
           transitionName={transitions ? names[index] : undefined}
           introIndex={reduced ? null : (introIds.get(protocol.id) ?? null)}
         />
@@ -112,26 +170,30 @@ function ProtocolGrid({ protocols }: GridProps) {
   );
 }
 
-const LEGEND: readonly { readonly title: string; readonly body: string; readonly icon: React.ReactNode; readonly stripe: string }[] = [
+const LEGEND: readonly { readonly title: string; readonly body: string; readonly service: "execute" | "quote" | "discover" }[] = [
   {
     title: "Execute",
     body: `${CAPABILITY_HELP.execute} Your wallet signs each one; Kletia never holds keys or funds.`,
-    icon: <PenLine className="h-5 w-5" aria-hidden="true" />,
-    stripe: "#0052FF",
+    service: "execute",
   },
   {
     title: "Quote",
-    body: `${CAPABILITY_HELP.quote} Quotes feed the planner's routes, fees and output floors.`,
-    icon: <Radar className="h-5 w-5" aria-hidden="true" />,
-    stripe: "#FFD60A",
+    body: `${CAPABILITY_HELP.quote} Quotes feed the planner's routes, fees and minimum outputs.`,
+    service: "quote",
   },
   {
     title: "Discover",
     body: `${CAPABILITY_HELP.discover} A registry entry is never a promise of execution.`,
-    icon: <Eye className="h-5 w-5" aria-hidden="true" />,
-    stripe: "#94A3B8",
+    service: "discover",
   },
 ];
+
+/** The service chips exactly as the signs print them. */
+const SERVICE_CHIP: Readonly<Record<"execute" | "quote" | "discover", string>> = {
+  execute: "border-current text-[#0047E0] dark:text-[#7EA6FF]",
+  quote: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  discover: "border-current",
+};
 
 /** /protocols: every venue Kletia can plan with, live from GET /v1/protocols with a registry fallback. */
 export default function ProtocolsPage() {
@@ -175,47 +237,52 @@ export default function ProtocolsPage() {
   const shownApi = useMemo(() => ({ ...api, filters: effective }), [api, effective]);
   const filtered = useMemo(() => applyFilters(protocols, effective), [protocols, effective]);
   const totals = useMemo(() => protocolTotals(protocols), [protocols]);
+  // Platform numbers follow the whole directory in the chosen order, so filtering never renumbers a sign.
+  const platforms = useMemo(
+    () =>
+      new Map(
+        applyFilters(protocols, { ...EMPTY_FILTERS, sort: effective.sort }).map((protocol, index) => [protocol.id, Math.min(99, index + 1)]),
+      ),
+    [protocols, effective.sort],
+  );
   const live = liveProtocols;
 
   return (
     <>
-      <header className="kl-grid-backdrop border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
-        <div className={cx(CONTAINER, "py-14 sm:py-20")}>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Protocol directory</p>
-            <SourceBadge live={live} loading={protocolsLoading} />
+      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+        <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-center lg:gap-16")}>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-4">
+              <p className={cx(LABEL, "font-code text-[#0047E0] dark:text-[#7EA6FF]")}>Protocol directory</p>
+              <SourceBadge live={live} loading={protocolsLoading} />
+            </div>
+            <h1 className="mt-6 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-[1] tracking-[-0.045em]">
+              {protocolsLoading ? "Venues" : `${totals.protocols} venues`} Kletia can route through.
+            </h1>
+            <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
+              <strong className="text-[#1A1A1A] dark:text-white">Execute</strong> means Kletia builds the transaction.{" "}
+              <strong className="text-[#1A1A1A] dark:text-white">Quote</strong> means it prices a route that settles somewhere
+              else. <strong className="text-[#1A1A1A] dark:text-white">Discover</strong> means it only reads data. Every sign lists
+              the networks the venue calls at.
+            </p>
+            <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3">
+              <Link
+                to="/networks"
+                className={cx("inline-flex min-h-11 items-center gap-2 text-sm font-black uppercase tracking-[0.14em] underline decoration-[3px] underline-offset-4", FOCUS_RING)}
+              >
+                Network status
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <Link
+                to="/studio"
+                className={cx("inline-flex min-h-11 items-center gap-2 text-sm font-black uppercase tracking-[0.14em] underline decoration-[3px] underline-offset-4", FOCUS_RING)}
+              >
+                Plan an intent
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
-          <h1 className="mt-4 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.75rem)] font-bold leading-[1.06] tracking-[-0.045em] sm:leading-[0.95]">
-            Every venue, <span className="bg-[#FFD60A] px-1.5 text-[#1A1A1A]">one intent.</span>
-          </h1>
-          <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-            Kletia plans with these protocols: it <strong className="text-[#1A1A1A] dark:text-white">executes</strong>{" "}
-            wallet-ready transactions, <strong className="text-[#1A1A1A] dark:text-white">quotes</strong> live routes
-            that settle elsewhere, or <strong className="text-[#1A1A1A] dark:text-white">discovers</strong> read-only
-            market data. Pick one and try an example intent in Studio.
-          </p>
-          <dl className="mt-10 grid max-w-3xl grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
-            <HeaderStat label="Protocols" value={protocolsLoading ? null : totals.protocols} accent="#0052FF" />
-            <HeaderStat label="Execute-capable" value={protocolsLoading ? null : totals.execute} accent="#FFD60A" />
-            <HeaderStat label="Cross-chain" value={protocolsLoading ? null : totals.crossChain} accent="#9945FF" />
-            <HeaderStat label="Networks covered" value={protocolsLoading ? null : totals.networks} accent="#14F195" />
-          </dl>
-          <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3">
-            <Link
-              to="/networks"
-              className={cx("inline-flex min-h-11 items-center gap-2 text-sm font-black uppercase tracking-[0.14em] underline decoration-[3px] underline-offset-4", FOCUS_RING)}
-            >
-              Network status
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            <Link
-              to="/studio"
-              className={cx("inline-flex min-h-11 items-center gap-2 text-sm font-black uppercase tracking-[0.14em] underline decoration-[3px] underline-offset-4", FOCUS_RING)}
-            >
-              Plan an intent
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
+          <DirectorySign protocols={protocols} loading={protocolsLoading} />
         </div>
       </header>
 
@@ -264,31 +331,29 @@ export default function ProtocolsPage() {
               </Button>
             </div>
           ) : (
-            <ProtocolGrid protocols={filtered} />
+            <ProtocolGrid protocols={filtered} platforms={platforms} />
           )}
         </div>
       </section>
 
       <Section
         id="capabilities"
+        eyebrow="Execute · Quote · Discover"
         tone="paper"
         bordered
         reveal
-        eyebrow="Execute · Quote · Discover"
-        title="What each capability means"
-        intro="A capability describes what Kletia does with a venue today. Planning always picks the venue; an example intent never promises a specific one."
+        title="What each service means"
+        intro="The planner picks the venue. An example sentence on a sign never promises that a specific venue will be used."
       >
         <Reveal as="ul" stagger className="grid gap-5 md:grid-cols-3">
           {LEGEND.map((item) => (
-            <li key={item.title} data-reveal-item className={cx("flex flex-col", INK_BORDER, SHADOW_HARD, SURFACE)}>
-              <span aria-hidden="true" className="block h-[6px] border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={{ backgroundColor: item.stripe }} />
-              <div className="flex flex-1 flex-col gap-3 p-6">
-                <p className="flex items-center gap-2 font-display text-2xl font-bold tracking-[-0.02em]">
-                  {item.icon}
+            <li key={item.title} data-reveal-item className={cx("flex flex-col gap-4 p-6", INK_BORDER, SHADOW_HARD, SURFACE)}>
+              <p>
+                <span className={cx("inline-block border-2 px-2.5 py-1.5 font-code text-xs font-extrabold uppercase leading-none tracking-[0.14em]", SERVICE_CHIP[item.service])}>
                   {item.title}
-                </p>
-                <p className={cx("text-[15px] leading-relaxed", TEXT_MUTED)}>{item.body}</p>
-              </div>
+                </span>
+              </p>
+              <p className={cx("text-[15px] leading-relaxed", TEXT_MUTED)}>{item.body}</p>
             </li>
           ))}
         </Reveal>
@@ -298,22 +363,23 @@ export default function ProtocolsPage() {
         <div className={CONTAINER}>
           <div className={cx("flex flex-col gap-8 bg-[#111318] p-8 text-white dark:bg-[#060A14] sm:p-10 lg:flex-row lg:items-center lg:justify-between", INK_BORDER, "shadow-[8px_8px_0_#FFD60A] dark:shadow-[8px_8px_0_#FFD60A]")}>
             <div className="max-w-2xl">
-              <p className={cx(LABEL, "text-[#FFD60A]")}>Open registry</p>
+              <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#FFD60A]">Open registry</p>
               <h2 id="missing-venue-heading" className="mt-3 font-display text-3xl font-bold tracking-[-0.03em] sm:text-4xl">
-                Missing a venue?
+                Is a venue missing?
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-white/80">
-                Kletia&apos;s registry is open source; protocols are added in <code className="font-code text-[#FFD60A]">@kletia/core</code>{" "}
-                with pinned contract addresses and an execution adapter in the API.
+                Adapters live in <code className="font-code text-[#FFD60A]">apps/api/src/platform/engine/adapters</code>. Open an
+                issue with the venue, the networks and the calls you need, or send a pull request.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <ButtonLink to={CONTRIBUTING_URL} variant="accent" size="lg">
-                Contribute a venue
+              <ButtonLink to={`${GITHUB_URL}/issues`} variant="accent" size="lg">
+                Open an issue
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </ButtonLink>
-              <ButtonLink to="/developers" variant="secondary" size="lg" className="!border-white">
-                Developer docs
+              <ButtonLink to={CONTRIBUTING_URL} variant="secondary" size="lg" className="!border-white">
+                Contributing guide
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </ButtonLink>
             </div>
           </div>

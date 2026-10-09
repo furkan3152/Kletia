@@ -1,126 +1,130 @@
-import { CHAINS, type ProtocolDescriptor } from "@kletia/core";
+import type { ProtocolDescriptor } from "@kletia/core";
 import { ArrowRight } from "lucide-react";
+import type { CSSProperties } from "react";
 
-import { MAINNET_NETWORKS } from "../../../shared/platform/registry";
 import { Link } from "../../routes/Link";
-import { Marquee, MarqueeChip } from "../../site/motion/Marquee";
-import { Reveal } from "../../site/motion/Reveal";
-import { Badge } from "../../site/ui/Badge";
-import { Monogram } from "../../site/ui/Monogram";
-import { CONTAINER, cx, FOCUS_RING, INK_BORDER, LABEL, LIFT, SHADOW_HARD, TEXT_MUTED } from "../../site/ui/styles";
+import { LineBullet } from "../../site/art/LineBullet";
+import type { Line } from "../../site/art";
+import { countWordTitle, countWord, listNames, PRODUCTION, YARD } from "../../site/registryCopy";
+import { Section } from "../../site/ui/Section";
+import { cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 
-const FEATURED = [...MAINNET_NETWORKS, "arc" as const].map((key) => CHAINS[key]);
-const TESTNETS = Object.values(CHAINS).filter((chain) => chain.environment === "testnet" && chain.key !== "arc");
+/** Venue kinds that are stations on a line. Bridges are the interchange; token programs, data and custom calls are not stops. */
+const STATION_CATEGORIES = new Set(["dex", "dex-aggregator", "lending", "yield", "naming", "liquid-staking", "payments"]);
+
+function stationsOn(line: Line, protocols: readonly ProtocolDescriptor[]): string[] {
+  return protocols
+    .filter(
+      (protocol) =>
+        Array.isArray(protocol.networks) &&
+        protocol.networks.includes(line.key) &&
+        protocol.crossChain !== true &&
+        STATION_CATEGORIES.has(protocol.category),
+    )
+    .map((protocol) => protocol.name);
+}
+
+function interchangesOn(line: Line, protocols: readonly ProtocolDescriptor[]): number {
+  return protocols.filter((protocol) => protocol.crossChain === true && Array.isArray(protocol.networks) && protocol.networks.includes(line.key)).length;
+}
+
+/** The coloured rail down the left edge of a row; SVM lines carry their ink sleepers. */
+function Rail({ line }: { readonly line: Line }) {
+  const style: CSSProperties = {
+    backgroundColor: line.color,
+    backgroundImage: line.gauge === "svm" ? "repeating-linear-gradient(180deg, #1A1A1A 0 4px, transparent 4px 9px)" : undefined,
+    backgroundSize: line.gauge === "svm" ? "3px 100%" : undefined,
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  };
+  return <span aria-hidden="true" className="absolute inset-y-0 left-0 w-3 border-r-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={style} />;
+}
 
 export interface NetworkStripProps {
   /** Live `/v1/protocols` when available, else the registry. */
   readonly protocols: readonly ProtocolDescriptor[];
 }
 
-/** Networks from CHAINS and a protocol ticker (monograms and names only, no third-party marks). */
+/** The line index: every production network with the venues it calls at, then the test yard. */
 export function NetworkStrip({ protocols }: NetworkStripProps) {
   return (
-    <section
-      aria-labelledby="network-strip-heading"
-      className="border-b-[3px] border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0E1729]"
+    <Section
+      id="lines"
+      platform={2}
+      eyebrow="Networks"
+      reveal
+      title={`${countWordTitle(PRODUCTION.length)} production lines and ${countWord(YARD.length === 0 ? 0 : 1)} test yard.`}
+      intro={
+        <>
+          {listNames(PRODUCTION.map((line) => line.name))} carry real funds.{" "}
+          {YARD.length
+            ? `${listNames(YARD.map((line) => line.name))} run in a separate yard, so a test token can never pay for a mainnet leg.`
+            : null}
+        </>
+      }
+      actions={
+        <Link
+          to="/networks"
+          className={cx(
+            "group inline-flex min-h-11 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#0047E0] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
+            FOCUS_RING,
+          )}
+        >
+          Live status for every network
+          <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
+        </Link>
+      }
     >
-      <div className={cx(CONTAINER, "py-12 sm:py-14")}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <h2 id="network-strip-heading" className="font-display text-2xl font-bold tracking-[-0.02em] sm:text-3xl">
-            One intent spec. Two virtual machines.
-          </h2>
-          <p className={cx("text-sm", TEXT_MUTED)}>
-            {Object.keys(CHAINS).length} networks · {protocols.length} protocol integrations in the registry
-          </p>
-        </div>
-
-        <Reveal as="ul" stagger className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          {FEATURED.map((chain) => (
-            <li
-              key={chain.key}
-              data-reveal-item
-              className={cx("group relative flex min-w-0 bg-[#FBFAF7] pl-[19px] dark:bg-[#131E32]", INK_BORDER, SHADOW_HARD, LIFT)}
-            >
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 w-4 origin-left scale-x-75 transition-transform duration-240 ease-kl-snap group-hover:scale-x-100 group-focus-within:scale-x-100 motion-reduce:transition-none"
-                style={{ backgroundColor: chain.color }}
-              />
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-3 w-[3px] bg-[#1A1A1A] transition-transform duration-240 ease-kl-snap group-hover:translate-x-1 group-focus-within:translate-x-1 motion-reduce:transition-none dark:bg-[#4B5563]"
-              />
-              <div className="min-w-0 flex-1 p-3 sm:p-4">
-                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-                  <p className="min-w-0 font-display text-base font-bold leading-tight sm:text-xl">{chain.name}</p>
-                  <Badge tone={chain.vm === "svm" ? "purple" : "blue"}>{chain.vm === "svm" ? "SVM" : "EVM"}</Badge>
-                </div>
-                <p className="mt-2 hidden font-code text-[11px] text-[#45464B] [overflow-wrap:anywhere] dark:text-[#A9B6C8] sm:block">
-                  {chain.id}
-                </p>
-                <p className={cx(LABEL, "mt-2 whitespace-nowrap !text-[10px] !tracking-[0.1em] sm:mt-3 sm:!tracking-[0.18em]", chain.lane === "testnet" ? "text-[#B45309] dark:text-[#FFD60A]" : "text-[#0B7A4B] dark:text-[#14F195]")}>
-                  {chain.lane === "testnet" ? "Testnet lane" : "Production lane"}
-                </p>
-              </div>
-            </li>
-          ))}
-          <li data-reveal-item className="flex min-w-0">
-            <Link
-              to="/networks"
-              className={cx(
-                "group/all flex w-full flex-col justify-between gap-3 border-[3px] border-dashed border-[#1A1A1A]/50 p-3 sm:p-4 transition-colors duration-150 hover:border-[#1A1A1A] hover:bg-[#FFF7CC] motion-reduce:transition-none dark:border-white/25 dark:hover:border-white/60 dark:hover:bg-[#1A2841]",
-                FOCUS_RING,
-              )}
-            >
-              <span className="font-display text-base font-bold leading-tight sm:text-xl">Live network status</span>
-              <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
-                <span className="hidden sm:inline">RPC health & capabilities</span>
-                <span className="sm:hidden">Status</span>
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover/all:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
-              </span>
-            </Link>
-          </li>
-        </Reveal>
-        <p className={cx("mt-5 flex flex-wrap items-center gap-2 text-xs", TEXT_MUTED)}>
-          <Badge tone="yellow">Testnets</Badge>
-          {TESTNETS.map((chain) => (
-            <Badge key={chain.key} tone="outline" dot={chain.color}>
-              {chain.name}
-            </Badge>
-          ))}
-          <span>Mainnet and testnet capital never share an intent graph.</span>
-        </p>
-      </div>
-
-      <Marquee
-        label="Protocols in the Kletia registry"
-        speed={36}
-        gap={12}
-        className="border-t-[3px] border-[#1A1A1A] bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#1A2841]"
-        listClassName="py-4"
+      <ol
+        aria-label="Production lines"
+        className="border-[3px] border-[#1A1A1A] bg-[#FBFAF7] shadow-hard-md dark:border-[#4B5563] dark:bg-[#131E32]"
       >
-        {protocols.map((protocol) => (
-          <MarqueeChip key={protocol.id} className="pl-1.5">
-            <Monogram name={protocol.name} category={protocol.category} size="sm" className="!h-7 !w-7 !border-2 text-[11px] !shadow-none [&>span]:hidden" />
-            {protocol.name}
-          </MarqueeChip>
-        ))}
-      </Marquee>
-      <div className="border-t-[3px] border-[#1A1A1A] bg-[#111318] dark:border-[#4B5563] dark:bg-[#060A14]">
-        <div className={cx(CONTAINER, "flex flex-wrap items-center justify-between gap-3 py-3")}>
-          <p className="text-xs text-white/70">Execute, quote or discover: every venue with what Kletia can do there.</p>
-          <Link
-            to="/protocols"
-            className={cx(
-              "group/browse inline-flex min-h-9 items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#FFD60A] underline decoration-2 underline-offset-4",
-              "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]",
-            )}
-          >
-            Browse all {protocols.length} protocols
-            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover/browse:translate-x-1 motion-reduce:transition-none" aria-hidden="true" />
-          </Link>
-        </div>
-      </div>
-    </section>
+        {PRODUCTION.map((line) => {
+          const stations = stationsOn(line, protocols);
+          const interchanges = interchangesOn(line, protocols);
+          return (
+            <li
+              key={line.key}
+              className="relative grid grid-cols-[3.6rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5 border-b-2 border-[#1A1A1A]/15 py-4 pl-7 pr-4 dark:border-white/10 md:pl-9 md:pr-6 lg:grid-cols-[3.6rem_minmax(0,11rem)_minmax(0,12rem)_minmax(0,1fr)] lg:gap-x-5"
+            >
+              <Rail line={line} />
+              <LineBullet line={line} size="lg" decorative />
+              <h3 className="font-display text-lg font-bold leading-tight tracking-[-0.02em] lg:text-[1.2rem]">{line.name}</h3>
+              <p
+                className={cx("col-start-2 font-code text-[11.5px] [overflow-wrap:anywhere] lg:col-start-auto", TEXT_MUTED)}
+                title={line.id}
+              >
+                {line.id.length > 24 ? `${line.id.slice(0, 22)}…` : line.id}
+              </p>
+              <p className={cx("col-span-2 text-sm leading-relaxed lg:col-span-1", TEXT_MUTED)}>
+                <span className="mr-2 font-code text-[10px] font-bold uppercase tracking-[0.16em]">Calls at</span>
+                {stations.length ? stations.join(" · ") : "No stations yet"}
+                {interchanges ? (
+                  <span className="mt-1 block">
+                    <span className="mr-2 font-code text-[10px] font-bold uppercase tracking-[0.16em]">Change for</span>
+                    <span className="font-semibold text-[#1A1A1A] dark:text-[#F1F5F9]">
+                      {interchanges} cross-network {interchanges === 1 ? "venue" : "venues"}
+                    </span>{" "}
+                    at the interchange
+                  </span>
+                ) : null}
+              </p>
+            </li>
+          );
+        })}
+        {YARD.length ? (
+          <li className="flex flex-wrap items-center gap-x-6 gap-y-3 bg-[repeating-linear-gradient(-45deg,transparent_0_9px,rgba(26,26,26,0.07)_9px_18px)] py-4 pl-7 pr-4 dark:bg-[repeating-linear-gradient(-45deg,transparent_0_9px,rgba(255,255,255,0.06)_9px_18px)] md:pl-9">
+            <span className="font-code text-[10px] font-bold uppercase tracking-[0.16em] text-[#45464B] dark:text-[#A9B6C8]">Test yard</span>
+            {YARD.map((line) => (
+              <span key={line.key} className="inline-flex items-center gap-2 font-display text-[15px] font-semibold">
+                <LineBullet line={line} decorative className="kla-bullet--yard" />
+                {line.name}
+              </span>
+            ))}
+            <span className={cx("font-code text-xs", TEXT_MUTED)}>separate capital, no through service</span>
+          </li>
+        ) : null}
+      </ol>
+    </Section>
   );
 }

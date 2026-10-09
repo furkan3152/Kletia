@@ -209,14 +209,14 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
         </section>
         <section aria-label="Planner optimizations" className={cx(INK_BORDER, SURFACE, "p-4 sm:p-5")}>
           <h4 className={cx(LABEL, "flex items-center gap-2")}>
-            <Sparkles className="h-4 w-4 text-[#9945FF]" aria-hidden="true" />
+            <Sparkles className="h-4 w-4 text-[#6D28D9] dark:text-[#A78BFA]" aria-hidden="true" />
             Optimizations
           </h4>
           {interpretation.optimizations && interpretation.optimizations.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm">
               {interpretation.optimizations.map((item) => (
                 <li key={item} className="flex gap-2">
-                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#9945FF]" />
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#6D28D9] dark:bg-[#A78BFA]" />
                   <span>{item}</span>
                 </li>
               ))}

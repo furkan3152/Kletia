@@ -57,19 +57,23 @@
     linear-gradient(90deg, transparent calc(50% - 14px), rgba(0, 0, 0, 0.28) calc(50% - 1px), rgba(255, 255, 255, 0.05) calc(50% + 1px), transparent calc(50% + 14px)),
     linear-gradient(180deg, transparent calc(50% - 14px), rgba(0, 0, 0, 0.24) calc(50% - 1px), rgba(255, 255, 255, 0.04) calc(50% + 1px), transparent calc(50% + 14px));
 }
-.kla-mapcard__foot {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  min-height: 64px;
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1.5px dashed color-mix(in srgb, var(--kla-map-text) 30%, transparent);
-  font: 700 10px/1.5 var(--kla-font-mono);
+/* Printer's slug: outside the trim, above the top-right corner, clear of the
+   corner mark (right) and the registration target (centre). */
+.kla-mapcard__slug {
+  position: absolute;
+  right: 14px;
+  bottom: calc(100% + 7px);
+  white-space: nowrap;
+  font: 700 10px/1.2 var(--kla-font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--kla-map-muted);
-  text-align: right;
+  color: var(--kla-muted);
+}
+/* Blank margin under the drawing: a ticket can lie over it. */
+.kla-mapcard__margin {
+  min-height: 64px;
+  margin-top: 6px;
+  border-top: 1.5px dashed color-mix(in srgb, var(--kla-map-text) 30%, transparent);
 }
 .kla-mapcard--responsive .kla-map--strip {
   display: none;
@@ -79,7 +83,8 @@
     padding: 12px 10px 8px;
   }
   .kla-mapcard--responsive .kla-map--full,
-  .kla-mapcard--responsive .kla-mapcard__foot {
+  .kla-mapcard--responsive .kla-mapcard__slug,
+  .kla-mapcard--responsive .kla-mapcard__margin {
     display: none;
   }
   .kla-mapcard--responsive .kla-map--strip {
@@ -237,8 +242,8 @@
   letter-spacing: 0.06em;
 }
 .kla-map__mono {
-  font: 600 9.5px/1 var(--kla-font-mono);
-  letter-spacing: 0.1em;
+  font: 600 10.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.08em;
   fill: var(--kla-map-muted);
 }
 .kla-map__mono--strong {
@@ -250,7 +255,7 @@
   fill: var(--kla-map-sign-text);
 }
 .kla-map__small {
-  font: 500 10.5px/1 var(--kla-font-body);
+  font: 500 11px/1 var(--kla-font-body);
   fill: var(--kla-map-muted);
 }
 .kla-map__yard-ground {

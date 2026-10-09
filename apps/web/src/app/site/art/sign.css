@@ -112,9 +112,21 @@
   background: #ffd60a;
   border-color: #1a1a1a;
 }
+/* The foot grows to fill the sign: a plain action sits at the bottom, and a
+   custom foot can keep its first rows up under the services and push only its
+   links down (give the links margin-top: auto). */
 .kla-psign__cta {
-  margin-top: auto;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  justify-content: flex-end;
   padding-top: 18px;
+}
+.kla-psign__cta > * {
+  flex: 1 0 auto;
+}
+.kla-psign__cta > a {
+  flex: 0 0 auto;
 }
 .kla-psign__cta a {
   display: inline-block;

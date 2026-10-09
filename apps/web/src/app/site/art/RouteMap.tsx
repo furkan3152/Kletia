@@ -286,8 +286,8 @@ function FullMap({ id, animate, decorative, className }: MapViewProps) {
 
       {/* Key. */}
       <g className="kla-map__legend">
-        <rect x={475} y={21} width={268} height={128} className="kla-map__shadow" />
-        <rect x={472} y={18} width={268} height={128} className="kla-map__card" />
+        <rect x={475} y={21} width={268} height={133} className="kla-map__shadow" />
+        <rect x={472} y={18} width={268} height={133} className="kla-map__card" />
         <text x={486} y={37} className="kla-map__mono kla-map__mono--strong">
           KEY
         </text>

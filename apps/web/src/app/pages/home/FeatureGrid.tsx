@@ -1,128 +1,117 @@
-import {
-  BadgeCheck,
-  Braces,
-  Code,
-  GitFork,
-  KeyRound,
-  Network,
-  ShieldCheck,
-  Webhook,
-} from "lucide-react";
-import React from "react";
-
-import { Reveal } from "../../site/motion/Reveal";
+import type { IconName } from "../../site/art";
+import { Icon } from "../../site/art/Icon";
 import { Section } from "../../site/ui/Section";
-import { cx, INK_BORDER, LIFT, SHADOW_HARD, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 
-interface Feature {
+interface Rule {
+  readonly icon: IconName;
   readonly title: string;
   readonly body: string;
   readonly tag: string;
-  readonly icon: React.ReactNode;
-  readonly color: string;
-  /** Tile classes when the brand colour would vanish on a dark card. */
-  readonly tileClassName?: string;
 }
 
-const FEATURES: readonly Feature[] = [
+const RULES: readonly Rule[] = [
   {
-    title: "Chain-agnostic spec",
-    body: "Networks, accounts and assets cross every boundary as CAIP-2, CAIP-10 and CAIP-19 ids. Symbols never resolve across networks by name.",
+    icon: "name",
+    title: "Ids instead of names",
+    body: "Chains, accounts and tokens travel as CAIP-2, CAIP-10 and CAIP-19 ids, so USDC on Base is never mistaken for USDC on Polygon.",
     tag: "@kletia/core",
-    icon: <Braces className="h-6 w-6" aria-hidden="true" />,
-    color: "#0052FF",
   },
   {
-    title: "Non-custodial",
-    body: "The API returns unsigned transactions. The user's wallet signs every value-moving step; Kletia never holds keys or funds.",
+    icon: "key",
+    title: "The API never signs",
+    body: "Responses carry unsigned transactions. Keys stay in the user's wallet, and Kletia never holds funds.",
     tag: "unsigned payloads",
-    icon: <KeyRound className="h-6 w-6" aria-hidden="true" />,
-    color: "#FFD60A",
   },
   {
-    title: "Evidence-verified settlement",
-    body: "A submitted hash or signature only moves a step after it is observed on-chain from the bound account; cross-network steps wait for the settlement network.",
+    icon: "verify",
+    title: "Settled means seen on-chain",
+    body: "A hash on its own moves nothing. Kletia waits until it reads the transaction from the bound account, and a cross-network leg waits for the destination fill.",
     tag: "StepEvidence",
-    icon: <BadgeCheck className="h-6 w-6" aria-hidden="true" />,
-    color: "#14F195",
   },
   {
-    title: "Intent graph DAG",
-    body: "Steps form a dependency graph with funds and ordering edges. The planner merges steps when one venue can do both, such as bridge-and-swap through Relay.",
-    tag: "route optimisation",
-    icon: <Network className="h-6 w-6" aria-hidden="true" />,
-    color: "#9945FF",
+    icon: "bridge",
+    title: "Legs merge when they can",
+    body: "If one venue can bridge and swap in a single transaction, the planner uses it and the user signs once.",
+    tag: "bridge auction",
   },
   {
-    title: "SSE + signed webhooks",
-    body: "Stream intent events over Server-Sent Events or receive HMAC-SHA256 signed webhooks with timestamp tolerance and retries.",
+    icon: "webhook",
+    title: "Events you can check",
+    body: "Server-Sent Events while someone is watching, HMAC-SHA256 signed webhooks when nobody is. Each webhook carries a timestamp and is retried after 1, 5 and 25 seconds.",
     tag: "Kletia-Signature",
-    icon: <Webhook className="h-6 w-6" aria-hidden="true" />,
-    color: "#28A0F0",
   },
   {
-    title: "Deterministic compiler",
-    body: "Natural language is compiled by a grammar, not a model. Unsupported wording returns 422 with examples instead of a guess.",
-    tag: "no model in the execution path",
-    icon: <Code className="h-6 w-6" aria-hidden="true" />,
-    color: "#FF5A5F",
+    icon: "route",
+    title: "Compiled by a grammar",
+    body: "A fixed grammar turns the text into legs. Wording it does not know gets a 422 that lists the phrases it does know, so nothing is guessed.",
+    tag: "INTENT_UNSUPPORTED",
   },
   {
-    title: "Fail-closed safety",
-    body: "Solana transactions are simulated before they are returned, Base swaps run through an identity-pinned router, and mainnet and testnet capital never mix.",
+    icon: "shield",
+    title: "Fails closed",
+    body: "Solana transactions are simulated before you receive them, Base swaps go through an identity-pinned router, and test funds never touch a mainnet leg.",
     tag: "simulation · pinning · lanes",
-    icon: <ShieldCheck className="h-6 w-6" aria-hidden="true" />,
-    color: "#7C3AED",
   },
   {
+    icon: "sdk",
     title: "Open source",
     body: "The engine, the spec, the SDK and this site are MIT licensed. Read the code that plans your users' transactions.",
     tag: "MIT",
-    icon: <GitFork className="h-6 w-6" aria-hidden="true" />,
-    color: "#1A1A1A",
-    tileClassName: "dark:!bg-white dark:!text-[#0B1120]",
   },
 ];
 
-const DARK_ICON = new Set(["#FFD60A", "#14F195", "#28A0F0"]);
+/** A brass pin holding the notice to the wall. */
+function Pin({ side }: { readonly side: "left" | "right" }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`absolute -top-[9px] z-[2] h-4 w-4 rounded-full border-[3px] border-[#1A1A1A] bg-[#FFD60A] shadow-[inset_-2px_-2px_0_rgba(26,26,26,0.35)] ${side === "left" ? "left-7" : "right-7"}`}
+    />
+  );
+}
 
+/**
+ * House rules: the planner's guarantees as a notice posted on the platform.
+ * Printed stock: the notice keeps its ink at night.
+ */
 export function FeatureGrid() {
   return (
     <Section
       id="infrastructure"
+      platform={6}
+      eyebrow="House rules"
+      tone="paper"
+      bordered
       reveal
-      eyebrow="Infrastructure"
-      title="Built like infrastructure, not a demo."
-      intro="Everything Kletia does is described by a public spec, enforced by the API, and verifiable on-chain."
+      title="Rules the planner follows on every route."
+      intro="Each one is enforced by the API and written down in the public spec."
     >
-      <Reveal as="ul" stagger className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
-        {FEATURES.map((feature) => (
-          <li
-            key={feature.title}
-            data-reveal-item
-            className={cx(
-              "group grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 p-4 sm:flex sm:flex-col sm:p-5",
-              INK_BORDER,
-              SHADOW_HARD,
-              SURFACE,
-              LIFT,
-            )}
-          >
-            <span
-              className={cx(
-                "row-span-3 flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] shadow-hard-sm transition-transform duration-240 ease-kl-snap group-hover:-translate-y-0.5 group-hover:-rotate-6 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0 motion-reduce:group-hover:rotate-0 dark:border-[#4B5563] sm:h-12 sm:w-12",
-                feature.tileClassName,
-              )}
-              style={{ backgroundColor: feature.color, color: DARK_ICON.has(feature.color) ? "#1A1A1A" : "#FFFFFF" }}
+      <div className="kla-grain relative -rotate-[0.4deg] border-[3px] border-[#1A1A1A] bg-[#FFFCF2] pb-3 text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-plate:#FFD60A] [--kla-grain:var(--kla-stock-grain)]">
+        <Pin side="left" />
+        <Pin side="right" />
+        <p className="flex flex-wrap justify-between gap-2 bg-[#1A1A1A] px-6 py-3.5 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#FFD60A]">
+          <span>Kletia planner</span>
+          <span className="font-semibold text-[#F4F1EA]">House rules · in force on every route</span>
+        </p>
+        <ol className="grid px-6 md:grid-cols-2">
+          {RULES.map((rule, index) => (
+            <li
+              key={rule.title}
+              className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-4 border-b-[1.5px] border-dashed border-[#1A1A1A]/35 py-6 last:border-b-0 md:odd:pr-7 md:even:border-l-[1.5px] md:even:pl-7 md:[&:nth-last-child(2)]:border-b-0"
             >
-              {feature.icon}
-            </span>
-            <h3 className="font-display text-lg font-bold leading-tight tracking-[-0.01em] sm:mt-5 sm:text-xl">{feature.title}</h3>
-            <p className={cx("mt-1.5 text-sm leading-relaxed sm:mt-2 sm:flex-1", TEXT_MUTED)}>{feature.body}</p>
-            <p className="mt-2 font-code text-[11px] text-[#0052FF] dark:text-[#7EA6FF] sm:mt-4">{feature.tag}</p>
-          </li>
-        ))}
-      </Reveal>
+              <Icon name={rule.icon} size={34} />
+              <div className="min-w-0">
+                <h3 className="mt-1 font-display text-lg font-bold leading-snug tracking-[-0.015em]">
+                  <span className="mr-2 font-code text-xs font-bold text-[#5B5C61]">{String(index + 1).padStart(2, "0")}</span>
+                  {rule.title}
+                </h3>
+                <p className="mt-2 text-[14.5px] leading-relaxed text-[#45464B]">{rule.body}</p>
+                <code className="mt-2 inline-block font-code text-[11.5px] font-semibold text-[#0047E0]">{rule.tag}</code>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
     </Section>
   );
 }

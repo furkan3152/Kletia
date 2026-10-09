@@ -175,7 +175,7 @@ export function IntentExecutionFlow({
                 className="max-w-full !whitespace-normal text-left"
               >
                 <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
-                I checked my wallet — sign again
+                I checked my wallet, sign again
               </Button>
             ) : (
               <Button size="sm" onClick={() => void execution.resume(intent.id)}>

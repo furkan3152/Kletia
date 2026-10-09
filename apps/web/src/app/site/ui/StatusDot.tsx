@@ -4,7 +4,7 @@ import { cx } from "./styles";
 export type HealthState = "ok" | "degraded" | "down" | "unknown" | "loading";
 
 const STYLES: Record<HealthState, { color: string; label: string }> = {
-  ok: { color: "#14F195", label: "Operational" },
+  ok: { color: "#4ADE80", label: "Operational" },
   degraded: { color: "#FFD60A", label: "Degraded" },
   down: { color: "#FF5A5F", label: "Down" },
   unknown: { color: "#94A3B8", label: "Unknown" },

@@ -72,7 +72,7 @@ function PhaseIcon({ phase, running }: { phase: StepDisplayPhase; running: boole
   if (phase === "settled") {
     return (
       <CircleCheck
-        className={cx("h-4 w-4 text-[#047857] dark:text-[#14F195]", phaseKey > 0 && "kl-stamp")}
+        className={cx("h-4 w-4 text-[#047857] dark:text-[#4ADE80]", phaseKey > 0 && "kl-stamp")}
         aria-hidden="true"
       />
     );
@@ -222,7 +222,7 @@ export function IntentProgress({
         <p className={LABEL}>Progress</p>
         <div className="flex flex-wrap items-center gap-2">
           {streaming ? (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#047857] dark:text-[#14F195]">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#047857] dark:text-[#4ADE80]">
               <Radio className="h-3.5 w-3.5" aria-hidden="true" />
               Live
             </span>
@@ -308,7 +308,7 @@ export function IntentOutcome({
         {copy.tone === "green" ? (
           <span
             aria-hidden="true"
-            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#14F195] text-[#0B1120] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]"
+            className="kl-stamp flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#4ADE80] text-[#0B1120] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]"
             style={{ animationDelay: "160ms" }}
           >
             <CircleCheck className="h-6 w-6" strokeWidth={2.5} />
@@ -342,7 +342,7 @@ export function IntentOutcome({
         {steps.map((step) => (
           <li key={step.id} className="flex flex-col gap-1.5 border-t-2 border-dashed border-[#1A1A1A]/20 pt-2 dark:border-white/10">
             <span className="text-sm font-bold">
-              {String(step.index + 1).padStart(2, "0")} · {step.title} — {humanize(step.status)}
+              {String(step.index + 1).padStart(2, "0")} · {step.title}: {humanize(step.status)}
             </span>
             <StepLinks step={step} />
           </li>

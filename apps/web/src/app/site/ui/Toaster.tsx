@@ -13,7 +13,7 @@ export interface ToasterProps {
 }
 
 const TONES: Record<ToastTone, { stripe: string; icon: typeof Info; iconClass: string; label: string }> = {
-  success: { stripe: "#14F195", icon: CircleCheck, iconClass: "text-[#0B7A4B] dark:text-[#14F195]", label: "Success" },
+  success: { stripe: "#4ADE80", icon: CircleCheck, iconClass: "text-[#0B7A4B] dark:text-[#4ADE80]", label: "Success" },
   error: { stripe: "#FF5A5F", icon: CircleAlert, iconClass: "text-[#B91C1C] dark:text-[#FCA5A5]", label: "Error" },
   info: { stripe: "#0052FF", icon: Info, iconClass: "text-[#0052FF] dark:text-[#7EA6FF]", label: "Info" },
   warning: { stripe: "#FFD60A", icon: TriangleAlert, iconClass: "text-[#8A6100] dark:text-[#FFD60A]", label: "Warning" },

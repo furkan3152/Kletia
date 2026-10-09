@@ -59,7 +59,7 @@ function RateLimitMeter({ exchange }: { readonly exchange: ExplorerExchange }) {
           aria-label={`${used} of ${limit} requests used in this window`}
         >
           <div
-            className={cx("h-full", percent > 85 ? "bg-[#FF5A5F]" : percent > 60 ? "bg-[#FFD60A]" : "bg-[#14F195]")}
+            className={cx("h-full", percent > 85 ? "bg-[#FF5A5F]" : percent > 60 ? "bg-[#FFD60A]" : "bg-[#4ADE80]")}
             style={{ width: `${percent}%` }}
           />
         </div>

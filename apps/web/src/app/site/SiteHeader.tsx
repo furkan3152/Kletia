@@ -129,7 +129,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <ButtonLink to="/app" size="md" className="hidden sm:inline-flex">
-              Launch app
+              Open the console
             </ButtonLink>
             <button
               ref={toggleRef}
@@ -185,7 +185,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
             </ul>
             <div data-menu-item>
               <ButtonLink to="/app" size="lg" className="mt-5 w-full" onClick={() => setOpen(false)}>
-                Launch app
+                Open the console
               </ButtonLink>
             </div>
           </nav>

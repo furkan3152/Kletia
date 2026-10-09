@@ -34,14 +34,14 @@ export interface RouteDefinition {
 }
 
 const SITE_DESCRIPTION =
-  "Kletia compiles financial intents into verified, wallet-signed steps across EVM networks and Solana — as a console for users and an API, SDK and widget for teams.";
+  "Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed.";
 
 export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze({
   home: {
     id: "home",
     path: "/",
     kind: "site",
-    title: "Kletia — Intent infrastructure for EVM and Solana",
+    title: "Kletia: intent routing for EVM networks and Solana",
     description: SITE_DESCRIPTION,
     load: () => import("../pages/home/HomePage"),
   },
@@ -49,36 +49,36 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     id: "developers",
     path: "/developers",
     kind: "site",
-    title: "Developers — Kletia Platform API, SDK and widget",
+    title: "Developers: the Kletia API, SDK and widget",
     description:
-      "Quickstart, authentication tiers, developer keys, an interactive API explorer, events, webhooks and agent integrations for the Kletia intent platform.",
+      "Install the SDK, get a key, try every Platform API v1 operation in the explorer, and wire up events, webhooks, recipes and agents.",
     load: () => import("../pages/developers/DevelopersPage"),
   },
   networks: {
     id: "networks",
     path: "/networks",
     kind: "site",
-    title: "Networks & status — Kletia",
+    title: "Networks and status: Kletia",
     description:
-      "Live API and RPC health, latency history, per-network intent capabilities and the venues Kletia can plan with on every network.",
+      "A departure board of RPC status for every network Kletia plans on, what the planner accepts on each one and the venues it can call there.",
     load: () => import("../pages/networks/NetworksPage"),
   },
   protocols: {
     id: "protocols",
     path: "/protocols",
     kind: "site",
-    title: "Protocols — Kletia intent venues",
+    title: "Protocols: venues Kletia can route through",
     description:
-      "Every venue Kletia can plan with across its EVM networks and Solana: what each protocol can execute, quote or discover, live from the public API.",
+      "Every venue Kletia can plan with on EVM networks and Solana, and whether it executes, quotes or only reads data there. Live from the public API.",
     load: () => import("../pages/protocols/ProtocolsPage"),
   },
   studio: {
     id: "studio",
     path: "/studio",
     kind: "site",
-    title: "Intent Studio — Kletia",
+    title: "Intent Studio: Kletia",
     description:
-      "Type an outcome, preview the intent graph Kletia compiles (network-bound steps, protocols, quotes, fees and warnings) and execute it with your own wallets.",
+      "Write a route in plain English and see its legs, venues, quotes and minimum outputs as a dry run. Run it with your own wallets when it looks right.",
     load: () => import("../pages/studio/StudioPage"),
   },
   embed: {
@@ -103,7 +103,7 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     id: "notFound",
     path: "/404",
     kind: "site",
-    title: "Page not found — Kletia",
+    title: "Page not found: Kletia",
     description: SITE_DESCRIPTION,
     load: () => import("../pages/notFound/NotFoundPage"),
   },

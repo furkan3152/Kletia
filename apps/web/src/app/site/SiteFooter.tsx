@@ -1,8 +1,10 @@
-import { ArrowUpRight, KeyRound } from "lucide-react";
+import { CHAINS, PROTOCOLS } from "@kletia/core";
+import { ArrowUpRight } from "lucide-react";
 
 import { Link } from "../routes/Link";
+import { Icon } from "./art/Icon";
+import { LineRule } from "./art/Ornaments";
 import { KletiaMark } from "./KletiaMark";
-import { Reveal } from "./motion/Reveal";
 import {
   API_DOC_URL,
   CONTRIBUTING_URL,
@@ -25,7 +27,7 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
       { label: "Console", to: "/app" },
       { label: "Intent Studio", to: "/studio" },
       { label: "Protocols", to: "/protocols" },
-      { label: "Networks & status", to: "/networks" },
+      { label: "Networks and status", to: "/networks" },
       { label: "How it works", to: "/#how-it-works" },
       { label: "Security model", to: "/#security" },
       { label: "FAQ", to: "/#faq" },
@@ -37,8 +39,8 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
       { label: "Quickstart", to: "/developers#quickstart" },
       { label: "API explorer", to: "/developers#explorer" },
       { label: "Endpoint reference", to: "/developers#reference" },
-      { label: "Events & webhooks", to: "/developers#events" },
-      { label: "Embed & widget", to: "/developers#embed" },
+      { label: "Events and webhooks", to: "/developers#events" },
+      { label: "Embed and widget", to: "/developers#embed" },
       { label: "Agents", to: "/developers#agents" },
       { label: "API v1 spec", to: API_DOC_URL, external: true },
     ],
@@ -59,7 +61,9 @@ const LINK =
 /** The footer is always dark: a yellow focus ring in both themes. */
 const FOCUS_ON_INK =
   "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]";
-const WORDMARK = "Kletia".split("");
+const CHAIN_LIST = Object.values(CHAINS);
+const PRODUCTION = CHAIN_LIST.filter((chain) => chain.lane !== "testnet").length;
+const TESTNETS = CHAIN_LIST.length - PRODUCTION;
 
 /** Site footer: product, developer and company links plus the custody statement. */
 export function SiteFooter() {
@@ -73,12 +77,12 @@ export function SiteFooter() {
               <span className="font-display text-2xl font-bold uppercase tracking-[-0.02em]">Kletia</span>
             </Link>
             <p className="mt-5 text-sm leading-relaxed text-white/75">
-              Intent infrastructure for EVM networks and Solana: a console for users and an API, SDK
-              and widget for teams that want intents in their own product.
+              Intent routing for EVM networks and Solana: a console for people, and an API, SDK and widget for teams
+              who want routes inside their own product.
             </p>
-            <p className="mt-6 inline-flex items-center gap-2 text-balance border-2 border-[#FFD60A] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#FFD60A]">
-              <KeyRound className="h-4 w-4 shrink-0" aria-hidden="true" />
-              Non-custodial · your keys sign
+            <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#FFD60A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#FFD60A] [--kla-plate:#0052FF]">
+              <Icon name="key" size={18} />
+              The API never signs
             </p>
           </div>
           {COLUMNS.map((column) => (
@@ -107,30 +111,24 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-16 flex flex-col gap-3 border-t-2 border-dashed border-white/15 pt-6 text-xs text-white/60 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-16 flex flex-col gap-3 border-t-2 border-dashed border-white/15 pt-6 text-xs text-white/70 sm:flex-row sm:items-center sm:justify-between">
           <p>
             Open source under the{" "}
             <a href={LICENSE_URL} target="_blank" rel="noopener noreferrer" className={cx("underline decoration-2 underline-offset-2 hover:text-white", FOCUS_ON_INK)}>
               MIT License
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
-            . Development-stage software; not audited.
+            . Kletia is in development and has not been audited.
           </p>
-          <p className="font-code">EVM · SVM · CAIP-2 / 10 / 19</p>
+          <p className="font-code">
+            {PRODUCTION} production networks · {TESTNETS} testnets · {PROTOCOLS.length} venues in @kletia/core
+          </p>
         </div>
       </div>
-      <Reveal
-        as="p"
-        stagger
-        distance="xl"
-        aria-hidden="true"
-        className="pointer-events-none select-none whitespace-nowrap px-4 pb-2 text-center font-display text-[22vw] font-bold uppercase leading-[0.8] tracking-[-0.01em] text-transparent [-webkit-text-stroke:2px_rgba(255,255,255,0.12)] lg:text-[16rem]"
-      >
-        {WORDMARK.map((letter, index) => (
-          <span key={index} data-reveal-item className="inline-block">
-            {letter}
-          </span>
-        ))}
-      </Reveal>
+      {/* The Kletia line runs out under the page: a signage-yellow rule with station ticks. */}
+      <div aria-hidden="true" className="relative z-10 pb-6 [--kla-ink:#000000] [--kla-shadow:#000000]">
+        <LineRule className="opacity-95" />
+      </div>
     </footer>
   );
 }

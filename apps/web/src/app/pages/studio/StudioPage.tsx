@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { readIntentSession, STUDIO_INTENT_SESSION_KEY } from "../../../shared/platform/intentSession";
 import { useRoute } from "../../routes/useRoute";
+import { PlatformNumber } from "../../site/art/Ornaments";
 import { Button } from "../../site/ui/Button";
 import { Skeleton, SkeletonGroup, SkeletonText } from "../../site/ui/Skeleton";
 import { CONTAINER, cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
@@ -47,7 +48,7 @@ function PanelFallback() {
           </div>
           <SkeletonText surface="card" lines={2} />
         </div>
-        <div className={cx("kl-dot-backdrop flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
+        <div className={cx("flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
           <div className="flex items-center gap-3">
             <Skeleton surface="card" className="h-8 w-8" />
             <Skeleton surface="card" className="h-5 w-48" />
@@ -168,16 +169,16 @@ export default function StudioPage() {
 
   return (
     <>
-      <header className="kl-grid-backdrop border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
         <div className={cx(CONTAINER, "flex flex-col gap-6 py-8 sm:py-12 lg:py-10")}>
           <div className="max-w-3xl lg:max-w-none">
-            <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Intent Studio</p>
-            <h1 className="mt-3 text-balance font-display text-[clamp(2.4rem,6.5vw,4.5rem)] font-bold leading-[0.95] tracking-[-0.045em] lg:mt-4 lg:text-[3.25rem] lg:leading-none">
-              Type an outcome. <span className="text-[#9945FF]">See the plan.</span>
+            <PlatformNumber n={1}>Intent Studio</PlatformNumber>
+            <h1 className="mt-5 text-balance font-display text-[clamp(2.3rem,6.2vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em] lg:text-[3.25rem]">
+              Write a route and see its legs.
             </h1>
-            <p className={cx("mt-4 max-w-2xl text-base leading-relaxed sm:text-lg lg:mt-3 lg:max-w-none lg:text-base", TEXT_MUTED)}>
-              Studio compiles your words (<code className="font-code text-[0.9em]">POST /v1/intents?dryRun=true</code>) into
-              a graph of steps, outputs, fees and timing; then your own wallets execute it.
+            <p className={cx("mt-4 max-w-2xl text-base leading-relaxed sm:text-lg lg:mt-3 lg:max-w-3xl lg:text-base", TEXT_MUTED)}>
+              Studio sends your sentence to <code className="font-code text-[0.9em]">POST /v1/intents?dryRun=true</code> and draws
+              the plan that comes back. Nothing is signed or stored until you run it with your own wallets.
             </p>
             {resumeIntentId && !target && !resumeNoticed ? (
               <div
@@ -213,8 +214,8 @@ export default function StudioPage() {
           )}
           executionNote={
             <p>
-              <strong>Plan first, sign second.</strong> The preview is a dry run. Executing plans the intent again with
-              the wallets you connect and asks you to confirm before any signature.
+              <strong>A dry run plans and quotes.</strong> Running it plans again with the wallets you connect and asks
+              before every signature.
             </p>
           }
         />

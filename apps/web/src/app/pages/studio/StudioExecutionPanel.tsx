@@ -70,7 +70,7 @@ function WalletRequirement({ namespace, account }: { namespace: Namespace; accou
       <span className="flex items-center gap-2 text-sm font-bold">
         {account ? (
           <CircleCheck
-            className={cx("h-4 w-4 text-[#047857] dark:text-[#14F195]", connectedKey > 0 && "kl-stamp")}
+            className={cx("h-4 w-4 text-[#047857] dark:text-[#4ADE80]", connectedKey > 0 && "kl-stamp")}
             aria-hidden="true"
           />
         ) : (
@@ -121,7 +121,7 @@ function SectionTitle({ index, title, done }: { index: number; title: string; do
         aria-hidden="true"
         className={cx(
           "flex h-8 w-8 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-sm font-black shadow-[2px_2px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]",
-          done ? "bg-[#14F195] text-[#0B1120]" : "bg-[#FFD60A] text-[#1A1A1A]",
+          done ? "bg-[#4ADE80] text-[#0B1120]" : "bg-[#FFD60A] text-[#1A1A1A]",
           done && doneKey > 0 && "kl-stamp",
         )}
       >
@@ -300,7 +300,7 @@ function StudioExecution({ preview, resumeIntentId, onClose, onBusyChange }: Stu
           ) : null}
 
           {preview && !walletsReady ? (
-            <div className={cx("kl-dot-backdrop flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
+            <div className={cx("flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
               <SectionTitle index={2} title="Plan with your accounts" />
               <p className="text-sm leading-relaxed">
                 The preview used demo accounts. Connect {needsEvm && needsSolana ? "an EVM and a Solana wallet" : needsSolana ? "a Solana wallet" : "an EVM wallet"}{" "}

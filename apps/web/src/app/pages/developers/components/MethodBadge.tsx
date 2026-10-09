@@ -1,7 +1,7 @@
 import { cx } from "../../../site/ui/styles";
 
 const METHOD_CLASS: Record<string, string> = {
-  GET: "bg-[#14F195] text-[#0B1120]",
+  GET: "bg-[#4ADE80] text-[#0B1120]",
   POST: "bg-[#0052FF] text-white",
   PUT: "bg-[#FFD60A] text-[#1A1A1A]",
   PATCH: "bg-[#FFD60A] text-[#1A1A1A]",

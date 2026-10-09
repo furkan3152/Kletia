@@ -131,7 +131,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
         aria-hidden="true"
       >
         {live && phase === "settled" ? (
-          <span className={cx("absolute inset-0 bg-[#14F195]", changed && "kl-fill-x")} />
+          <span className={cx("absolute inset-0 bg-[#4ADE80]", changed && "kl-fill-x")} />
         ) : null}
       </div>
       {checking ? (
@@ -199,7 +199,15 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           ) : null}
           <Row label="Account" value={<span title={step.account}>{shortAccount(step.account)}</span>} />
           {step.recipient && step.recipient !== step.account ? (
-            <Row label="Recipient" value={<span title={step.recipient}>{shortAccount(step.recipient)}</span>} />
+            <Row
+              label="Recipient"
+              value={
+                <span title={step.recipient}>
+                  {step.recipientName ? <span className="mr-1.5 font-semibold">{step.recipientName}</span> : null}
+                  {step.recipientName ? `(${shortAccount(step.recipient)})` : shortAccount(step.recipient)}
+                </span>
+              }
+            />
           ) : null}
         </dl>
         {step.warnings && step.warnings.length > 0 ? (

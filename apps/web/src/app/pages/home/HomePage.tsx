@@ -6,29 +6,31 @@ import { FeatureGrid } from "./FeatureGrid";
 import { FinalCta } from "./FinalCta";
 import { HeroSection } from "./HeroSection";
 import { HowItWorks } from "./HowItWorks";
-import { LiveStatus } from "./LiveStatus";
 import { NetworkStrip } from "./NetworkStrip";
 import { Pillars } from "./Pillars";
 import { SecuritySection } from "./SecuritySection";
-import { StatsBand } from "./StatsBand";
+import { StatusBoard } from "./StatusBoard";
 import { UseCases } from "./UseCases";
 import { useHomeData } from "./useHomeData";
 
-/** Home: product story, live figures, integration paths and the security model. */
+/**
+ * Home: the route map and its ticket, the departure board, the line index,
+ * how a route runs, the ways in, the house rules and the security model.
+ * Sections are numbered as platforms (01 to 09).
+ */
 export default function HomePage() {
   const data = useHomeData();
   const protocols: readonly ProtocolDescriptor[] = data.liveProtocols ? data.protocols.data! : PROTOCOLS;
   const networkCount = data.liveNetworks ? data.networks.data!.length : Object.keys(CHAINS).length;
   return (
     <>
-      <HeroSection />
-      <StatsBand data={data} />
+      <HeroSection venues={protocols.length} />
+      <StatusBoard data={data} />
       <NetworkStrip protocols={protocols} />
       <HowItWorks />
       <Pillars />
       <CodeShowcase />
       <FeatureGrid />
-      <LiveStatus data={data} />
       <UseCases />
       <SecuritySection />
       <Faq networks={networkCount} protocols={protocols.length} />

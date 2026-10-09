@@ -336,7 +336,7 @@ function ManageKeysCard() {
       </div>
       <ApiKeyField label="Key to manage with" />
       <div aria-live="polite" className="flex flex-col gap-3">
-        {notice ? <p className="border-l-[6px] border-[#14F195] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">{notice}</p> : null}
+        {notice ? <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">{notice}</p> : null}
         {secret ? <SecretReveal secret={secret} onDone={() => setSecret(null)} /> : null}
         {failure ? <ApiErrorPanel error={failure} title="The key action failed" /> : null}
       </div>

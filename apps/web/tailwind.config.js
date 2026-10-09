@@ -16,6 +16,11 @@ export default {
           paper: "#F4F1EA",
           "paper-2": "#EDE9DF",
           card: "#FBFAF7",
+          // Ticket and notice stock (the art's --kla-stock): printed objects
+          // keep this paper at night, so `stock-night` is its slightly
+          // dimmed night printing, not a dark surface.
+          stock: "#FFFCF2",
+          "stock-night": "#ECE6D6",
           blue: "#0052FF",
           "blue-soft": "#7EA6FF",
           yellow: "#FFD60A",

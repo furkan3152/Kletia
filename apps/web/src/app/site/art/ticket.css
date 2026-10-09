@@ -199,7 +199,7 @@
   background-position: 0 4px;
 }
 .kla-ticket__stub-n {
-  margin-top: 4px;
+  margin-top: 10px;
   font: 700 46px/0.9 var(--kla-font-display);
   letter-spacing: -0.05em;
 }
@@ -476,6 +476,26 @@ a.kla-receipt__tx {
   }
   .kla-ticket__intent {
     font-size: 14.5px;
+  }
+  /* The route stands upright: From over To, joined by a short rail. */
+  .kla-ticket__route {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  .kla-ticket__route .kla-ticket__k {
+    display: inline-block;
+    width: 34px;
+  }
+  .kla-ticket__track {
+    flex: none;
+    width: 10px;
+    min-width: 0;
+    height: 14px;
+    margin-left: 52px;
+    background:
+      linear-gradient(#1a1a1a, #1a1a1a) center / 2px 100% no-repeat,
+      repeating-linear-gradient(180deg, #1a1a1a 0 2px, transparent 2px 5px) center / 10px 100% no-repeat;
   }
   .kla-ticket__leg {
     grid-template-columns: auto minmax(0, 1fr) auto;

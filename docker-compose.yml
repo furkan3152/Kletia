@@ -1,6 +1,12 @@
 # Self-hosted Kletia for local evaluation: PostgreSQL + API + web.
 #
+# Build the images from this checkout:
 #   KLETIA_PLATFORM_SECRET=$(openssl rand -hex 32) docker compose up --build
+#
+# Or run the published images (built by .github/workflows/images.yml):
+#   export KLETIA_API_IMAGE=ghcr.io/furkan3152/kletia-api:main
+#   export KLETIA_WEB_IMAGE=ghcr.io/furkan3152/kletia-web:main
+#   KLETIA_PLATFORM_SECRET=$(openssl rand -hex 32) docker compose up --pull always --no-build
 #
 # Web: http://localhost:10000   API: http://localhost:3001 (/api and /v1)
 #
@@ -25,6 +31,7 @@ services:
       retries: 20
 
   api:
+    image: ${KLETIA_API_IMAGE:-kletia-api:local}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -48,6 +55,7 @@ services:
       LIFI_API_KEY: ${LIFI_API_KEY:-}
       DEBRIDGE_ACCESS_TOKEN: ${DEBRIDGE_ACCESS_TOKEN:-}
       KLETIA_WEB_ORIGIN: ${KLETIA_WEB_ORIGIN:-http://localhost:10000}
+      KLETIA_MCP_ALLOWED_ORIGINS: ${KLETIA_MCP_ALLOWED_ORIGINS:-}
     ports:
       - "3001:3001"
     healthcheck:
@@ -57,13 +65,19 @@ services:
       retries: 30
 
   web:
+    image: ${KLETIA_WEB_IMAGE:-kletia-web:local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      # Compiled into the bundle when the image is built; the published image
+      # uses these same defaults.
       args:
         VITE_BACKEND_URL: http://localhost:3001
         VITE_ALLOW_LOCAL_BACKEND: "true"
         VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
+        VITE_ETHEREUM_RPC_URL: ${VITE_ETHEREUM_RPC_URL:-}
+        VITE_OPTIMISM_RPC_URL: ${VITE_OPTIMISM_RPC_URL:-}
+        VITE_POLYGON_RPC_URL: ${VITE_POLYGON_RPC_URL:-}
     depends_on:
       api:
         condition: service_healthy

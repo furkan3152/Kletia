@@ -1,0 +1,1233 @@
+{
+  "info": {
+    "_postman_id": "7e3d05f5-e21f-5ddf-b23f-03ff534e8a69",
+    "name": "Kletia Platform API",
+    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the read-only MCP server at /v1/mcp.\n\n## Using this collection\n\n- `baseUrl` is `https://api.kletiaai.xyz` (Production) or `http://localhost:3001` (Local development).\n\n- Public endpoints work with an empty `apiKey`. Issue a key with `POST /v1/keys` (Keys folder), then store it in an environment or vault variable named `apiKey`; never share a collection that contains a key.\n\n- The `POST /v1/intents` requests plan with `dryRun=true`: nothing is stored and nothing is signed. Kletia never holds keys; signing happens in the user's wallet.\n\n- Ids such as `intentId`, `webhookId` and `keyId` are collection variables. Copy them from responses.\n\n- Webhook deliveries (Intent event delivery, Test delivery) are requests Kletia sends to you; see the OpenAPI `webhooks` section and [webhook verification](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md).\n\nGenerated from `docs/platform/openapi.json` (OpenAPI 3.1.0, API 1.0.0) by `tooling/generate-collections.mjs`. Do not edit by hand.",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.kletiaai.xyz",
+      "type": "string",
+      "description": "API origin without a trailing slash. Use http://localhost:3001 for a local or self-hosted API."
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string",
+      "description": "Developer key (kl_dev_…) for keyed calls. Leave empty for the public tier. Keep keys in a Postman environment or vault, never in a shared collection."
+    },
+    {
+      "key": "intentId",
+      "value": "",
+      "type": "string",
+      "description": "An intent id: plan one without dryRun (a stored intent), or list your intents."
+    },
+    {
+      "key": "stepId",
+      "value": "s1",
+      "type": "string",
+      "description": "A step id from the intent's graph (s1, s2, ...)."
+    },
+    {
+      "key": "webhookId",
+      "value": "",
+      "type": "string",
+      "description": "A webhook id from registering or listing webhooks."
+    },
+    {
+      "key": "keyId",
+      "value": "",
+      "type": "string",
+      "description": "An API key id from issuing or listing keys."
+    },
+    {
+      "key": "accountId",
+      "value": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "type": "string",
+      "description": "A CAIP-10 account for the portfolio request."
+    },
+    {
+      "key": "transactionReference",
+      "value": "",
+      "type": "string",
+      "description": "Transaction hash (EVM) or signature (Solana) of a prepared step, for Submit."
+    }
+  ],
+  "item": [
+    {
+      "id": "ab9a622f-2784-5417-8ad6-9970444305f3",
+      "name": "System",
+      "description": "Health, the error catalog, the status badge and this document.",
+      "item": [
+        {
+          "id": "67f42256-13e9-517d-82ef-49bdfa0cf3fc",
+          "name": "API and per-network RPC health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "health"
+              ]
+            },
+            "description": "Never fails: degraded networks are reported with ok=false. Results are cached for 10 seconds.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/health` · operationId `getHealth` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b7c78acc-d2e1-53dc-a5f9-bcae019d0bb0",
+          "name": "Error catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/errors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "errors"
+              ]
+            },
+            "description": "Every error code the API returns, and every step failure code, with its status, category, retryability and remedy. Cacheable for 5 minutes.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/errors` · operationId `listErrors` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "60aa0031-4e5a-59c2-a5d9-209ffbb1741a",
+          "name": "API status badge",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/status/badge?format=shields",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "status",
+                "badge"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "shields"
+                }
+              ]
+            },
+            "description": "operational / degraded / down from the health report. SVG by default; `format=shields` returns a shields.io endpoint document for `https://img.shields.io/endpoint?url=<encoded URL>`. Cacheable for 60 seconds.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/status/badge` · operationId `getStatusBadge` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "0230925f-ef08-5dd3-9f8b-3e105e5de270",
+          "name": "This OpenAPI document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "openapi.json"
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/openapi.json` · operationId `getOpenApi` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "a94a8cb9-7e6a-52b3-861b-daa970aa897b",
+      "name": "Registry",
+      "description": "Networks, protocols and assets, derived from the engine's live adapters.",
+      "item": [
+        {
+          "id": "866d68d1-1e7e-54a5-984e-7e44de6d7ce5",
+          "name": "Chain registry plus per-network capabilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/networks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "networks"
+              ]
+            },
+            "description": "Capabilities are derived from the engine's execution adapters. Cacheable for 60 seconds.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/networks` · operationId `listNetworks` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "ee5c89f9-e4d4-5d8c-8af8-3c711d811689",
+          "name": "Protocol registry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/protocols",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "protocols"
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/protocols` · operationId `listProtocols` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "02fe0583-529d-55e7-901e-3895f60aab97",
+          "name": "Canonical asset registry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assets?network=base",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assets"
+              ],
+              "query": [
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "Network key, CAIP-2 id or EVM chain id."
+                }
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/assets` · operationId `listAssets` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "fda5f4d4-027a-5081-a76d-31fe3b6e2bf6",
+          "name": "EVM lending venues with rates, size and exit liquidity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/venues?network=base",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "venues"
+              ],
+              "query": [
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "Network key, CAIP-2 id or EVM chain id."
+                },
+                {
+                  "key": "protocol",
+                  "value": "",
+                  "description": "Lending protocol id, e.g. aave-v3, compound-v3, morpho, moonwell.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every executable EVM lending venue in the registry (Aave V3, Compound V3, Morpho vaults, Moonwell), read on-chain and cached for 60 seconds. Values are advisory: plan and prepare re-read what they gate on. Solana venues (Jupiter Lend, Kamino) report their rate in plan notes.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/venues` · operationId `listVenues` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "2d7eb281-08b6-5e89-a9e4-63d9655f2845",
+      "name": "Quotes",
+      "description": "Advisory route quotes; nothing is stored.",
+      "item": [
+        {
+          "id": "6d648b38-4bba-5f84-ad36-9e39ae9e520a",
+          "name": "Best routes for one asset movement (same- or cross-network): bridge auction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": {\n    \"network\": \"base\",\n    \"asset\": \"USDC\",\n    \"amount\": \"25\"\n  },\n  \"to\": {\n    \"network\": \"arbitrum\",\n    \"asset\": \"USDC\"\n  },\n  \"slippageBps\": 50,\n  \"maxSeconds\": 600\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/quotes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "quotes"
+              ]
+            },
+            "description": "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/quotes` · operationId `quoteRoutes` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "f1412b47-9491-590a-be62-df94f427528c",
+          "name": "Best routes for one asset movement (same- or cross-network): same-network swap",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"network\": \"solana\",\n  \"from\": \"SOL\",\n  \"to\": \"USDC\",\n  \"amount\": \"1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/quotes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "quotes"
+              ]
+            },
+            "description": "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/quotes` · operationId `quoteRoutes` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "abab6fee-e83d-51b1-a0ee-bea44fd6fa0b",
+      "name": "Portfolio",
+      "description": "Balances of one CAIP-10 account.",
+      "item": [
+        {
+          "id": "fefcc0be-ef9d-58c7-aa03-272522d673ed",
+          "name": "Balances for one CAIP-10 account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/portfolio/:accountId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "portfolio",
+                ":accountId"
+              ],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": "{{accountId}}"
+                }
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/portfolio/{accountId}` · operationId `getPortfolio` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "2912b41f-fc1b-5d82-882b-19fb9128be7b",
+      "name": "Intents",
+      "description": "Plan, prepare, submit, verify and cancel intents.",
+      "item": [
+        {
+          "id": "457dea50-3049-5977-b9cc-d34a87b5fa92",
+          "name": "List intents created with the caller's key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents?limit=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Requires an API key (set `apiKey`).\n\n`GET /v1/intents` · operationId `listIntents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "cff2b0dd-7529-5959-8198-95b29949e584",
+          "name": "Plan an intent into an IntentGraph: dry run, natural language",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"bridge 25 USDC from base to solana then swap half to JitoSOL\",\n  \"accounts\": [\n    \"eip155:8453:0x000000000000000000000000000000000000dEaD\",\n    \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\"\n  ],\n  \"constraints\": {\n    \"maxSlippageBps\": 50\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "93a3dbdd-7751-5a7e-bd14-eaa903f7daf9",
+          "name": "Plan an intent into an IntentGraph: dry run, structured actions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actions\": [\n    {\n      \"kind\": \"bridge\",\n      \"network\": \"base\",\n      \"from\": \"USDC\",\n      \"amount\": \"25\",\n      \"toNetwork\": \"solana\",\n      \"to\": \"USDC\"\n    },\n    {\n      \"kind\": \"swap\",\n      \"network\": \"solana\",\n      \"from\": \"USDC\",\n      \"to\": \"JitoSOL\",\n      \"amount\": \"max\"\n    }\n  ],\n  \"accounts\": [\n    \"eip155:8453:0x000000000000000000000000000000000000dEaD\",\n    \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "1ee944f0-9556-59dd-bcc6-422d0daf5653",
+          "name": "Plan an intent into an IntentGraph: dry run, lending venue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actions\": [\n    {\n      \"kind\": \"deposit\",\n      \"network\": \"base\",\n      \"from\": \"USDC\",\n      \"amount\": \"100\",\n      \"params\": {\n        \"venue\": \"base:aave-v3:usdc\"\n      }\n    }\n  ],\n  \"accounts\": [\n    \"eip155:8453:0x000000000000000000000000000000000000dEaD\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "3d686b00-8664-5656-ac46-ded423be3c0c",
+          "name": "Read an intent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/intents/{id}` · operationId `getIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "a125565b-c89b-5021-bba1-570907e39683",
+          "name": "Build wallet-ready transactions for a ready step",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/steps/:stepId/prepare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "steps",
+                ":stepId",
+                "prepare"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                },
+                {
+                  "key": "stepId",
+                  "value": "{{stepId}}"
+                }
+              ]
+            },
+            "description": "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/steps/{stepId}/prepare` · operationId `prepareStep` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "91f79f53-2390-59b0-9c7f-207ce8924bea",
+          "name": "Submit transaction hashes / signatures for on-chain verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"references\": [\n    \"{{transactionReference}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/steps/:stepId/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "steps",
+                ":stepId",
+                "submit"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                },
+                {
+                  "key": "stepId",
+                  "value": "{{stepId}}"
+                }
+              ]
+            },
+            "description": "A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become `settled`; cross-network steps become `settling` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED) and leave the step unchanged. References not yet visible on-chain are stored (`submitted`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/steps/{stepId}/submit` · operationId `submitStep` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "86a7e50d-0ddf-571a-9ec0-13b1145b5a4d",
+          "name": "Re-read verification and settlement state now",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "refresh"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/refresh` · operationId `refreshIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "d1782be3-2d0e-5867-868d-dd69b6be874f",
+          "name": "Cancel an intent with no submitted steps",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/cancel` · operationId `cancelIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "f36ea160-7a29-5191-864a-9c8c4c01b21e",
+      "name": "Events",
+      "description": "Server-Sent Events per intent.",
+      "item": [
+        {
+          "id": "7f1bdeb7-b61f-56d4-b0f6-27bfc6c8cc43",
+          "name": "Server-Sent Events stream of intent events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              },
+              {
+                "key": "Last-Event-ID",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "Starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=`; the whole buffer when absent, or when the id is no longer buffered, so de-duplicate by event id), then streams live events. Each frame is `id: <event id>`, `event: <type>`, `data: <KletiaEvent JSON>`. A comment heartbeat is sent every 15 s and the stream ends after 30 minutes.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/intents/{id}/events` · operationId `streamIntentEvents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "4e9ac5f2-e839-5bf3-bd79-baef5b46a338",
+      "name": "Webhooks",
+      "description": "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs.",
+      "item": [
+        {
+          "id": "3df11559-9f2f-5fec-b931-dada1ccd8799",
+          "name": "List webhooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "Requires an API key (set `apiKey`).\n\n`GET /v1/webhooks` · operationId `listWebhooks` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "418ba5f4-874c-54fb-bb8e-95eec3565dc2",
+          "name": "Register a webhook (secret returned once)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/kletia/webhooks\",\n  \"events\": [\n    \"intent.status_changed\",\n    \"intent.step_updated\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "At most 10 webhooks per key. Deliveries are signed with `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, \"<t>.<raw body>\")>`; verify with verifyWebhookSignature from @kletia/core. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response (with the secret) is encrypted at rest.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/webhooks` · operationId `createWebhook` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "17d17bb0-abf7-5a81-a2ef-e6885f14413f",
+          "name": "Send a signed webhook.test event now",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "test"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{webhookId}}"
+                }
+              ]
+            },
+            "description": "Makes one synchronous delivery attempt of a `webhook.test` event (see the webhookTest webhook) with the same signing, network rules, 5 s timeout and no-redirect policy as real deliveries, records it in the delivery log and returns the outcome. Always 200 when the attempt was made, whatever the endpoint answered. Test deliveries never pause a webhook. At most 5 per minute per webhook.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/webhooks/{id}/test` · operationId `testWebhook` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "45deeea0-940e-5478-85c9-dbac424e20c6",
+          "name": "Delivery log of a webhook",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "deliveries"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{webhookId}}"
+                }
+              ]
+            },
+            "description": "Every attempt, drop and test delivery, newest first. Payloads and error text are never stored. Kept for 7 days (at most 1000 per webhook; 100 with in-memory storage).\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/webhooks/{id}/deliveries` · operationId `listWebhookDeliveries` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "92ee6dae-e5c9-5a12-9f7f-0a1e184fc91c",
+          "name": "Delete a webhook (and its delivery log)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{webhookId}}"
+                }
+              ]
+            },
+            "description": "Requires an API key (set `apiKey`).\n\n`DELETE /v1/webhooks/{id}` · operationId `deleteWebhook` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "37ebf5ac-0676-54d9-9270-251707b9b29c",
+      "name": "Keys",
+      "description": "Issue, list, rotate and revoke the API keys of your project.",
+      "item": [
+        {
+          "id": "ff08b973-a054-5ae7-83a0-3ce39f81a097",
+          "name": "List the keys of the caller's project",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "keys"
+              ]
+            },
+            "description": "Never returns secrets, only `last4`. Operator keys cannot be listed (409 KEY_NOT_MANAGEABLE); a secret inside its rotation grace window cannot manage keys (403 KEY_SECRET_ROTATED).\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/keys` · operationId `listApiKeys` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "bd906306-d28a-5765-a498-0389d0a5ff8d",
+          "name": "Issue a developer key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"my-server\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "keys"
+              ]
+            },
+            "description": "The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most 5 active keys, else 409 KEY_LIMIT_REACHED). Limited to 5 keys per hour per IP. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/keys` · operationId `createApiKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "2b21a8df-ac5e-597e-b306-5edd1da380e4",
+          "name": "Replace a key's secret (same id)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"graceSeconds\": 86400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/keys/:id/rotate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "keys",
+                ":id",
+                "rotate"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Issues a new secret for an active key of the caller's project. The key id is unchanged, so intents, webhooks and usage stay attached. The previous secret keeps authenticating for `graceSeconds` (default 24 h, at most 7 days, 0 = stop now) but cannot manage keys; rotating again ends an earlier grace window. Other instances notice within 15 s. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest and replayed only to the current secret or to the secret that made the request (a key that rotated itself can retry with its old secret during the grace window); any other rotated-out secret gets 403 KEY_SECRET_ROTATED.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/keys/{id}/rotate` · operationId `rotateApiKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "4dd086f4-b498-5741-b12f-6eda5f3f1422",
+          "name": "Revoke a key of the caller's project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/keys/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "keys",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself. Its webhooks and their delivery logs are deleted and its intents' events are no longer delivered; repeating the call finishes a cleanup that failed (503).\n\nRequires an API key (set `apiKey`).\n\n`DELETE /v1/keys/{id}` · operationId `revokeApiKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "b3b30e2e-bd7f-5db6-bbb6-b97aa5d46bdb",
+      "name": "Usage",
+      "description": "Per-key request counts and rate-limit state.",
+      "item": [
+        {
+          "id": "c2984c6a-cae9-5ffa-83d8-5def62f0e655",
+          "name": "Requests, status classes and intents of the caller's key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/usage?window=24h",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "usage"
+              ],
+              "query": [
+                {
+                  "key": "window",
+                  "value": "24h"
+                }
+              ]
+            },
+            "description": "Counts every request made with the key, by hour, route and status class (flushed every 30 s), plus the live rate-limit window of the answering instance and the intents the key created in the window.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/usage` · operationId `getUsage` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "0577cc15-4e22-5873-9daf-c09e4c31d9fe",
+      "name": "MCP",
+      "description": "Read-only Model Context Protocol server for agents.",
+      "item": [
+        {
+          "id": "30691949-bb39-5762-acbc-d3af615a10ae",
+          "name": "Model Context Protocol server (Streamable HTTP): tools/list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/list\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "mcp"
+              ]
+            },
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "2042670d-92cb-56bd-bcd8-7e96846fc2ac",
+          "name": "Model Context Protocol server (Streamable HTTP): plan_intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"plan_intent\",\n    \"arguments\": {\n      \"text\": \"swap 1 SOL to USDC\",\n      \"accounts\": [\n        \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\"\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "mcp"
+              ]
+            },
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "3578548a-aa43-57f4-a0c9-c632feffae98",
+          "name": "Model Context Protocol server (Streamable HTTP): create_signing_link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"create_signing_link\",\n    \"arguments\": {\n      \"text\": \"swap 1 SOL to USDC\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/mcp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "mcp"
+              ]
+            },
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`. No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

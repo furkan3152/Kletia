@@ -46,17 +46,25 @@ export function useIntentSigners(): ConnectedIntentSigners {
     return walletStandardIntentSigner(solanaWallet, solanaAccount, signAndSendSolanaTransaction);
   }, [solana, solanaAccount, solanaWallet]);
 
-  return useMemo(() => {
-    const signers: IntentSigners = {
+  // The signers keep their identity while only the wallet's network changes:
+  // a chain switch in the middle of a step (approve, switch, supply) must not
+  // look like a new wallet to callers that lease or key on them (`/embed`).
+  const signers = useMemo<IntentSigners>(
+    () => ({
       ...(evmSigner ? { evm: evmSigner } : {}),
       ...(solanaSigner ? { solana: solanaSigner } : {}),
-    };
-    return {
+    }),
+    [evmSigner, solanaSigner],
+  );
+
+  return useMemo(
+    () => ({
       signers,
       accounts,
       evm,
       solana,
       canSign: Boolean(evmSigner || solanaSigner),
-    };
-  }, [accounts, evm, evmSigner, solana, solanaSigner]);
+    }),
+    [accounts, evm, evmSigner, signers, solana, solanaSigner],
+  );
 }

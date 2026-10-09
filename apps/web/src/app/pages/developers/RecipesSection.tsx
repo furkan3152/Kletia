@@ -41,7 +41,8 @@ function ReferenceTable({ title, rows }: { title: string; rows: readonly { name:
 function RecipeExtras({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "web-component") {
     return (
-      <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+      // Stacked, not side by side: each table needs the panel's full width for its name column.
+      <div className="grid min-w-0 gap-4">
         <ReferenceTable title="Attributes" rows={EMBED_ATTRIBUTES} />
         <ReferenceTable
           title="Events"

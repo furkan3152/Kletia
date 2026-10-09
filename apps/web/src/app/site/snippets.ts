@@ -125,6 +125,9 @@ export const EMBED_PARAMS: readonly { name: string; values: string; description:
   { name: "text", values: "string, max 500", description: "Prompt pre-filled in the widget." },
   { name: "examples", values: "comma separated, max 6", description: "Example chips under the prompt." },
   { name: "bg", values: "transparent", description: "Drops the page background so the widget sits on your page." },
+  { name: "bridge", values: "1", description: "Opts in to progress events over a MessageChannel; needs origin and a connect from your page." },
+  { name: "origin", values: "your page origin", description: "The only origin whose connect the frame accepts (it must also be the frame's parent)." },
+  { name: "ref", values: "[A-Za-z0-9_.:-], max 80", description: "Your reference, stored as metadata.hostRef and echoed in events. Publicly readable: no personal data." },
 ];
 
 /** Attributes of the <kletia-intent> element (@kletia/embed). */
@@ -135,12 +138,15 @@ export const EMBED_ATTRIBUTES: readonly { name: string; values: string; descript
   { name: "bg", values: "transparent", description: "Lets your page show through behind the widget." },
   { name: "height", values: "pixels", description: "Starting height; the element then follows kletia:resize (320-1600 px)." },
   { name: "origin", values: "https origin", description: "Kletia origin that serves /embed (default https://kletiaai.xyz); set it only for a self-hosted Kletia." },
+  { name: "reference", values: "[A-Za-z0-9_.:-], max 80", description: "Your reference, stored as metadata.hostRef and echoed in intent events. Publicly readable: no personal data." },
+  { name: "label", values: "text", description: "Accessible name of the frame (default \"Kletia intent widget\")." },
 ];
 
 /** DOM events the element dispatches (bubbling, composed CustomEvents). */
 export const EMBED_EVENTS: readonly { name: string; detail: string; description: string }[] = [
   { name: "kletia:ready", detail: "{ height }", description: "The widget loaded and the bridge is connected." },
-  { name: "kletia:intent-created", detail: "{ intentId, status }", description: "The visitor stored an intent." },
+  { name: "kletia:intent-planned", detail: "{ status, reference? }", description: "A preview before a wallet is connected: a dry run, nothing stored, no id." },
+  { name: "kletia:intent-created", detail: "{ intentId, status, reference? }", description: "The visitor planned with a connected wallet and Kletia stored the intent." },
   { name: "kletia:step-updated", detail: "{ intentId, stepId, stepIndex, network, status }", description: "A step changed status." },
   { name: "kletia:completed", detail: "{ intentId, status }", description: "The intent reached a terminal status." },
   { name: "kletia:error", detail: "{ code, message }", description: "Planning or execution failed in the widget." },
@@ -159,6 +165,8 @@ export const IFRAME_SNIPPET = `<iframe
   width="492"
   height="720"
   style="border:0;max-width:100%"
+  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+  allow="clipboard-write"
   loading="lazy"
 ></iframe>`;
 
@@ -459,7 +467,16 @@ widget.addEventListener("kletia:step-updated", (event) => {
 });
 document.querySelector("#checkout")?.append(widget);`;
 
-const IFRAME_BRIDGE = `<iframe id="kletia" title="Kletia intents" width="492" height="720" style="border:0;max-width:100%"></iframe>
+const IFRAME_BRIDGE = `<iframe
+  id="kletia"
+  title="Kletia intents"
+  width="492"
+  height="720"
+  style="border:0;max-width:100%"
+  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+  allow="clipboard-write"
+  referrerpolicy="strict-origin-when-cross-origin"
+></iframe>
 
 <script type="module">
   const KLETIA = "${WEB_BASE_URL}";
@@ -468,9 +485,11 @@ const IFRAME_BRIDGE = `<iframe id="kletia" title="Kletia intents" width="492" he
   frame.addEventListener("load", () => {
     const channel = new MessageChannel();
     channel.port1.onmessage = ({ data }) => {
+      if (data?.kletia !== "event" || data.v !== 1) return;
       if (data.type === "ready" || data.type === "resize") {
         frame.style.height = \`\${Math.min(1600, Math.max(320, data.height))}px\`;
       }
+      if (data.type === "intent.planned") console.log("preview (dry run, no id)", data.status);
       if (data.type === "intent.created") console.log("intent", data.intentId, data.status);
       if (data.type === "intent.step_updated") console.log(data.stepIndex, data.network, data.status);
       if (data.type === "intent.completed") console.log("done", data.intentId, data.status);

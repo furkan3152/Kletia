@@ -40,6 +40,12 @@ function suggestionsFor(operation: ExplorerOperation, param: ExplorerParam, coll
   return prefix ? [...(collected?.ids[prefix] ?? [])].slice(0, 3) : [];
 }
 
+/** `?dryRun=true` (or `1`): the API plans without storing, so Idempotency-Key does not apply. */
+function isDryRun(values: Readonly<Record<string, string>>): boolean {
+  const value = values.dryRun?.trim().toLowerCase();
+  return value === "true" || value === "1";
+}
+
 function shortId(value: string): string {
   return value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-6)}` : value;
 }
@@ -300,9 +306,11 @@ export function RequestEditor({
             <code className="break-all font-code text-[12px]">{draft.idempotencyKey}</code>
           ) : null}
           <p className={cx("text-xs leading-relaxed", TEXT_MUTED)}>
-            {withKey
-              ? "Send twice with the same key: the second response is replayed (Idempotent-Replayed: true). Change the body with the same key to see 422 IDEMPOTENCY_KEY_REUSED."
-              : "Makes retries of this POST safe. Works only with an API key."}
+            {!withKey
+              ? "Makes retries of this POST safe. Works only with an API key."
+              : isDryRun(draft.values)
+                ? "Dry runs are not stored, so the API ignores this header and never replays them. Set dryRun to false to see a replay."
+                : "Send twice with the same key: the second response is replayed (Idempotent-Replayed: true). Change the body with the same key to see 422 IDEMPOTENCY_KEY_REUSED."}
           </p>
         </div>
       ) : null}

@@ -10,6 +10,7 @@
 import type { CaipChainId, NetworkKey, VirtualMachine } from "./chains.js";
 import type { AccountId, AssetId } from "./caip.js";
 import type { ProtocolId } from "./protocols.js";
+import type { ContractReview, ContractStepCall } from "./contracts.js";
 
 export const INTENT_SPEC_VERSION = "kletia.intent/v1" as const;
 
@@ -25,7 +26,11 @@ export type IntentActionKind =
   | "repay"
   | "approve"
   | "claim"
-  | "read";
+  | "read"
+  /** Call of an integrator-registered EVM contract action (protocol `custom-call`). */
+  | "call"
+  /** Integrator-registered Solana Action (protocol `solana-actions`). */
+  | "action";
 
 export interface AssetAmount {
   readonly asset: AssetId;
@@ -67,9 +72,18 @@ export interface IntentActionSpec {
   /**
    * Action options: `venue` (deposit/withdraw: a YIELD_VENUES id, slug or
    * vault/market address on `network`), `portionBps` (share of the previous
-   * output), `provider` (liquid-staking provider label).
+   * output), `provider` (liquid-staking provider label). For `call` and
+   * `action`: the entry's declared parameters (plus `portionBps`).
    */
   readonly params?: Readonly<Record<string, string | number | boolean>>;
+  /**
+   * `call` / `action` only (required there, refused elsewhere): a contract
+   * registration id (`ct_…`) or alias usable by the API key that creates the
+   * intent.
+   */
+  readonly contract?: string;
+  /** `call` / `action` only (required there): the registration's entry id, e.g. `deposit`. */
+  readonly entry?: string;
 }
 
 export interface IntentConstraints {
@@ -172,6 +186,12 @@ export interface StepExecutionPayload {
   readonly expiresAt: number;
   /** Hash binding the payload to the quote it was prepared from. */
   readonly quoteBinding: string;
+  /**
+   * Call and action steps: the review of exactly these transactions
+   * (integrator, decoded call, approvals, simulated asset changes, "Not
+   * audited by Kletia"). Render it before handing the transactions to a wallet.
+   */
+  readonly review?: ContractReview;
 }
 
 export interface StepEvidence {
@@ -250,6 +270,12 @@ export interface IntentStep {
   readonly actualOutput?: AssetAmount;
   /** Machine-readable reason when the step failed. */
   readonly failure?: { readonly code: string; readonly message: string };
+  /**
+   * Call and action steps: the registration snapshot (contract id, revision,
+   * definition hash, entry, bindings, pins) and the review. Verification
+   * only uses this snapshot, never the live registry.
+   */
+  readonly call?: ContractStepCall;
 }
 
 export interface IntentEdge {

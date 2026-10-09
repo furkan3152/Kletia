@@ -83,9 +83,12 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // The plan or its error renders below the form on narrow screens: bring either into view.
+    // A prompt that fails the local checks shows its error in the form instead.
+    const willPlan = Boolean(studio.text.trim()) && !studio.evmError && !studio.solanaError;
     void submit().then((result) => {
-      if (result && window.matchMedia?.("(max-width: 1023px)").matches) {
-        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if ((result || willPlan) && window.matchMedia?.("(max-width: 1023px)").matches) {
+        resultsRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
       }
     });
   };
@@ -135,13 +138,16 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
       }, OUT_OF_VIEW_CHECK_MS);
       return () => window.clearTimeout(timer);
     }
-    if (planStatus === "error" && planError?.retryable) {
+    if (planStatus === "error" && planError) {
       const timer = window.setTimeout(() => {
         if (!isOutOfView(resultsRef.current)) return;
         toast.error("Planning failed", {
           id: PLAN_TOAST,
           description: planError.message,
-          action: { label: "Retry", onClick: () => void submitRef.current() },
+          // Retrying only helps transient failures; anything else needs the explanation in the panel.
+          action: planError.retryable
+            ? { label: "Retry", onClick: () => void submitRef.current() }
+            : { label: "Show details", onClick: showResults },
           silent: true,
         });
       }, OUT_OF_VIEW_CHECK_MS);

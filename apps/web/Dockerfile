@@ -14,6 +14,11 @@ ARG VITE_BASE_RPC_URL=https://mainnet.base.org
 ARG VITE_ALLOW_PUBLIC_BASE_RPC_FALLBACK=true
 ARG VITE_ARC_RPC_URL=https://rpc.testnet.arc.network
 ARG VITE_ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
+# Optional wallet RPCs for intent steps on Ethereum, OP Mainnet and Polygon;
+# empty uses the public endpoints built into the app.
+ARG VITE_ETHEREUM_RPC_URL=
+ARG VITE_OPTIMISM_RPC_URL=
+ARG VITE_POLYGON_RPC_URL=
 ARG VITE_ARBITRUM_MVP_ENABLED=true
 ARG VITE_ARC_VAULT_EXECUTION_MODE=vault_v2
 ARG VITE_ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d
@@ -24,6 +29,8 @@ COPY package.json package-lock.json .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/sdk/package.json packages/sdk/
 COPY packages/widget/package.json packages/widget/
+COPY packages/embed/package.json packages/embed/
+COPY packages/cli/package.json packages/cli/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN --mount=type=secret,id=npm_ca,required=false \
@@ -32,7 +39,9 @@ RUN --mount=type=secret,id=npm_ca,required=false \
 
 COPY packages packages
 COPY apps/web apps/web
-RUN npm run build:packages && npm run build -w @kletia/web
+# Only the packages the web app imports; @kletia/embed and @kletia/cli are not installed here.
+RUN npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget \
+  && npm run build -w @kletia/web
 
 FROM node:22.23.1-alpine3.24 AS runtime
 

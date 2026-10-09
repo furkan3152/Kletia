@@ -18,10 +18,13 @@ import {
   CONTRACT_VERB_PATTERN,
   ERROR_CATEGORIES,
   INTENT_SPEC_VERSION,
+  KEY_EVENT_TYPES,
   KLETIA_WELL_KNOWN_PATH,
+  LINK_EVENT_TYPES,
   MAX_MAX_SECONDS,
   MIN_MAX_SECONDS,
   NETWORK_KEYS,
+  POLICY_EVENT_TYPES,
   PROTOCOLS,
   SESSION_ID_PATTERN,
 } from "@kletia/core";
@@ -36,6 +39,8 @@ import { CONTRACT_TESTS_PER_MINUTE, CONTRACT_WRITES_PER_HOUR, KEY_ISSUANCE_LIMIT
 import { HANDOFF_MAX_TEXT } from "./mcp/handoff.js";
 import { PREVIEW_ACK_HEADER_SCHEMA, previewPaths, previewSchemas } from "./previewOpenapi.js";
 import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
+import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openapi.js";
+import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES } from "./webhooks.js";
@@ -660,6 +665,7 @@ function schemas(): JsonObject {
             issues: arrayOf(obj({ path: str(), message: str() }, ["path", "message"])),
             hints: arrayOf(str(), { description: "Optional guidance, e.g. example phrases on INTENT_UNSUPPORTED." }),
             docs: str({ format: "uri", description: "Documentation of the code: `https://kletiaai.xyz/developers#error-<CODE>`." }),
+            policy: { ...ref("PolicyErrorDetails"), description: "Rule Book refusals: every violated rule, the refusing key, when to retry and the approval to share." },
           },
           ["code", "message"],
         ),
@@ -868,6 +874,7 @@ function schemas(): JsonObject {
           ["digest", "record"],
           { description: "The plan as created, recorded once (receipts commit to it); prepare never changes it." },
         ),
+        policy: ref("IntentPolicyStamp"),
       },
       ["spec", "id", "createdAt", "updatedAt", "expiresAt", "status", "request", "interpretation", "steps", "edges", "summary", "warnings"],
     ),
@@ -915,6 +922,7 @@ function schemas(): JsonObject {
         quoteBinding: str(),
         review: { ...ref("ContractReview"), description: "Custom contract steps: the review of exactly these transactions. Show it to the user before handing the transactions to the wallet." },
         preview: { ...ref("StepPreview"), description: "The simulated (or quoted) effect of exactly these transactions; `preview.quoteBinding` equals `quoteBinding`." },
+        policy: ref("StepPolicyClearance"),
       },
       ["vm", "transactions", "expiresAt", "quoteBinding"],
     ),
@@ -988,7 +996,7 @@ function schemas(): JsonObject {
       { description: "Contract registration lifecycle, delivered to the webhooks of the registration's own key only." },
     ),
     KletiaEvent: {
-      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ReceiptIssuedEvent"), ref("ContractEvent")],
+      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ReceiptIssuedEvent"), ref("ContractEvent"), ref("LinkEvent"), ref("PolicyEvent"), ref("KeyEvent")],
       discriminator: {
         propertyName: "type",
         mapping: {
@@ -997,6 +1005,9 @@ function schemas(): JsonObject {
           "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent",
           "intent.receipt_issued": "#/components/schemas/ReceiptIssuedEvent",
           ...Object.fromEntries(CONTRACT_EVENT_TYPES.map((type) => [type, "#/components/schemas/ContractEvent"])),
+          ...Object.fromEntries(LINK_EVENT_TYPES.map((type) => [type, "#/components/schemas/LinkEvent"])),
+          ...Object.fromEntries(POLICY_EVENT_TYPES.map((type) => [type, "#/components/schemas/PolicyEvent"])),
+          ...Object.fromEntries(KEY_EVENT_TYPES.map((type) => [type, "#/components/schemas/KeyEvent"])),
         },
       },
     },
@@ -1201,6 +1212,14 @@ function schemas(): JsonObject {
           ),
         ),
         storage: obj({ intents: str(), apiKeys: str(), webhooks: str(), contracts: str(), sessions: str() }, ["intents", "apiKeys", "webhooks", "contracts", "sessions"]),
+        policies: obj(
+          {
+            enabled: bool({ description: "False when the deployment switched enforcement off: rule books are stored but not enforced." }),
+            stores: obj({ ruleBooks: str(), spend: str(), decisions: str(), approvals: str() }, ["ruleBooks", "spend", "decisions", "approvals"]),
+          },
+          ["enabled", "stores"],
+        ),
+        links: obj({ enabled: bool(), blinks: bool(), store: str() }, ["enabled", "blinks", "store"]),
         webhooks: obj(
           {
             status: str({ enum: ["enabled", "needs_configuration"] }),
@@ -1252,7 +1271,7 @@ function schemas(): JsonObject {
         ),
         preview: obj({ store: str({ enum: ["memory", "postgres", "custom"] }) }, ["store"]),
       },
-      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "webhooks", "contracts", "receipts", "preview"],
+      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "policies", "links", "webhooks", "contracts", "receipts", "preview"],
     ),
 
     Webhook: obj(
@@ -1261,9 +1280,10 @@ function schemas(): JsonObject {
         url: str({ format: "uri" }),
         events: arrayOf(str({ enum: [...WEBHOOK_EVENT_TYPES] })),
         createdAt: str({ format: "date-time" }),
+        scope: str({ enum: ["self", "subtree"], description: "`subtree`: also events of the owner's descendant agent keys (and, on project keys, project-wide Rule Book events)." }),
         secret: str({ pattern: "^whsec_[0-9A-Za-z]{32}$", description: "Signing secret. Returned only by POST /v1/webhooks." }),
       },
-      ["id", "url", "events", "createdAt"],
+      ["id", "url", "events", "createdAt", "scope"],
     ),
     WebhookCreateRequest: obj(
       {
@@ -1271,8 +1291,9 @@ function schemas(): JsonObject {
         events: arrayOf(str({ enum: [...WEBHOOK_EVENT_TYPES] }), {
           minItems: 1,
           uniqueItems: true,
-          description: "Defaults to every event type that exists when the webhook is created (intent events of the key's intents, contract events of its registrations).",
+          description: "Defaults to every event type that exists when the webhook is created (intent events of the key's intents, contract events of its registrations, link events of its links, Rule Book and key events of the key).",
         }),
+        scope: str({ enum: ["self", "subtree"], default: "self", description: "`subtree`: also deliver the events of every descendant agent key (and, on a project key, the project's Rule Book events)." }),
       },
       ["url"],
     ),
@@ -1312,6 +1333,12 @@ function schemas(): JsonObject {
         id: str({ pattern: API_KEY_ID_PATTERN.source }),
         name: str(),
         tier: str({ enum: ["developer"] }),
+        kind: str({ enum: ["project", "agent"], description: "`agent`: a kl_agt_ key issued under another key (POST /v1/keys/{id}/children)." }),
+        parentId: { type: ["string", "null"], description: "Parent of an agent key." },
+        depth: int({ minimum: 0, description: "Levels below the project key (0 for project keys)." }),
+        expiresAt: { type: ["string", "null"], format: "date-time", description: "When the key stops authenticating (always set on agent keys)." },
+        policyVersion: { type: ["integer", "null"], description: "Active rule book version (null: none; an agent key without one is an observer)." },
+        descendants: int({ minimum: 0, description: "Active agent keys below this key." }),
         last4: { type: ["string", "null"], description: "Last four characters of the current secret (null for keys issued before they were recorded)." },
         createdAt: str({ format: "date-time" }),
         lastUsedAt: { type: ["string", "null"], format: "date-time", description: "Updated at most once a minute." },
@@ -1320,7 +1347,7 @@ function schemas(): JsonObject {
         revokedAt: { type: ["string", "null"], format: "date-time" },
         current: bool({ description: "The key that made this request." }),
       },
-      ["id", "name", "tier", "last4", "createdAt", "lastUsedAt", "rotatedAt", "previousExpiresAt", "revokedAt", "current"],
+      ["id", "name", "tier", "kind", "parentId", "depth", "last4", "createdAt", "lastUsedAt", "rotatedAt", "previousExpiresAt", "revokedAt", "expiresAt", "policyVersion", "descendants", "current"],
     ),
     WebhookDelivery: obj(
       {
@@ -1397,6 +1424,29 @@ function schemas(): JsonObject {
           ["issued", "pending", "sharesActive"],
           { description: "Receipts of the key's intents issued in the window, intents waiting for one, and active shares." },
         ),
+        subtree: obj(
+          {
+            keys: arrayOf(
+              obj(
+                {
+                  keyId: str(),
+                  name: str(),
+                  kind: str({ enum: ["project", "agent"] }),
+                  parentId: { type: ["string", "null"] },
+                  revokedAt: { type: ["string", "null"], format: "date-time" },
+                  requests: int({ minimum: 0 }),
+                  intents: obj({ created: int({ minimum: 0 }), byStatus: { type: "object", additionalProperties: int({ minimum: 0 }) } }, ["created", "byStatus"]),
+                  notional: obj({ dayUsd: str(), weekUsd: str() }, ["dayUsd", "weekUsd"], { description: "Rolling 24 h / 7 d USD counted against caps." }),
+                },
+                ["keyId", "name", "kind", "parentId", "revokedAt", "requests", "intents", "notional"],
+              ),
+              { description: "Newest keys first, at most 100." },
+            ),
+            truncated: bool(),
+          },
+          ["keys", "truncated"],
+          { description: "With scope=subtree only." },
+        ),
       },
       ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents", "contracts", "receipts"],
     ),
@@ -1452,6 +1502,8 @@ function schemas(): JsonObject {
     ...contractSchemas(),
     ...previewSchemas(),
     ...receiptSchemas(),
+    ...policySchemas(),
+    ...linkSchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentCreateResponse: obj(
@@ -1757,6 +1809,8 @@ function paths(): JsonObject {
     },
     ...previewPaths(),
     ...receiptPaths(),
+    ...policyPaths(),
+    ...linkPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -1844,11 +1898,12 @@ function paths(): JsonObject {
         operationId: "revokeApiKey",
         tags: ["Keys"],
         summary: "Revoke a key of the caller's project",
-        description: "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself. Its webhooks and their delivery logs are deleted and its intents' events are no longer delivered; repeating the call finishes a cleanup that failed (503).",
+        description: "Idempotent. The key and every agent key below it (its subtree) stop authenticating at once on the answering instance and within 15 s everywhere (`key.revoked` lists the cascade). A key may revoke itself. Its webhooks and their delivery logs are deleted and its intents' events are no longer delivered; repeating the call finishes a cleanup that failed (503).",
         security: KEY_REQUIRED,
         parameters: [keyIdParam],
         responses: { "204": { description: "Revoked.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("403", "404", "409") },
       },
+      patch: keyPatchOperation(),
     },
     "/v1/usage": {
       get: {
@@ -1857,7 +1912,10 @@ function paths(): JsonObject {
         summary: "Requests, status classes and intents of the caller's key",
         description: "Counts every request made with the key, by hour, route and status class (flushed every 30 s), plus the live rate-limit window of the answering instance and the intents the key created in the window.",
         security: KEY_REQUIRED,
-        parameters: [{ name: "window", in: "query", required: false, schema: str({ enum: ["24h", "7d"], default: "24h" }) }],
+        parameters: [
+          { name: "window", in: "query", required: false, schema: str({ enum: ["24h", "7d"], default: "24h" }) },
+          { name: "scope", in: "query", required: false, description: "`subtree`: add per-key attribution of the caller's subtree (project keys: every key of the project).", schema: str({ enum: ["self", "subtree"], default: "self" }) },
+        ],
         responses: { "200": ok("UsageReport", "Usage report."), ...errors() },
       },
     },
@@ -2038,7 +2096,7 @@ function paths(): JsonObject {
         operationId: "mcp",
         tags: ["MCP"],
         summary: "Model Context Protocol server (Streamable HTTP)",
-        description: `MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with \`initialize\`. Send one JSON-RPC message per request with \`Accept: application/json, text/event-stream\`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: ${KLETIA_TOOLS.map((tool) => `\`${tool.name}\``).join(", ")}. No tool prepares, signs or submits a transaction; \`create_signing_link\` returns a Studio link (text up to ${HANDOFF_MAX_TEXT} characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (\`clientId\` = key id). Requests with an \`Origin\` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with \`claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp\`.`,
+        description: `MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with \`initialize\`. Send one JSON-RPC message per request with \`Accept: application/json, text/event-stream\`; batches are refused and GET answers 405 (no server-initiated stream). Tools: ${KLETIA_TOOLS.map((tool) => `\`${tool.name}\``).join(", ")}. Every tool is read-only except \`create_intent\` (stores an intent within the key's rule book; agent keys need \`permissions.mcpCreateIntents\`) and \`create_link\` (publishes a link; \`permissions.links\`). No tool prepares, signs or submits a transaction; \`create_signing_link\` returns a Studio link (text up to ${HANDOFF_MAX_TEXT} characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (\`clientId\` = key id). Requests with an \`Origin\` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with \`claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp\`.`,
         requestBody: jsonBody("JsonRpcRequest"),
         responses: {
           "200": {
@@ -2100,7 +2158,7 @@ export function buildOpenApiDocument(): JsonObject {
       summary: "Non-custodial, chain-agnostic intents for EVM networks and Solana.",
       description:
         "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\n" +
-        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"?, "docs"? }, "requestId" }\` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept \`Idempotency-Key\`. Agents can use the read-only MCP server at /v1/mcp.`,
+        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"?, "docs"? }, "requestId" }\` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept \`Idempotency-Key\`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (\`kl_agt_\`) are bound by their rule book chain.`,
       license: { name: "MIT", identifier: "MIT" },
       contact: { name: "Kletia", url: "https://kletiaai.xyz" },
     },
@@ -2122,7 +2180,10 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Usage", description: "Per-key request counts and rate-limit state." },
       { name: "Contracts", description: "Register your own EVM contracts and Solana Actions so your key's intents can call them: pinned, simulated, verified, never audited by Kletia." },
       { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet." },
-      { name: "MCP", description: "Read-only Model Context Protocol server for agents." },
+      { name: "Rule Book", description: "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals." },
+      { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
+      { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
+      { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
     ],
     paths: paths(),
     webhooks: {
@@ -2157,6 +2218,40 @@ export function buildOpenApiDocument(): JsonObject {
             { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
           ],
           requestBody: { required: true, content: { "application/json": { schema: ref("ContractEvent") } } },
+          responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
+        },
+      },
+      linkEvent: {
+        post: {
+          operationId: "receiveLinkEvent",
+          summary: "Intent link event delivery",
+          description:
+            "Sent to the webhooks of the link's owning key that subscribe to the type (and to `scope: \"subtree\"` webhooks of its ancestors): link.created, link.activated, link.updated (tightened, domain verified or not, blink approval), link.paused (by the publisher, or itself when a pinned name or contract changed), link.suspended, link.exhausted, link.expired, link.deleted. Same signing, retries and queueing as intent events.",
+          parameters: [
+            { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
+            { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...LINK_EVENT_TYPES] }) },
+            { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
+            { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
+          ],
+          requestBody: { required: true, content: { "application/json": { schema: ref("LinkEvent") } } },
+          responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
+        },
+      },
+      policyEvent: {
+        post: {
+          operationId: "receivePolicyEvent",
+          summary: "Rule Book and key event delivery",
+          description:
+            "Sent to the subject key's webhooks, to `scope: \"subtree\"` webhooks of its ancestors and to `scope: \"subtree\"` webhooks of the project's project keys: policy.violation, policy.approval_requested, policy.approval_decided, policy.amendment_pending, policy.amended, policy.spend_threshold (80 % and 95 % of a window), key.created and key.revoked (with the cascade).",
+          parameters: [
+            { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
+            { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...POLICY_EVENT_TYPES, ...KEY_EVENT_TYPES] }) },
+            { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
+            { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
+          ],
+          requestBody: { required: true, content: { "application/json": { schema: { oneOf: [ref("PolicyEvent"), ref("KeyEvent")] } } } },
           responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
         },
       },
@@ -2201,22 +2296,22 @@ export function buildOpenApiDocument(): JsonObject {
         "Idempotent-Replayed": { description: "`true` when the response replays an earlier request (Idempotency-Key or clientReference).", schema: str({ const: "true" }) },
       },
       responses: {
-        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
+        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
-        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, NOT_FOUND)."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, ...)."),
-        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN)."),
+        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
+        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, NOT_FOUND)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
+        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN, POLICY_APPROVAL_EXPIRED, LINK_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },
         },
-        InternalError: errorResponse("Unexpected error (INTERNAL_ERROR)."),
-        BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE, ACTION_ENDPOINT_UNAVAILABLE)."),
-        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE, RECEIPTS_DISABLED)."),
+        InternalError: errorResponse("Unexpected error (INTERNAL_ERROR, LINK_PLAN_OUT_OF_BOUNDS)."),
+        BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE, ACTION_ENDPOINT_UNAVAILABLE, LINK_DELIVERY_UNQUOTABLE)."),
+        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE, RECEIPTS_DISABLED, POLICY_PRICE_UNAVAILABLE, LINKS_DISABLED, LINK_PAGE_UNAVAILABLE)."),
         GatewayTimeout: errorResponse("An upstream provider timed out (UPSTREAM_TIMEOUT, RPC_TIMEOUT)."),
       },
       schemas: schemas(),

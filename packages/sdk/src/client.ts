@@ -1,6 +1,9 @@
 import {
   isContractId,
+  isLinkId,
   isSessionId,
+  PREVIEW_DIGEST_PATTERN,
+  validateLinkDefinition,
   type AnyKletiaEvent,
   type AssetDescriptor,
   type ContractDefinition,
@@ -9,14 +12,22 @@ import {
   type ContractTestResult,
   type ContractView,
   type IntentGraph,
+  type IntentPreview,
   type IntentRequest,
+  type LinkDefinition,
+  type LinkOwnerView,
+  type LinkStats,
+  type LinkView,
   type NetworkKey,
+  type PolicyDecision,
+  type PolicyDefaults,
+  type PolicyDocument,
   type ProtocolDescriptor,
   type ProtocolId,
   type SessionCreateRequest,
   type SessionView,
 } from "@kletia/core";
-import { KletiaApiError, type ApiIssue } from "./errors.js";
+import { KletiaApiError, KletiaPolicyError, KletiaPreviewChangedError, type ApiIssue, type PolicyErrorDetails } from "./errors.js";
 import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_RETRY_BASE_DELAY_MS,
@@ -26,10 +37,38 @@ import {
   sleep,
   type RetryClass,
 } from "./retry.js";
+import { decideWithWallet, type ApprovalWalletSigner, type WalletDecisionOptions } from "./approvals.js";
 import { readServerSentEvents } from "./sse.js";
 import type {
   ApiKeyRecord,
   ApiKeySummary,
+  CreateChildKeyRequest,
+  CreatedChildKey,
+  IntentWithPreview,
+  LinkIntentResponse,
+  LinkPatch,
+  LinkVisitorRequest,
+  PolicyApprovalFilter,
+  PolicyApprovalView,
+  PolicyDecisionFilter,
+  PolicyDecisionList,
+  PolicyEvaluateRequest,
+  PolicyEvaluateResponse,
+  PolicyReadResponse,
+  PolicySpendReport,
+  PolicyValidateResponse,
+  PolicyVersionView,
+  PolicyWriteResponse,
+  PrepareStepOptions,
+  ReceiptKeySet,
+  ReceiptListEntry,
+  ReceiptLogBatchResponse,
+  ReceiptLogBatchView,
+  ReceiptResult,
+  ReceiptShare,
+  ReceiptShareCiphertext,
+  ReceiptShareRequest,
+  ReceiptDocumentView,
   ContractDefinitionPatch,
   ContractInspectQuery,
   ContractListFilter,
@@ -57,6 +96,8 @@ import type {
 import { watchIntent, type WatchIntentOptions } from "./watch.js";
 
 export const DEFAULT_BASE_URL = "https://api.kletiaai.xyz";
+/** Origin of the Kletia web app (link pages, receipt pages, approval pages). */
+export const DEFAULT_WEB_ORIGIN = "https://kletiaai.xyz";
 export const SDK_VERSION = "0.1.0";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -84,6 +125,8 @@ export interface KletiaClientOptions {
   readonly fetch?: FetchLike;
   /** Extra headers sent with every request. */
   readonly headers?: Readonly<Record<string, string>>;
+  /** Web origin used by `links.pageUrl` / `links.cardUrl` (default https://kletiaai.xyz). */
+  readonly webOrigin?: string;
 }
 
 export interface StreamOptions {
@@ -97,12 +140,41 @@ export interface StreamOptions {
 /** Options for the low-level `request` helper. */
 export interface LowLevelRequestOptions extends RequestOptions {
   readonly query?: Readonly<Record<string, string | undefined>>;
+  /** Extra headers for this request (e.g. `If-Match`). `authorization` and `idempotency-key` cannot be set here. */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface WaitForIntentOptions extends Omit<WatchIntentOptions, "signal"> {
   readonly signal?: AbortSignal;
   /** Give up after this many milliseconds (default 20 minutes) with `WAIT_TIMEOUT`. */
   readonly timeoutMs?: number;
+}
+
+/** `intents.create`: the intent, or `{ intent, preview }` with `preview: true`. */
+export interface CreateIntent {
+  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly preview: true }): Promise<IntentWithPreview>;
+  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions & { readonly preview?: false }): Promise<IntentGraph>;
+  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions): Promise<IntentGraph | IntentWithPreview>;
+}
+
+/** Options of `receipts.get`. */
+export interface GetReceiptOptions extends RequestOptions {
+  /** An earlier sequence instead of the latest receipt. */
+  readonly sequence?: number;
+  /**
+   * Wait for the receipt: polls while it is pending (202, honouring
+   * `retryAfterSeconds`) and while the intent is still running
+   * (RECEIPT_NOT_READY). `true` waits up to 45 minutes; rejects with
+   * `WAIT_TIMEOUT` after `timeoutMs`.
+   */
+  readonly wait?: boolean | { readonly timeoutMs?: number; readonly onPending?: (pending: ReceiptPendingInfo) => void };
+}
+
+/** What `receipts.get` waits for, as `onPending` sees it. */
+export interface ReceiptPendingInfo {
+  readonly reason: string;
+  readonly expectedBy: string | null;
+  readonly retryAfterSeconds: number;
 }
 
 /** Internal per-call behaviour that is not part of the public request options. */
@@ -116,6 +188,8 @@ interface CallBehaviour {
    * cannot be replayed to this secret: report OUTCOME_UNKNOWN, not the 401.
    */
   readonly mayEndOwnSecret?: "rotate" | "revoke";
+  /** Retryable codes the caller handles itself (e.g. receipts.get waiting on RECEIPT_NOT_READY): never retried here. */
+  readonly noRetryCodes?: ReadonlySet<string>;
 }
 
 /** An attempt that failed this way may still have run on the server. */
@@ -167,9 +241,36 @@ function retryAfterSeconds(response: Response): number | null {
 }
 
 /** Builds the error for a non-2xx response from the API's JSON error envelope. */
+/** `error.policy` of a Rule Book refusal, when it has the documented shape. */
+function policyDetails(value: unknown): PolicyErrorDetails | null {
+  if (!isRecord(value) || !Array.isArray(value.violations)) return null;
+  const stage = value.stage;
+  const approval = isRecord(value.approval) && typeof value.approval.id === "string" && typeof value.approval.url === "string" ? value.approval : null;
+  return {
+    decisionId: typeof value.decisionId === "string" ? value.decisionId : null,
+    stage: stage === "plan" || stage === "prepare" || stage === "evaluate" || stage === "sign" ? stage : "plan",
+    outcome: "deny",
+    keyId: typeof value.keyId === "string" ? value.keyId : null,
+    violations: value.violations.filter((entry): entry is PolicyErrorDetails["violations"][number] => isRecord(entry) && typeof entry.rule === "string" && typeof entry.message === "string"),
+    retryAt: typeof value.retryAt === "string" ? value.retryAt : null,
+    ...(approval
+      ? {
+          approval: {
+            id: approval.id as string,
+            url: approval.url as string,
+            expiresAt: typeof approval.expiresAt === "string" ? approval.expiresAt : "",
+            ...(typeof approval.ceilingUsd === "string" ? { ceilingUsd: approval.ceilingUsd } : {}),
+            ...(approval.status === "pending" || approval.status === "approved" || approval.status === "rejected" || approval.status === "expired" ? { status: approval.status } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+/** Builds the error for a non-2xx response from the API's JSON error envelope. */
 function errorFromResponse(response: Response, parsed: unknown, fallbackMessage: string): KletiaApiError {
   const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : {};
-  return new KletiaApiError({
+  const input = {
     code: typeof error.code === "string" ? error.code : `HTTP_${response.status}`,
     message: typeof error.message === "string" ? error.message : fallbackMessage,
     status: response.status,
@@ -180,7 +281,14 @@ function errorFromResponse(response: Response, parsed: unknown, fallbackMessage:
     requestId: response.headers.get("x-request-id"),
     retryAfterSeconds: retryAfterSeconds(response),
     docs: typeof error.docs === "string" ? error.docs : null,
-  });
+  };
+  const policy = policyDetails(error.policy);
+  if (policy) return new KletiaPolicyError({ ...input, policy });
+  if (input.code === "PREVIEW_CHANGED" && isRecord(error.preview) && typeof error.preview.digest === "string") {
+    const changes = Array.isArray(error.changes) ? error.changes.filter((entry) => isRecord(entry) && typeof entry.code === "string") : [];
+    return new KletiaPreviewChangedError({ ...input, preview: error.preview as unknown as IntentPreview, changes: changes as unknown as KletiaPreviewChangedError["changes"] });
+  }
+  return new KletiaApiError(input);
 }
 
 function abortedError(signal: AbortSignal | undefined): KletiaApiError {
@@ -221,19 +329,67 @@ function sessionSegment(id: string): string {
   return id;
 }
 
+/** A link id path segment; anything else is refused before a request is made. */
+function linkSegment(id: string): string {
+  if (!isLinkId(id)) throw new TypeError("Link ids look like lk_ followed by 24 lower-case hex characters.");
+  return id;
+}
+
+/** A receipt id (`rcpt_…`) path segment. */
+function receiptSegment(id: string): string {
+  if (!/^rcpt_[0-9a-f]{32}$/u.test(id)) throw new TypeError("Receipt ids look like rcpt_ followed by 32 lower-case hex characters.");
+  return id;
+}
+
+/** A receipt share id (`rsh_…`) path segment. */
+function shareSegment(id: string): string {
+  if (!/^rsh_[0-9a-f]{24}$/u.test(id)) throw new TypeError("Share ids look like rsh_ followed by 24 lower-case hex characters.");
+  return id;
+}
+
+/** An approval id (`apr_…`) path segment. */
+function approvalSegment(id: string): string {
+  if (!/^apr_[0-9a-f]{32}$/u.test(id)) throw new TypeError("Approval ids look like apr_ followed by 32 lower-case hex characters.");
+  return id;
+}
+
+/** `If-Match` value for a rule book write: the active hash (`sha256:…`) or `none`. */
+function ifMatchHeader(value: string | undefined): Record<string, string> {
+  if (value === undefined) return {};
+  if (value !== "none" && !/^sha256:[0-9a-f]{64}$/u.test(value)) throw new TypeError('ifMatch must be the rule book hash ("sha256:…") or "none".');
+  return { "if-match": `"${value}"` };
+}
+
 /**
- * Retry classes of the custom-contract routes, layered over `retryClass`:
- * registering, updating and re-verifying a contract and creating a session
- * are replayed by the API for the same Idempotency-Key, and a contract test
- * is a read-only simulation. Turning a session into an intent stays
- * unretried: it is public (no Idempotency-Key) and uses the session up.
+ * Retry classes of routes added after `retryClass`, layered over it:
+ * registering, updating and re-verifying a contract, creating a session, a
+ * child key, a receipt share, a link, and writing a rule book are replayed by
+ * the API for the same Idempotency-Key; a contract test, a preview
+ * recomputation, a policy validation and a link quote change nothing; an
+ * approval decision replays the recorded decision. Turning a session or a
+ * link into an intent stays unretried (public, no Idempotency-Key), and so do
+ * the simulator (each call is logged and rate limited) and rule book removals
+ * (a lost response could otherwise remove twice).
  */
-const CONTRACT_ROUTES: readonly { readonly method: string; readonly pattern: RegExp; readonly kind: RetryClass }[] = [
+const ROUTE_CLASSES: readonly { readonly method: string; readonly pattern: RegExp; readonly kind: RetryClass }[] = [
   { method: "POST", pattern: /^\/contracts$/iu, kind: "idempotent" },
   { method: "PATCH", pattern: /^\/contracts\/[^/]+$/iu, kind: "idempotent" },
   { method: "POST", pattern: /^\/contracts\/[^/]+\/reverify$/iu, kind: "idempotent" },
   { method: "POST", pattern: /^\/contracts\/[^/]+\/test$/iu, kind: "safe" },
   { method: "POST", pattern: /^\/sessions$/iu, kind: "idempotent" },
+  { method: "POST", pattern: /^\/intents\/[^/]+\/preview$/iu, kind: "safe" },
+  { method: "POST", pattern: /^\/intents\/[^/]+\/receipt\/shares$/iu, kind: "idempotent" },
+  { method: "POST", pattern: /^\/keys\/[^/]+\/children$/iu, kind: "idempotent" },
+  { method: "PATCH", pattern: /^\/keys\/[^/]+$/iu, kind: "safe" },
+  { method: "PUT", pattern: /^\/keys\/[^/]+\/policy$/iu, kind: "idempotent" },
+  { method: "PUT", pattern: /^\/projects\/current\/policy$/iu, kind: "idempotent" },
+  { method: "DELETE", pattern: /^\/keys\/[^/]+\/policy(?:\/pending)?$/iu, kind: "unsafe" },
+  { method: "DELETE", pattern: /^\/projects\/current\/policy(?:\/pending)?$/iu, kind: "unsafe" },
+  { method: "POST", pattern: /^\/policy\/validate$/iu, kind: "safe" },
+  { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu, kind: "safe" },
+  { method: "POST", pattern: /^\/links$/iu, kind: "idempotent" },
+  { method: "PATCH", pattern: /^\/links\/[^/]+$/iu, kind: "idempotent" },
+  { method: "POST", pattern: /^\/links\/[^/]+\/quote$/iu, kind: "safe" },
 ];
 
 function requestRetryClass(method: string, path: string, query: Readonly<Record<string, string | undefined>> = {}): RetryClass {
@@ -245,8 +401,42 @@ function requestRetryClass(method: string, path: string, query: Readonly<Record<
   }
   pathname = pathname.replace(/\/+$/u, "").replace(/^\/v1(?=\/)/iu, "");
   const verb = method.toUpperCase();
-  const route = CONTRACT_ROUTES.find((candidate) => candidate.method === verb && candidate.pattern.test(pathname));
+  const route = ROUTE_CLASSES.find((candidate) => candidate.method === verb && candidate.pattern.test(pathname));
   return route ? route.kind : retryClass(method, path, query);
+}
+
+/** Codes `receipts.get` handles itself (never retried by the transport loop). */
+const RECEIPT_WAIT_CODES: ReadonlySet<string> = new Set(["RECEIPT_NOT_READY"]);
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const MAX_PNG_BYTES = 2 * 1024 * 1024;
+
+/** GET of a PNG: API errors keep their envelope; anything that is not a PNG is refused. */
+async function fetchPng(fetchImpl: FetchLike, url: string, headers: Record<string, string>, timeoutMs: number, userSignal?: AbortSignal): Promise<Uint8Array> {
+  if (userSignal?.aborted) throw abortedError(userSignal);
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const signal = userSignal ? AbortSignal.any([userSignal, timeout]) : timeout;
+  let response: Response;
+  let bytes: Uint8Array;
+  try {
+    response = await fetchImpl(url, { method: "GET", headers, signal });
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    throw transportError(error, userSignal, timeout);
+  }
+  if (!response.ok) {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      parsed = null;
+    }
+    throw errorFromResponse(response, parsed, `Request failed with status ${response.status}.`);
+  }
+  if (bytes.length > MAX_PNG_BYTES || bytes.length < 8 || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)) {
+    throw new KletiaApiError({ code: "INVALID_RESPONSE", message: "The Kletia API did not return a PNG image.", status: response.status, requestId: response.headers.get("x-request-id") });
+  }
+  return bytes;
 }
 
 /** The page's origin in a browser (`sessions.createIntent` default), else undefined. */
@@ -277,6 +467,8 @@ export class KletiaClient {
   private readonly retryBaseDelayMs: number;
   private readonly fetchImpl: FetchLike;
   private readonly extraHeaders: Readonly<Record<string, string>>;
+  /** Origin of the web app for page and card URLs. */
+  readonly webOrigin: string;
 
   constructor(options: KletiaClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
@@ -289,6 +481,7 @@ export class KletiaClient {
     if (!fetchImpl) throw new Error("No fetch implementation available; pass options.fetch.");
     this.fetchImpl = fetchImpl;
     this.extraHeaders = options.headers ?? {};
+    this.webOrigin = new URL(options.webOrigin ?? DEFAULT_WEB_ORIGIN).origin;
   }
 
   /** True when the client sends an API key (idempotency keys are generated only then). */
@@ -352,7 +545,7 @@ export class KletiaClient {
 
     for (let attempt = 1; ; attempt += 1) {
       try {
-        return await this.send<T>(method, url, body, idempotencyKey, init.signal);
+        return await this.send<T>(method, url, body, idempotencyKey, init.signal, init.headers);
       } catch (error) {
         if (!(error instanceof KletiaApiError)) throw error;
         if (generated && error.code === "IDEMPOTENCY_NOT_SUPPORTED") {
@@ -372,6 +565,7 @@ export class KletiaClient {
           throw ownSecretEnded(behaviour.mayEndOwnSecret, error);
         }
         if (mayHaveRun(error)) earlierAttemptMayHaveRun = true;
+        if (behaviour.noRetryCodes?.has(error.code)) throw error;
         if (attempt > retries || !error.retryable || init.signal?.aborted) throw error;
         const delay = retryDelayMs(attempt, this.retryBaseDelayMs, error.retryAfterSeconds);
         if (delay === null) throw error;
@@ -391,8 +585,12 @@ export class KletiaClient {
     body: unknown,
     idempotencyKey: string | null,
     userSignal: AbortSignal | undefined,
+    extraHeaders: Readonly<Record<string, string>> = {},
   ): Promise<T> {
     if (userSignal?.aborted) throw abortedError(userSignal);
+    const own = Object.fromEntries(
+      Object.entries(extraHeaders).filter(([name]) => !["authorization", "idempotency-key", "content-type"].includes(name.toLowerCase())),
+    );
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const signal = userSignal ? AbortSignal.any([userSignal, timeout]) : timeout;
     let response: Response;
@@ -400,6 +598,7 @@ export class KletiaClient {
       response = await this.fetchImpl(url.toString(), {
         method,
         headers: this.headers({
+          ...own,
           ...(body === undefined ? {} : { "content-type": "application/json" }),
           ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         }),
@@ -499,18 +698,17 @@ export class KletiaClient {
      * Plan an intent into an executable graph. With an API key the call
      * carries an Idempotency-Key (generated unless given), so a retry after a
      * lost response returns the same intent instead of planning a second one.
+     * With `preview: true` it resolves with `{ intent, preview }`: the
+     * plan-stage asset-change preview ("fare breakdown").
      */
-    create: async (
-      request: IntentRequest,
-      options: CreateIntentOptions & RequestOptions = {},
-    ): Promise<IntentGraph> => {
-      const { dryRun, ...rest } = options;
-      const body = await this.request<{ intent: IntentGraph }>("POST", "/intents", request, {
+    create: (async (request: IntentRequest, options: CreateIntentOptions & RequestOptions = {}): Promise<IntentGraph | IntentWithPreview> => {
+      const { dryRun, preview, ...rest } = options;
+      const body = await this.request<{ intent: IntentGraph; preview?: IntentPreview }>("POST", "/intents", request, {
         ...rest,
-        query: { dryRun: dryRun ? "true" : undefined },
+        query: { dryRun: dryRun ? "true" : undefined, preview: preview ? "true" : undefined },
       });
-      return body.intent;
-    },
+      return preview ? { intent: body.intent, preview: body.preview ?? null } : body.intent;
+    }) as CreateIntent,
     get: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
       const body = await this.request<{ intent: IntentGraph }>("GET", `/intents/${encodeSegment(id, "id")}`, undefined, options);
       return body.intent;
@@ -525,14 +723,42 @@ export class KletiaClient {
     /**
      * Build wallet-ready transactions for a ready step. Never retried and
      * never sent with an Idempotency-Key: each call builds fresh transactions.
+     * Pass `acknowledgedPreview` (the digest of the preview the user
+     * approved): a materially worse payload is refused with
+     * `KletiaPreviewChangedError` (409 PREVIEW_CHANGED, carrying the fresh
+     * preview), and `previewAck` says whether the API still held that digest.
      */
-    prepareStep: (id: string, stepId: string, options: Pick<RequestOptions, "signal"> = {}): Promise<PreparedStep> =>
-      this.request<PreparedStep>(
+    prepareStep: (id: string, stepId: string, options: PrepareStepOptions = {}): Promise<PreparedStep> => {
+      const acknowledged = options.acknowledgedPreview;
+      if (acknowledged !== undefined && !PREVIEW_DIGEST_PATTERN.test(acknowledged)) {
+        throw new TypeError("acknowledgedPreview must be a preview digest (sha256: followed by 64 lower-case hex characters).");
+      }
+      return this.request<PreparedStep>(
         "POST",
         `/intents/${encodeSegment(id, "id")}/steps/${encodeSegment(stepId, "stepId")}/prepare`,
-        {},
+        acknowledged ? { acknowledgedPreview: acknowledged } : {},
         options.signal ? { signal: options.signal } : {},
-      ),
+      );
+    },
+    /**
+     * Recompute the asset-change preview of a stored intent (`POST
+     * /v1/intents/{id}/preview`, at most 6 per intent per minute).
+     * `refreshQuotes` re-quotes ready steps (once per 20 s per intent).
+     * Simulations only: nothing is prepared or signed.
+     */
+    preview: async (id: string, options: RequestOptions & { readonly refreshQuotes?: boolean } = {}): Promise<IntentPreview> => {
+      const { refreshQuotes, ...rest } = options;
+      const body = await this.request<{ preview: IntentPreview }>("POST", `/intents/${encodeSegment(id, "id")}/preview`, {}, {
+        ...rest,
+        query: { quotes: refreshQuotes ? "refresh" : undefined },
+      });
+      return body.preview;
+    },
+    /** The last preview computed for a stored intent (any stage); 404 PREVIEW_NOT_FOUND when none is kept. */
+    getPreview: async (id: string, options: RequestOptions = {}): Promise<IntentPreview> => {
+      const body = await this.request<{ preview: IntentPreview }>("GET", `/intents/${encodeSegment(id, "id")}/preview`, undefined, options);
+      return body.preview;
+    },
     /** Report transaction hashes / signatures, in payload order, for on-chain verification. */
     submitStep: async (
       id: string,
@@ -758,6 +984,351 @@ export class KletiaClient {
      */
     revoke: async (id: string, options: RequestOptions = {}): Promise<void> => {
       await this.call("DELETE", `/keys/${encodeSegment(id, "id")}`, undefined, options, { mayEndOwnSecret: "revoke" });
+    },
+    /**
+     * Create an agent key under `parentId` (`POST /v1/keys/{id}/children`,
+     * 201, idempotent). Its secret (`kl_agt_…`) is in `key.key`, shown once;
+     * its first rule book is `policy` or a `template` (with `fill`), else the
+     * observer. Revoking a key revokes its whole subtree.
+     */
+    createChild: (parentId: string, request: CreateChildKeyRequest, options: RequestOptions = {}): Promise<CreatedChildKey> =>
+      this.request<CreatedChildKey>("POST", `/keys/${encodeSegment(parentId, "parentId")}/children`, request, options),
+    /**
+     * Change a key's expiry (`PATCH /v1/keys/{id}`): shortening applies at
+     * once; extending is a loosening, refused while the key's rule book has
+     * an amendment delay. `null` removes the expiry of a project key.
+     */
+    update: async (id: string, patch: { readonly expiresAt: string | null }, options: RequestOptions = {}): Promise<ApiKeySummary> => {
+      const body = await this.request<{ key: ApiKeySummary }>("PATCH", `/keys/${encodeSegment(id, "id")}`, patch, options);
+      return body.key;
+    },
+  };
+
+  /**
+   * Verifiable receipts of finished intents (owner routes take the intent id
+   * as the capability, like `intents.get`). Verify them offline with
+   * `verifyReceipt` from `@kletia/core` and on-chain with `reverifyReceipt`
+   * from `@kletia/sdk/receipts`.
+   */
+  readonly receipts = {
+    /**
+     * The latest receipt of an intent (or `sequence`) with every disclosure
+     * the owner keeps. `receipt` is null while it is pending (finality); pass
+     * `wait` to poll until it is issued.
+     */
+    get: async (intentId: string, options: GetReceiptOptions = {}): Promise<ReceiptResult> => {
+      const { sequence, wait, ...rest } = options;
+      if (sequence !== undefined && (!Number.isSafeInteger(sequence) || sequence < 1)) throw new RangeError("sequence must be a positive integer.");
+      const path = `/intents/${encodeSegment(intentId, "intentId")}/receipt`;
+      const query = { sequence: sequence === undefined ? undefined : String(sequence) };
+      const waitOptions = typeof wait === "object" ? wait : {};
+      const deadline = Date.now() + (waitOptions.timeoutMs ?? 45 * 60_000);
+      for (;;) {
+        let result: ReceiptResult;
+        let delaySeconds: number;
+        try {
+          result = await this.call<ReceiptResult>("GET", path, undefined, { ...rest, query }, { noRetryCodes: RECEIPT_WAIT_CODES });
+          if (result.receipt || !wait) return result;
+          delaySeconds = result.pending?.retryAfterSeconds ?? 30;
+          if (result.pending) waitOptions.onPending?.(result.pending);
+        } catch (error) {
+          if (!wait || !(error instanceof KletiaApiError) || error.code !== "RECEIPT_NOT_READY") throw error;
+          delaySeconds = error.retryAfterSeconds ?? 60;
+          waitOptions.onPending?.({ reason: "not_ready", expectedBy: null, retryAfterSeconds: delaySeconds });
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new KletiaApiError({ code: "WAIT_TIMEOUT", message: `No receipt for ${intentId} was issued in time; it is still pending.`, status: 0 });
+        }
+        try {
+          await sleep(Math.min(remaining, Math.max(1, Math.min(delaySeconds, 300)) * 1000), rest.signal);
+        } catch {
+          throw abortedError(rest.signal);
+        }
+      }
+    },
+    /** Every sequence of an intent's receipts (`supersededBy` links them). */
+    list: async (intentId: string, options: RequestOptions = {}): Promise<ReceiptListEntry[]> => {
+      const body = await this.request<{ receipts: ReceiptListEntry[] }>("GET", `/intents/${encodeSegment(intentId, "intentId")}/receipts`, undefined, options);
+      return body.receipts;
+    },
+    /**
+     * Share a receipt (`profile` or `groups`; default `route`, the skeleton
+     * only). `share.url` carries the decryption key in its fragment and is
+     * returned once: Kletia does not keep the key.
+     */
+    share: (intentId: string, request: ReceiptShareRequest = {}, options: RequestOptions = {}): Promise<{ share: ReceiptShare }> =>
+      this.request<{ share: ReceiptShare }>("POST", `/intents/${encodeSegment(intentId, "intentId")}/receipt/shares`, request, options),
+    /** Active shares of an intent's receipts (never their keys). */
+    shares: async (intentId: string, options: RequestOptions = {}): Promise<ReceiptShare[]> => {
+      const body = await this.request<{ shares: ReceiptShare[] }>("GET", `/intents/${encodeSegment(intentId, "intentId")}/receipt/shares`, undefined, options);
+      return body.shares;
+    },
+    /** Revoke a share (idempotent); its link stops opening at once. */
+    unshare: async (intentId: string, shareId: string, options: RequestOptions = {}): Promise<void> => {
+      await this.request("DELETE", `/intents/${encodeSegment(intentId, "intentId")}/receipt/shares/${shareSegment(shareId)}`, undefined, options);
+    },
+    /** Delete the stored disclosures of every receipt of the intent and every share; the signed payloads remain. */
+    withdraw: async (intentId: string, options: RequestOptions = {}): Promise<void> => {
+      await this.request("DELETE", `/intents/${encodeSegment(intentId, "intentId")}/receipt/disclosures`, undefined, options);
+    },
+    /**
+     * The API's receipt key set. Trust a key only when the web origin's
+     * mirror lists the same one (`fetchReceiptKeys` in `@kletia/sdk/receipts`
+     * checks both) or it is pinned in `@kletia/core`.
+     */
+    keys: (options: RequestOptions = {}): Promise<ReceiptKeySet> => this.request<ReceiptKeySet>("GET", "/receipts/keys", undefined, options),
+    /** Latest transparency-log batches (`unanchored`: only those no anchor was recorded for). */
+    log: async (options: RequestOptions & { readonly limit?: number; readonly unanchored?: boolean } = {}): Promise<ReceiptLogBatchView[]> => {
+      const { limit, unanchored, ...rest } = options;
+      const body = await this.request<{ batches: ReceiptLogBatchView[] }>("GET", "/receipts/log", undefined, {
+        ...rest,
+        query: { limit: limit === undefined ? undefined : String(limit), unanchored: unanchored ? "true" : undefined },
+      });
+      return body.batches;
+    },
+    /** One batch (`leaves` pages through its leaf digests, at most 1,000 at a time). */
+    batch: (seq: number, options: RequestOptions & { readonly leaves?: boolean; readonly offset?: number; readonly limit?: number } = {}): Promise<ReceiptLogBatchResponse> => {
+      if (!Number.isSafeInteger(seq) || seq < 1) throw new RangeError("Log batch numbers are positive integers.");
+      const { leaves, offset, limit, ...rest } = options;
+      return this.request<ReceiptLogBatchResponse>("GET", `/receipts/log/${seq}`, undefined, {
+        ...rest,
+        query: { leaves: leaves ? "true" : undefined, offset: offset === undefined ? undefined : String(offset), limit: limit === undefined ? undefined : String(limit) },
+      });
+    },
+    /** The inclusion proof of a receipt digest (public: a digest reveals nothing). */
+    inclusion: async (digest: string, options: RequestOptions = {}): Promise<NonNullable<ReceiptDocumentView["inclusion"]>> => {
+      if (!/^[0-9a-f]{64}$/u.test(digest)) throw new TypeError("digest must be 64 lower-case hex characters.");
+      const body = await this.request<{ inclusion: NonNullable<ReceiptDocumentView["inclusion"]> }>("GET", "/receipts/log/inclusion", undefined, { ...options, query: { digest } });
+      return body.inclusion;
+    },
+    /** A receipt's signed payload while its owner shares it (no disclosures); 404 otherwise. */
+    shared: async (receiptId: string, options: RequestOptions = {}): Promise<ReceiptDocumentView> => {
+      const body = await this.request<{ receipt: ReceiptDocumentView }>("GET", `/receipts/${receiptSegment(receiptId)}`, undefined, options);
+      return body.receipt;
+    },
+    /** Whether a shared receipt was superseded by a newer sequence. */
+    status: (receiptId: string, options: RequestOptions = {}): Promise<{ sequence: number; terminal: boolean; supersededBy: string | null }> =>
+      this.request("GET", `/receipts/${receiptSegment(receiptId)}/status`, undefined, options),
+    /** The encrypted disclosures of a share (decrypt with the link's key: `openShareUrl`). */
+    shareCiphertext: (receiptId: string, shareId: string, options: RequestOptions = {}): Promise<ReceiptShareCiphertext> =>
+      this.request<ReceiptShareCiphertext>("GET", `/receipts/${receiptSegment(receiptId)}/shares/${shareSegment(shareId)}`, undefined, options),
+  };
+
+  /**
+   * Rule Books: policies of keys and of the project (versions, tighten now /
+   * loosen later), the simulator, the decision log and spend windows. Every
+   * method needs an API key; writes need a project key with its current
+   * secret (agent keys never write a rule book).
+   */
+  readonly policies = {
+    /** A key's rule book (active and pending versions) and its effective chain. */
+    get: (keyId: string, options: RequestOptions = {}): Promise<PolicyReadResponse> =>
+      this.request<PolicyReadResponse>("GET", `/keys/${encodeSegment(keyId, "keyId")}/policy`, undefined, options),
+    /**
+     * New version of a key's rule book. Tightening applies now; loosening
+     * waits the active version's amendment delay (`applied: "pending"`).
+     * `ifMatch` (the active hash, or `none`) refuses a concurrent change with
+     * POLICY_CONFLICT. Carries an Idempotency-Key.
+     */
+    put: (keyId: string, document: PolicyDocument, options: RequestOptions & { readonly ifMatch?: string } = {}): Promise<PolicyWriteResponse> => {
+      const { ifMatch, ...rest } = options;
+      return this.request<PolicyWriteResponse>("PUT", `/keys/${encodeSegment(keyId, "keyId")}/policy`, document, { ...rest, headers: ifMatchHeader(ifMatch) });
+    },
+    /** Remove a key's rule book (a loosening of every field: it waits the amendment delay). Not retried automatically. */
+    delete: (keyId: string, options: RequestOptions & { readonly ifMatch?: string } = {}): Promise<PolicyWriteResponse> => {
+      const { ifMatch, ...rest } = options;
+      return this.request<PolicyWriteResponse>("DELETE", `/keys/${encodeSegment(keyId, "keyId")}/policy`, undefined, { ...rest, headers: ifMatchHeader(ifMatch) });
+    },
+    /** Cancel a pending amendment of a key's rule book. */
+    cancelPending: async (keyId: string, options: RequestOptions = {}): Promise<PolicyVersionView> => {
+      const body = await this.request<{ policy: PolicyVersionView }>("DELETE", `/keys/${encodeSegment(keyId, "keyId")}/policy/pending`, undefined, options);
+      return body.policy;
+    },
+    /** Version history, newest first (at most 100). */
+    versions: async (keyId: string, options: RequestOptions & { readonly limit?: number } = {}): Promise<PolicyVersionView[]> => {
+      const { limit, ...rest } = options;
+      const body = await this.request<{ versions: PolicyVersionView[] }>("GET", `/keys/${encodeSegment(keyId, "keyId")}/policy/versions`, undefined, {
+        ...rest,
+        query: { limit: limit === undefined ? undefined : String(limit) },
+      });
+      return body.versions;
+    },
+    /** The project rule book, which bounds every key of the project. */
+    project: {
+      get: (options: RequestOptions = {}): Promise<PolicyReadResponse> => this.request<PolicyReadResponse>("GET", "/projects/current/policy", undefined, options),
+      put: (document: PolicyDocument, options: RequestOptions & { readonly ifMatch?: string } = {}): Promise<PolicyWriteResponse> => {
+        const { ifMatch, ...rest } = options;
+        return this.request<PolicyWriteResponse>("PUT", "/projects/current/policy", document, { ...rest, headers: ifMatchHeader(ifMatch) });
+      },
+      delete: (options: RequestOptions & { readonly ifMatch?: string } = {}): Promise<PolicyWriteResponse> => {
+        const { ifMatch, ...rest } = options;
+        return this.request<PolicyWriteResponse>("DELETE", "/projects/current/policy", undefined, { ...rest, headers: ifMatchHeader(ifMatch) });
+      },
+      cancelPending: async (options: RequestOptions = {}): Promise<PolicyVersionView> => {
+        const body = await this.request<{ policy: PolicyVersionView }>("DELETE", "/projects/current/policy/pending", undefined, options);
+        return body.policy;
+      },
+    },
+    /**
+     * Static validation on the API (public): issues, warnings, the canonical
+     * hash and, with `against`, what tightens and loosens. `validatePolicy`
+     * and `comparePolicies` from `@kletia/core` do the same offline.
+     */
+    validate: (
+      document: unknown,
+      options: RequestOptions & { readonly against?: PolicyDocument | null; readonly defaults?: PolicyDefaults } = {},
+    ): Promise<PolicyValidateResponse> => {
+      const { against, defaults, ...rest } = options;
+      return this.request<PolicyValidateResponse>(
+        "POST",
+        "/policy/validate",
+        { policy: document, ...(against !== undefined ? { against } : {}), ...(defaults ? { defaults } : {}) },
+        rest,
+      );
+    },
+    /**
+     * The simulator: plans the request as a dry run under the key's effective
+     * constraints and explains every rule (also when the outcome is deny).
+     * Logged with stage `evaluate`; never reserves or stores anything.
+     */
+    evaluate: (request: PolicyEvaluateRequest, options: RequestOptions = {}): Promise<PolicyEvaluateResponse> =>
+      this.request<PolicyEvaluateResponse>("POST", "/policy/evaluate", request, options),
+    /** The decision log of the caller's subtree, newest first, with the chain head (`verifyDecisionChain`). */
+    decisions: (filter: PolicyDecisionFilter = {}, options: RequestOptions = {}): Promise<PolicyDecisionList> =>
+      this.request<PolicyDecisionList>("GET", "/policy/decisions", undefined, {
+        ...options,
+        query: {
+          keyId: filter.keyId,
+          intentId: filter.intentId,
+          outcome: filter.outcome,
+          stage: filter.stage,
+          since: filter.since,
+          after: filter.after,
+          limit: filter.limit === undefined ? undefined : String(filter.limit),
+        },
+      }),
+    decision: async (id: string, options: RequestOptions = {}): Promise<PolicyDecision> => {
+      const body = await this.request<{ decision: PolicyDecision }>("GET", `/policy/decisions/${encodeSegment(id, "id")}`, undefined, options);
+      return body.decision;
+    },
+    /** Window usage and what remains for every scope of a key's chain (default: the calling key). */
+    spend: async (keyId?: string, options: RequestOptions = {}): Promise<PolicySpendReport> => {
+      const body = await this.request<{ spend: PolicySpendReport }>("GET", "/policy/spend", undefined, { ...options, query: { keyId } });
+      return body.spend;
+    },
+  };
+
+  /**
+   * Approvals of intents a rule book holds (`confirm`). Decide with a project
+   * key (`approve` / `reject`) or with a listed wallet (`approveWithWallet`,
+   * EIP-712 on EVM, signMessage on Solana).
+   */
+  readonly approvals = {
+    /** `role: "approver"`: approvals the caller may decide; `requester` (default): its subtree's requests. */
+    list: async (filter: PolicyApprovalFilter = {}, options: RequestOptions = {}): Promise<PolicyApprovalView[]> => {
+      const body = await this.request<{ approvals: PolicyApprovalView[] }>("GET", "/policy/approvals", undefined, {
+        ...options,
+        query: { role: filter.role, status: filter.status, limit: filter.limit === undefined ? undefined : String(filter.limit) },
+      });
+      return body.approvals;
+    },
+    /** One approval (public: the id is the capability; reading is not approving). */
+    get: async (id: string, options: RequestOptions = {}): Promise<PolicyApprovalView> => {
+      const body = await this.request<{ approval: PolicyApprovalView }>("GET", `/policy/approvals/${approvalSegment(id)}`, undefined, options);
+      return body.approval;
+    },
+    /** Approve with this client's project key (never the requester's own key or an agent key). */
+    approve: async (id: string, options: RequestOptions = {}): Promise<PolicyApprovalView> => {
+      const body = await this.request<{ approval: PolicyApprovalView }>("POST", `/policy/approvals/${approvalSegment(id)}/approve`, {}, options);
+      return body.approval;
+    },
+    /** Reject with this client's project key; the intent is cancelled. */
+    reject: async (id: string, options: RequestOptions = {}): Promise<PolicyApprovalView> => {
+      const body = await this.request<{ approval: PolicyApprovalView }>("POST", `/policy/approvals/${approvalSegment(id)}/reject`, {}, options);
+      return body.approval;
+    },
+    /**
+     * Decide with a listed wallet. Reads the approval, checks that its digest
+     * is the one of the intent it names (`approvalDigest` from
+     * `@kletia/core`), has the wallet sign exactly the core typed data (EVM)
+     * or message (Solana), then sends the signature.
+     */
+    approveWithWallet: (id: string, signer: ApprovalWalletSigner, options: WalletDecisionOptions = {}): Promise<PolicyApprovalView> =>
+      decideWithWallet(this, approvalSegment(id), "approve", signer, options),
+    rejectWithWallet: (id: string, signer: ApprovalWalletSigner, options: WalletDecisionOptions = {}): Promise<PolicyApprovalView> =>
+      decideWithWallet(this, approvalSegment(id), "reject", signer, options),
+  };
+
+  /**
+   * Intent links (`lk_…`, served at `<web>/go/<id>`): a fixed destination
+   * anyone can fund from the networks and assets you allow. Managing links
+   * needs an API key; quotes and visitor intents are public.
+   */
+  readonly links = {
+    /**
+     * Create a link (`POST /v1/links`, 201, idempotent). The definition is
+     * checked locally with `validateLinkDefinition` first; a refusal is a
+     * `KletiaApiError` with status 0 (nothing was sent).
+     */
+    create: async (definition: unknown, options: RequestOptions = {}): Promise<{ link: LinkOwnerView }> => {
+      const checked = validateLinkDefinition(definition);
+      if (!checked.ok) {
+        throw new KletiaApiError({
+          code: checked.code,
+          message: "The link definition is invalid (checked locally; nothing was sent).",
+          status: 0,
+          issues: checked.issues.map((issue) => ({ path: issue.path, message: issue.message })),
+        });
+      }
+      return this.request<{ link: LinkOwnerView }>("POST", "/links", definition, options);
+    },
+    /** The calling key's links. */
+    list: async (filter: { readonly status?: "pending" | "active" | "paused" | "suspended" | "deleted"; readonly limit?: number } = {}, options: RequestOptions = {}): Promise<LinkOwnerView[]> => {
+      const body = await this.request<{ links: LinkOwnerView[] }>("GET", "/links", undefined, {
+        ...options,
+        query: { status: filter.status, limit: filter.limit === undefined ? undefined : String(filter.limit) },
+      });
+      return body.links;
+    },
+    /** The public view, or the owner view (definition, pins, 7-day stats) for the publisher's keys. */
+    get: async (id: string, options: RequestOptions = {}): Promise<LinkView | LinkOwnerView> => {
+      const body = await this.request<{ link: LinkView | LinkOwnerView }>("GET", `/links/${linkSegment(id)}`, undefined, options);
+      return body.link;
+    },
+    /** Tighten only: anything a visitor reviewed can only get stricter (else LINK_IMMUTABLE_FIELD). */
+    update: async (id: string, patch: LinkPatch, options: RequestOptions = {}): Promise<LinkOwnerView> => {
+      const body = await this.request<{ link: LinkOwnerView }>("PATCH", `/links/${linkSegment(id)}`, patch, options);
+      return body.link;
+    },
+    pause: (id: string, options: RequestOptions = {}): Promise<LinkOwnerView> => this.links.update(id, { status: "paused" }, options),
+    /** Resume; `accept` re-pins a changed recipient or contract (a new revision, with a new activation delay on mainnet). */
+    resume: (id: string, input: { readonly accept?: readonly ("recipient_changed" | "contract_changed")[] } = {}, options: RequestOptions = {}): Promise<LinkOwnerView> =>
+      this.links.update(id, { status: "active", ...(input.accept && input.accept.length > 0 ? { accept: input.accept } : {}) }, options),
+    /** Withdraw a link (soft delete, idempotent); its page answers 410. */
+    delete: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.call("DELETE", `/links/${linkSegment(id)}`, undefined, options, { goneAfterRetryIsDone: true });
+    },
+    /** Additive counters over 7, 30 or 90 days; nothing per visitor. */
+    stats: async (id: string, input: { readonly window?: "7d" | "30d" | "90d" } = {}, options: RequestOptions = {}): Promise<LinkStats> => {
+      const body = await this.request<{ stats: LinkStats }>("GET", `/links/${linkSegment(id)}/stats`, undefined, { ...options, query: { window: input.window } });
+      return body.stats;
+    },
+    /** Indicative fare for a funding choice (public, never stored; cached 20 s). */
+    quote: (id: string, request: Omit<LinkVisitorRequest, "clientReference">, options: RequestOptions = {}): Promise<LinkIntentResponse> =>
+      this.request<LinkIntentResponse>("POST", `/links/${linkSegment(id)}/quote`, request, options),
+    /** The visitor's intent (public), owned by the publisher's key and executed with `executeIntent`. */
+    createIntent: (id: string, request: LinkVisitorRequest, options: RequestOptions = {}): Promise<LinkIntentResponse> =>
+      this.request<LinkIntentResponse>("POST", `/links/${linkSegment(id)}/intents`, request, options),
+    /** `<web>/go/<id>`. */
+    pageUrl: (id: string): string => `${this.webOrigin}/go/${linkSegment(id)}`,
+    /** `<web>/go/<id>/card.png` (`square` for the 600×600 card). */
+    cardUrl: (id: string, variant: "wide" | "square" = "wide"): string =>
+      `${this.webOrigin}/go/${linkSegment(id)}/card.png${variant === "square" ? "?variant=square" : ""}`,
+    /** The share card as PNG bytes (`GET /v1/links/{id}/card.png`). */
+    card: async (id: string, input: { readonly variant?: "wide" | "square" } = {}, options: Pick<RequestOptions, "signal"> = {}): Promise<Uint8Array> => {
+      const url = `${this.baseUrl}/v1/links/${linkSegment(id)}/card.png${input.variant === "square" ? "?variant=square" : ""}`;
+      return fetchPng(this.fetchImpl, url, this.headers({ accept: "image/png" }), this.timeoutMs, options.signal);
     },
   };
 

@@ -15,7 +15,24 @@ export interface ReceiptHealth {
   readonly lastBatch: { readonly seq: number; readonly anchored: boolean } | null;
 }
 
+const CACHE_MS = 10_000;
+let cached: { readonly at: number; readonly store: unknown; readonly value: ReceiptHealth } | null = null;
+
+/** Cached for 10 s like the network probes (health is polled often); a new signer state or store reads afresh. */
 export async function receiptHealth(now = Date.now()): Promise<ReceiptHealth> {
+  const store = receiptStore();
+  if (cached && now - cached.at < CACHE_MS && cached.store === store && cached.value.signer === receiptSignerStatus()) return cached.value;
+  const value = await readReceiptHealth(now);
+  cached = { at: now, store, value };
+  return value;
+}
+
+/** Forgets the cached block (tests). */
+export function resetReceiptHealth(): void {
+  cached = null;
+}
+
+async function readReceiptHealth(now: number): Promise<ReceiptHealth> {
   const signer = receiptSignerStatus();
   let kind: ReceiptHealth["store"] = "unavailable";
   try {

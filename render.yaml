@@ -71,6 +71,23 @@ services:
       # Optional exact browser origins allowed to call /v1/mcp.
       - key: KLETIA_MCP_ALLOWED_ORIGINS
         sync: false
+      # Verifiable receipts: the Ed25519 signing key (base64url 32-byte seed,
+      # set by the operator, never generated here: it must be pinned in a
+      # @kletia/core release and mirrored on the web origin) and its first
+      # signing day. Without the key, receipts queue (health: signer missing).
+      - key: KLETIA_RECEIPT_SIGNING_KEY
+        sync: false
+      - key: KLETIA_RECEIPT_KEY_NOT_BEFORE
+        sync: false
+      - key: KLETIA_RECEIPT_KEYSET
+        sync: false
+      - key: KLETIA_RECEIPT_NEXT_KEY
+        sync: false
+      - key: KLETIA_RECEIPTS_ENABLED
+        value: "true"
+      # Optional EAS offchain envelopes (attester key without funds).
+      - key: KLETIA_EAS_ATTESTER_KEY
+        sync: false
       # Cross-network venues (bridge auction). Relay requires a key in
       # production; LI.FI and deBridge DLN work keyless at low limits.
       - key: RELAY_API_KEY

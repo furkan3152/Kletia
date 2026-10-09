@@ -10,7 +10,7 @@
  * process with in-memory stores falls back to a fixed development key (with
  * a warning).
  */
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { platformDatabaseUrl } from "./db.js";
 
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -110,4 +110,16 @@ export function openSecret(sealed: string, context: string): string {
   decipher.setAAD(Buffer.from(context, "utf8"));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(Buffer.from(dataPart, "base64url")), decipher.final()]).toString("utf8");
+}
+
+/**
+ * HMAC-SHA256 (base64url) under a key derived from the platform secret for
+ * one `purpose` (e.g. blink callback tokens); null when no secret is
+ * configured (callers then offer nothing that needs one).
+ */
+export function platformMac(purpose: string, message: string): string | null {
+  const { key } = resolveSealingKey();
+  if (!key) return null;
+  const derived = createHash("sha256").update(key).update(`|${purpose}`, "utf8").digest();
+  return createHmac("sha256", derived).update(message, "utf8").digest("base64url");
 }

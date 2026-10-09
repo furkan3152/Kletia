@@ -343,9 +343,10 @@ function placeholderAccounts(actions: readonly IntentActionSpec[]): AccountId[] 
 /**
  * Codes that mean the template itself is wrong (refused at creation). Other
  * dry-run failures (quotes, providers, a placeholder account's balance, a
- * registration still pending) do not block the session.
+ * registration still pending) do not block the session. Shared with intent
+ * links (links/service.ts), which refuse the same template errors.
  */
-const TEMPLATE_ERRORS = new Set([
+export const TEMPLATE_ERRORS: ReadonlySet<string> = new Set([
   "INTENT_UNSUPPORTED",
   "ACCOUNT_REQUIRED",
   "AMOUNT_INVALID",
@@ -374,7 +375,7 @@ const TEMPLATE_ERRORS = new Set([
   "CONTRACTS_DISABLED",
 ]);
 
-function isTemplateError(error: unknown): boolean {
+export function isTemplateError(error: unknown): boolean {
   return isPlatformError(error) && (error.status === 400 || TEMPLATE_ERRORS.has(error.code));
 }
 

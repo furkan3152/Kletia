@@ -2,11 +2,18 @@
  * Webhook dispatcher.
  *
  * Subscribes to the engine's intent event envelopes, its receipt events
- * (`intent.receipt_issued`, routed like intent events) and to the contract
- * registration events (contracts.ts). For intents created with an API key,
- * each event is POSTed (body = the KletiaEvent JSON) to that key's webhooks
- * subscribed to the event type; contract events go to the webhooks of the
- * registration's owning key (`data.ownerKeyId`) and never to another key.
+ * (`intent.receipt_issued`, routed like intent events), the contract
+ * registration events (contracts.ts), the intent link events (links/), and
+ * the Rule Book and key events (`policy.*`, `key.*`). For intents created
+ * with an API key, each event is POSTed (body = the KletiaEvent JSON) to that
+ * key's webhooks subscribed to the event type; contract and link events go to
+ * the webhooks of the owning key (`data.ownerKeyId`) and never to another
+ * key's. Rule Book and key events go to the subject key's webhooks.
+ *
+ * Subtree routing (policy design §11.4): webhooks created with
+ * `scope: "subtree"` also receive these events for every descendant agent
+ * key of their owner (each ancestor in the subject's lineage), and on
+ * project keys the project-wide rule book events (no subject key).
  * Deliveries are signed with `Kletia-Signature: t=<unix>,v1=<hmac>`
  * (signWebhookPayload from @kletia/core).
  *
@@ -35,9 +42,12 @@ import https from "node:https";
 import { isIP } from "node:net";
 import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
-import { subscribeIntentEvents, subscribeReceiptEvents, type IntentEvent, type ReceiptEvent } from "../index.js";
-import { isKeyRevoked } from "./auth.js";
+import { subscribeIntentEvents, subscribePolicyEvents, subscribeReceiptEvents, type IntentEvent, type PolicyEvent, type ReceiptEvent } from "../index.js";
+import { apiKeyStore, isKeyRevoked, keyKindOf } from "./auth.js";
 import { subscribeContractEvents, type ContractEvent } from "./contracts.js";
+import { subscribeLinkEvents, type LinkEvent } from "./links/events.js";
+import { subscribeKeyEvents, type KeyEvent } from "./policies/announce.js";
+import { rawProjectId } from "./policies/store.js";
 import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
 import { guardedLookup, isPublicAddress } from "./netguard.js";
 import { resolveIntentOwner } from "./owners.js";
@@ -61,11 +71,59 @@ const MAX_TRACKED_WEBHOOKS = 10_000;
 const OWNER_RETRY_DELAYS_MS: readonly number[] = [0, 250, 1_000];
 export const WEBHOOK_USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
 
-/** An intent or receipt event (routed by the intent's key) or a contract event (routed by `data.ownerKeyId`). */
-export type DispatchedEvent = IntentEvent | ReceiptEvent | ContractEvent;
+/**
+ * An intent or receipt event (routed by the intent's key), a contract or link
+ * event (routed by `data.ownerKeyId`), or a Rule Book / key event (routed by
+ * the subject key, `data.keyId`).
+ */
+export type DispatchedEvent = IntentEvent | ReceiptEvent | ContractEvent | LinkEvent | PolicyEvent | KeyEvent;
 
 function isContractEvent(event: DispatchedEvent): event is ContractEvent {
   return event.type.startsWith("contract.");
+}
+
+function isLinkEvent(event: DispatchedEvent): event is LinkEvent {
+  return event.type.startsWith("link.");
+}
+
+function isPolicyOrKeyEvent(event: DispatchedEvent): event is PolicyEvent | KeyEvent {
+  return event.type.startsWith("policy.") || event.type.startsWith("key.");
+}
+
+/** The intent an event is about, if any (delivery log). */
+function eventIntentId(event: DispatchedEvent): string | undefined {
+  const data = event.data as { readonly intentId?: unknown };
+  return typeof data.intentId === "string" ? data.intentId : undefined;
+}
+
+/** One webhook owner to deliver to, and whether only its `subtree` webhooks qualify. */
+interface RouteTarget {
+  readonly ownerKeyId: string;
+  readonly subtreeOnly: boolean;
+}
+
+const LINEAGE_CACHE_MS = 60_000;
+const lineageCache = new Map<string, { readonly lineage: readonly string[]; readonly expiresAt: number }>();
+
+/** Ancestors of a key (lineage never changes; cached briefly, bounded). */
+async function lineageOf(keyId: string): Promise<readonly string[]> {
+  const now = Date.now();
+  const cached = lineageCache.get(keyId);
+  if (cached && cached.expiresAt > now) return cached.lineage;
+  const record = await apiKeyStore().findById(keyId).catch(() => null);
+  const lineage = record ? [...(record.lineage ?? [])] : [];
+  lineageCache.set(keyId, { lineage, expiresAt: now + LINEAGE_CACHE_MS });
+  while (lineageCache.size > 10_000) {
+    const oldest = lineageCache.keys().next().value;
+    if (oldest === undefined) break;
+    lineageCache.delete(oldest);
+  }
+  return lineage;
+}
+
+/** The subject key and its ancestors (ancestors only through `subtree` webhooks). */
+async function withAncestors(keyId: string): Promise<RouteTarget[]> {
+  return [{ ownerKeyId: keyId, subtreeOnly: false }, ...(await lineageOf(keyId)).map((ancestor) => ({ ownerKeyId: ancestor, subtreeOnly: true }))];
 }
 
 interface Delivery {
@@ -151,6 +209,7 @@ export class WebhookDispatcher {
   private unsubscribe: (() => void) | null = null;
   private unsubscribeContracts: (() => void) | null = null;
   private unsubscribeReceipts: (() => void) | null = null;
+  private unsubscribeFeatures: (() => void)[] = [];
   private delivered = 0;
   private failed = 0;
   private dropped = 0;
@@ -174,6 +233,7 @@ export class WebhookDispatcher {
     this.unsubscribe = subscribeIntentEvents(onEvent);
     this.unsubscribeContracts = subscribeContractEvents(onEvent);
     this.unsubscribeReceipts = subscribeReceiptEvents(onEvent);
+    this.unsubscribeFeatures = [subscribeLinkEvents(onEvent), subscribePolicyEvents(onEvent), subscribeKeyEvents(onEvent)];
   }
 
   stop(): void {
@@ -183,6 +243,8 @@ export class WebhookDispatcher {
     this.unsubscribeContracts = null;
     this.unsubscribeReceipts?.();
     this.unsubscribeReceipts = null;
+    for (const unsubscribe of this.unsubscribeFeatures) unsubscribe();
+    this.unsubscribeFeatures = [];
     for (const timer of [...this.timers, ...this.wakeups]) clearTimeout(timer);
     this.timers.clear();
     this.wakeups.clear();
@@ -236,7 +298,7 @@ export class WebhookDispatcher {
         ownerKeyId: delivery.ownerKeyId,
         eventId: delivery.event.id,
         eventType: delivery.event.type,
-        ...(isContractEvent(delivery.event) ? {} : { intentId: delivery.event.data.intentId }),
+        ...(eventIntentId(delivery.event) ? { intentId: eventIntentId(delivery.event) } : {}),
         attempt: delivery.attempt,
         status: outcome.status,
         ...(outcome.httpStatus !== undefined ? { httpStatus: outcome.httpStatus } : {}),
@@ -260,22 +322,50 @@ export class WebhookDispatcher {
     }
   }
 
+  /** Owners whose webhooks may receive `event`; undefined while an intent's owner is not known yet. */
+  private async targets(event: DispatchedEvent): Promise<RouteTarget[] | undefined> {
+    if (isContractEvent(event)) return [{ ownerKeyId: event.data.ownerKeyId, subtreeOnly: false }];
+    if (isLinkEvent(event)) return withAncestors(event.data.ownerKeyId);
+    if (isPolicyOrKeyEvent(event)) {
+      const subject = event.data.keyId;
+      const projectId = rawProjectId(event.data.projectId);
+      const targets = subject ? await withAncestors(subject) : [];
+      // Project keys that opted into their subtree see every rule book event of the project.
+      const projectKeys = (await apiKeyStore().listByProject(projectId).catch(() => []))
+        .filter((record) => keyKindOf(record) === "project" && !record.revokedAt)
+        .map((record) => ({ ownerKeyId: record.id, subtreeOnly: true }));
+      const seen = new Set<string>();
+      return [...targets, ...projectKeys].filter((target) => {
+        if (seen.has(target.ownerKeyId)) return false;
+        seen.add(target.ownerKeyId);
+        return true;
+      });
+    }
+    const owner = await resolveIntentOwner(event.data.intentId);
+    if (owner === undefined) return undefined;
+    if (owner === null) return [];
+    return withAncestors(owner);
+  }
+
   private async route(event: DispatchedEvent, ownerAttempt: number): Promise<void> {
     if (!this.unsubscribe) return;
-    const owner = isContractEvent(event) ? event.data.ownerKeyId : await resolveIntentOwner(event.data.intentId);
-    if (owner === undefined) {
+    const targets = await this.targets(event);
+    if (targets === undefined) {
       const delay = OWNER_RETRY_DELAYS_MS[ownerAttempt + 1];
       if (delay !== undefined) this.later(delay, () => this.route(event, ownerAttempt + 1));
       return;
     }
-    if (owner === null) return;
-    const hooks = (await webhooksForOwner(owner)).filter((hook) => hook.events.includes(event.type));
-    if (hooks.length === 0) return;
-    // A revoked key's webhooks never receive its intents' events (a store failure throws: nothing is sent).
-    if (await isKeyRevoked(owner)) return;
     const body = JSON.stringify(event);
-    for (const hook of hooks) {
-      this.enqueue({ webhookId: hook.id, ownerKeyId: owner, url: hook.url, event, body, attempt: 1 });
+    for (const target of targets) {
+      const hooks = (await webhooksForOwner(target.ownerKeyId)).filter(
+        (hook) => (hook.events as readonly string[]).includes(event.type) && (!target.subtreeOnly || hook.scope === "subtree"),
+      );
+      if (hooks.length === 0) continue;
+      // A revoked key's webhooks never receive events (a store failure throws: nothing is sent).
+      if (await isKeyRevoked(target.ownerKeyId)) continue;
+      for (const hook of hooks) {
+        this.enqueue({ webhookId: hook.id, ownerKeyId: target.ownerKeyId, url: hook.url, event, body, attempt: 1 });
+      }
     }
   }
 

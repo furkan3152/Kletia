@@ -374,9 +374,9 @@ export function receiptPaths(): JsonObject {
         operationId: "withdrawReceiptDisclosures",
         tags: ["Receipts"],
         summary: "Withdraw stored disclosures and every share",
-        description: "Deletes the stored disclosures of every receipt of the intent (and of later ones) and every share. The signed payloads (commitments only) and log leaves stay; copies already downloaded cannot be recalled.",
+        description: "Deletes the stored disclosures of every receipt of the intent (and of later ones) and every share. The signed payloads (commitments only) and log leaves stay; copies already downloaded cannot be recalled. 409 RECEIPT_NOT_READY (or RECEIPT_NOT_APPLICABLE) when the intent has no receipt yet.",
         parameters: [intentIdParameter],
-        responses: { "204": noContent("Withdrawn."), ...errors("404") },
+        responses: { "204": noContent("Withdrawn."), ...errors("404", "409") },
       },
     },
     "/v1/receipts/keys": {

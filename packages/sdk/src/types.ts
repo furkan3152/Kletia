@@ -272,6 +272,18 @@ export interface ApiKeySummary {
   readonly revokedAt: string | null;
   /** True for the key that made the request. */
   readonly current: boolean;
+  /** `agent` for keys created under another key (Rule Book API versions). */
+  readonly kind?: "project" | "agent";
+  /** Parent of an agent key (null for project keys). */
+  readonly parentId?: string | null;
+  /** Levels below the project key (0 for project keys). */
+  readonly depth?: number;
+  /** When the key stops authenticating (always set on agent keys). */
+  readonly expiresAt?: string | null;
+  /** Active rule book version (null: none; an agent key without one is the observer). */
+  readonly policyVersion?: number | null;
+  /** Active agent keys below this key. */
+  readonly descendants?: number;
 }
 
 /** `POST /v1/keys/{id}/rotate`: the same key id with a new secret (shown once). */

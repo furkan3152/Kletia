@@ -11,6 +11,12 @@ export const EXIT_OK = 0;
 export const EXIT_ERROR = 1;
 /** `intents watch` / `webhooks forward`: the intent ended without completing. */
 export const EXIT_NOT_COMPLETED = 2;
+/** Receipt checks: invalid (signature, digest, commitment, key, share link, EAS envelope); decision chain broken. */
+export const EXIT_INVALID = 3;
+/** `receipt reverify`: an on-chain source proved a difference, or sources disagree. */
+export const EXIT_MISMATCH = 4;
+/** Receipt checks: nothing proved wrong, but not everything could be checked (sources unavailable, groups sealed, still pending). */
+export const EXIT_INCONCLUSIVE = 5;
 export const EXIT_USAGE = 64;
 
 export interface CommandContext {
@@ -79,3 +85,32 @@ export function signalOption(context: CommandContext): { readonly signal?: Abort
 
 /** `--yes`, required by commands that remove something. */
 export const CONFIRM_OPTION = { yes: { type: "boolean", description: "Confirm; nothing is removed without it." } } as const satisfies Record<string, OptionSpec>;
+
+/** `<network>=<url>` pairs (`--rpc base=https://…`, repeatable). */
+export function networkUrls(values: readonly string[], option: string, usage: string): Partial<Record<NetworkKey, string[]>> {
+  const out: Partial<Record<NetworkKey, string[]>> = {};
+  for (const entry of values) {
+    const separator = entry.indexOf("=");
+    if (separator <= 0) throw new UsageError(`--${option} takes <network>=<url>, e.g. base=https://mainnet.base.org.`, usage);
+    const network = networkKey(entry.slice(0, separator), usage);
+    const url = entry.slice(separator + 1);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new UsageError(`"${url}" is not a URL.`, usage);
+    }
+    const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && local)) throw new UsageError(`--${option} URLs must use https (http only for localhost).`, usage);
+    (out[network] ??= []).push(url);
+  }
+  return out;
+}
+
+/** `30d`, `12h`, `90m` or a number of seconds. */
+export function durationSeconds(value: string, option: string, usage: string): number {
+  const match = /^(\d{1,9})([smhd]?)$/u.exec(value.trim());
+  if (!match) throw new UsageError(`--${option} takes a duration such as 30d, 12h, 90m or seconds.`, usage);
+  const unit = match[2] === "d" ? 86_400 : match[2] === "h" ? 3_600 : match[2] === "m" ? 60 : 1;
+  return Number(match[1]) * unit;
+}

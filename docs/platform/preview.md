@@ -122,8 +122,8 @@ A leftover allowance is a warning, not a refusal.
 When no endpoint can simulate, built-in venues continue with
 `status: "unavailable"` and a `PREVIEW_UNAVAILABLE` warning (the adapters pin
 calldata themselves); `KLETIA_PREVIEW_ENFORCE=strict` refuses with
-`503 SIMULATION_UNAVAILABLE` instead, and custom contract steps and intent
-link intents are always strict.
+`503 SIMULATION_UNAVAILABLE` instead (with `Retry-After: 5`), and custom
+contract steps and intent link intents are always strict.
 
 ## Warning codes
 
@@ -134,7 +134,7 @@ Inside `PreviewIssue.code` (not API errors):
 | `PREVIEW_UNAVAILABLE` | The step could not be simulated; its numbers are quoted |
 | `PREVIEW_OVERRIDE_UNAVAILABLE` | No balance slot was found to assume in-flight funds; the step is quoted |
 | `PREVIEW_ALLOWANCE_LEFT` | An approval leaves an allowance after the step |
-| `PREVIEW_GAS_ON_ARRIVAL` | You hold no native asset on a network where a step needs your signature |
+| `PREVIEW_GAS_ON_ARRIVAL` | Your native balance on a network where a step needs your signature cannot pay that step's estimated network fees (the need is the shortfall) |
 | `PREVIEW_UNPRICED` | Some assets have no price; totals that need them are null |
 | `PREVIEW_STEP_QUOTED` | The step is quoted, not simulated |
 

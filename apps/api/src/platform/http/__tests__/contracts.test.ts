@@ -952,10 +952,11 @@ const DATABASE_URL = process.env.KLETIA_TEST_DATABASE_URL?.trim();
 describe("postgres contract store", () => {
   it("creates, caps, updates with optimistic concurrency and counts spend", { skip: DATABASE_URL ? false : "KLETIA_TEST_DATABASE_URL not set" }, async () => {
     process.env.KLETIA_DATABASE_URL = DATABASE_URL;
-    const { closePlatformDatabase } = await import("../db.js");
+    const { closePlatformDatabase, dbQuery } = await import("../db.js");
+    const owner = `key_${randomBytes(12).toString("hex")}`;
+    const spender = `key_${randomBytes(12).toString("hex")}`;
     try {
       const store = new contracts.PostgresContractStore();
-      const owner = `key_${randomBytes(12).toString("hex")}`;
       const created = new Date(now).toISOString();
       const definition = evmDefinition({ network: "arbitrum-sepolia" }) as never;
       const record = (id: string, target: string): Parameters<typeof store.create>[0] => ({
@@ -992,13 +993,17 @@ describe("postgres contract store", () => {
       assert.equal(entry?.active?.definitionHash, "a".repeat(64));
       assert.equal(entry?.record.updatedAt, created);
       const updatedAt = new Date(now + 1).toISOString();
-      const next = { ...record(first, target), revision: 2, pendingRevision: 2, activatesAt: updatedAt, updatedAt };
+      // A run-unique activation time: the shared test database may hold due rows from other runs,
+      // so ties at one fixed time would let `LIMIT 10` drop this run's row.
+      const activatesAt = new Date(Date.UTC(2001, 0, 1) + Number.parseInt(randomBytes(4).toString("hex"), 16)).toISOString();
+      const next = { ...record(first, target), revision: 2, pendingRevision: 2, activatesAt, updatedAt };
       const inserted = { ...revision(first), revision: 2, definitionHash: "b".repeat(64) };
       assert.equal(await store.update(next, created, { insert: inserted }), true);
       assert.equal(await store.update({ ...next, updatedAt: new Date(now + 2).toISOString() }, created), false, "a stale writer loses");
       const reread = await store.get(first);
       assert.equal(reread?.pending?.definitionHash, "b".repeat(64));
-      assert.equal((await store.listDue(new Date(now + 10).toISOString(), 10)).some((item) => item.record.id === first), true);
+      assert.equal((await store.listDue(activatesAt, 10)).some((item) => item.record.id === first), true);
+      assert.equal((await store.listDue(new Date(Date.parse(activatesAt) - 1).toISOString(), 10)).some((item) => item.record.id === first), false, "not due before its time");
       assert.deepEqual((await store.history(first, 5)).map((item) => item.revision), [2, 1]);
       assert.deepEqual(await store.counts(owner), { registered: 2, suspended: 0 });
       assert.equal((await store.listVisible(owner, null)).length, 2);
@@ -1009,10 +1014,14 @@ describe("postgres contract store", () => {
       assert.equal(await store.addSpend(owner, day, 400, 1000), true);
       assert.deepEqual(await store.spend(owner, day), { usd: 1000, prepared: 2 });
       // Concurrent writers cannot exceed the cap together.
-      const spender = `key_${randomBytes(12).toString("hex")}`;
       const results = await Promise.all(Array.from({ length: 10 }, () => store.addSpend(spender, day, 300, 1000)));
       assert.equal(results.filter(Boolean).length, 3);
     } finally {
+      // Leave the shared test database as found.
+      const schema = { name: "kletia_contracts", ddl: "SELECT 1" };
+      await dbQuery(schema, "DELETE FROM kletia_contract_revisions WHERE contract_id IN (SELECT id FROM kletia_contracts WHERE owner_key_id = $1)", [owner]).catch(() => undefined);
+      await dbQuery(schema, "DELETE FROM kletia_contracts WHERE owner_key_id = $1", [owner]).catch(() => undefined);
+      await dbQuery(schema, "DELETE FROM kletia_contract_spend WHERE owner_key_id = ANY($1)", [[owner, spender]]).catch(() => undefined);
       delete process.env.KLETIA_DATABASE_URL;
       await closePlatformDatabase();
     }

@@ -1,5 +1,5 @@
 import { CHAINS } from "@kletia/core";
-import { DEFAULT_BASE_URL, KletiaApiError, KletiaClient, SDK_VERSION } from "@kletia/sdk";
+import { DEFAULT_BASE_URL, KletiaApiError, KletiaClient, KletiaPolicyError, SDK_VERSION } from "@kletia/sdk";
 import { GLOBAL_OPTIONS, parseCommandLine, stringOption, UsageError, type OptionSpec } from "./args.js";
 import { COMMANDS, EXIT_ERROR, EXIT_OK, EXIT_USAGE, type Command, type CommandContext } from "./commands.js";
 import { Printer, type CliIo } from "./output.js";
@@ -42,14 +42,17 @@ function mainHelp(): string {
     ...COMMANDS.map((command) => `  ${command.name.padEnd(width)}  ${command.summary}`),
     "",
     "Environment:",
-    "  KLETIA_API_KEY         Developer key (kl_dev_…). Never passed as a flag.",
+    "  KLETIA_API_KEY         Developer or agent key (kl_dev_…, kl_agt_…). Never passed as a flag.",
     "  KLETIA_BASE_URL        API origin (default https://api.kletiaai.xyz).",
     "  KLETIA_WEBHOOK_SECRET  Signing secret for `webhooks verify` and `webhooks forward`.",
     "",
     "Global options:",
     ...optionHelp(GLOBAL_OPTIONS),
     "",
-    "Exit codes: 0 ok, 1 error, 2 intent ended without completing, 64 usage error.",
+    "Exit codes: 0 ok (receipts: verified), 1 error, 2 intent ended without completing, 3 receipt invalid",
+    "(signature, digest, commitment, key, share link, EAS envelope; or a broken decision chain), 4 on-chain",
+    "mismatch or conflicting sources, 5 inconclusive (sources unavailable, groups sealed, receipt pending),",
+    "64 usage error. No command prepares, signs or submits a transaction.",
     `Networks: ${Object.keys(CHAINS).join(", ")}`,
   ].join("\n");
 }
@@ -89,6 +92,7 @@ function reportError(print: Printer, error: unknown, json: boolean): number {
             status: error.status,
             issues: error.issues,
             hints: error.hints,
+            ...(error instanceof KletiaPolicyError ? { policy: error.policy } : {}),
             docs: error.docsUrl,
             requestId: error.requestId,
           },
@@ -97,7 +101,15 @@ function reportError(print: Printer, error: unknown, json: boolean): number {
       return EXIT_ERROR;
     }
     print.err(`kletia: ${error.code}${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}`);
-    for (const issue of error.issues) print.err(`  ${issue.path || "request"}: ${issue.message}`);
+    if (error instanceof KletiaPolicyError) {
+      // Rule ids are stable API: scripts and agents key off them, never off messages.
+      for (const violation of error.violations) {
+        print.err(`  rule ${violation.rule}${violation.keyId ? ` (${violation.keyId})` : ""}: ${violation.message}${violation.observed ? ` [observed ${violation.observed}${violation.limit ? `, limit ${violation.limit}` : ""}]` : ""}`);
+      }
+      if (error.approval) print.err(`  approval ${error.approval.id}: ${error.approval.url} (expires ${error.approval.expiresAt})`);
+      if (error.decisionId) print.err(`  decision ${error.decisionId}`);
+      if (error.retryAt) print.err(`  retry at ${error.retryAt}`);
+    } else for (const issue of error.issues) print.err(`  ${issue.path || "request"}: ${issue.message}`);
     for (const hint of error.hints.slice(0, 5)) print.err(`  try: ${hint}`);
     if (error.retryAfterSeconds !== null) print.err(`  retry after ${error.retryAfterSeconds}s`);
     if (error.docsUrl) print.err(`  docs: ${error.docsUrl}`);

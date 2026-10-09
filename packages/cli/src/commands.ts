@@ -1,10 +1,11 @@
 /**
  * Command table for `kletia`. Every command is read-only or manages your
- * own keys, webhooks, contract registrations and sessions: the CLI never
+ * own keys, agent keys, rule books, approvals, webhooks, contract
+ * registrations, sessions, receipt shares and intent links: the CLI never
  * prepares, signs or submits a transaction, and never holds funds.
  */
-import { open, readFile, rm } from "node:fs/promises";
-import { sameAddressAccount, signWebhookPayload, type AnyKletiaEvent, type IntentGraph, type ProtocolId } from "@kletia/core";
+import { readFile } from "node:fs/promises";
+import { sameAddressAccount, signWebhookPayload, type AnyKletiaEvent, type IntentGraph, type IntentPreview, type ProtocolId } from "@kletia/core";
 import {
   isKletiaError,
   KletiaApiError,
@@ -29,9 +30,14 @@ import {
   type CommandContext,
 } from "./common.js";
 import { CONTRACT_COMMANDS } from "./contracts.js";
+import { LINK_COMMANDS } from "./links.js";
+import { POLICY_COMMANDS } from "./policies.js";
+import { formatFare, PREVIEW_COMMANDS } from "./preview.js";
+import { RECEIPT_COMMANDS } from "./receipts.js";
+import { abandonSecretSink, deliverSecret, openSecretSink, SECRET_OPTIONS } from "./secrets.js";
 import { amount, table, when, type Printer } from "./output.js";
 
-export { EXIT_ERROR, EXIT_NOT_COMPLETED, EXIT_OK, EXIT_USAGE } from "./common.js";
+export { EXIT_ERROR, EXIT_INCONCLUSIVE, EXIT_INVALID, EXIT_MISMATCH, EXIT_NOT_COMPLETED, EXIT_OK, EXIT_USAGE } from "./common.js";
 export type { Command, CommandContext } from "./common.js";
 
 function formatAmount(value: { readonly formatted: string; readonly symbol: string } | undefined): string {
@@ -86,71 +92,6 @@ function printIntent(print: Printer, intent: IntentGraph): void {
   }
   for (const warning of [...intent.warnings, ...intent.steps.flatMap((step) => step.warnings ?? [])]) print.out(`warning: ${warning}`);
   for (const step of intent.steps) if (step.failure) print.out(`${step.id} failed: ${step.failure.code} ${step.failure.message}`);
-}
-
-/* ---------------------------------------------------------------- secrets */
-
-type SecretSink = { readonly kind: "stdout" } | { readonly kind: "file"; readonly path: string; readonly handle: Awaited<ReturnType<typeof open>> };
-
-const SECRET_OPTIONS = {
-  "secret-file": { type: "string", value: "<path>", description: "Write the new secret to this file (mode 600; must not exist)." },
-  reveal: { type: "boolean", description: "Print the new secret on this terminal." },
-} as const satisfies Record<string, OptionSpec>;
-
-/**
- * Decides where a newly minted secret goes, before the API call, so a
- * secret is never created only to be lost or shown on a terminal by surprise.
- */
-async function openSecretSink(context: CommandContext): Promise<SecretSink> {
-  const path = stringOption(context.values, "secret-file");
-  if (path) {
-    try {
-      return { kind: "file", path, handle: await open(path, "wx", 0o600) };
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      throw new UsageError(code === "EEXIST" ? `${path} already exists; choose a new file.` : `Cannot create ${path} (${code ?? "error"}).`, context.usage);
-    }
-  }
-  if (context.values.reveal === true || !context.print.stdoutIsTerminal) return { kind: "stdout" };
-  throw new UsageError(
-    "This command prints a new secret once. Redirect stdout (e.g. `> secret.txt`), pass --secret-file <path>, or pass --reveal to show it on this terminal.",
-    context.usage,
-  );
-}
-
-async function abandonSecretSink(sink: SecretSink): Promise<void> {
-  if (sink.kind !== "file") return;
-  await sink.handle.close().catch(() => undefined);
-  await rm(sink.path, { force: true }).catch(() => undefined);
-}
-
-/** Writes the secret to its sink; `record` (without the secret) is the JSON/summary for stdout. */
-async function deliverSecret(
-  context: CommandContext,
-  sink: SecretSink,
-  secret: string,
-  record: Record<string, unknown>,
-  secretField: string,
-  summary: string,
-): Promise<void> {
-  if (sink.kind === "file") {
-    try {
-      await sink.handle.writeFile(`${secret}\n`, "utf8");
-    } finally {
-      await sink.handle.close();
-    }
-    if (context.json) context.print.json(record);
-    else context.print.out(summary);
-    context.print.err(`The secret was written to ${sink.path} (mode 600). It is not shown again.`);
-    return;
-  }
-  if (context.json) {
-    context.print.secret(JSON.stringify({ ...record, [secretField]: secret }, null, 2));
-    return;
-  }
-  context.print.err(summary);
-  context.print.err("The secret below is shown once; store it now:");
-  context.print.secret(secret);
 }
 
 /* --------------------------------------------------------------- commands */
@@ -343,6 +284,7 @@ const plan: Command = {
     "max-slippage-bps": { type: "string", value: "<bps>", description: "Per-swap slippage ceiling." },
     "max-seconds": { type: "string", value: "<seconds>", description: "Longest settlement time a bridge step may take (10-86400, default 600)." },
     save: { type: "boolean", description: "Store the intent (to execute it later with the SDK, widget or Studio)." },
+    preview: { type: "boolean", description: "Also print the asset-change preview (fare breakdown)." },
   },
   positionals: { min: 1, max: 1 },
   run: async (context) => {
@@ -357,13 +299,22 @@ const plan: Command = {
       ...(maxSeconds !== undefined ? { maxSeconds } : {}),
     };
     const save = context.values.save === true;
-    const intent = await context.client().intents.create(
-      { text, accounts, ...(Object.keys(constraints).length > 0 ? { constraints } : {}) },
-      { ...(save ? {} : { dryRun: true }), ...(context.signal ? { signal: context.signal } : {}) },
-    );
-    if (context.json) context.print.json(intent);
+    const request = { text, accounts, ...(Object.keys(constraints).length > 0 ? { constraints } : {}) };
+    const options = { ...(save ? {} : { dryRun: true }), ...(context.signal ? { signal: context.signal } : {}) };
+    let intent: IntentGraph;
+    let fare: IntentPreview | null | undefined;
+    if (context.values.preview === true) {
+      const result = await context.client().intents.create(request, { ...options, preview: true });
+      intent = result.intent;
+      fare = result.preview;
+    } else intent = await context.client().intents.create(request, options);
+    if (context.json) context.print.json(fare === undefined ? intent : { intent, preview: fare });
     else {
       printIntent(context.print, intent);
+      if (fare) {
+        context.print.out("");
+        context.print.out(formatFare(fare));
+      } else if (fare === null) context.print.err("The API returned no preview for this plan.");
       context.print.err(save ? `Saved. Follow it with: kletia intents watch ${intent.id}` : "Dry run: nothing was stored. Pass --save to store the intent.");
     }
     return EXIT_OK;
@@ -1017,10 +968,13 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   intentsGet,
   intentsList,
   intentsWatch,
+  ...PREVIEW_COMMANDS,
+  ...RECEIPT_COMMANDS,
   keysCreate,
   keysList,
   keysRotate,
   keysRevoke,
+  ...POLICY_COMMANDS,
   webhooksList,
   webhooksCreate,
   webhooksDelete,
@@ -1029,6 +983,7 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   webhooksVerify,
   webhooksForward,
   ...CONTRACT_COMMANDS,
+  ...LINK_COMMANDS,
   usage,
   errors,
   openapi,

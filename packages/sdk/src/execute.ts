@@ -1,9 +1,14 @@
 import {
   CHAINS,
+  materialChange,
   normalizeAddress,
   parseAccountId,
   parseAssetId,
+  previewDigest,
   type ContractReview,
+  type IntentPreview,
+  type PreviewIssue,
+  type StepPreview,
   type ContractStepCall,
   type EvmTransactionRequest,
   type IntentGraph,
@@ -14,7 +19,8 @@ import {
   type TransactionRequest,
 } from "@kletia/core";
 import type { KletiaClient } from "./client.js";
-import { KletiaApiError, KletiaExecutionError } from "./errors.js";
+import { KletiaApiError, KletiaExecutionError, KletiaPolicyError, KletiaPreviewChangedError, type PolicyApprovalReference } from "./errors.js";
+import type { PolicyGuard } from "./policyGuard.js";
 import { newIdempotencyKey } from "./retry.js";
 import type { EvmSigner, SolanaSigner } from "./signers.js";
 import type { PreparedStep, StepReviewContext } from "./types.js";
@@ -52,7 +58,61 @@ export interface ExecuteIntentOptions {
    * preparing that step again, so the wallet never signs it twice.
    */
   readonly pendingReferences?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The asset-change preview gate ("fare breakdown"). Called before a step is
+   * signed with the intent preview and the step's own preview; resolve `true`
+   * only once the user approved it, anything else stops before the wallet
+   * prompt (`executeIntent` returns the intent). The approved digest is sent
+   * to prepare as `acknowledgedPreview`; when the fresh payload is materially
+   * worse (409 PREVIEW_CHANGED), when the API no longer holds the digest, or
+   * when the fresh preview differs materially from the approved one by core
+   * `materialChange`, the hook is asked again with the fresh preview: nothing
+   * is signed without that second approval. Without the hook, steps proceed
+   * unless a preview issue has severity `block`.
+   */
+  readonly onPreview?: (preview: IntentPreview, stepPreview: StepPreview | null, context: PreviewGateContext) => boolean | Promise<boolean>;
+  /** A preview the user already saw (e.g. from `intents.create(…, { preview: true })`); otherwise the last kept one is read. */
+  readonly preview?: IntentPreview;
+  /**
+   * Policy-bound signer (`createPolicyGuard`): checked before every
+   * signature; a refusal throws `KletiaPolicyError` (`stage: "sign"`).
+   */
+  readonly policyGuard?: PolicyGuard;
+  /**
+   * Called when the owner's rule book holds the intent for approval
+   * (POLICY_APPROVAL_REQUIRED). `executeIntent` then returns the intent
+   * instead of waiting; run it again once the approval is decided. Without
+   * the hook the `KletiaPolicyError` is thrown.
+   */
+  readonly onApprovalRequired?: (approval: PolicyApprovalReference | null, error: KletiaPolicyError) => void | Promise<void>;
 }
+
+/** Why `onPreview` is asked. */
+export interface PreviewGateContext {
+  readonly step: IntentStep;
+  readonly intent: IntentGraph;
+  /**
+   * `before-prepare`: the latest preview before the step is prepared;
+   * `prepared`: the fresh preview of exactly the prepared payload;
+   * `changed`: the API refused the payload as materially worse (`changes`);
+   * `unacknowledged`: the API no longer held the approved digest.
+   */
+  readonly reason: "before-prepare" | "prepared" | "changed" | "unacknowledged";
+  /** What got worse compared with the approved preview, when known. */
+  readonly changes: readonly PreviewIssue[];
+}
+
+/** Preview approvals across the steps of one `executeIntent` run. */
+interface PreviewGate {
+  /** The latest preview known (shown or not). */
+  current: IntentPreview | null;
+  /** The preview the user approved last, whose digest prepare acknowledges. */
+  approved: IntentPreview | null;
+  loaded: boolean;
+}
+
+/** Rounds of PREVIEW_CHANGED re-approval before giving up on a step. */
+const PREVIEW_ROUNDS = 3;
 
 const TERMINAL: readonly IntentStatus[] = TERMINAL_INTENT_STATUSES;
 
@@ -321,12 +381,122 @@ interface StepOutcome {
   readonly declined: boolean;
 }
 
+function stepPreviewOf(preview: IntentPreview | null | undefined, stepId: string): StepPreview | null {
+  return preview?.steps.find((candidate) => candidate.stepId === stepId) ?? null;
+}
+
+/** Issues of severity `block` for a step, from its payload preview and the intent preview. */
+function blockingIssues(stepId: string, payload: StepExecutionPayload, preview: IntentPreview | undefined): PreviewIssue[] {
+  const issues = [...(payload.preview?.issues ?? []), ...(stepPreviewOf(preview, stepId)?.issues ?? [])];
+  return issues.filter((issue) => issue.severity === "block");
+}
+
+/** A preview whose digest does not match its content is never shown as the fare. */
+async function previewIntact(preview: IntentPreview): Promise<boolean> {
+  try {
+    return (await previewDigest(preview)) === preview.digest;
+  } catch {
+    return false;
+  }
+}
+
+async function ask(
+  options: Pick<ExecuteIntentOptions, "onPreview">,
+  preview: IntentPreview,
+  stepPreview: StepPreview | null,
+  context: PreviewGateContext,
+): Promise<boolean> {
+  if (!(await previewIntact(preview))) {
+    throw new KletiaExecutionError(`Refused to sign step ${context.step.id}: the preview's digest does not match its content.`, context.intent.id, context.step.id);
+  }
+  return (await options.onPreview?.(preview, stepPreview, context)) === true;
+}
+
+/** Prepares a step under the preview gate; null when the user declined a preview. */
+async function prepareWithPreview(
+  client: KletiaClient,
+  intent: IntentGraph,
+  step: IntentStep,
+  gate: PreviewGate,
+  options: Pick<ExecuteIntentOptions, "onPreview" | "signal" | "onApprovalRequired">,
+): Promise<PreparedStep | null> {
+  const signalOption = options.signal ? { signal: options.signal } : {};
+  if (options.onPreview) {
+    if (!gate.loaded) {
+      gate.loaded = true;
+      if (!gate.current) gate.current = await client.intents.getPreview(intent.id, signalOption).catch(() => null);
+    }
+    const current = gate.current;
+    if (current && current.digest !== gate.approved?.digest) {
+      if (!(await ask(options, current, stepPreviewOf(current, step.id), { step, intent, reason: "before-prepare", changes: [] }))) return null;
+      gate.approved = current;
+    }
+  }
+  for (let round = 1; ; round += 1) {
+    const acknowledged = options.onPreview && gate.approved ? { acknowledgedPreview: gate.approved.digest } : {};
+    try {
+      return await client.intents.prepareStep(intent.id, step.id, { ...signalOption, ...acknowledged });
+    } catch (error) {
+      if (error instanceof KletiaPreviewChangedError && options.onPreview && round < PREVIEW_ROUNDS) {
+        gate.current = error.preview;
+        const ok = await ask(options, error.preview, stepPreviewOf(error.preview, step.id), { step, intent, reason: "changed", changes: error.changes });
+        if (!ok) return null;
+        gate.approved = error.preview;
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+/**
+ * After prepare: the fresh preview of exactly these transactions must be the
+ * approved one, or not materially worse (server ack and local check), or be
+ * approved now. Without `onPreview`, a blocking issue refuses the step.
+ */
+async function gatePrepared(
+  intent: IntentGraph,
+  step: IntentStep,
+  prepared: PreparedStep,
+  gate: PreviewGate,
+  options: Pick<ExecuteIntentOptions, "onPreview">,
+): Promise<boolean> {
+  const { payload } = prepared;
+  if (payload.preview?.quoteBinding !== undefined && payload.preview.quoteBinding !== payload.quoteBinding) {
+    throw new KletiaExecutionError(`Refused to sign step ${step.id}: its preview describes another payload (quote binding differs).`, intent.id, step.id);
+  }
+  if (!options.onPreview) {
+    const blocking = blockingIssues(step.id, payload, prepared.preview);
+    if (blocking.length > 0) {
+      throw new KletiaExecutionError(`Refused to sign step ${step.id}: ${blocking.map((issue) => `${issue.code} ${issue.message}`).join("; ")}`, intent.id, step.id);
+    }
+    return true;
+  }
+  const fresh = prepared.preview;
+  if (!fresh) {
+    throw new KletiaExecutionError(`Refused to sign step ${step.id}: Kletia returned no preview for the prepared payload, and onPreview asks for one.`, intent.id, step.id);
+  }
+  if (!(await previewIntact(fresh))) {
+    throw new KletiaExecutionError(`Refused to sign step ${step.id}: the preview's digest does not match its content.`, intent.id, step.id);
+  }
+  const approved = gate.approved;
+  const changes = approved ? materialChange(approved, fresh) : [];
+  gate.current = fresh;
+  const covered = approved !== null && (fresh.digest === approved.digest || (prepared.previewAck === "matched" && changes.length === 0));
+  if (covered) return true;
+  const reason = prepared.previewAck === "unknown" ? "unacknowledged" : "prepared";
+  if (!(await ask(options, fresh, payload.preview ?? stepPreviewOf(fresh, step.id), { step, intent: prepared.intent, reason, changes }))) return false;
+  gate.approved = fresh;
+  return true;
+}
+
 async function executeStep(
   client: KletiaClient,
   intent: IntentGraph,
   step: IntentStep,
   signers: IntentSigners,
-  options: Pick<ExecuteIntentOptions, "onReview" | "signal">,
+  options: Pick<ExecuteIntentOptions, "onReview" | "signal" | "onPreview" | "policyGuard" | "onApprovalRequired">,
+  gate: PreviewGate,
 ): Promise<StepOutcome> {
   const { signal, onReview } = options;
   const key = unsubmittedKey(intent.id, step.id);
@@ -359,7 +529,18 @@ async function executeStep(
     );
   }
   const requestedAt = Date.now();
-  const prepared = await client.intents.prepareStep(intent.id, step.id);
+  let prepared: PreparedStep | null;
+  try {
+    prepared = await prepareWithPreview(client, intent, step, gate, options);
+  } catch (error) {
+    // Held for approval: hand control back instead of waiting (or stop with the error).
+    if (error instanceof KletiaPolicyError && error.code === "POLICY_APPROVAL_REQUIRED" && options.onApprovalRequired) {
+      await options.onApprovalRequired(error.approval, error);
+      return { intent, declined: true };
+    }
+    throw error;
+  }
+  if (!prepared) return { intent, declined: true };
   const { payload } = prepared;
   const deadline = signingDeadline(prepared, step.id, requestedAt);
   for (const [index, transaction] of payload.transactions.entries()) {
@@ -370,6 +551,9 @@ async function executeStep(
   }
   // The step as prepared (its review is now the prepare review); the snapshot is fixed at plan.
   const current = prepared.intent.steps.find((candidate) => candidate.id === step.id) ?? step;
+  // The policy-bound signer refuses before any human is asked anything.
+  if (options.policyGuard) await options.policyGuard.check({ intent: prepared.intent, step: current, payload, signer: vm === "evm" ? signers.evm ?? null : null });
+  if (!(await gatePrepared(intent, current, prepared, gate, options))) return { intent: prepared.intent, declined: true };
   if (isContractStep(step) || isContractStep(current) || payload.review) {
     const problem = reviewProblem({ ...current, call: current.call ?? step.call }, payload);
     if (problem) throw new KletiaExecutionError(`Refused to sign step ${step.id}: ${problem}.`, intent.id, step.id);
@@ -455,6 +639,7 @@ export async function executeIntent(
     if (references.length > 0) unsubmitted.set(unsubmittedKey(intent.id, stepId), [...references]);
   }
   if (typeof intentOrId === "string") forgetAccepted(intent);
+  const gate: PreviewGate = { current: options.preview ?? null, approved: null, loaded: false };
   options.onUpdate?.(intent);
   while (!TERMINAL.includes(intent.status)) {
     if (options.signal?.aborted) throw options.signal.reason ?? new Error("Aborted");
@@ -463,7 +648,7 @@ export async function executeIntent(
     if (ready.length > 0) {
       const step = ready[0] as IntentStep;
       if (options.beforeStep && !(await options.beforeStep(step, intent))) return intent;
-      const outcome = await executeStep(client, intent, step, signers, options);
+      const outcome = await executeStep(client, intent, step, signers, options, gate);
       intent = outcome.intent;
       forgetAccepted(intent);
       options.onUpdate?.(intent);

@@ -63,7 +63,7 @@ const FILE_OPTION = {
   file: { type: "string", value: "<path>", description: "JSON file (`-` reads stdin)." },
 } as const satisfies Record<string, OptionSpec>;
 
-async function readJson(context: CommandContext, path: string | undefined): Promise<unknown> {
+export async function readJson(context: CommandContext, path: string | undefined): Promise<unknown> {
   if (!path) throw new UsageError("--file <path> is required.", context.usage);
   let text: string;
   if (path === "-") {
@@ -107,7 +107,7 @@ function sessionId(context: CommandContext): string {
  * A local check failed: reported like an API error (code, issues, docs
  * link) so scripts handle both the same way, but nothing was sent.
  */
-function refusedLocally(code: string, what: string, issues: readonly ValidationIssue[]): KletiaApiError {
+export function refusedLocally(code: string, what: string, issues: readonly ValidationIssue[]): KletiaApiError {
   return new KletiaApiError({
     code,
     message: `${what} (checked locally; nothing was sent).`,

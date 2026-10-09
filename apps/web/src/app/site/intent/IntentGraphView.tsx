@@ -1,7 +1,12 @@
 import type { IntentGraph, IntentStep } from "@kletia/core";
 import { Sparkles, TriangleAlert, Wand2 } from "lucide-react";
-import React, { useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import type { LocalStepPhase } from "../../../shared/platform/useIntentExecution";
+import { AnimatedNumber } from "../motion/AnimatedNumber";
+import { FlowLine } from "../motion/FlowLine";
+import { cssVars } from "../motion/tokens";
+import { useAutoPause } from "../motion/useAutoPause";
 import { Badge } from "../ui/Badge";
 import { cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
 import {
@@ -16,7 +21,9 @@ import {
   onNetworkColor,
   STATUS_TONE,
 } from "./format";
+import { edgeBuildDelay, graphBuildDuration, nodeBuildDelay, stepDepths } from "./graphDepth";
 import { StepNode } from "./StepNode";
+import { useGraphBuild } from "./useGraphBuild";
 
 export interface IntentGraphViewProps {
   readonly intent: IntentGraph;
@@ -24,15 +31,28 @@ export interface IntentGraphViewProps {
   readonly actions?: React.ReactNode;
   /** Optional content rendered at the bottom of each step node (e.g. explorer links). */
   readonly stepFooter?: (step: IntentStep) => React.ReactNode;
+  /**
+   * Execution view: live phases per step (what the wallet and the browser are
+   * doing). Turns on phase visuals in the nodes and packets on active edges.
+   */
+  readonly phases?: Readonly<Record<string, LocalStepPhase>>;
+  /** Dry-run preview entrance: the summary card drops in and the step and signature counts count up. */
+  readonly entrance?: boolean;
   readonly className?: string;
 }
 
 interface EdgePath {
   readonly id: string;
+  readonly from: string;
+  readonly to: string;
   readonly d: string;
   readonly kind: "funds" | "orders";
   readonly color: string;
 }
+
+/** API statuses of a source step while its funds are moving towards the next step. */
+const MOVING = new Set<IntentStep["status"]>(["submitted", "confirmed", "settling"]);
+const EDGE_INK = "transition-[stroke] duration-240 ease-kl-standard motion-reduce:transition-none";
 
 function SummaryItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -48,9 +68,8 @@ function SummaryItem({ label, value }: { label: string; value: React.ReactNode }
  * the steps as nodes grouped into network lanes with dependency edges.
  * Read-only; pass `actions` to attach controls (e.g. wallet execution).
  */
-export function IntentGraphView({ intent, actions, stepFooter, className }: IntentGraphViewProps) {
-  const markerId = useId().replace(/:/gu, "");
-  const containerRef = useRef<HTMLDivElement>(null);
+export function IntentGraphView({ intent, actions, stepFooter, phases, entrance = false, className }: IntentGraphViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef(new Map<string, HTMLElement>());
   const [paths, setPaths] = useState<EdgePath[]>([]);
   const [box, setBox] = useState({ width: 0, height: 0 });
@@ -59,20 +78,33 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
   const steps = useMemo(() => [...intent.steps].sort((a, b) => a.index - b.index), [intent]);
   const edges = useMemo(() => graphEdges(intent), [intent]);
   const networkOf = useMemo(() => new Map(intent.steps.map((step) => [step.id, step.network])), [intent]);
+  const statusOf = useMemo(() => new Map(intent.steps.map((step) => [step.id, step.status])), [intent]);
+  const depths = useMemo(() => stepDepths(intent), [intent]);
+  const live = phases !== undefined;
+  const building = useGraphBuild(intent.id, graphBuildDuration(depths, lanes.length));
+  const { ref: pauseRef } = useAutoPause<HTMLDivElement>();
+  const setContainer = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
+      pauseRef(node);
+    },
+    [pauseRef],
+  );
 
   const measure = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    const origin = container.getBoundingClientRect();
+    // Layout offsets, not client rects: nodes may be mid-animation (build-in,
+    // shake), and transforms must not bend the edges.
     const next: EdgePath[] = [];
     for (const edge of edges) {
-      const from = nodeRefs.current.get(edge.from)?.getBoundingClientRect();
-      const to = nodeRefs.current.get(edge.to)?.getBoundingClientRect();
+      const from = nodeRefs.current.get(edge.from);
+      const to = nodeRefs.current.get(edge.to);
       if (!from || !to) continue;
-      const x1 = from.left - origin.left + from.width / 2;
-      const y1 = from.bottom - origin.top;
-      const x2 = to.left - origin.left + to.width / 2;
-      const y2 = to.top - origin.top - 6;
+      const x1 = from.offsetLeft + from.offsetWidth / 2;
+      const y1 = from.offsetTop + from.offsetHeight;
+      const x2 = to.offsetLeft + to.offsetWidth / 2;
+      const y2 = to.offsetTop - 6;
       const mid = y1 + Math.max(12, (y2 - y1) / 2);
       const dx = x2 - x1;
       const radius = Math.min(10, Math.abs(dx) / 2, Math.abs(mid - y1));
@@ -91,13 +123,15 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
             ].join(" ");
       next.push({
         id: `${edge.from}->${edge.to}`,
+        from: edge.from,
+        to: edge.to,
         d,
         kind: edge.kind,
         color: networkColor(networkOf.get(edge.to) ?? ""),
       });
     }
     setPaths(next);
-    setBox({ width: origin.width, height: origin.height });
+    setBox({ width: container.offsetWidth, height: container.offsetHeight });
   }, [edges, networkOf]);
 
   useLayoutEffect(() => {
@@ -119,7 +153,7 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
 
   return (
     <div className={cx("flex min-w-0 flex-col gap-6", className)}>
-      <section aria-label="Intent summary" className={cx(INK_BORDER, HARD_SHADOW, SURFACE)}>
+      <section aria-label="Intent summary" className={cx(INK_BORDER, HARD_SHADOW, SURFACE, entrance && "kl-drop")}>
         <div className="flex flex-col gap-3 border-b-[3px] border-[#1A1A1A] p-4 dark:border-[#4B5563] sm:flex-row sm:items-start sm:justify-between sm:p-5">
           <div className="min-w-0">
             <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Intent graph · {intent.spec}</p>
@@ -134,9 +168,12 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-[2px] bg-[#1A1A1A] dark:bg-[#4B5563] sm:grid-cols-3 [&>div]:bg-white dark:[&>div]:bg-[#131E32]">
-          <SummaryItem label="Steps" value={intent.steps.length} />
+          <SummaryItem label="Steps" value={entrance ? <AnimatedNumber value={intent.steps.length} duration={600} /> : intent.steps.length} />
           <SummaryItem label="Networks" value={summary.networks.map(networkName).join(" → ") || "—"} />
-          <SummaryItem label="Signatures" value={summary.signaturesRequired} />
+          <SummaryItem
+            label="Signatures"
+            value={entrance ? <AnimatedNumber value={summary.signaturesRequired} duration={600} /> : summary.signaturesRequired}
+          />
           <SummaryItem label="Est. fees" value={fees ?? "—"} />
           <SummaryItem label="Est. time" value={eta ?? "—"} />
           <SummaryItem
@@ -209,7 +246,7 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
 
       <section aria-label="Steps by network">
         <div
-          ref={containerRef}
+          ref={setContainer}
           className={cx(
             "relative grid grid-cols-1 gap-y-12 md:gap-x-8 md:gap-y-16 md:[grid-template-columns:repeat(var(--kl-lanes),minmax(0,1fr))]",
             laneCount === 1 && "md:max-w-2xl",
@@ -222,24 +259,31 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
             width={box.width}
             height={box.height}
           >
-            <defs>
-              <marker id={markerId} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-[#1A1A1A] dark:fill-[#CBD5E1]" />
-              </marker>
-            </defs>
-            {paths.map((path) => (
-              <g key={path.id}>
-                <path d={path.d} fill="none" strokeWidth={7} stroke={path.color} strokeOpacity={0.35} />
-                <path
-                  d={path.d}
-                  fill="none"
-                  strokeWidth={2.5}
-                  strokeDasharray={path.kind === "orders" ? "6 6" : undefined}
-                  className="stroke-[#1A1A1A] dark:stroke-[#CBD5E1]"
-                  markerEnd={`url(#${markerId})`}
-                />
-              </g>
-            ))}
+            {paths.map((path) => {
+              const source = statusOf.get(path.from);
+              const settled = live && source === "settled";
+              const moving = live && source !== undefined && MOVING.has(source);
+              return (
+                // Keyed by edge id (not by `d`), so a re-measure keeps the path and never replays the draw.
+                <g key={path.id} style={cssVars({ "--kl-edge": path.color })}>
+                  <FlowLine
+                    d={path.d}
+                    color={path.color}
+                    kind={path.kind}
+                    // The arrow head lands once the edge has drawn in (it would sit alone at the far end otherwise).
+                    arrow={!building}
+                    draw={building}
+                    drawDelay={edgeBuildDelay(depths.get(path.to) ?? 0)}
+                    packets={moving ? 2 : 0}
+                    active={moving}
+                    inkClassName={cx(
+                      EDGE_INK,
+                      settled ? "stroke-[color:var(--kl-edge)]" : "stroke-[#1A1A1A] dark:stroke-[#CBD5E1]",
+                    )}
+                  />
+                </g>
+              );
+            })}
           </svg>
 
           {/* Lane headers (desktop) */}
@@ -251,8 +295,15 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
               style={{ gridColumn: laneIndex + 1, gridRow: 1 }}
             >
               <div
-                className="inline-flex items-center gap-2 border-[3px] border-[#1A1A1A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]"
-                style={{ backgroundColor: networkColor(lane), color: onNetworkColor(lane) }}
+                className={cx(
+                  "inline-flex items-center gap-2 border-[3px] border-[#1A1A1A] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]",
+                  building && "kl-node-in",
+                )}
+                style={{
+                  backgroundColor: networkColor(lane),
+                  color: onNetworkColor(lane),
+                  ...(building ? cssVars({ "--kl-delay": `${laneIndex * 40}ms` }) : {}),
+                }}
               >
                 {networkName(lane)}
               </div>
@@ -265,18 +316,19 @@ export function IntentGraphView({ intent, actions, stepFooter, className }: Inte
               <StepNode
                 key={step.id}
                 step={step}
+                live={live}
+                {...(phases?.[step.id] ? { localPhase: phases[step.id] } : {})}
                 footer={stepFooter?.(step)}
                 ref={(element) => {
                   if (element) nodeRefs.current.set(step.id, element);
                   else nodeRefs.current.delete(step.id);
                 }}
-                className="z-[1] md:[grid-column:var(--kl-col)] md:[grid-row:var(--kl-row)]"
-                style={
-                  {
-                    ["--kl-col" as string]: String(laneIndex + 1),
-                    ["--kl-row" as string]: String(step.index + 2),
-                  } as React.CSSProperties
-                }
+                className={cx("z-[1] md:[grid-column:var(--kl-col)] md:[grid-row:var(--kl-row)]", building && "kl-node-in")}
+                style={cssVars({
+                  "--kl-col": String(laneIndex + 1),
+                  "--kl-row": String(step.index + 2),
+                  "--kl-delay": building ? `${nodeBuildDelay(depths.get(step.id) ?? 0, laneIndex)}ms` : undefined,
+                })}
               />
             );
           })}

@@ -13,14 +13,14 @@ import {
   type PublicClient,
 } from "viem";
 import { CHAINS, type NetworkKey } from "@kletia/core";
-import { NETWORK_CLIENTS } from "../../../shared/config/networks.js";
+import { NETWORK_CLIENTS, PLATFORM_NETWORK_CLIENTS } from "../../../shared/config/networks.js";
 import { arbitrumSepoliaPublicClient } from "../../../networks/arbitrum-sepolia/config.js";
 import { PlatformError } from "../../errors.js";
 import { nativeUsdPrice } from "../prices.js";
 
-export type EvmNetworkKey = Extract<NetworkKey, "base" | "arbitrum" | "arc" | "arbitrum-sepolia">;
+export type EvmNetworkKey = Extract<NetworkKey, "base" | "arbitrum" | "ethereum" | "optimism" | "polygon" | "arc" | "arbitrum-sepolia">;
 
-export const EVM_NETWORK_KEYS: readonly EvmNetworkKey[] = ["base", "arbitrum", "arc", "arbitrum-sepolia"];
+export const EVM_NETWORK_KEYS: readonly EvmNetworkKey[] = ["base", "arbitrum", "ethereum", "optimism", "polygon", "arc", "arbitrum-sepolia"];
 
 export function isEvmNetwork(network: NetworkKey): network is EvmNetworkKey {
   return (EVM_NETWORK_KEYS as readonly string[]).includes(network);
@@ -32,6 +32,12 @@ export function evmClient(network: EvmNetworkKey): PublicClient {
       return NETWORK_CLIENTS.base;
     case "arbitrum":
       return NETWORK_CLIENTS.arbitrum;
+    case "ethereum":
+      return PLATFORM_NETWORK_CLIENTS.ethereum;
+    case "optimism":
+      return PLATFORM_NETWORK_CLIENTS.optimism;
+    case "polygon":
+      return PLATFORM_NETWORK_CLIENTS.polygon;
     case "arc":
       return NETWORK_CLIENTS.arc;
     case "arbitrum-sepolia":

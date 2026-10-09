@@ -63,13 +63,13 @@ export function FlowLine({
   className,
 }: FlowLineProps) {
   const reduced = useReducedMotion();
-  const auto = useAutoPause<SVGGElement>();
+  const { ref: pauseRef, active: onScreen } = useAutoPause<SVGGElement>();
   const markerId = `kl-arrow-${useId().replace(/[^a-zA-Z0-9_-]/gu, "")}`;
   const pathRef = useRef<SVGPathElement | null>(null);
   const packetRefs = useRef<Array<SVGRectElement | null>>([]);
   const animationsRef = useRef<Animation[]>([]);
   const count = reduced ? 0 : Math.max(0, Math.min(6, Math.floor(packets)));
-  const running = active && auto.active;
+  const running = active && onScreen;
   const runningRef = useRef(running);
   const dashed = kind === "orders";
   const drawn = draw && !dashed;
@@ -80,7 +80,7 @@ export function FlowLine({
   useEffect(() => {
     const path = pathRef.current;
     if (!path || count === 0 || typeof path.getTotalLength !== "function") return undefined;
-    let length = 0;
+    let length: number;
     try {
       length = path.getTotalLength();
     } catch {
@@ -129,7 +129,7 @@ export function FlowLine({
   }, [running]);
 
   return (
-    <g ref={auto.ref} className={className}>
+    <g ref={pauseRef} className={className}>
       {arrow ? (
         <defs>
           <marker

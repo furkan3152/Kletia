@@ -32,6 +32,15 @@ export { INTENT_ID_PATTERN, STEP_ID_PATTERN } from "./engine/util.js";
 export { planIntent, DEFAULT_SLIPPAGE_BPS, INTENT_TTL_MS, type PlanOptions } from "./engine/planner.js";
 export { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, type GrammarContext, type GrammarResult } from "./engine/grammar.js";
 export { quoteRoutes, type QuoteRoute, type QuoteRoutesInput, type QuoteRoutesResult } from "./engine/quotes.js";
+export { LENDING_PROTOCOLS } from "./engine/planner.js";
+export { configureVenueQuoteTimeout, DEFAULT_MAX_SECONDS } from "./engine/auction.js";
+export {
+  looksLikeName,
+  registerNameResolver,
+  resolveRecipientName,
+  type NameResolution,
+  type NameResolver,
+} from "./engine/names.js";
 export { readAccountPortfolio, type AccountPortfolio, type PortfolioHolding } from "./engine/portfolio.js";
 
 export {

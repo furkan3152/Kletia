@@ -89,6 +89,16 @@ function activeStyle(definition: WorkspacePresentation, active: boolean): React.
   };
 }
 
+/** 3px bar under the active workspace; it scales in from the centre when the selection changes. */
+function ActiveBar() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-1.5 bottom-0.5 h-[3px] origin-center animate-[kl-fill-x_200ms_cubic-bezier(0.2,0.9,0.3,1.25)_backwards] bg-current motion-reduce:animate-none"
+    />
+  );
+}
+
 export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
   networkMode,
   onSelect,
@@ -120,7 +130,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                 aria-pressed={active}
                 aria-label={`${definition.name}${definition.beta ? ", public beta" : ""}`}
                 onClick={() => void Promise.resolve(onSelect(workspace)).catch(() => {})}
-                className={`min-h-11 min-w-0 border-[2px] border-[#1A1A1A] px-1 text-[10px] font-black uppercase text-[#1A1A1A] transition-[transform,box-shadow,background-color,color] duration-100 ease-out focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#64748B] dark:text-white ${
+                className={`relative min-h-11 min-w-0 overflow-hidden border-[2px] border-[#1A1A1A] px-1 text-[10px] font-black uppercase text-[#1A1A1A] transition-[transform,box-shadow,background-color,color] duration-150 ease-out motion-reduce:transition-none focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#64748B] dark:text-white ${
                   active
                     ? "text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#94A3B8]"
                     : "bg-white dark:bg-[#1A2841]"
@@ -132,6 +142,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                 ) : (
                   definition.compactLabel
                 )}
+                {active ? <ActiveBar /> : null}
               </button>
             );
           })}
@@ -185,7 +196,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                 aria-current={active ? "true" : undefined}
                 aria-label={`${definition.name}${definition.beta ? ", public beta" : ""}`}
                 onClick={() => void Promise.resolve(onSelect(option.workspace)).catch(() => {})}
-                className={`group relative flex min-h-[48px] min-w-0 items-center justify-center gap-1 overflow-hidden border-[2px] border-[#1A1A1A] px-1 py-1.5 text-[#1A1A1A] transition-[transform,box-shadow,background-color,color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#1A1A1A] focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#64748B] dark:text-white dark:hover:shadow-[2px_2px_0_#475569] ${
+                className={`group relative flex min-h-[48px] min-w-0 items-center justify-center gap-1 overflow-hidden border-[2px] border-[#1A1A1A] px-1 py-1.5 text-[#1A1A1A] transition-[transform,box-shadow,background-color,color] duration-150 ease-out motion-reduce:transition-none hover:-translate-y-0.5 hover:shadow-[2px_2px_0_#1A1A1A] focus-visible:z-20 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 active:translate-y-0.5 active:shadow-none disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#64748B] dark:text-white dark:hover:shadow-[2px_2px_0_#475569] ${
                   active
                     ? "text-white shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#94A3B8]"
                     : "bg-white hover:bg-[#FFF36D] dark:bg-[#1A2841] dark:hover:bg-[#243652]"
@@ -213,6 +224,7 @@ export const NetworkSwitcher: React.FC<NetworkSwitcherProps> = ({
                     aria-hidden="true"
                   />
                 ) : null}
+                {active ? <ActiveBar /> : null}
               </button>
             );
           })}

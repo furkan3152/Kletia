@@ -19,8 +19,52 @@ export { buildOpenApiDocument, openApiJson } from "./openapi.js";
 export { configureHealthProbe, readPlatformHealth, PLATFORM_API_VERSION, type NetworkHealth, type PlatformHealth } from "./health.js";
 export { openStreamCount, TIER_LIMITS } from "./limits.js";
 export { networkCapabilities, protocolRegistry, assetRegistry, type NetworkCapabilities } from "./catalog.js";
-export { issueDeveloperKey, type IssuedApiKey } from "./auth.js";
-export { WebhookDispatcher, httpsTransport, webhookDispatcherStats, type WebhookTransport, type DispatcherStats } from "./dispatcher.js";
+export { issueDeveloperKey, KEY_CACHE_TTL_MS, type IssuedApiKey } from "./auth.js";
+export {
+  listProjectKeys,
+  revokeKey,
+  rotateKey,
+  MAX_ACTIVE_KEYS_PER_PROJECT,
+  DEFAULT_ROTATION_GRACE_SECONDS,
+  MAX_ROTATION_GRACE_SECONDS,
+  type ApiKeyView,
+  type RotatedApiKey,
+} from "./keys.js";
+export {
+  idempotent,
+  idempotencyUnsupported,
+  MemoryIdempotencyStore,
+  PostgresIdempotencyStore,
+  IDEMPOTENCY_TTL_MS,
+  type IdempotencyStore,
+  type IdempotencyOptions,
+} from "./idempotency.js";
+export { errorCatalogView, errorDocsLink, type ErrorCatalogView } from "./errorsRoute.js";
+export { kletiaWebOrigin } from "./webOrigin.js";
+export {
+  listDeliveries,
+  sendTestDelivery,
+  flushDeliveryLog,
+  MemoryDeliveryStore,
+  PostgresDeliveryStore,
+  type DeliveryStore,
+  type WebhookDelivery,
+} from "./deliveries.js";
+export { usageReport, flushUsage, MemoryUsageStore, PostgresUsageStore, type UsageReport, type UsageStore, type UsageWindow } from "./usage.js";
+export { badgeStatus, badgeSvg, shieldsBadge, type BadgeStatus } from "./badge.js";
+export { buildMcpServer, mcpHttpHandler, serveMcp } from "./mcp/server.js";
+export { KLETIA_TOOLS, runTool, type KletiaTool, type ToolCaller } from "./mcp/tools.js";
+export { signingLink, HANDOFF_MAX_TEXT, type SigningLink } from "./mcp/handoff.js";
+export { assertMcpOrigin, allowedMcpOrigins } from "./mcp/origin.js";
+export {
+  WebhookDispatcher,
+  httpsTransport,
+  webhookDispatcherStats,
+  webhookDeliveryTransport,
+  type WebhookTransport,
+  type DeliveryRecorder,
+  type DispatcherStats,
+} from "./dispatcher.js";
 export { isPublicAddress, assertPublicWebhookUrl } from "./netguard.js";
 export { closePlatformDatabase } from "./db.js";
 export { HttpError } from "./context.js";

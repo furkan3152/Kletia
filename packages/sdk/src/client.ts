@@ -7,18 +7,34 @@ import type {
   ProtocolDescriptor,
 } from "@kletia/core";
 import { KletiaApiError, type ApiIssue } from "./errors.js";
+import {
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  newIdempotencyKey,
+  retryClass,
+  retryDelayMs,
+  sleep,
+} from "./retry.js";
 import { readServerSentEvents } from "./sse.js";
 import type {
   ApiKeyRecord,
+  ApiKeySummary,
   CreateIntentOptions,
+  ErrorCatalogResponse,
   HealthReport,
   NetworkCapabilities,
   PortfolioResponse,
   PreparedStep,
   QuoteRequest,
   QuoteResponse,
+  RequestOptions,
+  RotatedApiKey,
+  UsageReport,
+  UsageWindow,
+  WebhookDelivery,
   WebhookRecord,
 } from "./types.js";
+import { watchIntent, type WatchIntentOptions } from "./watch.js";
 
 export const DEFAULT_BASE_URL = "https://api.kletiaai.xyz";
 export const SDK_VERSION = "0.1.0";
@@ -34,8 +50,16 @@ export interface KletiaClientOptions {
    * the public tier or a `baseUrl` that proxies through your server.
    */
   readonly apiKey?: string;
-  /** Per-request timeout in milliseconds (default 20000). */
+  /** Per-attempt timeout in milliseconds (default 20000). */
   readonly timeoutMs?: number;
+  /**
+   * Retries for requests that are safe to repeat (default 2): GET, DELETE,
+   * quotes, dry runs and refresh, and state-changing POSTs that carry an
+   * Idempotency-Key. Prepare is never retried. 0 disables retries.
+   */
+  readonly maxRetries?: number;
+  /** First backoff delay in milliseconds (default 500, doubling per attempt, with jitter). */
+  readonly retryBaseDelayMs?: number;
   /** Custom fetch implementation (tests, edge runtimes, proxies). */
   readonly fetch?: FetchLike;
   /** Extra headers sent with every request. */
@@ -46,6 +70,25 @@ export interface StreamOptions {
   readonly signal?: AbortSignal;
   /** Resume after this event id (sent as Last-Event-ID). */
   readonly lastEventId?: string;
+  /** Called once the stream is open, before the first event. */
+  readonly onOpen?: () => void;
+}
+
+/** Options for the low-level `request` helper. */
+export interface LowLevelRequestOptions extends RequestOptions {
+  readonly query?: Readonly<Record<string, string | undefined>>;
+}
+
+export interface WaitForIntentOptions extends Omit<WatchIntentOptions, "signal"> {
+  readonly signal?: AbortSignal;
+  /** Give up after this many milliseconds (default 20 minutes) with `WAIT_TIMEOUT`. */
+  readonly timeoutMs?: number;
+}
+
+/** Internal per-call behaviour that is not part of the public request options. */
+interface CallBehaviour {
+  /** A 404 after a retry means an earlier attempt already removed the resource. */
+  readonly goneAfterRetryIsDone?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,12 +125,40 @@ function errorFromResponse(response: Response, parsed: unknown, fallbackMessage:
       : [],
     requestId: response.headers.get("x-request-id"),
     retryAfterSeconds: retryAfterSeconds(response),
+    docs: typeof error.docs === "string" ? error.docs : null,
+  });
+}
+
+function abortedError(signal: AbortSignal | undefined): KletiaApiError {
+  return new KletiaApiError({
+    code: "REQUEST_ABORTED",
+    message: "The request was aborted.",
+    status: 0,
+    cause: signal?.reason,
+  });
+}
+
+/** Maps a fetch failure (or a failed stream read) to a KletiaApiError. */
+function transportError(error: unknown, signal: AbortSignal | undefined, timeout?: AbortSignal): KletiaApiError {
+  if (signal?.aborted) return abortedError(signal);
+  const timedOut = (error as Error)?.name === "TimeoutError" || timeout?.aborted === true;
+  return new KletiaApiError({
+    code: timedOut ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
+    message: timedOut ? "The Kletia API did not respond in time." : "The Kletia API is unreachable.",
+    status: 0,
+    cause: error,
   });
 }
 
 function encodeSegment(value: string, name: string): string {
   if (!value || value.length > 200) throw new Error(`${name} is required.`);
   return encodeURIComponent(value);
+}
+
+function retriesOption(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isInteger(value) || value < 0 || value > 10) throw new RangeError("maxRetries must be an integer between 0 and 10.");
+  return value;
 }
 
 /**
@@ -102,6 +173,8 @@ export class KletiaClient {
   readonly baseUrl: string;
   private readonly apiKey: string | undefined;
   private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryBaseDelayMs: number;
   private readonly fetchImpl: FetchLike;
   private readonly extraHeaders: Readonly<Record<string, string>>;
 
@@ -109,11 +182,18 @@ export class KletiaClient {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? 20_000;
+    this.maxRetries = retriesOption(options.maxRetries, DEFAULT_MAX_RETRIES);
+    this.retryBaseDelayMs = Math.max(0, options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS);
     const fallback = (globalThis as { fetch?: FetchLike }).fetch;
     const fetchImpl = options.fetch ?? (fallback ? fallback.bind(globalThis) : undefined);
     if (!fetchImpl) throw new Error("No fetch implementation available; pass options.fetch.");
     this.fetchImpl = fetchImpl;
     this.extraHeaders = options.headers ?? {};
+  }
+
+  /** True when the client sends an API key (idempotency keys are generated only then). */
+  get hasApiKey(): boolean {
+    return Boolean(this.apiKey);
   }
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
@@ -126,37 +206,106 @@ export class KletiaClient {
     };
   }
 
-  /** Low-level request helper. Returns the parsed JSON body. */
-  async request<T>(
+  /**
+   * Low-level request helper. Returns the parsed JSON body (null for an
+   * empty one). Retries follow the policy in `retry.ts`: safe requests and
+   * state-changing POSTs that carry an Idempotency-Key are repeated on
+   * network errors, timeouts, 429 and retryable codes; prepare never is.
+   */
+  request<T>(
     method: "GET" | "POST" | "DELETE",
     path: string,
     body?: unknown,
-    init: { signal?: AbortSignal; query?: Record<string, string | undefined> } = {},
+    init: LowLevelRequestOptions = {},
+  ): Promise<T> {
+    return this.call<T>(method, path, body, init, {});
+  }
+
+  private async call<T>(
+    method: "GET" | "POST" | "DELETE",
+    path: string,
+    body: unknown,
+    init: LowLevelRequestOptions,
+    behaviour: CallBehaviour,
   ): Promise<T> {
     const url = new URL(`${this.baseUrl}/v1${path}`);
     for (const [key, value] of Object.entries(init.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, value);
     }
+    const kind = retryClass(method, path, init.query);
+    let idempotencyKey: string | null = null;
+    let generated = false;
+    if (kind === "prepare") {
+      if (typeof init.idempotencyKey === "string") {
+        throw new TypeError("Prepare does not accept an Idempotency-Key: every call builds fresh transactions and is never retried.");
+      }
+    } else if (typeof init.idempotencyKey === "string") {
+      idempotencyKey = init.idempotencyKey;
+    } else if (init.idempotencyKey !== false && kind === "idempotent" && this.apiKey) {
+      idempotencyKey = newIdempotencyKey();
+      generated = idempotencyKey !== null;
+    }
+    const defaultRetries = kind === "safe" || (kind === "idempotent" && idempotencyKey !== null) ? this.maxRetries : 0;
+    let retries = kind === "prepare" ? 0 : retriesOption(init.maxRetries, defaultRetries);
+
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.send<T>(method, url, body, idempotencyKey, init.signal);
+      } catch (error) {
+        if (!(error instanceof KletiaApiError)) throw error;
+        if (generated && error.code === "IDEMPOTENCY_NOT_SUPPORTED") {
+          // Refused before anything ran (the deployment cannot seal stored
+          // secrets): send it once more without the key, and without retries.
+          idempotencyKey = null;
+          generated = false;
+          retries = attempt;
+          continue;
+        }
+        if (behaviour.goneAfterRetryIsDone && attempt > 1 && error.status === 404) return null as T;
+        if (attempt > retries || !error.retryable || init.signal?.aborted) throw error;
+        const delay = retryDelayMs(attempt, this.retryBaseDelayMs, error.retryAfterSeconds);
+        if (delay === null) throw error;
+        try {
+          await sleep(delay, init.signal);
+        } catch {
+          throw abortedError(init.signal);
+        }
+      }
+    }
+  }
+
+  /** One HTTP attempt. */
+  private async send<T>(
+    method: string,
+    url: URL,
+    body: unknown,
+    idempotencyKey: string | null,
+    userSignal: AbortSignal | undefined,
+  ): Promise<T> {
+    if (userSignal?.aborted) throw abortedError(userSignal);
     const timeout = AbortSignal.timeout(this.timeoutMs);
-    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    const signal = userSignal ? AbortSignal.any([userSignal, timeout]) : timeout;
     let response: Response;
     try {
       response = await this.fetchImpl(url.toString(), {
         method,
-        headers: this.headers(body === undefined ? {} : { "content-type": "application/json" }),
+        headers: this.headers({
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
+          ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
+        }),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal,
       });
     } catch (error) {
-      const timedOut = (error as Error)?.name === "TimeoutError" || timeout.aborted;
-      throw new KletiaApiError({
-        code: timedOut ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
-        message: timedOut ? "The Kletia API did not respond in time." : "The Kletia API is unreachable.",
-        status: 0,
-      });
+      throw transportError(error, userSignal, timeout);
     }
     const requestId = response.headers.get("x-request-id");
-    const text = await response.text();
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      throw transportError(error, userSignal, timeout);
+    }
     let parsed: unknown = null;
     if (text) {
       try {
@@ -177,94 +326,139 @@ export class KletiaClient {
     return parsed as T;
   }
 
-  health(): Promise<HealthReport> {
-    return this.request<HealthReport>("GET", "/health");
+  health(options: RequestOptions = {}): Promise<HealthReport> {
+    return this.request<HealthReport>("GET", "/health", undefined, options);
   }
 
-  async networks(): Promise<NetworkCapabilities[]> {
-    const body = await this.request<{ networks: NetworkCapabilities[] }>("GET", "/networks");
+  async networks(options: RequestOptions = {}): Promise<NetworkCapabilities[]> {
+    const body = await this.request<{ networks: NetworkCapabilities[] }>("GET", "/networks", undefined, options);
     return body.networks;
   }
 
-  async protocols(): Promise<ProtocolDescriptor[]> {
-    const body = await this.request<{ protocols: ProtocolDescriptor[] }>("GET", "/protocols");
+  async protocols(options: RequestOptions = {}): Promise<ProtocolDescriptor[]> {
+    const body = await this.request<{ protocols: ProtocolDescriptor[] }>("GET", "/protocols", undefined, options);
     return body.protocols;
   }
 
-  async assets(network?: NetworkKey): Promise<AssetDescriptor[]> {
+  async assets(network?: NetworkKey, options: RequestOptions = {}): Promise<AssetDescriptor[]> {
     const body = await this.request<{ assets: AssetDescriptor[] }>("GET", "/assets", undefined, {
+      ...options,
       query: { network },
     });
     return body.assets;
   }
 
-  quote(request: QuoteRequest): Promise<QuoteResponse> {
-    return this.request<QuoteResponse>("POST", "/quotes", request);
+  /** Best routes for one movement. Read-only, so it is retried like a GET. */
+  quote(request: QuoteRequest, options: RequestOptions = {}): Promise<QuoteResponse> {
+    return this.request<QuoteResponse>("POST", "/quotes", request, options);
   }
 
-  portfolio(accountId: string): Promise<PortfolioResponse> {
-    return this.request<PortfolioResponse>("GET", `/portfolio/${encodeSegment(accountId, "accountId")}`);
+  portfolio(accountId: string, options: RequestOptions = {}): Promise<PortfolioResponse> {
+    return this.request<PortfolioResponse>("GET", `/portfolio/${encodeSegment(accountId, "accountId")}`, undefined, options);
+  }
+
+  /** The error catalog (`GET /v1/errors`), the same table as `ERROR_CATALOG` in `@kletia/core`. */
+  errors(options: RequestOptions = {}): Promise<ErrorCatalogResponse> {
+    return this.request<ErrorCatalogResponse>("GET", "/errors", undefined, options);
+  }
+
+  /** Request counts, the live rate-limit window and intents of the calling key (key required). */
+  usage(options: RequestOptions & { readonly window?: UsageWindow } = {}): Promise<UsageReport> {
+    const { window, ...rest } = options;
+    return this.request<UsageReport>("GET", "/usage", undefined, { ...rest, query: { window } });
+  }
+
+  /** The OpenAPI 3.1 document of this API. */
+  openApi(options: RequestOptions = {}): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>("GET", "/openapi.json", undefined, options);
   }
 
   readonly intents = {
-    /** Plan an intent into an executable graph. */
-    create: async (request: IntentRequest, options: CreateIntentOptions = {}): Promise<IntentGraph> => {
+    /**
+     * Plan an intent into an executable graph. With an API key the call
+     * carries an Idempotency-Key (generated unless given), so a retry after a
+     * lost response returns the same intent instead of planning a second one.
+     */
+    create: async (
+      request: IntentRequest,
+      options: CreateIntentOptions & RequestOptions = {},
+    ): Promise<IntentGraph> => {
+      const { dryRun, ...rest } = options;
       const body = await this.request<{ intent: IntentGraph }>("POST", "/intents", request, {
-        query: { dryRun: options.dryRun ? "true" : undefined },
+        ...rest,
+        query: { dryRun: dryRun ? "true" : undefined },
       });
       return body.intent;
     },
-    get: async (id: string): Promise<IntentGraph> => {
-      const body = await this.request<{ intent: IntentGraph }>("GET", `/intents/${encodeSegment(id, "id")}`);
+    get: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
+      const body = await this.request<{ intent: IntentGraph }>("GET", `/intents/${encodeSegment(id, "id")}`, undefined, options);
       return body.intent;
     },
-    list: async (limit = 20): Promise<IntentGraph[]> => {
+    list: async (limit = 20, options: RequestOptions = {}): Promise<IntentGraph[]> => {
       const body = await this.request<{ intents: IntentGraph[] }>("GET", "/intents", undefined, {
+        ...options,
         query: { limit: String(limit) },
       });
       return body.intents;
     },
-    /** Build wallet-ready transactions for a ready step. */
-    prepareStep: (id: string, stepId: string): Promise<PreparedStep> =>
+    /**
+     * Build wallet-ready transactions for a ready step. Never retried and
+     * never sent with an Idempotency-Key: each call builds fresh transactions.
+     */
+    prepareStep: (id: string, stepId: string, options: Pick<RequestOptions, "signal"> = {}): Promise<PreparedStep> =>
       this.request<PreparedStep>(
         "POST",
         `/intents/${encodeSegment(id, "id")}/steps/${encodeSegment(stepId, "stepId")}/prepare`,
         {},
+        options.signal ? { signal: options.signal } : {},
       ),
     /** Report transaction hashes / signatures, in payload order, for on-chain verification. */
-    submitStep: async (id: string, stepId: string, references: readonly string[]): Promise<IntentGraph> => {
+    submitStep: async (
+      id: string,
+      stepId: string,
+      references: readonly string[],
+      options: RequestOptions = {},
+    ): Promise<IntentGraph> => {
       const body = await this.request<{ intent: IntentGraph }>(
         "POST",
         `/intents/${encodeSegment(id, "id")}/steps/${encodeSegment(stepId, "stepId")}/submit`,
         { references },
+        options,
       );
       return body.intent;
     },
-    refresh: async (id: string): Promise<IntentGraph> => {
-      const body = await this.request<{ intent: IntentGraph }>("POST", `/intents/${encodeSegment(id, "id")}/refresh`, {});
+    refresh: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
+      const body = await this.request<{ intent: IntentGraph }>("POST", `/intents/${encodeSegment(id, "id")}/refresh`, {}, options);
       return body.intent;
     },
-    cancel: async (id: string): Promise<IntentGraph> => {
-      const body = await this.request<{ intent: IntentGraph }>("POST", `/intents/${encodeSegment(id, "id")}/cancel`, {});
+    cancel: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
+      const body = await this.request<{ intent: IntentGraph }>("POST", `/intents/${encodeSegment(id, "id")}/cancel`, {}, options);
       return body.intent;
     },
     /**
      * Stream intent events (Server-Sent Events over fetch, so it works in
-     * browsers, Node 20+ and edge runtimes). Resolves when the stream ends.
+     * browsers, Node 20+ and edge runtimes). Resolves when the stream ends
+     * (the API closes streams after 30 minutes; reconnect with `lastEventId`)
+     * or the signal aborts.
      */
     stream: async (
       id: string,
       onEvent: (event: AnyKletiaEvent) => void,
       options: StreamOptions = {},
     ): Promise<void> => {
-      const response = await this.fetchImpl(`${this.baseUrl}/v1/intents/${encodeSegment(id, "id")}/events`, {
-        method: "GET",
-        headers: this.headers({
-          accept: "text/event-stream",
-          ...(options.lastEventId ? { "last-event-id": options.lastEventId } : {}),
-        }),
-        ...(options.signal ? { signal: options.signal } : {}),
-      });
+      let response: Response;
+      try {
+        response = await this.fetchImpl(`${this.baseUrl}/v1/intents/${encodeSegment(id, "id")}/events`, {
+          method: "GET",
+          headers: this.headers({
+            accept: "text/event-stream",
+            ...(options.lastEventId ? { "last-event-id": options.lastEventId } : {}),
+          }),
+          ...(options.signal ? { signal: options.signal } : {}),
+        });
+      } catch (error) {
+        throw transportError(error, options.signal);
+      }
       if (!response.ok) {
         // Same error envelope as every other endpoint (TOO_MANY_STREAMS, INTENT_NOT_FOUND, …).
         const text = await response.text().catch(() => "");
@@ -284,36 +478,140 @@ export class KletiaClient {
           requestId: response.headers.get("x-request-id"),
         });
       }
-      for await (const message of readServerSentEvents(response.body, options.signal)) {
-        if (!message.data) continue;
-        try {
-          onEvent(JSON.parse(message.data) as AnyKletiaEvent);
-        } catch {
-          // Ignore malformed frames; the server only sends JSON envelopes.
+      options.onOpen?.();
+      try {
+        for await (const message of readServerSentEvents(response.body, options.signal)) {
+          if (!message.data) continue;
+          let event: AnyKletiaEvent;
+          try {
+            event = JSON.parse(message.data) as AnyKletiaEvent;
+          } catch {
+            // Ignore malformed frames; the server only sends JSON envelopes.
+            continue;
+          }
+          onEvent(event);
         }
+      } catch (error) {
+        if (options.signal?.aborted) return;
+        if (error instanceof KletiaApiError) throw error;
+        // A dropped connection mid-stream; reconnect with the last event id.
+        throw transportError(error, options.signal);
+      }
+    },
+    /**
+     * Resolves with the intent once it reaches a terminal status (completed,
+     * partially_completed, failed, expired or cancelled). Follows the event
+     * stream, resuming with Last-Event-ID, and falls back to polling
+     * `refresh` while the stream is unavailable. Rejects with `WAIT_TIMEOUT`
+     * after `timeoutMs` and with `REQUEST_ABORTED` when `signal` aborts.
+     */
+    wait: async (id: string, options: WaitForIntentOptions = {}): Promise<IntentGraph> => {
+      const { timeoutMs = 20 * 60_000, signal, ...rest } = options;
+      const controller = new AbortController();
+      const onAbort = () => controller.abort(signal?.reason);
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
+      try {
+        return await watchIntent(this, id, { ...rest, signal: controller.signal });
+      } catch (error) {
+        if (timedOut) {
+          throw new KletiaApiError({
+            code: "WAIT_TIMEOUT",
+            message: `Intent ${id} did not reach a terminal status within ${Math.round(timeoutMs / 1000)} s.`,
+            status: 0,
+          });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
       }
     },
   };
 
   readonly webhooks = {
-    create: async (input: { url: string; events?: readonly string[] }): Promise<WebhookRecord> => {
-      const body = await this.request<{ webhook: WebhookRecord }>("POST", "/webhooks", input);
+    /** Register a webhook. The signing secret is returned once, in `secret`. */
+    create: async (
+      input: { url: string; events?: readonly string[] },
+      options: RequestOptions = {},
+    ): Promise<WebhookRecord> => {
+      const body = await this.request<{ webhook: WebhookRecord }>("POST", "/webhooks", input, options);
       return body.webhook;
     },
-    list: async (): Promise<WebhookRecord[]> => {
-      const body = await this.request<{ webhooks: WebhookRecord[] }>("GET", "/webhooks");
+    list: async (options: RequestOptions = {}): Promise<WebhookRecord[]> => {
+      const body = await this.request<{ webhooks: WebhookRecord[] }>("GET", "/webhooks", undefined, options);
       return body.webhooks;
     },
-    delete: async (id: string): Promise<void> => {
-      await this.request("DELETE", `/webhooks/${encodeSegment(id, "id")}`);
+    /** Delete a webhook and its delivery log. */
+    delete: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.call("DELETE", `/webhooks/${encodeSegment(id, "id")}`, undefined, options, { goneAfterRetryIsDone: true });
+    },
+    /**
+     * Send a signed `webhook.test` event to the endpoint now and return the
+     * delivery, whatever the endpoint answered. Not retried (each call sends
+     * one more event; the API allows 5 per minute per webhook).
+     */
+    test: async (id: string, options: RequestOptions = {}): Promise<WebhookDelivery> => {
+      const body = await this.request<{ delivery: WebhookDelivery }>("POST", `/webhooks/${encodeSegment(id, "id")}/test`, {}, options);
+      return body.delivery;
+    },
+    /** Newest delivery attempts first (`limit` 1-100, default 20). */
+    deliveries: async (
+      id: string,
+      options: RequestOptions & { readonly limit?: number } = {},
+    ): Promise<WebhookDelivery[]> => {
+      const { limit, ...rest } = options;
+      const body = await this.request<{ deliveries: WebhookDelivery[] }>(
+        "GET",
+        `/webhooks/${encodeSegment(id, "id")}/deliveries`,
+        undefined,
+        { ...rest, query: { limit: limit === undefined ? undefined : String(limit) } },
+      );
+      return body.deliveries;
     },
   };
 
   readonly keys = {
-    /** Issue a developer key. The raw key is returned only once. */
-    create: async (name: string): Promise<ApiKeyRecord> => {
-      const body = await this.request<{ key: ApiKeyRecord }>("POST", "/keys", { name });
+    /**
+     * Issue a developer key. The raw key is returned only once. Without an
+     * API key this starts a new project; with a developer key it adds a key to
+     * the caller's project (at most 5 active).
+     */
+    create: async (name: string, options: RequestOptions = {}): Promise<ApiKeyRecord> => {
+      const body = await this.request<{ key: ApiKeyRecord }>("POST", "/keys", { name }, options);
       return body.key;
+    },
+    /** The keys of the caller's project. Secrets are never listed. */
+    list: async (options: RequestOptions = {}): Promise<ApiKeySummary[]> => {
+      const body = await this.request<{ keys: ApiKeySummary[] }>("GET", "/keys", undefined, options);
+      return body.keys;
+    },
+    /**
+     * New secret for a key, same id. The previous secret keeps authenticating
+     * for `graceSeconds` (API default 86400; 0 ends it now) but cannot manage
+     * keys.
+     */
+    rotate: async (
+      id: string,
+      options: RequestOptions & { readonly graceSeconds?: number } = {},
+    ): Promise<RotatedApiKey> => {
+      const { graceSeconds, ...rest } = options;
+      const body = await this.request<{ key: RotatedApiKey }>(
+        "POST",
+        `/keys/${encodeSegment(id, "id")}/rotate`,
+        graceSeconds === undefined ? {} : { graceSeconds },
+        rest,
+      );
+      return body.key;
+    },
+    /** Revoke a key (idempotent). A key may revoke itself. */
+    revoke: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.request("DELETE", `/keys/${encodeSegment(id, "id")}`, undefined, options);
     },
   };
 }

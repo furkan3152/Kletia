@@ -1,6 +1,6 @@
 import React from "react";
 
-export type CodeLanguage = "ts" | "tsx" | "bash" | "json" | "http" | "text";
+export type CodeLanguage = "ts" | "tsx" | "bash" | "json" | "http" | "html" | "text";
 
 /**
  * Tiny, dependency-free highlighter for the snippets on the site. It never
@@ -12,6 +12,7 @@ const PATTERNS: Record<Exclude<CodeLanguage, "text">, RegExp> = {
   bash: /(?<comment>(?:^|(?<=\s))#[^\n]*)|(?<string>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(?<keyword>\b(?:curl|npm|npx|pnpm|yarn|export|echo)\b)|(?<flag>(?<=\s)-{1,2}[A-Za-z][\w-]*)|(?<number>\b\d+\b)/gmu,
   json: /(?<key>"(?:\\.|[^"\\])*"(?=\s*:))|(?<string>"(?:\\.|[^"\\])*")|(?<literal>\b(?:true|false|null)\b)|(?<number>-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)/gu,
   http: /(?<keyword>^(?:GET|POST|PUT|PATCH|DELETE)\b)|(?<key>^[A-Za-z-]+(?=:))|(?<string>"(?:\\.|[^"\\])*")|(?<number>\b\d+\b)/gmu,
+  html: /(?<comment><!--[\s\S]*?-->)|(?<string>"[^"]*"|'[^']*')|(?<tag><\/?[A-Za-z][A-Za-z0-9-]*|\/?>)|(?<attr>\b[a-zA-Z-:]+(?==))/gu,
 };
 
 const TOKEN_CLASS: Record<string, string> = {

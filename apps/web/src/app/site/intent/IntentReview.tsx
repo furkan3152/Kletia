@@ -1,9 +1,11 @@
 import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
 import { CircleAlert, PenLine, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { externalRecipients } from "../../../shared/platform/intentBinding";
 
+import { cssVars, staggerIndex } from "../motion/tokens";
+import { useChangeKey } from "../motion/useChangeKey";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
@@ -16,6 +18,7 @@ import {
   protocolName,
   shortAccount,
 } from "./format";
+import { popOut } from "./phaseMotion";
 
 export interface IntentReviewProps {
   /** A persisted intent planned with the user's own accounts. */
@@ -53,12 +56,21 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-function ReviewStep({ step, describeAccount }: { step: IntentStep; describeAccount?: IntentReviewProps["describeAccount"] }) {
+function ReviewStep({
+  step,
+  describeAccount,
+  order,
+}: {
+  step: IntentStep;
+  describeAccount?: IntentReviewProps["describeAccount"];
+  order: number;
+}) {
   const destination = step.settlement?.kind === "cross-network" ? step.settlement.destinationNetwork : undefined;
   const signer = step.mode === "wallet" ? describeAccount?.(step.account) ?? shortAccount(step.account) : null;
   const fees = formatUsd(step.feesUsd);
+  // The card rises in (opacity and translate only); the values inside never animate.
   return (
-    <li className={cx("flex flex-col gap-3 p-4", INK_BORDER, SURFACE)}>
+    <li className={cx("kl-rise flex flex-col gap-3 p-4", INK_BORDER, SURFACE)} style={cssVars({ "--kl-i": staggerIndex(order) })}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
           {String(step.index + 1).padStart(2, "0")}
@@ -144,6 +156,16 @@ export function IntentReview({
   const signatures = summary.signaturesRequired;
   const warnings = intent.warnings;
   const external = ownedAccounts ? externalRecipients(intent, ownedAccounts) : [];
+  const canConfirm = confirmed && !busy && !blockedReason;
+
+  // The Confirm button "unlocks": when it becomes enabled it pops out of its
+  // pressed position into its shadow (never on mount, never when disabling).
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const unlockKey = useChangeKey(canConfirm);
+  useEffect(() => {
+    if (unlockKey === 0 || !canConfirm) return;
+    popOut(actionsRef.current?.querySelector("button[data-confirm]"));
+  }, [unlockKey, canConfirm]);
 
   return (
     <section aria-label="Review before signing" className={cx("flex flex-col gap-4", className)}>
@@ -175,8 +197,8 @@ export function IntentReview({
       </div>
 
       <ol className="flex flex-col gap-3" aria-label="Steps to sign">
-        {steps.map((step) => (
-          <ReviewStep key={step.id} step={step} describeAccount={describeAccount} />
+        {steps.map((step, order) => (
+          <ReviewStep key={step.id} step={step} describeAccount={describeAccount} order={order} />
         ))}
       </ol>
 
@@ -227,24 +249,42 @@ export function IntentReview({
 
       <div className={cx("flex flex-col gap-4 p-4 sm:p-5", INK_BORDER, SURFACE)}>
         <div className="flex items-start gap-3">
-          <input
-            id={checkboxId}
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => setConfirmedFor(event.target.checked ? intent.id : null)}
-            disabled={busy || Boolean(blockedReason)}
-            className={cx(
-              "mt-0.5 h-5 w-5 shrink-0 cursor-pointer appearance-none border-[3px] border-[#1A1A1A] bg-white checked:bg-[#0052FF] checked:[background-image:url(\"data:image/svg+xml,%3Csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 8.5l3 3 7-7' fill='none' stroke='white' stroke-width='2.5'/%3E%3C/svg%3E\")] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#94A3B8] dark:bg-[#0B1120] dark:checked:bg-[#0052FF]",
-              FOCUS_RING,
-            )}
-          />
+          <span className="relative mt-0.5 flex h-5 w-5 shrink-0">
+            <input
+              id={checkboxId}
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmedFor(event.target.checked ? intent.id : null)}
+              disabled={busy || Boolean(blockedReason)}
+              className={cx(
+                "peer h-5 w-5 shrink-0 cursor-pointer appearance-none border-[3px] border-[#1A1A1A] bg-white transition-colors duration-150 checked:bg-[#0052FF] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:border-[#94A3B8] dark:bg-[#0B1120] dark:checked:bg-[#0052FF]",
+                FOCUS_RING,
+              )}
+            />
+            {confirmed ? (
+              // The check mark draws in (same 16-unit mark the box used to paint as a background).
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                className="pointer-events-none absolute inset-[3px] h-[14px] w-[14px] peer-disabled:opacity-50"
+              >
+                <path d="M3 8.5l3 3 7-7" fill="none" stroke="white" strokeWidth={2.5} pathLength={1} className="kl-draw" />
+              </svg>
+            ) : null}
+          </span>
           <label htmlFor={checkboxId} className="text-sm font-semibold leading-relaxed">
             I reviewed the networks, amounts, minimum outputs and fees. My wallet will ask me to sign{" "}
             {signatures} time{signatures === 1 ? "" : "s"}, and nothing moves without that signature.
           </label>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button onClick={onConfirm} disabled={!confirmed || busy || Boolean(blockedReason)} size="lg">
+        <div ref={actionsRef} className="flex flex-wrap gap-3">
+          <Button
+            onClick={onConfirm}
+            disabled={!confirmed || busy || Boolean(blockedReason)}
+            size="lg"
+            data-confirm=""
+            className="disabled:shadow-none"
+          >
             <PenLine className="h-4 w-4" aria-hidden="true" />
             {busy ? "Starting…" : confirmLabel}
           </Button>

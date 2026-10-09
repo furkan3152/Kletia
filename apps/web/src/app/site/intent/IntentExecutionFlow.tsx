@@ -1,6 +1,6 @@
 import type { AccountId, IntentGraph, IntentStep } from "@kletia/core";
 import { CirclePause, OctagonX, PenLine, Play, RefreshCw, TriangleAlert } from "lucide-react";
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
 import type { IntentExecution, IntentExecutionError } from "../../../shared/platform/useIntentExecution";
 import { ApiErrorPanel } from "../ui/ApiErrorPanel";
@@ -67,6 +67,8 @@ export interface IntentExecutionFlowProps {
   readonly showGraph?: boolean;
   /** Extra content for the final summary (links to activity, "plan another"). */
   readonly outcomeFooter?: React.ReactNode;
+  /** Silent "Step N settled" toasts while the progress panel is scrolled out of view. */
+  readonly notifyProgress?: boolean;
   readonly className?: string;
 }
 
@@ -82,11 +84,18 @@ export function IntentExecutionFlow({
   onReplan,
   showGraph = true,
   outcomeFooter,
+  notifyProgress = false,
   className,
 }: IntentExecutionFlowProps) {
   const { intent, status, error } = execution;
   const rootRef = useRef<HTMLDivElement>(null);
   const previousStatusRef = useRef(status);
+
+  // Presentation only: remember that this view saw the intent before it was
+  // finished, so its completion may celebrate. Opening (or resuming) an
+  // intent that is already complete never does.
+  const [watchedIntentId, setWatchedIntentId] = useState<string | null>(null);
+  if (intent && !isTerminal(intent) && watchedIntentId !== intent.id) setWatchedIntentId(intent.id);
 
   // When the control the user just pressed disappears (Confirm, Cancel, the
   // last progress view), focus would fall back to <body>. Move it to the
@@ -196,7 +205,7 @@ export function IntentExecutionFlow({
 
       {terminal ? (
         <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
-          <IntentOutcome intent={intent} footer={outcomeFooter} />
+          <IntentOutcome intent={intent} footer={outcomeFooter} celebrate={watchedIntentId === intent.id} />
         </div>
       ) : null}
 
@@ -208,6 +217,7 @@ export function IntentExecutionFlow({
             activeStepId={execution.activeStepId}
             streaming={execution.streaming}
             running={status === "executing"}
+            notifySettled={notifyProgress}
             {...(walletFor ? { walletFor } : {})}
           />
         </div>
@@ -227,7 +237,9 @@ export function IntentExecutionFlow({
         </div>
       ) : null}
 
-      {showGraph ? <IntentGraphView intent={live} stepFooter={(step) => <StepLinks step={step} />} /> : null}
+      {showGraph ? (
+        <IntentGraphView intent={live} phases={execution.stepPhases} stepFooter={(step) => <StepLinks step={step} />} />
+      ) : null}
     </div>
   );
 }

@@ -93,7 +93,7 @@ export function IntentStarter({
 
   return (
     <section className="mx-auto flex w-full max-w-4xl items-start py-2 sm:py-6 md:min-h-full md:items-center md:py-10">
-      <div className="w-full border-[3px] border-[#1A1A1A] bg-white p-3 text-[#1A1A1A] shadow-[5px_5px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[5px_5px_0_#475569] sm:p-6 md:p-8">
+      <div className="kl-drop w-full border-[3px] border-[#1A1A1A] bg-white p-3 text-[#1A1A1A] shadow-[5px_5px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:shadow-[5px_5px_0_#475569] sm:p-6 md:p-8">
         <div className="flex items-start gap-3 border-b-[3px] border-[#1A1A1A] pb-3 dark:border-[#4B5563] sm:pb-4">
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] text-white shadow-[2px_2px_0_#1A1A1A] ${accentClass}`}
@@ -132,7 +132,10 @@ export function IntentStarter({
                     ? "Opens an editable example. Replace the recipient before sending, or connect a wallet to insert its address."
                     : undefined
                 }
-                className="group flex min-h-[72px] items-start gap-2.5 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-2.5 text-left shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:bg-[#EAF0FF] hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#233554] sm:min-h-24 sm:gap-3 sm:p-3"
+                // Rises in with a stagger; hover lifts it 2px into a 5px shadow (the kl-lift look, kept as
+                // utilities so the press still pushes it into its shadow) and nudges the arrow.
+                className="kl-rise group flex min-h-[72px] items-start gap-2.5 border-[3px] border-[#1A1A1A] bg-[#F8FAFC] p-2.5 text-left shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-150 ease-kl-standard hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-[#EAF0FF] hover:shadow-[5px_5px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none motion-reduce:transition-colors motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0 dark:border-[#4B5563] dark:bg-[#1A2841] dark:shadow-[3px_3px_0_#475569] dark:hover:bg-[#233554] dark:hover:shadow-[5px_5px_0_#475569] sm:min-h-24 sm:gap-3 sm:p-3"
+                style={{ ["--kl-i" as string]: index + 1 }}
               >
                 <span
                   className={`flex h-9 w-9 shrink-0 items-center justify-center border-[2px] border-[#1A1A1A] font-mono text-xs font-black text-white sm:h-10 sm:w-10 sm:text-sm ${accentClass}`}
@@ -143,7 +146,7 @@ export function IntentStarter({
                   <span className="flex items-center justify-between gap-2 text-[13px] font-black uppercase sm:text-sm">
                     {item.label}
                     <ArrowUpRight
-                      className="h-4 w-4 shrink-0 transition-transform duration-100 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                      className="h-4 w-4 shrink-0 transition-transform duration-150 ease-kl-snap group-hover:-translate-y-[3px] group-hover:translate-x-[3px] group-focus-visible:-translate-y-[3px] group-focus-visible:translate-x-[3px] motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0 motion-reduce:group-focus-visible:translate-x-0 motion-reduce:group-focus-visible:translate-y-0"
                       aria-hidden="true"
                     />
                   </span>
@@ -161,7 +164,10 @@ export function IntentStarter({
           })}
         </div>
 
-        <div className="mt-3 flex items-start gap-2 border-[2px] border-[#1A1A1A] bg-[#FFF36D] p-2.5 text-[11px] font-bold leading-4 text-[#1A1A1A] sm:mt-4 sm:p-3 sm:text-xs">
+        <div
+          className="kl-rise mt-3 flex items-start gap-2 border-[2px] border-[#1A1A1A] bg-[#FFF36D] p-2.5 text-[11px] font-bold leading-4 text-[#1A1A1A] sm:mt-4 sm:p-3 sm:text-xs"
+          style={{ ["--kl-i" as string]: items.length + 1 }}
+        >
           <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
           Templates only fill the composer. Nothing executes until the route is
           reviewed and approved in your wallet.

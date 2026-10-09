@@ -10,8 +10,10 @@ import {
 } from "@kletia/core";
 import type { KletiaClient } from "./client.js";
 import { KletiaApiError, KletiaExecutionError } from "./errors.js";
+import { newIdempotencyKey } from "./retry.js";
 import type { EvmSigner, SolanaSigner } from "./signers.js";
 import type { PreparedStep } from "./types.js";
+import { TERMINAL_INTENT_STATUSES } from "./watch.js";
 
 export interface IntentSigners {
   readonly evm?: EvmSigner;
@@ -36,13 +38,7 @@ export interface ExecuteIntentOptions {
   readonly pendingReferences?: Readonly<Record<string, readonly string[]>>;
 }
 
-const TERMINAL: readonly IntentStatus[] = [
-  "completed",
-  "partially_completed",
-  "failed",
-  "expired",
-  "cancelled",
-];
+const TERMINAL: readonly IntentStatus[] = TERMINAL_INTENT_STATUSES;
 
 /** Attempts per submit while the API error is retryable (network, timeout, 429, 5xx). */
 const SUBMIT_ATTEMPTS = 3;
@@ -152,9 +148,16 @@ async function submitWithRetry(
   references: readonly string[],
   signal?: AbortSignal,
 ): Promise<IntentGraph> {
+  // One Idempotency-Key for every attempt (keyed clients only; the public tier
+  // refuses the header): a retry after a lost response replays the first
+  // answer. The bounded loop here replaces the client's own retries.
+  const idempotencyKey = client.hasApiKey ? newIdempotencyKey() : null;
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await client.intents.submitStep(intentId, stepId, references);
+      return await client.intents.submitStep(intentId, stepId, references, {
+        maxRetries: 0,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      });
     } catch (error) {
       if (!(error instanceof KletiaApiError) || !error.retryable || attempt >= SUBMIT_ATTEMPTS) throw error;
       const delay =

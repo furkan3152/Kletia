@@ -36,7 +36,7 @@ export function observeIntersection(
   if (!supportsIntersectionObserver()) return () => undefined;
   const rootMargin = options.rootMargin ?? "0px";
   const threshold = options.threshold ?? 0;
-  const key = `${rootMargin}|${Array.isArray(threshold) ? threshold.join(",") : String(threshold)}`;
+  const key = `${rootMargin}|${typeof threshold === "object" ? (threshold as readonly number[]).join(",") : String(threshold)}`;
   let shared = observers.get(key);
   if (!shared) {
     const listeners = new Map<Element, Set<EntryListener>>();
@@ -81,7 +81,8 @@ export function useInView<T extends Element>(options: InViewOptions = {}): reado
   const { once = false, rootMargin, threshold } = options;
   const [element, setElement] = useState<T | null>(null);
   const [inView, setInView] = useState(() => !supportsIntersectionObserver());
-  const thresholdKey = Array.isArray(threshold) ? threshold.join(",") : threshold;
+  const thresholdKey: string | number | undefined =
+    typeof threshold === "object" ? (threshold as readonly number[]).join(",") : threshold;
 
   const ref = useCallback((node: T | null) => setElement(node), []);
 

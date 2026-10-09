@@ -173,7 +173,7 @@ export function celebrate(anchor: HTMLElement | { x: number; y: number }, opts: 
   } else {
     origin = anchor;
   }
-  let context: CanvasRenderingContext2D | null = null;
+  let context: CanvasRenderingContext2D | null;
   try {
     context = ensureCanvas();
   } catch {

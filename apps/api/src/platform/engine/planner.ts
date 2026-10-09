@@ -4,11 +4,14 @@
  * 1. Validate the request; compile text with the deterministic grammar or
  *    accept structured actions.
  * 2. Normalise actions (kinds, networks, amounts, capital lane).
- * 3. Resolve assets, accounts and recipients per step; bind each step to an
- *    adapter (respecting prefer/avoid constraints) and quote it.
+ * 3. Resolve assets, accounts, recipients (names through the resolver hook)
+ *    and, for deposit / withdraw, the registry venue; bind each step to an
+ *    adapter (respecting prefer/avoid constraints) and quote it. Cross-network
+ *    steps run a venue auction (auction.ts); other steps take the first
+ *    adapter that quotes.
  * 4. Chain dependent amounts from the previous step's guaranteed minimum.
  * 5. Merge "bridge then swap everything on the destination" into a single
- *    Relay cross-network swap when possible.
+ *    cross-network swap when a venue quotes it.
  * 6. Assemble steps, edges, summary and warnings; enforce fee limits; validate.
  */
 import {
@@ -16,14 +19,20 @@ import {
   counterpartAsset,
   deriveIntentStatus,
   findAssetBySymbol,
+  findYieldVenue,
   fromBaseUnits,
   getAsset,
+  getProtocol,
+  getYieldVenue,
   INTENT_SPEC_VERSION,
   parseAccountId,
+  PROTOCOLS,
   sameCapitalLane,
   toBaseUnits,
   validateIntentGraph,
   validateIntentRequest,
+  YIELD_VENUES,
+  yieldVenuesFor,
   type AssetAmount,
   type IntentActionKind,
   type IntentActionSpec,
@@ -35,21 +44,27 @@ import {
   type NetworkKey,
   type ParsedAccountId,
   type ProtocolId,
+  type StepEvidence,
+  type YieldVenue,
+  type YieldVenueAction,
 } from "@kletia/core";
-import { PlatformError, unsupported } from "../errors.js";
+import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
-import { candidateAdapters } from "./adapters/registry.js";
-import { RELAY_NETWORKS } from "./adapters/relay.js";
+import { activeProtocolAdapters, candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
+import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
 import { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS } from "./grammar.js";
+import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution } from "./names.js";
 import { decodeStepRef, encodeStepRef } from "./stepRef.js";
 import { newIntentId, portionOf, roundUsd } from "./util.js";
 
 export const DEFAULT_SLIPPAGE_BPS = 50;
 export const INTENT_TTL_MS = 30 * 60 * 1000;
 
-const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridge", "stake", "deposit"];
+const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridge", "stake", "deposit", "withdraw"];
+/** Lending protocols in the order a deposit / withdraw without a named protocol tries them. */
+export const LENDING_PROTOCOLS: readonly ProtocolId[] = ["aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino"];
 const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
   jito: "jito",
   marinade: "marinade",
@@ -57,7 +72,15 @@ const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
   jupiter: "jito",
 };
 
-type AmountSpec = { readonly type: "exact"; readonly value: string } | { readonly type: "previous"; readonly portionBps: number };
+/**
+ * - `exact`: a decimal amount of the input.
+ * - `previous`: a share of the previous step's output.
+ * - `position`: a withdraw of the whole position at the venue ("withdraw all").
+ */
+type AmountSpec =
+  | { readonly type: "exact"; readonly value: string }
+  | { readonly type: "previous"; readonly portionBps: number }
+  | { readonly type: "position" };
 
 /** An action after normalisation, before assets are resolved. */
 export interface NormalizedAction {
@@ -71,6 +94,8 @@ export interface NormalizedAction {
   readonly recipient?: string;
   readonly protocol?: ProtocolId;
   readonly provider?: string;
+  /** Deposit / withdraw venue reference from `params.venue` (id, slug or address). */
+  readonly venue?: string;
 }
 
 export interface PlanOptions {
@@ -99,7 +124,7 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     let kind = spec.kind;
     if (!SUPPORTED_KINDS.includes(kind)) {
       throw unsupported(
-        `"${kind}" intents are not executable yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit (Aave V3).`,
+        `"${kind}" intents are not executable yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit and withdraw (lending venues).`,
         GRAMMAR_EXAMPLES,
         issue(`${path}.kind`, "Unsupported action kind."),
       );
@@ -107,8 +132,15 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     if (spec.amount === undefined) {
       throw new PlatformError("AMOUNT_REQUIRED", "Every action needs an amount (decimal or \"max\").", 400, issue(`${path}.amount`, "Required."));
     }
+    if (kind === "withdraw" && spec.amount === "max" && spec.params?.portionBps !== undefined) {
+      throw unsupported(
+        "\"max\" on a withdraw closes the whole position; give an exact amount to withdraw part of it.",
+        GRAMMAR_EXAMPLES,
+        issue(`${path}.params.portionBps`, "Not allowed with a full withdrawal."),
+      );
+    }
     const amount: AmountSpec = spec.amount === "max"
-      ? { type: "previous", portionBps: portionFrom(spec, path) }
+      ? kind === "withdraw" ? { type: "position" } : { type: "previous", portionBps: portionFrom(spec, path) }
       : { type: "exact", value: spec.amount };
     if (amount.type === "previous" && index === 0) {
       throw unsupported(
@@ -139,8 +171,17 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
       to = to ?? "JitoSOL";
       protocol = "jupiter";
     }
-    if (kind === "deposit" && protocol && protocol !== "aave-v3") {
-      throw unsupported(`Deposits are executed on Aave V3; ${protocol} is discovery-only.`, GRAMMAR_EXAMPLES, issue(`${path}.protocol`, "Unsupported."));
+    const lending = kind === "deposit" || kind === "withdraw";
+    if (lending && protocol && !(getProtocol(protocol)?.kinds ?? []).includes(kind)) {
+      throw unsupported(
+        `${getProtocol(protocol)?.name ?? protocol} does not take ${kind}s. Deposits and withdrawals run on ${lendingNames()}.`,
+        GRAMMAR_EXAMPLES,
+        issue(`${path}.protocol`, "Unsupported."),
+      );
+    }
+    const venue = typeof spec.params?.venue === "string" ? spec.params.venue.trim().slice(0, 128) : undefined;
+    if (venue && !lending) {
+      throw unsupported("params.venue applies to deposit and withdraw actions only.", GRAMMAR_EXAMPLES, issue(`${path}.params.venue`, "Unsupported."));
     }
     return {
       index,
@@ -153,6 +194,7 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
       ...(spec.recipient ? { recipient: spec.recipient } : {}),
       ...(protocol ? { protocol } : {}),
       ...(provider ? { provider } : {}),
+      ...(venue ? { venue } : {}),
     };
   });
   const lane = normalized[0]?.network;
@@ -182,16 +224,50 @@ interface PreviousStep {
   readonly recipient: ParsedAccountId;
 }
 
+function executableProtocols(): Set<ProtocolId> {
+  return new Set(activeProtocolAdapters().flatMap((adapter) => adapter.protocols));
+}
+
+/** Names of the registry protocols with a live adapter for `kind` (the lending list keeps its default order). */
+function liveVenueNames(kind: IntentActionKind): string {
+  const executable = executableProtocols();
+  const ids = kind === "deposit" || kind === "withdraw"
+    ? LENDING_PROTOCOLS.filter((id) => executable.has(id))
+    : PROTOCOLS.filter((protocol) => executable.has(protocol.id) && (protocol.kinds ?? []).includes(kind)).map((protocol) => protocol.id);
+  return ids.map((id) => getProtocol(id)?.name ?? id).join(", ");
+}
+
+function lendingNames(): string {
+  return LENDING_PROTOCOLS.map((id) => getProtocol(id)?.name ?? id).join(", ");
+}
+
 function unsupportedRoute(route: AdapterRoute): PlatformError {
   const network = CHAINS[route.network].name;
+  const live = liveVenueNames(route.kind);
+  const routes = "GET /v1/networks lists the live routes.";
   const messages: Record<string, string> = {
     swap: `Swaps run on Solana (Jupiter) and on Base or Arbitrum (Relay); ${route.input.symbol} → ${route.output.symbol} on ${network} is not available.`,
     stake: "Liquid staking runs on Solana mainnet (SOL → JitoSOL, mSOL or JupSOL).",
-    bridge: `Bridges run between ${RELAY_NETWORKS.map((key) => CHAINS[key].name).join(", ")} through Relay; ${network} → ${CHAINS[route.destinationNetwork].name} is not available.`,
+    bridge: live
+      ? `Bridges run through ${live}; ${route.input.symbol} from ${network} to ${CHAINS[route.destinationNetwork].name} is not available. ${routes}`
+      : "No bridge venue is enabled on this deployment.",
     transfer: `Transfers of ${route.input.symbol} on ${network} are not available.`,
-    deposit: `Aave V3 deposits run on Base and Arbitrum; ${route.input.symbol} on ${network} is not available.`,
+    deposit: live
+      ? `Deposits run on ${live}; ${route.input.symbol} on ${network} is not available. ${routes}`
+      : "No lending venue is enabled on this deployment.",
+    withdraw: live
+      ? `Withdrawals run on ${live}; ${route.input.symbol} on ${network} is not available. ${routes}`
+      : "No lending venue is enabled on this deployment.",
   };
   return unsupported(messages[route.kind] ?? "This action is not supported.", GRAMMAR_EXAMPLES);
+}
+
+/** No candidate adapter: say so precisely when the requested protocol has no live adapter at all. */
+function noCandidates(route: AdapterRoute, requested: ProtocolId | undefined): PlatformError {
+  if (requested && !executableProtocols().has(requested)) {
+    return unsupported(`Kletia does not execute ${getProtocol(requested)?.name ?? requested} routes on this deployment.`, GRAMMAR_EXAMPLES);
+  }
+  return unsupportedRoute(route);
 }
 
 async function resolveInput(action: NormalizedAction, previous: PreviousStep | null): Promise<ResolvedAsset> {
@@ -222,7 +298,7 @@ async function resolveInput(action: NormalizedAction, previous: PreviousStep | n
 }
 
 async function resolveOutput(action: NormalizedAction, input: ResolvedAsset): Promise<ResolvedAsset> {
-  if (action.kind === "transfer" || action.kind === "deposit") return input;
+  if (action.kind === "transfer" || action.kind === "deposit" || action.kind === "withdraw") return input;
   if (action.to) return resolveAsset(action.destinationNetwork, action.to);
   if (action.kind === "bridge") {
     const descriptor = getAsset(input.id);
@@ -240,27 +316,117 @@ async function resolveOutput(action: NormalizedAction, input: ResolvedAsset): Pr
   throw new PlatformError("ASSET_REQUIRED", `Step ${action.index + 1} needs an output token.`, 422, issue(`actions[${action.index}].to`, "Required."));
 }
 
-function resolveRecipient(action: NormalizedAction, account: ParsedAccountId, accounts: readonly ParsedAccountId[]): ParsedAccountId {
+interface ResolvedRecipient {
+  readonly recipient: ParsedAccountId;
+  /** Present when the recipient was given as a name. */
+  readonly name?: NameResolution;
+}
+
+/** Parses an address / CAIP-10 recipient, or resolves a name through the resolver hook. */
+async function recipientOn(raw: string, network: NetworkKey): Promise<ResolvedRecipient> {
+  if (!looksLikeName(raw)) return { recipient: recipientForNetwork(raw, network) };
+  const name = await resolveRecipientName(raw, network);
+  return { recipient: recipientForNetwork(name.address, network), name };
+}
+
+async function resolveRecipient(action: NormalizedAction, account: ParsedAccountId, accounts: readonly ParsedAccountId[]): Promise<ResolvedRecipient> {
   if (action.kind === "transfer") {
     if (!action.recipient) throw new PlatformError("RECIPIENT_REQUIRED", "A transfer needs a recipient.", 422);
-    const recipient = recipientForNetwork(action.recipient, action.network);
-    if (sameAddress(recipient, account)) {
+    const resolved = await recipientOn(action.recipient, action.network);
+    if (sameAddress(resolved.recipient, account)) {
       throw new PlatformError("SELF_TRANSFER", "The recipient is the sending account; nothing would move.", 422);
     }
-    return recipient;
+    return resolved;
   }
   if (action.kind === "bridge") {
     return action.recipient
-      ? recipientForNetwork(action.recipient, action.destinationNetwork)
-      : accountForNetwork(accounts, action.destinationNetwork);
+      ? recipientOn(action.recipient, action.destinationNetwork)
+      : { recipient: accountForNetwork(accounts, action.destinationNetwork) };
   }
   if (action.recipient) {
-    const recipient = recipientForNetwork(action.recipient, action.network);
+    const { recipient } = await recipientOn(action.recipient, action.network);
     if (!sameAddress(recipient, account)) {
       throw unsupported(`A ${action.kind} pays the acting account; send the result with a separate "send" step.`, GRAMMAR_EXAMPLES);
     }
   }
-  return account;
+  return { recipient: account };
+}
+
+/** The venue's underlying is the input (a native input may target the wrapped-native venue; the adapter wraps or refuses). */
+function venueAssetMatches(venue: YieldVenue, input: ResolvedAsset): boolean {
+  const underlying = findAssetBySymbol(venue.network, venue.asset);
+  if (!underlying) return false;
+  if (sameAsset(underlying, input)) return true;
+  return input.isNative && underlying.category === "wrapped" && underlying.group === input.group;
+}
+
+interface VenueChoice {
+  readonly venue: YieldVenue;
+  readonly warnings: readonly string[];
+}
+
+/**
+ * Resolves and validates the registry venue of a deposit / withdraw: the
+ * named venue (`params.venue`), else the default venue of the named protocol,
+ * else the first lending protocol (preferred first) with a live adapter.
+ */
+function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: AdapterRoute, request: IntentRequest): VenueChoice {
+  const kind = action.kind as YieldVenueAction;
+  const chain = CHAINS[action.network];
+  const path = `actions[${action.index}]`;
+  const avoid = new Set(request.constraints?.avoidProtocols ?? []);
+  const protocolName = action.protocol ? getProtocol(action.protocol)?.name ?? action.protocol : "lending";
+  if (action.venue) {
+    const venue = findYieldVenue(action.network, action.venue, action.protocol);
+    if (!venue) {
+      const known = yieldVenuesFor(action.network, action.protocol).filter((entry) => entry.actions.includes(kind)).map((entry) => entry.slug);
+      throw new PlatformError(
+        "VENUE_UNKNOWN",
+        `No ${protocolName} venue "${action.venue.slice(0, 64)}" on ${chain.name}.${known.length > 0 ? ` Known: ${[...new Set(known)].join(", ")}.` : ""}`,
+        422,
+        issue(`${path}.params.venue`, "Unknown venue."),
+      );
+    }
+    if (!venue.actions.includes(kind)) {
+      throw new PlatformError("VENUE_UNSUPPORTED", `${venue.name} is listed for discovery only; Kletia does not execute ${kind}s there.`, 422, issue(`${path}.params.venue`, "Not executable."));
+    }
+    if (!venueAssetMatches(venue, input)) {
+      throw new PlatformError("VENUE_ASSET_MISMATCH", `${venue.name} holds ${venue.asset}, not ${input.symbol}.`, 422, issue(`${path}.params.venue`, "Asset mismatch."));
+    }
+    if (avoid.has(venue.protocol)) {
+      throw unsupported(`${venue.name} is a ${getProtocol(venue.protocol)?.name ?? venue.protocol} venue, which constraints.avoidProtocols excludes.`, GRAMMAR_EXAMPLES);
+    }
+    return { venue, warnings: [] };
+  }
+  const venues = YIELD_VENUES.filter((venue) =>
+    venue.network === action.network && venue.actions.includes(kind) && venueAssetMatches(venue, input) &&
+    (!action.protocol || venue.protocol === action.protocol) && !avoid.has(venue.protocol));
+  let venue: YieldVenue | undefined;
+  if (action.protocol) {
+    venue = venues[0];
+    if (!venue) {
+      const assets = [...new Set(yieldVenuesFor(action.network, action.protocol).filter((entry) => entry.actions.includes(kind)).map((entry) => entry.asset))];
+      throw unsupported(
+        assets.length > 0
+          ? `${protocolName} on ${chain.name} takes ${assets.join(", ")}; ${input.symbol} is not available.`
+          : `${protocolName} ${kind}s are not available on ${chain.name}.`,
+        GRAMMAR_EXAMPLES,
+        issue(`${path}.protocol`, "No venue for this asset and network."),
+      );
+    }
+  } else {
+    const prefer = (request.constraints?.preferProtocols ?? []).filter((id) => LENDING_PROTOCOLS.includes(id));
+    const order = [...prefer, ...LENDING_PROTOCOLS.filter((id) => !prefer.includes(id))];
+    venue = order
+      .map((protocol) => venues.find((entry) => entry.protocol === protocol))
+      .find((entry): entry is YieldVenue => entry !== undefined && candidateAdapters(route, request.constraints, entry.protocol).length > 0);
+    if (!venue) throw unsupportedRoute(route);
+  }
+  const alternatives = venues.filter((entry) => entry.protocol === venue.protocol && entry !== venue);
+  const warnings = alternatives.length > 0
+    ? [`Using ${venue.name}; name another ${getProtocol(venue.protocol)?.name ?? venue.protocol} venue with params.venue (${alternatives.map((entry) => entry.slug).join(", ")}).`]
+    : [];
+  return { venue, warnings };
 }
 
 function baseUnits(value: string, asset: ResolvedAsset, index: number): string {
@@ -279,7 +445,31 @@ function baseUnits(value: string, asset: ResolvedAsset, index: number): string {
   return units;
 }
 
-async function planWithCandidates(candidates: readonly ProtocolAdapter[], action: AdapterAction): Promise<{ adapter: ProtocolAdapter; planned: PlannedStep }> {
+interface CandidateSelection {
+  readonly adapter: ProtocolAdapter;
+  readonly planned: PlannedStep;
+  /** Present when several venues competed (cross-network steps). */
+  readonly auction?: AuctionResult;
+}
+
+/**
+ * Cross-network steps run the venue auction; every other step takes the
+ * first candidate (in preference order) that quotes.
+ */
+async function planWithCandidates(
+  candidates: readonly ProtocolAdapter[],
+  action: AdapterAction,
+  request: IntentRequest,
+): Promise<CandidateSelection> {
+  if (action.kind === "bridge" && action.network !== action.destinationNetwork) {
+    const maxSeconds = request.constraints?.maxSeconds;
+    const auction = await runVenueAuction(candidates, action, {
+      maxSeconds: maxSeconds ?? DEFAULT_MAX_SECONDS,
+      explicitMaxSeconds: maxSeconds !== undefined,
+      prefer: request.constraints?.preferProtocols ?? [],
+    });
+    return { adapter: auction.winner.adapter, planned: auction.winner.planned, auction };
+  }
   let firstError: unknown = null;
   for (const adapter of candidates) {
     try {
@@ -297,6 +487,12 @@ interface StepDraft {
   readonly planned: PlannedStep;
   readonly account: ParsedAccountId;
   readonly recipient: ParsedAccountId;
+  /** Name the recipient was resolved from. */
+  readonly name?: NameResolution;
+  readonly venue?: YieldVenue;
+  readonly auction?: AuctionResult;
+  /** Planner warnings for the step (venue defaults, auction notes). */
+  readonly notes: readonly string[];
   readonly output: ResolvedAsset;
   readonly funded: boolean;
   readonly portionBps?: number;
@@ -308,11 +504,9 @@ function canMerge(bridge: NormalizedAction, next: NormalizedAction | undefined, 
   if (next.kind !== "swap" && next.kind !== "stake") return false;
   if (next.network !== bridge.destinationNetwork || next.amount.type !== "previous" || next.amount.portionBps !== 10_000) return false;
   if (next.recipient || !next.to) return false;
-  if (!RELAY_NETWORKS.includes(bridge.network) || !RELAY_NETWORKS.includes(bridge.destinationNetwork)) return false;
-  const constraints = request.constraints;
-  if (constraints?.avoidProtocols?.includes("relay")) return false;
-  const prefer = constraints?.preferProtocols ?? [];
-  if (prefer.includes("jupiter") && !prefer.includes("relay")) return false;
+  const prefer = request.constraints?.preferProtocols ?? [];
+  // Preferring Jupiter (and no cross-network venue) means "swap on the destination", not one merged route.
+  if (prefer.includes("jupiter") && !prefer.some((id) => getProtocol(id)?.crossChain)) return false;
   if (next.from && bridge.to && next.from.toUpperCase() !== bridge.to.toUpperCase()) return false;
   if (next.from && !bridge.to && bridge.from && next.from.toUpperCase() !== bridge.from.toUpperCase()) return false;
   return true;
@@ -344,11 +538,14 @@ async function draftStep(
   if ((action.kind === "swap" || action.kind === "stake" || action.kind === "bridge") && sameAsset(input, output)) {
     throw new PlatformError("SWAP_SAME_ASSET", `Step ${action.index + 1} would swap ${input.symbol} into itself.`, 422);
   }
-  const recipient = resolveRecipient(action, account, accounts);
+  const { recipient, name } = await resolveRecipient(action, account, accounts);
+  const closePosition = action.amount.type === "position";
   const amount = action.amount.type === "exact"
     ? baseUnits(action.amount.value, input, action.index)
-    : portionOf((previous as PreviousStep).step.minimumOutput?.amount ?? "0", action.amount.portionBps);
-  if (amount === "0") {
+    : action.amount.type === "position"
+      ? "0"
+      : portionOf((previous as PreviousStep).step.minimumOutput?.amount ?? "0", action.amount.portionBps);
+  if (amount === "0" && !closePosition) {
     throw new PlatformError("AMOUNT_TOO_SMALL", `Step ${action.index + 1} would spend zero ${input.symbol}.`, 422);
   }
   const route: AdapterRoute = {
@@ -358,8 +555,11 @@ async function draftStep(
     input,
     output,
   };
-  const candidates = candidateAdapters(route, request.constraints, action.protocol === "jupiter" && action.kind === "stake" ? undefined : action.protocol);
-  if (candidates.length === 0) throw unsupportedRoute(route);
+  const lending = action.kind === "deposit" || action.kind === "withdraw";
+  const choice = lending ? resolveVenue(action, input, route, request) : null;
+  const requested = choice ? choice.venue.protocol : action.protocol === "jupiter" && action.kind === "stake" ? undefined : action.protocol;
+  const candidates = candidateAdapters(route, request.constraints, requested);
+  if (candidates.length === 0) throw noCandidates(route, requested);
   const adapterAction: AdapterAction = {
     ...route,
     amount,
@@ -367,8 +567,16 @@ async function draftStep(
     recipient,
     slippageBps: request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS,
     ...(action.provider ? { provider: action.provider } : {}),
+    ...(choice ? { venue: choice.venue.id } : {}),
+    ...(closePosition ? { closePosition: true } : {}),
   };
-  const { adapter, planned } = await planWithCandidates(candidates, adapterAction);
+  const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request);
+  if (closePosition && !(BigInt(planned.input.amount) > 0n)) {
+    throw new PlatformError("POSITION_EMPTY", `There is no ${input.symbol} position to withdraw at ${choice?.venue.name ?? "this venue"}.`, 422);
+  }
+  if (choice && planned.protocol !== choice.venue.protocol) {
+    throw new PlatformError("PLAN_INVALID", `${adapter.label} planned ${planned.protocol} for a ${choice.venue.protocol} venue.`, 502);
+  }
   const plannedOutput = planned.minimumOutput;
   return {
     action,
@@ -376,15 +584,57 @@ async function draftStep(
     planned,
     account,
     recipient,
+    ...(name ? { name } : {}),
+    ...(choice ? { venue: choice.venue } : {}),
+    ...(auction ? { auction } : {}),
+    notes: [...(choice?.warnings ?? []), ...(auction?.warnings ?? [])],
     output: sameAsset(plannedOutput, output) ? output : assetFromRef(plannedOutput),
     funded: action.amount.type === "previous",
     ...(action.amount.type === "previous" ? { portionBps: action.amount.portionBps } : {}),
   };
 }
 
+/** Quote evidence for the selected venue, the venues it beat and the ones that could not quote. */
+function quoteEvidence(draft: StepDraft, now: string): StepEvidence[] {
+  const { planned, action } = draft;
+  const competitors = (draft.auction?.losers.length ?? 0) + (draft.auction?.failures.length ?? 0);
+  const selected: StepEvidence = {
+    kind: "quote",
+    network: action.network,
+    observedAt: now,
+    ...(planned.quoteId ? { reference: planned.quoteId } : {}),
+    detail: `Quoted by ${draft.adapter.label}.${competitors > 0 ? ` Selected over ${competitors} other venue(s) by net guaranteed output, then time.` : ""}`,
+  };
+  // Provider quote ids of other venues stay out of `reference`: references of quote evidence bind deposits.
+  const losers: StepEvidence[] = (draft.auction?.losers ?? []).map((quote) => ({
+    kind: "quote",
+    network: action.network,
+    observedAt: now,
+    detail: `Also quoted: ${describeQuote(quote)}; not selected${exclusionReason(quote) ? ` (${exclusionReason(quote)})` : ""}.`.slice(0, 300),
+  }));
+  const failures: StepEvidence[] = (draft.auction?.failures ?? []).map((failure) => ({
+    kind: "quote",
+    network: action.network,
+    observedAt: now,
+    detail: `${getProtocol(failure.protocol)?.name ?? failure.adapter.label} could not quote (${failure.error.code}).`,
+  }));
+  const resolution: StepEvidence[] = draft.name
+    ? [{
+        kind: "note",
+        network: draft.recipient.chain.key,
+        ...(draft.name.reference ? { reference: draft.name.reference.slice(0, 100) } : {}),
+        observedAt: now,
+        detail: `Resolved ${draft.name.name} to ${draft.recipient.address} via ${getProtocol(draft.name.protocol)?.name ?? draft.name.protocol}: ${draft.name.detail}`.slice(0, 300),
+      }]
+    : [];
+  return [selected, ...losers, ...failures, ...resolution];
+}
+
 function buildStep(draft: StepDraft, index: number, previous: PreviousStep | null, now: string): IntentStep {
   const { planned, action } = draft;
-  const recipient = action.kind === "transfer" || action.kind === "bridge" ? draft.recipient.id : undefined;
+  const paysRecipient = action.kind === "transfer" || action.kind === "bridge";
+  const recipient = paysRecipient ? draft.recipient.id : undefined;
+  const warnings = [...new Set([...draft.notes, ...planned.warnings, ...(draft.name?.warnings ?? [])])];
   return {
     id: `s${index + 1}`,
     index,
@@ -399,20 +649,15 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
     expectedOutput: planned.expectedOutput,
     minimumOutput: planned.minimumOutput,
     ...(recipient ? { recipient } : {}),
+    ...(recipient && draft.name ? { recipientName: draft.name.name } : {}),
+    ...(draft.venue ? { venue: draft.venue.id } : {}),
     dependsOn: previous ? [previous.step.id] : [],
     settlement: planned.settlement,
     ...(planned.feesUsd !== undefined ? { feesUsd: roundUsd(planned.feesUsd) } : {}),
+    ...(planned.extraCosts && planned.extraCosts.length > 0 ? { extraCosts: planned.extraCosts } : {}),
     estimatedSeconds: planned.estimatedSeconds,
     status: previous ? "pending" : "ready",
-    evidence: [
-      {
-        kind: "quote",
-        network: action.network,
-        observedAt: now,
-        ...(planned.quoteId ? { reference: planned.quoteId } : {}),
-        detail: `Quoted by ${draft.adapter.label}.`,
-      },
-    ],
+    evidence: quoteEvidence(draft, now),
     quoteRef: encodeStepRef({
       v: 1,
       slippageBps: planned.slippageBps,
@@ -422,8 +667,9 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
       // Every prepare is held to this floor (QUOTE_MOVED), not to the previous prepare's.
       plannedInput: planned.input.amount,
       plannedMinimum: planned.minimumOutput.amount,
+      ...(action.amount.type === "position" ? { closePosition: true as const } : {}),
     }),
-    ...(planned.warnings.length > 0 ? { warnings: planned.warnings } : {}),
+    ...(warnings.length > 0 ? { warnings: warnings.slice(0, 12) } : {}),
   };
 }
 
@@ -440,7 +686,8 @@ export function summarize(steps: readonly IntentStep[], edges: readonly IntentEd
       if (network && !networks.includes(network)) networks.push(network);
     }
   }
-  const inputs = steps.filter((step) => !funded.has(step.id) && step.input).map((step) => step.input as AssetAmount);
+  // A withdraw's input comes out of a venue position, not out of the wallet.
+  const inputs = steps.filter((step) => !funded.has(step.id) && step.input && step.kind !== "withdraw").map((step) => step.input as AssetAmount);
   const outputs: AssetAmount[] = [];
   for (const step of steps) {
     const produced = step.actualOutput ?? step.expectedOutput;
@@ -522,11 +769,13 @@ export async function planIntent(input: unknown, options: PlanOptions = {}): Pro
       };
       try {
         const candidate = await draftStep(merged, previous, accounts, request);
-        if (candidate.adapter.id === "relay") {
-          draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one Relay cross-network swap into ${candidate.output.symbol}; saves a signature and a settlement wait.` };
-          index += 1;
-        }
-      } catch {
+        const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
+        draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output.symbol}; saves a signature and a settlement wait.` };
+        index += 1;
+      } catch (error) {
+        // Name resolution failures are the user's input, not a missing merged route: report them.
+        const code = toPlatformError(error).code;
+        if (code.startsWith("RECIPIENT_") || code === "NAME_RESOLUTION_UNAVAILABLE") throw error;
         draft = null;
       }
     }
@@ -620,7 +869,11 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
   const ref = decodeStepRef(step.quoteRef);
   const input = assetFromRef(step.input);
   const destinationNetwork = step.settlement?.destinationNetwork ?? step.network;
-  const output = step.kind === "transfer" || step.kind === "deposit" ? input : assetFromRef(step.minimumOutput);
+  const output = step.kind === "transfer" || step.kind === "deposit" || step.kind === "withdraw" ? input : assetFromRef(step.minimumOutput);
+  const venue = step.venue ? getYieldVenue(step.venue) : null;
+  if (step.venue && (!venue || venue.network !== step.network || venue.protocol !== step.protocol)) {
+    throw new PlatformError("STEP_INVALID", "The step's venue is not in the registry for its network and protocol.", 500);
+  }
   let amount = step.input.amount;
   const fundingEdge = graph.edges.find((edge) => edge.to === step.id && edge.kind === "funds");
   if (fundingEdge) {
@@ -644,5 +897,12 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     recipient,
     slippageBps: ref?.slippageBps ?? graph.request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS,
     ...(ref?.provider ? { provider: ref.provider } : {}),
+    ...(venue ? { venue: venue.id } : {}),
+    ...(ref?.closePosition && step.kind === "withdraw" ? { closePosition: true } : {}),
   };
+}
+
+/** Normalised recipient name of a step, when it was planned from one (service re-resolves it before prepare). */
+export function stepRecipientName(step: IntentStep): string | null {
+  return step.recipientName && step.recipient ? normalizeName(step.recipientName) : null;
 }

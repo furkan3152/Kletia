@@ -7,8 +7,9 @@ import {
   type Address,
   type Chain,
   type PublicClient,
+  type Transport,
 } from "viem";
-import { arbitrum, arcTestnet, base } from "viem/chains";
+import { arbitrum, arcTestnet, base, mainnet, optimism, polygon } from "viem/chains";
 import {
   ARBITRUM_CONTRACTS,
   ARBITRUM_TOKENS,
@@ -291,6 +292,110 @@ export const arbitrumPublicClient = createPublicClient({
   chain: arbitrum,
   transport: http(arbitrumRpcUrl),
   batch: { multicall: true },
+});
+
+/*
+ * Intent-platform networks (Platform API v1 only; the legacy /api routes do
+ * not serve them). Each uses ETHEREUM_RPC_URL / OPTIMISM_RPC_URL /
+ * POLYGON_RPC_URL when set, otherwise keyless public RPCs verified to answer
+ * with the right chain id (polygon-rpc.com is not used: it now requires a key).
+ */
+const PLATFORM_PUBLIC_RPCS = {
+  ethereum: [
+    "https://ethereum-rpc.publicnode.com",
+    "https://cloudflare-eth.com",
+    "https://eth.drpc.org",
+  ],
+  optimism: [
+    "https://mainnet.optimism.io",
+    "https://optimism-rpc.publicnode.com",
+    "https://optimism.drpc.org",
+  ],
+  polygon: [
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon.drpc.org",
+    "https://1rpc.io/matic",
+  ],
+} as const;
+
+function platformRpcUrls(
+  network: keyof typeof PLATFORM_PUBLIC_RPCS,
+  variable: string,
+): readonly string[] {
+  const configured = process.env[variable]?.trim();
+  if (configured) return [configured];
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      `[config] ${variable} is not set; using rate-limited public ${network} RPCs.`,
+    );
+  }
+  return PLATFORM_PUBLIC_RPCS[network];
+}
+
+/**
+ * HTTP transport (with fallback across several URLs) that refuses every
+ * request until the endpoint has reported `chainId`: an RPC on the wrong
+ * chain must never answer balance, receipt or log reads.
+ */
+function attestedHttp(urls: readonly string[], chainId: number): Transport {
+  const transports = urls.map((url) => http(url, { timeout: 8_000 }));
+  const inner =
+    transports.length > 1
+      ? fallback(transports)
+      : (transports[0] as Transport);
+  return (config) => {
+    const transport = inner(config);
+    let attestation: Promise<void> | null = null;
+    const attest = (): Promise<void> => {
+      attestation ??= (
+        transport.request({ method: "eth_chainId" }) as Promise<unknown>
+      )
+        .then((value) => {
+          if (Number(value) !== chainId) {
+            throw new Error(
+              `RPC reports chain ${String(value)}; expected ${chainId}.`,
+            );
+          }
+        })
+        .catch((error: unknown) => {
+          attestation = null;
+          throw error;
+        });
+      return attestation;
+    };
+    return {
+      ...transport,
+      request: (async (args: { method: string; params?: unknown }) => {
+        if (args.method !== "eth_chainId") await attest();
+        return transport.request(args as never);
+      }) as typeof transport.request,
+    };
+  };
+}
+
+export const ethereumPublicClient = createPublicClient({
+  chain: mainnet,
+  transport: attestedHttp(platformRpcUrls("ethereum", "ETHEREUM_RPC_URL"), 1),
+  batch: { multicall: true },
+}) as PublicClient;
+
+export const optimismPublicClient = createPublicClient({
+  chain: optimism,
+  transport: attestedHttp(platformRpcUrls("optimism", "OPTIMISM_RPC_URL"), 10),
+  batch: { multicall: true },
+}) as PublicClient;
+
+export const polygonPublicClient = createPublicClient({
+  chain: polygon,
+  transport: attestedHttp(platformRpcUrls("polygon", "POLYGON_RPC_URL"), 137),
+  batch: { multicall: true },
+}) as PublicClient;
+
+/** RPC clients for networks only the intent platform serves. */
+export const PLATFORM_NETWORK_CLIENTS = Object.freeze({
+  ethereum: ethereumPublicClient,
+  optimism: optimismPublicClient,
+  polygon: polygonPublicClient,
 });
 
 export const NETWORK_CLIENTS: Record<NetworkId, PublicClient> = {

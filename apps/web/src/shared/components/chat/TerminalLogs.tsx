@@ -19,15 +19,22 @@ export const TerminalLogs: React.FC<TerminalLogsProps> = ({ msg }) => {
       <div className="text-white font-black mb-2 md:mb-3 pb-1.5 md:pb-2 border-b-[3px] border-gray-600 dark:border-slate-700 flex items-center gap-2 uppercase tracking-wide">
         <TerminalIcon className="w-4 h-4 md:w-5 md:h-5" /> X-Ray Console
       </div>
-      {msg.terminalLogs.map((log, i) => (
+      {msg.terminalLogs.map((log, i, logs) => (
+        // New lines fade in (keyed by index, so earlier lines never replay).
         <div
           key={i}
-          className={`py-0.5 break-words ${log.includes("❌") ? "text-red-400 font-black" : log.includes("⚠️") ? "text-yellow-400" : log.includes("🛡️") ? "text-blue-400" : log.includes("✅") ? "text-green-500 font-black" : ""}`}
+          className={`py-0.5 break-words animate-[kl-fade_150ms_ease-out_backwards] motion-reduce:animate-none ${log.includes("❌") ? "text-red-400 font-black" : log.includes("⚠️") ? "text-yellow-400" : log.includes("🛡️") ? "text-blue-400" : log.includes("✅") ? "text-green-500 font-black" : ""}`}
         >
           <span className="text-gray-500 dark:text-slate-500 mr-1.5">
             {">"}
           </span>
           {log}
+          {msg.isLoading && i === logs.length - 1 ? (
+            <span
+              aria-hidden="true"
+              className="kl-caret ml-1 inline-block h-[1.05em] w-[0.6em] translate-y-[0.15em] bg-green-400"
+            />
+          ) : null}
         </div>
       ))}
       {explorerUrl && (

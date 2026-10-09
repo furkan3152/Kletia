@@ -7,4 +7,5 @@ export * from "./intent.js";
 export * from "./lifecycle.js";
 export * from "./events.js";
 export * from "./webhooks.js";
+export * from "./errors.js";
 export * from "./validation.js";

@@ -3,6 +3,7 @@ import { ScrollText, Trash2, X } from "lucide-react";
 
 import { ActivityFeed } from "../../sync/ActivityFeed";
 import { useActivityStore } from "../../sync/activityStore";
+import { playOnce } from "../../../app/site/intent/phaseMotion";
 
 interface ActivityDrawerProps {
   isOpen: boolean;
@@ -15,6 +16,19 @@ export const ActivityDrawer: React.FC<ActivityDrawerProps> = ({ isOpen, onClose 
   const clear = useActivityStore((state) => state.clear);
   const titleId = React.useId();
   const closeRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLElement>(null);
+
+  // Presentation only: slide in from the right (from the bottom on phones).
+  // Closing stays instant because the drawer unmounts.
+  React.useLayoutEffect(() => {
+    if (!isOpen) return;
+    const wide = window.matchMedia?.("(min-width: 640px)").matches ?? true;
+    playOnce(
+      panelRef.current,
+      [{ transform: wide ? "translateX(100%)" : "translateY(100%)" }, { transform: "translate(0, 0)" }],
+      { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    );
+  }, [isOpen]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -35,6 +49,7 @@ export const ActivityDrawer: React.FC<ActivityDrawerProps> = ({ isOpen, onClose 
 
   return (
     <aside
+      ref={panelRef}
       role="dialog"
       aria-modal="false"
       aria-labelledby={titleId}

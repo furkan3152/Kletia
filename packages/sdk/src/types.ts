@@ -4,6 +4,7 @@ import type {
   AssetDescriptor,
   AssetId,
   ChainDescriptor,
+  ErrorCatalogRow,
   IntentGraph,
   IntentRequest,
   NetworkKey,
@@ -146,8 +147,110 @@ export interface ApiKeyRecord {
   readonly id: string;
   readonly name: string;
   readonly tier: string;
+  readonly createdAt?: string;
   /** Present only in the creation response. */
   readonly key?: string;
+}
+
+/** A key of the caller's project as `GET /v1/keys` lists it. Secrets are never listed. */
+export interface ApiKeySummary {
+  readonly id: string;
+  readonly name: string;
+  readonly tier: string;
+  /** Last four characters of the current secret. */
+  readonly last4: string | null;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+  readonly rotatedAt: string | null;
+  /** When the previous secret stops authenticating; null when no grace window is open. */
+  readonly previousExpiresAt: string | null;
+  readonly revokedAt: string | null;
+  /** True for the key that made the request. */
+  readonly current: boolean;
+}
+
+/** `POST /v1/keys/{id}/rotate`: the same key id with a new secret (shown once). */
+export interface RotatedApiKey {
+  readonly id: string;
+  readonly name: string;
+  readonly tier: string;
+  readonly createdAt: string;
+  readonly key: string;
+  readonly rotatedAt: string;
+  /** When the previous secret stops authenticating (null: it already has). */
+  readonly previousExpiresAt: string | null;
+}
+
+export type WebhookDeliveryStatus = "succeeded" | "failed" | "dropped";
+export type WebhookDeliveryError =
+  | "timeout"
+  | "connection_failed"
+  | "http_status"
+  | "redirect"
+  | "forbidden_address"
+  | "queue_full"
+  | "paused";
+
+/** One delivery attempt (or drop) in a webhook's log. Payloads are never stored. */
+export interface WebhookDelivery {
+  readonly id: string;
+  readonly webhookId: string;
+  readonly eventId: string;
+  readonly eventType: string;
+  readonly intentId?: string;
+  readonly attempt: number;
+  readonly status: WebhookDeliveryStatus;
+  readonly httpStatus?: number;
+  readonly durationMs?: number;
+  readonly error?: WebhookDeliveryError;
+  readonly nextRetryAt?: string;
+  /** True for deliveries sent by `webhooks.test`. */
+  readonly test?: boolean;
+  readonly at: string;
+}
+
+export type UsageWindow = "24h" | "7d";
+
+export interface UsageReport {
+  readonly keyId: string;
+  readonly tier: string;
+  readonly window: UsageWindow;
+  readonly since: string;
+  readonly generatedAt: string;
+  readonly rateLimit: {
+    readonly limit: number;
+    readonly remaining: number;
+    readonly resetAt: string | null;
+    readonly windowSeconds: number;
+  };
+  readonly totals: { readonly requests: number; readonly byStatusClass: Readonly<Record<string, number>> };
+  readonly byRoute: readonly {
+    readonly route: string;
+    readonly requests: number;
+    readonly byStatusClass: Readonly<Record<string, number>>;
+  }[];
+  readonly series: readonly { readonly hour: string; readonly requests: number }[];
+  readonly intents: { readonly created: number; readonly byStatus: Readonly<Record<string, number>> };
+}
+
+/** `GET /v1/errors`: the catalog from `@kletia/core` with documentation links. */
+export interface ErrorCatalogResponse {
+  readonly errors: readonly (ErrorCatalogRow & { readonly docs: string })[];
+  /** Provider codes such as RELAY_UNAVAILABLE resolve to the entry named by `code`. */
+  readonly families: readonly { readonly pattern: string; readonly code: string }[];
+}
+
+/** Per-call options accepted by every client method. */
+export interface RequestOptions {
+  readonly signal?: AbortSignal;
+  /**
+   * `Idempotency-Key` for this call. By default the client generates one for
+   * POSTs that change state when it has an API key, and reuses it across
+   * retries. `false` sends none (and disables retries of such POSTs).
+   */
+  readonly idempotencyKey?: string | false;
+  /** Overrides the client's `maxRetries` for this call (prepare is never retried). */
+  readonly maxRetries?: number;
 }
 
 export type { AssetDescriptor, IntentGraph, IntentRequest, ProtocolDescriptor };

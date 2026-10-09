@@ -7,6 +7,10 @@
  * each must be mined after that payload was first prepared. Only then does a
  * revert count as an on-chain failure of the step.
  *
+ * Adapters that must prove an outcome from receipt logs (a Supply / Withdraw /
+ * Mint / CreatedOrder event) call `verifyEvmReceipts` with a check; the check
+ * runs only after the binding matched and every transaction succeeded.
+ *
  * Solana: every signature must be confirmed/finalized with a readable body,
  * fee-paid by the bound account, land after the step was first prepared and
  * invoke the prepared primary program; adapters add amount checks.
@@ -15,12 +19,14 @@
  * this step's transactions. They never fail the step: the service refuses the
  * submission and the step keeps waiting for the right references.
  */
+import { parseEventLogs, type Abi, type ContractEventName, type Log } from "viem";
 import {
   explorerTxUrl,
   isEvmTransactionHash,
   isSolanaSignature,
   parseAccountId,
   WRAPPED_SOL_MINT,
+  type AssetAmount,
   type IntentStep,
   type StepEvidence,
 } from "@kletia/core";
@@ -92,12 +98,62 @@ export function firstPreparedAt(step: IntentStep): number | null {
 
 type LandedEvm = Extract<EvmTransactionObservation, { state: "landed" }>;
 
+/** A landed EVM transaction of the step, in prepared order, with its receipt logs. */
+export type LandedEvmReceipt = LandedEvm & { readonly reference: string };
+
+export interface EvmOutcome {
+  /** The outcome is not proven (e.g. a required event is missing): the step fails with this code. */
+  readonly failure?: StepFailure;
+  /** Output measured from the receipts (e.g. the amount in a Withdraw event). */
+  readonly actualOutput?: AssetAmount;
+  /** Extra evidence (decoded events) appended after the receipts. */
+  readonly evidence?: readonly StepEvidence[];
+}
+
+/**
+ * Outcome check over the landed receipts. It runs only after the binding
+ * matched (the receipts are this step's prepared transactions) and every
+ * transaction succeeded. A failure code in REJECTION_CODES is rewritten to
+ * OUTCOME_NOT_PROVEN: the references are proven to be the step's own, so a
+ * missing event is an on-chain outcome failure, never a rejected submission.
+ */
+export interface EvmVerificationCheck {
+  (receipts: readonly LandedEvmReceipt[]): EvmOutcome | void | Promise<EvmOutcome | void>;
+}
+
+/**
+ * Decoded `eventName` events emitted by `address` across `receipts` (strict
+ * ABI decoding: logs that do not match the event signature are skipped).
+ */
+export function evmEvents<const abi extends Abi, eventName extends ContractEventName<abi>>(
+  receipts: readonly { readonly logs: readonly Log[] }[],
+  filter: { readonly address: string; readonly abi: abi; readonly eventName: eventName },
+) {
+  const address = filter.address.toLowerCase();
+  const logs = receipts.flatMap((receipt) => receipt.logs.filter((log) => log.address.toLowerCase() === address));
+  return parseEventLogs({ abi: filter.abi, logs: [...logs], eventName: filter.eventName, strict: true });
+}
+
 export async function verifyEvmReferences(context: VerifyContext): Promise<VerificationResult> {
+  return (await verifyEvmReceipts(context)).result;
+}
+
+/**
+ * verifyEvmReferences plus the landed receipts (with logs) and an optional
+ * outcome check. `receipts` is filled once every reference has landed, also
+ * when the result is a failure; it is empty while any reference is pending.
+ */
+export async function verifyEvmReceipts(
+  context: VerifyContext,
+  check?: EvmVerificationCheck,
+): Promise<{ result: VerificationResult; receipts: LandedEvmReceipt[] }> {
   const { step, references } = context;
   const prepared = step.prepared;
   const account = parseAccountId(step.account);
+  const receipts: LandedEvmReceipt[] = [];
+  const done = (result: VerificationResult) => ({ result, receipts });
   if (!prepared || !account || !isEvmNetwork(step.network)) {
-    return failed([], { code: "STEP_NOT_PREPARED", message: "The step has no prepared EVM payload." });
+    return done(failed([], { code: "STEP_NOT_PREPARED", message: "The step has no prepared EVM payload." }));
   }
   const chainId = evmChainId(step.network);
   const observedAt = new Date(context.now).toISOString();
@@ -105,25 +161,26 @@ export async function verifyEvmReferences(context: VerifyContext): Promise<Verif
   for (const reference of references) {
     const observation = await observeEvmTransaction(step.network, reference);
     if (observation.state !== "landed") {
-      return {
+      return done({
         status: "pending",
         evidence: [],
         reason: observation.state === "pending" ? "Transaction is pending." : "Transaction is not visible yet.",
         stale: context.now - context.submittedAt > REFERENCE_STALE_MS,
-      };
+      });
     }
     // Fail closed: without a block time the transaction cannot be ordered against prepare.
     if (observation.blockTimestamp === null) {
-      return { status: "pending", evidence: [], reason: "Block time is not readable yet.", stale: false };
+      return done({ status: "pending", evidence: [], reason: "Block time is not readable yet.", stale: false });
     }
     landed.push(observation);
   }
+  receipts.push(...landed.map((observation, index) => ({ ...observation, reference: references[index] as string })));
   for (const [index, observation] of landed.entries()) {
     if (observation.chainId !== null && observation.chainId !== chainId) {
-      return failed([], { code: "REFERENCE_WRONG_CHAIN", message: `Transaction ${index + 1} is not on ${step.network}.` });
+      return done(failed([], { code: "REFERENCE_WRONG_CHAIN", message: `Transaction ${index + 1} is not on ${step.network}.` }));
     }
     if (observation.from.toLowerCase() !== account.address.toLowerCase()) {
-      return failed([], { code: "REFERENCE_WRONG_SENDER", message: `Transaction ${index + 1} was not sent by the step account.` });
+      return done(failed([], { code: "REFERENCE_WRONG_SENDER", message: `Transaction ${index + 1} was not sent by the step account.` }));
     }
   }
   // The binding covers chain, sender, target, calldata and value of every
@@ -138,15 +195,15 @@ export async function verifyEvmReferences(context: VerifyContext): Promise<Verif
   }));
   const preparedAtMs = preparedBindings(step).get(quoteBindingForViews(views));
   if (preparedAtMs === undefined) {
-    return failed([], {
+    return done(failed([], {
       code: "REFERENCE_MISMATCH",
       message: "The submitted transactions do not match a payload prepared for this step (target, calldata or value differ).",
-    });
+    }));
   }
   const notBefore = Math.floor(preparedAtMs / 1000) - CLOCK_SKEW_SECONDS;
   for (const [index, observation] of landed.entries()) {
     if ((observation.blockTimestamp ?? 0) < notBefore) {
-      return failed([], { code: "REFERENCE_STALE", message: `Transaction ${index + 1} was mined before this step's payload was prepared.` });
+      return done(failed([], { code: "REFERENCE_STALE", message: `Transaction ${index + 1} was mined before this step's payload was prepared.` }));
     }
   }
   const evidence: StepEvidence[] = landed.map((observation, index) => {
@@ -162,9 +219,21 @@ export async function verifyEvmReferences(context: VerifyContext): Promise<Verif
   });
   const reverted = landed.findIndex((observation) => observation.status !== "success");
   if (reverted !== -1) {
-    return failed(evidence, { code: "TRANSACTION_REVERTED", message: `Transaction ${reverted + 1} reverted on-chain.` });
+    return done(failed(evidence, { code: "TRANSACTION_REVERTED", message: `Transaction ${reverted + 1} reverted on-chain.` }));
   }
-  return { status: "confirmed", evidence };
+  const outcome = check ? await check(receipts) : undefined;
+  const allEvidence = [...evidence, ...(outcome?.evidence ?? [])];
+  if (outcome?.failure) {
+    const failure = REJECTION_CODES.has(outcome.failure.code)
+      ? { code: "OUTCOME_NOT_PROVEN", message: outcome.failure.message }
+      : outcome.failure;
+    return done(failed(allEvidence, failure));
+  }
+  return done({
+    status: "confirmed",
+    evidence: allEvidence,
+    ...(outcome?.actualOutput ? { actualOutput: outcome.actualOutput } : {}),
+  });
 }
 
 export interface SolanaVerificationCheck {

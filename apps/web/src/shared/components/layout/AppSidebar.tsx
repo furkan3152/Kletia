@@ -143,7 +143,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   }, [activeTab, availableSections, setActiveTab, setIsPortfolioOpen]);
 
   const navItemClass = (isActive: boolean) =>
-    `group flex min-h-12 w-full items-center justify-between border-[3px] border-[#1A1A1A] px-4 py-3 font-black transition-[transform,box-shadow,background-color] duration-100 ease-out focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] ${
+    `group flex min-h-12 w-full items-center justify-between border-[3px] border-[#1A1A1A] px-4 py-3 font-black transition-[transform,box-shadow,background-color,color] duration-150 ease-out motion-reduce:transition-colors focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF] dark:border-[#4B5563] ${
       isActive
         ? "text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] translate-x-2"
         : "bg-white dark:bg-[#1E293B] text-[#1A1A1A] dark:text-white shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[8px_8px_0_#1A1A1A] dark:hover:shadow-[8px_8px_0_#475569]"
@@ -212,7 +212,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <div className="flex items-center gap-3">
         <Icon
           size={18}
-          className={isActive ? "text-white" : undefined}
+          className={`transition-transform duration-150 ease-kl-snap group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 ${isActive ? "text-white" : ""}`}
           style={isActive ? undefined : { color: workspaceAccent }}
           aria-hidden="true"
         />
@@ -222,7 +222,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         {badge}
         <ChevronRight
           size={16}
-          className="opacity-60 transition-opacity duration-100 group-hover:opacity-100"
+          className="opacity-60 transition-[opacity,transform] duration-150 ease-kl-snap group-hover:translate-x-0.5 group-hover:opacity-100 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
           aria-hidden="true"
         />
       </span>
@@ -268,7 +268,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <aside
         aria-label="Kletia workspace navigation"
         aria-hidden={!isOpen}
-        className={`fixed left-0 top-0 z-[60] flex h-[100dvh] w-[min(20rem,calc(100vw-1rem))] shrink-0 flex-col border-r-[4px] border-[#1A1A1A] bg-white transition-[transform,opacity] duration-200 ease-in-out dark:border-[#4B5563] dark:bg-[#131E32] md:relative md:z-40 md:m-4 md:h-[calc(100%-2rem)] md:rounded md:border-[4px] md:shadow-[8px_8px_0_#1A1A1A] dark:md:shadow-[8px_8px_0_#475569] ${
+        className={`fixed left-0 top-0 z-[60] flex h-[100dvh] w-[min(20rem,calc(100vw-1rem))] shrink-0 flex-col border-r-[4px] border-[#1A1A1A] bg-white transition-[transform,opacity] duration-200 ease-in-out motion-reduce:transition-none dark:border-[#4B5563] dark:bg-[#131E32] md:relative md:z-40 md:m-4 md:h-[calc(100%-2rem)] md:rounded md:border-[4px] md:shadow-[8px_8px_0_#1A1A1A] dark:md:shadow-[8px_8px_0_#475569] ${
           isOpen
             ? "translate-x-0 opacity-100 md:w-72 md:mr-0"
             : "pointer-events-none -translate-x-full overflow-hidden opacity-0 md:m-0 md:-ml-8 md:w-0 md:border-none md:shadow-none"

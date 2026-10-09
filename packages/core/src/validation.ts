@@ -41,6 +41,9 @@ const ACTION_KINDS: readonly IntentActionKind[] = [
 export const MAX_INTENT_TEXT_LENGTH = 1_000;
 export const MAX_INTENT_ACTIONS = 8;
 export const MAX_INTENT_ACCOUNTS = 6;
+/** Bounds of `constraints.maxSeconds` (settlement estimate a cross-network step may take). */
+export const MIN_MAX_SECONDS = 10;
+export const MAX_MAX_SECONDS = 86_400;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -70,6 +73,12 @@ function validateConstraints(value: unknown, issues: ValidationIssue[]): IntentC
     if (typeof fee !== "number" || !Number.isFinite(fee) || fee < 0) {
       issues.push({ path: "constraints.maxFeeUsd", message: "Must be a non-negative number." });
     } else out.maxFeeUsd = fee;
+  }
+  if (value.maxSeconds !== undefined) {
+    const seconds = value.maxSeconds;
+    if (typeof seconds !== "number" || !Number.isInteger(seconds) || seconds < MIN_MAX_SECONDS || seconds > MAX_MAX_SECONDS) {
+      issues.push({ path: "constraints.maxSeconds", message: `Must be an integer between ${MIN_MAX_SECONDS} and ${MAX_MAX_SECONDS}.` });
+    } else out.maxSeconds = seconds;
   }
   for (const key of ["preferProtocols", "avoidProtocols"] as const) {
     const list = value[key];
@@ -115,6 +124,14 @@ function validateAction(value: unknown, index: number, issues: ValidationIssue[]
   }
   if (value.params !== undefined && !isRecord(value.params)) {
     issues.push({ path: `${path}.params`, message: "Must be an object." });
+  } else if (value.params !== undefined) {
+    const params = value.params as Record<string, unknown>;
+    if (Object.keys(params).length > 8 || Object.values(params).some((entry) => !["string", "number", "boolean"].includes(typeof entry))) {
+      issues.push({ path: `${path}.params`, message: "Up to 8 string, number or boolean values." });
+    }
+    if (params.venue !== undefined && (typeof params.venue !== "string" || !params.venue.trim() || params.venue.length > 128)) {
+      issues.push({ path: `${path}.params.venue`, message: "Must be a venue id, slug or address up to 128 characters." });
+    }
   }
   return value as unknown as IntentActionSpec;
 }

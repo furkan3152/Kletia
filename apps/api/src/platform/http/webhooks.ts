@@ -182,11 +182,15 @@ function invalidateOwner(ownerKeyId: string): void {
   ownerCache.delete(ownerKeyId);
 }
 
-/** Webhooks of one owner for delivery (cached briefly; local writes invalidate). */
-export async function webhooksForOwner(ownerKeyId: string): Promise<readonly WebhookRecord[]> {
+/**
+ * Webhooks of one owner for delivery (cached briefly; local writes
+ * invalidate). `fresh` re-reads the store, e.g. for a request that names a
+ * webhook created on another instance.
+ */
+export async function webhooksForOwner(ownerKeyId: string, options: { readonly fresh?: boolean } = {}): Promise<readonly WebhookRecord[]> {
   const now = Date.now();
   const cached = ownerCache.get(ownerKeyId);
-  if (cached && cached.expiresAt > now) return cached.records;
+  if (!options.fresh && cached && cached.expiresAt > now) return cached.records;
   const records = await webhookStore().listByOwner(ownerKeyId);
   ownerCache.set(ownerKeyId, { records, expiresAt: now + OWNER_CACHE_TTL_MS });
   while (ownerCache.size > 5_000) {

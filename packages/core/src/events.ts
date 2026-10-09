@@ -24,6 +24,8 @@ export interface KletiaEventMap {
     readonly status: StepStatus;
     readonly evidence?: StepEvidence;
   };
+  /** Sent by POST /v1/webhooks/{id}/test to check an endpoint; never emitted for intents. */
+  "webhook.test": { readonly webhookId: string };
   "wallet.connected": { readonly account: AccountId; readonly wallet: string };
   "wallet.disconnected": { readonly account: AccountId };
   "network.selected": { readonly network: NetworkKey };

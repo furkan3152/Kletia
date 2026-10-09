@@ -7,6 +7,8 @@ this same API for Solana and cross-network flows.
 - Base URL: `https://api.kletiaai.xyz/v1` (local: `http://localhost:3001/v1`)
 - Spec: `GET /v1/openapi.json` (OpenAPI 3.1)
 - Types: [`@kletia/core`](../../packages/core/README.md) (intent spec), [`@kletia/sdk`](../../packages/sdk/README.md) (client)
+- Errors: [errors.md](errors.md) (also `GET /v1/errors`)
+- Agents: [mcp.md](mcp.md) (read-only MCP server at `/v1/mcp`)
 
 ## Design rules
 
@@ -32,7 +34,8 @@ this same API for Solana and cross-network flows.
 | Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above |
 
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
-hash). It is rate-limited per IP. Requests with an unknown or revoked key count
+hash). It is rate-limited per IP. Keys are managed per project; see
+[Key management](#key-management). Requests with an unknown or revoked key count
 against the caller's IP at the public limit, and an IP is allowed 30 checks of
 unrecognised keys per minute: after that, keys that are not already verified
 get `429 RATE_LIMITED` (with `Retry-After`) without being looked up.
@@ -49,20 +52,21 @@ from the browser.
 ## Errors
 
 ```json
-{ "error": { "code": "INTENT_UNSUPPORTED", "message": "…", "issues": [{ "path": "actions[0].network", "message": "…" }] }, "requestId": "…" }
+{ "error": { "code": "INTENT_UNSUPPORTED", "message": "…", "issues": [{ "path": "actions[0].network", "message": "…" }], "docs": "https://kletiaai.xyz/developers#error-INTENT_UNSUPPORTED" }, "requestId": "…" }
 ```
 
-Codes are `UPPER_SNAKE_CASE` and stable. Every response carries `X-Request-Id` (a valid incoming UUID is echoed). `INTENT_UNSUPPORTED` errors also include `hints`: example phrases the grammar understands.
+Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](errors.md) (`GET /v1/errors`, `ERROR_CATALOG` in `@kletia/core`) with its status, whether a retry can help and what to do; `error.docs` links to the entry. Every response carries `X-Request-Id` (a valid incoming UUID is echoed). `INTENT_UNSUPPORTED` errors also include `hints`: example phrases the grammar understands.
 
 | Status | When |
 |---|---|
 | 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
-| 404 | Unknown intent, step, webhook or path |
+| 403 | A rotated-out secret managing keys (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`) |
+| 404 | Unknown intent, step, webhook, key or path |
 | 405 | Wrong method (with an `Allow` header) |
-| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook) |
+| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
-| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `WEBHOOK_URL_FORBIDDEN`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
 | 502 / 503 | Upstream provider unavailable, or a feature not configured (`WEBHOOKS_NOT_CONFIGURED`) |
 
@@ -86,8 +90,17 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every response carries `X-Request-Id` (
 | GET | `/v1/intents/{id}/events` | public | Server-Sent Events stream of intent events |
 | POST | `/v1/webhooks` | key | Register a webhook (secret returned once) |
 | GET | `/v1/webhooks` | key | List webhooks |
-| DELETE | `/v1/webhooks/{id}` | key | Delete a webhook |
-| POST | `/v1/keys` | public | Issue a developer key |
+| DELETE | `/v1/webhooks/{id}` | key | Delete a webhook and its delivery log |
+| POST | `/v1/webhooks/{id}/test` | key | Send a signed `webhook.test` event now |
+| GET | `/v1/webhooks/{id}/deliveries` | key | Delivery log (`?limit=1..100`) |
+| POST | `/v1/keys` | public | Issue a developer key (with a developer key: a sibling in the same project) |
+| GET | `/v1/keys` | key | List the keys of the caller's project |
+| POST | `/v1/keys/{id}/rotate` | key | New secret for a key, same id, with a grace window |
+| DELETE | `/v1/keys/{id}` | key | Revoke a key |
+| GET | `/v1/usage` | key | Requests, status classes, rate-limit window and intents of the caller's key |
+| GET | `/v1/errors` | public | Error catalog |
+| GET | `/v1/status/badge` | public | Status badge (SVG, or `?format=shields`) |
+| POST | `/v1/mcp` | public | Model Context Protocol server ([mcp.md](mcp.md)) |
 | GET | `/v1/openapi.json` | public | OpenAPI document |
 
 ### `POST /v1/intents`
@@ -181,7 +194,8 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 { "id": "evt_…", "type": "intent.step_updated", "at": "2026-10-08T12:00:00.000Z", "data": { "intentId": "…", "stepId": "…", "network": "solana", "status": "settled" } }
 ```
 
-Types: `intent.created`, `intent.status_changed`, `intent.step_updated`.
+Types: `intent.created`, `intent.status_changed`, `intent.step_updated`, and
+`webhook.test` (only from `POST /v1/webhooks/{id}/test`).
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
@@ -205,6 +219,105 @@ Webhook secrets are encrypted at rest with `KLETIA_PLATFORM_SECRET` (at least
 in-memory store a development key is used and `GET /v1/health` reports
 `webhooks.sealing: "development_fallback"`. `webhooks.dispatcher` reports the
 delivery queue of the answering API process.
+
+## Idempotency
+
+Keyed `POST` requests that create or change state accept an
+`Idempotency-Key` header (draft-ietf-httpapi-idempotency-key-header):
+`POST /v1/intents`, `/intents/{id}/cancel`, `/intents/{id}/steps/{stepId}/submit`,
+`POST /v1/webhooks`, `POST /v1/keys` and `/keys/{id}/rotate`.
+
+```http
+POST /v1/intents
+Authorization: Bearer kl_dev_…
+Idempotency-Key: 7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14
+```
+
+- The value is 1-128 characters from `A-Z a-z 0-9 _ . : -`, bare or as a
+  quoted string (a UUID works). Anything else: `400 IDEMPOTENCY_KEY_INVALID`.
+- Keys are scoped to the API key. The first response is stored for 24 hours
+  (before it is written to the client) and a retry with the same key and the
+  same request (method, path, query and body) replays it with
+  `Idempotent-Replayed: true`, including stored client errors.
+- Same key, different request: `422 IDEMPOTENCY_KEY_REUSED`. Same key while the
+  first request still runs: `409 IDEMPOTENCY_REQUEST_IN_PROGRESS` with
+  `Retry-After: 1`; a reservation whose request never finished is taken over
+  after 120 seconds.
+- `5xx`, `429` and errors whose code is retryable in the catalog are not
+  stored, so the retry runs again.
+- Without an API key: `400 IDEMPOTENCY_KEY_REQUIRES_API_KEY`. On `prepare`
+  (which re-quotes on every call and must never be replayed):
+  `400 IDEMPOTENCY_NOT_SUPPORTED`. Dry runs ignore the header. Other POSTs
+  (quotes, refresh, webhook tests, MCP) are safe to repeat and ignore it.
+- Responses that carry a secret (API keys, webhook signing secrets) are stored
+  encrypted with `KLETIA_PLATFORM_SECRET`.
+
+`clientReference` on `POST /v1/intents` keeps working as before.
+
+## Key management
+
+A key issued without a key starts a **project**; a key issued with a
+developer key (`POST /v1/keys` with `Authorization`) joins the caller's
+project. A project holds at most 5 active keys (`409 KEY_LIMIT_REACHED`).
+Intents, webhooks and usage belong to the individual key, not the project, so
+use one key per environment.
+
+- `GET /v1/keys` lists the project's keys (newest first) with `last4`,
+  `createdAt`, `lastUsedAt` (updated at most once a minute), `rotatedAt`,
+  `previousExpiresAt`, `revokedAt` and `current` (the calling key). Secrets
+  are never returned.
+- `POST /v1/keys/{id}/rotate` with `{ "graceSeconds": 0..604800 }` (default
+  86400) returns `{ key }` with a new secret and the **same id**. The previous
+  secret keeps authenticating until `previousExpiresAt`, but cannot manage keys
+  (`403 KEY_SECRET_ROTATED`), so a leaked secret cannot take a rotated key over.
+  Rotating again ends an earlier grace window; `graceSeconds: 0` ends it now.
+- `DELETE /v1/keys/{id}` revokes a key (idempotent, `204`). A key may revoke
+  itself.
+- Revocation and the end of a grace window take effect at once on the
+  instance that handled them and within 15 seconds on every other instance.
+- Operator keys are configuration and cannot be listed, rotated or revoked
+  (`409 KEY_NOT_MANAGEABLE`).
+
+## Webhook tests and delivery logs
+
+- `POST /v1/webhooks/{id}/test` sends one signed event
+  `{ "id": "evt_…", "type": "webhook.test", "at": "…", "data": { "webhookId": "wh_…" } }`
+  synchronously, with the same signature, network guard, 5 s timeout and
+  no-redirect rule as real deliveries, and returns `200 { delivery }` whatever
+  the endpoint answered. At most 5 per minute per webhook; test failures never
+  pause a webhook.
+- `GET /v1/webhooks/{id}/deliveries?limit=20` returns the newest attempts:
+  `{ id, eventId, eventType, intentId?, attempt, status: succeeded | failed | dropped, httpStatus?, durationMs?, error?, nextRetryAt?, test?, at }`.
+  `error` is a class (`timeout`, `connection_failed`, `http_status`,
+  `redirect`, `forbidden_address`, `queue_full`); payloads and error text are
+  never stored. Logs are kept 7 days (at most 1000 entries per webhook; 100
+  with in-memory storage) and deleted with the webhook.
+
+## Usage
+
+`GET /v1/usage?window=24h|7d` (key) reports the caller's key:
+
+```json
+{
+  "keyId": "key_…", "tier": "developer", "window": "24h", "since": "…", "generatedAt": "…",
+  "rateLimit": { "limit": 300, "remaining": 287, "resetAt": "…", "windowSeconds": 60 },
+  "totals": { "requests": 1342, "byStatusClass": { "2xx": 1301, "4xx": 41 } },
+  "byRoute": [{ "route": "POST /intents", "requests": 120, "byStatusClass": { "2xx": 118, "4xx": 2 } }],
+  "series": [{ "hour": "…", "requests": 51 }],
+  "intents": { "created": 120, "byStatus": { "completed": 97, "planned": 23 } }
+}
+```
+
+Requests are counted per hour, route template and status class and written
+every 30 seconds (per request on serverless hosts). `rateLimit` is the current
+window on the answering instance.
+
+## Status badge
+
+`GET /v1/status/badge` returns an SVG badge (`operational`, `degraded` or
+`down`, from the health report). With `?format=shields` it returns a
+shields.io endpoint document:
+`https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.kletiaai.xyz%2Fv1%2Fstatus%2Fbadge%3Fformat%3Dshields`.
 
 ## Supported intents (v1)
 

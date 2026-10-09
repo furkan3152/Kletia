@@ -1,222 +1,295 @@
-import { CHAINS } from "@kletia/core";
-import { Check, PenLine, Radio } from "lucide-react";
-import React from "react";
+import { ArrowRight, Check, LoaderCircle, Pause, PenLine, Play } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-import { cx } from "../../site/ui/styles";
+import { Link } from "../../routes/Link";
+import { Typewriter } from "../../site/motion/Typewriter";
+import { useAutoPause } from "../../site/motion/useAutoPause";
+import { useReducedMotion } from "../../site/motion/useReducedMotion";
+import { cx, FOCUS_RING } from "../../site/ui/styles";
+import { studioHref } from "../protocols/protocolExamples";
+import {
+  exitStage,
+  HERO_SCENARIOS,
+  holdStage,
+  settledStage,
+  stageDuration,
+  stepStatus,
+  type StepStatus,
+} from "./heroScenarios";
+import { NetworkMap } from "./NetworkMap";
 
-const PROMPT = "bridge 50 USDC from Base to Solana and stake it as JitoSOL";
-const TYPE_START_MS = 500;
-const CHAR_MS = 34;
-const TYPED_MS = TYPE_START_MS + PROMPT.length * CHAR_MS;
-const COMPILED_MS = TYPED_MS + 350;
-const NODE_STAGGER_MS = 260;
+/** Full cycles through the three examples before the window rests. */
+const MAX_CYCLES = 2;
 
-const delay = (ms: number): React.CSSProperties => ({ animationDelay: `${ms}ms` });
-const nodeDelay = (index: number) => delay(COMPILED_MS + 200 + index * NODE_STAGGER_MS);
-const FLOW_START = COMPILED_MS + 200 + 5 * NODE_STAGGER_MS;
-
-interface AssetNodeProps {
-  readonly network: "base" | "solana";
-  readonly title: string;
-  readonly detail: string;
-  readonly signer?: string;
-  readonly index: number;
-  readonly className?: string;
+interface PlayState {
+  readonly scenario: number;
+  readonly stage: number;
+  /** Completed passes through all scenarios. */
+  readonly cycle: number;
+  /** Bumps on every (re)start so typed text and one-shot effects replay. */
+  readonly run: number;
+  /** After two cycles: rest on example 1, final state, no packets. */
+  readonly resting: boolean;
 }
 
-function AssetNode({ network, title, detail, signer, index, className }: AssetNodeProps) {
-  const chain = CHAINS[network];
+const STATUS_STYLE: Record<StepStatus, { readonly label: string; readonly className: string }> = {
+  waiting: { label: "Queued", className: "bg-[#F1EFE8] text-[#45464B] dark:bg-[#1A2841] dark:text-[#A9B6C8]" },
+  awaiting: { label: "Awaiting signature", className: "bg-[#FFD60A] text-[#1A1A1A]" },
+  submitted: { label: "Submitted", className: "bg-[#9945FF] text-white" },
+  settled: { label: "Settled", className: "bg-[#14F195] text-[#0B1120]" },
+};
+
+function StatusChip({ status, animate }: { readonly status: StepStatus; readonly animate: boolean }) {
+  const style = STATUS_STYLE[status];
   return (
-    <div
+    <span
       className={cx(
-        "kl-pop relative border-[3px] border-[#1A1A1A] bg-white shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F1A2C] dark:shadow-[4px_4px_0_#475569]",
-        className,
+        "inline-flex shrink-0 items-center gap-1 border-2 border-[#1A1A1A] px-1.5 py-0.5 font-code text-[10px] font-bold uppercase tracking-[0.06em] dark:border-[#4B5563]",
+        style.className,
+        animate && status === "settled" && "kl-stamp",
       )}
-      style={nodeDelay(index)}
     >
-      <div className="flex">
-        <span className="w-2.5 shrink-0 border-r-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={{ backgroundColor: chain.color }} />
-        <div className="min-w-0 flex-1 px-3 py-2">
-          <p className="truncate font-code text-[10px] uppercase tracking-wider text-[#45464B] dark:text-[#A9B6C8]">
-            {chain.name} · {chain.id.length > 18 ? `${chain.id.slice(0, 16)}…` : chain.id}
-          </p>
-          <p className="font-display text-lg font-bold leading-tight tracking-tight sm:text-xl">{title}</p>
-          <p className="text-[11px] font-semibold text-[#45464B] dark:text-[#A9B6C8]">{detail}</p>
-          {signer ? (
-            <p className="mt-1 inline-flex items-center gap-1 border-2 border-[#1A1A1A] bg-[#FFD60A] px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-[#1A1A1A] dark:border-[#4B5563]">
-              <PenLine className="h-3 w-3" aria-hidden="true" />
-              {signer}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProtocolNode({
-  name,
-  action,
-  tone,
-  index,
-  className,
-}: {
-  name: string;
-  action: string;
-  tone: "yellow" | "purple";
-  index: number;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cx(
-        "kl-pop inline-flex items-center gap-2 border-[3px] border-[#1A1A1A] px-3 py-1.5 shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569]",
-        tone === "yellow" ? "bg-[#FFD60A] text-[#1A1A1A]" : "bg-[#9945FF] text-white",
-        className,
-      )}
-      style={nodeDelay(index)}
-    >
-      <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-      <span className="font-display text-sm font-bold uppercase tracking-wide">{name}</span>
-      <span className="font-code text-[10px] uppercase opacity-80">{action}</span>
-    </div>
-  );
-}
-
-function Connector({ index, color, className }: { index: number; color: string; className?: string }) {
-  return (
-    <div className={cx("kl-fade-in relative mx-auto h-7 w-[3px]", className)} style={nodeDelay(index)} aria-hidden="true">
-      <span className="kl-flow-v absolute inset-0 text-[#1A1A1A]/60 dark:text-white/40" />
-      <span
-        className="kl-packet absolute left-1/2 h-3 w-3 -translate-x-1/2 border-2 border-[#1A1A1A] dark:border-[#0B1120]"
-        style={{ backgroundColor: color, ...delay(FLOW_START + index * 400) }}
-      />
-    </div>
-  );
-}
-
-/** Lane centres inside the two-column grid (gap 0.75rem). */
-const LEFT_LANE = "calc((100% - 0.75rem) / 4)";
-const RIGHT_LANE = "calc(100% - (100% - 0.75rem) / 4)";
-
-/** Cross-lane edge: down from the Base lane, across through Relay, down into the Solana lane. */
-function BridgeRow({ index, from, to }: { index: number; from: string; to: string }) {
-  return (
-    <div className="relative col-span-2 h-24" aria-hidden="true">
-      <span className="kl-fade-in absolute top-0 h-1/2 w-[3px] -translate-x-1/2" style={{ left: LEFT_LANE, ...nodeDelay(index) }}>
-        <span className="kl-flow-v absolute inset-0 text-[#1A1A1A]/60 dark:text-white/40" />
-        <span
-          className="kl-packet absolute left-1/2 h-3 w-3 -translate-x-1/2 border-2 border-[#1A1A1A] dark:border-[#0B1120]"
-          style={{ backgroundColor: from, ...delay(FLOW_START) }}
-        />
-      </span>
-      <span
-        className="kl-fade-in kl-flow-h absolute top-1/2 h-[3px] -translate-y-1/2 text-[#1A1A1A]/60 dark:text-white/40"
-        style={{ left: LEFT_LANE, right: `calc(100% - ${RIGHT_LANE})`, ...nodeDelay(index) }}
-      />
-      <span className="kl-fade-in absolute bottom-0 h-1/2 w-[3px] -translate-x-1/2" style={{ left: RIGHT_LANE, ...nodeDelay(index + 1) }}>
-        <span className="kl-flow-v absolute inset-0 text-[#1A1A1A]/60 dark:text-white/40" />
-        <span
-          className="kl-packet absolute left-1/2 h-3 w-3 -translate-x-1/2 border-2 border-[#1A1A1A] dark:border-[#0B1120]"
-          style={{ backgroundColor: to, ...delay(FLOW_START + 1200) }}
-        />
-      </span>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <ProtocolNode name="Relay" action="bridge" tone="yellow" index={index} />
-      </div>
-    </div>
+      {status === "awaiting" ? <PenLine className="h-3 w-3" aria-hidden="true" /> : null}
+      {status === "submitted" ? <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
+      {status === "settled" ? <Check className="h-3 w-3" aria-hidden="true" /> : null}
+      {style.label}
+    </span>
   );
 }
 
 /**
- * Animated hero illustration: a typed intent resolves into a two-network
- * graph (Base USDC -> Relay -> Solana USDC -> Jupiter -> JitoSOL). Pure
- * CSS; with reduced motion everything renders in its final state.
+ * Hero "intent compiler" window: types a real grammar example, compiles it
+ * into tokens, draws the route on a network map and walks each step from
+ * "awaiting signature" to "settled". Three examples cycle twice, then the
+ * window rests. Autoplay runs only on screen in a visible tab, the pause
+ * button stops everything, and reduced motion shows the final state.
  */
 export function HeroIntentGraph() {
-  const base = CHAINS.base;
-  const solana = CHAINS.solana;
+  const reduced = useReducedMotion();
+  const [paused, setPaused] = useState(false);
+  const { ref: pauseRef, active } = useAutoPause<HTMLDivElement>({ paused });
+  const [play, setPlay] = useState<PlayState>({ scenario: 0, stage: 0, cycle: 0, run: 0, resting: false });
+
+  const scenario = HERO_SCENARIOS[play.scenario] ?? HERO_SCENARIOS[0]!;
+  // Reduced motion and the resting state show the final state with no motion.
+  const still = reduced || play.resting;
+  const stage = still ? settledStage(scenario) : play.stage;
+  const exiting = !still && stage === exitStage(scenario);
+
+  const advance = useCallback(() => {
+    setPlay((current) => {
+      const currentScenario = HERO_SCENARIOS[current.scenario] ?? HERO_SCENARIOS[0]!;
+      if (current.resting) return current;
+      if (current.stage < exitStage(currentScenario)) return { ...current, stage: current.stage + 1 };
+      const nextScenario = (current.scenario + 1) % HERO_SCENARIOS.length;
+      const cycle = nextScenario === 0 ? current.cycle + 1 : current.cycle;
+      if (cycle >= MAX_CYCLES) return { scenario: 0, stage: 0, cycle, run: current.run + 1, resting: true };
+      return { scenario: nextScenario, stage: 0, cycle, run: current.run + 1, resting: false };
+    });
+  }, []);
+
+  // Stage timer (stage 0 advances when typing finishes).
+  useEffect(() => {
+    if (still || !active) return undefined;
+    const duration = stageDuration(scenario, play.stage);
+    if (duration === null) return undefined;
+    const timer = window.setTimeout(advance, duration);
+    return () => window.clearTimeout(timer);
+  }, [still, active, scenario, play.stage, play.run, advance]);
+
+  const onTyped = useCallback(() => {
+    setPlay((current) => (current.stage === 0 && !current.resting ? { ...current, stage: 1 } : current));
+  }, []);
+
+  const jumpTo = (index: number) => {
+    setPlay((current) => ({
+      scenario: index,
+      stage: 0,
+      cycle: current.cycle,
+      run: current.run + 1,
+      // A jump after the window came to rest shows that example's final state.
+      resting: current.resting,
+    }));
+  };
+
+  const compiled = stage >= 1;
+  const packets = !still && active && stage >= 2 && stage <= holdStage(scenario);
+
   return (
     <figure className="relative">
       <figcaption className="sr-only">
-        Example intent: “{PROMPT}”. Kletia compiles it into two steps across two networks: bridge 50 USDC
-        from Base to Solana through Relay, signed with an EVM wallet, then swap the USDC into JitoSOL through
-        Jupiter, signed with a Solana wallet.
+        Three example intents and the plans Kletia compiles for them.{" "}
+        {HERO_SCENARIOS.map((item, index) => (
+          <span key={item.id}>
+            Example {index + 1}: “{item.prompt}”. {item.description}{" "}
+          </span>
+        ))}
       </figcaption>
+
       <div
-        aria-hidden="true"
-        className="relative border-[3px] border-[#1A1A1A] bg-[#FBFAF7] shadow-[10px_10px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#131E32] dark:shadow-[10px_10px_0_#475569]"
+        ref={pauseRef}
+        className="relative border-[3px] border-[#1A1A1A] bg-[#FBFAF7] shadow-hard-xl dark:border-[#4B5563] dark:bg-[#131E32]"
       >
-        <div className="flex items-center justify-between gap-2 border-b-[3px] border-[#1A1A1A] bg-[#1A1A1A] px-3 py-2 text-white dark:border-[#4B5563] dark:bg-[#060A14]">
-          <span className="flex gap-1.5">
+        {/* Window chrome */}
+        <div className="flex items-center justify-between gap-2 border-b-[3px] border-[#1A1A1A] bg-[#1A1A1A] px-3 py-1.5 text-white dark:border-[#4B5563] dark:bg-[#060A14]">
+          <span aria-hidden="true" className="flex shrink-0 gap-1.5">
             <span className="h-3 w-3 border-2 border-[#1A1A1A] bg-[#FF5A5F]" />
             <span className="h-3 w-3 border-2 border-[#1A1A1A] bg-[#FFD60A]" />
             <span className="h-3 w-3 border-2 border-[#1A1A1A] bg-[#14F195]" />
           </span>
-          <span className="font-code text-[11px] text-white/70">kletia · intent compiler</span>
-          <span className="border-2 border-white/30 px-1.5 font-code text-[10px] uppercase text-white/80">dry run</span>
+          <span aria-hidden="true" className="min-w-0 truncate font-code text-[11px] text-white/75">
+            kletia · intent compiler
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            {reduced ? null : (
+              <button
+                type="button"
+                aria-pressed={paused}
+                onClick={() => setPaused((value) => !value)}
+                title={paused ? "Play animation" : "Pause animation"}
+                className={cx(
+                  "inline-flex h-8 w-8 items-center justify-center border-2 border-white/40 text-white transition-colors duration-150 hover:border-[#FFD60A] hover:text-[#FFD60A] motion-reduce:transition-none",
+                  "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]",
+                )}
+              >
+                {paused ? <Play className="h-3.5 w-3.5" aria-hidden="true" /> : <Pause className="h-3.5 w-3.5" aria-hidden="true" />}
+                <span className="sr-only">Pause animation</span>
+              </button>
+            )}
+            <span aria-hidden="true" className="hidden border-2 border-white/30 px-1.5 font-code text-[10px] uppercase text-white/80 sm:inline">
+              dry run · example
+            </span>
+          </span>
         </div>
 
-        <div className="border-b-[3px] border-[#1A1A1A] bg-white px-4 py-3 dark:border-[#4B5563] dark:bg-[#0B1120]">
-          <p className="font-code text-[13px] leading-6 text-[#1A1A1A] dark:text-[#E2E8F0] sm:text-sm">
-            <span className="mr-2 font-bold text-[#0052FF] dark:text-[#7EA6FF]">&gt;</span>
-            {Array.from(PROMPT).map((char, index) => (
-              <span key={index} className="kl-type-char" style={delay(TYPE_START_MS + index * CHAR_MS)}>
-                {char}
+        <div aria-hidden="true" className={cx("transition-opacity duration-300 motion-reduce:transition-none", exiting ? "opacity-0" : "opacity-100")}>
+          {/* Prompt and compile output */}
+          <div className="border-b-[3px] border-[#1A1A1A] bg-white px-4 py-3 dark:border-[#4B5563] dark:bg-[#0B1120]">
+            <p className="relative min-h-[3rem] font-code text-[13px] leading-6 text-[#1A1A1A] dark:text-[#E2E8F0] sm:text-sm">
+              {stage === 1 && !still ? (
+                <span
+                  key={`${play.run}-scan`}
+                  className="kl-fill-x pointer-events-none absolute inset-0 bg-[#FFD60A]/35 dark:bg-[#FFD60A]/15"
+                  style={{ animationDuration: "350ms" }}
+                />
+              ) : null}
+              <span className="relative">
+                <span className="mr-2 font-bold text-[#0052FF] dark:text-[#7EA6FF]">&gt;</span>
+                {still ? (
+                  scenario.prompt
+                ) : (
+                  <Typewriter
+                    key={play.run}
+                    text={scenario.prompt}
+                    speed={28}
+                    startDelay={250}
+                    play={active}
+                    onDone={onTyped}
+                    caret={stage === 0}
+                    caretClassName="kl-caret kl-loop ml-0.5 inline-block h-4 w-2 translate-y-0.5 bg-[#0052FF] dark:bg-[#FFD60A]"
+                  />
+                )}
               </span>
-            ))}
-            <span className="kl-caret ml-0.5 inline-block h-4 w-2 translate-y-0.5 bg-[#0052FF] dark:bg-[#FFD60A]" />
-          </p>
-          <p
-            className="kl-fade-in mt-2 inline-flex items-center gap-1.5 font-code text-[11px] font-bold text-[#0B7A4B] dark:text-[#14F195]"
-            style={delay(COMPILED_MS)}
-          >
-            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-            compiled · 2 steps · 2 networks · deterministic grammar
-          </p>
-        </div>
-
-        <div className="relative px-3 pb-4 pt-3 sm:px-4">
-          <div className="pointer-events-none absolute inset-0 grid grid-cols-2">
-            <div className="border-r-2 border-dashed border-[#1A1A1A]/25 dark:border-white/15" style={{ backgroundColor: `${base.color}0F` }} />
-            <div style={{ backgroundColor: `${solana.color}14` }} />
-          </div>
-          <div className="relative grid grid-cols-2 gap-x-3">
-            <p className="mb-3 font-code text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: base.color }}>
-              ● Base lane
             </p>
-            <p className="mb-3 font-code text-[10px] font-bold uppercase tracking-[0.2em] text-[#0B7A4B] dark:text-[#14F195]">
-              ● Solana lane
-            </p>
-
-            <AssetNode network="base" title="50 USDC" detail="input" signer="EIP-1193" index={0} />
-            <div />
-
-            <BridgeRow index={1} from={base.color} to={solana.color} />
-
-            <div />
-            <AssetNode network="solana" title="USDC" detail="settled on Solana" index={2} />
-
-            <div />
-            <Connector index={3} color="#9945FF" />
-
-            <div />
-            <div className="flex justify-center">
-              <ProtocolNode name="Jupiter" action="swap" tone="purple" index={3} />
+            <div className="mt-2 flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
+              {compiled
+                ? scenario.tokens.map((token, index) => (
+                    <span
+                      key={`${play.run}-${token}`}
+                      className={cx(
+                        "border-2 border-[#1A1A1A] bg-[#FFF7CC] px-1.5 font-code text-[11px] font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-[#F1F5F9]",
+                        !still && "kl-pop",
+                      )}
+                      style={still ? undefined : { animationDelay: `${index * 60}ms` }}
+                    >
+                      {token}
+                    </span>
+                  ))
+                : null}
+              {compiled ? (
+                <span
+                  key={`${play.run}-compiled`}
+                  className={cx(
+                    "inline-flex items-center gap-1 font-code text-[11px] font-bold text-[#0B7A4B] dark:text-[#14F195]",
+                    !still && "kl-fade-in",
+                  )}
+                  style={still ? undefined : { animationDelay: `${scenario.tokens.length * 60 + 120}ms` }}
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  compiled · {scenario.summary}
+                </span>
+              ) : null}
             </div>
-
-            <div />
-            <Connector index={4} color={solana.color} />
-
-            <div />
-            <AssetNode network="solana" title="JitoSOL" detail="liquid staking" signer="Wallet Standard" index={4} />
           </div>
+
+          {/* Network map */}
+          <div className="border-b-[3px] border-[#1A1A1A] px-2 py-2 dark:border-[#4B5563] sm:px-3">
+            <NetworkMap key={play.run} scenario={scenario} stage={stage} packets={packets} still={still} />
+          </div>
+
+          {/* Steps */}
+          <ol className="divide-y-2 divide-dashed divide-[#1A1A1A]/20 border-b-[3px] border-[#1A1A1A] bg-white dark:divide-white/10 dark:border-[#4B5563] dark:bg-[#0B1120]">
+            {scenario.steps.map((step, index) => {
+              const status = stepStatus(scenario, stage, index);
+              return (
+                <li key={`${play.run}-${index}`} className="flex flex-col gap-1.5 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                  <span className="flex min-w-0 items-baseline gap-2.5">
+                    <span className="font-display text-sm font-bold text-[#0052FF] dark:text-[#7EA6FF]">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 text-[13px] font-semibold leading-snug">
+                      {step.title} <span className="text-[#45464B] dark:text-[#A9B6C8]">· {step.venue}</span>
+                    </span>
+                  </span>
+                  <StatusChip key={status} status={status} animate={!still} />
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
-        <div className="kl-fade-in flex flex-wrap items-center gap-x-4 gap-y-1 border-t-[3px] border-[#1A1A1A] bg-white px-4 py-2.5 font-code text-[11px] text-[#45464B] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#A9B6C8]" style={delay(FLOW_START)}>
-          <span>2 wallet signatures</span>
-          <span aria-hidden="true">·</span>
-          <span>advances on on-chain evidence</span>
+        {/* Footer: summary, example switcher and the Studio link */}
+        <div className="flex flex-col gap-3 bg-[#FBFAF7] px-4 py-3 dark:bg-[#131E32] sm:flex-row sm:items-center sm:justify-between">
+          <p aria-hidden="true" className="font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">
+            {scenario.signatures} · advances on on-chain evidence
+          </p>
+          <div className="flex items-center justify-between gap-4 sm:justify-end">
+            <div role="group" aria-label="Examples" className="flex items-center gap-1">
+              {HERO_SCENARIOS.map((item, index) => {
+                const current = index === play.scenario;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={current}
+                    aria-label={item.label}
+                    onClick={() => jumpTo(index)}
+                    className={cx("group inline-flex h-8 w-8 items-center justify-center", FOCUS_RING)}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        "block h-3.5 w-3.5 border-2 border-[#1A1A1A] transition-[background-color,transform] duration-150 ease-kl-snap motion-reduce:transition-none dark:border-[#CBD5E1]",
+                        current ? "scale-110 bg-[#0052FF] dark:bg-[#FFD60A]" : "bg-transparent group-hover:bg-[#1A1A1A]/20 dark:group-hover:bg-white/20",
+                      )}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            <Link
+              to={studioHref(scenario.prompt)}
+              className={cx(
+                "group/run inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap text-[11px] font-black uppercase tracking-[0.12em] text-[#0052FF] underline decoration-2 underline-offset-4 dark:text-[#7EA6FF]",
+                FOCUS_RING,
+              )}
+            >
+              Run this in Studio
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform duration-150 group-hover/run:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/run:translate-x-0"
+                aria-hidden="true"
+              />
+              <span className="sr-only">: {scenario.prompt}</span>
+            </Link>
+          </div>
         </div>
       </div>
     </figure>

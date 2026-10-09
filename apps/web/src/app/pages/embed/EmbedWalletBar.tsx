@@ -32,7 +32,7 @@ function WalletBar({ onChange }: EmbedWalletBarProps) {
     <div
       role="region"
       aria-label="Wallets"
-      className="flex flex-wrap items-center justify-between gap-2 border-[3px] border-[#1A1A1A] bg-white px-2.5 py-2 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#111827] dark:text-[#F4F4F5] dark:shadow-[3px_3px_0_#475569]"
+      className="flex min-h-[3.75rem] animate-[kl-fade_200ms_ease-out_backwards] flex-wrap items-center justify-between gap-2 border-[3px] border-[#1A1A1A] bg-white px-2.5 py-2 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] motion-reduce:animate-none dark:border-[#4B5563] dark:bg-[#111827] dark:text-[#F4F4F5] dark:shadow-[3px_3px_0_#475569]"
     >
       <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.12em]" aria-live="polite">
         <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#0052FF] dark:text-[#7EA6FF]" aria-hidden="true" />

@@ -128,17 +128,19 @@ export function CodeBlock({
   useLayoutEffect(() => {
     if (reveal !== "lines") return undefined;
     const pre = preRef.current;
-    if (!pre) return undefined;
+    // Observe the scroll panel, not the clipped <pre>: a fully clipped target never intersects.
+    const panel = pre?.parentElement;
+    if (!pre || !panel) return undefined;
     let cancelled = false;
     let stop: () => void = () => undefined;
     const animations: Animation[] = [];
     queueMicrotask(() => {
       if (cancelled || prefersReducedMotion() || !supportsIntersectionObserver()) return;
       if (typeof pre.animate !== "function") return;
-      if (pre.getBoundingClientRect().top <= window.innerHeight) return;
+      if (panel.getBoundingClientRect().top <= window.innerHeight) return;
       pre.setAttribute("data-code-reveal", "pending");
       stop = observeIntersection(
-        pre,
+        panel,
         (entry) => {
           if (!entry.isIntersecting) return;
           stop();

@@ -14,6 +14,21 @@ The Kletia browser application: the product site (home, developer portal, networ
 - **`src/shared/sync/`**: Cross-feature event bus and the shared activity store.
 - **`src/shared/`**: Chat, layout, validation, state (zustand), privacy and safe storage.
 
+## Motion system
+
+Kletia's motion is mechanical and snappy: cards drop onto the page, press into their shadow and stamp into place. Every animation explains a change of state, and none of it is needed to read or use the page.
+
+- **Tokens**: `--kl-dur-*`, `--kl-ease-*`, `--kl-shift-*`, `--kl-stagger` and the theme-aware `--kl-shadow-ink` in `src/app/styles.css`, mirrored in `src/app/site/motion/tokens.ts`. Tailwind adds `shadow-hard*`, `ease-kl-*`, `duration-90/240/420` and the `kl-*` palette.
+- **Primitives** (`src/app/site/motion/`, one file each, no barrel): `Reveal` (scroll reveal), `AnimatedNumber` (count-up), `Marquee` (ticker with a Pause button), `Typewriter`, `FlowLine` (SVG edge with travelling packets), `useSpotlight`, `celebrate`/`useCelebrateOnce`, `runViewTransition`, `RouteEnter`, plus the hooks `useReducedMotion`, `usePageVisible`, `useInView`, `useAutoPause`, `usePrevious` and `useChangeKey`. UI pieces in `src/app/site/ui/`: `Skeleton`, `toast` + `Toaster` (mounted by the router), `Monogram`, and opt-in motion on `Button` (`loading`), `Card` (`spotlight`), `Section` (`reveal`), `Stat` (`animateTo`), `StatusDot` (`pulse`), `CodeBlock` (`reveal="lines"`, sliding tabs) and `CopyButton` (`notify`).
+- **CSS utilities**: `kl-rise`, `kl-drop`, `kl-node-in`, `kl-stamp`, `kl-shake`, `kl-fill-x`, `kl-draw` (SVG with `pathLength="1"`), `kl-msg-in`, `kl-attn-ring`, `kl-hatch`, `kl-shimmer`, `kl-lift`, `kl-spotlight`, `kl-details` and `kl-scroll-shadow`.
+- **Reduced motion**: under `prefers-reduced-motion: reduce` nothing moves. Content shows its final state (or an opacity-only fade of 150 ms or less), loops stop, count-ups show the final value, typing shows the full text and confetti does nothing. Every CSS class has a fallback in the reduced-motion block of `styles.css`, and every JavaScript primitive checks `useReducedMotion()`.
+- **Loops**: every infinite animation carries `.kl-loop` (or is in the pause list). It stops in hidden tabs (`html[data-kl-hidden]`, set by the router) and off-screen inside any element that uses `useAutoPause` (`data-kl-paused`). Anything that moves for more than 5 s has a visible pause control.
+- **Content first**: text is in the DOM and readable from the first paint. `Reveal` and `CodeBlock reveal="lines"` only hide content that starts below the viewport, focus forces it visible, and printing shows everything. Animated digits and typed text are `aria-hidden` next to an sr-only copy of the final value.
+- **Money never animates**: amounts, fees, minimum outputs and anything in a review or signing screen render static and exact.
+- **Route transitions**: site-to-site navigations run inside a View Transition (opacity and a small nudge on the page body; the header swaps instantly). Without the API, or with reduced motion, the new page fades in (opacity only, no transform on the page wrapper).
+- **Lint note**: destructure hook results (`const { ref, active } = useAutoPause()`); the React Compiler lint rejects `pause.ref` and `spot.style` member access during render.
+- **Checks**: `npx tsx scripts/verifyMotionPrimitives.ts` verifies the pure parts (tokens, deterministic jitter and confetti, monogram contrast, the toast queue and the View Transition fallback).
+
 ## Setup Instructions
 
 The web app is part of the root npm workspace. Install once from the repository root:

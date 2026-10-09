@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import React from "react";
 
+import { Reveal } from "../../site/motion/Reveal";
 import { Section } from "../../site/ui/Section";
-import { cx, HARD_SHADOW, INK_BORDER, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
+import { cx, INK_BORDER, LIFT, SHADOW_HARD, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 
 interface Feature {
   readonly title: string;
@@ -19,6 +20,8 @@ interface Feature {
   readonly tag: string;
   readonly icon: React.ReactNode;
   readonly color: string;
+  /** Tile classes when the brand colour would vanish on a dark card. */
+  readonly tileClassName?: string;
 }
 
 const FEATURES: readonly Feature[] = [
@@ -77,35 +80,49 @@ const FEATURES: readonly Feature[] = [
     tag: "MIT",
     icon: <GitFork className="h-6 w-6" aria-hidden="true" />,
     color: "#1A1A1A",
+    tileClassName: "dark:!bg-white dark:!text-[#0B1120]",
   },
 ];
+
+const DARK_ICON = new Set(["#FFD60A", "#14F195", "#28A0F0"]);
 
 export function FeatureGrid() {
   return (
     <Section
       id="infrastructure"
+      reveal
       eyebrow="Infrastructure"
       title="Built like infrastructure, not a demo."
       intro="Everything Kletia does is described by a public spec, enforced by the API, and verifiable on-chain."
     >
-      <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <Reveal as="ul" stagger className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
         {FEATURES.map((feature) => (
-          <li key={feature.title} className={cx("flex flex-col p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
+          <li
+            key={feature.title}
+            data-reveal-item
+            className={cx(
+              "group grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 p-4 sm:flex sm:flex-col sm:p-5",
+              INK_BORDER,
+              SHADOW_HARD,
+              SURFACE,
+              LIFT,
+            )}
+          >
             <span
-              className="flex h-12 w-12 items-center justify-center border-[3px] border-[#1A1A1A] text-[#1A1A1A] dark:border-[#4B5563]"
-              style={{
-                backgroundColor: feature.color,
-                color: ["#FFD60A", "#14F195", "#28A0F0"].includes(feature.color) ? "#1A1A1A" : "#FFFFFF",
-              }}
+              className={cx(
+                "row-span-3 flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] shadow-hard-sm transition-transform duration-240 ease-kl-snap group-hover:-translate-y-0.5 group-hover:-rotate-6 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0 motion-reduce:group-hover:rotate-0 dark:border-[#4B5563] sm:h-12 sm:w-12",
+                feature.tileClassName,
+              )}
+              style={{ backgroundColor: feature.color, color: DARK_ICON.has(feature.color) ? "#1A1A1A" : "#FFFFFF" }}
             >
               {feature.icon}
             </span>
-            <h3 className="mt-5 font-display text-xl font-bold leading-tight tracking-[-0.01em]">{feature.title}</h3>
-            <p className={cx("mt-2 flex-1 text-sm leading-relaxed", TEXT_MUTED)}>{feature.body}</p>
-            <p className="mt-4 font-code text-[11px] text-[#0052FF] dark:text-[#7EA6FF]">{feature.tag}</p>
+            <h3 className="font-display text-lg font-bold leading-tight tracking-[-0.01em] sm:mt-5 sm:text-xl">{feature.title}</h3>
+            <p className={cx("mt-1.5 text-sm leading-relaxed sm:mt-2 sm:flex-1", TEXT_MUTED)}>{feature.body}</p>
+            <p className="mt-2 font-code text-[11px] text-[#0052FF] dark:text-[#7EA6FF] sm:mt-4">{feature.tag}</p>
           </li>
         ))}
-      </ul>
+      </Reveal>
     </Section>
   );
 }

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 
+import { runViewTransition } from "./motion/viewTransition";
 import {
   applySiteTheme,
   preferredSiteTheme,
@@ -30,11 +32,26 @@ export function useSiteTheme() {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
-  const toggle = useCallback(() => {
-    const next: SiteTheme = theme === "dark" ? "light" : "dark";
-    storeSiteTheme(next);
-    setTheme(next);
-  }, [theme]);
+  /**
+   * Flips the theme. With View Transitions (and motion allowed) the new theme
+   * is revealed as a circle growing from `origin` (the toggle button); without
+   * them it swaps instantly.
+   */
+  const toggle = useCallback(
+    (origin?: { x: number; y: number }) => {
+      const next: SiteTheme = theme === "dark" ? "light" : "dark";
+      storeSiteTheme(next);
+      void runViewTransition(
+        "theme",
+        () => {
+          flushSync(() => setTheme(next));
+          applySiteTheme(next);
+        },
+        origin ? { origin } : {},
+      );
+    },
+    [theme],
+  );
 
   return { theme, toggle };
 }

@@ -1,8 +1,10 @@
 import type { IntentGraph } from "@kletia/core";
-import { ArrowRight, Braces, Info, Sparkles, Workflow } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import { ArrowRight, Braces, ChevronRight, Info, Sparkles, Workflow } from "lucide-react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
+import { prefersReducedMotion } from "../../site/motion/useReducedMotion";
+import { useChangeKey } from "../../site/motion/useChangeKey";
 import { INTENT_EXAMPLES } from "../../site/snippets";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Badge } from "../../site/ui/Badge";
@@ -10,6 +12,9 @@ import { Button, ButtonLink } from "../../site/ui/Button";
 import { TextAreaField, TextField } from "../../site/ui/Field";
 import { JsonView } from "../../site/ui/JsonView";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
+import { toast } from "../../site/ui/toast";
+import { ShareLinkButton } from "./ShareLinkButton";
+import { StudioSkeleton } from "./StudioSkeleton";
 import { useStudioPlanner } from "./useStudioPlanner";
 
 export interface StudioWorkspaceProps {
@@ -21,10 +26,15 @@ export interface StudioWorkspaceProps {
   readonly executionNote?: React.ReactNode;
 }
 
+/** Toast id shared by the plan-ready and planning-failed toasts (a new result replaces the old one). */
+const PLAN_TOAST = "studio-plan";
+/** Wait for the mobile auto-scroll before deciding whether the results are out of view. */
+const OUT_OF_VIEW_CHECK_MS = 700;
+
 function EmptyState() {
   return (
     <div className={cx("kl-dot-backdrop flex min-h-[28rem] flex-col items-center justify-center gap-6 p-8 text-center", INK_BORDER, SURFACE)}>
-      <span className="flex h-16 w-16 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+      <span className="kl-drop flex h-16 w-16 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
         <Workflow className="h-8 w-8" aria-hidden="true" />
       </span>
       <div className="max-w-md">
@@ -35,8 +45,12 @@ function EmptyState() {
         </p>
       </div>
       <ol className="grid w-full max-w-lg gap-2 text-left font-code text-xs sm:grid-cols-3">
-        {["1 · compile text", "2 · bind accounts", "3 · quote each step"].map((item) => (
-          <li key={item} className="border-2 border-[#1A1A1A] bg-white px-3 py-2 dark:border-[#4B5563] dark:bg-[#0B1120]">
+        {["1 · compile text", "2 · bind accounts", "3 · quote each step"].map((item, index) => (
+          <li
+            key={item}
+            className="kl-rise border-2 border-[#1A1A1A] bg-white px-3 py-2 dark:border-[#4B5563] dark:bg-[#0B1120]"
+            style={{ ["--kl-i" as string]: index + 1 }}
+          >
             {item}
           </li>
         ))}
@@ -45,16 +59,10 @@ function EmptyState() {
   );
 }
 
-function LoadingState() {
-  return (
-    <div className="flex flex-col gap-6" aria-hidden="true">
-      <div className={cx("h-40 animate-pulse bg-white/70 motion-reduce:animate-none dark:bg-[#131E32]", INK_BORDER)} />
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className={cx("h-72 animate-pulse bg-white/70 motion-reduce:animate-none dark:bg-[#131E32]", INK_BORDER)} />
-        <div className={cx("h-72 animate-pulse bg-white/70 motion-reduce:animate-none dark:bg-[#131E32] md:mt-24", INK_BORDER)} />
-      </div>
-    </div>
-  );
+function isOutOfView(element: Element | null): boolean {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return rect.bottom <= 0 || rect.top >= window.innerHeight;
 }
 
 /**
@@ -84,10 +92,73 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
 
   const unsupported = plan.status === "error" && plan.error?.code === "INTENT_UNSUPPORTED";
 
+  // Example chips: the chip that just became selected stamps in.
+  const selectedExample = INTENT_EXAMPLES.find((example) => example === studio.text) ?? null;
+  const selectionKey = useChangeKey(selectedExample);
+
+  // Preview accounts live in a disclosure that is forced open while either
+  // field holds a value or an error, so nothing that affects the plan hides.
+  const accountsInUse = Boolean(studio.evmAddress.trim() || studio.solanaAddress.trim());
+  const accountsInvalid = Boolean(studio.evmError || studio.solanaError);
+  const accountsForced = accountsInUse || accountsInvalid;
+  const [accountsOpen, setAccountsOpen] = useState(false);
+
+  // The toast's Retry runs the latest submit without re-running the toast effect on every keystroke.
+  const submitRef = useRef(submit);
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
+
+  const showResults = useCallback(() => {
+    const results = resultsRef.current;
+    if (!results) return;
+    results.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+    results.focus({ preventScroll: true });
+  }, []);
+
+  // Toasts are secondary: only when the results column is out of view (phones,
+  // or a chip far up the page). The inline result and error panel stay primary,
+  // and the sr-only status below already announces both, so toasts are silent.
+  const { status: planStatus, data: planData, error: planError } = plan;
+  useEffect(() => {
+    if (planStatus === "loading") {
+      toast.dismiss(PLAN_TOAST);
+      return undefined;
+    }
+    if (planStatus === "success" && planData) {
+      const steps = planData.steps.length;
+      const signatures = planData.summary.signaturesRequired;
+      const timer = window.setTimeout(() => {
+        if (!isOutOfView(resultsRef.current)) return;
+        toast.success("Plan ready", {
+          id: PLAN_TOAST,
+          description: `${steps} step${steps === 1 ? "" : "s"} · ${signatures} signature${signatures === 1 ? "" : "s"}`,
+          action: { label: "Show plan", onClick: showResults },
+          silent: true,
+        });
+      }, OUT_OF_VIEW_CHECK_MS);
+      return () => window.clearTimeout(timer);
+    }
+    if (planStatus === "error" && planError?.retryable) {
+      const timer = window.setTimeout(() => {
+        if (!isOutOfView(resultsRef.current)) return;
+        toast.error("Planning failed", {
+          id: PLAN_TOAST,
+          description: planError.message,
+          action: { label: "Retry", onClick: () => void submitRef.current() },
+          silent: true,
+        });
+      }, OUT_OF_VIEW_CHECK_MS);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [planStatus, planData, planError, showResults]);
+  useEffect(() => () => toast.dismiss(PLAN_TOAST), []);
+
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:gap-12">
-      <div className="flex flex-col gap-6">
-        <form onSubmit={onSubmit} noValidate className={cx("flex flex-col gap-5 p-5 sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)} aria-label="Plan an intent">
+      <div className="flex min-w-0 flex-col gap-6">
+        <form onSubmit={onSubmit} noValidate className={cx("flex min-w-0 flex-col gap-5 p-5 sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)} aria-label="Plan an intent">
           <TextAreaField
             label="Intent"
             rows={3}
@@ -106,61 +177,96 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
             spellCheck={false}
           />
 
-          <div>
+          <div className="min-w-0">
             <p className={cx(LABEL, "mb-2 text-[#1A1A1A] dark:text-[#E2E8F0]")} id="studio-examples-label">
               Examples
             </p>
-            <div role="group" aria-labelledby="studio-examples-label" className="flex flex-wrap gap-2">
-              {INTENT_EXAMPLES.map((example) => (
-                <button
-                  key={example}
-                  type="button"
-                  onClick={() => void submit(example)}
-                  className={cx(
-                    "border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[11px] transition-colors dark:border-[#4B5563]",
-                    studio.text === example
-                      ? "bg-[#FFD60A] text-[#1A1A1A]"
-                      : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
-                    FOCUS_RING,
-                  )}
-                >
-                  {example}
-                </button>
-              ))}
+            {/* Phones: one snap row with an overflow cue. Wider: wrapped. */}
+            <div
+              role="group"
+              aria-labelledby="studio-examples-label"
+              className="kl-scroll-shadow -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 pt-1 ![--kl-scroll-bg:#FFFFFF] dark:![--kl-scroll-bg:#131E32] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0"
+            >
+              {INTENT_EXAMPLES.map((example) => {
+                const selected = studio.text === example;
+                return (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => void submit(example)}
+                    className={cx(
+                      "shrink-0 snap-start whitespace-nowrap border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[11px] transition-colors duration-150 dark:border-[#4B5563] md:shrink md:whitespace-normal",
+                      selected
+                        ? "bg-[#FFD60A] text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
+                        : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",
+                      selected && selectionKey > 0 && "kl-stamp",
+                      FOCUS_RING,
+                    )}
+                  >
+                    {example}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <fieldset className="flex flex-col gap-4 border-[3px] border-dashed border-[#1A1A1A]/30 p-4 dark:border-white/15">
-            <legend className={cx(LABEL, "px-1")}>Preview accounts</legend>
-            <TextField
-              label="EVM address (optional)"
-              value={studio.evmAddress}
-              onChange={(event) => studio.setEvmAddress(event.target.value)}
-              placeholder="0x000000000000000000000000000000000000dEaD"
-              error={studio.evmError}
-              autoComplete="off"
-              spellCheck={false}
-              mono
-            />
-            <TextField
-              label="Solana address (optional)"
-              value={studio.solanaAddress}
-              onChange={(event) => studio.setSolanaAddress(event.target.value)}
-              placeholder="9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
-              error={studio.solanaError}
-              autoComplete="off"
-              spellCheck={false}
-              mono
-            />
-            <p className={cx("text-xs leading-relaxed", TEXT_MUTED)}>
-              Empty fields use demo preview accounts. A dry run reads balances and quotes for planning only; it never
-              moves funds.
-            </p>
-          </fieldset>
+          <details
+            className={cx("kl-details border-[3px] border-dashed border-[#1A1A1A]/30 dark:border-white/15")}
+            open={accountsOpen || accountsForced}
+            onToggle={(event) => {
+              const element = event.currentTarget;
+              // While a field holds a value or an error the panel stays open.
+              if (!element.open && accountsForced) {
+                element.open = true;
+                return;
+              }
+              setAccountsOpen(element.open);
+            }}
+          >
+            <summary
+              className={cx(
+                "flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 [&::-webkit-details-marker]:hidden",
+                LABEL,
+                FOCUS_RING,
+              )}
+            >
+              <ChevronRight className="kl-details-chevron h-4 w-4 shrink-0" aria-hidden="true" />
+              Preview accounts
+              <span className={cx("ml-auto text-[10px] tracking-[0.14em]", TEXT_MUTED)}>
+                {accountsInvalid ? "Check address" : accountsInUse ? "In use" : "Optional"}
+              </span>
+            </summary>
+            <div className="flex flex-col gap-4 px-4 pb-4 pt-1">
+              <TextField
+                label="EVM address (optional)"
+                value={studio.evmAddress}
+                onChange={(event) => studio.setEvmAddress(event.target.value)}
+                placeholder="0x000000000000000000000000000000000000dEaD"
+                error={studio.evmError}
+                autoComplete="off"
+                spellCheck={false}
+                mono
+              />
+              <TextField
+                label="Solana address (optional)"
+                value={studio.solanaAddress}
+                onChange={(event) => studio.setSolanaAddress(event.target.value)}
+                placeholder="9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+                error={studio.solanaError}
+                autoComplete="off"
+                spellCheck={false}
+                mono
+              />
+              <p className={cx("text-xs leading-relaxed", TEXT_MUTED)}>
+                Empty fields use demo preview accounts. A dry run reads balances and quotes for planning only; it never
+                moves funds.
+              </p>
+            </div>
+          </details>
 
-          <Button type="submit" size="lg" disabled={plan.status === "loading"}>
+          <Button type="submit" size="lg" loading={plan.status === "loading"}>
             <Sparkles className="h-4 w-4" aria-hidden="true" />
-            {plan.status === "loading" ? "Planning…" : "Plan intent"}
+            Plan intent
           </Button>
         </form>
 
@@ -181,7 +287,13 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
         </div>
       </div>
 
-      <div ref={resultsRef} className="min-w-0 scroll-mt-28" aria-live="polite" aria-busy={plan.status === "loading"}>
+      <div
+        ref={resultsRef}
+        tabIndex={-1}
+        className="min-w-0 scroll-mt-28 focus:outline-none"
+        aria-live="polite"
+        aria-busy={plan.status === "loading"}
+      >
         <p className="sr-only" role="status">
           {plan.status === "loading"
             ? "Planning intent"
@@ -192,7 +304,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                 : ""}
         </p>
         {plan.status === "idle" ? <EmptyState /> : null}
-        {plan.status === "loading" ? <LoadingState /> : null}
+        {plan.status === "loading" ? <StudioSkeleton prompt={studio.text.trim()} /> : null}
         {plan.status === "error" && plan.error ? (
           <div className="flex flex-col gap-5">
             <ApiErrorPanel
@@ -201,7 +313,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
               onRetry={() => void submit()}
             />
             {unsupported ? (
-              <div className={cx("p-5", INK_BORDER, SURFACE)}>
+              <div className={cx("kl-rise p-5", INK_BORDER, SURFACE)} style={{ ["--kl-i" as string]: 1 }}>
                 <p className={LABEL}>Try a supported phrasing</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {INTENT_EXAMPLES.map((example) => (
@@ -209,7 +321,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                       key={example}
                       type="button"
                       onClick={() => void submit(example)}
-                      className={cx("border-2 border-[#1A1A1A] bg-white px-2 py-1 font-code text-[11px] hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]", FOCUS_RING)}
+                      className={cx("border-2 border-[#1A1A1A] bg-white px-2 py-1 font-code text-[11px] transition-colors duration-150 hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]", FOCUS_RING)}
                     >
                       {example}
                     </button>
@@ -229,9 +341,14 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
               {plan.latencyMs !== null ? (
                 <span className="font-code text-xs text-[#45464B] dark:text-[#A9B6C8]">planned in {plan.latencyMs} ms</span>
               ) : null}
+              {plan.data.request.text ? (
+                <span className="ml-auto">
+                  <ShareLinkButton text={plan.data.request.text} />
+                </span>
+              ) : null}
             </div>
-            <IntentGraphView intent={plan.data} actions={renderActions?.(plan.data)} />
-            <details className={cx("group", INK_BORDER, SURFACE)}>
+            <IntentGraphView intent={plan.data} actions={renderActions?.(plan.data)} entrance />
+            <details className={cx("kl-details group", INK_BORDER, SURFACE)}>
               <summary
                 className={cx(
                   "flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-xs font-black uppercase tracking-[0.14em] [&::-webkit-details-marker]:hidden",
@@ -240,9 +357,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
               >
                 <Braces className="h-4 w-4" aria-hidden="true" />
                 Raw IntentGraph JSON
-                <span aria-hidden="true" className="ml-auto transition-transform group-open:rotate-90">
-                  ▸
-                </span>
+                <ChevronRight className="kl-details-chevron ml-auto h-4 w-4" aria-hidden="true" />
               </summary>
               <div className="border-t-[3px] border-[#1A1A1A] p-3 dark:border-[#4B5563]">
                 <JsonView value={plan.data} label="IntentGraph JSON" />

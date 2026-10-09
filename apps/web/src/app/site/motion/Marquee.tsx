@@ -48,7 +48,7 @@ export function Marquee({
 }: MarqueeProps) {
   const reduced = useReducedMotion();
   const [paused, setPaused] = useState(false);
-  const auto = useAutoPause<HTMLElement>({ paused });
+  const { ref: pauseRef } = useAutoPause<HTMLElement>({ paused });
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
@@ -95,7 +95,7 @@ export function Marquee({
   }
 
   return (
-    <section ref={auto.ref} aria-label={label} className={cx("kl-mq relative flex items-center", className)}>
+    <section ref={pauseRef} aria-label={label} className={cx("kl-mq relative flex items-center", className)}>
       <div ref={viewportRef} className="relative min-w-0 flex-1 overflow-hidden">
         <div ref={trackRef} className="kl-mq-track kl-loop flex w-max">
           <ul ref={listRef} className={cx("flex shrink-0 items-center", listClassName)} style={listStyle}>

@@ -12,7 +12,7 @@
  * store lookups of uncached API keys are throttled per IP in auth.ts.
  */
 import type { Request, RequestHandler } from "express";
-import { ipKeyGenerator, rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit, type RateLimitRequestHandler } from "express-rate-limit";
 import { authOf, HttpError, sendError, type ApiTier } from "./context.js";
 
 export const TIER_LIMITS: Readonly<Record<ApiTier, number>> = Object.freeze({
@@ -34,8 +34,12 @@ function retryAfterSeconds(req: Request): number {
   return reset ? Math.max(1, Math.ceil((reset - Date.now()) / 1000)) : 60;
 }
 
-/** One limiter for every tier: the key and the limit both come from the authenticated tier. */
-export function createTierLimiter(): RequestHandler {
+/**
+ * One limiter for every tier: the key and the limit both come from the
+ * authenticated tier. The handler's getKey("key:<id>") reads a key's current
+ * window (GET /v1/usage).
+ */
+export function createTierLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 60_000,
     limit: (req) => {

@@ -8,10 +8,13 @@
  *
  * Middleware order (security relevant): request id + no-store -> body size
  * and media type guards -> JSON body (64 KB) -> authentication (records a
- * rejected key without responding) -> tier rate limit (a rejected key counts
- * against the IP) -> reject failed credentials -> routes -> 404 -> errors.
+ * rejected key without responding) -> usage counter (keyed requests, on
+ * finish) -> tier rate limit (a rejected key counts against the IP) ->
+ * reject failed credentials -> routes (per route: key requirement, then
+ * Idempotency-Key) -> 404 -> errors.
  */
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response, type Router } from "express";
+import type { RateLimitRequestHandler } from "express-rate-limit";
 import { parseAccountId } from "@kletia/core";
 import {
   cancelIntent,
@@ -26,7 +29,8 @@ import {
   submitStep,
   type SettlementPollerOptions,
 } from "../index.js";
-import { authenticate, enforceAuthentication, issueDeveloperKey, loadOperatorKeys, parseKeyRequest, requireApiKey } from "./auth.js";
+import { authenticate, enforceAuthentication, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
+import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
 import { assetRegistry, networkCapabilities, protocolRegistry } from "./catalog.js";
 import {
   authOf,
@@ -46,13 +50,20 @@ import {
   stepIdParam,
   WEBHOOK_ID_PATTERN,
 } from "./context.js";
-import { startWebhookDispatcher, type WebhookTransport } from "./dispatcher.js";
+import { deliveryStore, listDeliveries, sendTestDelivery, startDeliveryPruner } from "./deliveries.js";
+import { startWebhookDispatcher, webhookDeliveryTransport, WEBHOOK_USER_AGENT, type WebhookTransport } from "./dispatcher.js";
+import { errorCatalogView } from "./errorsRoute.js";
 import { readPlatformHealth } from "./health.js";
+import { idempotencyUnsupported, idempotent, startIdempotencyPruner } from "./idempotency.js";
+import { issueKey, keyIdParam, listProjectKeys, parseRotateRequest, revokeKey, rotateKey } from "./keys.js";
 import { createKeyIssuanceLimiter, createTierLimiter } from "./limits.js";
+import { mcpOriginGuard } from "./mcp/origin.js";
+import { serveMcp } from "./mcp/server.js";
 import { openApiJson } from "./openapi.js";
 import { rememberIntentOwner } from "./owners.js";
 import { platformSecretStatus } from "./secrets.js";
 import { streamIntentEvents, type StreamOptions } from "./sse.js";
+import { parseUsageWindow, startUsageFlusher, usageCounter, usageReport } from "./usage.js";
 import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
@@ -85,7 +96,16 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/webhooks", auth: "key" },
   { method: "get", path: "/webhooks", auth: "key" },
   { method: "delete", path: "/webhooks/:id", auth: "key" },
+  { method: "post", path: "/webhooks/:id/test", auth: "key" },
+  { method: "get", path: "/webhooks/:id/deliveries", auth: "key" },
   { method: "post", path: "/keys", auth: "public" },
+  { method: "get", path: "/keys", auth: "key" },
+  { method: "post", path: "/keys/:id/rotate", auth: "key" },
+  { method: "delete", path: "/keys/:id", auth: "key" },
+  { method: "get", path: "/usage", auth: "key" },
+  { method: "get", path: "/errors", auth: "public" },
+  { method: "post", path: "/mcp", auth: "public" },
+  { method: "get", path: "/status/badge", auth: "public" },
   { method: "get", path: "/openapi.json", auth: "public" },
 ] satisfies PlatformRoute[]);
 
@@ -200,9 +220,23 @@ function keyId(req: Request): string {
   return id;
 }
 
+function webhookIdParam(req: Request): string {
+  const id = pathParam(req, "id");
+  if (!WEBHOOK_ID_PATTERN.test(id)) {
+    throw invalidRequest("Webhook ids look like wh_ followed by 24 hex characters.", [{ path: "id", message: "Invalid webhook id." }]);
+  }
+  return id;
+}
+
+/** A dry run is side-effect free, so Idempotency-Key is ignored for it. */
+function isDryRun(req: Request): boolean {
+  const value: unknown = (req.query as Record<string, unknown>).dryRun;
+  return value === "true" || value === "1";
+}
+
 /* ------------------------------------------------------------ handlers */
 
-function handlers(options: PlatformRouterOptions): Record<string, RequestHandler[]> {
+function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestHandler): Record<string, RequestHandler[]> {
   const keyLimiter = createKeyIssuanceLimiter();
   return {
     "get /health": [
@@ -235,13 +269,70 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
         res.status(200).type("application/json").send(openApiJson());
       }),
     ],
+    "get /errors": [
+      handle((_req, res) => {
+        cachePublicly(res, 300);
+        sendJson(res, 200, errorCatalogView());
+      }),
+    ],
+    "get /status/badge": [
+      handle(async (req, res) => {
+        const format = queryParam(req, "format", 8) ?? "svg";
+        if (format !== "svg" && format !== "shields") {
+          throw invalidRequest("format must be svg or shields.", [{ path: "format", message: "Expected svg or shields." }]);
+        }
+        const status = await badgeStatus();
+        cachePublicly(res, BADGE_CACHE_SECONDS);
+        if (format === "shields") {
+          sendJson(res, 200, shieldsBadge(status));
+          return;
+        }
+        res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'");
+        // Meant to be embedded on other sites (READMEs, status pages).
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.status(200).type("image/svg+xml; charset=utf-8").send(badgeSvg(status));
+      }),
+    ],
     "post /keys": [
+      idempotent({ route: "POST /keys", secret: true }),
       keyLimiter,
       handle(async (req, res) => {
         const { name } = parseKeyRequest(req.body);
-        sendJson(res, 201, { key: await issueDeveloperKey(name) });
+        // Without a key: a new project. With a developer key: a sibling in the caller's project.
+        sendJson(res, 201, { key: await issueKey(authOf(req), name) });
       }),
     ],
+    "get /keys": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { keys: await listProjectKeys(authOf(req)) });
+      }),
+    ],
+    "post /keys/:id/rotate": [
+      requireApiKey,
+      idempotent({ route: "POST /keys/:id/rotate", secret: true }),
+      handle(async (req, res) => {
+        const id = keyIdParam(pathParam(req, "id"));
+        const { graceSeconds } = parseRotateRequest(req.body);
+        sendJson(res, 200, { key: await rotateKey(authOf(req), id, graceSeconds) });
+      }),
+    ],
+    "delete /keys/:id": [
+      requireApiKey,
+      handle(async (req, res) => {
+        await revokeKey(authOf(req), keyIdParam(pathParam(req, "id")));
+        res.status(204).end();
+      }),
+    ],
+    "get /usage": [
+      requireApiKey,
+      handle(async (req, res) => {
+        const auth = authOf(req);
+        const window = parseUsageWindow(req);
+        sendJson(res, 200, await usageReport({ keyId: keyId(req), tier: auth.tier as KeyTier }, window, tierLimiter));
+      }),
+    ],
+    "post /mcp": [mcpOriginGuard, serveMcp],
     "post /quotes": [
       handle(async (req, res) => {
         // The engine accepts both the flat body and the nested SDK body (including from.account / to.recipient).
@@ -260,6 +351,7 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
       }),
     ],
     "post /intents": [
+      idempotent({ route: "POST /intents", applies: (req) => !isDryRun(req) }),
       handle(async (req, res) => {
         const dryRun = booleanQuery(req, "dryRun");
         const owner = authOf(req).keyId;
@@ -287,6 +379,7 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
       }),
     ],
     "post /intents/:id/steps/:stepId/prepare": [
+      idempotencyUnsupported,
       handle(async (req, res) => {
         const id = intentIdParam(req);
         const stepId = stepIdParam(req);
@@ -295,6 +388,7 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
       }),
     ],
     "post /intents/:id/steps/:stepId/submit": [
+      idempotent({ route: "POST /intents/:id/steps/:stepId/submit" }),
       handle(async (req, res) => {
         const id = intentIdParam(req);
         const stepId = stepIdParam(req);
@@ -308,6 +402,7 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
       }),
     ],
     "post /intents/:id/cancel": [
+      idempotent({ route: "POST /intents/:id/cancel" }),
       handle(async (req, res) => {
         sendJson(res, 200, { intent: await cancelIntent(intentIdParam(req)) });
       }),
@@ -319,6 +414,7 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
     ],
     "post /webhooks": [
       requireApiKey,
+      idempotent({ route: "POST /webhooks", secret: true }),
       handle(async (req, res) => {
         sendJson(res, 201, { webhook: await createWebhook(keyId(req), req.body) });
       }),
@@ -332,12 +428,28 @@ function handlers(options: PlatformRouterOptions): Record<string, RequestHandler
     "delete /webhooks/:id": [
       requireApiKey,
       handle(async (req, res) => {
-        const id = pathParam(req, "id");
-        if (!WEBHOOK_ID_PATTERN.test(id)) {
-          throw invalidRequest("Webhook ids look like wh_ followed by 24 hex characters.", [{ path: "id", message: "Invalid webhook id." }]);
-        }
+        const id = webhookIdParam(req);
         await deleteWebhook(keyId(req), id);
+        // The delivery log goes with the webhook (best effort; it is pruned after 7 days regardless).
+        await deliveryStore()
+          .deleteForWebhook(id)
+          .catch((error: unknown) => console.warn("[platform] webhook delivery log cleanup failed:", error instanceof Error ? error.message : error));
         res.status(204).end();
+      }),
+    ],
+    "post /webhooks/:id/test": [
+      requireApiKey,
+      handle(async (req, res) => {
+        const delivery = await sendTestDelivery(keyId(req), webhookIdParam(req), webhookDeliveryTransport(), WEBHOOK_USER_AGENT);
+        sendJson(res, 200, { delivery });
+      }),
+    ],
+    "get /webhooks/:id/deliveries": [
+      requireApiKey,
+      handle(async (req, res) => {
+        const id = webhookIdParam(req);
+        const limit = integerQuery(req, "limit", 20, 1, 100);
+        sendJson(res, 200, { deliveries: await listDeliveries(keyId(req), id, limit) });
       }),
     ],
   };
@@ -356,10 +468,12 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   router.use(bodyGuards);
   router.use(express.json({ limit: MAX_BODY_BYTES, strict: true, type: ["application/json", "application/*+json"] }));
   router.use(authenticate);
-  router.use(createTierLimiter());
+  router.use(usageCounter);
+  const tierLimiter = createTierLimiter();
+  router.use(tierLimiter);
   router.use(enforceAuthentication);
 
-  const table = handlers(options);
+  const table = handlers(options, tierLimiter);
   const byPath = new Map<string, PlatformRoute[]>();
   for (const route of PLATFORM_ROUTES) byPath.set(route.path, [...(byPath.get(route.path) ?? []), route]);
   for (const [path, routes] of byPath) {
@@ -388,19 +502,25 @@ export interface PlatformBackgroundOptions {
 let stopBackground: (() => void) | null = null;
 
 /**
- * Starts the settlement poller and the webhook dispatcher once per process.
- * Returns an idempotent stop function. Call it on long-running hosts only
- * (not in serverless request handlers).
+ * Starts the settlement poller, the webhook dispatcher, the usage flusher
+ * and the hourly pruning of idempotency records and delivery logs, once per
+ * process. Returns an idempotent stop function. Call it on long-running
+ * hosts only (not in serverless request handlers; there usage is written
+ * per request and expired rows wait for a long-running instance).
  */
 export function startPlatformBackground(options: PlatformBackgroundOptions = {}): () => void {
   if (stopBackground) return stopBackground;
-  const stopPoller = startSettlementPoller(options.poller);
-  const stopDispatcher = startWebhookDispatcher(options.webhookTransport);
+  const stoppers = [
+    startSettlementPoller(options.poller),
+    startWebhookDispatcher(options.webhookTransport),
+    startUsageFlusher(),
+    startIdempotencyPruner(),
+    startDeliveryPruner(),
+  ];
   const stop = () => {
     if (stopBackground !== stop) return;
     stopBackground = null;
-    stopPoller();
-    stopDispatcher();
+    for (const stopOne of stoppers) stopOne();
   };
   stopBackground = stop;
   return stop;

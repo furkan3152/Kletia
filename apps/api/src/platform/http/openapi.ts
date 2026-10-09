@@ -4,12 +4,17 @@
  * @kletia/core so they never drift from the registries; shapes mirror the
  * handlers in router.ts and the types in @kletia/core.
  */
-import { CHAINS, INTENT_SPEC_VERSION, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
+import { CHAINS, ERROR_CATEGORIES, INTENT_SPEC_VERSION, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
 import { REJECTION_CODES } from "../index.js";
 import { ACTION_KINDS } from "./catalog.js";
 import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
+import { DELIVERY_ERRORS, MAX_DELIVERIES_PER_WEBHOOK, MEMORY_DELIVERIES_PER_WEBHOOK, TEST_DELIVERIES_PER_MINUTE } from "./deliveries.js";
 import { PLATFORM_API_VERSION } from "./health.js";
+import { IDEMPOTENCY_LOCK_MS, IDEMPOTENCY_TTL_MS } from "./idempotency.js";
+import { API_KEY_ID_PATTERN, DEFAULT_ROTATION_GRACE_SECONDS, MAX_ACTIVE_KEYS_PER_PROJECT, MAX_ROTATION_GRACE_SECONDS } from "./keys.js";
 import { KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
+import { HANDOFF_MAX_TEXT } from "./mcp/handoff.js";
+import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES } from "./webhooks.js";
 
@@ -61,16 +66,44 @@ function schemas(): JsonObject {
       {
         error: obj(
           {
-            code: str({ pattern: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$", description: "Stable UPPER_SNAKE_CASE code.", examples: ["INTENT_UNSUPPORTED"] }),
+            code: str({
+              pattern: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$",
+              description: "Stable UPPER_SNAKE_CASE code from the error catalog (GET /v1/errors). Provider failures name the provider (`RELAY_UNAVAILABLE`) and resolve to a catalog family entry.",
+              examples: ["INTENT_UNSUPPORTED"],
+            }),
             message: str(),
             issues: arrayOf(obj({ path: str(), message: str() }, ["path", "message"])),
             hints: arrayOf(str(), { description: "Optional guidance, e.g. example phrases on INTENT_UNSUPPORTED." }),
+            docs: str({ format: "uri", description: "Documentation of the code: `https://kletiaai.xyz/developers#error-<CODE>`." }),
           },
           ["code", "message"],
         ),
         requestId: str({ format: "uuid" }),
       },
       ["error", "requestId"],
+    ),
+    ErrorCatalogEntry: obj(
+      {
+        code: str({ pattern: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$" }),
+        status: { type: ["integer", "null"], description: "HTTP status when returned as an API error; null when the code only appears as `step.failure.code`." },
+        otherStatuses: arrayOf(int(), { description: "Statuses the code is also returned with on another path." }),
+        category: str({ enum: [...ERROR_CATEGORIES] }),
+        retryable: bool({ description: "True when repeating the same request later can succeed without changing it." }),
+        step: bool({ description: "Also reported as `step.failure.code`." }),
+        title: str(),
+        remedy: str(),
+        docs: str({ format: "uri" }),
+      },
+      ["code", "status", "category", "retryable", "title", "remedy", "docs"],
+    ),
+    ErrorCatalogResponse: obj(
+      {
+        errors: arrayOf(ref("ErrorCatalogEntry")),
+        families: arrayOf(obj({ pattern: str({ examples: ["<PROVIDER>_UNAVAILABLE"] }), code: str() }, ["pattern", "code"]), {
+          description: "Dynamic provider codes and the catalog entry describing them.",
+        }),
+      },
+      ["errors", "families"],
     ),
 
     IntentActionSpec: obj(
@@ -314,6 +347,15 @@ function schemas(): JsonObject {
           },
           ["intentId", "stepId", "network", "status"],
         ),
+      },
+      ["id", "type", "at", "data"],
+    ),
+    WebhookTestEvent: obj(
+      {
+        id: ref("EventId"),
+        type: str({ const: "webhook.test" }),
+        at: str({ format: "date-time" }),
+        data: obj({ webhookId: str({ pattern: WEBHOOK_ID_PATTERN.source }) }, ["webhookId"]),
       },
       ["id", "type", "at", "data"],
     ),
@@ -567,13 +609,140 @@ function schemas(): JsonObject {
     ApiKeyCreateRequest: obj({ name: str({ minLength: 1, maxLength: 64 }) }, ["name"]),
     ApiKey: obj(
       {
-        id: str({ pattern: "^key_[0-9a-f]{24}$" }),
+        id: str({ pattern: API_KEY_ID_PATTERN.source }),
         name: str(),
         tier: str({ enum: ["developer", "operator"] }),
         createdAt: str({ format: "date-time" }),
         key: str({ pattern: "^kl_dev_[0-9A-Za-z]{32}$", description: "The raw key. Shown once; only its SHA-256 hash is stored." }),
       },
       ["id", "name", "tier", "createdAt", "key"],
+    ),
+    RotatedApiKey: {
+      allOf: [
+        ref("ApiKey"),
+        obj(
+          {
+            rotatedAt: str({ format: "date-time" }),
+            previousExpiresAt: { type: ["string", "null"], format: "date-time", description: "When the previous secret stops authenticating; null when it already has (graceSeconds 0)." },
+          },
+          ["rotatedAt", "previousExpiresAt"],
+        ),
+      ],
+    },
+    ApiKeyRotateRequest: obj({
+      graceSeconds: int({
+        minimum: 0,
+        maximum: MAX_ROTATION_GRACE_SECONDS,
+        default: DEFAULT_ROTATION_GRACE_SECONDS,
+        description: "How long the previous secret keeps authenticating (it can never manage keys). 0 revokes it immediately.",
+      }),
+    }),
+    ApiKeyView: obj(
+      {
+        id: str({ pattern: API_KEY_ID_PATTERN.source }),
+        name: str(),
+        tier: str({ enum: ["developer"] }),
+        last4: { type: ["string", "null"], description: "Last four characters of the current secret (null for keys issued before they were recorded)." },
+        createdAt: str({ format: "date-time" }),
+        lastUsedAt: { type: ["string", "null"], format: "date-time", description: "Updated at most once a minute." },
+        rotatedAt: { type: ["string", "null"], format: "date-time" },
+        previousExpiresAt: { type: ["string", "null"], format: "date-time", description: "End of the open grace window of the previous secret." },
+        revokedAt: { type: ["string", "null"], format: "date-time" },
+        current: bool({ description: "The key that made this request." }),
+      },
+      ["id", "name", "tier", "last4", "createdAt", "lastUsedAt", "rotatedAt", "previousExpiresAt", "revokedAt", "current"],
+    ),
+    WebhookDelivery: obj(
+      {
+        id: str({ pattern: "^whd_[0-9a-f]{24}$" }),
+        webhookId: str({ pattern: WEBHOOK_ID_PATTERN.source }),
+        eventId: ref("EventId"),
+        eventType: str({ enum: [...WEBHOOK_EVENT_TYPES, "webhook.test"] }),
+        intentId: ref("IntentId"),
+        attempt: int({ minimum: 1, maximum: 4 }),
+        status: str({ enum: ["succeeded", "failed", "dropped"] }),
+        httpStatus: int({ description: "Status the endpoint answered with." }),
+        durationMs: int({ minimum: 0 }),
+        error: str({
+          enum: [...DELIVERY_ERRORS],
+          description: "Failure class (error text and payloads are never stored). `redirect`: a 3xx answer, which is never followed; `queue_full`: dropped before sending.",
+        }),
+        nextRetryAt: str({ format: "date-time", description: "When a failed attempt is retried." }),
+        test: bool({ description: "A POST /v1/webhooks/{id}/test delivery." }),
+        at: str({ format: "date-time" }),
+      },
+      ["id", "webhookId", "eventId", "eventType", "attempt", "status", "at"],
+    ),
+    UsageReport: obj(
+      {
+        keyId: str(),
+        tier: str({ enum: ["developer", "operator"] }),
+        window: str({ enum: ["24h", "7d"] }),
+        since: str({ format: "date-time", description: "Start of the first hour in the window." }),
+        generatedAt: str({ format: "date-time" }),
+        rateLimit: obj(
+          {
+            limit: int(),
+            remaining: int({ minimum: 0 }),
+            resetAt: { type: ["string", "null"], format: "date-time" },
+            windowSeconds: int(),
+          },
+          ["limit", "remaining", "resetAt", "windowSeconds"],
+          { description: "The current 1-minute window as seen by the answering instance." },
+        ),
+        totals: obj(
+          { requests: int({ minimum: 0 }), byStatusClass: { type: "object", additionalProperties: int({ minimum: 0 }), examples: [{ "2xx": 120, "4xx": 3 }] } },
+          ["requests", "byStatusClass"],
+        ),
+        byRoute: arrayOf(
+          obj(
+            {
+              route: str({ examples: ["POST /intents"] }),
+              requests: int({ minimum: 0 }),
+              byStatusClass: { type: "object", additionalProperties: int({ minimum: 0 }) },
+            },
+            ["route", "requests", "byStatusClass"],
+          ),
+        ),
+        series: arrayOf(obj({ hour: str({ format: "date-time" }), requests: int({ minimum: 0 }) }, ["hour", "requests"]), {
+          description: "One entry per hour of the window, oldest first.",
+        }),
+        intents: obj(
+          { created: int({ minimum: 0 }), byStatus: { type: "object", additionalProperties: int({ minimum: 0 }) } },
+          ["created", "byStatus"],
+          { description: "Intents the key created in the window, by current status." },
+        ),
+      },
+      ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents"],
+    ),
+    ShieldsBadge: obj(
+      {
+        schemaVersion: int({ const: 1 }),
+        label: str(),
+        message: str({ enum: ["operational", "degraded", "down"] }),
+        color: str(),
+        cacheSeconds: int(),
+      },
+      ["schemaVersion", "label", "message", "color"],
+    ),
+    JsonRpcRequest: obj(
+      {
+        jsonrpc: str({ const: "2.0" }),
+        id: { type: ["string", "integer"] },
+        method: str({ examples: ["server/discover", "tools/list", "tools/call", "initialize"] }),
+        params: { type: "object" },
+      },
+      ["jsonrpc", "method"],
+      { description: "One MCP JSON-RPC message (batches are refused)." },
+    ),
+    JsonRpcResponse: obj(
+      {
+        jsonrpc: str({ const: "2.0" }),
+        id: { type: ["string", "integer", "null"] },
+        result: { type: "object" },
+        error: obj({ code: int(), message: str(), data: {} }, ["code", "message"]),
+      },
+      ["jsonrpc"],
     ),
     SubmitRequest: obj(
       {
@@ -594,7 +763,11 @@ function schemas(): JsonObject {
     AssetsResponse: obj({ assets: arrayOf(ref("Asset")) }, ["assets"]),
     WebhookResponse: obj({ webhook: ref("Webhook") }, ["webhook"]),
     WebhookListResponse: obj({ webhooks: arrayOf(ref("Webhook")) }, ["webhooks"]),
+    WebhookDeliveryResponse: obj({ delivery: ref("WebhookDelivery") }, ["delivery"]),
+    WebhookDeliveryListResponse: obj({ deliveries: arrayOf(ref("WebhookDelivery"), { description: "Newest first." }) }, ["deliveries"]),
     ApiKeyResponse: obj({ key: ref("ApiKey") }, ["key"]),
+    RotatedApiKeyResponse: obj({ key: ref("RotatedApiKey") }, ["key"]),
+    ApiKeyListResponse: obj({ keys: arrayOf(ref("ApiKeyView"), { description: "The project's keys, newest first (at most 50)." }) }, ["keys"]),
   };
 }
 
@@ -616,8 +789,8 @@ function ok(schema: string, description: string, extraHeaders: JsonObject = {}):
 const ERROR_RESPONSES: Readonly<Record<string, string>> = {
   "400": "BadRequest",
   "401": "Unauthorized",
+  "403": "Forbidden",
   "404": "NotFound",
-  "405": "MethodNotAllowed",
   "409": "Conflict",
   "410": "Gone",
   "413": "PayloadTooLarge",
@@ -651,6 +824,12 @@ function jsonBody(schema: string, required = true): JsonObject {
 const KEY_REQUIRED: Json = [{ bearerAuth: [] }, { apiKeyHeader: [] }];
 const intentIdParam: JsonObject = { $ref: "#/components/parameters/IntentId" };
 const stepIdParam: JsonObject = { $ref: "#/components/parameters/StepId" };
+const idempotencyKeyParam: JsonObject = { $ref: "#/components/parameters/IdempotencyKey" };
+const webhookIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: WEBHOOK_ID_PATTERN.source }) };
+const keyIdParam: JsonObject = { name: "id", in: "path", required: true, schema: str({ pattern: API_KEY_ID_PATTERN.source }) };
+const REPLAYED_HEADER: JsonObject = { "Idempotent-Replayed": { $ref: "#/components/headers/Idempotent-Replayed" } };
+const IDEMPOTENCY_NOTE =
+  " Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.";
 
 function paths(): JsonObject {
   return {
@@ -716,12 +895,13 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Plan an intent into an IntentGraph",
         description:
-          "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200). A repeated `clientReference` from the same API key returns the original intent (200).",
-        parameters: [{ name: "dryRun", in: "query", required: false, schema: str({ enum: ["true", "false", "1", "0"] }) }],
+          "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200)." +
+          IDEMPOTENCY_NOTE,
+        parameters: [{ name: "dryRun", in: "query", required: false, schema: str({ enum: ["true", "false", "1", "0"] }) }, idempotencyKeyParam],
         requestBody: jsonBody("IntentRequest"),
         responses: {
-          "201": ok("IntentResponse", "Intent planned and stored."),
-          "200": ok("IntentResponse", "Dry run, or idempotent replay of an existing intent."),
+          "201": ok("IntentResponse", "Intent planned and stored.", REPLAYED_HEADER),
+          "200": ok("IntentResponse", "Dry run, or idempotent replay of an existing intent.", REPLAYED_HEADER),
           ...errors("409", "413", "415", "422", "502", "504"),
         },
       },
@@ -749,7 +929,7 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Build wallet-ready transactions for a ready step",
         description:
-          "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote.",
+          "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED.",
         parameters: [intentIdParam, stepIdParam],
         responses: { "200": ok("PreparedStepResponse", "Payload and updated intent."), ...errors("404", "409", "410", "422", "502", "504") },
       },
@@ -760,10 +940,10 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Submit transaction hashes / signatures for on-chain verification",
         description:
-          `A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become \`settled\`; cross-network steps become \`settling\` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (${[...REJECTION_CODES].join(", ")}) and leave the step unchanged. References not yet visible on-chain are stored (\`submitted\`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them.`,
-        parameters: [intentIdParam, stepIdParam],
+          `A reference advances the step only after Kletia observes it on-chain from the bound account. Same-network steps become \`settled\`; cross-network steps become \`settling\` until the settlement network reports the destination fill. References that are provably not this step's transactions are refused with 422 (${[...REJECTION_CODES].join(", ")}) and leave the step unchanged. References not yet visible on-chain are stored (\`submitted\`) and re-verified by refresh and the settlement poller; until one of them produces on-chain evidence, new references (e.g. after a wallet speed-up) replace them.${IDEMPOTENCY_NOTE}`,
+        parameters: [intentIdParam, stepIdParam, idempotencyKeyParam],
         requestBody: jsonBody("SubmitRequest"),
-        responses: { "200": ok("IntentResponse", "Updated intent."), ...errors("404", "409", "413", "415", "422", "502") },
+        responses: { "200": ok("IntentResponse", "Updated intent.", REPLAYED_HEADER), ...errors("404", "409", "413", "415", "422", "502") },
       },
     },
     "/v1/intents/{id}/refresh": {
@@ -780,8 +960,9 @@ function paths(): JsonObject {
         operationId: "cancelIntent",
         tags: ["Intents"],
         summary: "Cancel an intent with no submitted steps",
-        parameters: [intentIdParam],
-        responses: { "200": ok("IntentResponse", "Cancelled intent."), ...errors("404", "409") },
+        description: IDEMPOTENCY_NOTE.trim(),
+        parameters: [intentIdParam, idempotencyKeyParam],
+        responses: { "200": ok("IntentResponse", "Cancelled intent.", REPLAYED_HEADER), ...errors("404", "409", "422") },
       },
     },
     "/v1/intents/{id}/events": {
@@ -815,10 +996,11 @@ function paths(): JsonObject {
         operationId: "createWebhook",
         tags: ["Webhooks"],
         summary: "Register a webhook (secret returned once)",
-        description: `At most ${MAX_WEBHOOKS_PER_KEY} webhooks per key. Deliveries are signed with \`Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>\`; verify with verifyWebhookSignature from @kletia/core.`,
+        description: `At most ${MAX_WEBHOOKS_PER_KEY} webhooks per key. Deliveries are signed with \`Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>\`; verify with verifyWebhookSignature from @kletia/core.${IDEMPOTENCY_NOTE} The stored response (with the secret) is encrypted at rest.`,
         security: KEY_REQUIRED,
+        parameters: [idempotencyKeyParam],
         requestBody: jsonBody("WebhookCreateRequest"),
-        responses: { "201": ok("WebhookResponse", "Webhook with its signing secret."), ...errors("409", "413", "415", "422") },
+        responses: { "201": ok("WebhookResponse", "Webhook with its signing secret.", REPLAYED_HEADER), ...errors("409", "413", "415", "422") },
       },
       get: {
         operationId: "listWebhooks",
@@ -832,10 +1014,32 @@ function paths(): JsonObject {
       delete: {
         operationId: "deleteWebhook",
         tags: ["Webhooks"],
-        summary: "Delete a webhook",
+        summary: "Delete a webhook (and its delivery log)",
         security: KEY_REQUIRED,
-        parameters: [{ name: "id", in: "path", required: true, schema: str({ pattern: WEBHOOK_ID_PATTERN.source }) }],
+        parameters: [webhookIdParam],
         responses: { "204": { description: "Deleted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("404") },
+      },
+    },
+    "/v1/webhooks/{id}/test": {
+      post: {
+        operationId: "testWebhook",
+        tags: ["Webhooks"],
+        summary: "Send a signed webhook.test event now",
+        description: `Makes one synchronous delivery attempt of a \`webhook.test\` event (see the webhookTest webhook) with the same signing, network rules, 5 s timeout and no-redirect policy as real deliveries, records it in the delivery log and returns the outcome. Always 200 when the attempt was made, whatever the endpoint answered. Test deliveries never pause a webhook. At most ${TEST_DELIVERIES_PER_MINUTE} per minute per webhook.`,
+        security: KEY_REQUIRED,
+        parameters: [webhookIdParam],
+        responses: { "200": ok("WebhookDeliveryResponse", "The delivery attempt."), ...errors("404") },
+      },
+    },
+    "/v1/webhooks/{id}/deliveries": {
+      get: {
+        operationId: "listWebhookDeliveries",
+        tags: ["Webhooks"],
+        summary: "Delivery log of a webhook",
+        description: `Every attempt, drop and test delivery, newest first. Payloads and error text are never stored. Kept for 7 days (at most ${MAX_DELIVERIES_PER_WEBHOOK} per webhook; ${MEMORY_DELIVERIES_PER_WEBHOOK} with in-memory storage).`,
+        security: KEY_REQUIRED,
+        parameters: [webhookIdParam, { name: "limit", in: "query", required: false, schema: int({ minimum: 1, maximum: 100, default: 20 }) }],
+        responses: { "200": ok("WebhookDeliveryListResponse", "Deliveries, newest first."), ...errors("404") },
       },
     },
     "/v1/keys": {
@@ -843,9 +1047,96 @@ function paths(): JsonObject {
         operationId: "createApiKey",
         tags: ["Keys"],
         summary: "Issue a developer key",
-        description: `The key is shown once and stored only as a SHA-256 hash. Limited to ${KEY_ISSUANCE_LIMIT_PER_HOUR} keys per hour per IP.`,
+        description: `The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most ${MAX_ACTIVE_KEYS_PER_PROJECT} active keys, else 409 KEY_LIMIT_REACHED). Limited to ${KEY_ISSUANCE_LIMIT_PER_HOUR} keys per hour per IP.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest.`,
+        parameters: [idempotencyKeyParam],
         requestBody: jsonBody("ApiKeyCreateRequest"),
-        responses: { "201": ok("ApiKeyResponse", "The new key."), ...errors("413", "415") },
+        responses: { "201": ok("ApiKeyResponse", "The new key.", REPLAYED_HEADER), ...errors("403", "409", "413", "415", "422") },
+      },
+      get: {
+        operationId: "listApiKeys",
+        tags: ["Keys"],
+        summary: "List the keys of the caller's project",
+        description: "Never returns secrets, only `last4`. Operator keys cannot be listed (409 KEY_NOT_MANAGEABLE); a secret inside its rotation grace window cannot manage keys (403 KEY_SECRET_ROTATED).",
+        security: KEY_REQUIRED,
+        responses: { "200": ok("ApiKeyListResponse", "The project's keys."), ...errors("403", "409") },
+      },
+    },
+    "/v1/keys/{id}/rotate": {
+      post: {
+        operationId: "rotateApiKey",
+        tags: ["Keys"],
+        summary: "Replace a key's secret (same id)",
+        description: `Issues a new secret for an active key of the caller's project. The key id is unchanged, so intents, webhooks and usage stay attached. The previous secret keeps authenticating for \`graceSeconds\` (default ${DEFAULT_ROTATION_GRACE_SECONDS / 3600} h, at most ${MAX_ROTATION_GRACE_SECONDS / 86_400} days, 0 = stop now) but cannot manage keys; rotating again ends an earlier grace window. Other instances notice within 15 s.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest.`,
+        security: KEY_REQUIRED,
+        parameters: [keyIdParam, idempotencyKeyParam],
+        requestBody: { ...jsonBody("ApiKeyRotateRequest", false) },
+        responses: { "200": ok("RotatedApiKeyResponse", "The key with its new secret.", REPLAYED_HEADER), ...errors("403", "404", "409", "413", "415", "422") },
+      },
+    },
+    "/v1/keys/{id}": {
+      delete: {
+        operationId: "revokeApiKey",
+        tags: ["Keys"],
+        summary: "Revoke a key of the caller's project",
+        description: "Idempotent. The key stops authenticating at once on the answering instance and within 15 s everywhere. A key may revoke itself.",
+        security: KEY_REQUIRED,
+        parameters: [keyIdParam],
+        responses: { "204": { description: "Revoked.", headers: { "X-Request-Id": REQUEST_ID_HEADER } }, ...errors("403", "404", "409") },
+      },
+    },
+    "/v1/usage": {
+      get: {
+        operationId: "getUsage",
+        tags: ["Usage"],
+        summary: "Requests, status classes and intents of the caller's key",
+        description: "Counts every request made with the key, by hour, route and status class (flushed every 30 s), plus the live rate-limit window of the answering instance and the intents the key created in the window.",
+        security: KEY_REQUIRED,
+        parameters: [{ name: "window", in: "query", required: false, schema: str({ enum: ["24h", "7d"], default: "24h" }) }],
+        responses: { "200": ok("UsageReport", "Usage report."), ...errors() },
+      },
+    },
+    "/v1/errors": {
+      get: {
+        operationId: "listErrors",
+        tags: ["System"],
+        summary: "Error catalog",
+        description: "Every error code the API returns, and every step failure code, with its status, category, retryability and remedy. Cacheable for 5 minutes.",
+        responses: { "200": ok("ErrorCatalogResponse", "The catalog, sorted by code."), ...errors() },
+      },
+    },
+    "/v1/status/badge": {
+      get: {
+        operationId: "getStatusBadge",
+        tags: ["System"],
+        summary: "API status badge",
+        description: "operational / degraded / down from the health report. SVG by default; `format=shields` returns a shields.io endpoint document for `https://img.shields.io/endpoint?url=<encoded URL>`. Cacheable for 60 seconds.",
+        parameters: [{ name: "format", in: "query", required: false, schema: str({ enum: ["svg", "shields"], default: "svg" }) }],
+        responses: {
+          "200": {
+            description: "Badge.",
+            headers: { "X-Request-Id": REQUEST_ID_HEADER },
+            content: { "image/svg+xml": { schema: str() }, "application/json": { schema: ref("ShieldsBadge") } },
+          },
+          ...errors(),
+        },
+      },
+    },
+    "/v1/mcp": {
+      post: {
+        operationId: "mcp",
+        tags: ["MCP"],
+        summary: "Model Context Protocol server (Streamable HTTP)",
+        description: `MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with \`initialize\`. Send one JSON-RPC message per request with \`Accept: application/json, text/event-stream\`; batches are refused and GET answers 405 (no server-initiated stream). Tools, all read-only: ${KLETIA_TOOLS.map((tool) => `\`${tool.name}\``).join(", ")}. No tool prepares, signs or submits a transaction; \`create_signing_link\` returns a Studio link (text up to ${HANDOFF_MAX_TEXT} characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (\`clientId\` = key id). Requests with an \`Origin\` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with \`claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp\`.`,
+        requestBody: jsonBody("JsonRpcRequest"),
+        responses: {
+          "200": {
+            description: "JSON-RPC response (application/json), or an event stream for 2025-era requests.",
+            headers: { "X-Request-Id": REQUEST_ID_HEADER },
+            content: { "application/json": { schema: ref("JsonRpcResponse") }, "text/event-stream": { schema: str() } },
+          },
+          "202": { description: "Notification accepted.", headers: { "X-Request-Id": REQUEST_ID_HEADER } },
+          ...errors("403", "413", "415"),
+        },
       },
     },
     "/v1/openapi.json": {
@@ -880,7 +1171,7 @@ export function buildOpenApiDocument(): JsonObject {
       summary: "Non-custodial, chain-agnostic intents for EVM networks and Solana.",
       description:
         "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\n" +
-        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"? }, "requestId" }\`; every response carries X-Request-Id.`,
+        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"?, "docs"? }, "requestId" }\` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept \`Idempotency-Key\`. Agents can use the read-only MCP server at /v1/mcp.`,
       license: { name: "MIT", identifier: "MIT" },
       contact: { name: "Kletia", url: "https://kletiaai.xyz" },
     },
@@ -890,19 +1181,22 @@ export function buildOpenApiDocument(): JsonObject {
     ],
     security: [{}, { bearerAuth: [] }, { apiKeyHeader: [] }],
     tags: [
-      { name: "System" },
-      { name: "Registry" },
-      { name: "Quotes" },
-      { name: "Portfolio" },
-      { name: "Intents" },
-      { name: "Events" },
-      { name: "Webhooks" },
-      { name: "Keys" },
+      { name: "System", description: "Health, the error catalog, the status badge and this document." },
+      { name: "Registry", description: "Networks, protocols and assets, derived from the engine's live adapters." },
+      { name: "Quotes", description: "Advisory route quotes; nothing is stored." },
+      { name: "Portfolio", description: "Balances of one CAIP-10 account." },
+      { name: "Intents", description: "Plan, prepare, submit, verify and cancel intents." },
+      { name: "Events", description: "Server-Sent Events per intent." },
+      { name: "Webhooks", description: "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs." },
+      { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
+      { name: "Usage", description: "Per-key request counts and rate-limit state." },
+      { name: "MCP", description: "Read-only Model Context Protocol server for agents." },
     ],
     paths: paths(),
     webhooks: {
       intentEvent: {
         post: {
+          operationId: "receiveIntentEvent",
           summary: "Intent event delivery",
           description:
             "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile.",
@@ -917,6 +1211,22 @@ export function buildOpenApiDocument(): JsonObject {
           responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
         },
       },
+      webhookTest: {
+        post: {
+          operationId: "receiveWebhookTest",
+          summary: "Test delivery",
+          description: "Sent once by POST /v1/webhooks/{id}/test, signed like every delivery. Never retried. Acknowledge with any 2xx.",
+          parameters: [
+            { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
+            { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ const: "webhook.test" }) },
+            { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
+            { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ const: "1" }) },
+          ],
+          requestBody: { required: true, content: { "application/json": { schema: ref("WebhookTestEvent") } } },
+          responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -926,23 +1236,31 @@ export function buildOpenApiDocument(): JsonObject {
       parameters: {
         IntentId: { name: "id", in: "path", required: true, schema: ref("IntentId") },
         StepId: { name: "stepId", in: "path", required: true, schema: ref("StepId") },
+        IdempotencyKey: {
+          name: "Idempotency-Key",
+          in: "header",
+          required: false,
+          description: `Makes a retry safe: the first response with this key (per API key) is stored for ${IDEMPOTENCY_TTL_MS / 3_600_000} hours and replayed for the same request. The same key with a different request → 422 IDEMPOTENCY_KEY_REUSED; while the first request runs → 409 IDEMPOTENCY_REQUEST_IN_PROGRESS (Retry-After: 1; an abandoned reservation is taken over after ${IDEMPOTENCY_LOCK_MS / 1000} s). 5xx, 429 and retryable errors are never stored. Requires an API key (400 IDEMPOTENCY_KEY_REQUIRES_API_KEY).`,
+          schema: str({ pattern: "^\"?[A-Za-z0-9_.:-]{1,128}\"?$", examples: ["7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14"] }),
+        },
       },
       headers: {
         "X-Request-Id": { description: "Request id (echoes a valid incoming UUID).", schema: str({ format: "uuid" }) },
         RateLimit: { description: "IETF draft-8 rate limit state.", schema: str() },
         "RateLimit-Policy": { description: "IETF draft-8 rate limit policy.", schema: str() },
         "Retry-After": { description: "Seconds until a retry may succeed.", schema: int() },
+        "Idempotent-Replayed": { description: "`true` when the response replays an earlier request (Idempotency-Key or clientReference).", schema: str({ const: "true" }) },
       },
       responses: {
-        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, ...)."),
+        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, NOT_FOUND)."),
-        MethodNotAllowed: errorResponse("Method not allowed on this path."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, ...)."),
+        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN)."),
+        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, NOT_FOUND)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },

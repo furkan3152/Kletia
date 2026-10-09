@@ -11,6 +11,13 @@ const SIZES: Record<MonogramSize, string> = {
   lg: "h-16 w-16 text-xl",
 };
 
+/** The version tag hangs off the bottom-right corner so it never covers the letters. */
+const TAG_SIZES: Record<MonogramSize, string> = {
+  sm: "-bottom-[7px] -right-[7px] text-[9px] leading-[10px]",
+  md: "-bottom-2 -right-2 text-[10px] leading-[12px]",
+  lg: "-bottom-2 -right-2 text-[11px] leading-[13px]",
+};
+
 export interface MonogramProps {
   /** Protocol name, e.g. "Uniswap V3" (renders "UN" with a "v3" tag). */
   readonly name: string;
@@ -48,7 +55,12 @@ export function Monogram({ name, category, size = "md", className }: MonogramPro
     >
       {letters}
       {version ? (
-        <span className="absolute -bottom-[3px] -right-[3px] border-2 border-[#1A1A1A] bg-[#1A1A1A] px-0.5 font-code text-[10px] font-bold lowercase leading-[12px] tracking-normal text-white dark:border-[#4B5563] dark:bg-[#0B1120]">
+        <span
+          className={cx(
+            "absolute border-2 border-[#1A1A1A] bg-[#1A1A1A] px-0.5 font-code font-bold lowercase tracking-normal text-white dark:border-[#4B5563] dark:bg-[#0B1120]",
+            TAG_SIZES[size],
+          )}
+        >
           {version}
         </span>
       ) : null}

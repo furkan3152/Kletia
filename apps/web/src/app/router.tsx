@@ -1,4 +1,5 @@
 import React from "react";
+import { flushSync } from "react-dom";
 
 import {
   getLocation,
@@ -14,21 +15,75 @@ import {
   type RouteId,
 } from "./routes/routeTable";
 import { RouterContext, type RouterState } from "./routes/routerContext";
+import { RouteEnter } from "./site/motion/RouteEnter";
+import { prefersReducedMotion } from "./site/motion/useReducedMotion";
+import { runViewTransition, supportsViewTransitions } from "./site/motion/viewTransition";
+import { getToasts, subscribeToasts } from "./site/ui/toast";
 import { LazyBoundary } from "../shared/components/LazyBoundary";
 
 installHistoryListener();
 
+// Loops pause in hidden tabs: styles.css keys off html[data-kl-hidden].
+if (typeof document !== "undefined") {
+  const syncHidden = () => document.documentElement.toggleAttribute("data-kl-hidden", document.visibilityState === "hidden");
+  syncHidden();
+  document.addEventListener("visibilitychange", syncHidden);
+}
+
 const loadSiteLayout = () => import("./site/SiteLayout");
 const SiteLayout = React.lazy(loadSiteLayout);
+const loadToaster = () => import("./site/ui/Toaster");
+const Toaster = React.lazy(loadToaster);
 
-const PAGES = Object.fromEntries(
-  (Object.keys(ROUTES) as RouteId[]).map((id) => [id, React.lazy(ROUTES[id].load)]),
-) as Record<RouteId, React.LazyExoticComponent<React.ComponentType>>;
+/*
+ * Route pages. Unlike React.lazy (which suspends on its first render even when
+ * the chunk is already loaded), `RoutePage` renders a loaded page at once, so
+ * a View Transition can commit the next page synchronously. Until the chunk
+ * arrives it suspends like React.lazy; a failed chunk throws to LazyBoundary.
+ */
+const resolved = new Map<RouteId, React.ComponentType>();
+const failed = new Map<RouteId, unknown>();
+const inflight = new Map<RouteId, Promise<void>>();
+
+function loadRoute(id: RouteId): Promise<void> {
+  if (resolved.has(id)) return Promise.resolve();
+  const existing = inflight.get(id);
+  if (existing) return existing;
+  const promise = ROUTES[id].load().then(
+    (module) => {
+      inflight.delete(id);
+      if (typeof module.default !== "function" && typeof module.default !== "object") {
+        const error = new Error(`The ${id} page module has no default export.`);
+        failed.set(id, error);
+        throw error;
+      }
+      resolved.set(id, module.default);
+    },
+    (error: unknown) => {
+      failed.set(id, error ?? new Error(`The ${id} page failed to load.`));
+      inflight.delete(id);
+      throw error;
+    },
+  );
+  inflight.set(id, promise);
+  return promise;
+}
+
+function RoutePage({ id }: { readonly id: RouteId }) {
+  const Page = resolved.get(id);
+  if (Page) {
+    // Module-level component, stable for the route: never recreated per render.
+    // eslint-disable-next-line react-hooks/static-components
+    return <Page />;
+  }
+  if (failed.has(id)) throw failed.get(id);
+  throw loadRoute(id);
+}
 
 // Start the initial route's chunks in parallel with the shell instead of in sequence.
 {
   const initial = matchRoute(getLocation().pathname);
-  initial.load().catch(() => undefined);
+  loadRoute(initial.id).catch(() => undefined);
   if (initial.kind === "site") loadSiteLayout().catch(() => undefined);
 }
 
@@ -59,14 +114,6 @@ function applyDocumentMeta(route: RouteDefinition, pathname: string) {
   setMeta("name", "twitter:description", route.description);
   const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
   if (canonical) canonical.href = url;
-}
-
-function prefersReducedMotion(): boolean {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
 }
 
 /** Scrolls to `#hash`, retrying for a short while so lazily rendered sections can mount. */
@@ -199,22 +246,96 @@ function PendingBar({ pending }: { pending: boolean }) {
   );
 }
 
+/** Mounts the toast stack once the browser is idle, or at once when a toast is queued. */
+function useToasterReady(enabled: boolean): boolean {
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (!enabled || ready) return undefined;
+    const mount = () => setReady(true);
+    if (getToasts().length > 0) {
+      const timer = window.setTimeout(mount, 0);
+      return () => window.clearTimeout(timer);
+    }
+    const unsubscribe = subscribeToasts(mount);
+    const prefetch = () => {
+      loadToaster().then(mount, () => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const idle = window.requestIdleCallback(prefetch, { timeout: 4000 });
+      return () => {
+        unsubscribe();
+        window.cancelIdleCallback(idle);
+      };
+    }
+    const timer = window.setTimeout(prefetch, 1500);
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [enabled, ready]);
+  return ready;
+}
+
 /** Top-level router. Every route is code-split; navigation renders in a transition. */
 export function AppRouter() {
   const [location, setLocation] = React.useState<RouteLocation>(getLocation);
   const [pending, startTransition] = React.useTransition();
+  const [preloading, setPreloading] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState("");
   const previousPathRef = React.useRef(location.pathname);
+  const renderedLocationRef = React.useRef(location);
+
+  React.useLayoutEffect(() => {
+    renderedLocationRef.current = location;
+  }, [location]);
 
   React.useEffect(
     () =>
       subscribeLocation((next) => {
-        startTransition(() => setLocation(next));
+        const previous = renderedLocationRef.current;
+        const nextRoute = matchRoute(next.pathname);
+        const animate =
+          !CROSS_ORIGIN_FRAMED &&
+          next.pathname !== previous.pathname &&
+          matchRoute(previous.pathname).kind === "site" &&
+          nextRoute.kind === "site" &&
+          supportsViewTransitions() &&
+          !prefersReducedMotion();
+        if (!animate) {
+          setPreloading(false);
+          startTransition(() => setLocation(next));
+          return;
+        }
+        // View Transition path: preload the page so the swap never suspends,
+        // then commit synchronously inside the transition.
+        const commit = () => {
+          if (getLocation().key !== next.key) return;
+          void runViewTransition("route", () => {
+            // A newer navigation may have started while this one waited to swap.
+            if (getLocation().key !== next.key) return;
+            flushSync(() => {
+              setPreloading(false);
+              setLocation(next);
+            });
+          });
+        };
+        if (resolved.has(nextRoute.id)) {
+          commit();
+          return;
+        }
+        setPreloading(true);
+        loadRoute(nextRoute.id).then(commit, () => {
+          if (getLocation().key !== next.key) return;
+          setPreloading(false);
+          // LazyBoundary shows its error UI, as on the regular path.
+          startTransition(() => setLocation(next));
+        });
       }),
     [],
   );
 
   const route = matchRoute(location.pathname);
+  const toasterReady = useToasterReady(route.kind !== "embed");
 
   React.useEffect(() => {
     applyDocumentMeta(route, location.pathname);
@@ -243,29 +364,36 @@ export function AppRouter() {
     return () => window.clearTimeout(timer);
   }, [location, route.title]);
 
+  const busy = pending || preloading;
   const state = React.useMemo<RouterState>(
-    () => ({ location, route, pending }),
-    [location, route, pending],
+    () => ({ location, route, pending: busy }),
+    [location, route, busy],
   );
 
-  const Page = PAGES[route.id];
   const content =
     CROSS_ORIGIN_FRAMED && route.kind !== "embed" ? (
       <FramedRouteNotice href={`${window.location.origin}${location.pathname}${location.search}`} />
     ) : route.kind === "site" ? (
       <SiteLayout>
-        <Page />
+        <RouteEnter routeKey={route.id} animate={location.action !== "initial"}>
+          <RoutePage key={route.id} id={route.id} />
+        </RouteEnter>
       </SiteLayout>
     ) : (
-      <Page />
+      <RoutePage key={route.id} id={route.id} />
     );
 
   return (
     <RouterContext.Provider value={state}>
-      {route.kind === "embed" ? null : <PendingBar pending={pending} />}
+      {route.kind === "embed" ? null : <PendingBar pending={busy} />}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {pending ? "Loading page" : announcement}
+        {busy ? "Loading page" : announcement}
       </div>
+      {route.kind !== "embed" && toasterReady ? (
+        <React.Suspense fallback={null}>
+          <Toaster placement={route.kind === "console" ? "console" : "site"} />
+        </React.Suspense>
+      ) : null}
       <React.Suspense
         fallback={
           route.kind === "console" ? (

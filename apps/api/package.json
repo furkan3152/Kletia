@@ -36,6 +36,7 @@
   "dependencies": {
     "@coinbase/cdp-sdk": "1.56.0",
     "@kletia/core": "0.1.0",
+    "@modelcontextprotocol/server": "2.1.0",
     "@scure/bip39": "1.6.0",
     "@solana-program/compute-budget": "0.18.1",
     "@solana-program/system": "0.14.1",

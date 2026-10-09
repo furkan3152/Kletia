@@ -1,7 +1,9 @@
 import type { IntentStep } from "@kletia/core";
-import { ArrowRightLeft, Clock, PenLine, Radio, Receipt, TriangleAlert } from "lucide-react";
-import React from "react";
+import { ArrowRightLeft, Check, Clock, PenLine, Radio, Receipt, TriangleAlert } from "lucide-react";
+import React, { useCallback, useEffect, useRef } from "react";
 
+import type { LocalStepPhase } from "../../../shared/platform/useIntentExecution";
+import { useChangeKey } from "../motion/useChangeKey";
 import { Badge } from "../ui/Badge";
 import { cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
 import {
@@ -15,6 +17,8 @@ import {
   shortAccount,
   STATUS_TONE,
 } from "./format";
+import { nudgePen, pulseText, useBoundedLoop } from "./phaseMotion";
+import { PHASE_PRESENTATION, stepDisplayPhase } from "./stepPhase";
 
 const MODE_LABEL: Record<IntentStep["mode"], { label: string; icon: React.ReactNode }> = {
   wallet: { label: "Wallet signs", icon: <PenLine className="h-3.5 w-3.5" aria-hidden="true" /> },
@@ -22,11 +26,26 @@ const MODE_LABEL: Record<IntentStep["mode"], { label: string; icon: React.ReactN
   read: { label: "Read only", icon: <Receipt className="h-3.5 w-3.5" aria-hidden="true" /> },
 };
 
-function Row({ label, value, strong = false }: { label: string; value: React.ReactNode; strong?: boolean }) {
+/** Static outline once an attention loop has run its course (and the reduced-motion look). */
+const ATTENTION_REST = "outline outline-[3px] outline-offset-[3px] outline-[#FFD60A]";
+
+function Row({
+  label,
+  value,
+  strong = false,
+  valueRef,
+}: {
+  label: string;
+  value: React.ReactNode;
+  strong?: boolean;
+  valueRef?: React.Ref<HTMLElement>;
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#1A1A1A]/15 py-1.5 last:border-b-0 dark:border-white/10">
       <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>{label}</dt>
-      <dd className={cx("min-w-0 text-right font-code text-[12.5px]", strong ? "font-bold" : "")}>{value}</dd>
+      <dd ref={valueRef} className={cx("min-w-0 text-right font-code text-[12.5px]", strong ? "font-bold" : "")}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -37,11 +56,19 @@ export interface StepNodeProps {
   readonly footer?: React.ReactNode;
   readonly className?: string;
   readonly style?: React.CSSProperties;
+  /**
+   * Execution view: the badge shows the display phase and the node shows its
+   * state (dimmed while waiting, a ring while the wallet asks for a
+   * signature, a moving hatch while in flight, a green stripe when settled).
+   */
+  readonly live?: boolean;
+  /** What the browser is doing for this step right now (execution only). */
+  readonly localPhase?: LocalStepPhase;
 }
 
 /** One intent step: network, protocol, amounts, fees, timing and warnings. */
 export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function StepNode(
-  { step, footer, className, style },
+  { step, footer, className, style, live = false, localPhase },
   ref,
 ) {
   const color = networkColor(step.network);
@@ -49,14 +76,73 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
   const fees = formatUsd(step.feesUsd);
   const eta = formatSeconds(step.estimatedSeconds ?? step.settlement?.expectedSeconds);
   const crossNetwork = step.settlement?.kind === "cross-network";
+
+  const phase = stepDisplayPhase(step, localPhase);
+  // One-shot effects play only for changes this view observed, never for a
+  // step that mounted already settled or failed (resume, reload).
+  const phaseKey = useChangeKey(phase);
+  const changed = live && phaseKey > 0;
+  const attention = live && phase === "awaiting_signature";
+  const ringLoop = useBoundedLoop(attention);
+  const checking = live && phase === "unconfirmed";
+  const checkingLoop = useBoundedLoop(checking);
+  const inFlight = live && (phase === "submitted" || phase === "settling");
+  const waiting = live && phase === "waiting";
+  const presentation = PHASE_PRESENTATION[phase];
+
+  const articleRef = useRef<HTMLElement | null>(null);
+  const penRef = useRef<HTMLSpanElement>(null);
+  const settlesRef = useRef<HTMLElement>(null);
+  const setArticle = useCallback(
+    (node: HTMLElement | null) => {
+      articleRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+
+  useEffect(() => {
+    if (!changed) return;
+    if (phase === "awaiting_signature") nudgePen(penRef.current);
+    if (phase === "settling") pulseText(settlesRef.current);
+  }, [changed, phase, phaseKey]);
+
   return (
     <article
-      ref={ref}
+      ref={setArticle}
       aria-label={`Step ${step.index + 1}: ${step.title}`}
-      className={cx("relative flex min-w-0 flex-col", INK_BORDER, HARD_SHADOW, SURFACE, className)}
+      data-phase={phase}
+      className={cx(
+        "relative flex min-w-0 flex-col",
+        waiting
+          ? "border-[3px] border-[#1A1A1A]/45 shadow-[4px_4px_0_rgba(26,26,26,0.3)] dark:border-[#4B5563]/70 dark:shadow-[4px_4px_0_rgba(71,85,105,0.5)]"
+          : cx(INK_BORDER, HARD_SHADOW),
+        SURFACE,
+        attention && (ringLoop ? "kl-attn-ring" : ATTENTION_REST),
+        changed && phase === "failed" && "kl-shake",
+        className,
+      )}
       style={style}
     >
-      <div className="h-2 w-full border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={{ backgroundColor: color }} aria-hidden="true" />
+      <div
+        className={cx("relative h-2 w-full border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]", inFlight && "kl-hatch")}
+        style={{ backgroundColor: color, opacity: waiting ? 0.55 : live && phase === "skipped" ? 0.7 : undefined }}
+        aria-hidden="true"
+      >
+        {live && phase === "settled" ? (
+          <span className={cx("absolute inset-0 bg-[#14F195]", changed && "kl-fill-x")} />
+        ) : null}
+      </div>
+      {checking ? (
+        <span
+          aria-hidden="true"
+          className={cx(
+            "pointer-events-none absolute -inset-[6px] border-[3px] border-dashed border-[#B88A00] dark:border-[#FFD60A]",
+            checkingLoop && "kl-loop animate-pulse motion-reduce:animate-none",
+          )}
+        />
+      ) : null}
       <div className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-code text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
@@ -66,9 +152,23 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           <Badge tone="outline" dot={color}>
             {networkName(step.network)}
           </Badge>
-          <Badge tone={STATUS_TONE[step.status] ?? "neutral"} className="ml-auto">
-            {humanize(step.status)}
-          </Badge>
+          {live ? (
+            <Badge
+              tone={presentation.tone}
+              className={cx(
+                "ml-auto",
+                phase === "preparing" && "kl-shimmer",
+                changed && phase === "settled" && "kl-stamp",
+              )}
+            >
+              {phase === "settled" ? <Check className="mr-1 inline h-3 w-3 align-[-2px]" strokeWidth={4} aria-hidden="true" /> : null}
+              {presentation.label}
+            </Badge>
+          ) : (
+            <Badge tone={STATUS_TONE[step.status] ?? "neutral"} className="ml-auto">
+              {humanize(step.status)}
+            </Badge>
+          )}
         </div>
         <h4 className="font-display text-lg font-bold leading-snug tracking-[-0.01em]">{step.title}</h4>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-[#45464B] dark:text-[#A9B6C8]">
@@ -77,7 +177,9 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
             {protocolName(step.protocol)}
           </span>
           <span className="inline-flex items-center gap-1">
-            {mode.icon}
+            <span ref={penRef} className="inline-flex origin-bottom-left">
+              {mode.icon}
+            </span>
             {mode.label}
           </span>
           {eta ? (
@@ -93,7 +195,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           {step.minimumOutput ? <Row label="Minimum" value={formatAmount(step.minimumOutput)} /> : null}
           {fees ? <Row label="Fees" value={fees} /> : null}
           {crossNetwork && step.settlement?.destinationNetwork ? (
-            <Row label="Settles on" value={networkName(step.settlement.destinationNetwork)} />
+            <Row label="Settles on" value={networkName(step.settlement.destinationNetwork)} valueRef={settlesRef} />
           ) : null}
           <Row label="Account" value={<span title={step.account}>{shortAccount(step.account)}</span>} />
           {step.recipient && step.recipient !== step.account ? (
@@ -111,7 +213,12 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           </ul>
         ) : null}
         {step.failure ? (
-          <p className="border-2 border-[#1A1A1A] bg-[#FFE4E4] p-2.5 text-xs font-semibold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
+          <p
+            className={cx(
+              "border-2 border-[#1A1A1A] bg-[#FFE4E4] p-2.5 text-xs font-semibold text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]",
+              changed && phase === "failed" && "kl-rise",
+            )}
+          >
             {step.failure.message}
           </p>
         ) : null}

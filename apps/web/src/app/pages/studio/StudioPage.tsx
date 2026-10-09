@@ -6,6 +6,7 @@ import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { readIntentSession, STUDIO_INTENT_SESSION_KEY } from "../../../shared/platform/intentSession";
 import { useRoute } from "../../routes/useRoute";
 import { Button } from "../../site/ui/Button";
+import { Skeleton, SkeletonGroup, SkeletonText } from "../../site/ui/Skeleton";
 import { CONTAINER, cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { StudioWorkspace } from "./StudioWorkspace";
 
@@ -22,13 +23,39 @@ function readPromptParam(search: string): string {
   }
 }
 
+/** Placeholder with the panel's own shape: header, wallets column and the plan column. */
 function PanelFallback() {
   return (
-    <div role="status" className={cx("flex min-h-[16rem] items-center justify-center p-8", INK_BORDER, SURFACE)}>
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
-        Loading wallets
-      </span>
-    </div>
+    <SkeletonGroup label="Loading wallets" className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Loading wallets…</p>
+          <Skeleton className="h-9 w-2/3 max-w-md" />
+          <Skeleton className="h-3 w-1/3 max-w-xs border-2" />
+        </div>
+        <Skeleton className="h-9 w-24" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] xl:gap-10">
+        <div className={cx("flex flex-col gap-4 p-4 sm:p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
+          <div className="flex items-center gap-3">
+            <Skeleton surface="card" className="h-8 w-8" />
+            <Skeleton surface="card" className="h-5 w-40" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Skeleton surface="card" className="h-11 w-36" />
+            <Skeleton surface="card" className="h-11 w-36" />
+          </div>
+          <SkeletonText surface="card" lines={2} />
+        </div>
+        <div className={cx("kl-dot-backdrop flex flex-col gap-3 p-5", INK_BORDER, SURFACE)}>
+          <div className="flex items-center gap-3">
+            <Skeleton surface="card" className="h-8 w-8" />
+            <Skeleton surface="card" className="h-5 w-48" />
+          </div>
+          <SkeletonText surface="card" lines={3} />
+        </div>
+      </div>
+    </SkeletonGroup>
   );
 }
 
@@ -142,21 +169,20 @@ export default function StudioPage() {
   return (
     <>
       <header className="kl-grid-backdrop border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
-        <div className={cx(CONTAINER, "flex flex-col gap-6 py-12 sm:py-16 lg:flex-row lg:items-end lg:justify-between")}>
-          <div className="max-w-3xl">
+        <div className={cx(CONTAINER, "flex flex-col gap-6 py-8 sm:py-12 lg:py-10")}>
+          <div className="max-w-3xl lg:max-w-none">
             <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Intent Studio</p>
-            <h1 className="mt-4 text-balance font-display text-[clamp(2.4rem,6.5vw,4.5rem)] font-bold leading-[0.95] tracking-[-0.045em]">
+            <h1 className="mt-3 text-balance font-display text-[clamp(2.4rem,6.5vw,4.5rem)] font-bold leading-[0.95] tracking-[-0.045em] lg:mt-4 lg:text-[3.25rem] lg:leading-none">
               Type an outcome. <span className="text-[#9945FF]">See the plan.</span>
             </h1>
-            <p className={cx("mt-5 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-              Studio sends your words to <code className="font-code text-[0.9em]">POST /v1/intents?dryRun=true</code> and
-              draws the graph Kletia compiles: steps per network, protocols, expected and minimum outputs, fees and
-              timing. When it looks right, execute it with your own wallets.
+            <p className={cx("mt-4 max-w-2xl text-base leading-relaxed sm:text-lg lg:mt-3 lg:max-w-none lg:text-base", TEXT_MUTED)}>
+              Studio compiles your words (<code className="font-code text-[0.9em]">POST /v1/intents?dryRun=true</code>) into
+              a graph of steps, outputs, fees and timing; then your own wallets execute it.
             </p>
             {resumeIntentId && !target && !resumeNoticed ? (
               <div
                 role="status"
-                className={cx("mt-6 flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] sm:flex-row sm:items-center sm:justify-between", INK_BORDER, HARD_SHADOW)}
+                className={cx("kl-rise mt-6 flex flex-col gap-3 bg-[#FFF3B0] p-4 text-[#1A1A1A] sm:flex-row sm:items-center sm:justify-between", INK_BORDER, HARD_SHADOW)}
               >
                 <p className="flex items-center gap-2 text-sm font-bold">
                   <History className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -179,7 +205,7 @@ export default function StudioPage() {
           </div>
         </div>
       </header>
-      <div className={cx(CONTAINER, "flex flex-col gap-12 py-10 sm:py-14")}>
+      <div className={cx(CONTAINER, "flex flex-col gap-12 py-8 sm:py-12 lg:py-10")}>
         <StudioWorkspace
           initialText={initialText}
           renderActions={(intent) => (
@@ -197,7 +223,7 @@ export default function StudioPage() {
             ref={panelRef}
             id="execute"
             aria-labelledby="studio-execute-heading"
-            className={cx("scroll-mt-28 p-4 sm:p-6 lg:p-8", INK_BORDER, HARD_SHADOW, "bg-[#EDE9DF] dark:bg-[#0E1729]")}
+            className={cx("kl-rise scroll-mt-28 p-4 sm:p-6 lg:p-8", INK_BORDER, HARD_SHADOW, "bg-[#EDE9DF] dark:bg-[#0E1729]")}
           >
             <LazyBoundary fallback={(reload) => <PanelFailed reload={reload} />}>
               <React.Suspense fallback={<PanelFallback />}>

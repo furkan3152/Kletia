@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "description": "TypeScript SDK for the Kletia intent API: plan cross-network intents, execute them with EVM and Solana wallets, stream events and verify webhooks.",
   "license": "MIT",
+  "author": "Kletia",
+  "homepage": "https://github.com/furkan3152/Kletia/tree/main/packages/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furkan3152/Kletia.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/furkan3152/Kletia/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -16,7 +26,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -24,7 +35,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@kletia/core": "0.1.0"
@@ -39,5 +51,9 @@
   ],
   "devDependencies": {
     "typescript": "5.9.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

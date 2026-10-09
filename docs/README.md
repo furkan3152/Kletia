@@ -8,7 +8,7 @@ This index separates current product truth from deployment procedure, network-sp
 |---|---|---|
 | Understand the product and trust model | [Architecture overview](architecture/overview.md) | [Repository structure](architecture/repository-structure.md) |
 | Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md) |
-| Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md) |
+| Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting](deployment/self-hosting.md) |
 | Work on Base | [Base DeFi registry](networks/base-defi-registry.md) | [Base contracts](../contracts/base/README.md), [Base MCP notes](base-mcp/README.md) |
 | Work on Arc | [Arc contracts](../contracts/arc/README.md) | [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md) |
 | Work on Arbitrum | [Arbitrum workflow](networks/arbitrum-workflow.md) | [Architecture overview](architecture/overview.md) |
@@ -35,6 +35,7 @@ This index separates current product truth from deployment procedure, network-sp
 
 - [Render Blueprint runbook](deployment/render.md) — canonical public deployment topology.
 - [Vercel deployment constraints](deployment/vercel.md) — supported frontend/API alternative and state limitations.
+- [Self-hosting](deployment/self-hosting.md) — Docker images, Docker Compose and a public deployment checklist.
 - [Real-data MVP test](runbooks/mvp-live-test.md) — evidence ladder and user-signed smoke procedure.
 
 ## Historical material

@@ -1,8 +1,18 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { LoaderCircle } from "lucide-react";
 
+import { INTENT_WALLET_NETWORKS } from "../config/networks";
 import { shortenAddress } from "./types";
 import { useSolanaWallet } from "./solana/solanaWalletContext";
+
+/**
+ * Chains the wallet may use for Platform API plans (Studio, /embed) but that
+ * no console workspace runs on: in an EVM workspace they still count as the
+ * wrong network, so the console keeps its one-click switch.
+ */
+const INTENT_ONLY_CHAIN_IDS: ReadonlySet<number> = new Set(
+  Object.values(INTENT_WALLET_NETWORKS).map((network) => network.chain.id),
+);
 
 export interface WalletDockProps {
   /**
@@ -54,7 +64,7 @@ function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
                 <span className="sm:hidden">EVM</span>
                 <span className="hidden sm:inline">Connect EVM</span>
               </button>
-            ) : chain.unsupported && evmWorkspace ? (
+            ) : evmWorkspace && (chain.unsupported || INTENT_ONLY_CHAIN_IDS.has(chain.id)) ? (
               <button
                 type="button"
                 onClick={openChainModal}

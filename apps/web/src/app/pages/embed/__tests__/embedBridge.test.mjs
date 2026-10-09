@@ -372,7 +372,9 @@ test("protocol round trip: @kletia/embed's host connector accepts every frame me
   frame.bridge.intentCompleted(intent("int_rt", ["confirmed"], { status: "completed" }));
   frame.bridge.error({ code: "USER_REJECTED" });
   frame.bridge.resize(700);
-  await tick(20);
+  // MessagePort delivery is asynchronous and slower on a loaded machine (CI): wait for all
+  // eight messages instead of a fixed delay, with a deadline that still fails a stuck bridge.
+  for (const deadline = Date.now() + 2000; received.length < 8 && Date.now() < deadline; ) await tick(5);
 
   assert.equal(connection.connected, true);
   assert.deepEqual(received, [

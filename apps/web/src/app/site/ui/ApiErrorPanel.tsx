@@ -13,13 +13,13 @@ export interface ApiErrorPanelProps {
   readonly className?: string;
 }
 
-/** Renders a Kletia API error: code, status, explanation, validation issues and request id. */
+/** Renders a Kletia API error: code, status, explanation, validation issues and request id. Rises in on mount (no shake). */
 export function ApiErrorPanel({ error, title = "Request failed", message, onRetry, className }: ApiErrorPanelProps) {
   return (
     <div
       role="alert"
       className={cx(
-        "border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]",
+        "kl-rise border-[3px] border-[#1A1A1A] bg-[#FFE4E4] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2] dark:shadow-[4px_4px_0_#7F1D1D]",
         className,
       )}
     >

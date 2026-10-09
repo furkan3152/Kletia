@@ -1,6 +1,7 @@
 import React from "react";
 
-import { cx, HARD_SHADOW, INK_BORDER, SURFACE } from "./styles";
+import { useSpotlight } from "../motion/useSpotlight";
+import { cx, HARD_SHADOW, INK_BORDER, LIFT, SPOTLIGHT, SURFACE } from "./styles";
 
 export type CardTone = "surface" | "muted" | "yellow" | "blue" | "ink" | "solana";
 
@@ -13,11 +14,25 @@ const TONES: Record<CardTone, string> = {
   solana: "bg-[#14F195] text-[#0B1120]",
 };
 
+/** Spotlight colour per tone (ink on yellow so the light reads). */
+const SPOT_COLORS: Record<CardTone, string> = {
+  surface: "#0052FF",
+  muted: "#0052FF",
+  yellow: "#1A1A1A",
+  blue: "#FFD60A",
+  ink: "#FFD60A",
+  solana: "#0052FF",
+};
+
 export interface CardProps extends React.HTMLAttributes<HTMLElement> {
   readonly as?: "div" | "article" | "li" | "section" | "aside" | "figure";
   readonly tone?: CardTone;
-  /** Lift on hover (for cards that contain a primary link). */
+  /** Lift on hover and keyboard focus (for cards that contain a primary link). */
   readonly interactive?: boolean;
+  /** Cursor spotlight on hover (pointer devices, motion allowed). */
+  readonly spotlight?: boolean;
+  /** Spotlight colour (default by tone). */
+  readonly spotlightColor?: string;
   readonly padded?: boolean;
 }
 
@@ -26,24 +41,60 @@ export function Card({
   as: Element = "div",
   tone = "surface",
   interactive = false,
+  spotlight = false,
+  spotlightColor,
   padded = true,
   className,
+  style,
   children,
+  onPointerEnter,
+  onPointerMove,
+  onPointerLeave,
   ...rest
 }: CardProps) {
+  const spot = useSpotlight<HTMLElement>({ color: spotlightColor ?? SPOT_COLORS[tone] });
+  const classes = cx(
+    "relative",
+    INK_BORDER,
+    HARD_SHADOW,
+    TONES[tone],
+    padded && "p-5 sm:p-6",
+    interactive && LIFT,
+    spotlight && SPOTLIGHT,
+    className,
+  );
+  if (!spotlight) {
+    return (
+      <Element
+        className={classes}
+        style={style}
+        onPointerEnter={onPointerEnter}
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        {...rest}
+      >
+        {children}
+      </Element>
+    );
+  }
   return (
     <Element
-      className={cx(
-        "relative",
-        INK_BORDER,
-        HARD_SHADOW,
-        TONES[tone],
-        padded && "p-5 sm:p-6",
-        interactive &&
-          "transition-[transform,box-shadow] duration-150 ease-out hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] focus-within:-translate-x-1 focus-within:-translate-y-1 focus-within:shadow-[8px_8px_0_#1A1A1A] dark:hover:shadow-[8px_8px_0_#475569] dark:focus-within:shadow-[8px_8px_0_#475569] motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0",
-        className,
-      )}
+      ref={spot.ref}
       {...rest}
+      onPointerEnter={(event: React.PointerEvent<HTMLElement>) => {
+        onPointerEnter?.(event);
+        spot.handlers.onPointerEnter(event);
+      }}
+      onPointerMove={(event: React.PointerEvent<HTMLElement>) => {
+        onPointerMove?.(event);
+        spot.handlers.onPointerMove(event);
+      }}
+      onPointerLeave={(event: React.PointerEvent<HTMLElement>) => {
+        onPointerLeave?.(event);
+        spot.handlers.onPointerLeave(event);
+      }}
+      className={classes}
+      style={{ ...spot.style, ...style }}
     >
       {children}
     </Element>

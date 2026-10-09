@@ -1,3 +1,4 @@
+import { useChangeKey } from "../motion/useChangeKey";
 import { cx } from "./styles";
 
 export type HealthState = "ok" | "degraded" | "down" | "unknown" | "loading";
@@ -15,26 +16,43 @@ export interface StatusDotProps {
   /** Overrides the default text label. */
   readonly label?: string;
   readonly showLabel?: boolean;
+  /**
+   * "loop": continuous ping (default for `ok`, pauses off-screen and in hidden tabs).
+   * "once": a single ring each time `pulseKey` changes (e.g. per health check).
+   * "none": static (default for other states).
+   */
+  readonly pulse?: "loop" | "once" | "none";
+  /** With `pulse="once"`: every change after mount replays one ring (e.g. `updatedAt`). */
+  readonly pulseKey?: string | number;
   readonly className?: string;
 }
 
 /** Colour dot plus a text label (status is never conveyed by colour alone). */
-export function StatusDot({ state, label, showLabel = true, className }: StatusDotProps) {
+export function StatusDot({ state, label, showLabel = true, pulse, pulseKey, className }: StatusDotProps) {
   const style = STYLES[state];
   const text = label ?? style.label;
+  const mode = pulse ?? (state === "ok" ? "loop" : "none");
+  const ringKey = useChangeKey(pulseKey);
   return (
     <span className={cx("inline-flex items-center gap-2", className)}>
       <span aria-hidden="true" className="relative inline-flex h-3 w-3 shrink-0">
-        {state === "ok" ? (
+        {mode === "loop" ? (
           <span
-            className="kl-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+            className="kl-ping kl-loop absolute inline-flex h-full w-full rounded-full opacity-60"
+            style={{ backgroundColor: style.color }}
+          />
+        ) : null}
+        {mode === "once" && ringKey > 0 ? (
+          <span
+            key={ringKey}
+            className="kl-ping-once absolute inline-flex h-full w-full rounded-full opacity-0"
             style={{ backgroundColor: style.color }}
           />
         ) : null}
         <span
           className={cx(
             "relative inline-flex h-3 w-3 rounded-full border-2 border-[#1A1A1A] dark:border-[#0B1120]",
-            state === "loading" && "animate-pulse motion-reduce:animate-none",
+            state === "loading" && "kl-loop animate-pulse motion-reduce:animate-none",
           )}
           style={{ backgroundColor: style.color }}
         />

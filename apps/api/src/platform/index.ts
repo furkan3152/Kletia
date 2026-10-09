@@ -52,7 +52,99 @@ export type { PlannedStepPreview, PlannedVenueFee } from "./engine/adapters/type
 /** Id formats shared by the engine and the HTTP layer. */
 export { INTENT_ID_PATTERN, STEP_ID_PATTERN } from "./engine/util.js";
 
-export { planIntent, planIntentWithPreviews, DEFAULT_SLIPPAGE_BPS, INTENT_TTL_MS, type PlannedIntent, type PlanOptions } from "./engine/planner.js";
+export { planIntent, planIntentWithPreviews, withIntentTtl, DEFAULT_SLIPPAGE_BPS, INTENT_TTL_MS, MAX_INTENT_TTL_MS, type PlannedIntent, type PlanOptions } from "./engine/planner.js";
+
+/* Rule Book (engine side, policy design PF2; the HTTP layer supplies the stores and installs the gate). */
+export {
+  ASSET_PRICE_SOURCES,
+  chainGoverns,
+  CHAINLINK_FEEDS,
+  configurePolicyGate,
+  configurePolicyPricing,
+  configurePolicyReads,
+  createRuleBookGate,
+  MemoryApprovalStore,
+  MemoryDecisionLog,
+  MemorySpendLedger,
+  newApprovalId,
+  newDecisionId,
+  notionalUsdMicros,
+  payloadExposure,
+  pinNonces,
+  policyError,
+  policyErrorDetails,
+  policyFactsDetailed,
+  policyFactsFromGraph,
+  policyGate,
+  policyGateActive,
+  policyNeedsPricing,
+  policyPrice,
+  policyPrices,
+  priceSourcesFor,
+  ProjectLocks,
+  publishPolicyEvent,
+  resetPolicyPricing,
+  stepExposureUsdMicros,
+  subscribePolicyEvents,
+  windowRetryAt,
+  windowUsage,
+  type ApproverRequirement,
+  type DetailedFacts,
+  type ExposureHandle,
+  type ExposureRecord,
+  type ExposureState,
+  type FactsOptions,
+  type PayloadClearanceInput,
+  type PayloadExposure,
+  type PlanGuard,
+  type PolicyApprovalRecord,
+  type PolicyApprovalReference,
+  type PolicyApprovalStore,
+  type PolicyChainLevel,
+  type PolicyChainReads,
+  type PolicyChainSnapshot,
+  type PolicyChainSource,
+  type PolicyDecisionDraft,
+  type PolicyDecisionLog,
+  type PolicyErrorDetails,
+  type PolicyEvent,
+  type PolicyGate,
+  type PolicyPricingTransport,
+  type PolicySimulation,
+  type PolicySimulationInput,
+  type PriceQuote,
+  type PriceReading,
+  type PriceSource,
+  type RuleBookGate,
+  type RuleBookGateOptions,
+  type ScopeCap,
+  type ScopeUsage,
+  type SpendLedger,
+  type SpendReservation,
+  type SpendReservationResult,
+  type VerificationReconcileInput,
+} from "./engine/policy/index.js";
+
+/* Intent links (engine side, intent-links design L2; the HTTP layer stores links and serves the routes). */
+export {
+  assertLinkEnvelope,
+  DeliverCandidateRejected,
+  linkClientReference,
+  linkPinDrift,
+  linkPinDriftError,
+  linkPolicyCheck,
+  linkVisitorAccounts,
+  planLinkIntent,
+  resetDeliverSizing,
+  sizeDelivery,
+  type DeliverSizingInput,
+  type DeliverSizingResult,
+  type LinkEnvelopeCheck,
+  type LinkPinDrift,
+  type LinkPlanInput,
+  type LinkPolicyCheck,
+  type PlannedLinkIntent,
+} from "./engine/links/index.js";
 export { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, type GrammarContext, type GrammarResult } from "./engine/grammar.js";
 export { quoteRoutes, type QuoteRoute, type QuoteRoutesInput, type QuoteRoutesResult } from "./engine/quotes.js";
 export { LENDING_PROTOCOLS } from "./engine/planner.js";
@@ -102,7 +194,7 @@ export {
 } from "./engine/store.js";
 
 export { activeProtocolAdapters, ADAPTERS, effectiveProtocol, EXECUTABLE_PROTOCOLS } from "./engine/adapters/registry.js";
-export { REJECTION_CODES } from "./engine/adapters/verification.js";
+export { landedPayload, REJECTION_CODES, type LandedPayload } from "./engine/adapters/verification.js";
 export { AAVE_V3_MARKETS } from "./engine/adapters/aaveV3.js";
 export {
   compoundV3Adapter,

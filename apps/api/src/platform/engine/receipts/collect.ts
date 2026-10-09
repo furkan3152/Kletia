@@ -51,13 +51,18 @@ import { isSolanaNetworkKey, SOLANA_RPC_URLS, type SolanaNetworkKey } from "../.
 import { quoteBindingForViews } from "../binding.js";
 import { evmClient, isEvmNetwork } from "../chains/evm.js";
 
-/** Measured lag of the finalized head behind the latest head (receipts design §3.3, 2026-10-09), in seconds. */
+/**
+ * Expected lag of the finalized head behind a new block, in seconds
+ * (receipts design §3.3, measured 2026-10-09; Polygon raised from the
+ * design's 2-3 s to 45 s after a live run saw a fresh transaction finalize
+ * in about 32 s). Advisory: it only sets `expectedBy`.
+ */
 export const RECEIPT_FINALITY_LAG_SECONDS: Readonly<Record<NetworkKey, number>> = Object.freeze({
   ethereum: 900,
   base: 950,
   arbitrum: 1_050,
   optimism: 1_200,
-  polygon: 10,
+  polygon: 45,
   arc: 5,
   "arbitrum-sepolia": 1_150,
   solana: 15,

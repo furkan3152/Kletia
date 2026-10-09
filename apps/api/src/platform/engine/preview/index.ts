@@ -18,6 +18,7 @@
 import {
   aggregatePreview,
   CHAINS,
+  formatPreviewAmount,
   isStepDone,
   materialChange,
   parseAccountId,
@@ -137,17 +138,19 @@ export function getPreviewStore(): PreviewStore {
 
 /* ---------------------------------------------------- plan-time sources */
 
-const plannedSources = new Map<string, { readonly previews: ReadonlyMap<string, PlannedStepPreview> }>();
+const plannedSources = new Map<string, { readonly previews: ReadonlyMap<string, PlannedStepPreview>; readonly expiresAt: number }>();
 
 /** Keeps a plan's quote transactions in memory (never in the graph) until each quote expires. */
 export function rememberPlannedPreviews(intentId: string, previews: ReadonlyMap<string, PlannedStepPreview>): void {
   if (previews.size === 0) return;
   plannedSources.delete(intentId);
-  plannedSources.set(intentId, { previews: new Map(previews) });
-  while (plannedSources.size > MAX_PLANNED_INTENTS) {
-    const oldest = plannedSources.keys().next().value;
-    if (oldest === undefined) break;
-    plannedSources.delete(oldest);
+  const latest = Math.max(...[...previews.values()].map((preview) => preview.expiresAt));
+  plannedSources.set(intentId, { previews: new Map(previews), expiresAt: latest });
+  // Oldest first: drop entries whose quotes all expired, and anything over the bound.
+  const now = Date.now() / 1000;
+  for (const [id, entry] of plannedSources) {
+    if (plannedSources.size <= MAX_PLANNED_INTENTS && entry.expiresAt > now) break;
+    if (id !== intentId) plannedSources.delete(id);
   }
 }
 
@@ -328,7 +331,7 @@ function gasOnArrival(graph: IntentGraph, previews: readonly StepPreview[], bala
     if (fee === 0n) continue;
     seen.add(key);
     const chain = CHAINS[step.network];
-    const formatted = (Number(fee) / 10 ** chain.nativeAsset.decimals).toPrecision(2);
+    const formatted = formatPreviewAmount(fee, chain.nativeAsset.decimals).replace(/^\+/u, "");
     needs.push({
       network: step.network,
       account: step.account,
@@ -550,14 +553,15 @@ export async function previewPreparedStep(
 /* -------------------------------------------------------- material change */
 
 /**
- * Rows without the network fees (gas, L1 data, Solana fee): those move every
- * block and are judged by the fee rule (max(5 %, $0.05)) instead of the
- * 10 bps amount rule.
+ * Rows without the network fees (gas, L1 data, Solana fee) and account rent:
+ * fees move every block and are judged by the fee rule (max(5 %, $0.05))
+ * instead of the 10 bps amount rule; rent is shown on its own fee line (a
+ * quoted plan step cannot know it, so it would always look like a new debit).
  */
 function withoutNetworkFees(preview: IntentPreview, graph: IntentGraph): IntentPreview {
   const adjust = new Map<string, bigint>();
   for (const fee of preview.fees) {
-    if ((fee.kind !== "network" && fee.kind !== "l1-data") || fee.amount === undefined || !fee.asset) continue;
+    if ((fee.kind !== "network" && fee.kind !== "l1-data" && fee.kind !== "rent") || fee.amount === undefined || !fee.asset) continue;
     const step = graph.steps.find((candidate) => candidate.id === fee.stepId);
     const account = step ? parseAccountId(step.account) : null;
     if (!account) continue;

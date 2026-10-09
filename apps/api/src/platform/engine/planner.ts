@@ -128,6 +128,20 @@ export interface PlanOptions {
    * text). Intents without a key can never contain call / action steps.
    */
   readonly ownerKeyId?: string;
+  /**
+   * Intent lifetime (default INTENT_TTL_MS): intents held for Rule Book
+   * approval live longer so a human has time (policy design §7.1). Still
+   * capped by `constraints.deadline`.
+   */
+  readonly ttlMs?: number;
+}
+
+/** Longest lifetime an intent can be given (a held intent waiting for approval). */
+export const MAX_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
+
+function intentTtl(ttlMs: number | undefined): number {
+  if (ttlMs === undefined || !Number.isFinite(ttlMs)) return INTENT_TTL_MS;
+  return Math.min(MAX_INTENT_TTL_MS, Math.max(INTENT_TTL_MS, Math.floor(ttlMs)));
 }
 
 function issue(path: string, message: string) {
@@ -1202,7 +1216,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
   }
 
   const expiry = Math.min(
-    nowMs + INTENT_TTL_MS,
+    nowMs + intentTtl(options.ttlMs),
     request.constraints?.deadline !== undefined ? request.constraints.deadline * 1000 : Number.POSITIVE_INFINITY,
   );
   const expiresAt = new Date(expiry).toISOString();
@@ -1240,6 +1254,27 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     if (preview && step && preview.transactions.length > 0) previews.set(step.id, preview);
   });
   return { graph: { ...graph, plan: { digest: planRecordDigest(record), record } }, previews };
+}
+
+/**
+ * Re-times a just-planned graph (a Rule Book hold extends its lifetime,
+ * policy design §7.1): expiry = createdAt + ttl (INTENT_TTL_MS..24 h), never
+ * past the deadline; status and the plan record (which commits to the
+ * expiry) follow. Only for graphs that were never stored.
+ */
+export function withIntentTtl(graph: IntentGraph, ttlMs: number, nowMs: number = Date.now()): IntentGraph {
+  const created = Date.parse(graph.createdAt);
+  const deadline = graph.request.constraints?.deadline;
+  const expiry = Math.min(
+    (Number.isFinite(created) ? created : nowMs) + intentTtl(ttlMs),
+    deadline !== undefined ? deadline * 1000 : Number.POSITIVE_INFINITY,
+  );
+  const expiresAt = new Date(expiry).toISOString();
+  if (expiresAt === graph.expiresAt) return graph;
+  const { plan: _plan, ...rest } = graph;
+  const next: IntentGraph = { ...rest, expiresAt, status: deriveIntentStatus(graph.steps, expiresAt, nowMs) };
+  const record = buildPlanRecord(next);
+  return { ...next, plan: { digest: planRecordDigest(record), record } };
 }
 
 /**

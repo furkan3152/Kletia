@@ -25,7 +25,8 @@ export const DEFAULT_SIMULATION_RPC_URLS: Readonly<Record<EvmNetworkKey, readonl
   optimism: ["https://optimism-rpc.publicnode.com", "https://mainnet.optimism.io", "https://optimism.drpc.org"],
   polygon: ["https://polygon-bor-rpc.publicnode.com", "https://polygon.drpc.org"],
   arc: ["https://rpc.drpc.testnet.arc.network"],
-  "arbitrum-sepolia": ["https://sepolia-rollup.arbitrum.io/rpc", "https://arbitrum-sepolia-rpc.publicnode.com"],
+  // publicnode first: the official endpoint answered 429 under simulation-heavy use (asset-preview design F6).
+  "arbitrum-sepolia": ["https://arbitrum-sepolia-rpc.publicnode.com", "https://sepolia-rollup.arbitrum.io/rpc"],
 });
 
 const PROBE_TTL_MS = 10 * 60 * 1000;

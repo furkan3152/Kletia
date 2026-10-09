@@ -1,0 +1,391 @@
+{
+  "note": "Deterministic vectors for kletia.receipt/v1. Seed = SHA-256('kletia receipt test vector seed v1'); salts = first 16 bytes of SHA-256('vector salt <path>'). Anchors are real finalized transactions captured on 2026-10-09 (Base, Solana mainnet).",
+  "key": {
+    "seedHex": "3b75caa4ca145410ae95dc939e09949321355d7ecb269e5cb336ba6263610811",
+    "publicJwk": {
+      "crv": "Ed25519",
+      "kty": "OKP",
+      "x": "2juzKjiM5Ekc1nxxXdnkCCQ3k9atm-VXU9aJ3Z6JemA"
+    },
+    "kid": "DPB4LdUNnszI2wtce3fgauTIf-F41GF7oaoELWYQbJ8",
+    "jwks": {
+      "keys": [
+        {
+          "crv": "Ed25519",
+          "kty": "OKP",
+          "x": "2juzKjiM5Ekc1nxxXdnkCCQ3k9atm-VXU9aJ3Z6JemA",
+          "kid": "DPB4LdUNnszI2wtce3fgauTIf-F41GF7oaoELWYQbJ8",
+          "alg": "Ed25519",
+          "use": "sig",
+          "status": "active",
+          "notBefore": "2026-10-01"
+        }
+      ]
+    }
+  },
+  "intentId": "int_00112233445566778899aabbccddeeff",
+  "receipt": {
+    "payload": {
+      "spec": "kletia.receipt/v1",
+      "receiptId": "rcpt_0123456789abcdef0123456789abcdef",
+      "sequence": 1,
+      "supersedes": null,
+      "issuedOn": "2026-10-09",
+      "issuer": {
+        "apiVersion": "1.0.0",
+        "kid": "DPB4LdUNnszI2wtce3fgauTIf-F41GF7oaoELWYQbJ8",
+        "name": "Kletia",
+        "origin": "https://api.kletiaai.xyz"
+      },
+      "intent": {
+        "ref": "9335d949233dd3c07408c545119be214f29a61911c26a7a8ecdca36062c20c48",
+        "spec": "kletia.intent/v1",
+        "status": "completed",
+        "terminal": true,
+        "lane": "production",
+        "source": "grammar",
+        "networks": [
+          "base",
+          "solana"
+        ],
+        "finishedOn": "2026-10-09",
+        "durationSeconds": 1168,
+        "finality": "finalized",
+        "commitments": {
+          "outcome": "6b860d7f463a1312ad6864e29a56a4299a4f2b1c1a6dbab99eb113d802e77447",
+          "plan": "7c7fd7d7954a40a9767eabf20a8b68b6acae20a128c6b7834eae29eac32bd04f",
+          "request": "1172dd30be6999b9f7a0a112e512e832f739aa7d5f8d87bb9f20b8937b3fb16c",
+          "timing": "a031d55ec6898ce5147c9106e03d26425c1de2a5cb71f416f24e1f12cd9027b2"
+        }
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "index": 0,
+          "kind": "transfer",
+          "network": "base",
+          "chain": "eip155:8453",
+          "protocol": "evm-transfer",
+          "mode": "wallet",
+          "status": "settled",
+          "dependsOn": [],
+          "settlement": {
+            "kind": "same-network",
+            "destinationNetwork": null
+          },
+          "assets": {
+            "input": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "output": null
+          },
+          "venue": null,
+          "contract": null,
+          "failure": null,
+          "evidenceClass": "onchain",
+          "commitments": {
+            "amounts": "fad333422fcf6178492a46ee10d7d04dc0714a2e142ed3a58a195b532499350c",
+            "evidence": "db6aaad6a7e46c1953e1f9b95b7e4ffe2f378f628b15da163697be90017f4c54",
+            "parties": "746e06aa01da665fee612dc45c13f21130fdd9507d32eedaa3828d98929ad0cb"
+          }
+        },
+        {
+          "id": "s2",
+          "index": 1,
+          "kind": "swap",
+          "network": "solana",
+          "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "protocol": "jupiter",
+          "mode": "wallet",
+          "status": "settled",
+          "dependsOn": [
+            "s1"
+          ],
+          "settlement": {
+            "kind": "same-network",
+            "destinationNetwork": null
+          },
+          "assets": {
+            "input": null,
+            "output": null
+          },
+          "venue": null,
+          "contract": null,
+          "failure": null,
+          "evidenceClass": "onchain",
+          "commitments": {
+            "amounts": "d8be09fc9ed1dda9a3a0515a1843983d28c01fa503f1eb7156f678db753f307b",
+            "evidence": "ca195ed5cc786d5a45de322a97f2b2c064077606d25754662ee56be596b201dc",
+            "parties": "cb1c86853d57d0c85a723553a73a37292f89019d42d8d140c57cc1eecbd29c10"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "from": "s1",
+          "kind": "orders",
+          "to": "s2"
+        }
+      ]
+    },
+    "digest": "21cf7e34677e80a2ff6f7db5c2464344f285d650fcfc09ab40e39a78b5c0c11a",
+    "signature": {
+      "alg": "Ed25519",
+      "kid": "DPB4LdUNnszI2wtce3fgauTIf-F41GF7oaoELWYQbJ8",
+      "value": "adbAJ9gyo0jCsnSJbaArWOKD9X6VBN2nbPiV4e8SIZ-4i6BkdSm8jQapPOo-Q67FWQlbxXgHLxN1sTUWBhbMBw"
+    },
+    "disclosures": {
+      "intent.request": {
+        "salt": "Os2uxnbNpfpcZTH0MwJf7w",
+        "value": {
+          "request": {
+            "accounts": [
+              "eip155:8453:0x3965d154f3f9737f32c73a80b9509ad06f2b0ce2",
+              "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy"
+            ],
+            "text": "test vector: send on base, then swap on solana"
+          },
+          "requestDigest": "5bf87eefc53813d178e94cf6d0a0266925a328594ae52800aab1d3e9e0211222"
+        }
+      },
+      "intent.plan": {
+        "salt": "r7ncxUtLupVpZNoLRhN_bw",
+        "value": {
+          "plan": null,
+          "planDigest": null,
+          "reason": "intent created before plan records"
+        }
+      },
+      "intent.timing": {
+        "salt": "sKlUbKOnYY7UvNrR1Wdh2A",
+        "value": {
+          "createdAt": "2026-10-09T12:30:00.000Z",
+          "firstSubmittedAt": "2026-10-09T12:31:27.000Z",
+          "finishedAt": "2026-10-09T12:50:59.000Z",
+          "issuedAt": "2026-10-09T13:10:00.000Z",
+          "finalityHeads": [
+            {
+              "chain": "eip155:8453",
+              "block": "52380372"
+            },
+            {
+              "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "slot": "454871450"
+            }
+          ],
+          "finalityMode": [
+            {
+              "chain": "eip155:8453",
+              "mode": "finalized"
+            },
+            {
+              "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "mode": "finalized"
+            }
+          ]
+        }
+      },
+      "intent.outcome": {
+        "salt": "vzB3yyjfMtpqC7JAgGCofA",
+        "value": {
+          "title": "test vector",
+          "inputs": [],
+          "outputs": [],
+          "totalFeesUsd": "0.0100",
+          "warnings": []
+        }
+      },
+      "steps.s1.parties": {
+        "salt": "U_ITRkFQZOyGiyLmsaZDsQ",
+        "value": {
+          "account": "eip155:8453:0x3965d154f3f9737f32c73a80b9509ad06f2b0ce2",
+          "recipient": null,
+          "recipientName": null,
+          "destinationAccount": null
+        }
+      },
+      "steps.s1.amounts": {
+        "salt": "LHW-9xXP1eE-C6igphaGOg",
+        "value": {
+          "input": {
+            "amount": "338902519",
+            "asset": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "decimals": 6,
+            "symbol": "USDC"
+          },
+          "expectedOutput": null,
+          "minimumOutput": null,
+          "actualOutput": null,
+          "plannedInput": "338902519",
+          "plannedMinimum": null,
+          "extraCosts": [],
+          "feesUsd": "0.0021"
+        }
+      },
+      "steps.s1.evidence": {
+        "salt": "AG-8uXMbIbkVcp-PA_Qa7A",
+        "value": {
+          "quotes": [],
+          "landedBinding": null,
+          "anchors": [
+            {
+              "vm": "evm",
+              "role": "origin",
+              "chain": "eip155:8453",
+              "tx": "0xa8606b8a6508fba66947e551c3d0352b97abc8719a9d06fcc204cfc4c2d21db0",
+              "blockNumber": "52379872",
+              "blockHash": "0xd1ca792195015e61ab7b354b66ea0aaa5274a4a0733180e85cb4f58bdc6aaeee",
+              "blockTimestamp": 1791549091,
+              "transactionIndex": 2,
+              "status": "success",
+              "from": "0x3965d154f3f9737f32c73a80b9509ad06f2b0ce2",
+              "to": "0x278d858f05b94576c1e6f73285886876ff6ef8d2",
+              "valueWei": "0",
+              "inputDigest": "67592a6213d46581cb45ae84c31b6ab00979352eb1214ebcb2840e05e2c1ec70",
+              "logsDigest": "c42b4df15e9bfb5418ce11dd25cbc7b22917956a3a2def8769cfcbe1f1683235",
+              "logCount": 3,
+              "transfers": [
+                {
+                  "logIndex": 0,
+                  "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                  "from": "0x2df380544b88adb3ad0a94100dcc45fd705aae2d",
+                  "to": "0x278d858f05b94576c1e6f73285886876ff6ef8d2",
+                  "amount": "338902519"
+                },
+                {
+                  "logIndex": 1,
+                  "token": "0x07b3d902783c3c12b077508c3b5c00113d1291d0",
+                  "from": "0x278d858f05b94576c1e6f73285886876ff6ef8d2",
+                  "to": "0x2df380544b88adb3ad0a94100dcc45fd705aae2d",
+                  "amount": "14359213106011574724767"
+                }
+              ],
+              "watch": [
+                "0x278d858f05b94576c1e6f73285886876ff6ef8d2",
+                "0x2df380544b88adb3ad0a94100dcc45fd705aae2d"
+              ]
+            }
+          ],
+          "provider": null,
+          "contract": null,
+          "failure": null,
+          "notes": []
+        }
+      },
+      "steps.s2.parties": {
+        "salt": "b7tdqe0P8AevBPyfYlqwXQ",
+        "value": {
+          "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy",
+          "recipient": null,
+          "recipientName": null,
+          "destinationAccount": null
+        }
+      },
+      "steps.s2.amounts": {
+        "salt": "T_jcH8ZPbDf6Iqy8TrRdzA",
+        "value": {
+          "input": null,
+          "expectedOutput": null,
+          "minimumOutput": null,
+          "actualOutput": null,
+          "plannedInput": null,
+          "plannedMinimum": null,
+          "extraCosts": [],
+          "feesUsd": null
+        }
+      },
+      "steps.s2.evidence": {
+        "salt": "x16BhtEFLXI-osFCKjiZYg",
+        "value": {
+          "quotes": [],
+          "landedBinding": null,
+          "anchors": [
+            {
+              "vm": "svm",
+              "role": "origin",
+              "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "signature": "FMDDzc2JsbXBKtgrbDQ1bku71CFcm9mwJXRjbcmqEt49WBbPBmUXKwRPVEzgrRi2rkA7qUkoiVTw8EyzEDjQScV",
+              "slot": "454871410",
+              "blockhash": "29hAnJdfxeNApf6nfcjAAwsGTZRDTuPc2B4B2P828VPK",
+              "blockTime": 1791550259,
+              "transactionIndex": 36,
+              "version": "1",
+              "err": null,
+              "feePayer": "6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy",
+              "fee": "9000",
+              "programs": [
+                "11111111111111111111111111111111",
+                "6Vo3245eszAb5wuqEMw8mGdbfRUdKbHhDHP5LcaGuTAB",
+                "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+              ],
+              "tokenDeltas": [
+                {
+                  "owner": "6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy",
+                  "mint": "UZYG9cnP1fpLZdeKEMAZvwoMUbDxVBP6RppAMGMpump",
+                  "delta": "7739085090937"
+                }
+              ],
+              "lamportDeltas": [
+                {
+                  "account": "6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy",
+                  "delta": "-399092769"
+                }
+              ],
+              "watch": [
+                "6ncfqSF3xwxUbF1USdx1y8VqBDCKCoDxQHZ1usME27Xy"
+              ]
+            }
+          ],
+          "provider": null,
+          "contract": null,
+          "failure": null,
+          "notes": []
+        }
+      }
+    }
+  },
+  "expected": {
+    "payloadJcsSha256": "21cf7e34677e80a2ff6f7db5c2464344f285d650fcfc09ab40e39a78b5c0c11a",
+    "payloadJcsLength": 2169,
+    "signingInput": "kletia.receipt.v1:21cf7e34677e80a2ff6f7db5c2464344f285d650fcfc09ab40e39a78b5c0c11a",
+    "intentRef": "9335d949233dd3c07408c545119be214f29a61911c26a7a8ecdca36062c20c48",
+    "commitments": {
+      "intent.request": "1172dd30be6999b9f7a0a112e512e832f739aa7d5f8d87bb9f20b8937b3fb16c",
+      "intent.plan": "7c7fd7d7954a40a9767eabf20a8b68b6acae20a128c6b7834eae29eac32bd04f",
+      "intent.timing": "a031d55ec6898ce5147c9106e03d26425c1de2a5cb71f416f24e1f12cd9027b2",
+      "intent.outcome": "6b860d7f463a1312ad6864e29a56a4299a4f2b1c1a6dbab99eb113d802e77447",
+      "steps.s1.parties": "746e06aa01da665fee612dc45c13f21130fdd9507d32eedaa3828d98929ad0cb",
+      "steps.s1.amounts": "fad333422fcf6178492a46ee10d7d04dc0714a2e142ed3a58a195b532499350c",
+      "steps.s1.evidence": "db6aaad6a7e46c1953e1f9b95b7e4ffe2f378f628b15da163697be90017f4c54",
+      "steps.s2.parties": "cb1c86853d57d0c85a723553a73a37292f89019d42d8d140c57cc1eecbd29c10",
+      "steps.s2.amounts": "d8be09fc9ed1dda9a3a0515a1843983d28c01fa503f1eb7156f678db753f307b",
+      "steps.s2.evidence": "ca195ed5cc786d5a45de322a97f2b2c064077606d25754662ee56be596b201dc"
+    }
+  },
+  "merkle": {
+    "leaves": [
+      "09020e32d5c07df0daeb13a08d9c69dcbee433467168a012e39d24ff9f33d9c8",
+      "49e80245436654a9ad24ed26ccb7425b6501fbe94553566328811534bbc9d7de",
+      "21cf7e34677e80a2ff6f7db5c2464344f285d650fcfc09ab40e39a78b5c0c11a"
+    ],
+    "root": "660a5b1f1f87c5d8806026f8c2d2a30b24c499be459a66697c56c6886b51231b",
+    "inclusion": {
+      "leafIndex": 2,
+      "treeSize": 3,
+      "path": [
+        "864129b1c817f33b0d612aa296eb6a8777a14d819660c2f77877be0261ec245a"
+      ]
+    }
+  },
+  "log": {
+    "batch": {
+      "spec": "kletia.receipt-log/v1",
+      "seq": 1,
+      "size": 3,
+      "root": "660a5b1f1f87c5d8806026f8c2d2a30b24c499be459a66697c56c6886b51231b",
+      "previous": null,
+      "closedOn": "2026-10-09"
+    },
+    "batchDigest": "3f734122dfdce9bdb7e2b5995b3d159099577e5512a4d3ecfe76e4aede4d33bf",
+    "signingInput": "kletia.receipt-log.v1:3f734122dfdce9bdb7e2b5995b3d159099577e5512a4d3ecfe76e4aede4d33bf",
+    "signature": "vIX7adLAQAkGXK0RlqGa_QuzmuPTvrioyWvw9Ayltb4DDkdAlvoNHfRi8sWawijIm5y7XFPJtVuzv5abx4YzDQ"
+  }
+}

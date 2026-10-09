@@ -128,6 +128,10 @@ export const ERROR_CATALOG = {
   SOLANA_SLIPPAGE_OUT_OF_RANGE: request("Slippage out of range", "Use a slippage between 1 and 1000 basis points."),
   CONTRACT_DEFINITION_INVALID: request("Invalid contract definition", "Fix the fields listed in error.issues. validateContractDefinition in @kletia/core reports the same issues locally."),
   ACTION_URL_FORBIDDEN: request("Action URL refused", "Use public HTTPS URLs on the registered origin (port 443 or 1024+); private, loopback, credential and redirecting URLs are refused.", 422),
+  POLICY_INVALID: request("Invalid rule book", "Fix the fields listed in error.issues. validatePolicy in @kletia/core reports the same issues locally."),
+  LINK_DEFINITION_INVALID: request("Invalid link definition", "Fix the fields listed in error.issues. validateLinkDefinition in @kletia/core reports the same issues locally."),
+  LINK_IMMUTABLE_FIELD: request("Link field cannot change", "A link's promise only tightens: raise min, lower max, remove sources, lower uses, expire earlier or turn the blink off. Create a new link for anything else.", 422),
+  RECEIPT_ANCHOR_INVALID: request("Anchor transaction refused", "The reported transaction is not a successful EAS timestamp(batchDigest) call for this batch on Base. Report the transaction that timestamped it.", 422),
 
   /* ------------------------------------------------------ authentication */
   API_KEY_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "API key required", remedy: "Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>." },
@@ -137,6 +141,16 @@ export const ERROR_CATALOG = {
   MCP_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for MCP", remedy: "Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin." },
   CONTRACT_DENIED: { status: 422, category: "permission", retryable: false, title: "Contract not allowed", remedy: "Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action." },
   SESSION_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for this session", remedy: "Embed the session only on one of its allowedOrigins, or create a session that lists this origin." },
+  POLICY_VIOLATION: { status: 403, category: "permission", retryable: false, title: "Refused by the rule book", remedy: "error.policy lists every violated rule id, the key whose rule book refused, the observed value and the limit. Change the request; splitting it or adding accounts does not help." },
+  POLICY_SPEND_LIMIT: { status: 403, category: "permission", retryable: true, title: "Spend cap reached", remedy: "A rolling 24 h or 7 d USD cap of the key, an ancestor or the project is used up. Retry after Retry-After (error.policy.retryAt), or ask a project key to raise the cap." },
+  POLICY_SCHEDULE_CLOSED: { status: 403, category: "permission", retryable: true, title: "Outside the rule book's timetable", remedy: "Payloads are prepared only inside the timetable's windows. Retry after Retry-After seconds, when the next window opens." },
+  POLICY_OWNER_REVOKED: { status: 403, category: "permission", retryable: false, title: "Intent owner key revoked", remedy: "The key that owns this intent, or one of its ancestors, is revoked or expired, so nothing more is prepared. Steps already submitted keep settling." },
+  POLICY_APPROVAL_REQUIRED: { status: 403, category: "permission", retryable: true, title: "Approval required", remedy: "The intent is on hold for an approver. Share error.policy.approval.url with an approver; retry after Retry-After once it is approved." },
+  POLICY_APPROVAL_REJECTED: { status: 403, category: "permission", retryable: false, title: "Approval rejected", remedy: "An approver rejected this intent and it was cancelled. Plan a new intent if appropriate." },
+  AGENT_KEY_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Not allowed for agent keys", remedy: "Agent keys never manage project keys or rule books, and need the matching permission (webhooks, registerContracts, sessions, createChildKeys, links) for the rest. Use a project key." },
+  APPROVAL_SIGNATURE_INVALID: { status: 403, category: "permission", retryable: false, title: "Approval signature invalid", remedy: "Sign the exact typed data (EIP-712 \"Kletia Approvals\") or message text of this approval with the listed wallet, before it expires." },
+  APPROVER_NOT_ALLOWED: { status: 403, category: "permission", retryable: false, title: "Not an approver of this intent", remedy: "Approve with an active project key outside the requester's subtree, or with a wallet the rule book lists. Agent keys never approve, and requireWallet refuses keys." },
+  LINK_POLICY_CONFLICT: { status: 422, category: "permission", retryable: false, title: "Link outside the key's rule book", remedy: "The link reaches networks, assets, recipients, contracts or amounts the publisher key's rule book refuses (rule ids in error.issues). Tighten the link or use another key." },
 
   /* ---------------------------------------------------------------- keys */
   KEY_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "API key not found", remedy: "List your project's keys with GET /v1/keys; only active keys of your own project can be managed." },
@@ -150,6 +164,13 @@ export const ERROR_CATALOG = {
   WEBHOOK_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Webhook not found", remedy: "List your webhooks with GET /v1/webhooks; each key sees only its own." },
   CONTRACT_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Contract registration not found", remedy: "List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project." },
   SESSION_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Session not found", remedy: "Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions." },
+  RECEIPT_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Receipt not found", remedy: "Unknown or unshared receipts look the same. The intent's owner reads receipts with GET /v1/intents/{id}/receipt and shares them." },
+  RECEIPT_SHARE_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Receipt share not found", remedy: "The share link is unknown or was revoked. Ask the receipt's owner for a new link." },
+  RECEIPT_LOG_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Log batch not found", remedy: "List batches with GET /v1/receipts/log; batches close hourly, and an unbatched digest has no inclusion yet." },
+  POLICY_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Rule book not found", remedy: "This key or project has no rule book (or no pending amendment to cancel). Create one with PUT /v1/keys/{id}/policy." },
+  APPROVAL_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Approval not found", remedy: "Check the approval id from the link (/approve#apr_…) or error.policy.approval." },
+  LINK_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Link not found", remedy: "Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links." },
+  PREVIEW_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "No preview yet", remedy: "Compute one with POST /v1/intents/{id}/preview, or create the intent with ?preview=true." },
 
   /* ------------------------------------------------------------ conflict */
   INTENT_CONFLICT: conflict("Concurrent update", "The intent changed while the request ran. Read it again and retry.", true),
@@ -176,11 +197,34 @@ export const ERROR_CATALOG = {
   CONTRACT_REVISION_CHANGED: conflict("Contract revision changed", "A newer revision of the registration is active than the one this intent was planned on. Create a new intent."),
   PROGRAM_CHANGED: conflict("Program changed", "An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify."),
   SESSION_USED: conflict("Session already used", "The session reached its maxIntents. Ask the integrator's backend for a new session."),
+  RECEIPT_NOT_READY: conflict("Receipt not ready", "Receipts are issued after the intent ends and every anchor is finalized. Retry later; GET /v1/intents/{id}/receipt answers 202 with expectedBy meanwhile.", true),
+  RECEIPT_NOT_APPLICABLE: conflict("No receipt for this intent", "Expired intents executed nothing, so they get no receipt."),
+  RECEIPT_SHARE_LIMIT: conflict("Too many receipt shares", "A receipt has at most 10 active shares. Revoke one first."),
+  RECEIPT_ANCHOR_EXISTS: conflict("Batch already anchored", "This log batch already has an anchoring transaction on record."),
+  POLICY_APPROVAL_STALE: conflict("Approval no longer covers the intent", "Fresh prices put the intent above the approved ceiling. Plan a new intent and ask for a new approval."),
+  POLICY_CONFLICT: conflict("Rule book changed", "The If-Match hash is not the current version. Read the rule book again and resend the change."),
+  POLICY_AMENDMENT_PENDING: conflict("Amendment pending", "A loosening amendment is waiting to activate. Cancel it with DELETE …/policy/pending first, or wait for activatesAt."),
+  AGENT_KEY_LIMIT_REACHED: conflict("Too many agent keys", "A project holds at most 100 active agent keys. Revoke one first."),
+  KEY_DEPTH_EXCEEDED: conflict("Agent key tree too deep", "Agent keys sit at most 2 levels below a project key. Create the key under a shallower parent."),
+  APPROVAL_DECIDED: conflict("Approval already decided", "The approval was already approved, rejected or expired; a decision is final. Read it with GET /v1/policy/approvals/{id}."),
+  LINK_LIMIT_REACHED: conflict("Too many links", "A key holds at most 200 active links and creates at most 60 an hour. Delete or let some expire first."),
+  LINK_PENDING: conflict("Link not active yet", "Links that pay a fixed third party or call a custom contract activate after a delay. Retry after Retry-After seconds.", true),
+  LINK_PAUSED: conflict("Link paused", "The publisher paused the link, or it paused itself because a pinned recipient name or contract changed. Ask the publisher."),
+  LINK_SUSPENDED: conflict("Link suspended", "Kletia suspended the link. Funds of steps already completed are in your wallet."),
+  LINK_EXHAUSTED: conflict("Link used up", "Every use of the link is reserved or consumed. Uses of abandoned intents are released, so retry later.", true),
+  LINK_ACCOUNT_LIMIT: conflict("Account used this link enough", "This account reached the link's per-account limit."),
+  LINK_RECIPIENT_CHANGED: conflict("Link recipient changed", "A pinned recipient name now resolves elsewhere, so the link paused itself. The publisher must review and resume it."),
+  LINK_CONTRACT_CHANGED: conflict("Link contract changed", "The pinned contract registration has a newer revision, so the link paused itself. The publisher must review and resume it."),
+  PREVIEW_CHANGED: conflict("Preview changed", "The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest."),
 
   /* ------------------------------------------------------------- expired */
   INTENT_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Intent expired", remedy: "The plan expired before execution started. Create a new intent to re-quote." },
   DEADLINE_PASSED: { status: 410, otherStatuses: [422], category: "expired", retryable: false, title: "Deadline passed", remedy: "constraints.deadline is in the past. Plan again with a later deadline." },
   SESSION_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Session expired", remedy: "Sessions live 60-3600 seconds. Ask the integrator's backend for a new session." },
+  RECEIPT_SHARE_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Receipt share expired", remedy: "The share link expired. Ask the receipt's owner for a new link." },
+  RECEIPT_DISCLOSURES_WITHDRAWN: { status: 410, category: "expired", retryable: false, title: "Receipt disclosures withdrawn", remedy: "The owner withdrew this intent's disclosures, so no share can be created. The signed payloads remain." },
+  POLICY_APPROVAL_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Approval expired", remedy: "Nobody decided the approval in time. Plan a new intent to ask again." },
+  LINK_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Link expired or withdrawn", remedy: "The link expired or its publisher withdrew it. Ask the publisher for a new link." },
 
   /* -------------------------------------------------------------- intent */
   INTENT_UNSUPPORTED: intent("Intent not supported", "Rephrase using one of the examples in error.hints, or send structured actions."),
@@ -248,6 +292,11 @@ export const ERROR_CATALOG = {
   ACTION_RESPONSE_UNSUPPORTED: intent("Action response not supported", "Kletia executes Solana Actions that return a transaction. Sign-message, post, external-link and chained responses are refused."),
   ACTION_TRANSACTION_REJECTED: intent("Action transaction refused", "The action server's transaction broke Kletia's rules (signers, programs, instructions or simulated effects); see error.message. The integrator must fix the server."),
   PROGRAM_NOT_ALLOWED: intent("Program not allowed", "Allowlist the action's top-level programs in the registration. Built-in, native and deny-listed programs cannot be allowlisted."),
+  LINK_INPUT_OUT_OF_BOUNDS: intent("Amount outside the link's bounds", "Choose an amount within the link's min and max for this asset (unverified publishers are limited to $1,000); deliver links take no amount."),
+  LINK_SOURCE_NOT_ALLOWED: intent("Funding source not allowed", "Fund the link from one of its networks and assets (error.issues lists them). On the destination network a deliver link takes only the delivered asset."),
+  LINK_ACCOUNTS_REQUIRED: intent("Accounts missing for this link", "Send one account per virtual machine the route signs on (error.issues names them)."),
+  LINK_PUBLISHER_MISMATCH: intent("Publisher does not match the contract", "The publisher name and website must match the integrator of every contract registration the link calls."),
+  LINK_NOT_BLINK_ELIGIBLE: intent("Link cannot be a blink", "Blinks need a Solana-only visitor flow of at most 3 steps and a verified publisher domain; error.message gives the reason."),
 
   /* -------------------------------------------------------- verification */
   REFERENCE_ALREADY_USED: verification("Transaction already used", "This transaction already completed another step. " + RESUBMIT),
@@ -299,6 +348,7 @@ export const ERROR_CATALOG = {
   VENUE_TIMEOUT: upstream("Venue timed out", "A venue did not quote in time. Retry shortly.", 504),
   ACTION_ENDPOINT_UNAVAILABLE: upstream("Action server unavailable", "The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly."),
   ACTION_RESPONSE_INVALID: upstream("Invalid action response", "The integrator's Solana Action server returned malformed JSON or an error. Retry shortly; the integrator may need to fix it."),
+  LINK_DELIVERY_UNQUOTABLE: upstream("Delivery could not be sized", "No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network."),
 
   /* --------------------------------------------------------- unavailable */
   STORE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Storage unavailable", remedy: "Retry shortly. Presented API keys cannot be verified meanwhile." },
@@ -306,6 +356,10 @@ export const ERROR_CATALOG = {
   NAME_RESOLUTION_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Name records unavailable", remedy: "The name's records could not be read. Retry shortly, or use an address." },
   CONTRACTS_DISABLED: { status: 503, category: "unavailable", retryable: true, title: "Custom contracts unavailable", remedy: "Custom contract and Solana Action steps are disabled on this deployment, or need an API key. Retry later, use a key, or plan without them." },
   SIMULATION_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Simulation unavailable", remedy: "No configured endpoint can simulate on this network now, and Kletia never prepares a custom contract step unsimulated. Retry shortly." },
+  POLICY_PRICE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Price unavailable for a USD rule", remedy: "A USD rule of the rule book needs an amount no fresh price source covers, so it fails closed. Retry shortly, or use a listed asset." },
+  RECEIPTS_DISABLED: { status: 503, category: "unavailable", retryable: true, title: "Receipts unavailable", remedy: "Receipts are switched off or no signing key is configured on this deployment. Retry later; reads of existing receipts keep working." },
+  LINKS_DISABLED: { status: 503, category: "unavailable", retryable: true, title: "Links unavailable", remedy: "Intent links are switched off on this deployment. Retry later." },
+  LINK_PAGE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Link page unavailable", remedy: "The page shell could not be loaded. Retry shortly; the link itself is unaffected." },
 
   /* ------------------------------------------------------------ internal */
   INTERNAL_ERROR: internal("Internal error"),
@@ -315,6 +369,7 @@ export const ERROR_CATALOG = {
   RELAY_REQUEST_INVALID: internal("Relay request invalid"),
   TRANSFER_BUILD_FAILED: internal("Transfer could not be built"),
   NAME_RESOLVER_INVALID: internal("Name resolver misconfigured", "The operator registered an invalid name resolver."),
+  LINK_PLAN_OUT_OF_BOUNDS: { status: 500, category: "internal", retryable: false, title: "Plan left the link's envelope", remedy: "The planned intent did not match the link's fixed networks, recipients, contracts or input, so nothing was stored. Report it with the requestId." },
 } as const satisfies Record<string, ErrorCatalogEntry>;
 
 export type KletiaErrorCode = keyof typeof ERROR_CATALOG;

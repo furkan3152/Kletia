@@ -7,6 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { CONTRACT_ID_PATTERN, SESSION_ID_PATTERN } from "@kletia/core";
 import { PlatformError, toPlatformError, type PlatformIssue } from "../errors.js";
 import { INTENT_ID_PATTERN, MAX_STEP_TRANSACTIONS, STEP_ID_PATTERN } from "../index.js";
 import { errorDocsLink } from "./errorsRoute.js";
@@ -172,6 +173,8 @@ export function invalidRequest(message: string, issues: readonly PlatformIssue[]
 export { INTENT_ID_PATTERN, STEP_ID_PATTERN };
 export const EVENT_ID_PATTERN = /^evt_[0-9a-f]{32}$/u;
 export const WEBHOOK_ID_PATTERN = /^wh_[0-9a-f]{24}$/u;
+/** Contract registration and session id formats come from @kletia/core (SDK, CLI and API agree). */
+export { CONTRACT_ID_PATTERN, SESSION_ID_PATTERN };
 /** One reference per prepared transaction; the engine prepares at most this many per step. */
 export const MAX_REFERENCES = MAX_STEP_TRANSACTIONS;
 export const MAX_REFERENCE_LENGTH = 128;
@@ -196,6 +199,22 @@ export function stepIdParam(req: Request): string {
   const id = pathParam(req, "stepId");
   if (!STEP_ID_PATTERN.test(id)) {
     throw invalidRequest("Step ids look like s1, s2, ...", [{ path: "stepId", message: "Invalid step id." }]);
+  }
+  return id;
+}
+
+export function contractIdParam(req: Request): string {
+  const id = pathParam(req, "id");
+  if (!CONTRACT_ID_PATTERN.test(id)) {
+    throw invalidRequest("Contract ids look like ct_ followed by 24 lowercase hex characters.", [{ path: "id", message: "Invalid contract id." }]);
+  }
+  return id;
+}
+
+export function sessionIdParam(req: Request): string {
+  const id = pathParam(req, "id");
+  if (!SESSION_ID_PATTERN.test(id)) {
+    throw invalidRequest("Session ids look like cs_ followed by 32 lowercase hex characters.", [{ path: "id", message: "Invalid session id." }]);
   }
   return id;
 }

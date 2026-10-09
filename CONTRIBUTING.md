@@ -18,7 +18,7 @@ npm --prefix contracts/base ci --include=dev --legacy-peer-deps
 npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 ```
 
-The repository is an npm workspace: `packages/core`, `packages/sdk`, `packages/widget`, `packages/cli`, `apps/api` and `apps/web` share one root lockfile, and `npm ci` builds the packages. The Hardhat contract workspaces keep their own lockfiles.
+The repository is an npm workspace: `packages/core`, `packages/sdk`, `packages/widget`, `packages/embed`, `packages/cli`, `apps/api` and `apps/web` share one root lockfile, and `npm ci` builds the packages. Only distribution changes edit the root `package.json` and `package-lock.json`. The Hardhat contract workspaces keep their own lockfiles.
 
 Copy the environment templates only for local runtime work:
 
@@ -35,7 +35,7 @@ Never commit environment files, private keys, seed phrases, API keys, webhook se
 - Network-specific assets, contracts, transaction builders, receipts, and wallet behavior belong in `apps/*/src/networks/<network>`.
 - Chain-agnostic planning, adapters, persistence and the `/v1` API belong in `apps/api/src/platform`.
 - Shared parsing, HTTP, disclosure, validation, and presentation primitives belong in `shared` only when they do not import protocol identity.
-- Client libraries belong in `packages/sdk` (framework-free), `packages/widget` (React) and `packages/cli` (command line).
+- Client libraries belong in `packages/sdk` (framework-free), `packages/widget` (React), `packages/embed` (the dependency-free `<kletia-intent>` web component) and `packages/cli` (command line).
 - Base and Arc contract workspaces retain separate toolchains, manifests, and operator environments.
 
 Read the [architecture](docs/architecture/overview.md) and [repository ownership rules](docs/architecture/repository-structure.md) before a cross-package change.
@@ -62,8 +62,11 @@ Run the narrow package checks while iterating:
 ```bash
 npm run build:packages
 npm run test:packages
+npm run check:packages      # tarball contents, exports, versions, embed size budget
 npm run typecheck:api
 npm run test:api
+npm run check:openapi       # docs/platform/openapi.json and the collection match the API source
+npm run test:web            # /embed bridge tests (Node 22.18 or later)
 npm run typecheck:web
 npm run lint:web
 npm run build:web
@@ -82,6 +85,7 @@ Also run the applicable extended gate:
 ```bash
 npm run verify:mvp-live   # live configuration or deployment identity changed
 npm run check:docs        # documentation or paths changed
+npm run generate:openapi  # the Platform API contract changed (then commit the regenerated files)
 ```
 
 `verify:mvp-live` is allowed to fail because a real dependency is absent. Record the exact failing capability; do not weaken the gate. A live or funded claim needs the transaction/provider evidence described in the [MVP runbook](docs/runbooks/mvp-live-test.md).
@@ -107,10 +111,15 @@ Reviewers should be able to answer: what changed, which network owns it, what au
 
 ## Releasing the packages
 
-`@kletia/core`, `@kletia/sdk` and `@kletia/widget` share one version.
+`@kletia/core`, `@kletia/sdk`, `@kletia/widget`, `@kletia/embed` and `@kletia/cli` share one version.
 
-1. Bump `version` in all three `packages/*/package.json` files and every `@kletia/*` dependency between them, then run `npm install` so the lockfile follows.
+1. Run `npm run bump:packages -- <version>`. It updates every package manifest and `@kletia/*` dependency (packages and apps), the SDK and CLI version constants, the embed version the developer portal pins and the documented CDN URLs, then syncs the lockfile.
 2. Run `npm run build:packages && npm run test:packages && npm run check:packages`.
-3. Add a changelog entry, merge to `main`, then push a tag `packages-v<version>`.
+3. Add a changelog entry, merge to `main`, then push a tag `packages-v<version>` (a prerelease such as `0.3.0-rc.1` publishes to the `next` dist-tag).
+4. After the release, replace the `integrity="sha384-…"` values next to the `@kletia/embed` CDN URLs with hashes of the published file (see the [embed guide](docs/platform/embed.md#quick-start)).
 
-`.github/workflows/release-packages.yml` checks the tag against the manifests, tests and inspects the tarballs, and publishes in dependency order with npm provenance (repository secret `NPM_TOKEN`, environment `npm`).
+`.github/workflows/release-packages.yml` checks the tag against the manifests, tests and inspects the tarballs, and publishes core, sdk, widget, embed and cli in that order with npm 11 and provenance. It authenticates with npm trusted publishing (OIDC) where a trusted publisher is configured for the package, and otherwise with the repository secret `NPM_TOKEN` (environment `npm`). Versions already on npm are skipped, so a failed run can be re-run.
+
+## Container images
+
+`.github/workflows/images.yml` builds `apps/api/Dockerfile` and `apps/web/Dockerfile` on every push to `main` and every `v*` tag and pushes them to GHCR with provenance and an SBOM ([self-hosting](docs/deployment/self-hosting.md#published-images)). Third-party actions are pinned to full commit SHAs with the release version in a comment; when you update one, pick a release that is at least two weeks old.

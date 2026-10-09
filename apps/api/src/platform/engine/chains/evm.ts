@@ -3,8 +3,10 @@
  * fee estimates and on-chain evidence for submitted transaction hashes.
  */
 import {
+  BaseError,
   erc20Abi,
   getAddress,
+  keccak256,
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
   type Address,
@@ -217,6 +219,86 @@ export async function nativeBalanceDelta(network: EvmNetworkKey, account: string
   const balanceAt = async (block: bigint) => BigInt(await client.request({ method: "eth_getBalance", params: [address, `0x${block.toString(16)}`] }));
   const [after, before] = await withTimeout(Promise.all([balanceAt(blockNumber), balanceAt(blockNumber - 1n)]));
   return after - before;
+}
+
+/* ------------------------------------------------- code identity (BYOC pins) */
+
+/** keccak256 of empty code: the code hash of an account without code. */
+export const EMPTY_CODE_HASH = "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470";
+
+function blockTag(blockNumber?: bigint): string {
+  return blockNumber === undefined ? "latest" : `0x${blockNumber.toString(16)}`;
+}
+
+/** Latest block number (pins are read at one block so they are mutually consistent). */
+export async function readLatestBlockNumber(network: EvmNetworkKey): Promise<bigint> {
+  const value = await withTimeout(evmClient(network).request({ method: "eth_blockNumber" }));
+  return BigInt(value);
+}
+
+/** Runtime code of `address` at `blockNumber` (latest by default); "0x" when none. */
+export async function readCode(network: EvmNetworkKey, address: string, blockNumber?: bigint): Promise<Hex> {
+  const code = await withTimeout(evmClient(network).request({
+    method: "eth_getCode",
+    params: [getAddress(address), blockTag(blockNumber) as `0x${string}`],
+  }));
+  if (typeof code !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/u.test(code)) {
+    throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read returned malformed code.", 502);
+  }
+  return code.toLowerCase() as Hex;
+}
+
+/**
+ * Code hash of `address`: `eth_getProof` when the endpoint serves it (no code
+ * download), else keccak256(eth_getCode). Both give identical hashes (live:
+ * Base USDC's implementation by both methods).
+ */
+export async function readCodeHash(network: EvmNetworkKey, address: string, blockNumber?: bigint): Promise<string> {
+  try {
+    const proof = await withTimeout(evmClient(network).request({
+      method: "eth_getProof",
+      params: [getAddress(address), [], blockTag(blockNumber) as `0x${string}`],
+    }), 6_000) as { codeHash?: unknown };
+    const hash = typeof proof?.codeHash === "string" ? proof.codeHash.toLowerCase() : "";
+    if (/^0x[0-9a-f]{64}$/u.test(hash)) return /^0x0{64}$/u.test(hash) ? EMPTY_CODE_HASH : hash;
+  } catch {
+    // Endpoints such as mainnet.base.org answer "no state found": fall back to the code itself.
+  }
+  return keccak256(await readCode(network, address, blockNumber));
+}
+
+/** One 32-byte storage word of `address` (lower-case 0x hex). */
+export async function readStorageSlot(network: EvmNetworkKey, address: string, slot: string, blockNumber?: bigint): Promise<string> {
+  const word = await withTimeout(evmClient(network).request({
+    method: "eth_getStorageAt",
+    params: [getAddress(address), slot as Hex, blockTag(blockNumber) as `0x${string}`],
+  }));
+  if (typeof word !== "string" || !/^0x[0-9a-fA-F]{1,64}$/u.test(word)) {
+    throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read returned a malformed storage word.", 502);
+  }
+  return `0x${word.slice(2).toLowerCase().padStart(64, "0")}`;
+}
+
+/**
+ * Raw eth_call (no multicall batching, no CCIP-Read) at a block. Returns the
+ * data, or null when the call reverts; RPC failures throw (fail closed).
+ */
+export async function rawEthCall(network: EvmNetworkKey, to: string, data: Hex, blockNumber?: bigint): Promise<Hex | null> {
+  try {
+    const result = await withTimeout(evmClient(network).request({
+      method: "eth_call",
+      params: [{ to: getAddress(to), data }, blockTag(blockNumber) as `0x${string}`],
+    }));
+    return typeof result === "string" ? (result as Hex) : null;
+  } catch (error) {
+    if (error instanceof PlatformError) throw error;
+    const reverted = error instanceof BaseError && error.walk((cause) => {
+      const code = (cause as { code?: unknown }).code;
+      return code === 3 || /revert/iu.test(`${(cause as BaseError).shortMessage ?? ""} ${(cause as BaseError).details ?? ""}`);
+    });
+    if (reverted) return null;
+    throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read failed. Try again shortly.", 502);
+  }
 }
 
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

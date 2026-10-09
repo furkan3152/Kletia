@@ -1,13 +1,15 @@
 /**
- * Outbound URL policy for webhooks (SSRF guard).
+ * Outbound URL policy (SSRF guard) for webhooks and for the integrator URLs
+ * Kletia fetches itself (Solana Action endpoints, `/.well-known/kletia.json`).
  *
- * A webhook URL must be HTTPS, carry no credentials and resolve only to
- * public unicast addresses: loopback, private, CGNAT, link-local (including
- * cloud metadata at 169.254.169.254), multicast, documentation, benchmarking,
+ * A URL must be HTTPS, carry no credentials and resolve only to public
+ * unicast addresses: loopback, private, CGNAT, link-local (including cloud
+ * metadata at 169.254.169.254), multicast, documentation, benchmarking,
  * NAT64/6to4/Teredo and other special-purpose ranges are refused. The check
- * runs when the webhook is registered and again inside every delivery's
- * socket lookup, so a DNS answer that changes later (rebinding) is refused at
- * connect time too.
+ * runs when the URL is registered and again inside every request's socket
+ * lookup, so a DNS answer that changes later (rebinding) is refused at
+ * connect time too. Webhook URLs are refused with WEBHOOK_URL_FORBIDDEN,
+ * action URLs with ACTION_URL_FORBIDDEN (`UrlGuardOptions.kind`).
  */
 import dns, { type LookupAddress } from "node:dns";
 import { lookup as lookupAsync } from "node:dns/promises";
@@ -83,53 +85,86 @@ function bareHostname(url: URL): string {
   return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
 }
 
-function forbidden(message: string): PlatformError {
-  return new PlatformError("WEBHOOK_URL_FORBIDDEN", message, 422, [{ path: "url", message }]);
+/** Which policy a URL is checked for: the error codes and wording follow it. */
+export type UrlGuardKind = "webhook" | "action";
+
+export interface UrlGuardOptions {
+  /** Default `webhook`. */
+  readonly kind?: UrlGuardKind;
+  /** Issue path of the URL in the request body (default `url`). */
+  readonly path?: string;
+}
+
+function label(options: UrlGuardOptions): string {
+  return options.kind === "action" ? "Action URLs" : "Webhook URLs";
+}
+
+function forbidden(message: string, options: UrlGuardOptions = {}): PlatformError {
+  const path = options.path ?? "url";
+  return options.kind === "action"
+    ? new PlatformError("ACTION_URL_FORBIDDEN", message, 422, [{ path, message }])
+    : new PlatformError("WEBHOOK_URL_FORBIDDEN", message, 422, [{ path, message }]);
+}
+
+/** Malformed URLs: 400 INVALID_REQUEST for webhooks, 422 ACTION_URL_FORBIDDEN for action URLs. */
+function malformed(message: string, detail: string, options: UrlGuardOptions): PlatformError {
+  if (options.kind === "action") return forbidden(message, options);
+  return invalidRequest(message, [{ path: options.path ?? "url", message: detail }]);
 }
 
 const MAX_URL_LENGTH = 2_048;
 const DNS_TIMEOUT_MS = 3_000;
 
 /** Static checks (no DNS): scheme, credentials, port, host shape. Returns the normalised URL. */
-export function parseWebhookUrl(raw: unknown): URL {
+export function parseWebhookUrl(raw: unknown, options: UrlGuardOptions = {}): URL {
+  const name = label(options);
   if (typeof raw !== "string" || !raw.trim() || raw.length > MAX_URL_LENGTH) {
-    throw invalidRequest(`url must be an absolute HTTPS URL of at most ${MAX_URL_LENGTH} characters.`, [
-      { path: "url", message: "Required HTTPS URL." },
-    ]);
+    throw malformed(`url must be an absolute HTTPS URL of at most ${MAX_URL_LENGTH} characters.`, "Required HTTPS URL.", options);
   }
   let url: URL;
   try {
     url = new URL(raw.trim());
   } catch {
-    throw invalidRequest("url is not a valid absolute URL.", [{ path: "url", message: "Invalid URL." }]);
+    throw malformed("url is not a valid absolute URL.", "Invalid URL.", options);
   }
   if (url.protocol !== "https:") {
-    throw invalidRequest("Webhook URLs must use HTTPS.", [{ path: "url", message: "Only https:// URLs are accepted." }]);
+    throw malformed(`${name} must use HTTPS.`, "Only https:// URLs are accepted.", options);
   }
   if (url.username || url.password) {
-    throw invalidRequest("Webhook URLs must not contain credentials.", [{ path: "url", message: "Remove user:password@." }]);
+    throw malformed(`${name} must not contain credentials.`, "Remove user:password@.", options);
   }
   if (url.hash) {
-    throw invalidRequest("Webhook URLs must not contain a fragment.", [{ path: "url", message: "Remove the #fragment." }]);
+    throw malformed(`${name} must not contain a fragment.`, "Remove the #fragment.", options);
   }
   if (url.port && url.port !== "443" && Number(url.port) < 1024) {
-    throw forbidden("Webhook URLs may use port 443 or a port from 1024 to 65535.");
+    throw forbidden(`${name} may use port 443 or a port from 1024 to 65535.`, options);
   }
   const host = bareHostname(url);
-  if (!host) throw invalidRequest("url has no host.", [{ path: "url", message: "Missing host." }]);
+  if (!host) throw malformed("url has no host.", "Missing host.", options);
   if (isIP(host)) {
-    if (!isPublicAddress(host)) throw forbidden("Webhook URLs must point to a public internet address.");
+    if (!isPublicAddress(host)) throw forbidden(`${name} must point to a public internet address.`, options);
     return url;
   }
   if (BLOCKED_HOSTNAMES.has(host) || BLOCKED_SUFFIXES.some((suffix) => host.endsWith(suffix)) || !host.includes(".")) {
-    throw forbidden("Webhook URLs must use a public DNS name.");
+    throw forbidden(`${name} must use a public DNS name.`, options);
   }
   return url;
 }
 
+function unresolvable(host: string, options: UrlGuardOptions): PlatformError {
+  const path = options.path ?? "url";
+  return options.kind === "action"
+    ? new PlatformError("ACTION_ENDPOINT_UNAVAILABLE", `The action host ${host.slice(0, 120)} could not be resolved.`, 502, [
+      { path, message: "Host does not resolve." },
+    ])
+    : new PlatformError("WEBHOOK_URL_UNRESOLVABLE", `The webhook host ${host.slice(0, 120)} could not be resolved.`, 422, [
+      { path, message: "Host does not resolve." },
+    ]);
+}
+
 /** Full registration check: static rules plus DNS resolution of every address. */
-export async function assertPublicWebhookUrl(raw: unknown): Promise<URL> {
-  const url = parseWebhookUrl(raw);
+export async function assertPublicWebhookUrl(raw: unknown, options: UrlGuardOptions = {}): Promise<URL> {
+  const url = parseWebhookUrl(raw, options);
   const host = bareHostname(url);
   if (isIP(host)) return url;
   let addresses: LookupAddress[];
@@ -142,38 +177,58 @@ export async function assertPublicWebhookUrl(raw: unknown): Promise<URL> {
       }),
     ]);
   } catch {
-    throw new PlatformError("WEBHOOK_URL_UNRESOLVABLE", `The webhook host ${host.slice(0, 120)} could not be resolved.`, 422, [
-      { path: "url", message: "Host does not resolve." },
-    ]);
+    throw unresolvable(host, options);
   } finally {
     if (timer) clearTimeout(timer);
   }
   if (addresses.length === 0 || addresses.some((entry) => !isPublicAddress(entry.address))) {
-    throw forbidden("The webhook host resolves to a private, loopback, link-local or otherwise non-public address.");
+    throw forbidden(`The ${options.kind === "action" ? "action" : "webhook"} host resolves to a private, loopback, link-local or otherwise non-public address.`, options);
   }
   return url;
+}
+
+/** `assertPublicWebhookUrl` for integrator URLs Kletia fetches (ACTION_URL_FORBIDDEN). */
+export function assertPublicActionUrl(raw: unknown, path = "url"): Promise<URL> {
+  return assertPublicWebhookUrl(raw, { kind: "action", path });
+}
+
+/** The resolver `createGuardedLookup` wraps (dns.lookup with `all: true`). */
+export type AddressResolver = (hostname: string, callback: (error: NodeJS.ErrnoException | null, addresses: readonly LookupAddress[]) => void) => void;
+
+const systemResolver: AddressResolver = (hostname, callback) => {
+  dns.lookup(hostname, { all: true }, (error, addresses) => callback(error, Array.isArray(addresses) ? addresses : []));
+};
+
+/**
+ * Builds a `lookup` for outbound sockets: resolves with `resolve`, then
+ * refuses the connection (EWEBHOOKFORBIDDEN) unless every resolved address is
+ * public. `resolve` is injectable for tests (DNS rebinding cases).
+ */
+export function createGuardedLookup(resolve: AddressResolver = systemResolver): LookupFunction {
+  return (hostname, options, callback) => {
+    resolve(hostname, (error, addresses) => {
+      if (error) {
+        callback(error, "", 0);
+        return;
+      }
+      const family = options.family === 4 || options.family === 6 ? options.family : 0;
+      const list = family === 0 ? [...addresses] : addresses.filter((entry) => entry.family === family);
+      const first = list[0];
+      if (!first || addresses.some((entry) => !isPublicAddress(entry.address))) {
+        const refused: NodeJS.ErrnoException = Object.assign(new Error("Host resolves to a non-public address."), {
+          code: "EWEBHOOKFORBIDDEN",
+        });
+        callback(refused, "", 0);
+        return;
+      }
+      if (options.all) callback(null, list);
+      else callback(null, first.address, first.family);
+    });
+  };
 }
 
 /**
  * `lookup` for outbound sockets: resolves normally, then refuses the
  * connection unless every resolved address is public.
  */
-export const guardedLookup: LookupFunction = (hostname, options, callback) => {
-  dns.lookup(hostname, { ...options, all: true }, (error, addresses) => {
-    if (error) {
-      callback(error, "", 0);
-      return;
-    }
-    const list = Array.isArray(addresses) ? addresses : [];
-    const first = list[0];
-    if (!first || list.some((entry) => !isPublicAddress(entry.address))) {
-      const refused: NodeJS.ErrnoException = Object.assign(new Error("Webhook host resolves to a non-public address."), {
-        code: "EWEBHOOKFORBIDDEN",
-      });
-      callback(refused, "", 0);
-      return;
-    }
-    if (options.all) callback(null, list);
-    else callback(null, first.address, first.family);
-  });
-};
+export const guardedLookup: LookupFunction = createGuardedLookup();

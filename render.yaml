@@ -238,6 +238,14 @@ services:
         value: https://arb1.arbitrum.io/rpc
       - key: VITE_ARBITRUM_SEPOLIA_RPC_URL
         sync: false
+      # Optional wallet RPCs for intent steps; unset uses the public endpoints
+      # built into the app (never a keyed URL: VITE_* values are public).
+      - key: VITE_ETHEREUM_RPC_URL
+        sync: false
+      - key: VITE_OPTIMISM_RPC_URL
+        sync: false
+      - key: VITE_POLYGON_RPC_URL
+        sync: false
       - key: VITE_ARBITRUM_MVP_ENABLED
         value: "true"
       - key: VITE_ARC_VAULT_EXECUTION_MODE

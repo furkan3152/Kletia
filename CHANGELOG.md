@@ -18,6 +18,10 @@ on-chain on 2026-10-09; nothing in this release signs or holds funds.
 - `@kletia/sdk`: retries with exponential backoff and automatic idempotency keys, typed error codes, `keys`, `webhooks.test/deliveries`, `usage()`, `errors()`, `intents.wait()` and `watchIntent`; `@kletia/sdk/server` webhook handlers for fetch-style runtimes, Hono, Express and `node:http`.
 - `@kletia/widget/hooks`: `KletiaProvider`, `useKletiaIntent`, `useIntent`, `useQuote`, `useNetworks`, `usePortfolio`.
 - `@kletia/cli` (`kletia`): health, registries, quote, plan (dry run unless `--save`), intents get/list/watch, keys, webhooks (including `verify` and `forward` to localhost), usage, errors and openapi. Published with the other packages.
+- `@kletia/embed`: the `<kletia-intent>` web component and `mountKletiaIntent()` for any site, one dependency-free file for npm and for a CDN script tag with Subresource Integrity. It renders `/embed` in a sandboxed frame, follows the frame's content height (320–1600 px) and re-emits progress as composed DOM events (`kletia:ready`, `kletia:intent-planned`, `kletia:intent-created`, `kletia:step-updated`, `kletia:completed`, `kletia:error`, `kletia:resize`). `/embed` speaks the bridge only over a `MessageChannel` after one verified connect from its parent, tells the visitor the host is notified, and stores `ref` as `metadata.hostRef` ([embed guide](docs/platform/embed.md)).
+- Machine-readable contract: `docs/platform/openapi.json` (exported from the API source by `npm run generate:openapi`, linted for references, operation ids, tags and path parameters) and a Postman v2.1 collection in `docs/platform/collections/` for Postman, Insomnia, Bruno and Hoppscotch. `npm run check:openapi` fails when either drifts from the source and runs in `npm run verify`.
+- Container images: `.github/workflows/images.yml` pushes `ghcr.io/<owner>/kletia-api` and `kletia-web` on every push to `main` and every `v*` tag, with SLSA provenance (`mode=max`) and an SPDX SBOM, then checks the attestations and smoke-tests the pushed image. Actions are pinned to full commit SHAs.
+- `npm run bump:packages -- <version>` moves all five packages, the apps' dependencies, the SDK and CLI version constants, the portal's embed version and the documented CDN URLs to one version and syncs the lockfile.
 
 ### Security
 
@@ -30,11 +34,16 @@ on-chain on 2026-10-09; nothing in this release signs or holds funds.
 
 - Relay uses its v3 status and request endpoints and is restricted to its pinned contracts per network.
 - MCP and CLI treat the user's own address on another network of the same VM (a bridge's default recipient) as their own when listing external recipients.
-- New configuration: `KLETIA_WEB_ORIGIN`, `KLETIA_MCP_ALLOWED_ORIGINS`, `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN` and the three RPC variables (see `apps/api/.env.example`, `render.yaml` and `docker-compose.yml`).
+- New configuration: `KLETIA_WEB_ORIGIN`, `KLETIA_MCP_ALLOWED_ORIGINS`, `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN` and the three RPC variables (see `apps/api/.env.example`, `render.yaml` and `docker-compose.yml`); optional web wallet RPCs `VITE_ETHEREUM_RPC_URL`, `VITE_OPTIMISM_RPC_URL` and `VITE_POLYGON_RPC_URL` (Render, Compose and web image build arguments).
+- Releases: `release-packages.yml` publishes core, sdk, widget, embed and cli in that order with npm 11 (ready for trusted publishing over OIDC, with `NPM_TOKEN` as the fallback), skips versions already on npm so a failed run can be re-run, and sends prereleases to the `next` dist-tag.
+- `npm run check:packages` covers all five packages: every `exports`, `main`, `types`, `unpkg` and `bin` target must be in the tarball, conditional exports need `types` and `import`, `@kletia/sdk/server` and `@kletia/widget/hooks` must stay exported, the CLI binary needs its shebang, the embed loader must fit its gzip budget (4 KB script, 6.5 KB module), and the SDK and CLI version constants and the apps' `@kletia/*` dependencies must match the package version.
+- `npm run verify` also runs the `/embed` bridge tests (`npm run test:web`) and the OpenAPI drift check.
+- Docker: both Dockerfiles copy every workspace manifest before `npm ci`; the web image builds only the packages it imports; the API image sets `PORT=10000` (the port it exposes) and a `/health` `HEALTHCHECK`. Docker Compose can run the published images (`KLETIA_API_IMAGE`, `KLETIA_WEB_IMAGE`, `docker compose up --no-build`).
 
 ### Fixed
 
 - Basenames resolution reads the resolver the Base registry names for each name, so names moved to the new resolver resolve again.
+- The API image listened on 3001 while exposing 10000; it now listens on the exposed port unless `PORT` is set.
 
 ## [2.0.0] - 2026-10-08
 

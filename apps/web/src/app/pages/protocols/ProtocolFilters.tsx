@@ -1,6 +1,6 @@
 import type { ProtocolCapability } from "@kletia/core";
 import { Search, SlidersHorizontal, X } from "lucide-react";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import { CONTAINER, cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../site/ui/styles";
 import { CAPABILITY_HELP, humanizeCategory, type NetworkLabel } from "./protocolStats";
@@ -26,6 +26,21 @@ const CHIP_ON =
   "bg-[#1A1A1A] text-white shadow-[2px_2px_0_#0052FF] dark:bg-[#FFD60A] dark:text-[#1A1A1A] dark:shadow-[2px_2px_0_#475569]";
 const SELECT =
   "min-h-9 cursor-pointer border-2 border-[#1A1A1A] bg-white px-2 text-[13px] font-semibold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9]";
+
+/**
+ * The full search hint only fits from the `sm` breakpoint (where the "/"
+ * shortcut badge also shows); phones get a short one that is never cut off.
+ */
+const WIDE_SEARCH_QUERY = "(min-width: 640px)";
+const SEARCH_PLACEHOLDER = { wide: "Search name, id or what it does", narrow: "Search protocols" } as const;
+
+function subscribeWideSearch(onChange: () => void): () => void {
+  const query = typeof window.matchMedia === "function" ? window.matchMedia(WIDE_SEARCH_QUERY) : null;
+  query?.addEventListener("change", onChange);
+  return () => query?.removeEventListener("change", onChange);
+}
+
+const readWideSearch = () => (typeof window.matchMedia === "function" ? window.matchMedia(WIDE_SEARCH_QUERY).matches : true);
 
 function isEditable(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -54,6 +69,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const active = activeFilterCount(filters);
   const selectedNetworks = new Set(filters.networks);
+  const wideSearch = useSyncExternalStore(subscribeWideSearch, readWideSearch, () => true);
 
   // "/" focuses the search box (unless the user is typing somewhere).
   useEffect(() => {
@@ -124,12 +140,12 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Search name, id or what it does"
+            placeholder={wideSearch ? SEARCH_PLACEHOLDER.wide : SEARCH_PLACEHOLDER.narrow}
             autoComplete="off"
             spellCheck={false}
             aria-keyshortcuts="/"
             className={cx(
-              "min-h-11 w-full border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-9 text-[15px] text-[#1A1A1A] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] focus:shadow-[3px_3px_0_#0052FF] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9] dark:placeholder:text-[#8B97A8] dark:focus:shadow-[3px_3px_0_#FFD60A] motion-reduce:transition-none",
+              "min-h-11 w-full border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-3 text-[15px] text-[#1A1A1A] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] focus:shadow-[3px_3px_0_#0052FF] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9] dark:placeholder:text-[#8B97A8] dark:focus:shadow-[3px_3px_0_#FFD60A] motion-reduce:transition-none sm:pr-9",
               FOCUS_RING,
             )}
           />

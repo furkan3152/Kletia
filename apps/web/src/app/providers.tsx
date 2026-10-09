@@ -18,6 +18,7 @@ import { createConfig, createStorage, WagmiProvider } from "wagmi";
 import {
   ALLOW_PUBLIC_BASE_RPC_FALLBACK,
   ARBITRUM_SEPOLIA_RPC_URL,
+  INTENT_WALLET_NETWORKS,
   NETWORKS,
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
@@ -53,6 +54,12 @@ const uniqueRpcUrls = (...urls: Array<string | undefined>) => [
   ...new Set(urls.filter((url): url is string => Boolean(url))),
 ];
 
+/** One HTTP transport per endpoint, tried in order (a single endpoint needs no fallback). */
+const rpcTransport = (urls: readonly string[]) => {
+  const transports = uniqueRpcUrls(...urls).map((url) => http(url));
+  return transports.length > 1 ? fallback(transports) : transports[0];
+};
+
 const config = createConfig({
   connectors,
   chains: SUPPORTED_CHAINS,
@@ -75,6 +82,12 @@ const config = createConfig({
     ),
     [NETWORKS.arbitrum.chainId]: http(NETWORKS.arbitrum.rpcUrl),
     [arbitrumSepolia.id]: http(ARBITRUM_SEPOLIA_RPC_URL),
+    // Intent-only networks (Studio and /embed switch the wallet to them per
+    // step). Signing and receipts go through the wallet itself; these
+    // transports serve wallet-UI reads such as balances.
+    [INTENT_WALLET_NETWORKS.ethereum.chain.id]: rpcTransport(INTENT_WALLET_NETWORKS.ethereum.rpcUrls),
+    [INTENT_WALLET_NETWORKS.optimism.chain.id]: rpcTransport(INTENT_WALLET_NETWORKS.optimism.rpcUrls),
+    [INTENT_WALLET_NETWORKS.polygon.chain.id]: rpcTransport(INTENT_WALLET_NETWORKS.polygon.rpcUrls),
   },
   ssr: false,
   // wagmi's default storage reads `window.localStorage` eagerly, which throws

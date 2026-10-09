@@ -94,6 +94,12 @@ export interface PlannedStep {
   readonly warnings: readonly string[];
   /** Provider quote handle (e.g. a Relay request id). */
   readonly quoteId?: string;
+  /**
+   * Route variant every prepare must keep (e.g. LI.FI's bridge tool, whose
+   * settlement time the auction ranked). The planner records it in the step
+   * ref; prepare receives it back as `AdapterAction.provider`.
+   */
+  readonly provider?: string;
   /** Wallet transactions the step is expected to need. */
   readonly transactionCount: number;
   /** Slippage actually applied (may be tighter than requested). */

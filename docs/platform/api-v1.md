@@ -305,7 +305,14 @@ Idempotency-Key: 7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14
   `400 IDEMPOTENCY_NOT_SUPPORTED`. Dry runs ignore the header. Other POSTs
   (quotes, refresh, webhook tests, MCP) are safe to repeat and ignore it.
 - Responses that carry a secret (API keys, webhook signing secrets) are stored
-  encrypted with `KLETIA_PLATFORM_SECRET`.
+  encrypted with `KLETIA_PLATFORM_SECRET`, with a hash of the secret that
+  made the request. After a rotation they are replayed to the key's current
+  secret and to the secret that made the request, so a key that rotated
+  itself and lost the response gets its new secret by retrying with the old
+  one during the grace window. Any other rotated-out secret gets
+  `403 KEY_SECRET_ROTATED`. With `graceSeconds: 0` the old secret stops at
+  once and cannot fetch a lost response; keep a grace window, or rotate from
+  a sibling key, when that matters.
 
 `clientReference` on `POST /v1/intents` keeps working as before.
 
@@ -327,7 +334,9 @@ use one key per environment.
   (`403 KEY_SECRET_ROTATED`), so a leaked secret cannot take a rotated key over.
   Rotating again ends an earlier grace window; `graceSeconds: 0` ends it now.
 - `DELETE /v1/keys/{id}` revokes a key (idempotent, `204`). A key may revoke
-  itself.
+  itself. The key's webhooks and their delivery logs are deleted with it, and
+  events of its intents are no longer delivered to any webhook. If the
+  cleanup fails the call answers `503`; repeating it finishes the cleanup.
 - Revocation and the end of a grace window take effect at once on the
   instance that handled them and within 15 seconds on every other instance.
 - Operator keys are configuration and cannot be listed, rotated or revoked

@@ -39,6 +39,27 @@ export const SOLANA_PROGRAM_IDS = Object.freeze({
   memo: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
 });
 
+/** Most compute units a provider-built transaction may request (the per-transaction maximum). */
+export const MAX_COMPUTE_UNITS = 1_400_000;
+/** Highest priority fee a provider-built transaction may set (micro-lamports per compute unit). */
+export const MAX_COMPUTE_UNIT_PRICE = 1_000_000n;
+
+/**
+ * Checks a provider's ComputeBudget instruction data: known opcodes only
+ * (heap frame, unit limit, unit price, loaded-accounts limit), a unit limit up
+ * to the per-transaction maximum and a capped unit price, so the priority fee
+ * stays below MAX_COMPUTE_UNITS x MAX_COMPUTE_UNIT_PRICE (0.0014 SOL).
+ * Returns why the instruction is refused, or null.
+ */
+export function computeBudgetMismatch(data: Uint8Array): string | null {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const kind = data[0];
+  if (kind === 2 && data.length === 5) return view.getUint32(1, true) > MAX_COMPUTE_UNITS ? "requests too many compute units" : null;
+  if (kind === 3 && data.length === 9) return view.getBigUint64(1, true) > MAX_COMPUTE_UNIT_PRICE ? "sets a priority fee above the cap" : null;
+  if ((kind === 1 || kind === 4) && data.length === 5) return null;
+  return "is an unknown compute-budget instruction";
+}
+
 /**
  * One top-level instruction with every account resolved to its address
  * (address-lookup-table entries included), in instruction order.
@@ -580,21 +601,22 @@ export async function readSolanaSignatureStatus(
 /**
  * Destination-side evidence for a solver fill on Solana: the signature landed
  * without error and credited `owner` (SPL `mint`, or lamports plus wrapped SOL
- * when `mint` is null). `credited` is null when the body is not readable yet.
+ * when `mint` is null). `credited` is null when the body is not readable yet;
+ * `blockTime` (unix seconds) is null when the cluster does not report it.
  */
 export async function readSolanaCredit(
   network: SolanaNetworkKey,
   signatureValue: string,
   owner: string,
   mint: string | null,
-): Promise<{ readonly status: "success" | "failed" | "pending"; readonly credited: bigint | null }> {
-  if (!isSolanaSignature(signatureValue) || !isSolanaAddress(owner)) return { status: "pending", credited: null };
+): Promise<{ readonly status: "success" | "failed" | "pending"; readonly credited: bigint | null; readonly blockTime: number | null }> {
+  if (!isSolanaSignature(signatureValue) || !isSolanaAddress(owner)) return { status: "pending", credited: null, blockTime: null };
   const read = await readSolanaSignature(network, signatureValue);
-  if (read.confirmation === null || read.confirmation === "processed") return { status: "pending", credited: null };
-  if (read.statusError || read.details?.executionError) return { status: "failed", credited: null };
-  if (!read.details) return { status: "pending", credited: null };
+  if (read.confirmation === null || read.confirmation === "processed") return { status: "pending", credited: null, blockTime: null };
+  if (read.statusError || read.details?.executionError) return { status: "failed", credited: null, blockTime: null };
+  if (!read.details) return { status: "pending", credited: null, blockTime: null };
   const credited = mint === null
     ? (read.details.lamportDeltas.get(owner) ?? 0n) + (read.details.tokenDeltas.get(`${owner}:${WRAPPED_SOL_MINT}`) ?? 0n)
     : (read.details.tokenDeltas.get(`${owner}:${mint}`) ?? 0n);
-  return { status: "success", credited };
+  return { status: "success", credited, blockTime: read.details.blockTime };
 }

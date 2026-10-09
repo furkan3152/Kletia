@@ -68,7 +68,15 @@ once. The CLI decides where it goes before calling the API:
 - `--reveal`: printed on the terminal.
 
 On a terminal without one of these, the command stops before creating
-anything. Everything else the CLI prints is redacted: keys and webhook
+anything.
+
+`keys rotate <id> --grace-seconds 0` is refused for the key in
+`KLETIA_API_KEY`: its secret would stop working at once, so a lost response
+could not be replayed and the new secret would be gone. Rotate it with another
+key of the project, or keep a grace period. If a rotation's response is lost
+and the retry is refused, the command fails with `OUTCOME_UNKNOWN` (check
+`rotatedAt` and `last4` in `keys list` with another key); a key that revoked
+itself is reported as revoked. Everything else the CLI prints is redacted: keys and webhook
 secrets appear as `kl_dev_…1234` / `whsec_…abcd`, and the configured
 `KLETIA_API_KEY` never appears in output or errors.
 
@@ -84,14 +92,18 @@ kletia webhooks forward --intent int_… --to http://localhost:3000/api/kletia
 
 `--to` must be `localhost`, `127.0.0.1` or `[::1]`. Events are delivered in
 order with the same headers as real deliveries (`Kletia-Signature`,
-`Kletia-Event-Id`, `Kletia-Event-Type`); the command ends with the intent.
+`Kletia-Event-Id`, `Kletia-Event-Type`); the command ends with the intent's
+final `intent.status_changed`. An intent that already ended is replayed from
+the events the API still holds. When the event stream stays unavailable (for
+example `429 TOO_MANY_STREAMS`) it is retried within `--wait`; if the final
+event still was not forwarded, the command prints a warning and exits 1.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success (`intents watch`: the intent completed) |
-| 1 | API or runtime error (code, docs link and request id on stderr) |
+| 1 | API or runtime error (code, docs link and request id on stderr); `webhooks forward`: not every event could be forwarded |
 | 2 | `intents watch` / `webhooks forward`: the intent ended without completing |
 | 64 | Usage error |
 | 130 | Interrupted |

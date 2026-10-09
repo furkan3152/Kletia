@@ -5,6 +5,7 @@
  * - The signing secret (`whsec_` + 32 base62) is returned once at creation and
  *   stored sealed with AES-256-GCM (secrets.ts), bound to the webhook id.
  * - Storage: memory, or Postgres `kletia_webhooks` when KLETIA_DATABASE_URL is set.
+ * - Revoking a key deletes its webhooks (deleteWebhooksOfKey, from keys.ts).
  */
 import { PlatformError } from "../errors.js";
 import type { IntentEventType } from "../index.js";
@@ -64,6 +65,8 @@ interface WebhookStore {
   create(record: WebhookRecord, max: number): Promise<void>;
   listByOwner(ownerKeyId: string): Promise<WebhookRecord[]>;
   delete(ownerKeyId: string, id: string): Promise<boolean>;
+  /** Deletes every webhook of one owner; returns their ids. */
+  deleteByOwner(ownerKeyId: string): Promise<string[]>;
 }
 
 class MemoryWebhookStore implements WebhookStore {
@@ -87,6 +90,12 @@ class MemoryWebhookStore implements WebhookStore {
     if (next.length === 0) this.byOwner.delete(ownerKeyId);
     else this.byOwner.set(ownerKeyId, next);
     return true;
+  }
+
+  async deleteByOwner(ownerKeyId: string): Promise<string[]> {
+    const existing = this.byOwner.get(ownerKeyId) ?? [];
+    this.byOwner.delete(ownerKeyId);
+    return existing.map((record) => record.id);
   }
 }
 
@@ -163,6 +172,11 @@ class PostgresWebhookStore implements WebhookStore {
   async delete(ownerKeyId: string, id: string): Promise<boolean> {
     const result = await dbQuery(WEBHOOKS_SCHEMA, "DELETE FROM kletia_webhooks WHERE id = $1 AND owner_key_id = $2", [id, ownerKeyId]);
     return result.rowCount === 1;
+  }
+
+  async deleteByOwner(ownerKeyId: string): Promise<string[]> {
+    const result = await dbQuery<{ id: string }>(WEBHOOKS_SCHEMA, "DELETE FROM kletia_webhooks WHERE owner_key_id = $1 RETURNING id", [ownerKeyId]);
+    return result.rows.map((row) => row.id);
   }
 }
 
@@ -274,6 +288,19 @@ export async function deleteWebhook(ownerKeyId: string, id: string): Promise<voi
   const deleted = await webhookStore().delete(ownerKeyId, id);
   invalidateOwner(ownerKeyId);
   if (!deleted) throw new HttpError(404, "WEBHOOK_NOT_FOUND", "Webhook not found.");
+}
+
+/**
+ * Deletes every webhook of a revoked key (no sealing needed) and returns their
+ * ids, so nothing keeps receiving that key's events and nothing is left that
+ * no remaining key could delete.
+ */
+export async function deleteWebhooksOfKey(ownerKeyId: string): Promise<string[]> {
+  try {
+    return await webhookStore().deleteByOwner(ownerKeyId);
+  } finally {
+    invalidateOwner(ownerKeyId);
+  }
 }
 
 export function webhookStoreKind(): "memory" | "postgres" {

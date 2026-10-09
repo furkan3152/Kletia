@@ -463,7 +463,7 @@ function lifiPreview(action: AdapterAction, quote: LifiQuote, diamond: string, a
     transactions: lifiTransactions(action, action.network, quote, diamond, allowance),
     approvalSpender: diamond.toLowerCase(),
     ...(quote.feeCostsUsd !== null && quote.feeCostsUsd > 0
-      ? { venueFees: [{ kind: "venue" as const, label: "LI.FI fees", usd: quote.feeCostsUsd, paid: "deducted" as const, certainty: "quoted" as const }] }
+      ? { venueFees: [{ kind: "venue" as const, label: "LI.FI fees", usd: Math.round(quote.feeCostsUsd * 1e6) / 1e6, paid: "deducted" as const, certainty: "quoted" as const }] }
       : {}),
     expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
   };

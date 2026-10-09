@@ -204,6 +204,41 @@ describe("Solana step previews", () => {
     assert.deepEqual(Object.keys(config).sort(), ["commitment", "encoding", "innerInstructions", "replaceRecentBlockhash", "sigVerify"]);
   });
 
+  it("counts the user's wrapped-SOL account as SOL: closing a pre-existing one nets out (live Jupiter shape)", async () => {
+    configurePlatform({ adapters: STUB_ADAPTERS });
+    const graph = (await planIntentWithPreviews({ text: "swap 0.05 SOL to USDC", accounts: ACCOUNTS })).graph;
+    const step = { ...(graph.steps[0] as IntentStep), status: "awaiting_signature" as const };
+    const WSOL_ACCOUNT = "qx84tiXFKS93Md34ENxNBNu33vPsEJ4BU1o7KYHm6pV";
+    const USDC_ACCOUNT = "BmeV7UWExZeSboQXYW4biUVEx2SyYDVTdWhHoQEQcUFu";
+    const POOL = "7kctoUvvP77tvLPBbTcgXQqUDSqBYRXcQZyWELWQeHxA";
+    const credit = BigInt(step.minimumOutput?.amount ?? "0") + 10n;
+    // Numbers of a live simulation (2026-10-09): the wallet pays 0.05 SOL and the fee, partly from a wSOL account Jupiter closes.
+    chain.world.solanaSimulation = () => ({
+      context: { slot: 454_942_418 },
+      value: {
+        err: null,
+        accounts: null,
+        fee: 27_211,
+        preBalances: [34_599_135_270, 1, 5_723_133, 2_039_280, 202_434_408_408],
+        postBalances: [34_554_831_192, 1, 0, 2_039_280, 202_484_408_408],
+        preTokenBalances: [
+          { accountIndex: 2, mint: "So11111111111111111111111111111111111111112", owner: SOL_ADDRESS, uiTokenAmount: { amount: "4234693", decimals: 9 } },
+          { accountIndex: 3, mint: USDC_SOL, owner: SOL_ADDRESS, uiTokenAmount: { amount: "27463914", decimals: 6 } },
+        ],
+        postTokenBalances: [{ accountIndex: 3, mint: USDC_SOL, owner: SOL_ADDRESS, uiTokenAmount: { amount: (27_463_914n + credit).toString(), decimals: 6 } }],
+        loadedAddresses: { writable: [WSOL_ACCOUNT, USDC_ACCOUNT, POOL], readonly: [] },
+        innerInstructions: [],
+      },
+    });
+    const transaction: TransactionRequest = { vm: "svm", network: "solana", feePayer: SOL_ADDRESS, transaction: unsignedSolanaTransaction(SOL_ADDRESS, JUPITER_PROGRAM), encoding: "base64", description: "swap" };
+    // The wallet's balance numbers above are the live ones; the step's own wallet is the stub account.
+    const result = await previewPreparedStep(graph, step, { transactions: [transaction], quoteBinding: "cd".repeat(32) }, { simulate: true });
+    const sol = result.step.deltas.find((row) => row.symbol === "SOL");
+    assert.equal(sol?.expected.amount, (-(50_000_000n + 27_211n)).toString(), "0.05 SOL and the fee, the closed account's reserve included");
+    assert.deepEqual(result.violations, [], "the input debit is exact once wrapped SOL is counted");
+    assert.equal(result.step.fees.some((fee) => fee.kind === "rent"), false);
+  });
+
   it("keeps a Solana step funded by a pending bridge quoted (no Solana override exists)", async () => {
     configurePlatform({ adapters: STUB_ADAPTERS });
     const { graph } = await planIntentWithPreviews({

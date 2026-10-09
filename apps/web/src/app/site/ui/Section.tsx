@@ -1,5 +1,6 @@
 import React from "react";
 
+import { Reveal } from "../motion/Reveal";
 import { CONTAINER, cx, LABEL, TEXT_MUTED } from "./styles";
 
 export type SectionTone = "plain" | "paper" | "ink" | "yellow" | "blue";
@@ -21,9 +22,23 @@ export interface SectionProps {
   readonly actions?: React.ReactNode;
   readonly tone?: SectionTone;
   readonly bordered?: boolean;
+  /**
+   * Rise the header (eyebrow, then title +60 ms, then intro +120 ms) when it
+   * scrolls into view. Default false. Children are not wrapped: use `<Reveal>`.
+   */
+  readonly reveal?: boolean;
   readonly className?: string;
   readonly containerClassName?: string;
   readonly children?: React.ReactNode;
+}
+
+function HeaderCopy({ reveal, children }: { readonly reveal: boolean; readonly children: React.ReactNode }) {
+  if (!reveal) return <div className="max-w-4xl">{children}</div>;
+  return (
+    <Reveal className="max-w-4xl" stagger>
+      {children}
+    </Reveal>
+  );
 }
 
 /** Page section with an optional eyebrow, heading and intro, labelled for assistive tech. */
@@ -35,12 +50,14 @@ export function Section({
   actions,
   tone = "plain",
   bordered = false,
+  reveal = false,
   className,
   containerClassName,
   children,
 }: SectionProps) {
   const headingId = id ? `${id}-heading` : undefined;
   const dark = tone === "ink" || tone === "blue";
+  const item = reveal ? { "data-reveal-item": "" } : undefined;
   return (
     <section
       id={id}
@@ -55,9 +72,10 @@ export function Section({
       <div className={cx(CONTAINER, containerClassName)}>
         {title || eyebrow || intro || actions ? (
           <header className="mb-10 flex flex-col gap-6 lg:mb-14 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-4xl">
+            <HeaderCopy reveal={reveal}>
               {eyebrow ? (
                 <p
+                  {...item}
                   className={cx(
                     LABEL,
                     "mb-4 inline-flex items-center gap-2",
@@ -70,6 +88,7 @@ export function Section({
               ) : null}
               {title ? (
                 <h2
+                  {...item}
                   id={headingId}
                   className="text-balance font-display text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-[3.5rem]"
                 >
@@ -78,6 +97,7 @@ export function Section({
               ) : null}
               {intro ? (
                 <div
+                  {...item}
                   className={cx(
                     "mt-5 max-w-2xl text-base leading-relaxed sm:text-lg",
                     dark ? "text-white/80" : tone === "yellow" ? "text-[#1A1A1A]/85" : TEXT_MUTED,
@@ -86,7 +106,7 @@ export function Section({
                   {intro}
                 </div>
               ) : null}
-            </div>
+            </HeaderCopy>
             {actions ? <div className="flex shrink-0 flex-wrap gap-3">{actions}</div> : null}
           </header>
         ) : null}

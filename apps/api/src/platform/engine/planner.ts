@@ -61,8 +61,8 @@ import { recordedVenueId } from "./adapters/lending/common.js";
 import { activeProtocolAdapters, adapterForProtocol, candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
 import { assertContractAmount } from "./contracts/caps.js";
-import { contractDirectory, contractsEnabled, type ContractPhrase, type RegisteredContract } from "./contracts/directory.js";
-import { evmOutputToken, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
+import { contractDirectory, contractsEnabled, type ContractPhrase } from "./contracts/directory.js";
+import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
 import { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS } from "./grammar.js";
@@ -718,17 +718,6 @@ function usesPrevious(binding: unknown): boolean {
   if (typeof binding === "string") return binding.startsWith("$previous.");
   if (typeof binding === "object" && binding !== null && "tuple" in binding) return (binding as { tuple: unknown[] }).tuple.some(usesPrevious);
   return false;
-}
-
-/** The declared output asset of an entry (receipt-style for unlisted tokens), or null. */
-async function contractOutputAsset(registration: RegisteredContract, entry: EvmContractAction | SolanaActionEndpoint): Promise<ResolvedAsset | null> {
-  const definition = registration.definition;
-  if (definition.vm === "evm") {
-    const token = evmOutputToken(definition, entry as EvmContractAction);
-    return token ? resolveAsset(definition.network, token) : null;
-  }
-  const mint = (entry as SolanaActionEndpoint).output?.mint;
-  return mint ? resolveAsset(definition.network, mint) : null;
 }
 
 /**

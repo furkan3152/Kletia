@@ -423,7 +423,9 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     ]);
   }
 
-  // Contract actions: the session owner must be able to use each registration and entry.
+  // Contract actions: the session owner must be able to use each registration and entry. Aliases are
+  // replaced by the registration id, so a later alias change can never redirect the session.
+  const actions: IntentActionSpec[] = [...request.actions];
   const labels: string[] = request.actions.map(actionLabel);
   const contractInputs: ({ symbol: string; decimals: number } | null)[] = request.actions.map(() => null);
   let integrator: SessionIntegrator | null = null;
@@ -445,6 +447,7 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
         ]);
       }
       labels[index] = entry.label;
+      actions[index] = { ...action, contract: registration.id };
       const input = entry.input ? resolveContractAsset(registration.definition.network, entry.input.token) : null;
       contractInputs[index] = input ? { symbol: input.symbol, decimals: input.decimals } : null;
       integrator ??= { ...registration.definition.integrator, domainVerified: registration.verification.domain.verified };
@@ -473,7 +476,7 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
   // A broken template fails here, not in front of a visitor.
   try {
     await createIntentDetailed(
-      { actions: request.actions, accounts: placeholderAccounts(request.actions), ...(request.constraints ? { constraints: request.constraints } : {}) },
+      { actions, accounts: placeholderAccounts(actions), ...(request.constraints ? { constraints: request.constraints } : {}) },
       { ownerKeyId, dryRun: true },
     );
   } catch (error) {
@@ -485,7 +488,7 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     id: `cs_${randomHex(16)}`,
     ownerKeyId,
     template: {
-      actions: request.actions,
+      actions,
       labels,
       ...(amount ? { amount } : {}),
       ...(request.constraints ? { constraints: request.constraints } : {}),

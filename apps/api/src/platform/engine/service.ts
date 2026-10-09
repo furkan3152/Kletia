@@ -406,7 +406,7 @@ export function assertCallPayload(step: IntentStep, prepared: Pick<ContractPrepa
       if (approval.data.slice(0, 10).toLowerCase() !== APPROVE_SELECTOR || approval.data.length !== 10 + 128) throw payloadInvalid("An approval is not approve(address,uint256).");
       const spender = `0x${approval.data.slice(34, 74)}`.toLowerCase();
       const approved = BigInt(`0x${approval.data.slice(74, 138)}`);
-      if (/^0x0{24}/u.test(approval.data.slice(10, 34)) === false || spender !== (snapshot.approvalSpender as string).toLowerCase()) throw payloadInvalid("An approval names another spender than the pinned one.");
+      if (!/^0{24}$/u.test(approval.data.slice(10, 34)) || spender !== (snapshot.approvalSpender as string).toLowerCase()) throw payloadInvalid("An approval names another spender than the pinned one.");
       const last = index === approvals.length - 1;
       if (last ? approved !== amount : approved !== 0n) throw payloadInvalid("Approvals are a reset to 0 and an exact approval of the step amount.");
     });

@@ -21,6 +21,8 @@ import {
   staggerIndex,
   typingJitter,
 } from "../src/app/site/motion/tokens";
+import { formatLatency, padFlaps, riffleDuration, riffleFrame } from "../src/app/site/art/boardFormat";
+import { rounded } from "../src/app/site/art/geometry";
 import { confettiParticles, stepParticle } from "../src/app/site/motion/celebrate";
 import { runViewTransition, supportsViewTransitions } from "../src/app/site/motion/viewTransition";
 import {
@@ -173,6 +175,18 @@ assert.ok(Math.abs(contrastRatio("#FFFFFF", "#000000") - 21) < 1e-9);
   assert.equal(ran, 1, "without the API the update runs synchronously, exactly once");
 }
 
+// Art system (src/app/site/art; full suite: node --test src/app/site/art/__tests__) ----
+{
+  assert.equal(formatLatency(96), "96 MS");
+  assert.equal(formatLatency(1840), "1.84 S");
+  assert.equal(formatLatency(null), "--- MS");
+  for (let ms = 0; ms < 150_000; ms += 13.7) assert.ok(formatLatency(ms).length <= 6, "latency fits six flap tiles");
+  const from = padFlaps("", 6);
+  const to = padFlaps("212 ms", 6);
+  assert.equal(riffleFrame(from, to, riffleDuration(from, to)).text, to, "the split flaps land on the value");
+  assert.equal(rounded([[0, 0], [100, 0], [100, 100]]), "M0 0L82 0Q100 0 100 18L100 100");
+}
+
 console.log(
-  "Motion primitives verified: tokens and stagger caps, deterministic typing jitter and confetti, monogram letters and 4.5:1 tile contrast, toast queue/dedupe/exit, View Transition fallback.",
+  "Motion primitives verified: tokens and stagger caps, deterministic typing jitter and confetti, monogram letters and 4.5:1 tile contrast, toast queue/dedupe/exit, View Transition fallback, split-flap latency and route-map geometry.",
 );

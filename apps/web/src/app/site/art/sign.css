@@ -1,0 +1,135 @@
+/* Platform sign (protocol card). The ink board on top stays ink at night. */
+
+.kla-psign {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--kla-card);
+  color: var(--kla-text);
+  border: 3px solid var(--kla-ink);
+  box-shadow: 5px 5px 0 var(--kla-shadow);
+}
+:where(.kla-psign) p {
+  margin: 0;
+}
+.kla-psign__board {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px 8px 8px;
+  background: #1a1a1a;
+  color: #f4f1ea;
+}
+.dark .kla-psign__board {
+  background: #060a14;
+}
+.kla-psign__no {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px 4px 8px;
+  background: #ffd60a;
+  color: #1a1a1a;
+  font: 700 22px/1 var(--kla-font-display);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.kla-psign__no-k {
+  font: 800 8.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.kla-psign__cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 700 10.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: right;
+}
+/* On the ink board the second ink is action blue, day and night. */
+.kla-psign__cat .kla-icon {
+  --kla-plate: #0052ff;
+}
+.kla-psign__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+}
+.kla-psign__name {
+  margin: 0;
+  font: 700 23px/1.1 var(--kla-font-display);
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.kla-psign__id {
+  margin-top: 4px;
+  font: 500 11.5px/1 var(--kla-font-mono);
+  color: var(--kla-muted);
+}
+.kla-psign__desc {
+  margin-top: 12px;
+  font: 400 14.5px/1.5 var(--kla-font-body);
+  color: var(--kla-muted);
+}
+.kla-psign__k {
+  margin: 16px 0 6px;
+  font: 700 9.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--kla-muted);
+}
+.kla-psign__lines,
+.kla-psign__services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kla-psign__services {
+  margin-top: 14px;
+}
+.kla-psign__services li {
+  padding: 4px 8px;
+  border: 2px solid currentColor;
+  font: 800 10px/1 var(--kla-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.kla-psign__services [data-service="execute"] {
+  color: #0047e0;
+}
+.dark .kla-psign__services [data-service="execute"] {
+  color: #7ea6ff;
+}
+.kla-psign__services [data-service="quote"] {
+  color: #1a1a1a;
+  background: #ffd60a;
+  border-color: #1a1a1a;
+}
+.kla-psign__cta {
+  margin-top: auto;
+  padding-top: 18px;
+}
+.kla-psign__cta a {
+  display: inline-block;
+  font: 800 11.5px/1.2 var(--kla-font-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kla-link);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.kla-psign__cta a:hover {
+  text-decoration-thickness: 3px;
+}
+.kla-psign__cta a:focus-visible {
+  outline: 3px solid var(--kla-focus);
+  outline-offset: 3px;
+}

@@ -1,0 +1,96 @@
+/* Rubber stamps. Inks are stamp inks, not network colours, and keep their
+   colour at night because the stamp is printed on stock. */
+
+.kla-stamp {
+  display: block;
+  overflow: visible;
+  color: var(--kla-stamp-ink, #0047e0);
+}
+.kla-stamp--planned {
+  --kla-stamp-ink: #0047e0;
+  --kla-rot: -7deg;
+}
+.kla-stamp--signed {
+  --kla-stamp-ink: #6d28d9;
+  --kla-rot: 9deg;
+}
+.kla-stamp--settled {
+  --kla-stamp-ink: #0b7a4b;
+  --kla-rot: -5deg;
+}
+.kla-stamp--held {
+  --kla-stamp-ink: #a84b00;
+  --kla-rot: -3deg;
+}
+.kla-stamp--failed {
+  --kla-stamp-ink: #c8102e;
+  --kla-rot: 6deg;
+}
+.kla-stamp__word {
+  font: 800 25px/1 var(--kla-font-display);
+  letter-spacing: 0.07em;
+  fill: currentColor;
+}
+.kla-stamp__word--sm {
+  font-size: 19px;
+}
+/* Knocked out of a solid ink bar: the stock shows through. */
+.kla-stamp__word--knock {
+  fill: var(--kla-stock, #fffcf2);
+}
+.kla-stamp__small {
+  font: 800 9px/1 var(--kla-font-mono);
+  letter-spacing: 0.12em;
+  fill: currentColor;
+}
+.kla-stamp__small--tight {
+  font-size: 7.5px;
+  letter-spacing: 0.08em;
+}
+.kla-stamp__ring {
+  font: 700 7.8px/1 var(--kla-font-mono);
+  letter-spacing: 0.15em;
+  fill: currentColor;
+}
+.kla-stamp__bang {
+  font: 900 36px/1 var(--kla-font-display);
+  fill: var(--kla-stock, #fffcf2);
+}
+
+@keyframes kla-stamp-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1.5) rotate(calc(var(--kla-rot, 0deg) + 10deg));
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.94) rotate(var(--kla-rot, 0deg));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(var(--kla-rot, 0deg));
+  }
+}
+/* Armed: waiting to scroll into view. Go: pressed once. */
+.kla-stamp--armed {
+  opacity: 0;
+}
+.kla-stamp--armed.kla-stamp--go {
+  opacity: 1;
+  animation: kla-stamp-down 440ms var(--kla-ease-snap) backwards;
+  animation-delay: var(--kla-stamp-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kla-stamp--armed,
+  .kla-stamp--armed.kla-stamp--go {
+    opacity: 1;
+    animation: none;
+  }
+}
+@media print {
+  .kla-stamp--armed {
+    opacity: 1;
+    animation: none;
+  }
+}

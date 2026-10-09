@@ -1,0 +1,607 @@
+/* Tickets: the intent ticket, its torn-off stub, the blank ticket, the
+   receipt and the link ticket. Printed on cream stock that keeps its ink at
+   night; only the shadow follows the room. */
+
+.kla-ticket-wrap {
+  container-type: inline-size;
+  filter: drop-shadow(5px 5px 0 var(--kla-shadow));
+}
+.kla-ticket {
+  --notch: 13px;
+  --stub: 172px;
+  --cut: calc(100% - var(--stub) - 3px);
+  --kla-focus: #0052ff;
+  --kla-link: #0047e0;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--stub);
+  margin: 0;
+  color: var(--kla-stock-ink);
+  background-color: var(--kla-stock);
+  background-image: var(--kla-stock-grain);
+  background-size: 180px 180px;
+  border: 3px solid #1a1a1a;
+  -webkit-mask:
+    radial-gradient(circle at var(--cut) 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at var(--cut) 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at var(--cut) 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at var(--cut) 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+}
+/* The ink rim of each notch. */
+.kla-ticket::before,
+.kla-ticket::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: calc(100% - var(--stub) - var(--notch) - 3px);
+  width: calc(2 * var(--notch) + 6px);
+  height: calc(2 * var(--notch) + 6px);
+  box-sizing: border-box;
+  border: 3px solid #1a1a1a;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.kla-ticket::before {
+  top: calc(-1 * var(--notch) - 6px);
+}
+.kla-ticket::after {
+  bottom: calc(-1 * var(--notch) - 6px);
+}
+:where(.kla-ticket, .kla-stub) p {
+  margin: 0;
+}
+.kla-ticket__main {
+  min-width: 0;
+  padding: 16px 22px 16px;
+}
+.kla-ticket__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #1a1a1a;
+  font: 800 10.5px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.kla-ticket__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.kla-ticket .kla-icon {
+  --kla-plate: #ffd60a;
+}
+.kla-ticket__serial {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.kla-ticket__example {
+  margin-right: 8px;
+  padding: 2px 6px;
+  background: #1a1a1a;
+  color: #ffd60a;
+  font-weight: 800;
+}
+.kla-ticket__eyebrow,
+.kla-ticket__k,
+.kla-ticket__stub-k,
+.kla-ticket__fields dt,
+.kla-linkt__bounds dt {
+  font: 700 9.5px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--kla-stock-muted);
+}
+.kla-ticket__eyebrow {
+  margin: 14px 0 4px;
+}
+.kla-ticket__intent {
+  font: 600 16px/1.45 var(--kla-font-mono);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.kla-ticket__route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 14px;
+}
+.kla-ticket__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.kla-ticket__place {
+  font: 700 15px/1 var(--kla-font-display);
+  letter-spacing: -0.01em;
+}
+.kla-ticket__track {
+  flex: 1;
+  min-width: 28px;
+  height: 10px;
+  background:
+    linear-gradient(#1a1a1a, #1a1a1a) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, #1a1a1a 0 2px, transparent 2px 7px) center / 100% 10px no-repeat;
+}
+.kla-ticket__legs {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
+}
+.kla-ticket__leg {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1.5px dashed rgba(26, 26, 26, 0.45);
+  font: 400 13.5px/1.35 var(--kla-font-body);
+}
+.kla-ticket__leg strong,
+.kla-receipt__row strong {
+  font-weight: 700;
+}
+.kla-ticket__leg-no {
+  padding: 2px 5px;
+  background: #1a1a1a;
+  color: #fffcf2;
+  font: 700 10.5px/1 var(--kla-font-mono);
+}
+.kla-ticket__leg-via {
+  font: 500 11px/1 var(--kla-font-mono);
+  color: var(--kla-stock-muted);
+  white-space: nowrap;
+}
+.kla-ticket__leg-mark {
+  min-width: 14px;
+  text-align: center;
+  font: 800 13px/1 var(--kla-font-mono);
+  color: #6b6c71;
+}
+[data-done] > .kla-ticket__leg-mark,
+[data-status="seen"] > .kla-ticket__leg-mark {
+  color: #0b7a4b;
+}
+[data-status="reverted"] > .kla-ticket__leg-mark {
+  color: #c8102e;
+}
+[data-status="missing"] > .kla-ticket__leg-mark {
+  color: #a84b00;
+}
+.kla-ticket__fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: 6px 22px;
+  margin: 12px 0 0;
+}
+.kla-ticket__fields dd {
+  margin: 3px 0 0;
+  font: 600 12.5px/1.25 var(--kla-font-body);
+  overflow-wrap: anywhere;
+}
+
+/* Stub: the dotted tear line is its left edge. */
+.kla-ticket__stub {
+  position: relative;
+  min-height: 150px;
+  padding: 16px 16px 14px 24px;
+  background-image: linear-gradient(#1a1a1a 55%, transparent 55%);
+  background-size: 3px 9px;
+  background-repeat: repeat-y;
+  background-position: 0 4px;
+}
+.kla-ticket__stub-n {
+  margin-top: 4px;
+  font: 700 46px/0.9 var(--kla-font-display);
+  letter-spacing: -0.05em;
+}
+.kla-ticket__punches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.kla-ticket__punch {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 2px dashed rgba(26, 26, 26, 0.5);
+  border-radius: 50%;
+  font: 700 10px/1 var(--kla-font-mono);
+  color: rgba(26, 26, 26, 0.7);
+}
+/* A punched hole shows whatever the ticket lies on (--kla-table). */
+.kla-ticket__punch[data-punched] {
+  border: 2px solid #1a1a1a;
+  background: var(--kla-table);
+  color: transparent;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.28);
+}
+.kla-ticket__stamp {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 14px;
+  width: 148px;
+  transform: rotate(var(--kla-rot, 0deg));
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
+.kla-ticket__stamp.kla-stamp--signed,
+.kla-ticket__stamp.kla-stamp--failed {
+  width: 112px;
+  right: 22px;
+  bottom: 10px;
+}
+
+/* Blank ticket (Studio empty state). */
+.kla-ticket--blank .kla-ticket__main {
+  padding-bottom: 22px;
+}
+.kla-ticket__blank-title {
+  margin-top: 2px;
+  font: 700 22px/1.15 var(--kla-font-display);
+  letter-spacing: -0.02em;
+}
+.kla-ticket__blank-body {
+  max-width: 34rem;
+  margin-top: 8px;
+  font: 400 14px/1.5 var(--kla-font-body);
+  color: #45464b;
+}
+.kla-ticket__blank-lines {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+.kla-ticket__blank-lines span {
+  height: 0;
+  border-bottom: 1.5px dashed rgba(26, 26, 26, 0.45);
+}
+.kla-ticket--blank .kla-ticket__stub-n {
+  color: rgba(26, 26, 26, 0.35);
+}
+
+/* Receipt. */
+.kla-receipt__k {
+  margin-top: 16px;
+}
+.kla-receipt__rows {
+  margin-top: 4px;
+}
+.kla-receipt__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 9px 0;
+  border-bottom: 1.5px dashed rgba(26, 26, 26, 0.45);
+  font: 400 13.5px/1.35 var(--kla-font-body);
+}
+.kla-receipt__what {
+  min-width: 0;
+}
+/* The bullet sits inline, so the leg text wraps under it on narrow tickets. */
+.kla-receipt__bullet {
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+.kla-receipt__proof {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font: 500 11.5px/1.4 var(--kla-font-mono);
+  color: var(--kla-stock-muted);
+}
+.kla-receipt__tx {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+a.kla-receipt__tx {
+  color: var(--kla-link);
+}
+.kla-receipt__event {
+  padding: 0 5px;
+  border: 1.5px solid rgba(26, 26, 26, 0.45);
+}
+.kla-receipt__count {
+  font-size: 40px;
+}
+.kla-ticket--receipt[data-state="failed"] .kla-receipt__count {
+  color: #c8102e;
+}
+.kla-receipt__fields {
+  grid-template-columns: repeat(3, minmax(0, auto));
+}
+
+/* Link ticket. */
+.kla-linkt__publisher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.kla-linkt__name {
+  font: 700 18px/1.15 var(--kla-font-display);
+  letter-spacing: -0.02em;
+}
+.kla-linkt__domain {
+  font: 600 12px/1 var(--kla-font-mono);
+  color: var(--kla-stock-muted);
+}
+.kla-linkt__badge {
+  align-self: center;
+  padding: 3px 7px;
+  border: 2px solid #1a1a1a;
+  font: 800 9.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.kla-linkt__badge--ok {
+  color: #0b5c39;
+  border-color: #0b7a4b;
+}
+.kla-linkt__badge--warn {
+  color: #1a1a1a;
+  background: #ffd60a;
+}
+.kla-linkt__bounds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+  gap: 8px 22px;
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border: 2px solid #1a1a1a;
+  background: rgba(255, 214, 10, 0.16);
+}
+.kla-linkt__bounds dd {
+  margin: 3px 0 0;
+  font: 700 14px/1.25 var(--kla-font-body);
+}
+.kla-linkt__lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.kla-linkt__url {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
+  font: 600 12.5px/1.4 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+}
+.kla-linkt__note {
+  margin-top: 6px;
+  font: 400 12.5px/1.45 var(--kla-font-body);
+  color: var(--kla-stock-muted);
+}
+.kla-linkt__expires {
+  margin-top: 6px;
+  font: 700 19px/1.1 var(--kla-font-display);
+  letter-spacing: -0.02em;
+}
+.kla-linkt__uses-k {
+  margin-top: 16px;
+}
+.kla-linkt__uses {
+  margin-top: 4px;
+  font: 600 12.5px/1.2 var(--kla-font-body);
+}
+/* Blind emboss: no ink, only light and shade pressed into the stock. */
+.kla-seal {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  width: 92px;
+  height: 92px;
+  overflow: visible;
+  transform: rotate(-8deg);
+}
+.kla-seal__edge,
+.kla-seal__ring,
+.kla-seal__tick {
+  fill: none;
+  stroke-linejoin: round;
+}
+.kla-seal__edge {
+  fill: rgba(26, 26, 26, 0.04);
+  stroke: rgba(26, 26, 26, 0.32);
+  stroke-width: 1.5;
+  filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.9)) drop-shadow(-1px -1px 0 rgba(26, 26, 26, 0.18));
+}
+.kla-seal__ring {
+  stroke: rgba(26, 26, 26, 0.3);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 2.5;
+}
+.kla-seal__tick {
+  stroke: rgba(26, 26, 26, 0.42);
+  stroke-width: 4;
+  stroke-linecap: square;
+  filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.95));
+}
+.kla-seal__text {
+  font: 800 8px/1 var(--kla-font-mono);
+  letter-spacing: 0.24em;
+  fill: rgba(26, 26, 26, 0.5);
+}
+.kla-linkt__hazard {
+  position: absolute;
+  left: 24px;
+  right: 16px;
+  bottom: 16px;
+  height: 14px;
+  border: 2px solid #1a1a1a;
+  background: repeating-linear-gradient(-45deg, #ffd60a 0 8px, #1a1a1a 8px 16px);
+}
+
+/* Narrow: the stub moves under the ticket and the cut turns sideways. */
+@container (max-width: 500px) {
+  .kla-ticket {
+    --stub-h: 128px;
+    --cut-y: calc(100% - var(--stub-h) - 3px);
+    grid-template-columns: minmax(0, 1fr);
+    -webkit-mask:
+      radial-gradient(circle at 0 var(--cut-y), #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% var(--cut-y), #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle at 0 var(--cut-y), #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) left / 51% 100% no-repeat,
+      radial-gradient(circle at 100% var(--cut-y), #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) right / 51% 100% no-repeat;
+  }
+  .kla-ticket::before,
+  .kla-ticket::after {
+    top: calc(100% - var(--stub-h) - var(--notch) - 3px);
+    bottom: auto;
+  }
+  .kla-ticket::before {
+    left: calc(-1 * var(--notch) - 6px);
+  }
+  .kla-ticket::after {
+    left: auto;
+    right: calc(-1 * var(--notch) - 6px);
+  }
+  .kla-ticket__main {
+    padding: 14px 16px 14px;
+  }
+  .kla-ticket__intent {
+    font-size: 14.5px;
+  }
+  .kla-ticket__leg {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    font-size: 13px;
+  }
+  .kla-ticket__leg-via {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .kla-ticket__leg-mark {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .kla-ticket__fields,
+  .kla-receipt__fields {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+  }
+  .kla-ticket__stub {
+    height: var(--stub-h);
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 18px 16px 12px;
+    background-image: linear-gradient(90deg, #1a1a1a 55%, transparent 55%);
+    background-size: 9px 3px;
+    background-repeat: repeat-x;
+    background-position: 4px 0;
+  }
+  .kla-ticket__stamp {
+    right: 14px;
+    bottom: 18px;
+    width: 140px;
+  }
+  .kla-ticket__stamp.kla-stamp--signed,
+  .kla-ticket__stamp.kla-stamp--failed {
+    width: 100px;
+    bottom: 12px;
+  }
+  .kla-ticket--link .kla-ticket__stub {
+    height: auto;
+    min-height: var(--stub-h);
+  }
+  .kla-seal {
+    width: 80px;
+    height: 80px;
+    bottom: 18px;
+  }
+  .kla-linkt__hazard {
+    left: auto;
+    width: 120px;
+    bottom: auto;
+    top: 22px;
+  }
+}
+
+/* Ticket stub, torn off. */
+.kla-stub {
+  --notch: 12px;
+  position: relative;
+  min-height: 240px;
+  box-sizing: border-box;
+  padding: 14px 14px 14px 22px;
+  color: var(--kla-stock-ink);
+  background-color: var(--kla-stock);
+  border: 3px solid #1a1a1a;
+  border-left-width: 0;
+  background-image: linear-gradient(#1a1a1a 55%, transparent 55%), var(--kla-stock-grain);
+  background-size: 3px 9px, 180px 180px;
+  background-repeat: repeat-y, repeat;
+  background-position: 0 4px, 0 0;
+  -webkit-mask:
+    radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at 0 0, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at 0 100%, #0000 var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+}
+.kla-stub::before,
+.kla-stub::after {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--notch) - 3px);
+  width: calc(2 * var(--notch) + 6px);
+  height: calc(2 * var(--notch) + 6px);
+  box-sizing: border-box;
+  border: 3px solid #1a1a1a;
+  border-radius: 50%;
+}
+.kla-stub::before {
+  top: calc(-1 * var(--notch) - 6px);
+}
+.kla-stub::after {
+  bottom: calc(-1 * var(--notch) - 6px);
+}
+.kla-stub__serial {
+  margin-bottom: 14px;
+  font: 600 10px/1 var(--kla-font-mono);
+  letter-spacing: 0.08em;
+  color: var(--kla-stock-muted);
+}
+.kla-stub__stamp {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 132px;
+  margin-left: -62px;
+  transform: rotate(var(--kla-rot, 0deg));
+  mix-blend-mode: multiply;
+}
+.kla-stub__stamp.kla-stamp--signed,
+.kla-stub__stamp.kla-stamp--failed {
+  width: 100px;
+  margin-left: -46px;
+  bottom: 12px;
+}
+@container (max-width: 150px) {
+  .kla-stub {
+    min-height: 200px;
+    padding: 12px 8px 10px 16px;
+  }
+  .kla-stub__stamp {
+    width: 96px;
+    margin-left: -46px;
+  }
+  .kla-stub__stamp.kla-stamp--signed,
+  .kla-stub__stamp.kla-stamp--failed {
+    width: 78px;
+    margin-left: -36px;
+  }
+}

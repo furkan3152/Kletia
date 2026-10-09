@@ -2,9 +2,14 @@ import {
   CHAINS,
   normalizeAddress,
   parseAccountId,
+  parseAssetId,
+  type ContractReview,
+  type ContractStepCall,
+  type EvmTransactionRequest,
   type IntentGraph,
   type IntentStatus,
   type IntentStep,
+  type StepExecutionPayload,
   type StepStatus,
   type TransactionRequest,
 } from "@kletia/core";
@@ -12,7 +17,7 @@ import type { KletiaClient } from "./client.js";
 import { KletiaApiError, KletiaExecutionError } from "./errors.js";
 import { newIdempotencyKey } from "./retry.js";
 import type { EvmSigner, SolanaSigner } from "./signers.js";
-import type { PreparedStep } from "./types.js";
+import type { PreparedStep, StepReviewContext } from "./types.js";
 import { TERMINAL_INTENT_STATUSES } from "./watch.js";
 
 export interface IntentSigners {
@@ -25,6 +30,17 @@ export interface ExecuteIntentOptions {
   readonly onUpdate?: (intent: IntentGraph) => void;
   /** Called before the wallet is asked to sign a step. Return false to stop. */
   readonly beforeStep?: (step: IntentStep, intent: IntentGraph) => boolean | Promise<boolean>;
+  /**
+   * Custom-contract steps (`call` / `action`): called after prepare and before
+   * any wallet prompt with the review of exactly the prepared transactions
+   * (integrator, decoded call, approvals, simulated asset changes, "Not
+   * audited by Kletia"). Show it to the user and resolve `true` only once
+   * they confirmed; anything else stops without signing and `executeIntent`
+   * returns the intent. Required for those steps: without it they are
+   * refused before prepare. A review whose simulation is not `ok`, or that
+   * does not match the prepared transactions, is refused before this runs.
+   */
+  readonly onReview?: (step: IntentStep, review: ContractReview, context: StepReviewContext) => boolean | Promise<boolean>;
   readonly signal?: AbortSignal;
   /** Poll interval while cross-network steps settle (default 4000 ms). */
   readonly pollIntervalMs?: number;
@@ -122,6 +138,109 @@ function isTokenApproval(transaction: TransactionRequest): boolean {
   );
 }
 
+/** Steps that run integrator code (custom contracts): their review must be confirmed before signing. */
+function isContractStep(step: IntentStep): boolean {
+  return (
+    step.kind === "call" ||
+    step.kind === "action" ||
+    step.call !== undefined ||
+    step.protocol === "custom-call" ||
+    step.protocol === "solana-actions"
+  );
+}
+
+function contractStepName(step: IntentStep): string {
+  const call = step.call;
+  if (!call) return `Step ${step.id} runs a custom contract`;
+  return `Step ${step.id} runs ${call.label ?? call.entry} by ${call.integrator.name}, a custom contract Kletia has not audited`;
+}
+
+/** Decimal or hex integer string as bigint; null when it is not one. */
+function integer(value: unknown): bigint | null {
+  if (typeof value !== "string" || !/^(?:\d{1,78}|0x[0-9a-f]{1,64})$/iu.test(value)) return null;
+  return BigInt(value);
+}
+
+const APPROVE_CALL = /^0x095ea7b3(0{24}[0-9a-f]{40})([0-9a-f]{64})$/iu;
+
+/** `approve(spender, amount)` calldata, exactly; null for anything else. */
+function decodeApprove(data: string): { readonly spender: string; readonly amount: bigint } | null {
+  const match = APPROVE_CALL.exec(data);
+  if (!match) return null;
+  return { spender: `0x${(match[1] as string).slice(24)}`.toLowerCase(), amount: BigInt(`0x${match[2] as string}`) };
+}
+
+function erc20Address(asset: string | undefined): string | null {
+  const parsed = parseAssetId(asset);
+  return parsed && parsed.assetNamespace === "erc20" ? parsed.reference.toLowerCase() : null;
+}
+
+/**
+ * The prepared EVM transactions of a call step must be what the review shows
+ * and the registration pins (the API guards the same, §4.6 of the design):
+ * at most an allowance reset and one exact approval of the step input to the
+ * pinned spender, then one call to the pinned target with the registered
+ * selector and the reviewed value.
+ */
+function evmCallProblem(step: IntentStep, call: ContractStepCall, review: ContractReview, transactions: readonly TransactionRequest[]): string | null {
+  const evm = transactions.filter((transaction): transaction is EvmTransactionRequest => transaction.vm === "evm");
+  if (evm.length !== transactions.length || evm.length < 1 || evm.length > 3) {
+    return `a contract call step signs one to three EVM transactions, not ${transactions.length}`;
+  }
+  const target = call.target.toLowerCase();
+  if (!review.contract || review.contract.address.toLowerCase() !== target) return "the review shows a different contract than the step calls";
+  const last = evm[evm.length - 1] as EvmTransactionRequest;
+  if (last.to.toLowerCase() !== target) return `the last transaction is not sent to the registered contract ${call.target}`;
+  if (!call.selector || last.data.slice(0, 10).toLowerCase() !== call.selector.toLowerCase()) {
+    return `the call is not the registered function ${call.function ?? ""}`.trimEnd();
+  }
+  const value = integer(last.value);
+  const reviewedValue = review.call?.value ? integer(review.call.value.amount) : 0n;
+  if (value === null || reviewedValue === null || value !== reviewedValue) return "the call sends a different value than the review shows";
+  if (value > 0n) {
+    const cap = call.value ? integer(call.value.max) : null;
+    if (cap === null || value > cap) return "the call sends more value than the registration allows";
+  }
+  const approvals = evm.slice(0, -1);
+  const spender = call.approvalSpender?.toLowerCase();
+  const token = erc20Address(step.input?.asset);
+  const amounts: bigint[] = [];
+  for (const [index, transaction] of approvals.entries()) {
+    const decoded = decodeApprove(transaction.data);
+    if (!decoded || integer(transaction.value) !== 0n) return `transaction ${index + 1} is not a token approval`;
+    if (!spender || decoded.spender !== spender) return `transaction ${index + 1} approves a spender the registration does not pin`;
+    if (!token || transaction.to.toLowerCase() !== token) return `transaction ${index + 1} approves a token other than the step input`;
+    amounts.push(decoded.amount);
+  }
+  // [] | [exact] | [reset to 0, exact]
+  const exact = amounts.at(-1);
+  if (amounts.length === 2 && amounts[0] !== 0n) return "only an allowance reset may precede the approval";
+  if (exact === 0n) return "the approval sets no allowance";
+  if (review.approvals.length !== (exact === undefined ? 0 : 1)) return "the approvals differ from the review";
+  if (exact !== undefined) {
+    const shown = review.approvals[0];
+    if (!shown || shown.spender.toLowerCase() !== spender || erc20Address(shown.token.asset) !== token || integer(shown.amount.amount) !== exact) {
+      return "the approval differs from the one the review shows";
+    }
+  }
+  return null;
+}
+
+/** Why the prepared payload of a step with a review cannot be signed; null when it can. */
+function reviewProblem(step: IntentStep, payload: StepExecutionPayload): string | null {
+  const review = payload.review;
+  if (!review) return "Kletia returned no review for this custom-contract step";
+  const vm = CHAINS[step.network].vm;
+  if (review.kind !== (vm === "evm" ? "evm-call" : "solana-action")) return `the review (${String(review.kind)}) does not belong to a ${CHAINS[step.network].name} step`;
+  if (review.simulation?.status !== "ok") return "the transactions could not be simulated, so there is nothing reliable to review";
+  if (!Array.isArray(review.notices) || review.notices.length === 0) return "the review carries no notices";
+  if (!isContractStep(step)) return null;
+  const call = step.call;
+  if (!call || call.vm !== (vm === "evm" ? "evm" : "svm")) return "the step carries no contract snapshot";
+  if (vm === "evm") return evmCallProblem(step, call, review, payload.transactions);
+  return payload.transactions.length === 1 ? null : `a Solana Action step signs one transaction, not ${payload.transactions.length}`;
+}
+
 /**
  * Local deadline (ms) for signing a prepared payload. `expiresAt` is server
  * time, so the TTL is measured on the server's clock (`expiresAt` minus the
@@ -196,17 +315,33 @@ async function submitBroadcast(
   }
 }
 
+/** Outcome of one step: the newest intent, and whether the review hook declined to sign. */
+interface StepOutcome {
+  readonly intent: IntentGraph;
+  readonly declined: boolean;
+}
+
 async function executeStep(
   client: KletiaClient,
   intent: IntentGraph,
   step: IntentStep,
   signers: IntentSigners,
-  signal?: AbortSignal,
-): Promise<IntentGraph> {
+  options: Pick<ExecuteIntentOptions, "onReview" | "signal">,
+): Promise<StepOutcome> {
+  const { signal, onReview } = options;
   const key = unsubmittedKey(intent.id, step.id);
   const held = unsubmitted.get(key);
   // Already broadcast: report it, never prepare and sign the step again.
-  if (held) return submitBroadcast(client, intent.id, step.id, held, signal);
+  if (held) return { intent: await submitBroadcast(client, intent.id, step.id, held, signal), declined: false };
+  // Integrator code: the user must see and confirm its review. Refused before
+  // prepare, so nothing is built (or counted against caps) without a reviewer.
+  if (isContractStep(step) && !onReview) {
+    throw new KletiaExecutionError(
+      `${contractStepName(step)}. Pass onReview to executeIntent to show the user its review and confirm before signing.`,
+      intent.id,
+      step.id,
+    );
+  }
   const vm = CHAINS[step.network].vm;
   const signer = vm === "evm" ? signers.evm : signers.solana;
   if (!signer) {
@@ -232,6 +367,28 @@ async function executeStep(
     if (problem) {
       throw new KletiaExecutionError(`Refused to sign transaction ${index + 1} of step ${step.id}: ${problem}.`, intent.id, step.id);
     }
+  }
+  // The step as prepared (its review is now the prepare review); the snapshot is fixed at plan.
+  const current = prepared.intent.steps.find((candidate) => candidate.id === step.id) ?? step;
+  if (isContractStep(step) || isContractStep(current) || payload.review) {
+    const problem = reviewProblem({ ...current, call: current.call ?? step.call }, payload);
+    if (problem) throw new KletiaExecutionError(`Refused to sign step ${step.id}: ${problem}.`, intent.id, step.id);
+    const review = payload.review as ContractReview;
+    if (!onReview) {
+      throw new KletiaExecutionError(
+        `Step ${step.id} comes with a review to show before signing. Pass onReview to executeIntent.`,
+        intent.id,
+        step.id,
+      );
+    }
+    const context: StepReviewContext = {
+      intent: prepared.intent,
+      transactions: payload.transactions,
+      ...(step.call?.review ? { planned: step.call.review } : {}),
+      expiresAt: payload.expiresAt,
+    };
+    // Only an explicit `true` signs.
+    if ((await onReview(current, review, context)) !== true) return { intent: prepared.intent, declined: true };
   }
   const references: string[] = [];
   for (const transaction of payload.transactions) {
@@ -275,13 +432,15 @@ async function executeStep(
     }
   }
   unsubmitted.set(key, [...references]);
-  return submitBroadcast(client, intent.id, step.id, references, signal);
+  return { intent: await submitBroadcast(client, intent.id, step.id, references, signal), declined: false };
 }
 
 /**
  * Drive an intent to a terminal state: prepare each ready step, have the
  * matching wallet sign it, submit the references for on-chain verification
  * and wait for cross-network settlement before unlocking dependent steps.
+ * Custom-contract steps are signed only after `onReview` confirmed their
+ * review (see `ExecuteIntentOptions.onReview`).
  */
 export async function executeIntent(
   client: KletiaClient,
@@ -304,9 +463,11 @@ export async function executeIntent(
     if (ready.length > 0) {
       const step = ready[0] as IntentStep;
       if (options.beforeStep && !(await options.beforeStep(step, intent))) return intent;
-      intent = await executeStep(client, intent, step, signers, options.signal);
+      const outcome = await executeStep(client, intent, step, signers, options);
+      intent = outcome.intent;
       forgetAccepted(intent);
       options.onUpdate?.(intent);
+      if (outcome.declined) return intent;
       continue;
     }
     const inFlight = intent.steps.some(

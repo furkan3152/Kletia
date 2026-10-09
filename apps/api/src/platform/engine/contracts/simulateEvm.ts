@@ -179,7 +179,7 @@ export interface ContractCallBlockInput {
   readonly inputToken: string | null;
   /** ERC-20 output token (null: no declared output). */
   readonly outputToken: string | null;
-  /** Approval spender when the payload approves (allowance read after the call). */
+  /** The pinned approval spender of an ERC-20 input (allowance read after the call, which must be 0). */
   readonly spender: string | null;
   /** Reset-approve and approve calls, in order (already encoded). */
   readonly approvals: readonly SimulationCall[];
@@ -216,7 +216,7 @@ export function buildContractCallBlock(input: ContractCallBlockInput): ContractC
   const call = push(input.call);
   const inputAfter = input.inputToken ? push(balanceRead(input.account, input.inputToken, input.account)) : null;
   const outputAfter = input.outputToken ? push(balanceRead(input.account, input.outputToken, input.recipient)) : null;
-  const allowanceAfter = input.inputToken && input.spender && input.approvals.length > 0
+  const allowanceAfter = input.inputToken && input.spender
     ? push({
         from: input.account,
         to: input.inputToken,

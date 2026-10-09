@@ -43,7 +43,10 @@ const { contractTestLimiter, contractWriteLimiter } = await import("../limits.js
 const transportModule = await import("../actionTransport.js");
 const { createGuardedLookup } = await import("../netguard.js");
 const { issueDeveloperKey } = await import("../auth.js");
-const { contractDirectory } = await import("../../index.js");
+const { contractDirectory, createIntentDetailed } = await import("../../index.js");
+const harnessModule = await import("../../engine/__tests__/contractHarness.js");
+const { KLETIA_TOOLS, runTool } = await import("../mcp/tools.js");
+const sessionsModule = await import("../sessions.js");
 
 /* ------------------------------------------------------------ fixtures */
 
@@ -755,6 +758,85 @@ describe("contract directory (engine hook)", () => {
     } finally {
       now = START;
       delete process.env.KLETIA_CONTRACT_KEY_DAILY_MAX_USD;
+    }
+  });
+});
+
+/* ------------------------------------------------------------ engine integration */
+
+describe("engine integration (offline EVM world)", () => {
+  let harness: import("../../engine/__tests__/contractHarness.js").EvmHarness;
+  before(() => {
+    harness = harnessModule.installEvmHarness();
+    harnessModule.resetContractCaches();
+    harnessModule.fund(harness.world, harnessModule.USDC_BASE, harnessModule.USER, 1_000_000_000n);
+    // The real engine reads pins from the offline world; providers stay stubbed.
+    configureContractEngine({ engine: null });
+  });
+  after(() => {
+    harness.restore();
+    installStubs();
+  });
+
+  it("registers with the engine's pins, plans aliases for the owning key only, and honours activation and the kill switch", async () => {
+    const owner = await issueKey("engine-owner");
+    const stranger = await issueKey("engine-stranger");
+    const auth = { tier: "developer" as const, keyId: owner.id, projectId: owner.id };
+    const view = await contracts.registerContract(auth, harnessModule.vaultDefinitionBody());
+    assert.equal(view.status, "pending");
+    assert.equal((view.pins as EvmContractPins).codeSize, 5, "pins come from the engine's reads");
+    const account = `eip155:8453:${harnessModule.USER}`;
+    const text = { text: "deposit 100 USDC into acme vault", accounts: [account] };
+    await assert.rejects(createIntentDetailed(text, { ownerKeyId: owner.id, dryRun: true }), (error: { code?: string }) => error.code === "CONTRACT_PENDING");
+
+    now = START + 900_000;
+    const { intent } = await createIntentDetailed(text, { ownerKeyId: owner.id, dryRun: true });
+    const step = intent.steps[0];
+    assert.equal(step?.kind, "call");
+    assert.equal(step?.protocol, "custom-call");
+    assert.equal(step?.call?.contract, view.id);
+    assert.equal(step?.call?.revision, 1);
+    assert.equal(step?.call?.definitionHash, view.definitionHash);
+    assert.equal(step?.call?.review.simulation.status, "ok");
+
+    const structured = { actions: [{ kind: "call", network: "base", contract: view.id, entry: "deposit", amount: "100" }], accounts: [account] };
+    await assert.rejects(createIntentDetailed(structured, { ownerKeyId: stranger.id, dryRun: true }), (error: { code?: string }) => error.code === "CONTRACT_UNKNOWN");
+    await assert.rejects(createIntentDetailed(structured, { dryRun: true }), (error: { code?: string }) => error.code === "CONTRACT_UNKNOWN");
+
+    // MCP plan_intent plans with the connecting key; output carries the review, never calldata.
+    const tool = KLETIA_TOOLS.find((entry) => entry.name === "plan_intent");
+    assert.ok(tool);
+    const planned = await runTool(tool, text, { tier: "developer", keyId: owner.id });
+    assert.equal(planned.isError, undefined, JSON.stringify(planned));
+    const steps = planned.structuredContent.steps as { kind: string; contract?: string; review?: { notices: string[] } }[];
+    assert.equal(steps[0]?.contract, view.id);
+    assert.match(steps[0]?.review?.notices[0] ?? "", /Not audited by Kletia/u);
+    for (const forbidden of ["\"data\"", "fragment", "bindings", "calldata"]) assert.ok(!JSON.stringify(planned).includes(forbidden), `no ${forbidden}`);
+    const keyless = await runTool(tool, text, { tier: "public" });
+    assert.equal(keyless.isError, true, "keyless agents cannot plan registered contracts");
+
+    // A session pins the registration the alias resolved to, and plans for the visitor under the owner's key.
+    const session = await sessionsModule.createSession(auth, {
+      actions: [{ kind: "call", network: "base", contract: "acme vault", entry: "deposit", amount: "100" }],
+      amount: { action: 0, min: "10", max: "500" },
+      allowedOrigins: ["https://acme.example"],
+    });
+    assert.equal(session.actions[0]?.contract, view.id, "the alias is replaced by the registration id");
+    assert.equal(session.actions[0]?.label, "Deposit into Acme USDC vault");
+    assert.deepEqual(session.integrator, { name: "Acme Yield", website: "https://acme.example", domainVerified: false });
+    assert.equal(session.amount?.symbol, "USDC");
+    const created = await sessionsModule.createSessionIntent(session.id, { accounts: [account], amount: "50", hostOrigin: "https://acme.example" });
+    assert.equal(created.intent.steps[0]?.kind, "call");
+    assert.equal(created.intent.steps[0]?.input?.formatted, "50");
+    assert.equal(created.intent.metadata?.sessionId, session.id);
+    const listed = await createIntentDetailed({ actions: [{ kind: "call", network: "base", contract: view.id, entry: "deposit", amount: "1" }], accounts: [account] }, { ownerKeyId: owner.id, dryRun: true });
+    assert.equal(listed.intent.steps[0]?.call?.contract, view.id);
+
+    process.env.KLETIA_CONTRACTS_ENABLED = "false";
+    try {
+      await assert.rejects(createIntentDetailed(structured, { ownerKeyId: owner.id, dryRun: true }), (error: { code?: string }) => error.code === "CONTRACTS_DISABLED");
+    } finally {
+      delete process.env.KLETIA_CONTRACTS_ENABLED;
     }
   });
 });

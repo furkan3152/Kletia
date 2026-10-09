@@ -9,6 +9,8 @@ import {
   abiItemSignature,
   contractActionFunction,
   CONTRACT_LIMITS,
+  findAssetByAddress,
+  formatAssetId,
   functionSelector,
   type AbiEventItem,
   type ContractStepEvent,
@@ -20,7 +22,9 @@ import {
   type SolanaProgramPin,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import type { ResolvedAsset } from "../assets.js";
+import { resolveAsset, type ResolvedAsset } from "../assets.js";
+import { readSolanaAccounts, SOLANA_PROGRAM_IDS } from "../chains/solana.js";
+import { isSolanaNetworkKey } from "../../../networks/solana/index.js";
 import type { ContractCallSnapshot } from "../adapters/types.js";
 import type { RegisteredContract } from "./directory.js";
 import { fillActionParams } from "./solanaActions.js";
@@ -134,5 +138,40 @@ export function solanaSnapshot(
     toleranceBps: entry.output?.toleranceBps ?? CONTRACT_LIMITS.defaultToleranceBps,
     ...(Object.keys(params).length > 0 ? { params } : {}),
     ...(ref ? { output: ref } : {}),
+  };
+}
+
+/**
+ * The declared output asset of an entry: a registry asset, else the token
+ * itself read on-chain (ERC-20 metadata; SPL mint decimals). Never a
+ * third-party token list: an unlisted output is shown by address.
+ */
+export async function contractOutputAsset(registration: RegisteredContract, entry: EvmContractAction | SolanaActionEndpoint): Promise<ResolvedAsset | null> {
+  const definition = registration.definition;
+  if (definition.vm === "evm") {
+    const token = evmOutputToken(definition, entry as EvmContractAction);
+    return token ? resolveAsset(definition.network, token) : null;
+  }
+  const mint = (entry as SolanaActionEndpoint).output?.mint;
+  if (!mint) return null;
+  const listed = findAssetByAddress(definition.network, mint);
+  if (listed) return resolveAsset(definition.network, listed.id);
+  if (!isSolanaNetworkKey(definition.network)) return null;
+  const [account] = await readSolanaAccounts(definition.network, [mint]);
+  const owners: readonly string[] = [SOLANA_PROGRAM_IDS.token, SOLANA_PROGRAM_IDS.token2022];
+  if (!account || !owners.includes(account.owner) || account.data.length < 82) {
+    throw new PlatformError("TOKEN_UNKNOWN", `The declared output ${mint} is not an SPL mint on ${definition.network}.`, 422);
+  }
+  const short = `${mint.slice(0, 4)}…${mint.slice(-4)}`;
+  return {
+    network: definition.network,
+    id: formatAssetId(definition.network, "token", mint),
+    symbol: short,
+    name: short,
+    decimals: account.data[44] as number,
+    address: mint,
+    isNative: false,
+    canonical: false,
+    verified: false,
   };
 }

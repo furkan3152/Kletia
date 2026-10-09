@@ -78,6 +78,37 @@ transaction landed, `executeIntent` throws a `KletiaExecutionError` whose
 A step that stopped after only token approvals has no `references`: an
 approval moves no funds, so it is prepared and signed again normally.
 
+### Custom-contract steps need a confirmed review
+
+`call` and `action` steps run an integrator's own contract or Solana Action,
+which Kletia has not audited. `executeIntent` signs them only after your
+`onReview` hook showed the user the review of exactly the prepared
+transactions and resolved `true`:
+
+```ts
+await executeIntent(kletia, intent, signers, {
+  // review: who, what, permissions, result, provenance, "Not audited by Kletia"
+  onReview: async (step, review, { planned, transactions }) => showReviewCard(review), // true only once the user confirmed
+});
+```
+
+Anything but `true` stops before any wallet prompt and `executeIntent`
+returns the intent (the step stays `awaiting_signature`). Render the review
+in its order (who, what, permissions, result, provenance, notice) and ask
+for an explicit acknowledgement when `review.contract.source` is
+`unverified`/`unknown` or `review.integrator.domainVerified` is false. The
+SDK refuses such a step with a `KletiaExecutionError`, and nothing is
+signed, when:
+
+- no `onReview` is given (checked before prepare, so nothing is built);
+- the prepared payload has no review, or its simulation is not `ok`;
+- the EVM transactions are not what the review and the registration say:
+  anything but an optional allowance reset, one exact approval of the step's
+  input token to the pinned spender for the amount the review shows, and one
+  call to the registered contract and function with the reviewed value
+  (never above the registered cap);
+- a Solana Action step carries more than one transaction.
+
 ## Stream events and wait for completion
 
 ```ts
@@ -108,9 +139,9 @@ back instead of an early retry.
 
 | Request | Retried |
 |---|---|
-| `GET`, `DELETE`, quotes, dry runs, `refresh` | Yes |
-| Create intent, cancel, submit, create webhook, create or rotate key | Only with an `Idempotency-Key` |
-| Webhook tests and other POSTs | No |
+| `GET`, `DELETE`, quotes, dry runs, `refresh`, `contracts.test` | Yes |
+| Create intent, cancel, submit, create webhook, create or rotate key, `contracts.register` / `update` / `reverify`, `sessions.create` | Only with an `Idempotency-Key` |
+| Webhook tests, `sessions.createIntent` and other POSTs | No |
 | `prepareStep` | **Never**, and never with an `Idempotency-Key` |
 
 With an `apiKey`, the client generates one `Idempotency-Key` (a UUID) per call
@@ -200,6 +231,69 @@ const usage = await kletia.usage({ window: "7d" });
 const catalog = await kletia.errors();
 const lending = await kletia.venues({ network: "base", protocol: "morpho" }); // APY, TVL, exit liquidity
 ```
+
+## Custom contracts
+
+Plug your own EVM contract functions, or a Solana Actions endpoint, into
+intents ("bring your own contract"). Server-side, with your key: a
+registration belongs to the key that created it, and only intents created
+with that key (or a key of the same project, for `visibility: "project"`) can
+use it. The rules (argument bindings, forbidden functions, pins, simulation,
+review) are in the [contracts guide](../../docs/platform/contracts.md).
+
+```ts
+import { validateContractDefinition } from "@kletia/core";
+
+// The same static checks the API runs, before anything is sent.
+const checked = validateContractDefinition(definition);
+if (!checked.ok) throw new Error(checked.issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n"));
+
+const { contract } = await kletia.contracts.register(definition); // mainnet: pending until contract.activatesAt
+const test = await kletia.contracts.test(contract.id, {           // plan + prepare + simulation; nothing stored or signed
+  entry: "deposit",
+  account: "eip155:8453:0xYourTestAccount",
+  amount: "100",
+});
+console.log(test.review.simulation.assetChanges, test.review.approvals);
+
+await kletia.contracts.list({ network: "base", status: "active" });
+await kletia.contracts.get(contract.id);                          // the owner also gets the ABI and revisions
+await kletia.contracts.update(contract.id, { actions });          // a new revision unless only labels or phrases change
+await kletia.contracts.reverify(contract.id);                     // after an intended upgrade, or once the domain file is up
+await kletia.contracts.delete(contract.id);
+const info = await kletia.contracts.inspect({ network: "base", address: "0x…" }); // pins, proxy, Sourcify, allowed functions
+```
+
+`register` returns `{ contract }`; the other methods return the contract view
+itself. Intents then use the registration by id or by its aliases:
+
+```ts
+await kletia.intents.create({ text: "bridge 100 USDC from base to arbitrum then deposit it into acme vault", accounts });
+await kletia.intents.create({ actions: [{ kind: "call", network: "base", contract: contract.id, entry: "deposit", amount: "100" }], accounts });
+```
+
+### Sessions: let a page start a fixed flow without a key
+
+Your backend fixes the actions; a page listed in `allowedOrigins` turns the
+session into an intent for the visitor's own accounts, then executes it like
+any other intent (with `onReview` for custom-contract steps).
+
+```ts
+// Server, with your key.
+const session = await kletia.sessions.create({
+  actions: [{ kind: "call", network: "base", contract: "ct_…", entry: "deposit", amount: "100" }],
+  amount: { action: 0, min: "10", max: "1000" }, // the visitor may pick an amount in this range
+  allowedOrigins: ["https://acme.example"],
+  expiresInSeconds: 900,
+});
+// session.embedUrl: https://kletiaai.xyz/embed#session=cs_…
+
+// Browser, no key. hostOrigin defaults to location.origin.
+const { intent } = await new KletiaClient().sessions.createIntent(session.id, { accounts, amount: "250" });
+```
+
+`sessions.get(id)` returns the public view (integrator, labels, amount
+bounds, expiry). `createIntent` is never retried: each call uses the session.
 
 ## Errors
 

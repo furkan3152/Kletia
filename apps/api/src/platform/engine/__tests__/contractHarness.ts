@@ -177,6 +177,12 @@ export interface EvmWorld {
   readonly landed: Map<string, { tx: Record<string, unknown>; receipt: Record<string, unknown>; block: bigint; timestamp: number }>;
   /** Code / storage per block override for pins-at-block reads: `${block}:${address}`. */
   readonly codeAt: Map<string, string>;
+  /** The ERC-20 the vault takes (USDC on Base by default). */
+  vaultAsset: string;
+  /** Beacon contracts: address → implementation they report. */
+  readonly beacons: Map<string, string>;
+  /** Contracts answering supportsInterface(0x48e2b093) = true (EIP-2535 diamonds). */
+  readonly diamonds: Set<string>;
 }
 
 const key = (...parts: string[]) => parts.map((part) => part.toLowerCase()).join(":");
@@ -269,6 +275,16 @@ export function execute(world: EvmWorld, state: ExecState, call: { from: string;
       logs.push({ address: NATIVE_EMITTER, topics: transferLog(NATIVE_EMITTER, from, to, value).topics, data: pad(toHex(value)) });
     }
     if (call.data === "0x" || call.data === "") return { status: "0x1", returnData: "0x", logs, gasUsed: 21_000n };
+    const beacon = world.beacons.get(to);
+    if (beacon !== undefined && call.data.startsWith("0x5c60da1b")) {
+      return { status: "0x1", returnData: encodeAbiParameters([{ type: "address" }], [getAddress(beacon)]), logs, gasUsed: 2_400n };
+    }
+    if (call.data.toLowerCase().startsWith("0x01ffc9a7")) {
+      if (world.diamonds.has(to) && call.data.toLowerCase().startsWith("0x01ffc9a748e2b093")) {
+        return { status: "0x1", returnData: encodeAbiParameters([{ type: "bool" }], [true]), logs, gasUsed: 2_400n };
+      }
+      throw new Revert("no ERC-165");
+    }
     const token = world.tokens.get(to);
     if (token) {
       const decoded = decodeFunctionData({ abi: erc20Abi, data: call.data as Hex });
@@ -314,15 +330,16 @@ export function execute(world: EvmWorld, state: ExecState, call: { from: string;
           const behaviour = world.vault;
           if (behaviour.revert) throw new Revert(behaviour.revert);
           const [assets, receiver] = args as [bigint, string];
+          const asset = world.vaultAsset;
           const pulled = assets + behaviour.extraPull;
-          const allowance = allowanceOf(world, state, USDC_BASE, from, VAULT);
+          const allowance = allowanceOf(world, state, asset, from, VAULT);
           if (allowance < pulled) throw new Revert("ERC20: transfer amount exceeds allowance");
-          const balance = balanceOf(world, state, USDC_BASE, from);
+          const balance = balanceOf(world, state, asset, from);
           if (balance < pulled) throw new Revert("ERC20: transfer amount exceeds balance");
-          state.allowances.set(key(USDC_BASE, from, VAULT), allowance - pulled);
-          setBalance(state, USDC_BASE, from, balance - pulled);
-          setBalance(state, USDC_BASE, VAULT, balanceOf(world, state, USDC_BASE, VAULT) + pulled);
-          logs.push(transferLog(USDC_BASE, from, VAULT, pulled));
+          state.allowances.set(key(asset, from, VAULT), allowance - pulled);
+          setBalance(state, asset, from, balance - pulled);
+          setBalance(state, asset, VAULT, balanceOf(world, state, asset, VAULT) + pulled);
+          logs.push(transferLog(asset, from, VAULT, pulled));
           if (behaviour.stealOther > 0n) {
             setBalance(state, OTHER_TOKEN, from, balanceOf(world, state, OTHER_TOKEN, from) - behaviour.stealOther);
             logs.push(transferLog(OTHER_TOKEN, from, VAULT, behaviour.stealOther));
@@ -336,7 +353,7 @@ export function execute(world: EvmWorld, state: ExecState, call: { from: string;
           return { status: "0x1", returnData: result("deposit", shares), logs, gasUsed: 379_971n };
         }
         default:
-          throw new Revert(`unsupported vault call ${decoded.functionName}`);
+          throw new Revert(`unsupported vault call ${String((decoded as { functionName: string }).functionName)}`);
       }
     }
     throw new Revert(`no contract at ${to}`);
@@ -396,6 +413,9 @@ export function installEvmHarness(): EvmHarness {
     simulateCount: 0,
     landed: new Map(),
     codeAt: new Map(),
+    beacons: new Map(),
+    diamonds: new Set(),
+    vaultAsset: USDC_BASE,
   };
   void PROXY_SLOT_COUNT;
   const codeOf = (address: string, block?: string) => {
@@ -731,3 +751,18 @@ export function resetContractCaches(): void {
 }
 
 export { erc20Abi };
+
+/** Sets an ERC-20 balance in the world. */
+export function fund(world: EvmWorld, token: string, owner: string, amount: bigint): void {
+  world.balances.set(`${token.toLowerCase()}:${owner.toLowerCase()}`, amount);
+}
+
+/** Sets an ERC-20 allowance in the world. */
+export function allow(world: EvmWorld, token: string, owner: string, spender: string, amount: bigint): void {
+  world.allowances.set(`${token.toLowerCase()}:${owner.toLowerCase()}:${spender.toLowerCase()}`, amount);
+}
+
+/** Reads an ERC-20 balance of the world. */
+export function balance(world: EvmWorld, token: string, owner: string): bigint {
+  return world.balances.get(`${token.toLowerCase()}:${owner.toLowerCase()}`) ?? 0n;
+}

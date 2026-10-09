@@ -37,7 +37,7 @@ import { testEvmCall } from "../adapters/contractCall.js";
 import { testSolanaAction } from "../adapters/solanaAction.js";
 import { assertContractAmount } from "./caps.js";
 import { contractDirectory, contractsEnabled, type RegisteredContract } from "./directory.js";
-import { evmOutputToken, evmSnapshot, solanaSnapshot } from "./snapshot.js";
+import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./snapshot.js";
 
 /** Integrator identity with the freshest domain status available. */
 function integratorOf(snapshot: ContractCallSnapshot, registration?: RegisteredContract): ContractReview["integrator"] {
@@ -230,8 +230,7 @@ export async function testContractAction(contract: RegisteredContract, request: 
     }
     recipient = parsed;
   }
-  const outputToken = definition.vm === "evm" ? evmOutputToken(definition, entry as EvmContractAction) : (entry as SolanaActionEndpoint).output?.mint ?? null;
-  const output = outputToken ? await resolveAsset(network, outputToken) : null;
+  const output = await contractOutputAsset(contract, entry);
   const pending = contract.activeRevision === null ? { ...contract, activeRevision: 1 } : contract;
   const snapshot = definition.vm === "evm"
     ? evmSnapshot(pending, entry as EvmContractAction, params.values, output)

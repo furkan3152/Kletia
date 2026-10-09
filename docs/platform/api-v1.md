@@ -143,7 +143,9 @@ Action and constraint options:
   [Recipient names](#recipient-names).
 - `actions[].params.venue` picks a lending venue for a `deposit` or
   `withdraw`: a registry id such as `base:morpho:steakhouse-prime-usdc`, its
-  slug, or the vault / market address on that network. Without it the planner
+  slug, or the vault / market address on that network (a market address that
+  several reserves share, such as an Aave V3 Pool, picks the reserve of the
+  input asset). Without it the planner
   uses the named protocol's default venue for the asset (or the first lending
   protocol with an executable venue) and says so in the step's warnings. The
   chosen id is returned as `step.venue`.
@@ -240,6 +242,14 @@ cannot be reused by any other step.
 A payload expires at `payload.expiresAt`; prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
 
 EVM steps verify plain wallets (the receipt sender must be the step account). Smart-contract wallets that relay through bundlers are not yet supported.
+
+A cross-network step settles only when the destination transaction named by
+the settlement venue credits the step's recipient with at least the guaranteed
+minimum output, was mined after the step was prepared, and has not settled any
+other step for that recipient. Kletia cannot yet prove on-chain that a fill
+pays for one specific deposit (the venues do not expose that link in a form
+Kletia can verify for every route), so the venue's status report remains a
+trust assumption for which of the recipient's qualifying credits is the fill.
 
 ### Events and webhooks
 

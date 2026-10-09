@@ -22,7 +22,9 @@ import {
 } from "viem";
 import { namehash } from "viem/ens";
 import { venueContracts } from "@kletia/core";
-import { BASE_COIN_TYPE, readBasenameRecords, type BasenameRecords } from "../../../networks/base/intent/basenameResolver.js";
+import { BASE_COIN_TYPE, evmCoinType, readBasenameRecords, resolveBasenameEvidence, type BasenameRecords } from "../../../networks/base/intent/basenameResolver.js";
+import type { ParsedIntent } from "../../../shared/ai/parser.js";
+import { resolveIntentEntities } from "../../../shared/assets/resolver.js";
 import { PlatformError } from "../../errors.js";
 import type { EvmNetworkKey } from "../chains/evm.js";
 import { nameResolvers, resetNameResolvers, resolveRecipientName, registerNameResolver } from "../names.js";
@@ -247,6 +249,35 @@ describe("Basenames", () => {
     assert.equal(resolution?.reference, "7");
     assert.equal(resolution?.warnings, undefined);
     assert.match((await resolver.resolve("custom.base.eth", "base"))?.warnings?.[0] ?? "", /custom resolver/u);
+  });
+
+  it("resolves the legacy intent flow per network: a Base-only record never pays an Arbitrum or Arc transfer", async () => {
+    const baseOnly = getAddress("0xba5E00000000000000000000000000000000ba5e");
+    const onArbitrum = getAddress("0xa4b100000000000000000000000000000000a4b1");
+    const table: RecordTable = new Map([
+      ["alice.base.eth", new Map([[60n, SAFE], [BASE_COIN_TYPE, baseOnly]])],
+      ["bob.base.eth", new Map([[60n, SAFE], [BASE_COIN_TYPE, baseOnly], [evmCoinType(42161), onArbitrum]])],
+    ]);
+    const base = fakeChain({ basenames: table, basenameResolver: new Map([["alice.base.eth", NEW_RESOLVER], ["bob.base.eth", NEW_RESOLVER]]) });
+    assert.equal((await resolveBasenameEvidence("alice.base.eth", "base", base.client))?.address, baseOnly);
+    assert.equal((await resolveBasenameEvidence("alice.base.eth", "arbitrum", base.client))?.address, SAFE);
+    assert.equal((await resolveBasenameEvidence("alice.base.eth", "arc", base.client))?.address, SAFE);
+    assert.equal((await resolveBasenameEvidence("bob.base.eth", "arbitrum", base.client))?.address, onArbitrum);
+    // POST /api/intent resolves the recipient for the network the transfer runs on.
+    const networks: (string | undefined)[] = [];
+    const entities = await resolveIntentEntities(
+      { action: "transfer", tokenIn: "USDC", amount: "5", recipient: "alice.base.eth" } as ParsedIntent,
+      { network: "arbitrum", userAddress: "0x2222222222222222222222222222222222222222", originalPrompt: "send 5 USDC to alice.base.eth", requestId: "test" },
+      {
+        resolveBasename: (name, network) => {
+          networks.push(network);
+          return resolveBasenameEvidence(name, network, base.client);
+        },
+      },
+    );
+    assert.deepEqual(networks, ["arbitrum"]);
+    assert.match(JSON.stringify(entities), new RegExp(`"resolvedAddress":"${SAFE}"`, "u"));
+    assert.doesNotMatch(JSON.stringify(entities), /ba5e/iu);
   });
 });
 

@@ -645,16 +645,21 @@ async function claimVerified(intentId: string, step: IntentStep, result: Verific
 
 /**
  * Binds a settled step's destination fill to it globally, like origin
- * references: one fill can settle one step. A fill already bound elsewhere
+ * references: one fill can settle one step per recipient (a relayer may batch
+ * fills for different recipients into one transaction; a fill is only ever
+ * accepted for the recipient it credited). A fill already bound elsewhere
  * leaves the step settling (it times out to manual review); it never settles.
  */
 async function claimSettlement(intentId: string, step: IntentStep, result: SettlementResult): Promise<SettlementResult> {
   const destination = step.settlement?.destinationNetwork;
   if (result.status !== "settled" || !destination) return result;
   const chain = CHAINS[destination].id;
+  const evm = chain.startsWith("eip155:");
+  const payee = parseAccountId(step.recipient ?? step.account)?.address ?? step.recipient ?? step.account;
+  const recipient = evm ? payee.toLowerCase() : payee;
   const keys = result.evidence
     .filter((entry) => entry.kind === "settlement" && entry.reference)
-    .map((entry) => `fill:${chain}:${chain.startsWith("eip155:") ? (entry.reference as string).toLowerCase() : entry.reference}`);
+    .map((entry) => `fill:${chain}:${evm ? (entry.reference as string).toLowerCase() : entry.reference}:${recipient}`);
   if (keys.length === 0) return result;
   try {
     await getIntentStore().claimReferences(keys.map((key) => ({ key, intentId, stepId: step.id })));

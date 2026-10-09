@@ -360,6 +360,18 @@ describe("Aave V3 registry", () => {
     assert.equal(await route("deposit", "base", "USDC", "arbitrum"), false, "same-network only");
   });
 
+  it("resolves params.venue given as the Pool (the market address every reserve shares) to the input asset's reserve", async () => {
+    mockAave();
+    const weth = mockAave({ asset: "WETH" });
+    setBalance(weth.underlying, ACCOUNT, 10n ** 18n);
+    const deposit = (venue: string) =>
+      createIntent({ actions: [{ kind: "deposit", network: "base", from: "WETH", amount: "0.5", protocol: "aave-v3", params: { venue } }], accounts: ACCOUNTS_BASE });
+    assert.equal((await deposit(weth.reserve.target)).steps[0]?.venue, "base:aave-v3:weth");
+    assert.equal((await deposit(weth.reserve.target.toLowerCase())).steps[0]?.venue, "base:aave-v3:weth");
+    // An id, slug or aToken still names exactly one reserve: the USDC reserve does not hold WETH.
+    await assert.rejects(deposit("base:aave-v3:usdc"), (error: PlatformError) => error.code === "VENUE_ASSET_MISMATCH");
+  });
+
   it("refuses an action whose venue is not an Aave reserve of the step network (engine bug, 500)", async () => {
     mockAave();
     const usdc = await resolveAsset("base", "USDC");

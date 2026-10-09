@@ -291,6 +291,16 @@ describe("service lifecycle", () => {
     assert.equal(statuses(await refreshIntent(first.id)), "completed:s1=settled");
     assert.equal(statuses(await refreshIntent(second.id)), "settling:s1=settling", "the same fill cannot settle another step");
     assert.equal(statuses(await refreshIntent(first.id)), "completed:s1=settled");
+    // A relayer may batch fills for different recipients into one transaction: the claim is per recipient.
+    stub.poll = () => ({ status: "settling", evidence: [] });
+    const other = await createIntent({
+      actions: [{ kind: "bridge", network: "base", from: "USDC", amount: "25", toNetwork: "solana", recipient: OTHER_SOL_ADDRESS }],
+      accounts: ACCOUNTS,
+    });
+    await prepareStep(other.id, "s1");
+    assert.equal(statuses(await submitStep(other.id, "s1", [randomEvmHash(), randomEvmHash()])), "settling:s1=settling");
+    stub.poll = () => ({ status: "settled", evidence: [{ kind: "settlement", network: "solana", reference: fill, observedAt: new Date().toISOString() }] });
+    assert.equal(statuses(await refreshIntent(other.id)), "completed:s1=settled");
   });
 
   it("fails a cross-network step on a refund", async () => {

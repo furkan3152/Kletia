@@ -367,6 +367,23 @@ interface VenueChoice {
 }
 
 /**
+ * The venue `params.venue` names (registry id, slug, market or receipt
+ * address). Several venues can share one market address: every Aave V3
+ * reserve on a network is reached through the network's Pool. That address
+ * then names the venue among them that holds the input asset.
+ */
+function namedVenue(action: NormalizedAction, reference: string, input: ResolvedAsset, kind: YieldVenueAction): YieldVenue | null {
+  const venue = findYieldVenue(action.network, reference, action.protocol);
+  if (!venue || venueAssetMatches(venue, input)) return venue;
+  const target = venue.target.toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/u.test(target) || reference.trim().toLowerCase() !== target) return venue;
+  const sharing = yieldVenuesFor(action.network, venue.protocol).filter(
+    (entry) => entry.target.toLowerCase() === target && venueAssetMatches(entry, input),
+  );
+  return sharing.find((entry) => entry.actions.includes(kind)) ?? sharing[0] ?? venue;
+}
+
+/**
  * Resolves and validates the registry venue of a deposit / withdraw: the
  * named venue (`params.venue`), else the default venue of the named protocol,
  * else the first lending protocol (preferred first) with a live adapter.
@@ -378,7 +395,7 @@ function resolveVenue(action: NormalizedAction, input: ResolvedAsset, route: Ada
   const avoid = new Set(request.constraints?.avoidProtocols ?? []);
   const protocolName = action.protocol ? getProtocol(action.protocol)?.name ?? action.protocol : "lending";
   if (action.venue) {
-    const venue = findYieldVenue(action.network, action.venue, action.protocol);
+    const venue = namedVenue(action, action.venue, input, kind);
     if (!venue) {
       const known = yieldVenuesFor(action.network, action.protocol).filter((entry) => entry.actions.includes(kind)).map((entry) => entry.slug);
       throw new PlatformError(

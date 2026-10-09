@@ -16,7 +16,7 @@ export const AUTH_TIERS: readonly AuthTier[] = [
     how: "No key",
     limit: "30 requests/min per IP",
     capabilities: "Read registries, quotes, create and run intents. Safe from browsers.",
-    accent: "#14F195",
+    accent: "#CBD5E1",
   },
   {
     name: "Developer",
@@ -30,7 +30,7 @@ export const AUTH_TIERS: readonly AuthTier[] = [
     how: "Key configured in KLETIA_OPERATOR_API_KEYS",
     limit: "1200 requests/min per key",
     capabilities: "Everything above, for first-party and partner backends. Configuration, not self-service.",
-    accent: "#0052FF",
+    accent: "#1A1A1A",
   },
 ];
 

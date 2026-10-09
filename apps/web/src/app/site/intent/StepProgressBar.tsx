@@ -12,9 +12,9 @@ const SEGMENT: Readonly<Record<StepDisplayPhase, { fill: number; color: string; 
   preparing: { fill: 0.15, color: "#0052FF" },
   awaiting_signature: { fill: 0.35, color: "#FFD60A", hatch: true },
   unconfirmed: { fill: 0.35, color: "#FFD60A", hatch: true },
-  submitted: { fill: 0.6, color: "#9945FF", hatch: true },
-  settling: { fill: 0.8, color: "#9945FF", hatch: true },
-  settled: { fill: 1, color: "#14F195" },
+  submitted: { fill: 0.6, color: "#6D28D9", hatch: true },
+  settling: { fill: 0.8, color: "#6D28D9", hatch: true },
+  settled: { fill: 1, color: "#4ADE80" },
   failed: { fill: 1, color: "#FF5A5F" },
 };
 

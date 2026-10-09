@@ -4,7 +4,6 @@ import { Reveal } from "../../site/motion/Reveal";
 import { ButtonLink } from "../../site/ui/Button";
 import { CodeBlock, type CodeTab } from "../../site/ui/CodeBlock";
 import { Section } from "../../site/ui/Section";
-import { cx, LABEL } from "../../site/ui/styles";
 import { IFRAME_SNIPPET, REST_CREATE_INTENT, SDK_PLAN_AND_EXECUTE, WIDGET_SNIPPET } from "../../site/snippets";
 
 const TABS: readonly CodeTab[] = [
@@ -15,10 +14,9 @@ const TABS: readonly CodeTab[] = [
 ];
 
 const POINTS = [
-  { title: "Plan", body: "intents.create() returns a typed IntentGraph with quotes, fees and floors." },
-  { title: "Execute", body: "executeIntent() drives each step through the wallet that owns it." },
-  { title: "Observe", body: "Stream events over SSE or receive HMAC-signed webhooks." },
-  { title: "Embed", body: "No build step? Drop in the React widget or the /embed iframe; users sign with their own wallets." },
+  { title: "Plan", call: "intents.create()", body: "returns the plan with a quote, fees and a minimum output for every leg." },
+  { title: "Execute", call: "executeIntent()", body: "walks each leg through the wallet that owns it and waits for the chain." },
+  { title: "Follow", call: "intents.stream()", body: "tells you what happened next over Server-Sent Events; signed webhooks cover the time nobody is watching." },
 ];
 
 export function CodeShowcase() {
@@ -27,39 +25,41 @@ export function CodeShowcase() {
       id="code"
       tone="ink"
       reveal
-      eyebrow="Developer experience"
-      title={
-        <>
-          Plan, sign and prove in <span className="text-[#FFD60A]">three calls</span>.
-        </>
-      }
-      intro="The SDK depends only on @kletia/core. It runs in browsers, Node 20+ and edge runtimes, and every request maps 1:1 to the documented REST API. Or skip the code and embed the widget."
+      platform={5}
+      eyebrow="SDK"
+      title="The whole flow is three SDK calls."
+      intro="The SDK only depends on @kletia/core and runs in browsers, Node 20 and edge runtimes. Every call maps to one documented REST route."
     >
       <div className="grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">
         <div className="flex flex-col gap-6">
-          <Reveal as="ol" stagger className="group/points space-y-5">
+          <Reveal as="ol" stagger className="space-y-5">
             {POINTS.map((point, index) => (
-              <li key={point.title} data-reveal-item className="flex gap-4">
+              <li key={point.title} data-reveal-item className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-4">
                 <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center border-[3px] border-white/80 font-display text-lg font-bold text-[#FFD60A] group-data-[reveal=shown]/points:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] motion-reduce:!animate-none"
-                  style={{ animationDelay: `${180 + index * 120}ms` }}
+                  aria-hidden="true"
+                  className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] font-display text-xl font-bold text-[#1A1A1A] shadow-[3px_3px_0_#000]"
                 >
                   {index + 1}
                 </span>
-                <div>
-                  <h3 className={cx(LABEL, "text-white")}>{point.title}</h3>
-                  <p className="mt-1 text-[15px] leading-relaxed text-white/75">{point.body}</p>
+                <div className="min-w-0">
+                  <h3 className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#FFD60A]">{point.title}</h3>
+                  <p className="mt-1 text-[15px] leading-relaxed text-white/80">
+                    <code className="font-code text-[0.92em] font-semibold text-white">{point.call}</code> {point.body}
+                  </p>
                 </div>
               </li>
             ))}
           </Reveal>
+          <p className="text-[15px] leading-relaxed text-white/80">
+            No build step? Drop in the React widget or the <code className="font-code text-[0.92em] text-white">/embed</code> iframe and skip most of the code.
+          </p>
           <div className="flex flex-wrap gap-3 pt-2">
             <ButtonLink to="/developers#quickstart" variant="accent" className="!border-white !shadow-[3px_3px_0_#FFFFFF]">
               Quickstart
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </ButtonLink>
             <ButtonLink to="/developers#explorer" variant="secondary" className="!border-white !shadow-[3px_3px_0_#FFD60A]">
-              Try the API live
+              Try the API in the explorer
             </ButtonLink>
             <ButtonLink to="/developers#embed" variant="ghost" className="!border-white/40 !text-white hover:!bg-white/10">
               Embed guide

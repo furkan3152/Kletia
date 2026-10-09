@@ -1,10 +1,14 @@
-import { ArrowUpRight, Bot, Coins, FileCode2, Plug, Radio, Webhook } from "lucide-react";
+import { ArrowUpRight, FileCode2, Radio, Webhook } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { errorCatalogRows } from "@kletia/core";
+import { errorCatalogRows, PROTOCOLS } from "@kletia/core";
 import { PLATFORM_ORIGIN, sdkSignal } from "../../../shared/platform/kletiaClient";
 import { useApiResource } from "../../../shared/platform/useApiResource";
 import { Link } from "../../routes/Link";
+import type { IconName } from "../../site/art";
+import { Icon } from "../../site/art/Icon";
+import { PlatformNumber } from "../../site/art/Ornaments";
+import { SpecSheet } from "../../site/art/SpecSheet";
 import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
 import { prefersReducedMotion } from "../../site/motion/useReducedMotion";
 import { API_DOC_URL, BASE_MCP_DOC_URL, SDK_PACKAGE_URL } from "../../site/siteLinks";
@@ -62,15 +66,14 @@ function useActiveSection(ids: readonly string[]): string {
 
 const TOC_IDS = TOC.map((item) => item.id);
 const BUNDLED_ERROR_COUNT = errorCatalogRows().length;
+/** The drawing shows "your contract" only while the registry has bring-your-own-contract venues; the caption follows it. */
+const HAS_CONTRACTS = PROTOCOLS.some((protocol) => protocol.category === "custom");
 
-function InfoCard({ icon, title, children, accent }: { icon: React.ReactNode; title: string; children: React.ReactNode; accent: string }) {
+function InfoCard({ icon, title, children }: { icon: IconName; title: string; children: React.ReactNode }) {
   return (
     <div className={cx("flex flex-col gap-3 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
-      <span
-        className="flex h-10 w-10 items-center justify-center border-[3px] border-[#1A1A1A] dark:border-[#4B5563]"
-        style={{ backgroundColor: accent, color: accent === "#FFD60A" || accent === "#14F195" ? "#1A1A1A" : "#FFFFFF" }}
-      >
-        {icon}
+      <span className="flex h-11 w-11 items-center justify-center border-[3px] border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]">
+        <Icon name={icon} size={26} />
       </span>
       <h3 className="font-display text-xl font-bold tracking-[-0.01em]">{title}</h3>
       <div className={cx("text-sm leading-relaxed", TEXT_MUTED)}>{children}</div>
@@ -137,20 +140,22 @@ export default function DevelopersPage() {
 
   return (
     <SessionKeyProvider>
-      <header className="kl-grid-backdrop border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
-        <div className={cx(CONTAINER, "grid gap-10 py-14 sm:py-20 lg:grid-cols-[1.2fr_0.8fr] lg:items-end")}>
-          <div>
-            <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>Developers · Platform API v1</p>
-            <h1 className="mt-4 text-balance font-display text-[clamp(2.5rem,7vw,4.75rem)] font-bold leading-[0.95] tracking-[-0.045em]">
-              Build with <span className="bg-[#FFD60A] px-2 text-[#1A1A1A]">Kletia</span>
+      <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+        <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:items-center xl:gap-14")}>
+          <div className="min-w-0">
+            <PlatformNumber n={1}>Developers · Platform API v1</PlatformNumber>
+            <h1 className="mt-6 text-balance font-display text-[clamp(2.4rem,6.4vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">
+              Put <span className="whitespace-nowrap">cross-network</span> routes inside your own product.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-              One REST API, a typed SDK, React components, an embeddable element and a read-only MCP server for cross-network
-              intents across EVM networks and Solana. Your users keep their keys; your product gets verified, wallet-signed
-              execution.
+              One REST API, a TypeScript SDK, a React widget, an iframe embed and a read-only MCP server. You plan on your server,
+              your users sign in their wallets, and Kletia tells your server when each leg lands.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink to="/developers#quickstart">Quickstart</ButtonLink>
+              <ButtonLink to="/developers#quickstart" className="[--kla-plate:#FFD60A]">
+                <Icon name="sdk" size={18} />
+                Quickstart
+              </ButtonLink>
               <ButtonLink to="/developers#explorer" variant="secondary">
                 API explorer
               </ButtonLink>
@@ -158,37 +163,45 @@ export default function DevelopersPage() {
                 Recipes
               </ButtonLink>
               <ButtonLink to={API_DOC_URL} variant="ghost">
-                API v1 spec
+                OpenAPI spec
                 <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only"> (opens in a new tab)</span>
               </ButtonLink>
             </div>
+            <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-5 border-t-2 border-dashed border-[#1A1A1A]/25 pt-6 dark:border-white/15 sm:grid-cols-4">
+              <div className="col-span-2 min-w-0 sm:col-span-4">
+                <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Base URL</dt>
+                <dd className="mt-1 break-words font-code text-sm font-bold">{PLATFORM_ORIGIN.replace(/^https?:\/\//u, "")}/v1</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Operations</dt>
+                <dd className="mt-1 font-code text-sm font-bold">
+                  <AnimatedNumber value={operations.length} />
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Error codes</dt>
+                <dd className="mt-1 font-code text-sm font-bold">
+                  <AnimatedNumber value={BUNDLED_ERROR_COUNT} />
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Spec</dt>
+                <dd className="mt-1 font-code text-sm font-bold">OpenAPI 3.1</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Agents</dt>
+                <dd className="mt-1 font-code text-sm font-bold">/v1/mcp</dd>
+              </div>
+            </dl>
           </div>
-          <dl className={cx("grid grid-cols-2 gap-[3px] bg-[#1A1A1A] dark:bg-[#4B5563]", INK_BORDER, HARD_SHADOW)}>
-            <div className="col-span-2 min-w-0 bg-white p-4 dark:bg-[#131E32]">
-              <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Base URL</dt>
-              <dd className="mt-1 break-words font-code text-sm font-bold">{PLATFORM_ORIGIN.replace(/^https?:\/\//u, "")}/v1</dd>
-            </div>
-            <div className="min-w-0 bg-white p-4 dark:bg-[#131E32]">
-              <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Operations</dt>
-              <dd className="mt-1 font-code text-sm font-bold">
-                <AnimatedNumber value={operations.length} /> · OpenAPI 3.1
-              </dd>
-            </div>
-            <div className="min-w-0 bg-white p-4 dark:bg-[#131E32]">
-              <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Error codes</dt>
-              <dd className="mt-1 font-code text-sm font-bold">
-                <AnimatedNumber value={BUNDLED_ERROR_COUNT} /> · stable
-              </dd>
-            </div>
-            <div className="min-w-0 bg-white p-4 dark:bg-[#131E32]">
-              <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Identities</dt>
-              <dd className="mt-1 font-code text-sm font-bold">CAIP-2 · 10 · 19</dd>
-            </div>
-            <div className="min-w-0 bg-white p-4 dark:bg-[#131E32]">
-              <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Agents</dt>
-              <dd className="mt-1 font-code text-sm font-bold">MCP · /v1/mcp</dd>
-            </div>
-          </dl>
+          <figure className="m-0 min-w-0 [container-type:inline-size]">
+            <SpecSheet />
+            <figcaption className={cx("mt-5 max-w-2xl font-code text-[11.5px] font-medium leading-relaxed", TEXT_MUTED)}>
+              Drawing KL-INT-01. Yellow boxes are yours: your site, your server
+              {HAS_CONTRACTS ? " and, when you need it, your contract" : ""}. Kletia never sits between the user and their keys.
+            </figcaption>
+          </figure>
         </div>
       </header>
 
@@ -278,8 +291,8 @@ export default function DevelopersPage() {
           <DocSection
             id="keys"
             index={2}
-            title="Keys & authentication"
-            intro="Three tiers share one API. Every response carries X-Request-Id and RateLimit headers; errors use stable UPPER_SNAKE_CASE codes."
+            title="Keys and authentication"
+            intro="Three tiers share one API. Every response carries X-Request-Id and RateLimit headers, and errors use stable UPPER_SNAKE_CASE codes."
           >
             <div className="flex flex-col gap-8">
               <ul id="auth" className="grid scroll-mt-36 gap-4 md:grid-cols-3 lg:scroll-mt-28">
@@ -304,7 +317,7 @@ export default function DevelopersPage() {
             index={3}
             title="API explorer"
             badge={<Badge tone={source.state === "live" ? "green" : source.state === "loading" ? "neutral" : "yellow"}>{source.state === "live" ? "Live" : source.state === "loading" ? "Loading" : "Offline"}</Badge>}
-            intro="Every operation of Platform API v1, generated from the OpenAPI document the API serves. Requests go to the real API; planning defaults to a dry run, and nothing is ever signed here."
+            intro="Every operation in Platform API v1, generated from the OpenAPI document the API serves. Requests go to the real API, planning defaults to a dry run, and nothing is signed here."
           >
             <ApiExplorer operations={operations} source={source} onReloadSpec={spec.reload} />
           </DocSection>
@@ -326,7 +339,7 @@ export default function DevelopersPage() {
           <DocSection
             id="events"
             index={5}
-            title="Events & webhooks"
+            title="Events and webhooks"
             intro="Follow an intent live over Server-Sent Events, or register a webhook, send it a signed test and read its delivery log."
           >
             <div className="grid gap-6">
@@ -382,7 +395,7 @@ export default function DevelopersPage() {
           <DocSection
             id="venues"
             index={6}
-            title="Venues & bridge auction"
+            title="Venues and bridge auction"
             intro="Pick a lending venue by id for deposits and withdrawals, and see how the planner chooses a bridge for every cross-network step."
           >
             <div className="flex flex-col gap-10">
@@ -416,7 +429,7 @@ export default function DevelopersPage() {
             intro="Agents plan with the same deterministic API and hand every value-moving step to a human-controlled wallet. Agents never sign."
           >
             <div className="grid gap-5 md:grid-cols-3">
-              <InfoCard icon={<Plug className="h-5 w-5" aria-hidden="true" />} title="MCP server" accent="#FFD60A">
+              <InfoCard icon="board" title="MCP server">
                 Read-only tools at <code className="break-all font-code text-[12px]">{MCP_URL}</code>: networks, quotes, dry-run
                 plans, intents, balances and a Studio signing link.{" "}
                 <Link to="/developers#recipe-mcp" className={cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
@@ -424,11 +437,11 @@ export default function DevelopersPage() {
                 </Link>
                 .
               </InfoCard>
-              <InfoCard icon={<Bot className="h-5 w-5" aria-hidden="true" />} title="v1 API for agents" accent="#9945FF">
+              <InfoCard icon="route" title="v1 API for agents">
                 Plan with POST /v1/intents, follow progress over SSE and react to webhooks. Grammar-compiled plans make agent behaviour
                 reproducible; INTENT_UNSUPPORTED returns phrases the grammar understands.
               </InfoCard>
-              <InfoCard icon={<Coins className="h-5 w-5" aria-hidden="true" />} title="x402 pay-per-call" accent="#0052FF">
+              <InfoCard icon="transfer" title="x402 pay-per-call">
                 HTTP 402 payments in USDC on Base for paid resources. Kletia prepares capped, public-HTTPS payment plans; the
                 agent&apos;s wallet settles them.
               </InfoCard>

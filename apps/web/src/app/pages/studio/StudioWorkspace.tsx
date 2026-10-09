@@ -1,7 +1,9 @@
 import type { IntentGraph } from "@kletia/core";
-import { ArrowRight, Braces, ChevronRight, Info, Sparkles, Workflow } from "lucide-react";
+import { ArrowRight, Braces, ChevronRight, Info } from "lucide-react";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { Icon } from "../../site/art/Icon";
+import { BlankTicket } from "../../site/art/Ticket";
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
 import { prefersReducedMotion } from "../../site/motion/useReducedMotion";
 import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
@@ -11,6 +13,7 @@ import { TextAreaField, TextField } from "../../site/ui/Field";
 import { JsonView } from "../../site/ui/JsonView";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { toast } from "../../site/ui/toast";
+import { PlanTicket } from "./PlanTicket";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { StudioExamples } from "./StudioExamples";
 import { STUDIO_DEFAULT_PROMPT, STUDIO_FALLBACK_EXAMPLES } from "./exampleGroups";
@@ -33,28 +36,11 @@ const OUT_OF_VIEW_CHECK_MS = 700;
 
 function EmptyState() {
   return (
-    <div className={cx("kl-dot-backdrop flex min-h-[28rem] flex-col items-center justify-center gap-6 p-8 text-center", INK_BORDER, SURFACE)}>
-      <span className="kl-drop flex h-16 w-16 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
-        <Workflow className="h-8 w-8" aria-hidden="true" />
-      </span>
-      <div className="max-w-md">
-        <h2 className="font-display text-2xl font-bold tracking-[-0.02em]">Your intent graph appears here</h2>
-        <p className={cx("mt-2 text-sm leading-relaxed", TEXT_MUTED)}>
-          Pick an example or type an outcome. Kletia compiles it into network-bound steps with live quotes, fees,
-          output floors and warnings. Nothing is signed or persisted.
-        </p>
-      </div>
-      <ol className="grid w-full max-w-lg gap-2 text-left font-code text-xs sm:grid-cols-3">
-        {["1 · compile text", "2 · bind accounts", "3 · quote each step"].map((item, index) => (
-          <li
-            key={item}
-            className="kl-rise border-2 border-[#1A1A1A] bg-white px-3 py-2 dark:border-[#4B5563] dark:bg-[#0B1120]"
-            style={{ ["--kl-i" as string]: index + 1 }}
-          >
-            {item}
-          </li>
-        ))}
-      </ol>
+    <div className="pt-2 sm:pt-4 lg:[&_.kla-ticket-wrap]:-rotate-1">
+      <BlankTicket
+        title="Your ticket prints here."
+        body="Pick an example or write your own. You get the legs, the venues, the minimum you receive on each leg and any warnings. Nothing is signed or stored."
+      />
     </div>
   );
 }
@@ -162,7 +148,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
       <div className="flex min-w-0 flex-col gap-6">
         <form onSubmit={onSubmit} noValidate className={cx("flex min-w-0 flex-col gap-5 p-5 sm:p-6", INK_BORDER, HARD_SHADOW, SURFACE)} aria-label="Plan an intent">
           <TextAreaField
-            label="Intent"
+            label="Where should the money go?"
             rows={3}
             value={studio.text}
             onChange={(event) => studio.setText(event.target.value)}
@@ -236,8 +222,8 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
           </details>
 
           <Button type="submit" size="lg" loading={plan.status === "loading"}>
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-            Plan intent
+            <Icon name="ticket" size={20} className="[--kla-plate:#FFD60A]" />
+            Print the plan
           </Button>
         </form>
 
@@ -251,7 +237,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
               </p>
             )}
             <ButtonLink to="/app" size="sm" variant="secondary" className="self-start">
-              Launch app
+              Open the console
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </ButtonLink>
           </div>
@@ -318,6 +304,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                 </span>
               ) : null}
             </div>
+            <PlanTicket intent={plan.data} />
             <IntentGraphView intent={plan.data} actions={renderActions?.(plan.data)} entrance />
             <details className={cx("kl-details group", INK_BORDER, SURFACE)}>
               <summary

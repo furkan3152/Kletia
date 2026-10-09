@@ -60,7 +60,7 @@ export function Perforation({ className }: { readonly className?: string }) {
 export interface CropMarksProps {
   /** Registration target above the top edge (default true). */
   readonly target?: boolean;
-  /** Process colour bar under the bottom-right corner (default false). */
+  /** Process colour bar above the top-left corner, outside the trim (default false). */
   readonly colorBar?: boolean;
 }
 

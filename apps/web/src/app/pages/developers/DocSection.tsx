@@ -3,7 +3,7 @@ import React from "react";
 
 import { Link } from "../../routes/Link";
 import { Reveal } from "../../site/motion/Reveal";
-import { cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../site/ui/styles";
+import { cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 
 export interface DocSectionProps {
   readonly id: string;
@@ -23,8 +23,11 @@ export function DocSection({ id, index, title, intro, badge, children }: DocSect
       className="scroll-mt-36 border-b-[3px] border-dashed border-[#1A1A1A]/20 py-12 first:pt-4 last:border-b-0 focus:outline-none dark:border-white/10 sm:py-14 lg:scroll-mt-28"
     >
       <Reveal stagger>
-        <p data-reveal-item="" className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>
-          {String(index).padStart(2, "0")}
+        <p data-reveal-item="" aria-hidden="true" className="inline-flex items-center gap-2 font-code text-[10px] font-bold uppercase tracking-[0.16em] text-[#45464B] dark:text-[#A9B6C8]">
+          <span className="inline-flex h-7 min-w-7 items-center justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] px-1 font-display text-sm font-bold tracking-[-0.02em] text-[#1A1A1A]">
+            {String(index).padStart(2, "0")}
+          </span>
+          Section
         </p>
         <div data-reveal-item="" className="mt-2 flex flex-wrap items-center gap-3">
           <h2 id={`${id}-heading`} className="font-display text-3xl font-bold tracking-[-0.03em] sm:text-4xl">

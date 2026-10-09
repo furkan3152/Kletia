@@ -107,7 +107,11 @@ function ReviewStep({
         {step.recipient && step.recipient !== step.account ? (
           <span className={TEXT_MUTED}>
             {" "}
-            · receives <span className="font-code" title={step.recipient}>{shortAccount(step.recipient)}</span>
+            · receives{" "}
+            {step.recipientName ? <span className="font-semibold text-[#1A1A1A] dark:text-white">{step.recipientName} </span> : null}
+            <span className="font-code" title={step.recipient}>
+              {step.recipientName ? `(${shortAccount(step.recipient)})` : shortAccount(step.recipient)}
+            </span>
           </span>
         ) : null}
       </p>
@@ -156,6 +160,8 @@ export function IntentReview({
   const signatures = summary.signaturesRequired;
   const warnings = intent.warnings;
   const external = ownedAccounts ? externalRecipients(intent, ownedAccounts) : [];
+  // Names (ENS, Basenames, SNS) the API resolved a recipient from, shown next to the full address, never instead of it.
+  const recipientNames = new Map(intent.steps.filter((step) => step.recipientName).map((step) => [step.id, step.recipientName as string]));
   const canConfirm = confirmed && !busy && !blockedReason;
 
   // The Confirm button "unlocks": when it becomes enabled it pops out of its
@@ -231,6 +237,7 @@ export function IntentReview({
             {external.map((item) => (
               <li key={`${item.stepId}:${item.recipient}`}>
                 Step {item.stepIndex + 1} on {item.network}:{" "}
+                {recipientNames.get(item.stepId) ? <span className="font-bold">{recipientNames.get(item.stepId)}, resolved to </span> : null}
                 <span className="break-all font-code font-bold">
                   {item.recipient.slice(item.recipient.lastIndexOf(":") + 1)}
                 </span>

@@ -175,7 +175,14 @@ function isProtocolsPath(): boolean {
   return path === PROTOCOLS_PATH;
 }
 
-export function useProtocolFilters(): ProtocolFiltersApi {
+/**
+ * @param available Values the loaded data knows. When given, the URL drops
+ *   anything else (a network from an old link, a removed category). Pass null
+ *   while the data is still loading so a valid value is not dropped early.
+ */
+export function useProtocolFilters(
+  available: { readonly networks: ReadonlySet<string>; readonly categories: ReadonlySet<string> } | null = null,
+): ProtocolFiltersApi {
   const { location } = useRoute();
   const [state, setState] = useState(() => ({ key: location.key, filters: parseFilters(location.search) }));
   const [draft, setDraftState] = useState(state.filters.q);
@@ -192,7 +199,8 @@ export function useProtocolFilters(): ProtocolFiltersApi {
   // Mirror into the URL without emitting a navigation (no scroll jump).
   useEffect(() => {
     if (!isProtocolsPath()) return;
-    const next = `${PROTOCOLS_PATH}${serializeFilters(filters)}${window.location.hash}`;
+    const shown = available ? sanitizeFilters(filters, available) : filters;
+    const next = `${PROTOCOLS_PATH}${serializeFilters(shown)}${window.location.hash}`;
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (next === current) return;
     try {
@@ -200,7 +208,7 @@ export function useProtocolFilters(): ProtocolFiltersApi {
     } catch {
       // Some embedded browsers refuse replaceState; the filters still work.
     }
-  }, [filters]);
+  }, [filters, available]);
 
   // Debounced search.
   useEffect(() => {

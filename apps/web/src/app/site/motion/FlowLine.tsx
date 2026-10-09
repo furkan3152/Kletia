@@ -29,12 +29,15 @@ export interface FlowLineProps {
   readonly glow?: boolean;
   /** Ink stroke classes (default ink in light, slate-200 in dark). */
   readonly inkClassName?: string;
+  /** Arrow head fill classes; pass a fill matching `inkClassName` when you override it. */
+  readonly arrowClassName?: string;
   readonly className?: string;
 }
 
 const DRAW_MS = 380;
 const SAMPLES = 32;
 const INK = "stroke-[#1A1A1A] dark:stroke-[#CBD5E1]";
+const ARROW = "fill-[#1A1A1A] dark:fill-[#CBD5E1]";
 
 /**
  * An edge between two nodes in an SVG diagram: a glow underlay in the network
@@ -60,6 +63,7 @@ export function FlowLine({
   arrow = false,
   glow = true,
   inkClassName = INK,
+  arrowClassName = ARROW,
   className,
 }: FlowLineProps) {
   const reduced = useReducedMotion();
@@ -141,7 +145,7 @@ export function FlowLine({
             markerHeight="7"
             orient="auto-start-reverse"
           >
-            <path d="M0 0 L10 5 L0 10 z" className="fill-[#1A1A1A] dark:fill-[#CBD5E1]" />
+            <path d="M0 0 L10 5 L0 10 z" className={arrowClassName} />
           </marker>
         </defs>
       ) : null}

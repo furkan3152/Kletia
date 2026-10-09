@@ -93,8 +93,8 @@ export default function DevelopersPage() {
               Build with <span className="bg-[#FFD60A] px-2 text-[#1A1A1A]">Kletia</span>
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-              One REST API, a typed SDK and a React widget for cross-network intents across Base, Arbitrum, Arc and
-              Solana. Your users keep their keys; your product gets verified, wallet-signed execution.
+              One REST API, a typed SDK, a React widget and an iframe embed for cross-network intents across EVM
+              networks and Solana. Your users keep their keys; your product gets verified, wallet-signed execution.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <ButtonLink to="/developers#quickstart">Quickstart</ButtonLink>
@@ -182,7 +182,7 @@ export default function DevelopersPage() {
                 }
               />
               <div className="grid gap-4 md:grid-cols-2">
-                <CodeBlock code={REST_STRUCTURED} language="json" label="Structured actions" filename="structured intent (JSON)" />
+                <CodeBlock code={REST_STRUCTURED} language="json" label="Structured actions" filename="structured-intent.json" />
                 <div className={cx("flex flex-col justify-center gap-3 p-5", INK_BORDER, SURFACE)}>
                   <p className={LABEL}>Prefer a UI?</p>
                   <p className={cx("text-sm", TEXT_MUTED)}>

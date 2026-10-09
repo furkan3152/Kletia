@@ -118,18 +118,21 @@ export function LiveStatus({ data }: { readonly data: HomeData }) {
           </div>
         </div>
 
-        <ul className="divide-y-2 divide-dashed divide-[#1A1A1A]/20 dark:divide-white/10" aria-label="Per-network status">
+        <ul className="grid content-start xl:grid-cols-2" aria-label="Per-network status">
           {NETWORKS.map((network) => {
             const entry = byNetwork.get(network.key);
             const state: HealthState = loading ? "loading" : entry ? (entry.ok ? "ok" : "down") : "unknown";
             const actions = liveActions.get(network.key) ?? actionsOf(network);
             return (
-              <li key={network.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-6 py-3.5 sm:px-8">
+              <li
+                key={network.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 border-b-2 border-dashed border-[#1A1A1A]/20 px-6 py-3.5 dark:border-white/10 sm:px-8 xl:px-5 xl:odd:border-r-2"
+              >
                 <div className="flex min-w-0 items-center gap-3">
                   <span aria-hidden="true" className="h-4 w-4 shrink-0 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
                   <div className="min-w-0">
                     <p className="truncate font-bold leading-tight">{network.name}</p>
-                    <p className="truncate font-code text-[11px] text-[#0052FF] dark:text-[#7EA6FF]">
+                    <p className="font-code text-[11px] leading-snug text-[#0052FF] [overflow-wrap:anywhere] dark:text-[#7EA6FF]">
                       {actions.length > 0 ? actions.join(" · ") : network.id}
                       {actions.length > 0 && !liveActions.has(network.key) ? " (registry)" : ""}
                     </p>
@@ -154,7 +157,7 @@ export function LiveStatus({ data }: { readonly data: HomeData }) {
             );
           })}
           {extra.map((entry) => (
-            <li key={entry.network} className="flex items-center justify-between px-6 py-3.5 sm:px-8">
+            <li key={entry.network} className="flex items-center justify-between border-b-2 border-dashed border-[#1A1A1A]/20 px-6 py-3.5 dark:border-white/10 sm:px-8 xl:px-5">
               <span className="font-bold">{networkLabel(entry.network).name}</span>
               <StatusDot state={entry.ok ? "ok" : "down"} pulse="none" />
             </li>

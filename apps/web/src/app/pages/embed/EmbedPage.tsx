@@ -1,7 +1,7 @@
 import "@fontsource-variable/inter";
 
 import type { AccountId, IntentGraph } from "@kletia/core";
-import { DEFAULT_WIDGET_EXAMPLES, KletiaIntentWidget } from "@kletia/widget";
+import { DEFAULT_WIDGET_EXAMPLES, ensureWidgetStyles, KletiaIntentWidget } from "@kletia/widget";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
@@ -94,8 +94,9 @@ function WalletBarFallback() {
         <span className="absolute inset-y-0 left-5 flex items-center whitespace-nowrap">Loading wallets…</span>
       </p>
       <div className="flex items-center gap-1.5 sm:gap-2" aria-hidden="true">
-        <Skeleton shimmer={false} className="h-11 w-[54px]" />
-        <Skeleton shimmer={false} className="h-11 w-[68px]" />
+        {/* The dock's two connect pills: "EVM" / "SOL" on phones, "Connect EVM" / "Connect Solana" from sm. */}
+        <Skeleton shimmer={false} className="h-11 w-[54px] sm:w-[128px]" />
+        <Skeleton shimmer={false} className="h-11 w-[68px] sm:w-[173px]" />
       </div>
     </div>
   );
@@ -118,6 +119,10 @@ export default function EmbedPage() {
     applyEmbedDocumentMode(params);
     return () => leaveEmbedDocumentMode();
   }, [params]);
+
+  // The widget injects its stylesheet in an effect, after its first paint; inject it before paint
+  // so the frame never shows the unstyled widget and then shifts.
+  useLayoutEffect(() => ensureWidgetStyles(), []);
 
   useEffect(() => {
     if (params.theme !== "auto") return undefined;

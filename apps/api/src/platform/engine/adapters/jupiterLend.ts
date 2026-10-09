@@ -13,7 +13,9 @@
  * - Verification binds the landed transaction by that instruction (program,
  *   pinned accounts, discriminator, amount) and proves the outcome from the
  *   step account's token deltas: the exact underlying spent and jlToken
- *   minted (deposit), or the underlying received and jlToken burned (withdraw).
+ *   minted (deposit), or the underlying received and jlToken burned (withdraw),
+ *   no more than the bound instruction pays (the exact amount, or the redeemed
+ *   shares at the on-chain price, which must also cover the floor).
  */
 import {
   findAssetBySymbol,
@@ -416,6 +418,15 @@ export const jupiterLendAdapter: ProtocolAdapter = {
       accounts: await jupiterLendAccounts(venue, mint),
     };
     const expected = await expectation(lendContextForVerify, kind, 0n, null);
+    // A redeem's payout is bounded by its shares at the on-chain price (read now: at least the price it ran at).
+    let price: bigint | null = null;
+    if (kind === "redeem") {
+      try {
+        price = (await readJupiterLending("solana", venue, lendContextForVerify.accounts, mint)).tokenExchangePrice;
+      } catch {
+        return { status: "pending", evidence: [], reason: "The Jupiter Lend exchange price could not be read yet.", stale: false };
+      }
+    }
     const amount = BigInt(step.input.amount);
     const floor = lowestFloor(step) ?? BigInt(step.minimumOutput.amount);
     const minimum = step.minimumOutput;
@@ -447,6 +458,12 @@ export const jupiterLendAdapter: ProtocolAdapter = {
       }
       if (underlyingDelta <= 0n || underlyingDelta < floor) {
         return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The withdrawal did not credit at least ${fromBaseUnits(floor, minimum.decimals)} ${underlying.symbol} to the step account.` } };
+      }
+      // The bound instruction alone must cover the floor (a redeem of part of the position does not close it), and
+      // the credit may not exceed what it pays: anything above came from another instruction in the transaction.
+      const payable = shares !== null && price !== null ? assetsForShares(shares, price) : amount;
+      if (payable + 1n < floor || underlyingDelta > payable + 1n) {
+        return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The ${kind} pays at most ${fromBaseUnits(payable, minimum.decimals)} ${underlying.symbol}; the step needs ${fromBaseUnits(floor, minimum.decimals)} and the account was credited ${fromBaseUnits(underlyingDelta, minimum.decimals)}.` } };
       }
       observed.actual = observedAmount(minimum, underlyingDelta);
     });

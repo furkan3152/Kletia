@@ -50,6 +50,7 @@ import {
 } from "@kletia/core";
 import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
+import { recordedVenueId } from "./adapters/lending/common.js";
 import { activeProtocolAdapters, candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
@@ -665,7 +666,7 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
       slippageBps: planned.slippageBps,
       ...(planned.quoteId ? { quote: planned.quoteId } : {}),
       ...(draft.portionBps !== undefined ? { portionBps: draft.portionBps } : {}),
-      ...(action.provider ? { provider: action.provider } : {}),
+      ...((planned.provider ?? action.provider) ? { provider: planned.provider ?? action.provider } : {}),
       // Every prepare is held to this floor (QUOTE_MOVED), not to the previous prepare's.
       plannedInput: planned.input.amount,
       plannedMinimum: planned.minimumOutput.amount,
@@ -872,8 +873,9 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
   const input = assetFromRef(step.input);
   const destinationNetwork = step.settlement?.destinationNetwork ?? step.network;
   const output = step.kind === "transfer" || step.kind === "deposit" || step.kind === "withdraw" ? input : assetFromRef(step.minimumOutput);
-  const venue = step.venue ? getYieldVenue(step.venue) : null;
-  if (step.venue && (!venue || venue.network !== step.network || venue.protocol !== step.protocol)) {
+  const venueId = recordedVenueId(step);
+  const venue = venueId ? getYieldVenue(venueId) : null;
+  if (venueId && (!venue || venue.network !== step.network || venue.protocol !== step.protocol)) {
     throw new PlatformError("STEP_INVALID", "The step's venue is not in the registry for its network and protocol.", 500);
   }
   let amount = step.input.amount;
@@ -888,8 +890,16 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     if (source) amount = portionOf(source.amount, ref?.portionBps ?? 10_000);
     if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", "The funding step produced too little to continue.", 422);
   }
+  const slippageBps = ref?.slippageBps ?? graph.request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS;
+  const accounts = parseAccounts(graph.request.accounts);
+  if (fundingEdge && !accounts.some((own) => sameAddress(own, recipient))) {
+    // A funded step paying someone else never pays more than the plan showed plus slippage: a larger
+    // funding output (a "withdraw all" position that grew, positive slippage) stays with the user.
+    const cap = (BigInt(ref?.plannedInput ?? step.input.amount) * BigInt(10_000 + slippageBps)) / 10_000n;
+    if (BigInt(amount) > cap) amount = cap.toString();
+  }
   // Same derivation as at plan time, from the intent's own accounts.
-  const destinationAccount = destinationNetwork !== step.network ? ownAccountOn(parseAccounts(graph.request.accounts), destinationNetwork) : undefined;
+  const destinationAccount = destinationNetwork !== step.network ? ownAccountOn(accounts, destinationNetwork) : undefined;
   return {
     kind: step.kind,
     network: step.network,
@@ -899,7 +909,7 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     amount,
     account,
     recipient,
-    slippageBps: ref?.slippageBps ?? graph.request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS,
+    slippageBps,
     ...(ref?.provider ? { provider: ref.provider } : {}),
     ...(venue ? { venue: venue.id } : {}),
     ...(ref?.closePosition && step.kind === "withdraw" ? { closePosition: true } : {}),

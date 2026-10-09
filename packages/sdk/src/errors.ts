@@ -19,6 +19,8 @@ export type KletiaClientErrorCode =
   | "REQUEST_ABORTED"
   | "INVALID_RESPONSE"
   | "WAIT_TIMEOUT"
+  /** A key rotated or revoked itself, the response was lost and the retry was refused; `cause` is the refusal. */
+  | "OUTCOME_UNKNOWN"
   | `HTTP_${number}`;
 
 /** A catalogued API code (`ERROR_CATALOG` in `@kletia/core`), an SDK code, or a code newer than this SDK. */

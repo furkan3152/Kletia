@@ -15,15 +15,16 @@ import type { NetworkCapabilities } from "@kletia/sdk";
 
 /**
  * Intent kinds per network, mirroring the "Supported intents (v1)" table in
- * docs/platform/api-v1.md. The live API (`GET /v1/networks`) is authoritative.
+ * docs/platform/api-v1.md and `GET /v1/networks` (same order). The live API
+ * is authoritative.
  */
 const REGISTRY_ACTIONS: Readonly<Record<NetworkKey, readonly IntentActionKind[]>> = Object.freeze({
-  base: ["swap", "transfer", "bridge", "deposit"],
-  arbitrum: ["swap", "transfer", "bridge", "deposit"],
-  ethereum: ["transfer", "deposit"],
-  optimism: ["transfer", "deposit"],
-  polygon: ["transfer", "deposit"],
-  solana: ["swap", "stake", "transfer", "bridge"],
+  base: ["swap", "transfer", "bridge", "deposit", "withdraw"],
+  arbitrum: ["swap", "transfer", "bridge", "deposit", "withdraw"],
+  ethereum: ["transfer", "bridge", "deposit", "withdraw"],
+  optimism: ["transfer", "bridge", "deposit", "withdraw"],
+  polygon: ["transfer", "bridge", "deposit", "withdraw"],
+  solana: ["swap", "transfer", "bridge", "stake", "deposit", "withdraw"],
   arc: ["transfer"],
   "arbitrum-sepolia": ["transfer"],
   "solana-devnet": ["transfer"],

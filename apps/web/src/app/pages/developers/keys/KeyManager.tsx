@@ -346,7 +346,7 @@ function ManageKeysCard() {
             ? "That is not a complete developer key (kl_dev_ followed by 32 letters and digits). Operator keys are configuration and cannot be managed here."
             : "Paste a developer key above, or issue one, to list, rotate and revoke the keys of its project."}
         </p>
-      ) : list.status === "loading" && !list.data ? (
+      ) : list.status === "loading" ? (
         <SkeletonGroup label="Loading keys" className="flex flex-col gap-2">
           <Skeleton surface="card" className="h-16" />
           <Skeleton surface="card" className="h-16" />

@@ -46,6 +46,8 @@ export interface SolanaTxFixture {
 
 export interface RpcMock {
   readonly evm: Map<string, EvmTxFixture>;
+  /** Native balances by `${address lowercase}@${block number}` (eth_getBalance; unknown entries fail the read). */
+  readonly evmBalances: Map<string, bigint>;
   readonly solana: Map<string, SolanaTxFixture>;
   /** Relay `/requests/v3?depositTxHash=` (keyed; and legacy `/requests/v2?hash=`) responses by deposit hash. */
   readonly relayRequests: Map<string, unknown[]>;
@@ -152,6 +154,11 @@ function evmResult(mock: RpcMock, method: string, params: unknown[]): unknown {
         totalDifficulty: "0x0",
       };
     }
+    case "eth_getBalance": {
+      const balance = mock.evmBalances.get(`${key}@${BigInt(String(params[1]))}`);
+      if (balance === undefined) throw new Error("balance unavailable");
+      return hex(balance);
+    }
     default:
       throw new Error(`unmocked EVM method ${method}`);
   }
@@ -230,6 +237,7 @@ export function installRpcMock(): RpcMock {
   const original = globalThis.fetch;
   const mock: RpcMock = {
     evm: new Map(),
+    evmBalances: new Map(),
     solana: new Map(),
     relayRequests: new Map(),
     relayStatus: new Map(),

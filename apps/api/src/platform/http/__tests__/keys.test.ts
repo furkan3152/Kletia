@@ -272,6 +272,9 @@ function keyContract(name: string, make: () => import("../auth.js").ApiKeyStore)
       assert.equal(await store.revoke(siblingId, rootId, new Date().toISOString()), "revoked");
       assert.equal(await store.revoke(siblingId, rootId, new Date().toISOString()), "already_revoked");
       assert.ok((await store.listByProject(rootId)).find((entry) => entry.id === siblingId)?.revokedAt);
+      assert.ok((await store.findById(siblingId))?.revokedAt, "found by id once revoked");
+      assert.equal((await store.findById(rootId))?.revokedAt, null);
+      assert.equal(await store.findById(id()), null);
       assert.equal(await store.rotate(siblingId, rootId, hash(), "nope", new Date().toISOString(), null), null, "revoked keys cannot rotate");
       // Revoked keys free a slot in the project.
       await store.insert(record(id(), rootId), hash(), 2);

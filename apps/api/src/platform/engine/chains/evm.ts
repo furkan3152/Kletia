@@ -205,6 +205,20 @@ export async function readEvmReceiptStatus(
   }
 }
 
+/**
+ * Change of `account`'s native balance across `blockNumber` (balance after the
+ * block minus balance after the previous one): what a contract-forwarded
+ * native fill credited, net of anything else the account did in that block.
+ */
+export async function nativeBalanceDelta(network: EvmNetworkKey, account: string, blockNumber: bigint): Promise<bigint> {
+  const client = evmClient(network);
+  const address: Address = getAddress(account);
+  // eth_getBalance directly: a batching client would read it through Multicall3 at that block instead.
+  const balanceAt = async (block: bigint) => BigInt(await client.request({ method: "eth_getBalance", params: [address, `0x${block.toString(16)}`] }));
+  const [after, before] = await withTimeout(Promise.all([balanceAt(blockNumber), balanceAt(blockNumber - 1n)]));
+  return after - before;
+}
+
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 /** Sum of ERC-20 Transfer logs of `token` credited to `recipient` in a receipt. */

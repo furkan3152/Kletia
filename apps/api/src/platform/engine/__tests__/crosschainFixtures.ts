@@ -257,7 +257,9 @@ export function installCrossChainMock(): CrossChainMock {
         const value = evmCall(request.params ?? []);
         if (value !== null) return result(value);
       }
-      if (request.method === "eth_getBalance") return result(`0x${mock.balance.toString(16)}`);
+      // Balances at a given block (fill evidence) come from the chain mock's evmBalances.
+      const atBlock = typeof request.params?.[1] === "string" && /^0x[0-9a-f]+$/iu.test(request.params[1]);
+      if (request.method === "eth_getBalance" && !atBlock) return result(`0x${mock.balance.toString(16)}`);
       if (request.method === "getAccountInfo") {
         const key = String((request.params ?? [])[0]);
         if (mock.solanaAccounts.has(key)) return result({ context: { slot: 100 }, value: mock.solanaAccounts.get(key) });
@@ -554,7 +556,7 @@ export function dlnSolanaArgs(action: AdapterAction, options: DlnOrderOptions & 
 export function dlnSolanaTransaction(
   action: AdapterAction,
   args: Buffer,
-  options: { maker?: string; state?: string; mint?: string; program?: string; extraProgram?: string } = {},
+  options: { maker?: string; state?: string; mint?: string; program?: string; extraProgram?: string; computeBudget?: readonly Uint8Array[] } = {},
 ): string {
   const maker = options.maker ?? action.account.address;
   const mint = options.mint ?? (action.input.isNative ? WSOL_MINT : (action.input.address as string));
@@ -584,8 +586,9 @@ export function dlnSolanaTransaction(
     ],
     data: new Uint8Array(args),
   };
+  const budget = options.computeBudget ?? [new Uint8Array([2, 0x40, 0x0d, 0x03, 0x00])];
   const instructions = [
-    { programAddress: address(COMPUTE_BUDGET), accounts: [], data: new Uint8Array([2, 0x40, 0x0d, 0x03, 0x00]) },
+    ...budget.map((data) => ({ programAddress: address(COMPUTE_BUDGET), accounts: [], data })),
     order,
     ...(options.extraProgram ? [{ programAddress: address(options.extraProgram), accounts: [], data: new Uint8Array([1]) }] : []),
   ];

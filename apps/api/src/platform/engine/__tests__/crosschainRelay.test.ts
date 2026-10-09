@@ -7,6 +7,7 @@ import { relayAdapter, RELAY_NETWORKS } from "../adapters/relay.js";
 import { configureRelayApiKey, fetchRelayStatus } from "../adapters/relayClient.js";
 import type { AdapterAction } from "../adapters/types.js";
 import {
+  ATA_PROGRAM,
   bridgeAction,
   COMPUTE_BUDGET,
   installCrossChainMock,
@@ -16,10 +17,11 @@ import {
   RELAY_SOLANA_DEPOSITORY,
   seconds,
   TOKEN_PROGRAM,
+  transferLog,
   USDC_SOL,
   type CrossChainMock,
 } from "./crosschainFixtures.js";
-import { EVM_ADDRESS, OTHER_EVM_ADDRESS, randomRequestId, randomSolanaSignature, SOL_ADDRESS } from "./helpers.js";
+import { EVM_ADDRESS, OTHER_EVM_ADDRESS, OTHER_SOL_ADDRESS, randomEvmHash, randomRequestId, randomSolanaSignature, SOL_ADDRESS } from "./helpers.js";
 import { preparedStep } from "./rpcMock.js";
 
 const DEPOSITORY_ABI = parseAbi([
@@ -75,7 +77,7 @@ function approve(spender: string, amount: bigint): Hex {
 }
 
 /** Relay `/quote` answering `action` with the given EVM calls (one transaction step per call). */
-function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[]) {
+function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[], out: { amount?: string; minimumAmount?: string } = {}) {
   const chainId = CHAINS[action.network].settlement.relayChainId as number;
   mock.rpc.relayQuote = (body) => ({
     steps: calls.map((call, index) => ({
@@ -90,15 +92,25 @@ function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[]) {
       currencyIn: { currency: { chainId, address: body.originCurrency, decimals: action.input.decimals, symbol: action.input.symbol }, amount: action.amount },
       currencyOut: {
         currency: { chainId: CHAINS[action.destinationNetwork].settlement.relayChainId, address: body.destinationCurrency, decimals: action.output.decimals, symbol: action.output.symbol },
-        amount: "24974466",
-        minimumAmount: "24849594",
+        amount: out.amount ?? "24974466",
+        minimumAmount: out.minimumAmount ?? "24849594",
       },
       timeEstimate: 2,
     },
   });
 }
 
-function relaySolanaQuote(action: AdapterAction, programs: readonly string[]) {
+type SolanaIx = { readonly programId: string; readonly keys: { pubkey: string; isSigner: boolean; isWritable: boolean }[]; readonly data: string };
+
+/** ComputeBudget SetComputeUnitLimit (opcode 2) and SetComputeUnitPrice (opcode 3). */
+const unitLimit = (units: number) => `02${Buffer.from(new Uint32Array([units]).buffer).toString("hex")}`;
+const unitPrice = (microLamports: bigint) => `03${Buffer.from(new BigUint64Array([microLamports]).buffer).toString("hex")}`;
+
+/** Relay `/quote` answering a Solana-origin `action` with one instruction per program (or the given instructions). */
+function relaySolanaQuote(action: AdapterAction, programs: readonly (string | SolanaIx)[]) {
+  const instruction = (entry: string | SolanaIx): SolanaIx => typeof entry !== "string"
+    ? entry
+    : { programId: entry, keys: entry === COMPUTE_BUDGET ? [] : [{ pubkey: SOL_ADDRESS, isSigner: true, isWritable: true }], data: entry === COMPUTE_BUDGET ? unitLimit(200_000) : "0b9c60da" };
   mock.rpc.relayQuote = (body) => ({
     steps: [{
       id: "deposit",
@@ -107,7 +119,7 @@ function relaySolanaQuote(action: AdapterAction, programs: readonly string[]) {
       items: [{
         status: "incomplete",
         data: {
-          instructions: programs.map((programId) => ({ programId, keys: [{ pubkey: SOL_ADDRESS, isSigner: true, isWritable: true }], data: "0b9c60da" })),
+          instructions: programs.map(instruction),
           addressLookupTableAddresses: [],
         },
       }],
@@ -201,9 +213,40 @@ describe("Relay networks and pinned targets", () => {
     relaySolanaQuote(action, [RELAY_SOLANA_DEPOSITORY, "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"]);
     assert.match(await errorOf(() => relayAdapter.plan(action)), /JUP6.*not a pinned Relay program/u);
     relaySolanaQuote(action, [RELAY_SOLANA_DEPOSITORY, TOKEN_PROGRAM]);
-    assert.match(await errorOf(() => relayAdapter.plan(action)), /does not invoke the pinned Relay depository/u);
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /Tokenkeg.*not a pinned Relay program/u);
     relaySolanaQuote(action, [COMPUTE_BUDGET]);
     assert.match(await errorOf(() => relayAdapter.plan(action)), /does not invoke the pinned Relay depository/u);
+  });
+
+  it("refuses Token / ATA instructions and uncapped compute budgets next to the depository, at plan and at prepare", async () => {
+    const action = bridgeAction("solana", "base");
+    const step = preparedStep({ network: "solana", chain: CHAINS.solana.id, account: action.account.id });
+    const prepare = () => relayAdapter.prepare({ graph: {} as IntentGraph, step, action, now: Date.now() });
+    const owner = { pubkey: SOL_ADDRESS, isSigner: true, isWritable: false };
+    const account = { pubkey: OTHER_SOL_ADDRESS, isSigner: false, isWritable: true };
+    // spl-token SetAuthority (AccountOwner -> another key), Approve(u64::MAX) and Transfer, then the deposit.
+    const token = [
+      { programId: TOKEN_PROGRAM, keys: [account, owner], data: `060201${"11".repeat(32)}` },
+      { programId: TOKEN_PROGRAM, keys: [account, account, owner], data: `04${"ff".repeat(8)}` },
+      { programId: TOKEN_PROGRAM, keys: [account, account, owner], data: `03${"ff".repeat(8)}` },
+      { programId: ATA_PROGRAM, keys: [owner, account], data: "01" },
+    ];
+    for (const helper of token) {
+      relaySolanaQuote(action, [helper, RELAY_SOLANA_DEPOSITORY]);
+      assert.match(await errorOf(() => relayAdapter.plan(action)), /^RELAY_QUOTE_INVALID.*not a pinned Relay program/u, helper.data);
+      assert.match(await errorOf(prepare), /^RELAY_QUOTE_INVALID.*not a pinned Relay program/u, helper.data);
+    }
+    // About 5 SOL of priority fee: 1.4M compute units at 3,571,428,571 micro-lamports each.
+    const budget = { programId: COMPUTE_BUDGET, keys: [], data: unitPrice(3_571_428_571n) };
+    relaySolanaQuote(action, [{ programId: COMPUTE_BUDGET, keys: [], data: unitLimit(1_400_000) }, budget, RELAY_SOLANA_DEPOSITORY]);
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /^RELAY_QUOTE_INVALID.*priority fee above the cap/u);
+    assert.match(await errorOf(prepare), /^RELAY_QUOTE_INVALID.*priority fee above the cap/u);
+    relaySolanaQuote(action, [{ programId: COMPUTE_BUDGET, keys: [], data: unitLimit(1_400_001) }, RELAY_SOLANA_DEPOSITORY]);
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /too many compute units/u);
+    relaySolanaQuote(action, [{ programId: COMPUTE_BUDGET, keys: [], data: "0b9c60da" }, RELAY_SOLANA_DEPOSITORY]);
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /unknown compute-budget instruction/u);
+    relaySolanaQuote(action, [{ programId: COMPUTE_BUDGET, keys: [], data: unitLimit(1_400_000) }, { programId: COMPUTE_BUDGET, keys: [], data: unitPrice(1_000_000n) }, RELAY_SOLANA_DEPOSITORY]);
+    assert.equal((await relayAdapter.plan(action)).protocol, "relay");
   });
 });
 
@@ -229,6 +272,69 @@ describe("Relay status v3 and request lookups", () => {
       },
     });
   }
+
+  it("settles only on a fill mined after prepare that credits at least the guaranteed minimum", async () => {
+    const requestId = randomRequestId();
+    const deposit = randomSolanaSignature();
+    const usdcBase = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const fill = (amount: bigint, timestamp: number, blockNumber: bigint) => {
+      const hash = randomEvmHash();
+      mock.rpc.evm.set(hash, { hash, from: OTHER_EVM_ADDRESS, to: usdcBase, input: "0x", value: 0n, chainId: 8453, status: "success", blockNumber, timestamp, logs: [transferLog(usdcBase, EVM_ADDRESS, amount)] });
+      return hash;
+    };
+    const poll = async (step: IntentStep, hash: string) => {
+      mock.rpc.relayStatus.set(requestId, { status: "success", inTxHashes: [deposit], txHashes: [hash], destinationChainId: 8453 });
+      const result = await relayAdapter.poll?.(step, Date.now());
+      return { code: result?.status === "failed" ? result.failure.code : result?.status, output: result?.status === "settled" ? result.actualOutput?.amount : undefined };
+    };
+    const step = settlingStep(requestId, deposit);
+    // A transfer mined a day before the step was prepared is not its fill.
+    assert.equal((await poll(step, fill(9_900_000n, seconds(PREPARED_AT) - 86_400, 1_000n))).code, "settling");
+    // Relay's minimum is held at settlement: a 1 USDC fill of a 9.9 USDC minimum is a mismatch.
+    assert.equal((await poll(step, fill(1_000_000n, seconds(PREPARED_AT) + 30, 9_001n))).code, "SETTLEMENT_MISMATCH");
+    // Credit above the prepared expected output is not reported as the step's output.
+    const expected = { ...(step.minimumOutput as NonNullable<IntentStep["minimumOutput"]>), amount: "10000000", formatted: "10" };
+    assert.deepEqual(await poll({ ...step, expectedOutput: expected }, fill(30_000_000n, seconds(PREPARED_AT) + 30, 9_002n)), { code: "settled", output: "10000000" });
+  });
+
+  it("settles a native output only on a credit to the recipient (direct value or balance growth over the fill block)", async () => {
+    const requestId = randomRequestId();
+    const deposit = randomSolanaSignature();
+    const step: IntentStep = {
+      ...settlingStep(requestId, deposit),
+      minimumOutput: { asset: "eip155:8453/slip44:60", symbol: "ETH", decimals: 18, amount: "9900000000000000", formatted: "0.0099" },
+    };
+    const at = seconds(PREPARED_AT) + 30;
+    const poll = async (hash: string) => {
+      mock.rpc.relayStatus.set(requestId, { status: "success", inTxHashes: [deposit], txHashes: [hash], destinationChainId: 8453 });
+      const result = await relayAdapter.poll?.(step, Date.now());
+      return result?.status === "settled" ? `settled ${result.actualOutput?.amount}` : result?.status;
+    };
+    // An unrelated contract call: not to the recipient, no value, and the recipient's balance did not grow.
+    const unrelated = randomEvmHash();
+    mock.rpc.evm.set(unrelated, { hash: unrelated, from: OTHER_EVM_ADDRESS, to: "0x4200000000000000000000000000000000000006", input: "0xd0e30db0", value: 0n, chainId: 8453, status: "success", blockNumber: 9_100n, timestamp: at, logs: [] });
+    const recipient = EVM_ADDRESS.toLowerCase();
+    mock.rpc.evmBalances.set(`${recipient}@9099`, 5n);
+    mock.rpc.evmBalances.set(`${recipient}@9100`, 5n);
+    assert.equal(await poll(unrelated), "settling");
+    mock.rpc.evmBalances.delete(`${recipient}@9100`);
+    assert.equal(await poll(unrelated), "settling", "an unreadable balance proves nothing");
+    // A contract-forwarded fill: the recipient's balance grew over the fill block.
+    mock.rpc.evmBalances.set(`${recipient}@9100`, 5n + 9_950_000_000_000_000n);
+    assert.equal(await poll(unrelated), "settled 9950000000000000");
+    // A direct transfer to the recipient.
+    const direct = randomEvmHash();
+    mock.rpc.evm.set(direct, { hash: direct, from: OTHER_EVM_ADDRESS, to: EVM_ADDRESS, input: "0x", value: 9_960_000_000_000_000n, chainId: 8453, status: "success", blockNumber: 9_200n, timestamp: at, logs: [] });
+    assert.equal(await poll(direct), "settled 9960000000000000");
+  });
+
+  it("refuses a same-asset quote whose minimum is at or above the amount sent (it would win the auction unbound)", async () => {
+    const action = bridgeAction("arbitrum", "base");
+    relayEvmQuote(action, [{ to: RELAY_DEPOSITORY, data: depositErc20(action) }], { amount: action.amount, minimumAmount: action.amount });
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /^RELAY_QUOTE_INVALID.*minimum at or above the amount sent/u);
+    relayEvmQuote(action, [{ to: RELAY_DEPOSITORY, data: depositErc20(action) }]);
+    assert.equal((await relayAdapter.plan(action)).protocol, "relay");
+  });
 
   it("reads /intents/status/v3 and reports Relay's failure reason", async () => {
     const requestId = randomRequestId();

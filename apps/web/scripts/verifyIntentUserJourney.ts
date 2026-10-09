@@ -573,6 +573,87 @@ await assert.rejects(
 );
 assert.equal(walletCalls.filter((call) => call === "leased-sign").length, 1);
 
+// Ethereum, OP Mainnet and Polygon PoS: every step signs only on its own
+// chain id, and the same EVM address connected on Base satisfies it (the
+// account is re-homed per chain; the wallet is switched per step).
+const singleStepIntent = (step: typeof evmStep) =>
+  ({ ...bridgeIntent, status: "planned", steps: [step] }) as unknown as Parameters<typeof binding.findBindingProblem>[0];
+for (const [network, chainId] of [
+  ["ethereum", 1],
+  ["optimism", 10],
+  ["polygon", 137],
+] as const) {
+  const step = {
+    ...evmStep,
+    id: `s-${network}`,
+    network,
+    chain: `eip155:${chainId}`,
+    account: `eip155:${chainId}:${EVM_RECIPIENT}`,
+    settlement: undefined,
+  } as typeof evmStep;
+  const tx = { ...evmTx, network, chainId };
+  assert.equal(binding.transactionBindingProblem(step, tx), null, `A ${network} step signs on chain ${chainId}.`);
+  assert.match(binding.transactionBindingProblem(step, { ...tx, chainId: 8453 }) ?? "", /chain 8453/u);
+  assert.match(
+    binding.transactionBindingProblem(step, { ...tx, network: "base", chainId: 8453 }) ?? "",
+    /targets Base, but the step runs on/u,
+  );
+  assert.match(binding.transactionBindingProblem(step, { ...tx, from: `0x${"2".repeat(40)}` }) ?? "", /another EVM account/u);
+  assert.equal(binding.findBindingProblem(singleStepIntent(step), [EVM_ACCOUNT]), null, `A Base-connected wallet signs ${network} steps.`);
+  assert.equal(
+    binding.findBindingProblem(singleStepIntent(step), [binding.PREVIEW_ACCOUNTS.evm as typeof EVM_ACCOUNT])?.stepId,
+    step.id,
+  );
+}
+const polygonStep = { ...evmStep, network: "polygon", chain: "eip155:137", account: `eip155:137:${EVM_RECIPIENT}` } as typeof evmStep;
+assert.match(
+  binding.transactionBindingProblem(polygonStep, { ...evmTx, network: "polygon", chainId: 10 }) ?? "",
+  /chain 10, not Polygon PoS/u,
+  "A Polygon step never signs an OP Mainnet transaction.",
+);
+
+// The EIP-1193 signer switches the wallet through the connector, which adds a
+// network the wallet lacks and refuses chains the wallet config does not list.
+const { lazyEip1193Signer } = await import("../src/shared/platform/intentSigners");
+const WALLET_CONFIG_CHAINS = new Set([8453, 5_042_002, 42161, 421614, 1, 10, 137]);
+const providerCalls: string[] = [];
+let walletChainId = 8453;
+const fakeEip1193 = {
+  async request({ method }: { method: string; params?: unknown }) {
+    providerCalls.push(method);
+    if (method === "eth_chainId") return `0x${walletChainId.toString(16)}`;
+    if (method === "wallet_switchEthereumChain") {
+      throw Object.assign(new Error("Unrecognized chain ID. Try adding the chain using wallet_addEthereumChain first."), { code: 4902 });
+    }
+    if (method === "eth_sendTransaction") return `0x${"cd".repeat(32)}`;
+    throw new Error(`Unexpected wallet request ${method}`);
+  },
+};
+const connectorSwitches: number[] = [];
+const connectorSwitch = async (chainId: number) => {
+  if (!WALLET_CONFIG_CHAINS.has(chainId)) throw Object.assign(new Error("Chain not configured."), { code: 4902 });
+  connectorSwitches.push(chainId);
+  walletChainId = chainId;
+};
+const evmIntentSigner = lazyEip1193Signer(EVM_RECIPIENT, async () => fakeEip1193, connectorSwitch);
+assert.equal(await evmIntentSigner.sendTransaction({ ...evmTx, network: "optimism", chainId: 10 }), `0x${"cd".repeat(32)}`);
+assert.equal(await evmIntentSigner.sendTransaction({ ...evmTx, network: "polygon", chainId: 137 }), `0x${"cd".repeat(32)}`);
+assert.deepEqual(connectorSwitches, [10, 137], "The wallet follows each step's chain.");
+assert.equal(providerCalls.includes("wallet_switchEthereumChain"), false, "Switches go through the connector, never the raw provider.");
+const sentBefore = providerCalls.filter((method) => method === "eth_sendTransaction").length;
+await assert.rejects(
+  evmIntentSigner.sendTransaction({ ...evmTx, network: "base", chainId: 56 }),
+  (error: unknown) => binding.isNothingSentError(error),
+  "A chain outside the wallet config is refused before signing.",
+);
+walletChainId = 8453;
+await assert.rejects(
+  lazyEip1193Signer(EVM_RECIPIENT, async () => fakeEip1193).sendTransaction({ ...evmTx, network: "ethereum", chainId: 1 }),
+  (error: unknown) => binding.isNothingSentError(error),
+  "Without the connector a failed switch is a clean refusal.",
+);
+assert.equal(providerCalls.filter((method) => method === "eth_sendTransaction").length, sentBefore, "Nothing was sent after a refused switch.");
+
 console.log(
-  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync, step phases and signing guards (preview accounts, step-bound accounts and transactions, stopped runs, unknown signing outcomes, third-party recipients).",
+  "Intent-driven user journey verified: staged workflow binding, minimised chat history for EVM and Solana recipients, three-option semantic consent, privacy trace vocabulary, egress guard registration, wallet-bound Arc and Base to Arbitrum workflow plans, cross-network chat handoff detection, /embed parameters, resumable intent sessions, intent activity sync, step phases and signing guards (preview accounts, step-bound accounts and transactions, stopped runs, unknown signing outcomes, third-party recipients), and chain-bound signing on Ethereum, OP Mainnet and Polygon PoS with connector chain switches.",
 );

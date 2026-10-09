@@ -1,5 +1,3 @@
-import React from "react";
-
 import { cx, FOCUS_RING, HARD_SHADOW_SM, INK_BORDER, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
 import { QUICK_START, type QuickStartPreset } from "./quickStartPresets";
 
@@ -17,7 +15,7 @@ export function QuickStart({ activeId, onPick }: QuickStartProps) {
         {QUICK_START.map((preset, index) => {
           const active = preset.id === activeId;
           return (
-            <li key={preset.id} className="kl-rise min-w-0" style={{ "--kl-i": index } as React.CSSProperties}>
+            <li key={preset.id} className="min-w-0">
               <button
                 type="button"
                 onClick={() => onPick(preset)}

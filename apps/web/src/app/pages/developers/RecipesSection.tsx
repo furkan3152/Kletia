@@ -143,14 +143,14 @@ export function RecipesSection() {
         <div key={swapKey} className={cx("flex min-w-0 flex-col gap-5", swapKey > 0 && "kl-rise")}>
           <header className="flex min-w-0 flex-col gap-2">
             <p className={cx(LABEL, "text-[#0052FF] dark:text-[#7EA6FF]")}>{recipe.group}</p>
-            <h3 id={`recipe-${recipe.id}`} className="scroll-mt-40 font-display text-2xl font-bold tracking-[-0.02em]">
+            <h3 id={`recipe-${recipe.id}`} className="scroll-mt-40 font-display lg:scroll-mt-28 text-2xl font-bold tracking-[-0.02em]">
               {recipe.title}
             </h3>
             <p className={cx("max-w-3xl text-sm leading-relaxed", TEXT_MUTED)}>{recipe.summary}</p>
           </header>
           {recipe.install ? (
             <div className="flex min-w-0 items-center gap-2 border-[3px] border-[#1A1A1A] bg-[#0D1117] py-1.5 pl-3 pr-1.5 text-[#E6EDF3] dark:border-[#4B5563]">
-              <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-code text-[12.5px]">
+              <code className="min-w-0 flex-1 break-words font-code text-[12.5px]">
                 <span className="text-[#FFD60A]">$</span> {recipe.install}
               </code>
               <CopyButton text={recipe.install} label={`Copy install command for ${recipe.label}`} />

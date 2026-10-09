@@ -238,6 +238,44 @@ describe("Jupiter Lend adapter", () => {
       }
     });
 
+    it("proves 'withdraw all' from the redeemed shares: a partial redeem or credit from another instruction never counts", async () => {
+      const shares = 49_667_215_871n;
+      await holdShares(shares);
+      const intent = await createIntent({ text: "withdraw all USDC from jupiter lend", accounts: ACCOUNTS });
+      const { intent: prepared } = await prepareStep(intent.id, intent.steps[0]!.id);
+      const step = prepared.steps[0]!;
+      const value = assetsForShares(shares, JL_PRICE);
+      const { lending, lendingAdmin } = await jupiterLendPdas();
+      const ownerUsdc = await ata(OWNER, USDC);
+      const ownerJl = await ata(OWNER, JL_USDC);
+      const redeem = async (redeemed: bigint, credited: bigint, swap = false) => {
+        const signature = randomSolanaSignature();
+        mock.landed.set(signature, {
+          signature,
+          feePayer: OWNER,
+          blockTime: Math.floor(Date.now() / 1000),
+          instructions: [
+            {
+              program: JL_PROGRAM,
+              accounts: [OWNER, ownerJl, ownerUsdc, lendingAdmin, lending, USDC, JL_USDC, JL_RESERVES, JL_POSITION, JL_RATE_MODEL, JL_VAULT, JL_CLAIM, JL_LIQUIDITY_STATE, JL_LIQUIDITY, JL_REWARDS, TOKEN_PROGRAM, ATA_PROGRAM, SYSTEM],
+              data: instructionData(JUPITER_LEND_DISCRIMINATORS.redeem, redeemed),
+            },
+            // An unrelated swap of the account's SOL into USDC.
+            ...(swap ? [{ program: "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", accounts: [OWNER, ownerUsdc], data: Uint8Array.from([1, 2, 3]) }] : []),
+          ],
+          tokenBalances: [
+            { owner: OWNER, mint: JL_USDC, account: ownerJl, pre: shares, post: shares - redeemed },
+            { owner: OWNER, mint: USDC, account: ownerUsdc, pre: 0n, post: credited },
+          ],
+        });
+        const result = await jupiterLendAdapter.verify({ step, references: [signature], submittedAt: Date.now(), now: Date.now() });
+        return result.status === "failed" ? result.failure.code : result.status === "confirmed" ? `confirmed ${result.actualOutput?.amount}` : result.status;
+      };
+      assert.equal(await redeem(shares, value), `confirmed ${value}`);
+      assert.equal(await redeem(1n, value + 1n, true), "OUTCOME_NOT_PROVEN", "one share redeemed, the rest credited by a swap");
+      assert.equal(await redeem(shares, value + 1_000_000n, true), "OUTCOME_NOT_PROVEN", "the whole position plus a swap credit");
+    });
+
     it("fails the step when the bound transaction did not mint the guaranteed shares", async () => {
       const step = await preparedDeposit();
       const result = await jupiterLendAdapter.verify({ step, references: [await land({ minted: 4_000_000n })], submittedAt: Date.now(), now: Date.now() });

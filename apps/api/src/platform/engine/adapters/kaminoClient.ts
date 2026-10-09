@@ -28,7 +28,7 @@ import { KAMINO_API_URL, solanaRpc, SolanaProviderError, type SolanaNetworkKey }
 import { fetchProviderJson, isRecord } from "../../../networks/solana/http.js";
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
 import { PlatformError } from "../../errors.js";
-import { bytesHex, readU64, SOLANA_PROGRAM_IDS, type DecodedSolanaInstruction, type DecodedSolanaTransaction, type SolanaInstructionView } from "../chains/solana.js";
+import { bytesHex, computeBudgetMismatch, readU64, SOLANA_PROGRAM_IDS, type DecodedSolanaInstruction, type DecodedSolanaTransaction, type SolanaInstructionView } from "../chains/solana.js";
 
 export type KaminoAction = "deposit" | "withdraw";
 
@@ -44,7 +44,8 @@ export const KLEND_DISCRIMINATORS = Object.freeze({
   withdraw: "eb34779895c51407",
 });
 
-const SETUP_DISCRIMINATORS = new Set<string>([
+/** KLend instructions that only set up accounts or refresh state (they move no liquidity). */
+export const SETUP_DISCRIMINATORS: ReadonlySet<string> = new Set<string>([
   KLEND_DISCRIMINATORS.initUserMetadata,
   KLEND_DISCRIMINATORS.initObligation,
   KLEND_DISCRIMINATORS.initObligationFarmsForReserve,
@@ -60,9 +61,6 @@ const INSTRUCTIONS_SYSVAR = "Sysvar1nstructions1111111111111111111111111";
 const DEFAULT_PUBKEY = "11111111111111111111111111111111";
 /** KLend scaled fractions are 60-bit fixed point. */
 const FRACTION_ONE = 1n << 60n;
-const MAX_COMPUTE_UNITS = 1_400_000;
-/** Highest compute-unit price accepted from KTX (1 lamport per CU, at most 0.0014 SOL per transaction). */
-const MAX_COMPUTE_UNIT_PRICE = 1_000_000n;
 /** One token account's rent (1,488,440 lamports today) with headroom. */
 const TOKEN_ACCOUNT_RENT_LAMPORTS = 2_100_000n;
 
@@ -272,14 +270,8 @@ export function checkKaminoTransaction(decoded: DecodedSolanaTransaction, expect
     const { program, accounts, data } = instruction;
     const at = `instruction ${index}`;
     if (program === SOLANA_PROGRAM_IDS.computeBudget) {
-      const kind = data[0];
-      if (kind === 2 && data.length === 5) {
-        if ((u32(data.subarray(1)) ?? Infinity) > MAX_COMPUTE_UNITS) reject(`${at} requests too many compute units`);
-      } else if (kind === 3 && data.length === 9) {
-        if ((readU64(data, 1) ?? MAX_COMPUTE_UNIT_PRICE + 1n) > MAX_COMPUTE_UNIT_PRICE) reject(`${at} sets a priority fee above the cap`);
-      } else if (!(kind === 1 && data.length === 5) && !(kind === 4 && data.length === 5)) {
-        reject(`${at} is an unknown compute-budget instruction`);
-      }
+      const budget = computeBudgetMismatch(data);
+      if (budget) reject(`${at} ${budget}`);
     } else if (program === SOLANA_PROGRAM_IDS.system) {
       // Only wrapped-SOL funding: the step account into its own wrapped-SOL account.
       const lamports = readU64(data, 4);

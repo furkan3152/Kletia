@@ -22,6 +22,7 @@ const SOL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
 const requests = [];
 const intents = new Map();
+const busyOnce = new Set();
 
 function intentFor(id, status = "planned", extra = {}) {
   return {
@@ -95,6 +96,11 @@ const api = createServer(async (req, res) => {
     const id = intentMatch[1];
     if (!intents.has(id)) return send(res, 404, { error: { code: "INTENT_NOT_FOUND", message: "Intent not found.", docs: "https://kletiaai.xyz/developers#error-INTENT_NOT_FOUND" } });
     if (!intentMatch[2]) return send(res, 200, { intent: intentFor(id, intents.get(id)) });
+    // This client already holds too many streams (int_busyonce: only on the first try).
+    if (id === "int_busy" || (id === "int_busyonce" && !busyOnce.has(id))) {
+      busyOnce.add(id);
+      return send(res, 429, { error: { code: "TOO_MANY_STREAMS", message: "Too many open event streams for this client." } }, { "retry-after": id === "int_busy" ? "1" : "0" });
+    }
     // Event stream: two events, then the intent ends.
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.write("retry: 3000\n\n");
@@ -173,7 +179,7 @@ after(() => {
 });
 
 /** Runs the CLI in-process; `tty` makes stdout look like a terminal. */
-async function cli(args, { env = {}, tty = false, stdin } = {}) {
+async function cli(args, { env = {}, tty = false, stdin, fetch: fetchImpl } = {}) {
   let stdout = "";
   let stderr = "";
   const code = await run(args, {
@@ -181,8 +187,30 @@ async function cli(args, { env = {}, tty = false, stdin } = {}) {
     stderr: { write: (chunk) => { stderr += chunk; } },
     env: { KLETIA_BASE_URL: BASE, ...env },
     ...(stdin !== undefined ? { readStdin: async () => stdin } : {}),
+    ...(fetchImpl ? { fetch: fetchImpl } : {}),
   });
   return { code, stdout, stderr };
+}
+
+/**
+ * A fetch whose first `method path` request reaches the API but loses its
+ * response; the retry is refused with 401, as for a key that just rotated
+ * itself with grace 0 or revoked itself.
+ */
+function losingFetch(method, path) {
+  let attempts = 0;
+  return async (url, init) => {
+    if (init?.method !== method || new URL(url).pathname !== path) return fetch(url, init);
+    attempts += 1;
+    if (attempts === 1) {
+      await (await fetch(url, init)).text();
+      throw new TypeError("fetch failed");
+    }
+    return new Response(JSON.stringify({ error: { code: "INVALID_API_KEY", message: "The API key is invalid or revoked." } }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  };
 }
 
 const keyed = { KLETIA_API_KEY: API_KEY };
@@ -361,6 +389,40 @@ test("keys rotate passes the grace window; webhooks test, usage and errors print
   assert.match(venues.stderr, /base:moonwell:usdc: RPC_UNAVAILABLE/u);
 });
 
+test("keys rotate refuses --grace-seconds 0 for the key in use; a lost rotation or revoke is reported, not mistaken", async () => {
+  const self = "key_000000000000000000000001";
+  const before = requests.length;
+  const refused = await cli(["keys", "rotate", self, "--grace-seconds", "0"], { env: keyed });
+  assert.equal(refused.code, 64);
+  assert.match(refused.stderr, /is the key this command uses/u);
+  assert.match(refused.stderr, /another key of the project/u);
+  assert.deepEqual(requests.slice(before).map((request) => `${request.method} ${request.path}`), ["GET /v1/keys"], "listed, never rotated");
+
+  // The rotation ran but its response was lost; the retry is refused.
+  const dir = await mkdtemp(join(tmpdir(), "kletia-cli-"));
+  const file = join(dir, "rotated.txt");
+  const lost = await cli(["keys", "rotate", self, "--grace-seconds", "600", "--secret-file", file], {
+    env: keyed,
+    fetch: losingFetch("POST", `/v1/keys/${self}/rotate`),
+  });
+  assert.equal(lost.code, 1);
+  assert.match(lost.stderr, /OUTCOME_UNKNOWN/u);
+  assert.match(lost.stderr, /may have gone through/u);
+  assert.match(lost.stderr, /rotatedAt and last4/u);
+  await assert.rejects(stat(file), "no empty secret file is left behind");
+
+  // A key that revoked itself and lost the response is revoked.
+  const revoked = await cli(["keys", "revoke", self, "--yes"], { env: keyed, fetch: losingFetch("DELETE", `/v1/keys/${self}`) });
+  assert.equal(revoked.code, 0, revoked.stderr);
+  assert.equal(revoked.stdout, `Revoked ${self}.\n`);
+  assert.match(revoked.stderr, /no longer authenticates/u);
+  // For another key the refusal only says this key stopped working: the outcome stays unknown.
+  const sibling = "key_000000000000000000000002";
+  const unknown = await cli(["keys", "revoke", sibling, "--yes"], { env: keyed, fetch: losingFetch("DELETE", `/v1/keys/${sibling}`) });
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.stderr, /OUTCOME_UNKNOWN/u);
+});
+
 test("webhooks verify checks stdin against KLETIA_WEBHOOK_SECRET", async () => {
   const body = JSON.stringify(evt(9, "int_x", "intent.status_changed", { status: "completed", previous: "settling" }));
   const signature = await signWebhookPayload(WEBHOOK_SECRET, body);
@@ -389,6 +451,33 @@ test("webhooks forward re-signs streamed events for a local endpoint only", asyn
   assert.match(result.stdout, /204\s+intent\.status_changed/u);
   const remote = await cli(["webhooks", "forward", "--intent", "int_forward", "--to", "https://example.com/hook"], { env });
   assert.equal(remote.code, 64);
+});
+
+test("webhooks forward replays the events of an intent that already ended", async () => {
+  const env = { KLETIA_WEBHOOK_SECRET: WEBHOOK_SECRET };
+  intents.set("int_done", "completed");
+  received.length = 0;
+  const done = await cli(["webhooks", "forward", "--intent", "int_done", "--to", RECEIVER], { env });
+  assert.equal(done.code, 0, done.stderr);
+  assert.deepEqual(received.map((delivery) => JSON.parse(delivery.body).type), ["intent.step_updated", "intent.status_changed"]);
+  assert.match(done.stdout, /204\s+intent\.status_changed/u);
+
+  // The stream is refused once (TOO_MANY_STREAMS), then replays.
+  intents.set("int_busyonce", "completed");
+  received.length = 0;
+  const retried = await cli(["webhooks", "forward", "--intent", "int_busyonce", "--to", RECEIVER], { env });
+  assert.equal(retried.code, 0, retried.stderr);
+  assert.equal(received.length, 2);
+  assert.match(retried.stderr, /Event stream unavailable \(TOO_MANY_STREAMS\)/u);
+
+  // A stream that stays unavailable is a warning and a non-zero exit, not a clean end.
+  intents.set("int_busy", "completed");
+  received.length = 0;
+  const busy = await cli(["webhooks", "forward", "--intent", "int_busy", "--to", RECEIVER, "--wait", "1"], { env });
+  assert.equal(busy.code, 1);
+  assert.equal(received.length, 0);
+  assert.match(busy.stderr, /warning: not every event of int_busy was forwarded \(0 were\)/u);
+  assert.match(busy.stderr, /TOO_MANY_STREAMS/u);
 });
 
 test("the kletia binary runs as a process with exit codes", async () => {

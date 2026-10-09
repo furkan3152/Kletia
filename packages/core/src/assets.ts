@@ -98,6 +98,19 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   evm("arbitrum", "USDC", "USD Coin", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 6, "stablecoin", "USDC"),
   evm("arbitrum", "WETH", "Wrapped Ether", "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", 18, "wrapped", "ETH"),
   evm("arbitrum", "ARB", "Arbitrum", "0x912CE59144191C1204E64559FE8253a0e49E6548", 18, "governance"),
+  // Ethereum (USDC is Circle-native, CCTP V2 domain 0)
+  native("ethereum", "ETH"),
+  evm("ethereum", "USDC", "USD Coin", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6, "stablecoin", "USDC"),
+  evm("ethereum", "WETH", "Wrapped Ether", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", 18, "wrapped", "ETH"),
+  // OP Mainnet (USDC is Circle-native, CCTP V2 domain 2)
+  native("optimism", "ETH"),
+  evm("optimism", "USDC", "USD Coin", "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", 6, "stablecoin", "USDC"),
+  evm("optimism", "WETH", "Wrapped Ether", "0x4200000000000000000000000000000000000006", 18, "wrapped", "ETH"),
+  // Polygon PoS (native USDC, CCTP V2 domain 7; the gas asset is POL, WETH is bridged ETH)
+  native("polygon"),
+  evm("polygon", "USDC", "USD Coin", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", 6, "stablecoin", "USDC"),
+  evm("polygon", "WPOL", "Wrapped POL", "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", 18, "wrapped"),
+  evm("polygon", "WETH", "Wrapped Ether", "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", 18, "wrapped", "ETH"),
   // Arc Testnet: USDC is the native gas asset (18 decimals) with a 6-decimal ERC-20 interface.
   evm("arc", "USDC", "USD Coin", "0x3600000000000000000000000000000000000000", 6, "stablecoin", "USDC"),
   // Arbitrum Sepolia

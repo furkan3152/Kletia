@@ -13,12 +13,15 @@ export interface NavItem {
   readonly label: string;
   readonly to: string;
   readonly external?: boolean;
+  /** Desktop header shows only an icon between `lg` and `xl` (the label stays the accessible name). */
+  readonly compact?: boolean;
 }
 
 export const PRIMARY_NAV: readonly NavItem[] = [
   { label: "Product", to: "/#product" },
   { label: "Developers", to: "/developers" },
+  { label: "Protocols", to: "/protocols" },
   { label: "Networks", to: "/networks" },
   { label: "Studio", to: "/studio" },
-  { label: "GitHub", to: GITHUB_URL, external: true },
+  { label: "GitHub", to: GITHUB_URL, external: true, compact: true },
 ];

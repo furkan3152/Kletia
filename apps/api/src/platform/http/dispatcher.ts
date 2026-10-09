@@ -21,12 +21,16 @@
  * - a webhook whose last 5 attempts failed is paused for 30 s, doubling up to
  *   5 min while the probe after each pause fails; its deliveries wait in the
  *   owner's queue meanwhile.
- * Every drop is counted and logged.
+ * Every drop is counted and logged. Every attempt and drop is also written to
+ * the per-webhook delivery log (deliveries.ts) through a fire-and-forget
+ * recorder, so the log never delays delivery.
  */
 import https from "node:https";
 import { isIP } from "node:net";
+import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
 import { subscribeIntentEvents, type IntentEvent } from "../index.js";
+import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
 import { guardedLookup, isPublicAddress } from "./netguard.js";
 import { resolveIntentOwner } from "./owners.js";
 import { sealingAvailable } from "./secrets.js";
@@ -47,7 +51,7 @@ const CONCURRENCY = 8;
 const MAX_TRACKED_WEBHOOKS = 10_000;
 /** The owner of a just-created intent is recorded right after the engine emits `intent.created`. */
 const OWNER_RETRY_DELAYS_MS: readonly number[] = [0, 250, 1_000];
-const USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
+export const WEBHOOK_USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
 
 interface Delivery {
   readonly webhookId: string;
@@ -67,6 +71,9 @@ interface Breaker {
 
 /** Posts one signed body; resolves with the HTTP status code. */
 export type WebhookTransport = (url: URL, body: string, headers: Readonly<Record<string, string>>) => Promise<number>;
+
+/** Receives every attempt and drop for the delivery log; must not throw or block. */
+export type DeliveryRecorder = (record: DeliveryRecord) => void;
 
 export const httpsTransport: WebhookTransport = (url, body, headers) =>
   new Promise<number>((resolve, reject) => {
@@ -132,7 +139,10 @@ export class WebhookDispatcher {
   private dropped = 0;
   private lastDropLog = 0;
 
-  constructor(private readonly transport: WebhookTransport = httpsTransport) {}
+  constructor(
+    readonly transport: WebhookTransport = httpsTransport,
+    private readonly recorder: DeliveryRecorder = recordDelivery,
+  ) {}
 
   start(): void {
     if (this.unsubscribe) return;
@@ -175,9 +185,9 @@ export class WebhookDispatcher {
   }
 
   /** Runs `task` after `delayMs`; returns null (and counts a drop) when no timer can be scheduled. */
-  private later(delayMs: number, task: () => Promise<void> | void): NodeJS.Timeout | null {
+  private later(delayMs: number, task: () => Promise<void> | void, delivery?: Delivery): NodeJS.Timeout | null {
     if (this.timers.size >= WEBHOOK_MAX_QUEUE && !this.evictRetry()) {
-      this.drop("too many pending retries");
+      this.drop("too many pending retries", delivery);
       return null;
     }
     const timer = setTimeout(() => {
@@ -193,7 +203,31 @@ export class WebhookDispatcher {
     return timer;
   }
 
-  private drop(reason: string): void {
+  /** Hands one outcome to the delivery log; recording failures never affect delivery. */
+  private record(delivery: Delivery, outcome: { status: DeliveryRecord["status"]; httpStatus?: number; durationMs?: number; error?: DeliveryError; nextRetryAt?: string }): void {
+    try {
+      this.recorder({
+        id: newDeliveryId(),
+        webhookId: delivery.webhookId,
+        ownerKeyId: delivery.ownerKeyId,
+        eventId: delivery.event.id,
+        eventType: delivery.event.type,
+        intentId: delivery.event.data.intentId,
+        attempt: delivery.attempt,
+        status: outcome.status,
+        ...(outcome.httpStatus !== undefined ? { httpStatus: outcome.httpStatus } : {}),
+        ...(outcome.durationMs !== undefined ? { durationMs: outcome.durationMs } : {}),
+        ...(outcome.error ? { error: outcome.error } : {}),
+        ...(outcome.nextRetryAt ? { nextRetryAt: outcome.nextRetryAt } : {}),
+        at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.warn("[platform] webhook delivery log failed:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  private drop(reason: string, delivery?: Delivery): void {
+    if (delivery) this.record(delivery, { status: "dropped", error: "queue_full" });
     this.dropped += 1;
     const now = Date.now();
     if (now - this.lastDropLog > 10_000) {
@@ -243,7 +277,7 @@ export class WebhookDispatcher {
     if (!queue || !oldest) return;
     this.queued -= 1;
     if (queue.length === 0) this.queues.delete(owner);
-    this.drop(`${reason}; oldest was ${oldest.event.type} ${oldest.event.id} for ${oldest.webhookId}`);
+    this.drop(`${reason}; oldest was ${oldest.event.type} ${oldest.event.id} for ${oldest.webhookId}`, oldest);
   }
 
   private longestQueue(): string | null {
@@ -305,33 +339,48 @@ export class WebhookDispatcher {
     let status = 0;
     let reason = "";
     let attempted = false;
+    let started = 0;
+    let failure: { error: DeliveryError; httpStatus?: number } | null = null;
     try {
       // The webhook may have been deleted since the event was queued.
       const hook = (await webhooksForOwner(delivery.ownerKeyId)).find((entry) => entry.id === delivery.webhookId);
       if (!hook) return;
       const signature = await signWebhookPayload(webhookSecret(hook), delivery.body);
       attempted = true;
+      started = performance.now();
       status = await this.transport(new URL(hook.url), delivery.body, {
         "content-type": "application/json",
-        "user-agent": USER_AGENT,
+        "user-agent": WEBHOOK_USER_AGENT,
         "kletia-signature": signature,
         "kletia-event-id": delivery.event.id,
         "kletia-event-type": delivery.event.type,
         "kletia-webhook-id": delivery.webhookId,
         "kletia-delivery-attempt": String(delivery.attempt),
       });
-      if (status >= 200 && status < 300) {
+      const outcome = classifyStatus(status);
+      if (outcome.status === "succeeded") {
         this.delivered += 1;
         this.breakers.delete(delivery.webhookId);
+        this.record(delivery, { status: "succeeded", httpStatus: status, durationMs: Math.round(performance.now() - started) });
         return;
       }
+      failure = { error: outcome.error ?? "http_status", httpStatus: status };
       reason = `HTTP ${status}`;
     } catch (error) {
+      if (attempted) failure = { error: classifyDeliveryError(error) };
       reason = error instanceof Error ? error.message.slice(0, 120) : "delivery error";
     }
     // Only the endpoint's own failures count towards pausing it (not storage or signing errors).
     if (attempted) this.recordFailure(delivery.webhookId);
     const delay = WEBHOOK_RETRY_DELAYS_MS[delivery.attempt - 1];
+    if (failure) {
+      this.record(delivery, {
+        status: "failed",
+        ...failure,
+        durationMs: Math.round(performance.now() - started),
+        ...(delay !== undefined ? { nextRetryAt: new Date(Date.now() + delay).toISOString() } : {}),
+      });
+    }
     if (delay === undefined) {
       this.failed += 1;
       console.warn(`[platform] webhook ${delivery.webhookId} gave up on ${delivery.event.id} after ${delivery.attempt} attempts (${reason}).`);
@@ -369,13 +418,17 @@ export class WebhookDispatcher {
   private retry(delivery: Delivery, delayMs: number): void {
     const owner = delivery.ownerKeyId;
     if ((this.retries.get(owner)?.size ?? 0) >= WEBHOOK_MAX_RETRIES_PER_OWNER) {
-      this.drop(`too many pending retries for this key; ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`);
+      this.drop(`too many pending retries for this key; ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`, delivery);
       return;
     }
-    const timer = this.later(delayMs, () => {
-      if (timer) this.forgetRetry(owner, timer);
-      this.enqueue({ ...delivery, attempt: delivery.attempt + 1 });
-    });
+    const timer = this.later(
+      delayMs,
+      () => {
+        if (timer) this.forgetRetry(owner, timer);
+        this.enqueue({ ...delivery, attempt: delivery.attempt + 1 });
+      },
+      delivery,
+    );
     if (!timer) return;
     let pending = this.retries.get(owner);
     if (!pending) {
@@ -408,7 +461,7 @@ export class WebhookDispatcher {
     clearTimeout(timer);
     this.timers.delete(timer);
     this.forgetRetry(owner, timer);
-    this.drop(`too many pending retries; cancelled ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`);
+    this.drop(`too many pending retries; cancelled ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`, delivery);
     return true;
   }
 }
@@ -434,4 +487,9 @@ export function startWebhookDispatcher(transport?: WebhookTransport): () => void
 
 export function webhookDispatcherStats(): DispatcherStats | null {
   return dispatcher?.stats() ?? null;
+}
+
+/** Transport for synchronous test deliveries: the running dispatcher's (tests inject one), else HTTPS. */
+export function webhookDeliveryTransport(): WebhookTransport {
+  return dispatcher?.transport ?? httpsTransport;
 }

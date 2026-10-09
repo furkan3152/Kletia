@@ -11,7 +11,15 @@
  */
 import type { ComponentType } from "react";
 
-export type RouteId = "home" | "developers" | "networks" | "studio" | "embed" | "console" | "notFound";
+export type RouteId =
+  | "home"
+  | "developers"
+  | "networks"
+  | "protocols"
+  | "studio"
+  | "embed"
+  | "console"
+  | "notFound";
 
 type PageModule = { default: ComponentType };
 
@@ -52,8 +60,17 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     kind: "site",
     title: "Networks & status — Kletia",
     description:
-      "Live API health, per-network intent capabilities and the protocol directory for Base, Arbitrum One, Arc Testnet and Solana.",
+      "Live API and RPC health, latency history, per-network intent capabilities and the venues Kletia can plan with on every network.",
     load: () => import("../pages/networks/NetworksPage"),
+  },
+  protocols: {
+    id: "protocols",
+    path: "/protocols",
+    kind: "site",
+    title: "Protocols — Kletia intent venues",
+    description:
+      "Every venue Kletia can plan with across its EVM networks and Solana: what each protocol can execute, quote or discover, live from the public API.",
+    load: () => import("../pages/protocols/ProtocolsPage"),
   },
   studio: {
     id: "studio",
@@ -96,6 +113,7 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/": "home",
   "/developers": "developers",
   "/networks": "networks",
+  "/protocols": "protocols",
   "/studio": "studio",
   "/embed": "embed",
   "/app": "console",

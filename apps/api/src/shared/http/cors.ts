@@ -10,7 +10,9 @@ import type { RequestHandler } from "express";
  *   rejected with an error.
  * - Public platform API (/v1): any origin, never credentials. Integrators
  *   authenticate with an API key header, so the browser origin is not a
- *   trust signal there.
+ *   trust signal there. The MCP endpoint (/v1/mcp) reflects the requested
+ *   headers, because MCP clients send per-call `Mcp-Param-*` headers that
+ *   cannot be listed; its Origin rule is enforced by the route itself.
  */
 
 const productionOrigins = [
@@ -117,6 +119,7 @@ export const platformCorsOptions: CorsOptions = {
     "X-Request-Id",
     "Last-Event-ID",
     "X-Kletia-SDK",
+    "Idempotency-Key",
   ],
   exposedHeaders: [
     "X-Request-Id",
@@ -130,6 +133,23 @@ export const platformCorsOptions: CorsOptions = {
   ],
   maxAge: 600,
 };
+
+/**
+ * MCP endpoint policy (/v1/mcp): the platform policy, but request headers
+ * are reflected (`MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` and
+ * `Mcp-Param-*`), and MCP response headers are exposed.
+ */
+export const mcpCorsOptions: CorsOptions = {
+  ...platformCorsOptions,
+  methods: ["POST", "OPTIONS"],
+  allowedHeaders: undefined,
+  exposedHeaders: [...(platformCorsOptions.exposedHeaders as string[]), "MCP-Protocol-Version", "Mcp-Session-Id"],
+};
+
+/** True for the MCP endpoint (case-insensitive, like Express routing). */
+export function isMcpPath(path: string): boolean {
+  return /^\/v1\/mcp\/?$/iu.test(path);
+}
 
 /**
  * True for `/v1` and any path below it. Case-insensitive because Express
@@ -147,8 +167,11 @@ export function isPlatformApiPath(path: string): boolean {
 export function createCorsMiddleware(): RequestHandler {
   const apiCors = cors(apiCorsOptions);
   const platformCors = cors(platformCorsOptions);
+  const mcpCors = cors(mcpCorsOptions);
   return (req, res, next) =>
-    isPlatformApiPath(req.path)
-      ? platformCors(req, res, next)
-      : apiCors(req, res, next);
+    isMcpPath(req.path)
+      ? mcpCors(req, res, next)
+      : isPlatformApiPath(req.path)
+        ? platformCors(req, res, next)
+        : apiCors(req, res, next);
 }

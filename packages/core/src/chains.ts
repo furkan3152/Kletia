@@ -13,6 +13,9 @@ export type CaipChainId = `${ChainNamespace}:${string}`;
 export type NetworkKey =
   | "base"
   | "arbitrum"
+  | "ethereum"
+  | "optimism"
+  | "polygon"
   | "arc"
   | "arbitrum-sepolia"
   | "solana"
@@ -61,6 +64,8 @@ export interface ChainDescriptor {
     readonly relayChainId?: number;
     readonly debridgeChainId?: number;
     readonly acrossChainId?: number;
+    /** LI.FI chain id (`/v1/chains`); EVM networks use their EIP-155 id, Solana is 1151111081099710. */
+    readonly lifiChainId?: number;
   };
   /** Mainnet/testnet counterpart, used to keep capital lanes separate. */
   readonly counterpart?: NetworkKey;
@@ -93,6 +98,7 @@ export const CHAINS: Readonly<Record<NetworkKey, ChainDescriptor>> = Object.free
       relayChainId: 8453,
       debridgeChainId: 8453,
       acrossChainId: 8453,
+      lifiChainId: 8453,
     },
   },
   arbitrum: {
@@ -118,8 +124,87 @@ export const CHAINS: Readonly<Record<NetworkKey, ChainDescriptor>> = Object.free
       relayChainId: 42161,
       debridgeChainId: 42161,
       acrossChainId: 42161,
+      lifiChainId: 42161,
     },
     counterpart: "arbitrum-sepolia",
+  },
+  ethereum: {
+    key: "ethereum",
+    id: "eip155:1",
+    namespace: "eip155",
+    reference: "1",
+    vm: "evm",
+    name: "Ethereum",
+    shortName: "Ethereum",
+    environment: "mainnet",
+    lane: "production",
+    nativeAsset: { symbol: "ETH", name: "Ether", decimals: 18 },
+    explorer: {
+      name: "Etherscan",
+      tx: "https://etherscan.io/tx/{hash}",
+      address: "https://etherscan.io/address/{address}",
+    },
+    color: "#627EEA",
+    evmChainId: 1,
+    settlement: {
+      cctpDomain: 0,
+      relayChainId: 1,
+      debridgeChainId: 1,
+      acrossChainId: 1,
+      lifiChainId: 1,
+    },
+  },
+  optimism: {
+    key: "optimism",
+    id: "eip155:10",
+    namespace: "eip155",
+    reference: "10",
+    vm: "evm",
+    name: "OP Mainnet",
+    shortName: "Optimism",
+    environment: "mainnet",
+    lane: "production",
+    nativeAsset: { symbol: "ETH", name: "Ether", decimals: 18 },
+    explorer: {
+      name: "Optimistic Etherscan",
+      tx: "https://optimistic.etherscan.io/tx/{hash}",
+      address: "https://optimistic.etherscan.io/address/{address}",
+    },
+    color: "#FF0420",
+    evmChainId: 10,
+    settlement: {
+      cctpDomain: 2,
+      relayChainId: 10,
+      debridgeChainId: 10,
+      acrossChainId: 10,
+      lifiChainId: 10,
+    },
+  },
+  polygon: {
+    key: "polygon",
+    id: "eip155:137",
+    namespace: "eip155",
+    reference: "137",
+    vm: "evm",
+    name: "Polygon PoS",
+    shortName: "Polygon",
+    environment: "mainnet",
+    lane: "production",
+    nativeAsset: { symbol: "POL", name: "Polygon Ecosystem Token", decimals: 18 },
+    explorer: {
+      name: "PolygonScan",
+      tx: "https://polygonscan.com/tx/{hash}",
+      address: "https://polygonscan.com/address/{address}",
+    },
+    color: "#8247E5",
+    evmChainId: 137,
+    settlement: {
+      cctpDomain: 7,
+      relayChainId: 137,
+      debridgeChainId: 137,
+      acrossChainId: 137,
+      lifiChainId: 137,
+    },
   },
   arc: {
     key: "arc",
@@ -185,6 +270,7 @@ export const CHAINS: Readonly<Record<NetworkKey, ChainDescriptor>> = Object.free
       relayChainId: 792703809,
       debridgeChainId: 7565164,
       acrossChainId: 34268394551451,
+      lifiChainId: 1151111081099710,
     },
     counterpart: "solana-devnet",
   },
@@ -258,6 +344,18 @@ const CHAIN_ALIASES: Readonly<Record<string, NetworkKey>> = Object.freeze({
   arb: "arbitrum",
   "arbitrum one": "arbitrum",
   "arbitrum-one": "arbitrum",
+  "ethereum mainnet": "ethereum",
+  "ethereum-mainnet": "ethereum",
+  op: "optimism",
+  "op mainnet": "optimism",
+  "op-mainnet": "optimism",
+  "optimism mainnet": "optimism",
+  "optimism-mainnet": "optimism",
+  "polygon pos": "polygon",
+  "polygon-pos": "polygon",
+  "polygon mainnet": "polygon",
+  "polygon-mainnet": "polygon",
+  matic: "polygon",
   "arc testnet": "arc",
   "arc-testnet": "arc",
   "arb sepolia": "arbitrum-sepolia",

@@ -16,6 +16,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://kletiaai.xyz/protocols</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://kletiaai.xyz/studio</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

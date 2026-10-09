@@ -1,108 +1,290 @@
-import {
-  CHAINS,
-  isNetworkKey,
-  type NetworkKey,
-  type ProtocolCapability,
-  type ProtocolCategory,
-  type ProtocolDescriptor,
-} from "@kletia/core";
-import type { NetworkCapabilities } from "@kletia/sdk";
-import { ArrowUpRight, Check, Minus, RefreshCw } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import type { HealthReport, NetworkCapabilities } from "@kletia/sdk";
+import { ArrowRight, Check, Minus, RefreshCw } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { describePlatformError, PLATFORM_ORIGIN } from "../../../shared/platform/kletiaClient";
 import { fetchHealth, fetchNetworks, fetchProtocols } from "../../../shared/platform/platformApi";
 import { registryNetworks, registryProtocols, sortNetworks } from "../../../shared/platform/registry";
-import { useApiResource } from "../../../shared/platform/useApiResource";
+import { useApiResource, type ApiResource } from "../../../shared/platform/useApiResource";
+import { Link } from "../../routes/Link";
+import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
+import { Reveal } from "../../site/motion/Reveal";
+import { useInView } from "../../site/motion/useInView";
+import { usePageVisible } from "../../site/motion/usePageVisible";
+import { useReducedMotion } from "../../site/motion/useReducedMotion";
 import { Badge } from "../../site/ui/Badge";
-import { Button } from "../../site/ui/Button";
-import { SelectField } from "../../site/ui/Field";
 import { Section } from "../../site/ui/Section";
 import { StatusDot, type HealthState } from "../../site/ui/StatusDot";
 import { CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
-
-const CAPABILITY_TONE: Record<ProtocolCapability, "blue" | "yellow" | "neutral"> = {
-  execute: "blue",
-  quote: "yellow",
-  discover: "neutral",
-};
+import { actionsOf, networkLabel, type ProtocolEntry } from "../protocols/protocolStats";
+import { LatencyBar } from "./LatencyBar";
+import { formatMs, formatUptime, healthChanges, useHealthHistory } from "./useHealthHistory";
+import { VenuesByNetwork } from "./VenuesByNetwork";
 
 const ACTION_ORDER = ["swap", "bridge", "transfer", "stake", "unstake", "deposit", "withdraw", "borrow", "repay", "claim", "read"];
-
-function networkLabel(key: string): string {
-  return isNetworkKey(key) ? CHAINS[key].name : key;
-}
+const REFRESH_SECONDS = 30;
 
 function SourceBadge({ live, loading }: { live: boolean; loading: boolean }) {
   if (loading) return <Badge tone="neutral">Loading</Badge>;
   return live ? <Badge tone="green">Live API</Badge> : <Badge tone="yellow">Registry view</Badge>;
 }
 
-function HealthPanel() {
-  const health = useApiResource("health", fetchHealth);
-  const live = health.status === "success" && health.data;
-  const overall: HealthState =
-    health.status === "loading" && !health.data
-      ? "loading"
-      : live
-        ? health.data!.status === "ok"
-          ? "ok"
-          : health.data!.status === "degraded"
-            ? "degraded"
-            : "down"
-        : "unknown";
-  const byNetwork = new Map((health.data?.networks ?? []).map((entry) => [entry.network, entry]));
+function overallState(health: ApiResource<HealthReport>): HealthState {
+  if (health.status === "loading" && !health.data) return "loading";
+  if (health.status !== "success" || !health.data) return "unknown";
+  return health.data.status === "ok" ? "ok" : health.data.status === "degraded" ? "degraded" : "down";
+}
+
+/** Live summary under the page title: API state, networks online and the browser round trip. */
+function LiveSummary({ health }: { health: ApiResource<HealthReport> }) {
+  const state = overallState(health);
+  const live = health.status === "success" ? health.data : undefined;
+  const entries = live?.networks ?? [];
+  const online = entries.filter((entry) => entry.ok).length;
+  return (
+    <div className={cx("mt-10 inline-flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3", INK_BORDER, HARD_SHADOW, SURFACE)}>
+      <StatusDot
+        state={state}
+        pulse="once"
+        pulseKey={health.updatedAt ?? undefined}
+        label={state === "loading" ? "Checking API" : live ? `API ${live.status}` : "Status unavailable"}
+      />
+      <p className="text-sm">
+        <span className="font-display text-2xl font-bold tracking-[-0.03em]">
+          <AnimatedNumber value={live ? online : null} />
+        </span>
+        <span className="font-display text-2xl font-bold tracking-[-0.03em]">/{live ? entries.length : "—"}</span>{" "}
+        <span className={cx("font-semibold", TEXT_MUTED)}>networks online</span>
+      </p>
+      <p className="text-sm">
+        <span className="font-display text-2xl font-bold tracking-[-0.03em]">
+          <AnimatedNumber value={live ? health.latencyMs : null} format={formatMs} />
+        </span>{" "}
+        <span className={cx("font-semibold", TEXT_MUTED)}>round trip, from your browser</span>
+      </p>
+    </div>
+  );
+}
+
+/** A one-shot highlight sweep across its parent each time `token` changes (WAAPI, transform only). */
+function CheckSweep({ token }: { token: number | null }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const first = useRef(token);
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (token === null || token === first.current || reduced) return undefined;
+    const element = ref.current;
+    if (!element || typeof element.animate !== "function") return undefined;
+    const animation = element.animate(
+      [
+        { transform: "translateX(-100%)", opacity: 1 },
+        { transform: "translateX(100%)", opacity: 1 },
+      ],
+      { duration: 600, easing: "linear" },
+    );
+    return () => animation.cancel();
+  }, [token, reduced]);
+  return (
+    <span
+      ref={ref}
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(90deg,transparent,rgba(255,214,10,0.35),transparent)] opacity-0 dark:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)]"
+    />
+  );
+}
+
+function CountdownRing({ remaining, active }: { remaining: number; active: boolean }) {
+  const reduced = useReducedMotion();
+  if (reduced) return <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />;
+  const progress = Math.max(0, Math.min(1, 1 - remaining / REFRESH_SECONDS));
+  return (
+    <span aria-hidden="true" className="relative inline-flex h-5 w-5 items-center justify-center">
+      <svg viewBox="0 0 20 20" className="absolute inset-0 -rotate-90">
+        <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-[#1A1A1A]/15 dark:stroke-white/15" />
+        <circle
+          cx="10"
+          cy="10"
+          r="8"
+          fill="none"
+          strokeWidth="2.5"
+          pathLength={1}
+          strokeDasharray="1"
+          strokeDashoffset={1 - progress}
+          className={cx("stroke-[#0052FF] dark:stroke-[#FFD60A]", active && progress > 0 && "transition-[stroke-dashoffset] duration-1000 ease-linear")}
+        />
+      </svg>
+      <RefreshCw className="h-2.5 w-2.5" />
+    </span>
+  );
+}
+
+interface HealthPanelProps {
+  readonly health: ApiResource<HealthReport>;
+}
+
+/** API and per-network RPC health with auto-refresh, latency bars and change-only announcements. */
+function HealthPanel({ health }: HealthPanelProps) {
+  const visible = usePageVisible();
+  const [panelRef, inView] = useInView<HTMLDivElement>({ rootMargin: "100px" });
+  const [auto, setAuto] = useState(true);
+  const [remaining, setRemaining] = useState(REFRESH_SECONDS);
+  const remainingRef = useRef(REFRESH_SECONDS);
+  const reload = health.reload;
+  const running = auto && visible && inView && health.status !== "loading";
+
+  const fresh = health.status === "success" ? health.data : undefined;
+  const history = useHealthHistory(fresh, fresh ? health.updatedAt : null);
+
+  // Announce only changes (and the result of a manual re-check), never every refresh.
+  const [speech, setSpeech] = useState<{ readonly at: number | null; readonly report?: HealthReport; readonly text: string }>({
+    at: null,
+    text: "",
+  });
+  const [manualAt, setManualAt] = useState<number | null>(null);
+  if (fresh && health.updatedAt !== null && health.updatedAt !== speech.at) {
+    const changes = healthChanges(speech.report, fresh);
+    let text = changes
+      .map((change) => `${networkLabel(change.network).name} RPC is ${change.ok ? "back up" : "down"}.`)
+      .join(" ");
+    if (speech.report && speech.report.status !== fresh.status) text = `API is ${fresh.status}. ${text}`;
+    if (manualAt !== null && health.updatedAt >= manualAt) {
+      const online = (fresh.networks ?? []).filter((entry) => entry.ok).length;
+      text = `Checked: API ${fresh.status}, ${online} of ${(fresh.networks ?? []).length} networks online. ${text}`;
+      setManualAt(null);
+    }
+    setSpeech({ at: health.updatedAt, report: fresh, text: text.trim() });
+  }
+
+  useEffect(() => {
+    if (!running) return undefined;
+    const timer = window.setInterval(() => {
+      remainingRef.current -= 1;
+      if (remainingRef.current <= 0) {
+        remainingRef.current = REFRESH_SECONDS;
+        reload();
+      }
+      setRemaining(remainingRef.current);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [running, reload]);
+
+  const recheck = () => {
+    remainingRef.current = REFRESH_SECONDS;
+    setRemaining(REFRESH_SECONDS);
+    setManualAt(Date.now());
+    reload();
+  };
+
+  const state = overallState(health);
+  const live = health.status === "success" ? health.data : undefined;
+  const byNetwork = new Map((health.data?.networks ?? []).map((entry) => [entry.network as string, entry]));
   const networks = sortNetworks(registryNetworks());
+  const known = new Set<string>(networks.map((network) => network.key));
+  const extra = (health.data?.networks ?? []).filter((entry) => !known.has(entry.network));
+  const uptime = formatUptime(live?.uptimeSeconds);
 
   return (
-    <div className={cx(INK_BORDER, HARD_SHADOW, SURFACE)}>
+    <div ref={panelRef} className={cx(INK_BORDER, HARD_SHADOW, SURFACE)}>
+      <p className="sr-only" role="status" aria-live="polite">
+        {speech.text}
+      </p>
       <div className="flex flex-col gap-4 border-b-[3px] border-[#1A1A1A] p-5 dark:border-[#4B5563] sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div aria-live="polite" aria-busy={health.status === "loading"}>
+        <div aria-busy={health.status === "loading"}>
           <StatusDot
-            state={overall}
-            label={overall === "loading" ? "Checking API" : live ? `API ${health.data!.status}` : "Status unavailable"}
+            state={state}
+            pulse="once"
+            pulseKey={health.updatedAt ?? undefined}
+            label={state === "loading" ? "Checking API" : live ? `API ${live.status}` : "Status unavailable"}
           />
           <p className={cx("mt-2 text-sm", TEXT_MUTED)}>
             {live
-              ? `GET /v1/health answered in ${health.latencyMs ?? "—"} ms${health.data!.version ? ` · version ${health.data!.version}` : ""}${
-                  health.updatedAt ? ` · checked ${new Date(health.updatedAt).toLocaleTimeString()}` : ""
-                }.`
+              ? `GET /v1/health answered in ${health.latencyMs ?? "—"} ms${live.version ? ` · version ${live.version}` : ""}${
+                  uptime ? ` · up ${uptime}` : ""
+                }${health.updatedAt ? ` · checked ${new Date(health.updatedAt).toLocaleTimeString()}` : ""}.`
               : health.error
                 ? `${describePlatformError(health.error)} Network rows below show the registry, not live RPC health.`
                 : "Contacting the API…"}
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={health.reload} disabled={health.status === "loading"}>
-          <RefreshCw className={cx("h-3.5 w-3.5", health.status === "loading" && "animate-spin motion-reduce:animate-none")} aria-hidden="true" />
-          Re-check
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={auto}
+            onClick={() => setAuto((value) => !value)}
+            title="Re-check every 30 seconds while this panel is visible"
+            className={cx(
+              "inline-flex min-h-9 items-center gap-1.5 border-2 border-dashed border-[#1A1A1A] px-2.5 text-[11px] font-black uppercase tracking-[0.12em] dark:border-[#4B5563]",
+              auto ? "bg-[#E6FFF4] text-[#0B5E3A] dark:bg-[#0E2A22] dark:text-[#5CF2B4]" : "bg-transparent",
+              FOCUS_RING,
+            )}
+          >
+            Auto-refresh: {auto ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            onClick={recheck}
+            disabled={health.status === "loading"}
+            className={cx(
+              "inline-flex min-h-9 items-center gap-1.5 border-[3px] border-[#1A1A1A] bg-white px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#1A1A1A] shadow-hard-sm transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard-md active:translate-x-[3px] active:translate-y-[3px] active:shadow-none disabled:opacity-60 motion-reduce:transition-none motion-reduce:hover:translate-x-0 motion-reduce:hover:translate-y-0 dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white",
+              FOCUS_RING,
+            )}
+          >
+            {health.status === "loading" ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            ) : auto ? (
+              <CountdownRing remaining={remaining} active={running} />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            Re-check
+          </button>
+        </div>
       </div>
       <ul className="grid sm:grid-cols-2 lg:grid-cols-3">
         {networks.map((network) => {
           const entry = byNetwork.get(network.key);
-          const state: HealthState =
+          const rowState: HealthState =
             health.status === "loading" && !health.data ? "loading" : entry ? (entry.ok ? "ok" : "down") : "unknown";
           return (
             <li
               key={network.key}
-              className="flex flex-col gap-2 border-b-2 border-dashed border-[#1A1A1A]/15 p-5 dark:border-white/10 sm:border-r-2"
+              className="flex min-w-0 flex-col gap-2.5 border-b-2 border-dashed border-[#1A1A1A]/15 p-5 dark:border-white/10 sm:border-r-2"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="flex items-center gap-2 font-display text-lg font-bold">
-                  <span aria-hidden="true" className="h-3.5 w-3.5 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
-                  {network.name}
+                <p className="flex min-w-0 items-center gap-2 font-display text-lg font-bold">
+                  <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
+                  <span className="truncate">{network.name}</span>
                 </p>
                 <Badge tone={network.environment === "mainnet" ? "green" : "yellow"}>{network.environment}</Badge>
               </div>
               <p className="break-all font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{network.id}</p>
               <div className="flex items-center justify-between gap-2">
-                <StatusDot state={state} label={state === "ok" ? "RPC ok" : state === "down" ? "RPC down" : state === "loading" ? "Checking" : "No live data"} />
-                {entry?.latencyMs !== undefined ? <span className="font-code text-xs">{entry.latencyMs} ms</span> : null}
+                <StatusDot
+                  state={rowState}
+                  pulse="once"
+                  pulseKey={entry ? (health.updatedAt ?? undefined) : undefined}
+                  label={rowState === "ok" ? "RPC ok" : rowState === "down" ? "RPC down" : rowState === "loading" ? "Checking" : "No live data"}
+                />
+                <span className="relative overflow-hidden font-code text-xs">
+                  {entry && typeof entry.latencyMs === "number" ? <AnimatedNumber value={entry.latencyMs} format={formatMs} /> : null}
+                  <CheckSweep token={entry ? health.updatedAt : null} />
+                </span>
               </div>
+              {entry && typeof entry.latencyMs === "number" ? <LatencyBar ms={entry.latencyMs} history={history[network.key]} /> : null}
               {entry?.detail ? <p className={cx("text-xs", TEXT_MUTED)}>{entry.detail}</p> : null}
             </li>
           );
         })}
+        {extra.map((entry) => (
+          <li key={entry.network} className="flex min-w-0 flex-col gap-2.5 border-b-2 border-dashed border-[#1A1A1A]/15 p-5 dark:border-white/10 sm:border-r-2">
+            <p className="truncate font-display text-lg font-bold">{entry.name || entry.network}</p>
+            <div className="flex items-center justify-between gap-2">
+              <StatusDot state={entry.ok ? "ok" : "down"} pulse="none" label={entry.ok ? "RPC ok" : "RPC down"} />
+              {typeof entry.latencyMs === "number" ? <span className="font-code text-xs">{formatMs(entry.latencyMs)}</span> : null}
+            </div>
+            {typeof entry.latencyMs === "number" ? <LatencyBar ms={entry.latencyMs} history={history[entry.network]} /> : null}
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -110,11 +292,11 @@ function HealthPanel() {
 
 function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabilities[]; live: boolean; loading: boolean }) {
   const actions = useMemo(() => {
-    const all = new Set(networks.flatMap((network) => network.actions));
+    const all = new Set(networks.flatMap((network) => actionsOf(network)));
     return [...all].sort((a, b) => {
       const ia = ACTION_ORDER.indexOf(a);
       const ib = ACTION_ORDER.indexOf(b);
-      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
     });
   }, [networks]);
   const captionId = useId();
@@ -127,169 +309,90 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
         </p>
         <SourceBadge live={live} loading={loading} />
       </div>
-      <div className={cx("overflow-x-auto", FOCUS_RING)} tabIndex={0} role="region" aria-labelledby={captionId}>
+      <Reveal
+        className={cx(
+          "group/matrix kl-scroll-shadow overflow-x-auto [--kl-scroll-bg:#ffffff] dark:[--kl-scroll-bg:#131E32]",
+          FOCUS_RING,
+        )}
+        tabIndex={0}
+        role="region"
+        aria-labelledby={captionId}
+      >
         <table className="w-full min-w-[640px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b-[3px] border-[#1A1A1A] bg-[#F1EFE8] dark:border-[#4B5563] dark:bg-[#0F1A2C]">
-              <th scope="col" className={cx(LABEL, "px-4 py-3")}>
+            <tr className="border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
+              <th scope="col" className={cx(LABEL, "sticky left-0 z-10 bg-[#F1EFE8] px-4 py-3 dark:bg-[#0F1A2C]")}>
                 Network
               </th>
               {actions.map((action) => (
-                <th key={action} scope="col" className={cx(LABEL, "px-3 py-3 text-center")}>
+                <th key={action} scope="col" className={cx(LABEL, "bg-[#F1EFE8] px-3 py-3 text-center dark:bg-[#0F1A2C]")}>
                   {action}
                 </th>
               ))}
-              <th scope="col" className={cx(LABEL, "px-4 py-3")}>
+              <th scope="col" className={cx(LABEL, "bg-[#F1EFE8] px-4 py-3 dark:bg-[#0F1A2C]")}>
                 CAIP-2
               </th>
             </tr>
           </thead>
           <tbody>
-            {networks.map((network) => (
-              <tr key={network.key} className="border-b-2 border-[#1A1A1A]/10 last:border-b-0 dark:border-white/10">
-                <th scope="row" className="whitespace-nowrap px-4 py-3 font-bold">
-                  <span className="inline-flex items-center gap-2">
-                    <span aria-hidden="true" className="h-3 w-3 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
-                    {network.name}
-                  </span>
-                </th>
-                {actions.map((action) => {
-                  const supported = network.actions.includes(action);
-                  return (
-                    <td key={action} className="px-3 py-3 text-center">
-                      {supported ? (
-                        <Check className="mx-auto h-5 w-5 text-[#0B7A4B] dark:text-[#14F195]" aria-hidden="true" />
-                      ) : (
-                        <Minus className="mx-auto h-4 w-4 text-[#94A3B8]" aria-hidden="true" />
-                      )}
-                      <span className="sr-only">{supported ? "Supported" : "Not supported"}</span>
-                    </td>
-                  );
-                })}
-                <td className="whitespace-nowrap px-4 py-3 font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{network.id}</td>
-              </tr>
-            ))}
+            {networks.map((network) => {
+              const supported = new Set(actionsOf(network));
+              return (
+                <tr
+                  key={network.key}
+                  className="group/row border-b-2 border-[#1A1A1A]/10 transition-colors duration-150 last:border-b-0 hover:bg-[#FFF7CC]/70 motion-reduce:transition-none dark:border-white/10 dark:hover:bg-white/[0.04]"
+                >
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 whitespace-nowrap bg-white px-4 py-3 font-bold transition-colors duration-150 group-hover/row:bg-[#FFF9DB] motion-reduce:transition-none dark:bg-[#131E32] dark:group-hover/row:bg-[#18243A]"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span aria-hidden="true" className="h-3 w-3 border-2 border-[#1A1A1A] dark:border-[#0B1120]" style={{ backgroundColor: network.color }} />
+                      {network.name}
+                    </span>
+                  </th>
+                  {actions.map((action, column) => {
+                    const ok = supported.has(action);
+                    return (
+                      <td key={action} className="px-3 py-3 text-center">
+                        {ok ? (
+                          <Check
+                            className="mx-auto h-5 w-5 text-[#0B7A4B] group-data-[reveal=shown]/matrix:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] dark:text-[#14F195] motion-reduce:!animate-none"
+                            style={{ animationDelay: `${280 + column * 70}ms` }}
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Minus className="mx-auto h-4 w-4 text-[#6B7280] dark:text-[#94A3B8]" aria-hidden="true" />
+                        )}
+                        <span className="sr-only">{ok ? "Supported" : "Not supported"}</span>
+                      </td>
+                    );
+                  })}
+                  <td className="whitespace-nowrap px-4 py-3 font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{network.id}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-      </div>
+      </Reveal>
     </div>
   );
 }
 
-function ProtocolDirectory({ protocols, live, loading }: { protocols: ProtocolDescriptor[]; live: boolean; loading: boolean }) {
-  const [category, setCategory] = useState<"all" | ProtocolCategory>("all");
-  const [network, setNetwork] = useState<"all" | NetworkKey>("all");
-  const [capability, setCapability] = useState<"all" | ProtocolCapability>("all");
-
-  const categories = useMemo(() => [...new Set(protocols.map((protocol) => protocol.category))].sort(), [protocols]);
-  const networks = useMemo(
-    () => [...new Set(protocols.flatMap((protocol) => protocol.networks))].filter(isNetworkKey),
-    [protocols],
-  );
-  const filtered = protocols.filter(
-    (protocol) =>
-      (category === "all" || protocol.category === category) &&
-      (network === "all" || protocol.networks.includes(network)) &&
-      (capability === "all" || protocol.capabilities.includes(capability)),
-  );
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className={cx("grid gap-4 p-4 sm:grid-cols-3 sm:p-5", INK_BORDER, SURFACE)} role="group" aria-label="Filter protocols">
-        <SelectField
-          label="Category"
-          value={category}
-          onChange={(event) => setCategory(event.target.value as typeof category)}
-          options={[{ value: "all", label: "All categories" }, ...categories.map((value) => ({ value, label: value.replace(/-/gu, " ") }))]}
-        />
-        <SelectField
-          label="Network"
-          value={network}
-          onChange={(event) => setNetwork(event.target.value as typeof network)}
-          options={[{ value: "all", label: "All networks" }, ...networks.map((value) => ({ value, label: networkLabel(value) }))]}
-        />
-        <SelectField
-          label="Capability"
-          value={capability}
-          onChange={(event) => setCapability(event.target.value as typeof capability)}
-          options={[
-            { value: "all", label: "Any capability" },
-            { value: "execute", label: "Execute" },
-            { value: "quote", label: "Quote" },
-            { value: "discover", label: "Discover" },
-          ]}
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3" aria-live="polite">
-        <p className="text-sm font-bold">
-          {filtered.length} of {protocols.length} protocols
-        </p>
-        <SourceBadge live={live} loading={loading} />
-      </div>
-      {filtered.length === 0 ? (
-        <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-8 text-center text-sm dark:border-white/15", TEXT_MUTED)}>
-          No protocol matches these filters.
-        </p>
-      ) : (
-        <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((protocol) => (
-            <li key={protocol.id} className={cx("flex flex-col gap-3 p-5", INK_BORDER, HARD_SHADOW, SURFACE)}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="font-display text-xl font-bold leading-tight">{protocol.name}</h3>
-                  <p className="mt-1 font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">{protocol.id}</p>
-                </div>
-                <Badge tone="outline">{protocol.category.replace(/-/gu, " ")}</Badge>
-              </div>
-              <p className={cx("flex-1 text-sm leading-relaxed", TEXT_MUTED)}>{protocol.summary}</p>
-              <div className="flex flex-wrap gap-1.5" aria-label="Capabilities">
-                {protocol.capabilities.map((value) => (
-                  <Badge key={value} tone={CAPABILITY_TONE[value] ?? "neutral"}>
-                    {value}
-                  </Badge>
-                ))}
-                {protocol.crossChain ? <Badge tone="purple">cross-chain</Badge> : null}
-              </div>
-              <div className="flex flex-wrap gap-1.5" aria-label="Networks">
-                {protocol.networks.map((value) => (
-                  <Badge key={value} tone="neutral" dot={isNetworkKey(value) ? CHAINS[value].color : undefined}>
-                    {networkLabel(value)}
-                  </Badge>
-                ))}
-              </div>
-              {/^https:\/\//u.test(protocol.website) ? (
-                <a
-                  href={protocol.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cx("inline-flex items-center gap-1 self-start text-xs font-black uppercase tracking-[0.12em] underline decoration-2 underline-offset-4", FOCUS_RING)}
-                >
-                  Website
-                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="sr-only"> for {protocol.name} (opens in a new tab)</span>
-                </a>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** Networks & status: live health, capability matrix and protocol directory, with a registry fallback. */
+/** Networks & status: live health, capability matrix and venues per network, with a registry fallback. */
 export default function NetworksPage() {
+  const health = useApiResource("health", fetchHealth);
   const networksResource = useApiResource("networks", fetchNetworks);
   const protocolsResource = useApiResource("protocols", fetchProtocols);
 
   const liveNetworks = networksResource.status === "success" && (networksResource.data?.length ?? 0) > 0;
-  const liveProtocols = protocolsResource.status === "success" && (protocolsResource.data?.length ?? 0) > 0;
+  const liveProtocols = (protocolsResource.data?.length ?? 0) > 0;
   const networks = useMemo(
     () => sortNetworks(liveNetworks ? networksResource.data! : registryNetworks()),
     [liveNetworks, networksResource.data],
   );
-  const protocols = useMemo(
-    () => (liveProtocols ? protocolsResource.data! : registryProtocols()),
+  const protocols = useMemo<readonly ProtocolEntry[]>(
+    () => (liveProtocols ? (protocolsResource.data as readonly ProtocolEntry[]) : registryProtocols()),
     [liveProtocols, protocolsResource.data],
   );
 
@@ -303,20 +406,22 @@ export default function NetworksPage() {
           </h1>
           <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
             What Kletia can do on each network right now, read from the public API at{" "}
-            <code className="whitespace-nowrap font-code text-[0.9em]">{PLATFORM_ORIGIN}/v1</code>. When the API is unreachable this
+            <code className="break-all font-code text-[0.9em]">{PLATFORM_ORIGIN}/v1</code>. When the API is unreachable this
             page falls back to the registries compiled into <code className="font-code text-[0.9em]">@kletia/core</code>.
           </p>
+          <LiveSummary health={health} />
         </div>
       </header>
 
-      <Section id="health" eyebrow="Health" title="API and RPC status">
-        <HealthPanel />
+      <Section id="health" eyebrow="Health" title="API and RPC status" reveal>
+        <HealthPanel health={health} />
       </Section>
 
       <Section
         id="capabilities"
         tone="paper"
         bordered
+        reveal
         eyebrow="Capabilities"
         title="Capability matrix"
         intro="Which intent kinds the planner accepts on each network. Mainnet and testnet networks are separate capital lanes."
@@ -331,17 +436,31 @@ export default function NetworksPage() {
 
       <Section
         id="protocols"
-        eyebrow="Directory"
-        title="Protocol directory"
-        intro="Execute: Kletia builds wallet-ready transactions. Quote: live routes, execution elsewhere. Discover: read-only market data. A registry entry is never a promise of execution."
+        reveal
+        eyebrow="Venues"
+        title="Venues by network"
+        intro="How many protocols Kletia can plan with on each network, and what it can do with them. The full directory, with search and filters, lives on its own page."
+        actions={
+          <Link
+            to="/protocols"
+            className={cx("inline-flex min-h-11 items-center gap-2 text-sm font-black uppercase tracking-[0.14em] underline decoration-[3px] underline-offset-4", FOCUS_RING)}
+          >
+            Protocol directory
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        }
       >
-        {protocolsResource.status === "error" && protocolsResource.error ? (
+        {protocolsResource.status === "error" && protocolsResource.error && !liveProtocols ? (
           <p className={cx("mb-4 text-sm", TEXT_MUTED)} role="status">
             {describePlatformError(protocolsResource.error)} Showing the registry view.
           </p>
         ) : null}
-        <ProtocolDirectory protocols={protocols} live={liveProtocols} loading={protocolsResource.status === "loading"} />
+        <div className="mb-6 flex items-center gap-3">
+          <SourceBadge live={liveProtocols} loading={protocolsResource.status === "loading" && !liveProtocols} />
+        </div>
+        <VenuesByNetwork networks={networks} protocols={protocols} />
       </Section>
     </>
   );
 }
+

@@ -1,11 +1,13 @@
 /**
- * MCP tools served at /v1/mcp. Every tool is read-only: it reads registries,
- * quotes, dry-run plans, intents, balances, previews, receipts or the
- * caller's contract registrations through the same engine calls as the REST
- * handlers. No tool
- * prepares, signs, submits or stores anything, and no calldata reaches an
- * agent; `create_signing_link` hands the user a Studio link to plan and sign
- * with their own wallet. Custom contract steps (registered with the caller's
+ * MCP tools served at /v1/mcp. Almost every tool is read-only: it reads
+ * registries, quotes, dry-run plans, intents, balances, previews, receipts,
+ * rule books or the caller's contract registrations through the same engine
+ * calls as the REST handlers. Two tools write, and neither moves funds:
+ * `create_intent` stores an intent for the key's own signer service (Rule
+ * Book, policyTools.ts) and `create_link` publishes an intent link a human
+ * reviews and signs (linkTools.ts). No tool prepares, signs or submits
+ * anything, and no calldata reaches an agent; `create_signing_link` hands
+ * the user a Studio link to plan and sign with their own wallet. Custom contract steps (registered with the caller's
  * key) can be planned and test-simulated, never handed off: Studio is keyless,
  * so those go through sessions created by the integrator's backend.
  *
@@ -43,6 +45,8 @@ import { contractTestLimiter } from "../limits.js";
 import { PlatformError } from "../../errors.js";
 import { errorDocsLink } from "../errorsRoute.js";
 import { GET_RECEIPT_TOOL, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
+import { LINK_TOOLS } from "./linkTools.js";
+import { deniedPlan, POLICY_TOOLS, remainingFor, stampSummary } from "./policyTools.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
 
 type JsonSchema = Record<string, unknown>;
@@ -54,7 +58,8 @@ export interface ToolCaller {
 
 export interface ToolAnnotations {
   readonly title: string;
-  readonly readOnlyHint: true;
+  /** False only for `create_intent` and `create_link` (they store, never sign or send). */
+  readonly readOnlyHint: boolean;
   readonly destructiveHint: false;
   readonly idempotentHint: boolean;
   readonly openWorldHint: boolean;
@@ -468,10 +473,26 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
       if (typeof args.text !== "string" && !Array.isArray(args.actions)) {
         throw invalidRequest("Provide text or actions.", [{ path: "text", message: "Required unless actions are given." }]);
       }
-      // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run.
-      const { intent, preview } = await createIntentDetailed(args, { dryRun: true, preview: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+      // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run, and its rule book judges the plan.
+      let planned: Awaited<ReturnType<typeof createIntentDetailed>>;
+      try {
+        planned = await createIntentDetailed(args, { dryRun: true, preview: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+      } catch (error) {
+        // A refusal of the rule book is an answer, not an error: the agent sees the rule ids it broke.
+        const denied = caller.keyId ? deniedPlan(error) : null;
+        if (!denied) throw error;
+        return {
+          dryRun: true,
+          planned: false,
+          policy: denied,
+          next: "The rule book of this key refused the plan. Change the request so it fits every rule listed; splitting amounts or adding accounts does not help.",
+        };
+      }
+      const { intent, preview } = planned;
+      const remaining = intent.policy && caller.keyId ? await remainingFor(caller.keyId).catch(() => []) : [];
       return {
         dryRun: true,
+        ...(intent.policy ? { policy: { ...stampSummary(intent.policy), ...(remaining.length > 0 ? { remaining } : {}) } } : {}),
         summary: summaryView(intent),
         steps: intent.steps.map(stepView),
         warnings: intent.warnings,
@@ -505,6 +526,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
         steps: intent.steps.map(stepView),
         warnings: intent.warnings,
         externalRecipients: externalRecipients(intent),
+        ...(intent.policy ? { policy: stampSummary(intent.policy) } : {}),
         receipt: await receiptLine(intent.id),
       };
     },
@@ -633,6 +655,8 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   },
   PREVIEW_INTENT_TOOL,
   GET_RECEIPT_TOOL,
+  ...POLICY_TOOLS,
+  ...LINK_TOOLS,
 ] satisfies KletiaTool[]);
 
 function textOf(value: Record<string, unknown>): string {
@@ -649,8 +673,10 @@ export async function runTool(tool: KletiaTool, args: Record<string, unknown>, c
     const failure = error instanceof HttpError ? error : toPlatformError(error);
     const docs = errorDocsLink(failure.code);
     const hints = "hints" in failure && failure.hints ? failure.hints : undefined;
+    // Rule Book refusals carry error.policy (decision id, rule ids, retryAt, approval link).
+    const policy = (failure as { readonly policy?: unknown }).policy;
     const structured = {
-      error: compact({ code: failure.code, message: failure.message, issues: failure.issues, hints, docs }),
+      error: compact({ code: failure.code, message: failure.message, issues: failure.issues, hints, docs, policy }),
     };
     return { isError: true, content: [{ type: "text", text: `${failure.code}: ${failure.message}` }], structuredContent: structured };
   }

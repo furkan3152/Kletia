@@ -44,9 +44,19 @@ function retryAfterSeconds(req: Request): number {
  * authenticated tier. The handler's getKey("key:<id>") reads a key's current
  * window (GET /v1/usage).
  */
+/**
+ * A link's page shell and share card: exempt from the per-IP tier limit
+ * (through the static site's rewrite every request arrives from the static
+ * host's addresses); they carry their own per-link limit.
+ */
+export function isLinkAssetPath(path: string): boolean {
+  return /^\/links\/lk_[0-9a-f]{24}\/(?:page|card\.png)\/?$/iu.test(path);
+}
+
 export function createTierLimiter(): RateLimitRequestHandler {
   return rateLimit({
     windowMs: 60_000,
+    skip: (req) => (req.method === "GET" || req.method === "HEAD") && isLinkAssetPath(req.path),
     limit: (req) => {
       const auth = authOf(req);
       return auth.rejection || !auth.keyId ? TIER_LIMITS.public : TIER_LIMITS[auth.tier];
@@ -121,6 +131,8 @@ export class KeyWindowLimiter {
     readonly windowMs: number,
     private readonly what: string,
     private readonly maxKeys = 20_000,
+    /** Appended to the refusal; limiters keyed by address or link pass "". */
+    private readonly per = " per API key",
   ) {}
 
   take(keyId: string, now = Date.now()): void {
@@ -137,7 +149,7 @@ export class KeyWindowLimiter {
     }
     if (window.count >= this.limit) {
       const seconds = Math.max(1, Math.ceil((window.startedAt + this.windowMs - now) / 1000));
-      throw new HttpError(429, "RATE_LIMITED", `At most ${this.limit} ${this.what} per API key. Retry in ${seconds}s.`, {
+      throw new HttpError(429, "RATE_LIMITED", `At most ${this.limit} ${this.what}${this.per}. Retry in ${seconds}s.`, {
         headers: { "Retry-After": String(seconds) },
       });
     }

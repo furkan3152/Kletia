@@ -6,12 +6,28 @@
  *   stored sealed with AES-256-GCM (secrets.ts), bound to the webhook id.
  * - Storage: memory, or Postgres `kletia_webhooks` when KLETIA_DATABASE_URL is set.
  * - Revoking a key deletes its webhooks (deleteWebhooksOfKey, from keys.ts).
- * - Event types: the intent events of the key's intents and the contract
- *   registration events of the key's registrations. A webhook created without
- *   `events` subscribes to every type that exists at creation time, so older
- *   webhooks never start receiving types added later.
+ * - Event types: the intent events of the key's intents, the contract
+ *   registration events of the key's registrations, the intent link events
+ *   of its links, and the Rule Book (`policy.*`) and key (`key.*`) events
+ *   about it. A webhook created without `events` subscribes to every type
+ *   that exists at creation time, so older webhooks never start receiving
+ *   types added later.
+ * - `scope` (policy design §11.4): `self` (default) receives events of the
+ *   key's own intents, links, registrations and rule book; `subtree` also
+ *   receives them for every descendant agent key (and, on a project key,
+ *   project-wide rule book events), so a parent can watch its agents.
  */
-import { CONTRACT_EVENT_TYPES, RECEIPT_EVENT_TYPE, type ContractEventType } from "@kletia/core";
+import {
+  CONTRACT_EVENT_TYPES,
+  KEY_EVENT_TYPES,
+  LINK_EVENT_TYPES,
+  POLICY_EVENT_TYPES,
+  RECEIPT_EVENT_TYPE,
+  type ContractEventType,
+  type KeyEventType,
+  type LinkEventType,
+  type PolicyEventType,
+} from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import type { IntentEventType, ReceiptEventType } from "../index.js";
 import { HttpError, invalidRequest, isRecord } from "./context.js";
@@ -27,16 +43,24 @@ const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
 };
 
 /**
- * Intent events and `intent.receipt_issued` (routed by the intent's key) and
- * contract events (routed by the registration's key).
+ * Intent events and `intent.receipt_issued` (routed by the intent's key),
+ * contract and link events (routed by the owning key) and Rule Book and key
+ * events (routed by the subject key and opted-in ancestors).
  */
-export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType;
+export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType | LinkEventType | PolicyEventType | KeyEventType;
 
 export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
   ...(Object.keys(EVENT_TYPE_SET) as IntentEventType[]),
   RECEIPT_EVENT_TYPE,
   ...CONTRACT_EVENT_TYPES,
+  ...LINK_EVENT_TYPES,
+  ...POLICY_EVENT_TYPES,
+  ...KEY_EVENT_TYPES,
 ]);
+
+/** `self`: the key's own events; `subtree`: also its descendants' (and project-wide rule book events on project keys). */
+export type WebhookScope = "self" | "subtree";
+export const WEBHOOK_SCOPES: readonly WebhookScope[] = Object.freeze(["self", "subtree"]);
 
 export const MAX_WEBHOOKS_PER_KEY = 10;
 
@@ -47,6 +71,8 @@ export interface WebhookRecord {
   readonly events: readonly WebhookEventType[];
   readonly createdAt: string;
   readonly sealedSecret: string;
+  /** Absent on records written before scopes existed: `self`. */
+  readonly scope?: WebhookScope;
 }
 
 /** API representation; `secret` only in the creation response. */
@@ -54,6 +80,7 @@ export interface WebhookView {
   readonly id: string;
   readonly url: string;
   readonly events: readonly WebhookEventType[];
+  readonly scope: WebhookScope;
   readonly createdAt: string;
   readonly secret?: string;
 }
@@ -63,6 +90,7 @@ function view(record: WebhookRecord, secret?: string): WebhookView {
     id: record.id,
     url: record.url,
     events: record.events,
+    scope: record.scope ?? "self",
     createdAt: record.createdAt,
     ...(secret ? { secret } : {}),
   };
@@ -125,7 +153,8 @@ CREATE TABLE IF NOT EXISTS kletia_webhooks (
   secret_ciphertext text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS kletia_webhooks_owner_idx ON kletia_webhooks (owner_key_id, created_at);`,
+CREATE INDEX IF NOT EXISTS kletia_webhooks_owner_idx ON kletia_webhooks (owner_key_id, created_at);
+ALTER TABLE kletia_webhooks ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'self';`,
 } as const;
 
 interface WebhookRow {
@@ -135,6 +164,7 @@ interface WebhookRow {
   events: unknown;
   secret_ciphertext: string;
   created_at: Date | string;
+  scope: string | null;
 }
 
 function eventTypes(value: unknown): WebhookEventType[] {
@@ -151,6 +181,7 @@ function fromRow(row: WebhookRow): WebhookRecord {
     events: eventTypes(row.events),
     createdAt: Number.isNaN(created.getTime()) ? new Date(0).toISOString() : created.toISOString(),
     sealedSecret: row.secret_ciphertext,
+    scope: row.scope === "subtree" ? "subtree" : "self",
   };
 }
 
@@ -167,9 +198,9 @@ class PostgresWebhookStore implements WebhookStore {
       );
       if (Number(count.rows[0]?.count ?? "0") >= max) throw limitReached();
       await client.query(
-        `INSERT INTO kletia_webhooks (id, owner_key_id, url, events, secret_ciphertext, created_at)
-         VALUES ($1, $2, $3, $4::text[], $5, $6)`,
-        [record.id, record.ownerKeyId, record.url, [...record.events], record.sealedSecret, record.createdAt],
+        `INSERT INTO kletia_webhooks (id, owner_key_id, url, events, secret_ciphertext, created_at, scope)
+         VALUES ($1, $2, $3, $4::text[], $5, $6, $7)`,
+        [record.id, record.ownerKeyId, record.url, [...record.events], record.sealedSecret, record.createdAt, record.scope ?? "self"],
       );
     });
   }
@@ -177,7 +208,7 @@ class PostgresWebhookStore implements WebhookStore {
   async listByOwner(ownerKeyId: string): Promise<WebhookRecord[]> {
     const result = await dbQuery<WebhookRow>(
       WEBHOOKS_SCHEMA,
-      `SELECT id, owner_key_id, url, events, secret_ciphertext, created_at
+      `SELECT id, owner_key_id, url, events, secret_ciphertext, created_at, scope
        FROM kletia_webhooks WHERE owner_key_id = $1 ORDER BY created_at ASC LIMIT 50`,
       [ownerKeyId],
     );
@@ -263,12 +294,19 @@ function parseEvents(value: unknown): WebhookEventType[] {
   return [...new Set(value as WebhookEventType[])];
 }
 
+function parseScope(value: unknown): WebhookScope {
+  if (value === undefined) return "self";
+  if (value === "self" || value === "subtree") return value;
+  throw invalidRequest("scope must be self or subtree.", [{ path: "scope", message: "Expected self or subtree." }]);
+}
+
 export async function createWebhook(ownerKeyId: string, body: unknown): Promise<WebhookView> {
   assertWebhooksAvailable();
   if (!isRecord(body)) {
-    throw invalidRequest("Body must be { \"url\": \"https://…\", \"events\"?: [...] }.", [{ path: "", message: "Expected an object." }]);
+    throw invalidRequest("Body must be { \"url\": \"https://…\", \"events\"?: [...], \"scope\"?: \"self\" | \"subtree\" }.", [{ path: "", message: "Expected an object." }]);
   }
   const events = parseEvents(body.events);
+  const scope = parseScope(body.scope);
   const url = await assertPublicWebhookUrl(body.url);
   const existing = await webhookStore().listByOwner(ownerKeyId);
   if (existing.length >= MAX_WEBHOOKS_PER_KEY) throw limitReached();
@@ -287,6 +325,7 @@ export async function createWebhook(ownerKeyId: string, body: unknown): Promise<
     events,
     createdAt: new Date().toISOString(),
     sealedSecret: sealSecret(secret, id),
+    scope,
   };
   await webhookStore().create(record, MAX_WEBHOOKS_PER_KEY);
   invalidateOwner(ownerKeyId);

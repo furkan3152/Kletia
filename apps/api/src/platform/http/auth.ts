@@ -12,6 +12,12 @@
  *   window ends, but cannot manage keys.
  * - Operator keys: raw keys in KLETIA_OPERATOR_API_KEYS (comma separated),
  *   hashed when the router is created and never stored. They cannot be managed.
+ * - Agent keys (Rule Book, policy design §8): `kl_agt_` + 32 base62, children
+ *   of a key (`parentId`, `lineage` = ancestors, project key first), at most 2
+ *   levels below a project key and 100 active per project, always with an
+ *   expiry. A key authenticates only while it and every ancestor are neither
+ *   revoked nor expired (checked by the store in the same read), so a
+ *   revocation holds even if the cascade write of a subtree failed.
  *
  * A request presents a key as `Authorization: Bearer <key>` or
  * `X-Kletia-Key: <key>`. No key means the public tier; a key that does not
@@ -22,6 +28,7 @@
  * within 15 s everywhere else.
  */
 import type { RequestHandler } from "express";
+import { AGENT_KEY_PATTERN, AGENT_KEY_PREFIX } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import { authOf, HttpError, invalidRequest, isRecord, sendError, setAuth, type ApiTier } from "./context.js";
 import { dbQuery, dbTransaction, platformDatabaseUrl } from "./db.js";
@@ -44,7 +51,17 @@ export interface ApiKeyRecord {
   /** End of the previous secret's grace window after a rotation (null when none is valid). */
   readonly previousExpiresAt: string | null;
   readonly lastUsedAt: string | null;
+  /** `project` (default: every key issued by POST /v1/keys) or `agent` (a child key, Rule Book). */
+  readonly kind?: ApiKeyKind;
+  /** Parent of an agent key (null for project keys). */
+  readonly parentId?: string | null;
+  /** Ancestors of an agent key, project key first (empty for project keys). */
+  readonly lineage?: readonly string[];
+  /** When the key stops authenticating (always set on agent keys; null: never). */
+  readonly expiresAt?: string | null;
 }
+
+export type ApiKeyKind = "project" | "agent";
 
 export interface IssuedApiKey {
   readonly id: string;
@@ -59,10 +76,27 @@ export interface IssuedApiKey {
 export interface ApiKeyMatch {
   readonly record: ApiKeyRecord;
   readonly viaPrevious: boolean;
+  /**
+   * The key and every ancestor are neither revoked nor expired at the time of
+   * the lookup (false refuses authentication). Absent means true (stores that
+   * predate agent keys).
+   */
+  readonly active?: boolean;
+}
+
+/** The kind of a stored key (records written before agent keys are project keys). */
+export function keyKindOf(record: Pick<ApiKeyRecord, "kind">): ApiKeyKind {
+  return record.kind === "agent" ? "agent" : "project";
+}
+
+/** A key that is not revoked and not expired at `now` (its own state only). */
+export function keyLive(record: Pick<ApiKeyRecord, "revokedAt" | "expiresAt">, now: number): boolean {
+  return !record.revokedAt && !(record.expiresAt && Date.parse(record.expiresAt) <= now);
 }
 
 export const DEVELOPER_KEY_PREFIX = "kl_dev_";
 const DEVELOPER_KEY_PATTERN = /^kl_dev_[0-9A-Za-z]{32}$/u;
+export { AGENT_KEY_PREFIX };
 const MIN_OPERATOR_KEY_LENGTH = 24;
 const MAX_KEY_LENGTH = 256;
 
@@ -74,19 +108,37 @@ export function keyLimitReached(max: number): PlatformError {
   return new PlatformError("KEY_LIMIT_REACHED", `A project holds at most ${max} active API keys. Revoke one with DELETE /v1/keys/{id} first.`, 409);
 }
 
+export function agentKeyLimitReached(max: number): PlatformError {
+  return new PlatformError("AGENT_KEY_LIMIT_REACHED", `A project holds at most ${max} active agent keys. Revoke one with DELETE /v1/keys/{id} first.`, 409);
+}
+
 /* ----------------------------------------------------------------- store */
 
 export type RevokeOutcome = "revoked" | "already_revoked" | "missing";
 
+export interface SubtreeRevocation {
+  readonly outcome: RevokeOutcome;
+  /** Every key revoked by this call (the subject and its descendants that were still active). */
+  readonly cascade: readonly string[];
+}
+
 export interface ApiKeyStore {
   readonly kind: "memory" | "postgres";
-  /** Inserts a key; with `maxActive`, refuses (409 KEY_LIMIT_REACHED) when its project already holds that many active keys. */
+  /** Inserts a project key; with `maxActive`, refuses (409 KEY_LIMIT_REACHED) when its project already holds that many active project keys. */
   insert(record: ApiKeyRecord, keyHash: string, maxActive?: number): Promise<void>;
-  /** The key whose current secret, or unexpired previous secret, hashes to `keyHash`. */
+  /**
+   * Inserts an agent key (`kind: "agent"`), refusing (409
+   * AGENT_KEY_LIMIT_REACHED) when its project already holds `maxActiveAgents`
+   * active agent keys; serialised per project like `insert`.
+   */
+  insertAgent(record: ApiKeyRecord, keyHash: string, maxActiveAgents: number, now: number): Promise<void>;
+  /** The key whose current secret, or unexpired previous secret, hashes to `keyHash` (with lineage liveness). */
   findByHash(keyHash: string, now: number): Promise<ApiKeyMatch | null>;
   /** The key with this id (revoked or not), null when unknown. */
   findById(id: string): Promise<ApiKeyRecord | null>;
-  /** Keys of one project, newest first (at most 50, revoked ones included). */
+  /** Several keys by id (unknown ids are left out). */
+  findMany(ids: readonly string[]): Promise<ApiKeyRecord[]>;
+  /** Keys of one project, newest first (at most 200, revoked ones included). */
   listByProject(projectId: string): Promise<ApiKeyRecord[]>;
   /**
    * Replaces the secret of an active developer key in `projectId`. The old
@@ -95,8 +147,17 @@ export interface ApiKeyStore {
    */
   rotate(id: string, projectId: string, keyHash: string, last4: string, rotatedAt: string, previousExpiresAt: string | null): Promise<ApiKeyRecord | null>;
   revoke(id: string, projectId: string, revokedAt: string): Promise<RevokeOutcome>;
+  /** Revokes a key and its whole subtree (every key whose lineage holds it) in one write. */
+  revokeSubtree(id: string, projectId: string, revokedAt: string): Promise<SubtreeRevocation>;
+  /** Sets the expiry of an active key of the project; null when no such key. */
+  setExpiry(id: string, projectId: string, expiresAt: string | null): Promise<ApiKeyRecord | null>;
   /** Records when keys were last used (never moves a timestamp backwards). */
   touch(lastUsed: ReadonlyMap<string, string>): Promise<void>;
+}
+
+/** Active agent keys of a project at `now` (not revoked, not expired). */
+function activeAgent(record: ApiKeyRecord, projectId: string, now: number): boolean {
+  return record.projectId === projectId && keyKindOf(record) === "agent" && keyLive(record, now);
 }
 
 interface MemoryKeyEntry {
@@ -115,13 +176,36 @@ export class MemoryApiKeyStore implements ApiKeyStore {
 
   private activeInProject(projectId: string): number {
     let count = 0;
-    for (const entry of this.byId.values()) if (entry.record.projectId === projectId && !entry.record.revokedAt) count += 1;
+    for (const entry of this.byId.values()) {
+      if (entry.record.projectId === projectId && !entry.record.revokedAt && keyKindOf(entry.record) === "project") count += 1;
+    }
     return count;
+  }
+
+  /** The key and each ancestor are live at `now` (unknown ancestors are not). */
+  private lineageLive(record: ApiKeyRecord, now: number): boolean {
+    if (!keyLive(record, now)) return false;
+    return (record.lineage ?? []).every((id) => {
+      const ancestor = this.byId.get(id)?.record;
+      return ancestor !== undefined && keyLive(ancestor, now);
+    });
   }
 
   async insert(record: ApiKeyRecord, keyHash: string, maxActive?: number): Promise<void> {
     if (this.byHash.has(keyHash) || this.byId.has(record.id)) throw keyCollision();
     if (maxActive !== undefined && this.activeInProject(record.projectId) >= maxActive) throw keyLimitReached(maxActive);
+    this.add(record, keyHash);
+  }
+
+  async insertAgent(record: ApiKeyRecord, keyHash: string, maxActiveAgents: number, now: number): Promise<void> {
+    if (this.byHash.has(keyHash) || this.byId.has(record.id)) throw keyCollision();
+    let count = 0;
+    for (const entry of this.byId.values()) if (activeAgent(entry.record, record.projectId, now)) count += 1;
+    if (count >= maxActiveAgents) throw agentKeyLimitReached(maxActiveAgents);
+    this.add({ ...record, kind: "agent" }, keyHash);
+  }
+
+  private add(record: ApiKeyRecord, keyHash: string): void {
     this.byId.set(record.id, { record, keyHash, previousHash: null });
     this.byHash.set(keyHash, record.id);
     while (this.byId.size > this.maxKeys) {
@@ -138,13 +222,21 @@ export class MemoryApiKeyStore implements ApiKeyStore {
     const id = this.byHash.get(keyHash);
     const entry = id === undefined ? undefined : this.byId.get(id);
     if (!entry) return null;
-    if (entry.keyHash === keyHash) return { record: entry.record, viaPrevious: false };
+    const active = this.lineageLive(entry.record, now);
+    if (entry.keyHash === keyHash) return { record: entry.record, viaPrevious: false, active };
     const expires = entry.record.previousExpiresAt ? Date.parse(entry.record.previousExpiresAt) : 0;
-    return entry.previousHash === keyHash && expires > now ? { record: entry.record, viaPrevious: true } : null;
+    return entry.previousHash === keyHash && expires > now ? { record: entry.record, viaPrevious: true, active } : null;
   }
 
   async findById(id: string): Promise<ApiKeyRecord | null> {
     return this.byId.get(id)?.record ?? null;
+  }
+
+  async findMany(ids: readonly string[]): Promise<ApiKeyRecord[]> {
+    return ids.flatMap((id) => {
+      const record = this.byId.get(id)?.record;
+      return record ? [record] : [];
+    });
   }
 
   async listByProject(projectId: string): Promise<ApiKeyRecord[]> {
@@ -152,7 +244,7 @@ export class MemoryApiKeyStore implements ApiKeyStore {
       .map((entry) => entry.record)
       .filter((record) => record.projectId === projectId)
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
-      .slice(0, 50);
+      .slice(0, 200);
   }
 
   async rotate(id: string, projectId: string, keyHash: string, last4: string, rotatedAt: string, previousExpiresAt: string | null): Promise<ApiKeyRecord | null> {
@@ -177,6 +269,29 @@ export class MemoryApiKeyStore implements ApiKeyStore {
     entry.previousHash = null;
     entry.record = { ...entry.record, revokedAt, previousExpiresAt: null };
     return "revoked";
+  }
+
+  async revokeSubtree(id: string, projectId: string, revokedAt: string): Promise<SubtreeRevocation> {
+    const subject = this.byId.get(id);
+    if (!subject || subject.record.projectId !== projectId) return { outcome: "missing", cascade: [] };
+    const outcome: RevokeOutcome = subject.record.revokedAt ? "already_revoked" : "revoked";
+    const cascade: string[] = [];
+    for (const entry of this.byId.values()) {
+      const record = entry.record;
+      if (record.projectId !== projectId || (record.id !== id && !(record.lineage ?? []).includes(id))) continue;
+      if (!record.revokedAt) cascade.push(record.id);
+      if (entry.previousHash) this.byHash.delete(entry.previousHash);
+      entry.previousHash = null;
+      entry.record = { ...record, revokedAt: record.revokedAt ?? revokedAt, previousExpiresAt: null };
+    }
+    return { outcome, cascade };
+  }
+
+  async setExpiry(id: string, projectId: string, expiresAt: string | null): Promise<ApiKeyRecord | null> {
+    const entry = this.byId.get(id);
+    if (!entry || entry.record.projectId !== projectId || entry.record.revokedAt) return null;
+    entry.record = { ...entry.record, expiresAt };
+    return entry.record;
   }
 
   async touch(lastUsed: ReadonlyMap<string, string>): Promise<void> {
@@ -206,10 +321,22 @@ ALTER TABLE kletia_api_keys
   ADD COLUMN IF NOT EXISTS rotated_at timestamptz,
   ADD COLUMN IF NOT EXISTS last_used_at timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS kletia_api_keys_previous_hash_idx ON kletia_api_keys (previous_key_hash) WHERE previous_key_hash IS NOT NULL;
-CREATE INDEX IF NOT EXISTS kletia_api_keys_project_idx ON kletia_api_keys ((COALESCE(project_id, id)), created_at);`,
+CREATE INDEX IF NOT EXISTS kletia_api_keys_project_idx ON kletia_api_keys ((COALESCE(project_id, id)), created_at);
+ALTER TABLE kletia_api_keys
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'project',
+  ADD COLUMN IF NOT EXISTS parent_id text,
+  ADD COLUMN IF NOT EXISTS lineage text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS expires_at timestamptz;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'kletia_api_keys_kind_check') THEN
+    ALTER TABLE kletia_api_keys ADD CONSTRAINT kletia_api_keys_kind_check CHECK (kind IN ('project', 'agent'));
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS kletia_api_keys_lineage_idx ON kletia_api_keys USING gin (lineage);
+CREATE INDEX IF NOT EXISTS kletia_api_keys_parent_idx ON kletia_api_keys (parent_id) WHERE parent_id IS NOT NULL;`,
 } as const;
 
-const KEY_COLUMNS = "id, name, tier, created_at, revoked_at, project_id, last4, rotated_at, previous_expires_at, last_used_at";
+const KEY_COLUMNS = "id, name, tier, created_at, revoked_at, project_id, last4, rotated_at, previous_expires_at, last_used_at, kind, parent_id, lineage, expires_at";
 
 interface ApiKeyRow {
   id: string;
@@ -222,6 +349,10 @@ interface ApiKeyRow {
   rotated_at: Date | string | null;
   previous_expires_at: Date | string | null;
   last_used_at: Date | string | null;
+  kind: string | null;
+  parent_id: string | null;
+  lineage: string[] | null;
+  expires_at: Date | string | null;
 }
 
 function isoOf(value: Date | string | null): string | null {
@@ -243,8 +374,18 @@ function recordFromRow(row: ApiKeyRow): ApiKeyRecord | null {
     rotatedAt: isoOf(row.rotated_at),
     previousExpiresAt: isoOf(row.previous_expires_at),
     lastUsedAt: isoOf(row.last_used_at),
+    kind: row.kind === "agent" ? "agent" : "project",
+    parentId: row.parent_id,
+    lineage: Array.isArray(row.lineage) ? row.lineage : [],
+    expiresAt: isoOf(row.expires_at),
   };
 }
+
+/** SQL: the key row `k` and every ancestor are neither revoked nor expired at $2. */
+const LINEAGE_ACTIVE = `(k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > $2) AND NOT EXISTS (
+  SELECT 1 FROM kletia_api_keys a WHERE a.id = ANY(k.lineage)
+    AND (a.revoked_at IS NOT NULL OR (a.expires_at IS NOT NULL AND a.expires_at <= $2))
+) AND cardinality(k.lineage) = (SELECT count(*) FROM kletia_api_keys a WHERE a.id = ANY(k.lineage)))`;
 
 export class PostgresApiKeyStore implements ApiKeyStore {
   readonly kind = "postgres" as const;
@@ -255,7 +396,7 @@ export class PostgresApiKeyStore implements ApiKeyStore {
         // Serialise issuance per project so the cap holds across instances.
         await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`kletia_api_keys:${record.projectId}`]);
         const count = await client.query<{ count: string }>(
-          "SELECT count(*)::text AS count FROM kletia_api_keys WHERE COALESCE(project_id, id) = $1 AND revoked_at IS NULL",
+          "SELECT count(*)::text AS count FROM kletia_api_keys WHERE COALESCE(project_id, id) = $1 AND revoked_at IS NULL AND kind = 'project'",
           [record.projectId],
         );
         if (Number(count.rows[0]?.count ?? "0") >= maxActive) throw keyLimitReached(maxActive);
@@ -269,17 +410,37 @@ export class PostgresApiKeyStore implements ApiKeyStore {
     });
   }
 
+  async insertAgent(record: ApiKeyRecord, keyHash: string, maxActiveAgents: number, now: number): Promise<void> {
+    await dbTransaction(API_KEYS_SCHEMA, async (client) => {
+      // The same per-project lock as project key issuance: the agent cap holds across instances.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`kletia_api_keys:${record.projectId}`]);
+      const count = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM kletia_api_keys
+         WHERE COALESCE(project_id, id) = $1 AND kind = 'agent' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > $2)`,
+        [record.projectId, new Date(now).toISOString()],
+      );
+      if (Number(count.rows[0]?.count ?? "0") >= maxActiveAgents) throw agentKeyLimitReached(maxActiveAgents);
+      const result = await client.query(
+        `INSERT INTO kletia_api_keys (id, key_hash, name, tier, created_at, project_id, last4, kind, parent_id, lineage, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'agent', $8, $9::text[], $10) ON CONFLICT DO NOTHING`,
+        [record.id, keyHash, record.name, record.tier, record.createdAt, record.projectId, record.last4, record.parentId ?? null, [...(record.lineage ?? [])], record.expiresAt ?? null],
+      );
+      if (result.rowCount !== 1) throw keyCollision();
+    });
+  }
+
   async findByHash(keyHash: string, now: number): Promise<ApiKeyMatch | null> {
-    const result = await dbQuery<ApiKeyRow & { via_previous: boolean }>(
+    const result = await dbQuery<ApiKeyRow & { via_previous: boolean; active: boolean }>(
       API_KEYS_SCHEMA,
-      `SELECT ${KEY_COLUMNS}, key_hash <> $1 AS via_previous FROM kletia_api_keys
-       WHERE key_hash = $1 OR (previous_key_hash = $1 AND previous_expires_at > $2)
+      `SELECT ${KEY_COLUMNS.split(", ").map((column) => `k.${column}`).join(", ")}, k.key_hash <> $1 AS via_previous, ${LINEAGE_ACTIVE} AS active
+       FROM kletia_api_keys k
+       WHERE k.key_hash = $1 OR (k.previous_key_hash = $1 AND k.previous_expires_at > $2)
        LIMIT 1`,
       [keyHash, new Date(now).toISOString()],
     );
     const row = result.rows[0];
     const record = row ? recordFromRow(row) : null;
-    return row && record ? { record, viaPrevious: row.via_previous === true } : null;
+    return row && record ? { record, viaPrevious: row.via_previous === true, active: row.active === true } : null;
   }
 
   async findById(id: string): Promise<ApiKeyRecord | null> {
@@ -288,10 +449,23 @@ export class PostgresApiKeyStore implements ApiKeyStore {
     return row ? recordFromRow(row) : null;
   }
 
+  async findMany(ids: readonly string[]): Promise<ApiKeyRecord[]> {
+    if (ids.length === 0) return [];
+    const result = await dbQuery<ApiKeyRow>(API_KEYS_SCHEMA, `SELECT ${KEY_COLUMNS} FROM kletia_api_keys WHERE id = ANY($1::text[])`, [[...ids]]);
+    const byId = new Map(result.rows.flatMap((row) => {
+      const record = recordFromRow(row);
+      return record ? [[record.id, record] as const] : [];
+    }));
+    return ids.flatMap((id) => {
+      const record = byId.get(id);
+      return record ? [record] : [];
+    });
+  }
+
   async listByProject(projectId: string): Promise<ApiKeyRecord[]> {
     const result = await dbQuery<ApiKeyRow>(
       API_KEYS_SCHEMA,
-      `SELECT ${KEY_COLUMNS} FROM kletia_api_keys WHERE COALESCE(project_id, id) = $1 ORDER BY created_at DESC LIMIT 50`,
+      `SELECT ${KEY_COLUMNS} FROM kletia_api_keys WHERE COALESCE(project_id, id) = $1 ORDER BY created_at DESC LIMIT 200`,
       [projectId],
     );
     return result.rows.map(recordFromRow).filter((record): record is ApiKeyRecord => record !== null);
@@ -326,6 +500,39 @@ export class PostgresApiKeyStore implements ApiKeyStore {
     const row = result.rows[0];
     if (!row) return "missing";
     return row.was_revoked ? "already_revoked" : "revoked";
+  }
+
+  async revokeSubtree(id: string, projectId: string, revokedAt: string): Promise<SubtreeRevocation> {
+    // One statement (policy design §8.2): the subject and every key whose lineage holds it.
+    const result = await dbQuery<{ id: string; was_revoked: boolean }>(
+      API_KEYS_SCHEMA,
+      `WITH target AS (
+         SELECT id, revoked_at FROM kletia_api_keys
+         WHERE (id = $1 OR $1 = ANY(lineage)) AND COALESCE(project_id, id) = $2 FOR UPDATE
+       )
+       UPDATE kletia_api_keys AS k SET revoked_at = COALESCE(k.revoked_at, $3), previous_key_hash = NULL, previous_expires_at = NULL
+       FROM target WHERE k.id = target.id
+       RETURNING k.id, target.revoked_at IS NOT NULL AS was_revoked`,
+      [id, projectId, revokedAt],
+    );
+    const subject = result.rows.find((row) => row.id === id);
+    if (!subject) return { outcome: "missing", cascade: [] };
+    return {
+      outcome: subject.was_revoked ? "already_revoked" : "revoked",
+      cascade: result.rows.filter((row) => !row.was_revoked).map((row) => row.id),
+    };
+  }
+
+  async setExpiry(id: string, projectId: string, expiresAt: string | null): Promise<ApiKeyRecord | null> {
+    const result = await dbQuery<ApiKeyRow>(
+      API_KEYS_SCHEMA,
+      `UPDATE kletia_api_keys SET expires_at = $3::timestamptz
+       WHERE id = $1 AND COALESCE(project_id, id) = $2 AND revoked_at IS NULL
+       RETURNING ${KEY_COLUMNS}`,
+      [id, projectId, expiresAt],
+    );
+    const row = result.rows[0];
+    return row ? recordFromRow(row) : null;
   }
 
   async touch(lastUsed: ReadonlyMap<string, string>): Promise<void> {
@@ -402,6 +609,60 @@ export function newDeveloperSecret(): { readonly key: string; readonly hash: str
   return { key, hash: sha256Hex(key), last4: key.slice(-4) };
 }
 
+/** A fresh agent secret (`kl_agt_`, recognisable in logs and secret scanners) and its stored forms. */
+export function newAgentSecret(): { readonly key: string; readonly hash: string; readonly last4: string } {
+  const key = `${AGENT_KEY_PREFIX}${randomBase62(32)}`;
+  return { key, hash: sha256Hex(key), last4: key.slice(-4) };
+}
+
+/** A new secret of the same kind as the key it replaces. */
+export function newSecretFor(record: Pick<ApiKeyRecord, "kind">): { readonly key: string; readonly hash: string; readonly last4: string } {
+  return keyKindOf(record) === "agent" ? newAgentSecret() : newDeveloperSecret();
+}
+
+export interface IssuedAgentKey extends IssuedApiKey {
+  readonly kind: "agent";
+  readonly parentId: string;
+  readonly lineage: readonly string[];
+  readonly depth: number;
+  readonly expiresAt: string;
+}
+
+/**
+ * Issues an agent key under `parent` (the caller checked the parent's
+ * project, liveness, depth and expiry). Refuses (409 AGENT_KEY_LIMIT_REACHED)
+ * when the project already holds `maxActiveAgents` active agent keys.
+ */
+export async function issueAgentKey(
+  name: string,
+  parent: Pick<ApiKeyRecord, "id" | "projectId" | "lineage">,
+  expiresAt: string,
+  maxActiveAgents: number,
+  now = Date.now(),
+): Promise<IssuedAgentKey> {
+  const secret = newAgentSecret();
+  const id = `key_${randomHex(12)}`;
+  const lineage = [...(parent.lineage ?? []), parent.id];
+  const record: ApiKeyRecord = {
+    id,
+    name,
+    tier: "developer",
+    createdAt: new Date(now).toISOString(),
+    revokedAt: null,
+    projectId: parent.projectId,
+    last4: secret.last4,
+    rotatedAt: null,
+    previousExpiresAt: null,
+    lastUsedAt: null,
+    kind: "agent",
+    parentId: parent.id,
+    lineage,
+    expiresAt,
+  };
+  await apiKeyStore().insertAgent(record, secret.hash, maxActiveAgents, now);
+  return { id, name, tier: "developer", createdAt: record.createdAt, key: secret.key, kind: "agent", parentId: parent.id, lineage, depth: lineage.length, expiresAt };
+}
+
 /**
  * Issues a developer key. Without `project` it starts a new project; with one
  * it joins it, refusing when the project already holds `project.maxActive`
@@ -456,7 +717,9 @@ function remember<V>(cache: Map<string, V>, key: string, value: V): void {
 
 function cacheMatch(keyHash: string, match: ApiKeyMatch, now: number): void {
   const graceEnd = match.viaPrevious && match.record.previousExpiresAt ? Date.parse(match.record.previousExpiresAt) : Number.POSITIVE_INFINITY;
-  remember(lookupCache, keyHash, { match, expiresAt: Math.min(now + KEY_CACHE_TTL_MS, graceEnd) });
+  // An expiring key is re-read when it expires (ancestors: within the cache TTL).
+  const keyEnd = match.record.expiresAt ? Date.parse(match.record.expiresAt) : Number.POSITIVE_INFINITY;
+  remember(lookupCache, keyHash, { match, expiresAt: Math.min(now + KEY_CACHE_TTL_MS, graceEnd, keyEnd) });
   let hashes = cachedHashesById.get(match.record.id);
   if (!hashes) {
     hashes = new Set();
@@ -583,21 +846,31 @@ export const authenticate: RequestHandler = (req, _res, next) => {
         setAuth(req, { tier: "operator", keyId: operator.id });
         return;
       }
-      if (!DEVELOPER_KEY_PATTERN.test(key)) {
+      const agentKey = AGENT_KEY_PATTERN.test(key);
+      if (!DEVELOPER_KEY_PATTERN.test(key) && !agentKey) {
         setAuth(req, { tier: "public", rejection: invalidKey() });
         return;
       }
-      const match = await findDeveloperKey(hash, clientIp(req), Date.now());
+      const now = Date.now();
+      const match = await findDeveloperKey(hash, clientIp(req), now);
       if (!match || match.record.revokedAt) {
         setAuth(req, { tier: "public", rejection: invalidKey() });
         return;
       }
       const { record } = match;
+      // A key whose own expiry passed, or whose ancestor is revoked or expired, never authenticates.
+      if (match.active === false || !keyLive(record, now) || (keyKindOf(record) === "agent") !== agentKey) {
+        setAuth(req, { tier: "public", rejection: invalidKey(record.expiresAt && Date.parse(record.expiresAt) <= now ? "The API key expired." : undefined) });
+        return;
+      }
+      const kind = keyKindOf(record);
       setAuth(req, {
         tier: record.tier,
         keyId: record.id,
         projectId: record.projectId,
         secretHash: hash,
+        keyKind: kind,
+        ...(kind === "agent" ? { lineage: [...(record.lineage ?? [])] } : {}),
         ...(match.viaPrevious ? { viaPreviousSecret: true as const } : {}),
       });
     } catch (error) {

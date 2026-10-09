@@ -3,8 +3,10 @@ import {
   errorDocsUrl,
   isRetryableError,
   resolveErrorCode,
+  type IntentPreview,
   type KletiaErrorCategory,
   type KletiaErrorCode,
+  type PreviewIssue,
 } from "@kletia/core";
 
 export interface ApiIssue {
@@ -104,6 +106,99 @@ export class KletiaApiError extends Error {
   get retryable(): boolean {
     if (this.status === 0) return TRANSIENT_CLIENT_CODES.has(this.code);
     return isRetryableError(this.code, this.status);
+  }
+}
+
+/* ------------------------------------------------------------- Rule Book */
+
+/** One violated rule of a Rule Book refusal (`error.policy.violations`). */
+export interface PolicyViolationView {
+  /** Stable rule id, e.g. `recipients.mode`, `caps.dailyUsd`. */
+  readonly rule: string;
+  readonly scope: "project" | "key";
+  readonly keyId?: string;
+  readonly path?: string;
+  readonly message: string;
+  readonly observed?: string;
+  readonly limit?: string;
+}
+
+/** The approval an intent waits for (`error.policy.approval`); its URL is safe to hand to an agent. */
+export interface PolicyApprovalReference {
+  readonly id: string;
+  readonly url: string;
+  readonly expiresAt: string;
+  readonly ceilingUsd?: string;
+  readonly status?: "pending" | "approved" | "rejected" | "expired";
+}
+
+/** `error.policy` of a Rule Book refusal, or a local refusal by the policy guard (`stage: "sign"`). */
+export interface PolicyErrorDetails {
+  readonly decisionId: string | null;
+  readonly stage: "plan" | "prepare" | "evaluate" | "sign";
+  readonly outcome: "deny";
+  /** The key (or `prj_…`) whose rule book refused first. */
+  readonly keyId: string | null;
+  readonly violations: readonly PolicyViolationView[];
+  /** ISO time when a retry may succeed (spend windows, schedule, approvals); null otherwise. */
+  readonly retryAt: string | null;
+  readonly approval?: PolicyApprovalReference;
+}
+
+/**
+ * A refusal by a Rule Book: from the API (`error.policy` in the envelope) or
+ * raised locally by the policy-bound signer before any wallet prompt
+ * (`stage: "sign"`, `status: 0`, nothing was sent).
+ */
+export class KletiaPolicyError extends KletiaApiError {
+  readonly policy: PolicyErrorDetails;
+
+  constructor(input: ConstructorParameters<typeof KletiaApiError>[0] & { readonly policy: PolicyErrorDetails }) {
+    super(input);
+    this.name = "KletiaPolicyError";
+    this.policy = input.policy;
+  }
+
+  get decisionId(): string | null {
+    return this.policy.decisionId;
+  }
+
+  get stage(): PolicyErrorDetails["stage"] {
+    return this.policy.stage;
+  }
+
+  get violations(): readonly PolicyViolationView[] {
+    return this.policy.violations;
+  }
+
+  get retryAt(): string | null {
+    return this.policy.retryAt;
+  }
+
+  /** The approval this intent waits for (POLICY_APPROVAL_REQUIRED), when the API named one. */
+  get approval(): PolicyApprovalReference | null {
+    return this.policy.approval ?? null;
+  }
+}
+
+/* ------------------------------------------------------- asset preview */
+
+/**
+ * 409 PREVIEW_CHANGED: the freshly simulated payload is materially worse than
+ * the preview the user acknowledged. `preview` is the fresh preview to show;
+ * prepare again with its digest once the user approved it.
+ */
+export class KletiaPreviewChangedError extends KletiaApiError {
+  /** The fresh intent preview. */
+  readonly preview: IntentPreview;
+  /** What got worse (`PREVIEW_CHANGE_CODES` of `@kletia/core`). */
+  readonly changes: readonly PreviewIssue[];
+
+  constructor(input: ConstructorParameters<typeof KletiaApiError>[0] & { readonly preview: IntentPreview; readonly changes: readonly PreviewIssue[] }) {
+    super(input);
+    this.name = "KletiaPreviewChangedError";
+    this.preview = input.preview;
+    this.changes = input.changes;
   }
 }
 

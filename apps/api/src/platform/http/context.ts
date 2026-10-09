@@ -7,7 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
-import { CONTRACT_ID_PATTERN, SESSION_ID_PATTERN } from "@kletia/core";
+import { APPROVAL_ID_PATTERN, CONTRACT_ID_PATTERN, LINK_ID_PATTERN, SESSION_ID_PATTERN } from "@kletia/core";
 import { PlatformError, toPlatformError, type PlatformIssue } from "../errors.js";
 import { INTENT_ID_PATTERN, MAX_STEP_TRANSACTIONS, STEP_ID_PATTERN } from "../index.js";
 import { errorDocsLink } from "./errorsRoute.js";
@@ -24,6 +24,10 @@ export interface AuthContext {
   readonly viaPreviousSecret?: true;
   /** SHA-256 of the presented developer secret (never the secret itself): tells a key's current and previous secrets apart. */
   readonly secretHash?: string;
+  /** `project` keys (kl_dev_) or `agent` keys (kl_agt_, Rule Book children); absent for operator keys. */
+  readonly keyKind?: "project" | "agent";
+  /** Ancestors of an agent key, project key first. */
+  readonly lineage?: readonly string[];
   /** Set when the caller presented a credential that failed; the request is rejected after rate limiting. */
   readonly rejection?: HttpError | PlatformError;
 }
@@ -178,8 +182,8 @@ export function invalidRequest(message: string, issues: readonly PlatformIssue[]
 export { INTENT_ID_PATTERN, STEP_ID_PATTERN };
 export const EVENT_ID_PATTERN = /^evt_[0-9a-f]{32}$/u;
 export const WEBHOOK_ID_PATTERN = /^wh_[0-9a-f]{24}$/u;
-/** Contract registration and session id formats come from @kletia/core (SDK, CLI and API agree). */
-export { CONTRACT_ID_PATTERN, SESSION_ID_PATTERN };
+/** Contract registration, session, link and approval id formats come from @kletia/core (SDK, CLI and API agree). */
+export { APPROVAL_ID_PATTERN, CONTRACT_ID_PATTERN, LINK_ID_PATTERN, SESSION_ID_PATTERN };
 /** One reference per prepared transaction; the engine prepares at most this many per step. */
 export const MAX_REFERENCES = MAX_STEP_TRANSACTIONS;
 export const MAX_REFERENCE_LENGTH = 128;
@@ -212,6 +216,22 @@ export function contractIdParam(req: Request): string {
   const id = pathParam(req, "id");
   if (!CONTRACT_ID_PATTERN.test(id)) {
     throw invalidRequest("Contract ids look like ct_ followed by 24 lowercase hex characters.", [{ path: "id", message: "Invalid contract id." }]);
+  }
+  return id;
+}
+
+export function linkIdParam(req: Request): string {
+  const id = pathParam(req, "id");
+  if (!LINK_ID_PATTERN.test(id)) {
+    throw invalidRequest("Link ids look like lk_ followed by 24 lowercase hex characters.", [{ path: "id", message: "Invalid link id." }]);
+  }
+  return id;
+}
+
+export function approvalIdParam(req: Request): string {
+  const id = pathParam(req, "id");
+  if (!APPROVAL_ID_PATTERN.test(id)) {
+    throw invalidRequest("Approval ids look like apr_ followed by 32 lowercase hex characters.", [{ path: "id", message: "Invalid approval id." }]);
   }
   return id;
 }

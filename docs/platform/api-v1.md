@@ -63,14 +63,14 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
 | 403 | A rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`) |
-| 404 | Unknown intent, step, webhook, key, contract registration (`CONTRACT_NOT_FOUND`, also for other keys' private ones), session or path |
+| 404 | Unknown intent, step, webhook, key, contract registration (`CONTRACT_NOT_FOUND`, also for other keys' private ones), session or path; no kept preview (`PREVIEW_NOT_FOUND`); unknown or unshared receipt, share or log batch (`RECEIPT_NOT_FOUND`, `RECEIPT_SHARE_NOT_FOUND`, `RECEIPT_LOG_NOT_FOUND`) |
 | 405 | Wrong method (with an `Allow` header) |
-| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`, `CONTRACT_EXISTS`, `CONTRACT_LIMIT_REACHED`, `CONTRACT_PENDING`, `CONTRACT_SUSPENDED`, `CONTRACT_CHANGED`, `CONTRACT_REVISION_CHANGED`, `SESSION_USED`) |
-| 410 | Expired (`INTENT_EXPIRED`, `DEADLINE_PASSED`, `SESSION_EXPIRED`) |
+| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`, `CONTRACT_EXISTS`, `CONTRACT_LIMIT_REACHED`, `CONTRACT_PENDING`, `CONTRACT_SUSPENDED`, `CONTRACT_CHANGED`, `CONTRACT_REVISION_CHANGED`, `SESSION_USED`, `PREVIEW_CHANGED`, `RECEIPT_NOT_READY`, `RECEIPT_NOT_APPLICABLE`, `RECEIPT_SHARE_LIMIT`, `RECEIPT_ANCHOR_EXISTS`) |
+| 410 | Expired (`INTENT_EXPIRED`, `DEADLINE_PASSED`, `SESSION_EXPIRED`, `RECEIPT_SHARE_EXPIRED`, `RECEIPT_DISCLOSURES_WITHDRAWN`) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
 | 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, the custom contract refusals (`CONTRACT_UNKNOWN`, `CONTRACT_DENIED`, `CONTRACT_FUNCTION_FORBIDDEN`, `CONTRACT_NOT_DEPLOYED`, `SIMULATION_ASSET_CHANGE_REFUSED`, `ACTION_TRANSACTION_REJECTED`, …), and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
-| 502 / 503 | Upstream provider unavailable (`ACTION_ENDPOINT_UNAVAILABLE` for an integrator's Solana Action server), or a feature not configured or disabled (`WEBHOOKS_NOT_CONFIGURED`, `CONTRACTS_DISABLED`, `SIMULATION_UNAVAILABLE`) |
+| 502 / 503 | Upstream provider unavailable (`ACTION_ENDPOINT_UNAVAILABLE` for an integrator's Solana Action server), or a feature not configured or disabled (`WEBHOOKS_NOT_CONFIGURED`, `CONTRACTS_DISABLED`, `SIMULATION_UNAVAILABLE`, `RECEIPTS_DISABLED`) |
 
 ## Endpoints
 
@@ -83,14 +83,30 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | GET | `/v1/venues?network=&protocol=` | public | EVM lending venues with supply APY, size and exit liquidity (advisory, cached 60 s) |
 | POST | `/v1/quotes` | public | Best routes for one asset movement (same- or cross-network) |
 | GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account |
-| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence) |
+| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md)) |
 | GET | `/v1/intents` | key | List intents created with the caller's key |
 | GET | `/v1/intents/{id}` | public | Read an intent |
-| POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step |
+| POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`) |
 | POST | `/v1/intents/{id}/steps/{stepId}/submit` | public | Submit transaction hashes / signatures for verification |
 | POST | `/v1/intents/{id}/refresh` | public | Re-read settlement state now |
 | POST | `/v1/intents/{id}/cancel` | public | Cancel an intent with no submitted steps |
 | GET | `/v1/intents/{id}/events` | public | Server-Sent Events stream of intent events |
+| POST | `/v1/intents/{id}/preview` | public | Recompute the [asset-change preview](preview.md) (`?quotes=refresh` re-quotes ready steps); 6 per minute per intent |
+| GET | `/v1/intents/{id}/preview` | public | The last preview computed for the intent (30 minutes) |
+| GET | `/v1/intents/{id}/receipt` | public | The intent's latest [receipt](receipts.md) with every disclosure (`?sequence=`); `202` with `Retry-After` while finality is pending |
+| GET | `/v1/intents/{id}/receipts` | public | Every receipt sequence of the intent |
+| POST | `/v1/intents/{id}/receipt/shares` | public | Share a receipt: encrypted groups, link (with its key) returned once |
+| GET | `/v1/intents/{id}/receipt/shares` | public | Active shares (no keys) |
+| DELETE | `/v1/intents/{id}/receipt/shares/{shareId}` | public | Revoke a share |
+| DELETE | `/v1/intents/{id}/receipt/disclosures` | public | Withdraw stored disclosures and every share |
+| GET | `/v1/receipts/keys` | public | Receipt signing keys and EAS attesters |
+| GET | `/v1/receipts/log` | public | Transparency log batches (`?limit=`, `?unanchored=true`) |
+| GET | `/v1/receipts/log/inclusion?digest=` | public | Inclusion proof of a receipt digest |
+| GET | `/v1/receipts/log/{seq}` | public | One batch (`?leaves=true&offset=&limit=` up to 1,000 leaves) |
+| POST | `/v1/receipts/log/{seq}/anchor` | operator | Report the Base transaction that timestamped a batch (checked on-chain) |
+| GET | `/v1/receipts/{receiptId}` | public | A shared receipt's signed payload (404 unless shared) |
+| GET | `/v1/receipts/{receiptId}/status` | public | Whether a shared receipt was superseded |
+| GET | `/v1/receipts/{receiptId}/shares/{shareId}` | public | A share's encrypted disclosures |
 | POST | `/v1/webhooks` | key | Register a webhook (secret returned once) |
 | GET | `/v1/webhooks` | key | List webhooks |
 | DELETE | `/v1/webhooks/{id}` | key | Delete a webhook and its delivery log |
@@ -99,8 +115,44 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | POST | `/v1/keys` | public | Issue a developer key (with a developer key: a sibling in the same project) |
 | GET | `/v1/keys` | key | List the keys of the caller's project |
 | POST | `/v1/keys/{id}/rotate` | key | New secret for a key, same id, with a grace window |
-| DELETE | `/v1/keys/{id}` | key | Revoke a key |
-| GET | `/v1/usage` | key | Requests, status classes, rate-limit window, intents and custom contract activity of the caller's key |
+| DELETE | `/v1/keys/{id}` | key | Revoke a key and every agent key below it |
+| PATCH | `/v1/keys/{id}` | key | Change a key's expiry (`{ "expiresAt" }`; shorten at once) |
+| POST | `/v1/keys/{id}/children` | key | Issue an agent key (`kl_agt_…`) under a key, with its [rule book](policies.md) |
+| GET | `/v1/keys/{id}/policy` | key | A key's rule book (active, pending) and its effective chain |
+| PUT | `/v1/keys/{id}/policy` | key | Write a key's rule book (tighten now, loosen after the delay; `If-Match`) |
+| DELETE | `/v1/keys/{id}/policy` | key | Remove a key's rule book (a loosening) |
+| DELETE | `/v1/keys/{id}/policy/pending` | key | Cancel a pending amendment |
+| GET | `/v1/keys/{id}/policy/versions` | key | Every version of a key's rule book |
+| GET | `/v1/projects/current/policy` | key | The project rule book |
+| PUT | `/v1/projects/current/policy` | key | Write the project rule book |
+| DELETE | `/v1/projects/current/policy` | key | Remove the project rule book |
+| DELETE | `/v1/projects/current/policy/pending` | key | Cancel the project's pending amendment |
+| POST | `/v1/policy/validate` | public | Validate a rule book and compare it with another |
+| POST | `/v1/policy/evaluate` | key | Simulate a request against a key's chain (30 per minute per key) |
+| GET | `/v1/policy/decisions` | key | The hash-chained decision log of the caller's subtree |
+| GET | `/v1/policy/decisions/{id}` | key | One decision |
+| GET | `/v1/policy/spend` | key | Spend windows and what remains at every level of a key's chain |
+| GET | `/v1/policy/approvals` | key | Approvals requested by (or waiting for) the caller |
+| GET | `/v1/policy/approvals/{id}` | public | Read an approval (the id is the capability) |
+| POST | `/v1/policy/approvals/{id}/approve` | public | Approve with a project key or a listed wallet's signature |
+| POST | `/v1/policy/approvals/{id}/reject` | public | Reject (the intent is cancelled) |
+| GET | `/v1/usage` | key | Requests, status classes, rate-limit window, intents, custom contract activity and receipts of the caller's key (`?scope=subtree` adds every key of the subtree) |
+| POST | `/v1/links` | key | Publish an [intent link](links.md) |
+| GET | `/v1/links` | key | The caller's links (`?status=&limit=`) |
+| GET | `/v1/links/{id}` | public | A link (owner view for its managers, public view otherwise) |
+| PATCH | `/v1/links/{id}` | key | Tighten, pause or resume a link |
+| DELETE | `/v1/links/{id}` | key | Withdraw a link |
+| POST | `/v1/links/{id}/quote` | public | Quote a funding choice (nothing stored) |
+| POST | `/v1/links/{id}/intents` | public | Create the visitor's intent (owned by the link's key) |
+| GET | `/v1/links/{id}/stats` | key | Day-level counters (`?window=7d|30d|90d`) |
+| GET | `/v1/links/{id}/card.png` | public | Share card PNG (`?variant=square`) |
+| GET | `/v1/links/{id}/page` | public | Page shell with per-link meta (served at `kletiaai.xyz/go/{id}`) |
+| POST | `/v1/links/{id}/report` | public | Report a link |
+| POST | `/v1/links/{id}/suspend` | operator | Suspend a link |
+| POST | `/v1/links/{id}/blink-approval` | operator | Approve or revoke a link's blink |
+| GET | `/v1/blinks/{id}` | public | Solana Action metadata of a link |
+| POST | `/v1/blinks/{id}` | public | The visitor's first unsigned Solana transaction |
+| POST | `/v1/blinks/{id}/next` | public | Record a signed step and chain the next one |
 | POST | `/v1/contracts` | key | Register a custom EVM contract or Solana Actions origin ([contracts.md](contracts.md)) |
 | GET | `/v1/contracts` | key | The key's registrations and its project's visible ones (`?network=&vm=&status=`) |
 | GET | `/v1/contracts/inspect` | key | What registering an address (`?network=&address=`) or programs (`?network=solana&programs=`) would pin and allow |
@@ -231,7 +283,7 @@ an unsupported kind of name, `422 RECIPIENT_NAME_UNSUPPORTED`.
 ### Step execution
 
 1. `GET /v1/intents/{id}` → find steps with `status: "ready"`.
-2. `POST …/steps/{stepId}/prepare` → `{ "payload": StepExecutionPayload, "intent": IntentGraph }`.
+2. `POST …/steps/{stepId}/prepare` → `{ "payload": StepExecutionPayload, "intent": IntentGraph, "preview": IntentPreview }`.
    `payload.transactions` are signed and sent **in order** by the wallet that
    owns `step.account`:
    - EVM (`vm: "evm"`): `eth_sendTransaction` with `{ from, to, data, value }`.
@@ -259,6 +311,16 @@ submission replaces them (for example after a wallet speed-up or a resend with
 a fresh blockhash). Once a reference is verified, it is bound to the step and
 cannot be reused by any other step.
 
+Every payload is simulated before it is handed out: `payload.preview` is the
+effect of exactly these transactions (`payload.preview.quoteBinding` equals
+`payload.quoteBinding`) and `preview` is the whole intent's fare breakdown. A
+payload whose simulated effect differs from its step is refused. Send the
+digest of the preview the user approved as `{ "acknowledgedPreview": "sha256:…" }`:
+a materially worse payload answers `409 PREVIEW_CHANGED` with `error.preview`
+(the fresh preview) and `error.changes`; an unknown digest is not an error
+(`Kletia-Preview-Ack: unknown`, also `previewAck` in the body). See
+[preview.md](preview.md).
+
 For custom contract steps (`call` / `action`), `payload.review` is the review
 of exactly these transactions (simulated asset changes, approvals,
 provenance, "Not audited by Kletia"): show it to the user before handing the
@@ -284,12 +346,28 @@ Event envelope (`KletiaEvent` in `@kletia/core`):
 { "id": "evt_…", "type": "intent.step_updated", "at": "2026-10-08T12:00:00.000Z", "data": { "intentId": "…", "stepId": "…", "network": "solana", "status": "settled" } }
 ```
 
-Types: `intent.created`, `intent.status_changed`, `intent.step_updated`, the
+Types: `intent.created`, `intent.status_changed`, `intent.step_updated`,
+`intent.receipt_issued` (a [receipt](receipts.md) was issued, after every
+reference finalized; ids and digest only), the
 contract registration events `contract.registered`, `contract.activated`,
 `contract.suspended` and `contract.reactivated` (webhooks only, routed to the
-registration's own key; see [contracts.md](contracts.md#webhooks)), and
-`webhook.test` (only from `POST /v1/webhooks/{id}/test`). A webhook created
-without `events` subscribes to every type that exists at creation time.
+registration's own key; see [contracts.md](contracts.md#webhooks)), the
+[link](links.md#webhooks) events `link.created`, `link.activated`,
+`link.updated`, `link.paused`, `link.suspended`, `link.exhausted`,
+`link.expired` and `link.deleted` (routed to the link's key), the
+[Rule Book](policies.md#webhooks) events `policy.violation`,
+`policy.approval_requested`, `policy.approval_decided`,
+`policy.amendment_pending`, `policy.amended` and `policy.spend_threshold`
+and the key events `key.created` and `key.revoked` (routed to the subject
+key), and `webhook.test` (only from `POST /v1/webhooks/{id}/test`). A webhook
+created without `events` subscribes to every type that exists at creation
+time.
+
+`POST /v1/webhooks` takes `"scope": "self" | "subtree"` (default `self`). A
+`subtree` webhook also receives the events of every agent key below its key
+(intents, receipts, links, Rule Book and key events), and on a project key
+the project-wide Rule Book events. Agent keys need `permissions.webhooks` to
+create, delete or test webhooks.
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
@@ -319,9 +397,11 @@ delivery queue of the answering API process.
 Keyed `POST` requests that create or change state accept an
 `Idempotency-Key` header (draft-ietf-httpapi-idempotency-key-header):
 `POST /v1/intents`, `/intents/{id}/cancel`, `/intents/{id}/steps/{stepId}/submit`,
-`POST /v1/webhooks`, `POST /v1/keys`, `/keys/{id}/rotate`, `POST /v1/contracts`,
-`PATCH /v1/contracts/{id}`, `POST /v1/contracts/{id}/reverify` and
-`POST /v1/sessions`.
+`POST /v1/webhooks`, `POST /v1/keys`, `/keys/{id}/rotate`,
+`POST /v1/keys/{id}/children`, `PUT /v1/keys/{id}/policy`,
+`PUT /v1/projects/current/policy`, `POST /v1/contracts`,
+`PATCH /v1/contracts/{id}`, `POST /v1/contracts/{id}/reverify`,
+`POST /v1/sessions`, `POST /v1/links` and `PATCH /v1/links/{id}`.
 
 ```http
 POST /v1/intents
@@ -347,7 +427,11 @@ Idempotency-Key: 7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14
   (quotes, refresh, webhook tests, contract tests, session intents, MCP) are
   safe to repeat and ignore it (a session's use count already makes
   `POST /v1/sessions/{id}/intents` single-use).
-- Responses that carry a secret (API keys, webhook signing secrets) are stored
+- Retryable Rule Book refusals (`POLICY_SPEND_LIMIT`, `POLICY_SCHEDULE_CLOSED`,
+  `POLICY_PRICE_UNAVAILABLE`, `POLICY_APPROVAL_REQUIRED`) are never stored, so
+  a retry is evaluated again. After loosening a rule book, retry a refused
+  request with a new key.
+- Responses that carry a secret (API keys, agent keys, webhook signing secrets) are stored
   encrypted with `KLETIA_PLATFORM_SECRET`, with a hash of the secret that
   made the request. After a rotation they are replayed to the key's current
   secret and to the secret that made the request, so a key that rotated
@@ -384,6 +468,18 @@ use one key per environment.
   instance that handled them and within 15 seconds on every other instance.
 - Operator keys are configuration and cannot be listed, rotated or revoked
   (`409 KEY_NOT_MANAGEABLE`).
+- **Agent keys.** `POST /v1/keys/{id}/children` issues a `kl_agt_…` key under
+  a key, with its own rule book (or none: an observer that only plans and
+  dry-runs). Agent keys sit at most 2 levels below a project key (100 active
+  per project), always expire (never after their parent), authenticate only
+  while every ancestor is active, cannot issue project keys, write rule books
+  or approve, and need permissions for webhooks, contracts, sessions, links
+  and stored intents. Revoking a key revokes its subtree. `GET /v1/keys`
+  reports `kind`, `parentId`, `depth`, `expiresAt`, `policyVersion` and
+  `descendants`; agent keys see their own subtree. `PATCH /v1/keys/{id}`
+  `{ "expiresAt": "…" }` shortens an expiry at once; extending is refused
+  while the key's rule book has an amendment delay. See
+  [policies.md](policies.md#agent-keys).
 
 ## Webhook tests and delivery logs
 
@@ -412,7 +508,8 @@ use one key per environment.
   "byRoute": [{ "route": "POST /intents", "requests": 120, "byStatusClass": { "2xx": 118, "4xx": 2 } }],
   "series": [{ "hour": "…", "requests": 51 }],
   "intents": { "created": 120, "byStatus": { "completed": 97, "planned": 23 } },
-  "contracts": { "registered": 2, "suspended": 0, "preparedToday": 14, "notionalTodayUsd": 4210.5 }
+  "contracts": { "registered": 2, "suspended": 0, "preparedToday": 14, "notionalTodayUsd": 4210.5 },
+  "receipts": { "issued": 95, "pending": 2, "sharesActive": 3 }
 }
 ```
 
@@ -420,7 +517,32 @@ Requests are counted per hour, route template and status class and written
 every 30 seconds (per request on serverless hosts). `rateLimit` is the current
 window on the answering instance. `contracts` counts the key's registrations
 and, for the current UTC day, its prepared custom contract steps and their
-priced notional (the daily cap's counter).
+priced notional (the daily cap's counter). `receipts` counts the receipts of
+the key's intents issued in the window, its intents waiting for one, and the
+active shares of their receipts.
+
+`?scope=subtree` adds `subtree: { keys, truncated }`: for every key of the
+caller's subtree (a project key sees the whole project, newest 100 keys),
+`{ keyId, name, kind, parentId, revokedAt, requests, intents: { created, byStatus }, notional: { dayUsd, weekUsd } }`,
+the notional being the rolling USD exposure counted against
+[spend caps](policies.md#spend-caps-and-the-exposure-ledger).
+
+## Rule Book
+
+Rule books bound what Kletia plans and prepares for a key: networks, assets,
+protocols, contracts, recipients, per-step, per-intent, daily and weekly USD
+caps, a timetable and approvals, checked against the project, every ancestor
+key and the key itself. Refusals carry `error.policy` (every violated rule,
+the refusing key, `retryAt`, the approval to share); stored intents carry
+`intent.policy` and prepared payloads `payload.policy`. The full guide is
+[policies.md](policies.md).
+
+## Intent links
+
+Public pages (`kletiaai.xyz/go/lk_…`) that do one fixed thing in the
+visitor's own wallet, funded from the visitor's choice of networks and
+assets: definition rules, the tighten-only promise, uses, the page and share
+card, blinks and counters are in [links.md](links.md).
 
 ## Custom contracts
 

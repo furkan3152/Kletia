@@ -83,8 +83,16 @@ import { rememberIntentOwner } from "./owners.js";
 import { assertNoPreviewBody, installPreviewStore, latestPreview, parsePrepareBody, parseQuotesQuery, PREVIEW_ACK_HEADER, recomputePreview, startPreviewPruner } from "./preview.js";
 import { startReceiptEventBuffer } from "./receipts/events.js";
 import { receiptHandlers } from "./receipts/handlers.js";
-import { startReceiptIssuer } from "./receipts/issuer.js";
+import { startReceiptIssuer, type ReceiptIssuerOptions } from "./receipts/issuer.js";
 import { startReceiptLog } from "./receipts/log.js";
+import { receiptSignerStatus } from "./receipts/signer.js";
+import { forbidAgent } from "./policies/agentGuard.js";
+import { policyHandlers } from "./policies/handlers.js";
+import { installPolicyGate, startPolicyBackground } from "./policies/install.js";
+import { parseUsageScope, subtreeUsage } from "./policies/usage.js";
+import { linkHandlers } from "./links/handlers.js";
+import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
+import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
 import { createSession, createSessionIntent, getSession, startSessionPruner } from "./sessions.js";
 import { streamIntentEvents, type StreamOptions } from "./sse.js";
@@ -93,7 +101,7 @@ import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 
-type Method = "get" | "post" | "patch" | "delete";
+type Method = "get" | "post" | "put" | "patch" | "delete";
 
 export interface PlatformRoute {
   readonly method: Method;
@@ -146,7 +154,47 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/keys", auth: "key" },
   { method: "post", path: "/keys/:id/rotate", auth: "key" },
   { method: "delete", path: "/keys/:id", auth: "key" },
+  { method: "patch", path: "/keys/:id", auth: "key" },
+  // Rule Book (policy design §11.1): agent keys, rule books, simulator, decisions, spend, approvals.
+  { method: "post", path: "/keys/:id/children", auth: "key" },
+  { method: "get", path: "/keys/:id/policy", auth: "key" },
+  { method: "put", path: "/keys/:id/policy", auth: "key" },
+  { method: "delete", path: "/keys/:id/policy", auth: "key" },
+  { method: "delete", path: "/keys/:id/policy/pending", auth: "key" },
+  { method: "get", path: "/keys/:id/policy/versions", auth: "key" },
+  { method: "get", path: "/projects/current/policy", auth: "key" },
+  { method: "put", path: "/projects/current/policy", auth: "key" },
+  { method: "delete", path: "/projects/current/policy", auth: "key" },
+  { method: "delete", path: "/projects/current/policy/pending", auth: "key" },
+  { method: "post", path: "/policy/validate", auth: "public" },
+  { method: "post", path: "/policy/evaluate", auth: "key" },
+  { method: "get", path: "/policy/decisions", auth: "key" },
+  { method: "get", path: "/policy/decisions/:id", auth: "key" },
+  { method: "get", path: "/policy/spend", auth: "key" },
+  { method: "get", path: "/policy/approvals", auth: "key" },
+  // The id is the capability; deciding takes a project key or a listed wallet's signature.
+  { method: "get", path: "/policy/approvals/:id", auth: "public" },
+  { method: "post", path: "/policy/approvals/:id/approve", auth: "public" },
+  { method: "post", path: "/policy/approvals/:id/reject", auth: "public" },
   { method: "get", path: "/usage", auth: "key" },
+  // Intent links (links design §3.1): CRUD with the publisher key; visitors quote and create intents publicly.
+  { method: "post", path: "/links", auth: "key" },
+  { method: "get", path: "/links", auth: "key" },
+  { method: "get", path: "/links/:id", auth: "public" },
+  { method: "patch", path: "/links/:id", auth: "key" },
+  { method: "delete", path: "/links/:id", auth: "key" },
+  { method: "post", path: "/links/:id/quote", auth: "public" },
+  { method: "post", path: "/links/:id/intents", auth: "public" },
+  { method: "get", path: "/links/:id/stats", auth: "key" },
+  { method: "get", path: "/links/:id/card.png", auth: "public" },
+  { method: "get", path: "/links/:id/page", auth: "public" },
+  { method: "post", path: "/links/:id/report", auth: "public" },
+  { method: "post", path: "/links/:id/suspend", auth: "operator" },
+  { method: "post", path: "/links/:id/blink-approval", auth: "operator" },
+  // Solana Actions (links design §6); actions.json is served by the web origin.
+  { method: "get", path: "/blinks/:id", auth: "public" },
+  { method: "post", path: "/blinks/:id", auth: "public" },
+  { method: "post", path: "/blinks/:id/next", auth: "public" },
   { method: "post", path: "/contracts", auth: "key" },
   { method: "get", path: "/contracts", auth: "key" },
   // Before /contracts/:id, which would otherwise capture "inspect".
@@ -394,12 +442,16 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       handle(async (req, res) => {
         const auth = authOf(req);
         const window = parseUsageWindow(req);
-        sendJson(res, 200, await usageReport({ keyId: keyId(req), tier: auth.tier as KeyTier }, window, tierLimiter));
+        const scope = parseUsageScope(req);
+        const report = await usageReport({ keyId: keyId(req), tier: auth.tier as KeyTier }, window, tierLimiter);
+        // scope=subtree: per-key attribution of the caller's subtree (Rule Book §8.4).
+        sendJson(res, 200, scope === "subtree" ? { ...report, subtree: await subtreeUsage(auth, window) } : report);
       }),
     ],
     "post /mcp": [mcpOriginGuard, serveMcp],
     "post /contracts": [
       requireApiKey,
+      forbidAgent("registerContracts"),
       idempotent({ route: "POST /contracts" }),
       contractWriteLimiter.middleware(),
       handle(async (req, res) => {
@@ -437,6 +489,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "patch /contracts/:id": [
       requireApiKey,
+      forbidAgent("registerContracts"),
       idempotent({ route: "PATCH /contracts/:id" }),
       contractWriteLimiter.middleware(),
       handle(async (req, res) => {
@@ -445,6 +498,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "delete /contracts/:id": [
       requireApiKey,
+      forbidAgent("registerContracts"),
       handle(async (req, res) => {
         await deleteContract(authOf(req), contractIdParam(req));
         res.status(204).end();
@@ -462,6 +516,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "post /contracts/:id/reverify": [
       requireApiKey,
+      forbidAgent("registerContracts"),
       idempotent({ route: "POST /contracts/:id/reverify" }),
       contractWriteLimiter.middleware(),
       handle(async (req, res) => {
@@ -476,6 +531,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "post /sessions": [
       requireApiKey,
+      forbidAgent("sessions"),
       idempotent({ route: "POST /sessions" }),
       handle(async (req, res) => {
         sendJson(res, 201, { session: await createSession(authOf(req), req.body) });
@@ -552,7 +608,17 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const stepId = stepIdParam(req);
         // Optional { acknowledgedPreview }: a materially worse payload is refused with 409 PREVIEW_CHANGED.
         const options = parsePrepareBody(req.body);
-        const { intent, payload, preview, previewAck } = await prepareStep(id, stepId, options);
+        // Link intents: status rules and, at the first prepare, the atomic use reservation.
+        const hold = await beforeLinkPrepare(id);
+        let prepared: Awaited<ReturnType<typeof prepareStep>>;
+        try {
+          prepared = await prepareStep(id, stepId, options);
+        } catch (error) {
+          await hold?.failed();
+          throw error;
+        }
+        hold?.succeeded();
+        const { intent, payload, preview, previewAck } = prepared;
         if (previewAck) res.setHeader(PREVIEW_ACK_HEADER, previewAck);
         sendJson(res, 200, { payload, intent, ...(preview ? { preview } : {}), ...(previewAck ? { previewAck } : {}) });
       }),
@@ -563,7 +629,10 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const id = intentIdParam(req);
         const stepId = stepIdParam(req);
         const references = parseReferencesBody(req.body);
-        sendJson(res, 200, { intent: await submitStep(id, stepId, references) });
+        const intent = await submitStep(id, stepId, references);
+        // A link intent's use is consumed at its first submit.
+        await afterLinkSubmit(intent);
+        sendJson(res, 200, { intent });
       }),
     ],
     "post /intents/:id/refresh": [
@@ -596,8 +665,11 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       }),
     ],
     ...receiptHandlers(),
+    ...policyHandlers(),
+    ...linkHandlers(),
     "post /webhooks": [
       requireApiKey,
+      forbidAgent("webhooks"),
       idempotent({ route: "POST /webhooks", secret: true }),
       handle(async (req, res) => {
         sendJson(res, 201, { webhook: await createWebhook(keyId(req), req.body) });
@@ -611,6 +683,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "delete /webhooks/:id": [
       requireApiKey,
+      forbidAgent("webhooks"),
       handle(async (req, res) => {
         const id = webhookIdParam(req);
         await deleteWebhook(keyId(req), id);
@@ -623,6 +696,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ],
     "post /webhooks/:id/test": [
       requireApiKey,
+      forbidAgent("webhooks"),
       handle(async (req, res) => {
         const delivery = await sendTestDelivery(keyId(req), webhookIdParam(req), webhookDeliveryTransport(), WEBHOOK_USER_AGENT);
         sendJson(res, 200, { delivery });
@@ -654,6 +728,10 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   // Boot-time configuration: operator key hashes and the webhook sealing key.
   loadOperatorKeys();
   platformSecretStatus();
+  // Receipt keys are checked (and problems logged) at boot, not at the first issuance.
+  receiptSignerStatus();
+  // Rule Book: the engine evaluates every keyed plan and prepare through this layer's stores (idempotent).
+  installPolicyGate();
 
   const router = express.Router({ caseSensitive: false, strict: false });
   router.use(requestContext);
@@ -689,6 +767,8 @@ export interface PlatformBackgroundOptions {
   readonly poller?: SettlementPollerOptions;
   /** Override webhook delivery (tests). Defaults to signed HTTPS POSTs. */
   readonly webhookTransport?: WebhookTransport;
+  /** Receipt issuer tuning (tests, embedders): collector, clock, intervals. */
+  readonly receipts?: ReceiptIssuerOptions;
 }
 
 let stopBackground: (() => void) | null = null;
@@ -712,8 +792,10 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startContractWatcher(),
     startSessionPruner(),
     startPreviewPruner(),
-    startReceiptIssuer(),
+    startReceiptIssuer(options.receipts),
     startReceiptLog(),
+    startPolicyBackground(),
+    startLinkBackground(),
   ];
   const stop = () => {
     if (stopBackground !== stop) return;

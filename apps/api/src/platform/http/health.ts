@@ -19,6 +19,13 @@ import { apiKeyStoreKind } from "./auth.js";
 import { contractEngine, contractsEnabled } from "./contractChecks.js";
 import { contractStoreKind } from "./contracts.js";
 import { webhookDispatcherStats, type DispatcherStats } from "./dispatcher.js";
+import { linkStoreKind } from "./links/store.js";
+import { blinksEnabled, linksEnabled } from "./links/service.js";
+import { approvalStore } from "./policies/approvals.js";
+import { decisionStore } from "./policies/decisions.js";
+import { policiesEnabled } from "./policies/install.js";
+import { spendLedgerKind } from "./policies/ledger.js";
+import { policyStoreKind } from "./policies/store.js";
 import { previewStoreKind } from "./preview.js";
 import { receiptHealth, type ReceiptHealth } from "./receipts/health.js";
 import { platformSecretStatus, type PlatformSecretStatus } from "./secrets.js";
@@ -50,6 +57,10 @@ export interface PlatformHealth {
   readonly uptimeSeconds: number;
   readonly networks: readonly NetworkHealth[];
   readonly storage: { readonly intents: string; readonly apiKeys: string; readonly webhooks: string; readonly contracts: string; readonly sessions: string };
+  /** Rule Book: whether rule books are enforced, and where rule books, spend reservations, decisions and approvals live. */
+  readonly policies: { readonly enabled: boolean; readonly stores: { readonly ruleBooks: string; readonly spend: string; readonly decisions: string; readonly approvals: string } };
+  /** Intent links and blinks. */
+  readonly links: { readonly enabled: boolean; readonly blinks: boolean; readonly store: string };
   readonly webhooks: {
     readonly status: "enabled" | "needs_configuration";
     /** How webhook secrets are sealed: a configured secret, the development key (memory stores only) or none. */
@@ -217,6 +228,16 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
       contracts: storeKind(contractStoreKind),
       sessions: storeKind(() => sessionStore().kind),
     },
+    policies: {
+      enabled: policiesEnabled(),
+      stores: {
+        ruleBooks: storeKind(policyStoreKind),
+        spend: storeKind(spendLedgerKind),
+        decisions: storeKind(() => decisionStore().kind),
+        approvals: storeKind(() => approvalStore().kind),
+      },
+    },
+    links: { enabled: linksEnabled(), blinks: linksEnabled() && blinksEnabled(), store: storeKind(linkStoreKind) },
     webhooks: {
       status: webhooksEnabled ? "enabled" : "needs_configuration",
       sealing,

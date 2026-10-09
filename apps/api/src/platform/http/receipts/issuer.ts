@@ -143,7 +143,8 @@ export class ReceiptIssuer {
     const scanner = setInterval(() => void this.scanSafely(), this.options.scanMs ?? RECEIPT_SCAN_MS);
     worker.unref?.();
     scanner.unref?.();
-    const first = setTimeout(() => void this.scanSafely(), 5_000);
+    // The first scan catches up on intents that finished while no issuer ran (after a minute: boot stays light).
+    const first = setTimeout(() => void this.scanSafely(), Math.min(this.options.scanMs ?? RECEIPT_SCAN_MS, 60_000));
     first.unref?.();
     return () => {
       unsubscribe();

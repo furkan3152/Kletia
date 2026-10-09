@@ -13,6 +13,9 @@ import type { RequestHandler } from "express";
  *   trust signal there. The MCP endpoint (/v1/mcp) reflects the requested
  *   headers, because MCP clients send per-call `Mcp-Param-*` headers that
  *   cannot be listed; its Origin rule is enforced by the route itself.
+ * - Solana Actions (/v1/blinks/**): any origin, the method, request and
+ *   exposed headers of `@solana/actions` 1.6.6 `ACTIONS_CORS_HEADERS`, so
+ *   blink clients (wallets, Dialect) can call Kletia's action endpoints.
  */
 
 const productionOrigins = [
@@ -111,8 +114,8 @@ export const PLATFORM_API_PREFIX = "/v1";
 export const platformCorsOptions: CorsOptions = {
   origin: "*",
   credentials: false,
-  // PATCH: PATCH /v1/contracts/{id} (custom contract registrations).
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  // PATCH: PATCH /v1/contracts/{id}, /v1/links/{id}, /v1/keys/{id}; PUT: rule books (PUT /v1/keys/{id}/policy).
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: [
     "Content-Type",
     "Authorization",
@@ -121,9 +124,13 @@ export const platformCorsOptions: CorsOptions = {
     "Last-Event-ID",
     "X-Kletia-SDK",
     "Idempotency-Key",
+    // Rule book writes are conditional on the version the portal read.
+    "If-Match",
   ],
   exposedHeaders: [
     "X-Request-Id",
+    "ETag",
+    "Kletia-Preview-Ack",
     "RateLimit",
     "RateLimit-Policy",
     "RateLimit-Limit",
@@ -147,6 +154,23 @@ export const mcpCorsOptions: CorsOptions = {
   exposedHeaders: [...(platformCorsOptions.exposedHeaders as string[]), "MCP-Protocol-Version", "Mcp-Session-Id"],
 };
 
+/**
+ * Solana Actions policy (/v1/blinks/**): exactly `ACTIONS_CORS_HEADERS` of
+ * `@solana/actions` 1.6.6 (links design §6.4), never credentials.
+ */
+export const actionsCorsOptions: CorsOptions = {
+  origin: "*",
+  credentials: false,
+  methods: ["GET", "POST", "PUT", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Content-Encoding", "Accept-Encoding", "X-Accept-Action-Version", "X-Accept-Blockchain-Ids"],
+  exposedHeaders: ["X-Action-Version", "X-Blockchain-Ids"],
+};
+
+/** True for the Solana Actions endpoints (case-insensitive, like Express routing). */
+export function isActionsPath(path: string): boolean {
+  return /^\/v1\/blinks(?:\/|$)/iu.test(path);
+}
+
 /** True for the MCP endpoint (case-insensitive, like Express routing). */
 export function isMcpPath(path: string): boolean {
   return /^\/v1\/mcp\/?$/iu.test(path);
@@ -169,10 +193,13 @@ export function createCorsMiddleware(): RequestHandler {
   const apiCors = cors(apiCorsOptions);
   const platformCors = cors(platformCorsOptions);
   const mcpCors = cors(mcpCorsOptions);
+  const actionsCors = cors(actionsCorsOptions);
   return (req, res, next) =>
     isMcpPath(req.path)
       ? mcpCors(req, res, next)
-      : isPlatformApiPath(req.path)
-        ? platformCors(req, res, next)
-        : apiCors(req, res, next);
+      : isActionsPath(req.path)
+        ? actionsCors(req, res, next)
+        : isPlatformApiPath(req.path)
+          ? platformCors(req, res, next)
+          : apiCors(req, res, next);
 }

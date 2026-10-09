@@ -1,0 +1,147 @@
+/* =========================================================================
+   Kletia art system ("Interchange"): shared tokens and helpers.
+   Every art component imports this file next to its own stylesheet, so the
+   styles ship with the lazy page chunks that render art, never the entry.
+   House rule: printed objects (tickets, stamps, signs, the board) keep their
+   ink at night; the room around them changes light.
+   ========================================================================= */
+
+:root {
+  --kla-ink: #1a1a1a;
+  --kla-text: #1a1a1a;
+  --kla-muted: #45464b;
+  --kla-paper: #f4f1ea;
+  --kla-card: #fbfaf7;
+  --kla-stock: #fffcf2;
+  --kla-stock-ink: #1a1a1a;
+  --kla-stock-muted: #55565b;
+  --kla-shadow: #1a1a1a;
+  --kla-plate: #ffd60a;
+  /* What shows through punched holes and notches: pages set it to their section colour. */
+  --kla-table: var(--kla-paper);
+  --kla-line-ink: #1a1a1a;
+  --kla-focus: #0052ff;
+  --kla-link: #0047e0;
+  --kla-font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --kla-font-body: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --kla-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  --kla-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --kla-ease-snap: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  /* Paper grain: one 180 px noise tile, rasterised once by the browser. */
+  --kla-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .05 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* The grain on printed stock stays the daytime tile, whatever the theme. */
+  --kla-stock-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .08 0 0 0 0 .05 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.dark {
+  --kla-ink: #4b5563;
+  --kla-text: #f1f5f9;
+  --kla-muted: #a9b6c8;
+  --kla-paper: #0b1120;
+  --kla-card: #131e32;
+  --kla-stock: #ece6d6;
+  --kla-stock-muted: #4f5056;
+  --kla-shadow: #475569;
+  --kla-plate: #2f5bea;
+  --kla-line-ink: #cbd5e1;
+  --kla-focus: #ffd60a;
+  --kla-link: #7ea6ff;
+  --kla-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Visually hidden, still read aloud. */
+.kla-sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.kla-grain {
+  background-image: var(--kla-grain);
+  background-size: 180px 180px;
+}
+
+/* Links printed on art (platform signs, receipt evidence, link tickets). */
+.kla-link {
+  color: var(--kla-link);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.kla-link:hover {
+  text-decoration-thickness: 3px;
+}
+.kla-link:focus-visible {
+  outline: 3px solid var(--kla-focus);
+  outline-offset: 2px;
+}
+
+/* Icons: line work in currentColor plus one second-ink plate (--kla-plate). */
+.kla-icon {
+  display: inline-block;
+  flex: none;
+  overflow: visible;
+  vertical-align: middle;
+}
+.kla-icon__plate {
+  fill: var(--kla-plate);
+}
+
+/* Line bullet: the network code on its registry colour, with an ink edge. */
+.kla-bullet {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 2.6em;
+  padding: 0.28em 0.5em 0.36em;
+  border: 2px solid #1a1a1a;
+  font: 800 10.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+/* SVM gauge: Solana lines carry a row of ink sleepers along the bottom edge. */
+.kla-bullet--svm::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 1px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #1a1a1a 0 4px, transparent 4px 7px);
+}
+.kla-bullet--yard {
+  border-style: dashed;
+}
+.kla-bullet--lg {
+  min-width: 3.2em;
+  padding: 0.42em 0.6em 0.5em;
+  font-size: 11px;
+}
+
+/* Infinite or long loops inside art pause off-screen ([data-kl-paused], set by
+   useAutoPause) and in hidden tabs (html[data-kl-hidden], set by the router). */
+[data-kl-paused] .kla-loop,
+.kla-loop[data-kl-paused],
+html[data-kl-hidden] .kla-loop {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kla-loop {
+    animation: none !important;
+  }
+}
+
+@media print {
+  .kla-loop {
+    animation: none !important;
+  }
+}

@@ -1,21 +1,10 @@
 /**
  * Command table for `kletia`. Every command is read-only or manages your
- * own keys and webhooks: the CLI never prepares, signs or submits a
- * transaction, and never holds funds.
+ * own keys, webhooks, contract registrations and sessions: the CLI never
+ * prepares, signs or submits a transaction, and never holds funds.
  */
 import { open, readFile, rm } from "node:fs/promises";
-import {
-  CHAINS,
-  formatAccountId,
-  parseAccountId,
-  sameAddressAccount,
-  signWebhookPayload,
-  type AccountId,
-  type AnyKletiaEvent,
-  type IntentGraph,
-  type NetworkKey,
-  type ProtocolId,
-} from "@kletia/core";
+import { sameAddressAccount, signWebhookPayload, type AnyKletiaEvent, type IntentGraph, type ProtocolId } from "@kletia/core";
 import {
   isKletiaError,
   KletiaApiError,
@@ -27,73 +16,23 @@ import {
   type UsageWindow,
 } from "@kletia/sdk";
 import { constructWebhookEvent, KletiaWebhookError } from "@kletia/sdk/server";
-import { integerOption, listOption, stringOption, UsageError, type OptionSpec, type OptionValues } from "./args.js";
-import { amount, table, when, type CliIo, type Printer } from "./output.js";
+import { integerOption, listOption, stringOption, UsageError, type OptionSpec } from "./args.js";
+import {
+  accountId,
+  CONFIRM_OPTION,
+  EXIT_ERROR,
+  EXIT_NOT_COMPLETED,
+  EXIT_OK,
+  networkKey,
+  positional,
+  type Command,
+  type CommandContext,
+} from "./common.js";
+import { CONTRACT_COMMANDS } from "./contracts.js";
+import { amount, table, when, type Printer } from "./output.js";
 
-export const EXIT_OK = 0;
-export const EXIT_ERROR = 1;
-/** `intents watch` / `webhooks forward`: the intent ended without completing. */
-export const EXIT_NOT_COMPLETED = 2;
-export const EXIT_USAGE = 64;
-
-export interface CommandContext {
-  readonly values: OptionValues;
-  readonly positionals: readonly string[];
-  readonly print: Printer;
-  readonly io: CliIo;
-  readonly json: boolean;
-  readonly signal: AbortSignal | undefined;
-  readonly usage: string;
-  /** The API client (built on first use from the environment and flags). */
-  client(): KletiaClient;
-  readonly hasApiKey: boolean;
-}
-
-export interface Command {
-  /** Words that select the command, e.g. `intents watch`. */
-  readonly name: string;
-  readonly summary: string;
-  /** Arguments after the name, e.g. `<id> [--timeout <seconds>]`. */
-  readonly args?: string;
-  readonly options?: Readonly<Record<string, OptionSpec>>;
-  readonly positionals: { readonly min: number; readonly max: number };
-  /** Needs KLETIA_API_KEY. */
-  readonly key?: boolean;
-  readonly run: (context: CommandContext) => Promise<number>;
-}
-
-/* --------------------------------------------------------------- helpers */
-
-function networkKey(value: string, usage: string): NetworkKey {
-  if (!Object.prototype.hasOwnProperty.call(CHAINS, value)) {
-    throw new UsageError(`Unknown network "${value}". Run \`kletia networks\` for the list.`, usage);
-  }
-  return value as NetworkKey;
-}
-
-/** A CAIP-10 account, or the `<network>:<address>` shorthand. */
-function accountId(value: string, usage: string): AccountId {
-  const parsed = parseAccountId(value);
-  if (parsed) return parsed.id;
-  const separator = value.indexOf(":");
-  if (separator > 0 && value.indexOf(":", separator + 1) === -1) {
-    const network = value.slice(0, separator);
-    if (Object.prototype.hasOwnProperty.call(CHAINS, network)) {
-      try {
-        return formatAccountId(network as NetworkKey, value.slice(separator + 1));
-      } catch {
-        // Reported below.
-      }
-    }
-  }
-  throw new UsageError(`"${value}" is not an account. Use a CAIP-10 id or <network>:<address>, e.g. base:0xAbc… or solana:9WzD….`, usage);
-}
-
-function positional(context: CommandContext, index: number): string {
-  const value = context.positionals[index];
-  if (value === undefined) throw new UsageError("Missing argument.", context.usage);
-  return value;
-}
+export { EXIT_ERROR, EXIT_NOT_COMPLETED, EXIT_OK, EXIT_USAGE } from "./common.js";
+export type { Command, CommandContext } from "./common.js";
 
 function formatAmount(value: { readonly formatted: string; readonly symbol: string } | undefined): string {
   return value ? `${amount(value.formatted)} ${value.symbol}` : "-";
@@ -633,7 +572,7 @@ const keysRotate: Command = {
   },
 };
 
-const confirm = { yes: { type: "boolean", description: "Confirm; nothing is removed without it." } } as const satisfies Record<string, OptionSpec>;
+const confirm = CONFIRM_OPTION;
 
 const keysRevoke: Command = {
   name: "keys revoke",
@@ -1089,6 +1028,7 @@ export const COMMANDS: readonly Command[] = Object.freeze([
   webhooksDeliveries,
   webhooksVerify,
   webhooksForward,
+  ...CONTRACT_COMMANDS,
   usage,
   errors,
   openapi,

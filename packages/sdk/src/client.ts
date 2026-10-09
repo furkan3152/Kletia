@@ -1,11 +1,20 @@
-import type {
-  AnyKletiaEvent,
-  AssetDescriptor,
-  IntentGraph,
-  IntentRequest,
-  NetworkKey,
-  ProtocolDescriptor,
-  ProtocolId,
+import {
+  isContractId,
+  isSessionId,
+  type AnyKletiaEvent,
+  type AssetDescriptor,
+  type ContractDefinition,
+  type ContractInspection,
+  type ContractTestRequest,
+  type ContractTestResult,
+  type ContractView,
+  type IntentGraph,
+  type IntentRequest,
+  type NetworkKey,
+  type ProtocolDescriptor,
+  type ProtocolId,
+  type SessionCreateRequest,
+  type SessionView,
 } from "@kletia/core";
 import { KletiaApiError, type ApiIssue } from "./errors.js";
 import {
@@ -15,13 +24,20 @@ import {
   retryClass,
   retryDelayMs,
   sleep,
+  type RetryClass,
 } from "./retry.js";
 import { readServerSentEvents } from "./sse.js";
 import type {
   ApiKeyRecord,
   ApiKeySummary,
+  ContractDefinitionPatch,
+  ContractInspectQuery,
+  ContractListFilter,
+  ContractRegistration,
+  ContractWithRevisions,
   CreateIntentOptions,
   ErrorCatalogResponse,
+  HttpMethod,
   HealthReport,
   NetworkCapabilities,
   PortfolioResponse,
@@ -30,6 +46,8 @@ import type {
   QuoteResponse,
   RequestOptions,
   RotatedApiKey,
+  SessionIntentInput,
+  SessionIntentResponse,
   UsageReport,
   UsageWindow,
   VenuesResponse,
@@ -191,6 +209,52 @@ function encodeSegment(value: string, name: string): string {
   return encodeURIComponent(value);
 }
 
+/** A registration id path segment; anything else is refused before a request is made. */
+function contractSegment(id: string): string {
+  if (!isContractId(id)) throw new TypeError("Contract ids look like ct_ followed by 24 lower-case hex characters.");
+  return id;
+}
+
+/** A session id path segment; anything else is refused before a request is made. */
+function sessionSegment(id: string): string {
+  if (!isSessionId(id)) throw new TypeError("Session ids look like cs_ followed by 32 lower-case hex characters.");
+  return id;
+}
+
+/**
+ * Retry classes of the custom-contract routes, layered over `retryClass`:
+ * registering, updating and re-verifying a contract and creating a session
+ * are replayed by the API for the same Idempotency-Key, and a contract test
+ * is a read-only simulation. Turning a session into an intent stays
+ * unretried: it is public (no Idempotency-Key) and uses the session up.
+ */
+const CONTRACT_ROUTES: readonly { readonly method: string; readonly pattern: RegExp; readonly kind: RetryClass }[] = [
+  { method: "POST", pattern: /^\/contracts$/iu, kind: "idempotent" },
+  { method: "PATCH", pattern: /^\/contracts\/[^/]+$/iu, kind: "idempotent" },
+  { method: "POST", pattern: /^\/contracts\/[^/]+\/reverify$/iu, kind: "idempotent" },
+  { method: "POST", pattern: /^\/contracts\/[^/]+\/test$/iu, kind: "safe" },
+  { method: "POST", pattern: /^\/sessions$/iu, kind: "idempotent" },
+];
+
+function requestRetryClass(method: string, path: string, query: Readonly<Record<string, string | undefined>> = {}): RetryClass {
+  let pathname = path.split(/[?#]/u, 1)[0] ?? "";
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    return retryClass(method, path, query);
+  }
+  pathname = pathname.replace(/\/+$/u, "").replace(/^\/v1(?=\/)/iu, "");
+  const verb = method.toUpperCase();
+  const route = CONTRACT_ROUTES.find((candidate) => candidate.method === verb && candidate.pattern.test(pathname));
+  return route ? route.kind : retryClass(method, path, query);
+}
+
+/** The page's origin in a browser (`sessions.createIntent` default), else undefined. */
+function pageOrigin(): string | undefined {
+  const origin = (globalThis as { location?: { origin?: unknown } }).location?.origin;
+  return typeof origin === "string" && origin !== "null" ? origin : undefined;
+}
+
 function retriesOption(value: number | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   if (!Number.isInteger(value) || value < 0 || value > 10) throw new RangeError("maxRetries must be an integer between 0 and 10.");
@@ -244,12 +308,13 @@ export class KletiaClient {
 
   /**
    * Low-level request helper. Returns the parsed JSON body (null for an
-   * empty one). Retries follow the policy in `retry.ts`: safe requests and
-   * state-changing POSTs that carry an Idempotency-Key are repeated on
-   * network errors, timeouts, 429 and retryable codes; prepare never is.
+   * empty one). Retries follow the policy in `retry.ts` (plus the contract
+   * and session routes): safe requests and state-changing requests that carry
+   * an Idempotency-Key are repeated on network errors, timeouts, 429 and
+   * retryable codes; prepare never is.
    */
   request<T>(
-    method: "GET" | "POST" | "DELETE",
+    method: HttpMethod,
     path: string,
     body?: unknown,
     init: LowLevelRequestOptions = {},
@@ -258,7 +323,7 @@ export class KletiaClient {
   }
 
   private async call<T>(
-    method: "GET" | "POST" | "DELETE",
+    method: HttpMethod,
     path: string,
     body: unknown,
     init: LowLevelRequestOptions,
@@ -268,7 +333,7 @@ export class KletiaClient {
     for (const [key, value] of Object.entries(init.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, value);
     }
-    const kind = retryClass(method, path, init.query);
+    const kind = requestRetryClass(method, path, init.query);
     let idempotencyKey: string | null = null;
     let generated = false;
     if (kind === "prepare") {
@@ -693,6 +758,113 @@ export class KletiaClient {
      */
     revoke: async (id: string, options: RequestOptions = {}): Promise<void> => {
       await this.call("DELETE", `/keys/${encodeSegment(id, "id")}`, undefined, options, { mayEndOwnSecret: "revoke" });
+    },
+  };
+
+  /**
+   * Custom contracts ("bring your own contract"): register your own EVM
+   * contract functions or Solana Actions so intents can call them. Every
+   * method needs an API key; registrations belong to that key.
+   */
+  readonly contracts = {
+    /**
+     * Register a contract (`POST /v1/contracts`, 201). Carries an
+     * Idempotency-Key (generated unless given), so a retry after a lost
+     * response returns the same registration. On mainnet networks the first
+     * revision is `pending` until `activatesAt`. Check a definition locally
+     * first with `validateContractDefinition` from `@kletia/core`: the API
+     * reports the same issues.
+     */
+    register: (definition: ContractDefinition, options: RequestOptions = {}): Promise<ContractRegistration> =>
+      this.request<ContractRegistration>("POST", "/contracts", definition, options),
+    /** The key's registrations and project-visible ones of sibling keys. */
+    list: async (filter: ContractListFilter = {}, options: RequestOptions = {}): Promise<ContractView[]> => {
+      const body = await this.request<{ contracts: ContractView[] }>("GET", "/contracts", undefined, {
+        ...options,
+        query: { network: filter.network, vm: filter.vm, status: filter.status },
+      });
+      return body.contracts;
+    },
+    /** One registration; the owner also gets the ABI and its revision history. */
+    get: async (id: string, options: RequestOptions = {}): Promise<ContractWithRevisions> => {
+      const body = await this.request<{ contract: ContractWithRevisions }>("GET", `/contracts/${contractSegment(id)}`, undefined, options);
+      return body.contract;
+    },
+    /**
+     * Change a registration (`PATCH`, idempotent like `register`). Labels and
+     * phrases change in place; anything else creates a new revision, pending
+     * on mainnet until it activates while the current one keeps serving.
+     */
+    update: async (id: string, patch: ContractDefinitionPatch, options: RequestOptions = {}): Promise<ContractView> => {
+      const body = await this.request<{ contract: ContractView }>("PATCH", `/contracts/${contractSegment(id)}`, patch, options);
+      return body.contract;
+    },
+    /** Soft delete (idempotent). Intents planned on it stop preparing. */
+    delete: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.call("DELETE", `/contracts/${contractSegment(id)}`, undefined, options, { goneAfterRetryIsDone: true });
+    },
+    /**
+     * Dry run of one entry for an account: plan, prepare, simulation and the
+     * review users will see. Nothing is stored and nothing is signed.
+     */
+    test: async (id: string, request: ContractTestRequest, options: RequestOptions = {}): Promise<ContractTestResult> => {
+      const body = await this.request<{ test: ContractTestResult }>("POST", `/contracts/${contractSegment(id)}/test`, request, options);
+      return body.test;
+    },
+    /**
+     * Read the pins again after an intended upgrade (idempotent). Creates a
+     * new revision when the code changed, which lifts a pin suspension once
+     * it activates.
+     */
+    reverify: async (id: string, options: RequestOptions = {}): Promise<ContractView> => {
+      const body = await this.request<{ contract: ContractView }>("POST", `/contracts/${contractSegment(id)}/reverify`, {}, options);
+      return body.contract;
+    },
+    /**
+     * What registration would pin and allow: code hash, proxy and
+     * implementation, source verification and the ABI functions with
+     * allow/deny marks (EVM), or program pins and verification (Solana).
+     */
+    inspect: async (query: ContractInspectQuery, options: RequestOptions = {}): Promise<ContractInspection> => {
+      const programs = query.programs === undefined ? undefined : query.programs.join(",");
+      const body = await this.request<{ inspection: ContractInspection }>("GET", "/contracts/inspect", undefined, {
+        ...options,
+        query: { network: query.network, address: query.address, programs },
+      });
+      return body.inspection;
+    },
+  };
+
+  /**
+   * Sessions: a fixed template of actions your backend creates with its key;
+   * a page you list in `allowedOrigins` turns it into an intent for the
+   * visitor's own accounts, without a key.
+   */
+  readonly sessions = {
+    /** Create a session (`POST /v1/sessions`, key required, idempotent). The response carries `embedUrl`. */
+    create: async (request: SessionCreateRequest, options: RequestOptions = {}): Promise<SessionView> => {
+      const body = await this.request<{ session: SessionView }>("POST", "/sessions", request, options);
+      return body.session;
+    },
+    /** The public view of a session (integrator, labels, amount bounds, expiry). */
+    get: async (id: string, options: RequestOptions = {}): Promise<SessionView> => {
+      const body = await this.request<{ session: SessionView }>("GET", `/sessions/${sessionSegment(id)}`, undefined, options);
+      return body.session;
+    },
+    /**
+     * Turn a session into an intent for the visitor's accounts (public; the
+     * session id is the capability). `hostOrigin` defaults to the page's
+     * origin in a browser and is required elsewhere. Never retried: each
+     * call uses the session up.
+     */
+    createIntent: async (id: string, request: SessionIntentInput, options: RequestOptions = {}): Promise<SessionIntentResponse> => {
+      const segment = sessionSegment(id);
+      const hostOrigin = request.hostOrigin ?? pageOrigin();
+      if (!hostOrigin) {
+        throw new TypeError("hostOrigin is required outside a browser: pass the origin of the page the visitor is on.");
+      }
+      const body = await this.request<SessionIntentResponse>("POST", `/sessions/${segment}/intents`, { ...request, hostOrigin }, options);
+      return { intent: body.intent };
     },
   };
 }

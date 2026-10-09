@@ -1,17 +1,36 @@
 import type {
+  AbiFunctionClassification,
   AccountId,
   AssetAmount,
+  AssetChange,
   AssetDescriptor,
   AssetId,
   ChainDescriptor,
+  ContractDefinition,
+  ContractInspection,
+  ContractReview,
+  ContractStatus,
+  ContractStepCall,
+  ContractTestRequest,
+  ContractTestResult,
+  ContractView,
+  ContractVm,
   ErrorCatalogRow,
+  EvmContractDefinition,
+  EvmContractInspectionView,
   IntentGraph,
   IntentRequest,
   NetworkKey,
   ProtocolDescriptor,
   ProtocolId,
+  SessionCreateRequest,
+  SessionIntentRequest,
+  SessionView,
+  SolanaActionDefinition,
+  SolanaProgramInspectionView,
   StepExecutionPayload,
   StepSettlement,
+  TransactionRequest,
 } from "@kletia/core";
 
 export interface NetworkCapabilities extends ChainDescriptor {
@@ -274,6 +293,9 @@ export interface ErrorCatalogResponse {
   readonly families: readonly { readonly pattern: string; readonly code: string }[];
 }
 
+/** Methods of the low-level `KletiaClient.request` helper. */
+export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+
 /** Per-call options accepted by every client method. */
 export interface RequestOptions {
   readonly signal?: AbortSignal;
@@ -287,4 +309,92 @@ export interface RequestOptions {
   readonly maxRetries?: number;
 }
 
-export type { AssetDescriptor, IntentGraph, IntentRequest, ProtocolDescriptor };
+/* ------------------------------------------------- custom contracts (BYOC) */
+
+/** One revision of a registration, as `GET /v1/contracts/{id}` lists them for the owner. */
+export interface ContractRevisionSummary {
+  readonly revision: number;
+  /** sha256 hex of the revision's security-relevant fields. */
+  readonly definitionHash: string;
+  readonly createdAt: string;
+}
+
+/** `GET /v1/contracts/{id}`: the view, plus the revision history when the caller owns the registration. */
+export type ContractWithRevisions = ContractView & { readonly revisions?: readonly ContractRevisionSummary[] };
+
+/** `POST /v1/contracts` response. */
+export interface ContractRegistration {
+  readonly contract: ContractView;
+}
+
+/** Filters of `GET /v1/contracts`. */
+export interface ContractListFilter {
+  readonly network?: NetworkKey;
+  readonly vm?: ContractVm;
+  readonly status?: ContractStatus;
+}
+
+/** `GET /v1/contracts/inspect`: an EVM address, or up to six Solana program ids. */
+export type ContractInspectQuery =
+  | { readonly network: NetworkKey; readonly address: string; readonly programs?: undefined }
+  | { readonly network: NetworkKey; readonly programs: readonly string[]; readonly address?: undefined };
+
+type DefinitionPatch<T> = { readonly [K in keyof T]?: T[K] | null };
+
+/**
+ * `PATCH /v1/contracts/{id}`: fields replaced on the latest revision (`null`
+ * removes an optional field). `vm`, `network`, `address` and `origin` never
+ * change. Changing anything but action labels and phrases creates a new
+ * revision, which waits for the activation delay on mainnet networks.
+ */
+export type ContractDefinitionPatch =
+  | DefinitionPatch<Omit<EvmContractDefinition, "vm" | "network" | "address">>
+  | DefinitionPatch<Omit<SolanaActionDefinition, "vm" | "network" | "origin">>;
+
+/** `sessions.createIntent` input: `hostOrigin` defaults to the page's origin in a browser. */
+export interface SessionIntentInput extends Omit<SessionIntentRequest, "hostOrigin"> {
+  /** Origin of the page the visitor is on; must be one of the session's `allowedOrigins`. */
+  readonly hostOrigin?: string;
+}
+
+/** `POST /v1/sessions/{id}/intents` response. */
+export interface SessionIntentResponse {
+  readonly intent: IntentGraph;
+}
+
+/** Third argument of `executeIntent`'s `onReview` hook. */
+export interface StepReviewContext {
+  /** The intent as Kletia returned it with the prepared step. */
+  readonly intent: IntentGraph;
+  /** What the wallet will be asked to sign, in order. Checked against the review before the hook runs. */
+  readonly transactions: readonly TransactionRequest[];
+  /** The plan-time review (`step.call.review`), to show what moved since planning. */
+  readonly planned?: ContractReview;
+  /** Unix seconds (server clock) after which the prepared transactions must be prepared again. */
+  readonly expiresAt: number;
+}
+
+export type {
+  AbiFunctionClassification,
+  AssetChange,
+  AssetDescriptor,
+  ContractDefinition,
+  ContractInspection,
+  ContractReview,
+  ContractStatus,
+  ContractStepCall,
+  ContractTestRequest,
+  ContractTestResult,
+  ContractView,
+  ContractVm,
+  EvmContractDefinition,
+  EvmContractInspectionView,
+  IntentGraph,
+  IntentRequest,
+  ProtocolDescriptor,
+  SessionCreateRequest,
+  SessionIntentRequest,
+  SessionView,
+  SolanaActionDefinition,
+  SolanaProgramInspectionView,
+};

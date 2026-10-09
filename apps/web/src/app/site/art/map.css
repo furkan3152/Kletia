@@ -1,0 +1,342 @@
+/* Route map and the folded card it is printed on. The map has a night
+   edition: paper, ink and labels change with the theme, line colours never do. */
+
+:root {
+  --kla-map-paper: #fbf8f0;
+  --kla-map-card: #ffffff;
+  --kla-map-ink: #1a1a1a;
+  --kla-map-edge: #1a1a1a;
+  --kla-map-text: #1a1a1a;
+  --kla-map-muted: #45464b;
+  --kla-map-shadow: #1a1a1a;
+  --kla-map-yard: #efe8d6;
+  --kla-map-sign: #1a1a1a;
+  --kla-map-sign-text: #ffd60a;
+}
+.dark {
+  --kla-map-paper: #0f1a2c;
+  --kla-map-card: #16233a;
+  --kla-map-ink: #050a14;
+  --kla-map-edge: #4b5563;
+  --kla-map-text: #e2e8f0;
+  --kla-map-muted: #a9b6c8;
+  --kla-map-shadow: #02050b;
+  --kla-map-yard: #131f35;
+  --kla-map-sign: #cbd5e1;
+  --kla-map-sign-text: #0b1120;
+}
+
+/* ---- The card ------------------------------------------------------------- */
+.kla-mapcard-host {
+  container-type: inline-size;
+}
+.kla-mapcard {
+  position: relative;
+  isolation: isolate;
+  padding: 18px 16px 14px;
+  border: 3px solid var(--kla-ink);
+  box-shadow: 8px 8px 0 var(--kla-shadow);
+  background-color: var(--kla-map-paper);
+  background-image: var(--kla-grain);
+  background-size: 180px 180px;
+}
+/* Two fold creases: the map was folded in four before it got to you. They
+   sit under the drawing (z-index -1 inside the isolated card). */
+.kla-mapcard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 14px), rgba(26, 26, 26, 0.05) calc(50% - 1px), rgba(255, 255, 255, 0.75) calc(50% + 1px), transparent calc(50% + 14px)),
+    linear-gradient(180deg, transparent calc(50% - 14px), rgba(26, 26, 26, 0.045) calc(50% - 1px), rgba(255, 255, 255, 0.65) calc(50% + 1px), transparent calc(50% + 14px));
+}
+.dark .kla-mapcard::before {
+  background:
+    linear-gradient(90deg, transparent calc(50% - 14px), rgba(0, 0, 0, 0.28) calc(50% - 1px), rgba(255, 255, 255, 0.05) calc(50% + 1px), transparent calc(50% + 14px)),
+    linear-gradient(180deg, transparent calc(50% - 14px), rgba(0, 0, 0, 0.24) calc(50% - 1px), rgba(255, 255, 255, 0.04) calc(50% + 1px), transparent calc(50% + 14px));
+}
+.kla-mapcard__foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  min-height: 64px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1.5px dashed color-mix(in srgb, var(--kla-map-text) 30%, transparent);
+  font: 700 10px/1.5 var(--kla-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kla-map-muted);
+  text-align: right;
+}
+.kla-mapcard--responsive .kla-map--strip {
+  display: none;
+}
+@container (max-width: 599px) {
+  .kla-mapcard--responsive {
+    padding: 12px 10px 8px;
+  }
+  .kla-mapcard--responsive .kla-map--full,
+  .kla-mapcard--responsive .kla-mapcard__foot {
+    display: none;
+  }
+  .kla-mapcard--responsive .kla-map--strip {
+    display: block;
+  }
+}
+
+/* ---- The map ------------------------------------------------------------------ */
+.kla-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.kla-map text {
+  font-kerning: normal;
+}
+.kla-map__casing {
+  fill: none;
+  stroke: var(--kla-map-ink);
+  stroke-width: 18;
+  stroke-linejoin: round;
+}
+.kla-map__network-shadow .kla-map__casing {
+  stroke: var(--kla-map-shadow);
+}
+.kla-map__casing--yard,
+.kla-map__casing--key {
+  stroke-width: 12;
+}
+.kla-map__line {
+  fill: none;
+  stroke-width: 12;
+  stroke-linejoin: round;
+}
+.kla-map__line--key {
+  stroke-width: 7;
+}
+/* Generic key entries are drawn in ink-on-paper grey, so no network colour stands in for "any network". */
+.kla-map__line--neutral {
+  stroke: #9aa0a8;
+}
+.dark .kla-map__line--neutral {
+  stroke: #64748b;
+}
+.kla-map__tick-casing {
+  fill: none;
+  stroke: var(--kla-map-ink);
+  stroke-width: 10;
+}
+.kla-map__tick-casing--key {
+  stroke-width: 8;
+}
+.kla-map__tick {
+  fill: none;
+  stroke-width: 5;
+}
+.kla-map__tick--key {
+  stroke-width: 3.5;
+}
+/* SVM gauge sleepers: ink dashes down the middle of the line. */
+.kla-map__sleepers {
+  fill: none;
+  stroke: var(--kla-map-ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+.kla-map__sleepers--key {
+  stroke-width: 2.5;
+  stroke-dasharray: 5 4;
+}
+.kla-map__sleepers--bullet {
+  stroke: #1a1a1a;
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.kla-map__shadow {
+  fill: var(--kla-map-shadow);
+}
+.kla-map__edge {
+  stroke: var(--kla-map-edge);
+}
+.kla-map__capsule {
+  fill: var(--kla-map-card);
+  stroke: var(--kla-map-edge);
+  stroke-width: 4;
+}
+.kla-map__capsule--key {
+  stroke-width: 2.5;
+}
+.kla-map__passage {
+  fill: none;
+  stroke: var(--kla-map-text);
+  stroke-width: 1.5;
+  stroke-opacity: 0.4;
+  stroke-dasharray: 2 3;
+}
+.kla-map__card {
+  fill: var(--kla-map-card);
+  stroke: var(--kla-map-edge);
+  stroke-width: 2.5;
+}
+.kla-map__ink-fill {
+  fill: var(--kla-map-ink);
+}
+.dark .kla-map__yard .kla-map__ink-fill,
+.dark .kla-map__legend .kla-map__ink-fill {
+  fill: #cbd5e1;
+}
+.kla-map__sign-head {
+  fill: var(--kla-map-sign);
+}
+.kla-map__leader {
+  stroke: var(--kla-map-edge);
+  stroke-width: 2.5;
+}
+/* Kletia's own plate: signage yellow with ink, day and night. */
+.kla-map__plate {
+  fill: #ffd60a;
+  stroke: #1a1a1a;
+  stroke-width: 3;
+}
+.kla-map__plate-text {
+  font: 700 16px/1 var(--kla-font-display);
+  letter-spacing: -0.02em;
+  fill: #1a1a1a;
+}
+.kla-map__plate-text--sm {
+  font-size: 14px;
+}
+.kla-map__label {
+  font: 600 13px/1 var(--kla-font-display);
+  letter-spacing: -0.01em;
+  fill: var(--kla-map-text);
+  paint-order: stroke;
+  stroke: var(--kla-map-paper);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.kla-map__label--sm {
+  font-size: 11.5px;
+  stroke-width: 0;
+}
+.kla-map__name {
+  font: 700 15px/1 var(--kla-font-display);
+  letter-spacing: -0.02em;
+  fill: var(--kla-map-text);
+  paint-order: stroke;
+  stroke: var(--kla-map-paper);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.kla-map__code {
+  font: 800 11px/1 var(--kla-font-mono);
+  letter-spacing: 0.06em;
+}
+.kla-map__mono {
+  font: 600 9.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.1em;
+  fill: var(--kla-map-muted);
+}
+.kla-map__mono--strong {
+  font-weight: 800;
+  fill: var(--kla-map-text);
+}
+.kla-map__mono--on-ink {
+  font-weight: 800;
+  fill: var(--kla-map-sign-text);
+}
+.kla-map__small {
+  font: 500 10.5px/1 var(--kla-font-body);
+  fill: var(--kla-map-muted);
+}
+.kla-map__yard-ground {
+  fill: var(--kla-map-yard);
+}
+.kla-map__yard-fence {
+  fill: none;
+  stroke: var(--kla-map-text);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+.kla-map__yard-line {
+  fill: none;
+  stroke-width: 7;
+  stroke-dasharray: 9 5;
+}
+.kla-map__yard-line--key {
+  stroke-width: 6;
+}
+.kla-map__lamp {
+  fill: #ff5a5f;
+  stroke: var(--kla-map-ink);
+  stroke-width: 1.5;
+}
+.kla-map__leg-dot {
+  fill: #ffd60a;
+  stroke: #1a1a1a;
+  stroke-width: 2.5;
+}
+.kla-map__leg-num {
+  font: 800 12px/1 var(--kla-font-mono);
+  fill: #1a1a1a;
+}
+.kla-map__train-body {
+  fill: #ffd60a;
+  stroke: #1a1a1a;
+  stroke-width: 2.5;
+}
+.kla-map__train-window {
+  fill: #1a1a1a;
+}
+
+/* ---- Draw-in: the lines lay themselves down once, then the rest settles in. ---- */
+@keyframes kla-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes kla-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.kla-map--animate .kla-map__draw {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: kla-draw 900ms var(--kla-ease) forwards;
+}
+.kla-map--animate .kla-map__after-draw {
+  animation: kla-fade-in 420ms var(--kla-ease) 650ms backwards;
+}
+/* Off-screen or hidden tab: hold the draw-in where it is (useAutoPause sets data-kl-paused). */
+.kla-map[data-kl-paused] .kla-map__draw,
+.kla-map[data-kl-paused] .kla-map__after-draw,
+html[data-kl-hidden] .kla-map--animate .kla-map__draw,
+html[data-kl-hidden] .kla-map--animate .kla-map__after-draw {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kla-map--animate .kla-map__draw {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .kla-map--animate .kla-map__after-draw {
+    animation: none;
+  }
+}
+@media print {
+  .kla-map--animate .kla-map__draw {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .kla-map--animate .kla-map__after-draw {
+    animation: none;
+  }
+}

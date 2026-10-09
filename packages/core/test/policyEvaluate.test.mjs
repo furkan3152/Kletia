@@ -7,6 +7,7 @@ import {
   POLICY_DECISION_GENESIS,
   POLICY_ERROR_PRECEDENCE,
   POLICY_RULES,
+  YIELD_VENUES,
   approvalCeilingUsdCents,
   approvalDigest,
   approvalMessageText,
@@ -427,4 +428,26 @@ test("fail-closed edges: raw deny patterns still match, value-moving steps witho
   const prepare = facts(undefined, { stage: "prepare" });
   assert.equal(evaluatePolicyChain(chain, prepare, { approval: { status: "approved" } }).code, "POLICY_APPROVAL_STALE", "an approval without a ceiling never clears");
   assert.equal(evaluatePolicyChain(chain, prepare, { approval: { status: "approved", ceilingUsdMicros: usd(1000) } }).outcome, "allow");
+});
+
+test("assets.unlisted: core venue position tokens (aTokens, vault shares, jlTokens) pass; other unlisted tokens fail", () => {
+  const aave = YIELD_VENUES.find((venue) => venue.id === "base:aave-v3:usdc");
+  assert.ok(aave && "receipt" in aave, "the Base Aave V3 USDC reserve is in the registry");
+  const aToken = `eip155:8453/erc20:${aave.receipt.address}`;
+  const deposit = stepFacts({ kind: "deposit", protocol: "aave-v3", input: asset(USDC_BASE, "USDC", 100), output: asset(aToken, "aBasUSDC", 100, 6, false) });
+  // Agent default (`assets.unlisted: deny`) and an explicit deny: the aToken output is not a token named by the request.
+  assert.deepEqual(failed(run({}, facts([deposit]), { defaults: "agent" })).filter((rule) => rule.startsWith("assets.")), []);
+  assert.deepEqual(failed(run({ assets: { unlisted: "deny" } }, facts([deposit]))), []);
+  const withdraw = stepFacts({ kind: "withdraw", protocol: "aave-v3", input: asset(`eip155:8453/erc20:${aave.receipt.address.toLowerCase()}`, "aBasUSDC", 100, 6, false), output: asset(USDC_BASE, "USDC", 100) });
+  assert.deepEqual(failed(run({ assets: { unlisted: "deny" } }, facts([withdraw]))), [], "address case does not matter");
+  const jupiterLend = YIELD_VENUES.find((venue) => venue.kind === "jupiter-lend");
+  assert.ok(jupiterLend);
+  const jlToken = `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:${jupiterLend.receipt.address}`;
+  assert.deepEqual(failed(run({ assets: { unlisted: "deny" } }, facts([stepFacts({ kind: "deposit", network: "solana", protocol: "jupiter-lend", output: asset(jlToken, "jlUSDC", 100, 6, false) })]))), []);
+  // The same address on another network, or any other unlisted token, still fails closed.
+  const elsewhere = `eip155:42161/erc20:${aave.receipt.address}`;
+  assert.deepEqual(failed(run({ assets: { unlisted: "deny" } }, facts([stepFacts({ kind: "deposit", protocol: "aave-v3", output: asset(elsewhere, "aBasUSDC", 100, 6, false) })]))), ["assets.unlisted"]);
+  assert.deepEqual(failed(run({}, facts([stepFacts({ kind: "swap", protocol: "uniswap-v3", output: asset(UNLISTED, "DEGEN", 100) })]), { defaults: "agent" })).filter((rule) => rule.startsWith("assets.")), ["assets.unlisted"]);
+  // assets.allow and assets.categories still apply to position tokens as written.
+  assert.deepEqual(failed(run({ assets: { allow: ["USDC"] } }, facts([deposit]))), ["assets.allow"]);
 });

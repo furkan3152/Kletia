@@ -50,7 +50,7 @@ import { resolveRecipientName } from "./names.js";
 import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl } from "./planner.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
 import { policyGate, policyGateActive, type ExposureHandle } from "./policy/gate.js";
-import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, type PreparedPreview } from "./preview/index.js";
+import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
@@ -673,7 +673,9 @@ async function preparedPreview(
     if (isPlatformError(error)) throw error;
     console.warn(`[platform] preview of ${graph.id}/${step.id} failed:`, error instanceof Error ? error.message : error);
     if (previewEnforced(graph, step)) {
-      throw new PlatformError("SIMULATION_UNAVAILABLE", `Step ${step.id} could not be simulated right now, and it is never prepared unsimulated. Retry shortly.`, 503);
+      throw Object.assign(new PlatformError("SIMULATION_UNAVAILABLE", `Step ${step.id} could not be simulated right now, and it is never prepared unsimulated. Retry shortly.`, 503), {
+        retryAfterSeconds: SIMULATION_RETRY_AFTER_SECONDS,
+      });
     }
     return null;
   }

@@ -42,7 +42,7 @@ import {
   type ReceiptEvent,
 } from "../../index.js";
 import { ACCOUNTS, resetEngine, stub } from "../../engine/__tests__/helpers.js";
-import { assertError, call as rawCall, OPERATOR_KEY, serve, useTestEnvironment, waitFor, type CallOptions, type Reply, type TestServer } from "./support.js";
+import { assertError, call as rawCall, OPERATOR_KEY, serve, useTestEnvironment, waitFor, withDatabaseTestLock, type CallOptions, type Reply, type TestServer } from "./support.js";
 
 useTestEnvironment();
 const { createPlatformRouter, platformErrorHandler } = await import("../index.js");
@@ -881,7 +881,9 @@ describe("state digest", () => {
 const databaseUrl = process.env.KLETIA_TEST_DATABASE_URL?.trim();
 
 describe("receipts on Postgres", { skip: databaseUrl ? false : "set KLETIA_TEST_DATABASE_URL to run" }, () => {
-  it("issues, shares, batches and serves a receipt from the Postgres store", async () => {
+  // The transparency log is global: hold the log lock so receiptsStore.test.ts (another process on the
+  // same database) cannot batch this receipt with its test sealer, or see it inside its own batch.
+  it("issues, shares, batches and serves a receipt from the Postgres store", () => withDatabaseTestLock(databaseUrl, "receipt-log", async () => {
     const { PostgresReceiptStore } = await import("../receipts/store.js");
     const { closePlatformDatabase } = await import("../db.js");
     process.env.KLETIA_DATABASE_URL = databaseUrl;
@@ -907,5 +909,5 @@ describe("receipts on Postgres", { skip: databaseUrl ? false : "set KLETIA_TEST_
       await closePlatformDatabase();
       delete process.env.KLETIA_DATABASE_URL;
     }
-  });
+  }));
 });

@@ -196,9 +196,11 @@ export class PostgresDecisionStore implements DecisionStore {
   async append(draft: PolicyDecisionDraft): Promise<PolicyDecision> {
     return dbTransaction(DECISIONS_SCHEMA, async (client) => {
       // The project lock of reservations and rule book writes: seq stays gapless across instances.
+      // The head is ordered by the bigint column (`d.seq`): ORDER BY on the bare name would sort the
+      // text alias of the same name, so "9" would outrank "10" and the 11th append would collide.
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`kletia_policy:${draft.projectId}`]);
       const last = await client.query<{ seq: string; chain_hash: string }>(
-        "SELECT seq::text AS seq, chain_hash FROM kletia_policy_decisions WHERE project_id = $1 ORDER BY seq DESC LIMIT 1",
+        "SELECT d.seq::text AS seq, d.chain_hash FROM kletia_policy_decisions d WHERE d.project_id = $1 ORDER BY d.seq DESC LIMIT 1",
         [draft.projectId],
       );
       const head = last.rows[0] ? { seq: Number(last.rows[0].seq), chainHash: last.rows[0].chain_hash } : { seq: 0, chainHash: POLICY_DECISION_GENESIS };
@@ -256,7 +258,7 @@ export class PostgresDecisionStore implements DecisionStore {
   async head(projectId: string): Promise<DecisionHead | null> {
     const result = await dbQuery<{ seq: string; chain_hash: string }>(
       DECISIONS_SCHEMA,
-      "SELECT seq::text AS seq, chain_hash FROM kletia_policy_decisions WHERE project_id = $1 ORDER BY seq DESC LIMIT 1",
+      "SELECT d.seq::text AS seq, d.chain_hash FROM kletia_policy_decisions d WHERE d.project_id = $1 ORDER BY d.seq DESC LIMIT 1",
       [projectId],
     );
     const row = result.rows[0];

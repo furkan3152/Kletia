@@ -74,7 +74,21 @@ export function installHistoryListener() {
   } catch {
     // Not supported: the browser keeps its default behaviour.
   }
+  // Keep the current entry's scroll position up to date, so forward (as well as back) navigation can
+  // restore it: once popstate fires, the entry being left can no longer be written.
+  let saveTimer: number | undefined;
+  window.addEventListener(
+    "scroll",
+    () => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(rememberScroll, 150);
+    },
+    { passive: true },
+  );
+  window.addEventListener("pagehide", rememberScroll);
   window.addEventListener("popstate", (event: PopStateEvent) => {
+    // A save scheduled on the previous page must not land on the entry we just moved to.
+    window.clearTimeout(saveTimer);
     const state = (event.state ?? {}) as HistoryState;
     current = readWindowLocation("pop", typeof state.scrollY === "number" ? state.scrollY : null);
     emit();

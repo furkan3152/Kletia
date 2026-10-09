@@ -88,6 +88,7 @@ export function SiteHeader({ theme, onToggleTheme }: SiteHeaderProps) {
       <span ref={sentinelRef} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-px w-px" />
       <header
         data-scrolled={scrolled ? "" : undefined}
+        data-kl-vt-stable=""
         className="kl-site-header sticky top-0 z-50 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm transition-[box-shadow,background-color] duration-150 data-[scrolled]:bg-[#F4F1EA]/[0.985] data-[scrolled]:shadow-[0_3px_0_var(--kl-shadow-ink)] dark:border-[#4B5563] dark:bg-[#0B1120]/95 dark:data-[scrolled]:bg-[#0B1120]/[0.985] motion-reduce:transition-none"
       >
         <div className={cx(CONTAINER, "flex h-[72px] items-center justify-between gap-3")}>

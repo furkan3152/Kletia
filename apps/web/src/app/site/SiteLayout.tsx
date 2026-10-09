@@ -12,7 +12,8 @@ import { cx, FOCUS_RING } from "./ui/styles";
 
 function PageFallback() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center" role="status">
+    // Fills the first screen so the footer never paints above the fold and then jumps down when the page arrives.
+    <div className="flex min-h-[calc(100vh-4.5rem)] items-center justify-center" role="status">
       <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
         Loading
       </span>

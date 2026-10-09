@@ -34,7 +34,7 @@ export interface RouteDefinition {
 }
 
 const SITE_DESCRIPTION =
-  "Kletia compiles financial intents into verified, wallet-signed steps across Base, Arbitrum, Arc and Solana — as a console for users and an API, SDK and widget for teams.";
+  "Kletia compiles financial intents into verified, wallet-signed steps across EVM networks and Solana — as a console for users and an API, SDK and widget for teams.";
 
 export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze({
   home: {

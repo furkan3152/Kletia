@@ -7,7 +7,7 @@ const NODES = [
   { id: "arbitrum", label: "Arbitrum", x: 54, y: 208, color: CHAINS.arbitrum.color },
   { id: "solana", label: "Solana", x: 262, y: 143, color: CHAINS.solana.color },
 ] as const;
-const ARC = { label: "Arc Testnet", x: 314, y: 236, color: CHAINS.arc.color };
+const ARC = { x: 326, y: 240, color: CHAINS.arc.color };
 
 const EDGES = [
   { id: "base-solana", d: "M70 78 C 150 78, 170 143, 246 143", color: CHAINS.base.color },
@@ -23,6 +23,8 @@ export interface CtaMeshProps {
   /** No packets at all (reduced motion). */
   readonly still: boolean;
 }
+
+// The CTA block stays yellow in both themes, so its edges keep the light-theme ink.
 
 /**
  * Slow network mesh for the final CTA: production networks joined by edges
@@ -42,6 +44,7 @@ export function CtaMesh({ active, still }: CtaMeshProps) {
           packetDuration={2200 + index * 300}
           active={active}
           inkClassName={INK}
+          arrowClassName="fill-[#1A1A1A]"
           arrow={edge.id !== "base-arbitrum"}
         />
       ))}
@@ -61,8 +64,14 @@ export function CtaMesh({ active, still }: CtaMeshProps) {
       ))}
       <g transform={`translate(${ARC.x - 14} ${ARC.y - 14})`}>
         <rect x={0} y={0} width={28} height={28} strokeWidth={3} strokeDasharray="5 4" fill={ARC.color} fillOpacity={0.35} className={INK} />
-        <text x={-8} y={18} textAnchor="end" className="fill-[#1A1A1A] font-code text-[10px] font-bold uppercase tracking-[0.08em]">
-          {ARC.label}
+        {/* Two lines above the node, so the label stays on the testnet side of the divider. */}
+        <text textAnchor="middle" className="fill-[#1A1A1A] font-code text-[10px] font-bold uppercase tracking-[0.08em]">
+          <tspan x={14} y={-18}>
+            Arc
+          </tspan>
+          <tspan x={14} y={-7}>
+            Testnet
+          </tspan>
         </text>
       </g>
     </svg>

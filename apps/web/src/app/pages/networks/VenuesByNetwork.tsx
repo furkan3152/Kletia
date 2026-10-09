@@ -68,8 +68,8 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                 <div className="flex items-center">
                   <ul aria-hidden="true" className="flex items-center pl-1">
                     {stack.map((protocol, index) => (
-                      <li key={protocol.id} className={index > 0 ? "-ml-3" : undefined} style={{ zIndex: MAX_MONOGRAMS - index }}>
-                        <Monogram name={protocol.name} category={protocol.category} size="sm" />
+                      <li key={protocol.id} className={index > 0 ? "-ml-2" : undefined} style={{ zIndex: MAX_MONOGRAMS - index }}>
+                        <Monogram name={protocol.name} category={protocol.category} size="sm" className="[&>span]:hidden" />
                       </li>
                     ))}
                   </ul>

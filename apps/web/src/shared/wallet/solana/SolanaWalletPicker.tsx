@@ -190,7 +190,7 @@ export function SolanaWalletPicker() {
                   onClick={() => {
                     void disconnect();
                   }}
-                  className={`${buttonBase} bg-[#FF3B30] text-white`}
+                  className={`${buttonBase} bg-[#D92D20] text-white`}
                 >
                   <LogOut className="h-4 w-4" aria-hidden="true" />
                   Disconnect

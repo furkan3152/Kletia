@@ -1,7 +1,7 @@
 {
   "name": "Kletia — Intent infrastructure for EVM and Solana",
   "short_name": "Kletia",
-  "description": "Say the outcome. Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Arc and Solana.",
+  "description": "Say the outcome. Kletia compiles it into verified, wallet-signed steps across EVM networks and Solana.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

@@ -196,7 +196,7 @@ function HealthPanel({ health }: HealthPanelProps) {
             pulseKey={health.updatedAt ?? undefined}
             label={state === "loading" ? "Checking API" : live ? `API ${live.status}` : "Status unavailable"}
           />
-          <p className={cx("mt-2 text-sm", TEXT_MUTED)}>
+          <p className={cx("mt-2 min-h-10 text-sm", TEXT_MUTED)}>
             {live
               ? `GET /v1/health answered in ${health.latencyMs ?? "—"} ms${live.version ? ` · version ${live.version}` : ""}${
                   uptime ? ` · up ${uptime}` : ""
@@ -206,7 +206,7 @@ function HealthPanel({ health }: HealthPanelProps) {
                 : "Contacting the API…"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
           <button
             type="button"
             aria-pressed={auto}
@@ -270,7 +270,11 @@ function HealthPanel({ health }: HealthPanelProps) {
                   <CheckSweep token={entry ? health.updatedAt : null} />
                 </span>
               </div>
-              {entry && typeof entry.latencyMs === "number" ? <LatencyBar ms={entry.latencyMs} history={history[network.key]} /> : null}
+              {entry && typeof entry.latencyMs === "number" ? (
+                <LatencyBar ms={entry.latencyMs} history={history[network.key]} />
+              ) : rowState === "loading" ? (
+                <LatencyBar ms={null} />
+              ) : null}
               {entry?.detail ? <p className={cx("text-xs", TEXT_MUTED)}>{entry.detail}</p> : null}
             </li>
           );
@@ -406,7 +410,7 @@ export default function NetworksPage() {
           </h1>
           <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
             What Kletia can do on each network right now, read from the public API at{" "}
-            <code className="break-all font-code text-[0.9em]">{PLATFORM_ORIGIN}/v1</code>. When the API is unreachable this
+            <code className="break-words font-code text-[0.9em]">{PLATFORM_ORIGIN}/v1</code>. When the API is unreachable this
             page falls back to the registries compiled into <code className="font-code text-[0.9em]">@kletia/core</code>.
           </p>
           <LiveSummary health={health} />

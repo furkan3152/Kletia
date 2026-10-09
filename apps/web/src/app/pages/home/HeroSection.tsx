@@ -21,7 +21,7 @@ export function HeroSection() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <span
           className={cx(
-            "kl-float absolute -left-8 top-24 hidden h-24 w-24 rotate-12 border-[3px] border-[#1A1A1A] bg-[#0052FF] shadow-hard [--kl-rotate:12deg] dark:border-[#4B5563] xl:block",
+            "kl-float absolute -left-8 top-24 hidden h-24 w-24 rotate-12 border-[3px] border-[#1A1A1A] bg-[#0052FF] shadow-hard [--kl-rotate:12deg] dark:border-[#4B5563] min-[1400px]:block",
             FLOAT_LIMIT,
           )}
         />
@@ -53,7 +53,7 @@ export function HeroSection() {
 
           <h1
             id="hero-heading"
-            className="mt-7 font-display text-[clamp(2.6rem,8.4vw,4.9rem)] font-bold leading-[0.95] tracking-[-0.045em]"
+            className="mt-7 font-display text-[clamp(2.6rem,8.4vw,4.9rem)] font-bold leading-[0.95] tracking-[-0.045em] lg:text-[clamp(2.6rem,5.6vw,4.9rem)]"
           >
             Say the{" "}
             <span className="relative inline-block">

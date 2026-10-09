@@ -103,7 +103,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
   };
 
   return (
-    <div className="sticky top-[72px] z-40 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm dark:border-[#4B5563] dark:bg-[#0B1120]/95">
+    <div data-kl-vt-stable-filter="" className="sticky top-[72px] z-40 border-b-[3px] border-[#1A1A1A] bg-[#F4F1EA]/95 backdrop-blur-sm dark:border-[#4B5563] dark:bg-[#0B1120]/95">
       {/*
         One set of controls for every width. On phones: search, the Filters
         button and the count; the rest folds into the panel. From lg the panel
@@ -161,7 +161,8 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
           aria-live="polite"
           className="w-full text-[11px] font-black uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8] lg:order-5 lg:ml-auto lg:w-auto lg:text-[#1A1A1A] dark:lg:text-white"
         >
-          {loading ? "Loading protocols…" : `${shown} of ${total} protocols`}
+          {/* Short while loading, so it fits the row the loaded count uses and the bar keeps its height. */}
+          {loading ? "Loading…" : `${shown} of ${total} protocols`}
         </p>
 
         <div

@@ -107,13 +107,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-2 md:gap-4">
-        <div className="hidden md:block">
+        {/* Below lg the header has no room for it next to the wallet dock; the sidebar carries the same switcher. */}
+        <div className="hidden lg:block">
           <NetworkSwitcher
             networkMode={effectiveNetworkMode}
             onSelect={selectNetwork}
             isSwitching={networkIsSwitching}
             error={networkError}
-            className="w-[15rem] lg:w-[18rem] xl:w-[20rem]"
+            className="w-[18rem] xl:w-[20rem]"
             compact
           />
         </div>

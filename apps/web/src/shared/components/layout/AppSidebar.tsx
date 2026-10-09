@@ -300,9 +300,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 <h3 className="text-xs font-black text-gray-500 dark:text-slate-400 tracking-widest uppercase">
                   Network
                 </h3>
+                {/* The raw network colour is too dark on the dark panel (#0052FF is 2.9:1), so dark mode lightens it. */}
                 <p
-                  className="text-[10px] font-black uppercase truncate"
-                  style={{ color: workspaceAccent }}
+                  className="truncate text-[10px] font-black uppercase text-[color:var(--ws-accent)] dark:text-[color:color-mix(in_srgb,var(--ws-accent)_55%,white)]"
+                  style={{ "--ws-accent": workspaceAccent } as React.CSSProperties}
                 >
                   {presentation.name}
                 </p>
@@ -431,7 +432,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <button
             type="button"
             onClick={onClearHistory ?? clearMessages}
-            className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border-[2px] border-[#1A1A1A] bg-[#FF3B30] p-2 font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]"
+            className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border-[2px] border-[#1A1A1A] bg-[#D92D20] p-2 font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1A1A1A] transition-[transform,box-shadow] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFD700] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563] dark:shadow-[2px_2px_0_#475569]"
           >
             <MessageSquare className="w-4 h-4" aria-hidden="true" /> CLEAR HISTORY
           </button>

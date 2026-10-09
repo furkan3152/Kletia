@@ -18,6 +18,8 @@ import {
 } from "./heroScenarios";
 import { NetworkMap } from "./NetworkMap";
 
+const STEP_ROW = "flex flex-col gap-1.5 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3";
+
 /** Full cycles through the three examples before the window rests. */
 const MAX_CYCLES = 2;
 
@@ -44,7 +46,7 @@ function StatusChip({ status, animate }: { readonly status: StepStatus; readonly
   return (
     <span
       className={cx(
-        "inline-flex shrink-0 items-center gap-1 border-2 border-[#1A1A1A] px-1.5 py-0.5 font-code text-[10px] font-bold uppercase tracking-[0.06em] dark:border-[#4B5563]",
+        "inline-flex h-[26px] shrink-0 items-center gap-1 border-2 border-[#1A1A1A] px-1.5 font-code text-[10px] font-bold uppercase tracking-[0.06em] dark:border-[#4B5563]",
         style.className,
         animate && status === "settled" && "kl-stamp",
       )}
@@ -165,7 +167,15 @@ export function HeroIntentGraph() {
         <div aria-hidden="true" className={cx("transition-opacity duration-300 motion-reduce:transition-none", exiting ? "opacity-0" : "opacity-100")}>
           {/* Prompt and compile output */}
           <div className="border-b-[3px] border-[#1A1A1A] bg-white px-4 py-3 dark:border-[#4B5563] dark:bg-[#0B1120]">
-            <p className="relative min-h-[3rem] font-code text-[13px] leading-6 text-[#1A1A1A] dark:text-[#E2E8F0] sm:text-sm">
+            <p className="relative grid min-h-[3rem] font-code text-[13px] leading-6 text-[#1A1A1A] [overflow-wrap:anywhere] dark:text-[#E2E8F0] sm:text-sm">
+              {/* Invisible sizers: the box always fits the longest example, so switching never moves the page. */}
+              {HERO_SCENARIOS.map((item) => (
+                <span key={item.id} className="invisible col-start-1 row-start-1">
+                  <span className="mr-2 font-bold">&gt;</span>
+                  {item.prompt}
+                  <span className="ml-0.5 inline-block h-4 w-2" />
+                </span>
+              ))}
               {stage === 1 && !still ? (
                 <span
                   key={`${play.run}-scan`}
@@ -173,7 +183,7 @@ export function HeroIntentGraph() {
                   style={{ animationDuration: "350ms" }}
                 />
               ) : null}
-              <span className="relative">
+              <span className="relative col-start-1 row-start-1">
                 <span className="mr-2 font-bold text-[#0052FF] dark:text-[#7EA6FF]">&gt;</span>
                 {still ? (
                   scenario.prompt
@@ -191,34 +201,49 @@ export function HeroIntentGraph() {
                 )}
               </span>
             </p>
-            <div className="mt-2 flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
-              {compiled
-                ? scenario.tokens.map((token, index) => (
-                    <span
-                      key={`${play.run}-${token}`}
-                      className={cx(
-                        "border-2 border-[#1A1A1A] bg-[#FFF7CC] px-1.5 font-code text-[11px] font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-[#F1F5F9]",
-                        !still && "kl-pop",
-                      )}
-                      style={still ? undefined : { animationDelay: `${index * 60}ms` }}
-                    >
+            <div className="mt-2 grid">
+              {HERO_SCENARIOS.map((item) => (
+                <div key={item.id} className="invisible col-start-1 row-start-1 flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
+                  {item.tokens.map((token) => (
+                    <span key={token} className="border-2 px-1.5 font-code text-[11px] font-bold">
                       {token}
                     </span>
-                  ))
-                : null}
-              {compiled ? (
-                <span
-                  key={`${play.run}-compiled`}
-                  className={cx(
-                    "inline-flex items-center gap-1 font-code text-[11px] font-bold text-[#0B7A4B] dark:text-[#14F195]",
-                    !still && "kl-fade-in",
-                  )}
-                  style={still ? undefined : { animationDelay: `${scenario.tokens.length * 60 + 120}ms` }}
-                >
-                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  compiled · {scenario.summary}
-                </span>
-              ) : null}
+                  ))}
+                  <span className="inline-flex items-center gap-1 font-code text-[11px] font-bold">
+                    <span className="inline-block h-3.5 w-3.5" />
+                    compiled · {item.summary}
+                  </span>
+                </div>
+              ))}
+              <div className="col-start-1 row-start-1 flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
+                {compiled
+                  ? scenario.tokens.map((token, index) => (
+                      <span
+                        key={`${play.run}-${token}`}
+                        className={cx(
+                          "border-2 border-[#1A1A1A] bg-[#FFF7CC] px-1.5 font-code text-[11px] font-bold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-[#F1F5F9]",
+                          !still && "kl-pop",
+                        )}
+                        style={still ? undefined : { animationDelay: `${index * 60}ms` }}
+                      >
+                        {token}
+                      </span>
+                    ))
+                  : null}
+                {compiled ? (
+                  <span
+                    key={`${play.run}-compiled`}
+                    className={cx(
+                      "inline-flex items-center gap-1 font-code text-[11px] font-bold text-[#0B7A4B] dark:text-[#14F195]",
+                      !still && "kl-fade-in",
+                    )}
+                    style={still ? undefined : { animationDelay: `${scenario.tokens.length * 60 + 120}ms` }}
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    compiled · {scenario.summary}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -228,30 +253,57 @@ export function HeroIntentGraph() {
           </div>
 
           {/* Steps */}
-          <ol className="divide-y-2 divide-dashed divide-[#1A1A1A]/20 border-b-[3px] border-[#1A1A1A] bg-white dark:divide-white/10 dark:border-[#4B5563] dark:bg-[#0B1120]">
-            {scenario.steps.map((step, index) => {
-              const status = stepStatus(scenario, stage, index);
-              return (
-                <li key={`${play.run}-${index}`} className="flex flex-col gap-1.5 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                  <span className="flex min-w-0 items-baseline gap-2.5">
-                    <span className="font-display text-sm font-bold text-[#0052FF] dark:text-[#7EA6FF]">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="min-w-0 text-[13px] font-semibold leading-snug">
-                      {step.title} <span className="text-[#45464B] dark:text-[#A9B6C8]">· {step.venue}</span>
+          <div className="grid border-b-[3px] border-[#1A1A1A] bg-white dark:border-[#4B5563] dark:bg-[#0B1120]">
+            {/* Invisible sizers: room for the example with the most (and longest) steps. */}
+            {HERO_SCENARIOS.map((item) => (
+              <ol key={item.id} className="invisible col-start-1 row-start-1 divide-y-2">
+                {item.steps.map((step, index) => (
+                  <li key={index} className={STEP_ROW}>
+                    <span className="flex min-w-0 items-baseline gap-2.5">
+                      <span className="font-display text-sm font-bold">00</span>
+                      <span className="min-w-0 text-[13px] font-semibold leading-snug">
+                        {step.title} <span>· {step.venue}</span>
+                      </span>
                     </span>
-                  </span>
-                  <StatusChip key={status} status={status} animate={!still} />
-                </li>
-              );
-            })}
-          </ol>
+                    <span className="flex self-start sm:self-auto">
+                      <StatusChip status="awaiting" animate={false} />
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ))}
+            <ol className="col-start-1 row-start-1 divide-y-2 divide-dashed divide-[#1A1A1A]/20 dark:divide-white/10">
+              {scenario.steps.map((step, index) => {
+                const status = stepStatus(scenario, stage, index);
+                return (
+                  <li key={`${play.run}-${index}`} className={STEP_ROW}>
+                    <span className="flex min-w-0 items-baseline gap-2.5">
+                      <span className="font-display text-sm font-bold text-[#0052FF] dark:text-[#7EA6FF]">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0 text-[13px] font-semibold leading-snug">
+                        {step.title} <span className="text-[#45464B] dark:text-[#A9B6C8]">· {step.venue}</span>
+                      </span>
+                    </span>
+                    <span className="flex self-start sm:self-auto">
+                      <StatusChip key={status} status={status} animate={!still} />
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         </div>
 
         {/* Footer: summary, example switcher and the Studio link */}
-        <div className="flex flex-col gap-3 bg-[#FBFAF7] px-4 py-3 dark:bg-[#131E32] sm:flex-row sm:items-center sm:justify-between">
-          <p aria-hidden="true" className="font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">
-            {scenario.signatures} · advances on on-chain evidence
+        <div className="flex flex-col gap-3 bg-[#FBFAF7] px-4 py-3 dark:bg-[#131E32] sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch xl:flex-row xl:items-center">
+          <p aria-hidden="true" className="grid font-code text-[11px] text-[#45464B] dark:text-[#A9B6C8]">
+            {HERO_SCENARIOS.map((item) => (
+              <span key={item.id} className="invisible col-start-1 row-start-1">
+                {item.signatures} · advances on on-chain evidence
+              </span>
+            ))}
+            <span className="col-start-1 row-start-1">{scenario.signatures} · advances on on-chain evidence</span>
           </p>
-          <div className="flex items-center justify-between gap-4 sm:justify-end">
+          <div className="flex items-center justify-between gap-4 sm:justify-end lg:justify-between xl:justify-end">
             <div role="group" aria-label="Examples" className="flex items-center gap-1">
               {HERO_SCENARIOS.map((item, index) => {
                 const current = index === play.scenario;

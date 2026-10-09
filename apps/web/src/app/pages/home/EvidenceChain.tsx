@@ -31,10 +31,10 @@ const STEP_MS = 450;
 function Connector({ lit, animate, color }: { lit: boolean; animate: boolean; color: string }) {
   return (
     <span aria-hidden="true" className="flex shrink-0 items-center justify-center self-center">
-      <svg viewBox="0 0 48 20" className="hidden h-5 w-12 md:block">
+      <svg viewBox="0 0 48 20" className="hidden h-5 w-12 lg:block">
         <FlowLine key={lit ? "lit" : "idle"} d="M2 10 H46" color={color} draw={lit && animate} glow={lit} packets={0} inkClassName="stroke-white/80" />
       </svg>
-      <svg viewBox="0 0 20 28" className="h-7 w-5 md:hidden">
+      <svg viewBox="0 0 20 28" className="h-7 w-5 lg:hidden">
         <FlowLine key={lit ? "lit" : "idle"} d="M10 2 V26" color={color} draw={lit && animate} glow={lit} packets={0} inkClassName="stroke-white/80" />
       </svg>
     </span>
@@ -68,7 +68,7 @@ export function EvidenceChain() {
         Evidence chain: the API returns an unsigned transaction, your wallet signs it, Kletia observes it on-chain from the
         bound account, and only then is the step settled.
       </p>
-      <ol aria-hidden="true" className="flex flex-col items-stretch md:flex-row md:items-center">
+      <ol aria-hidden="true" className="flex flex-col items-stretch lg:flex-row">
         {BLOCKS.map((block, index) => {
           const on = lit > index;
           return (
@@ -82,11 +82,11 @@ export function EvidenceChain() {
                 style={on ? { backgroundColor: block.color, color: block.ink } : undefined}
               >
                 <span className="min-w-0">
-                  <span className="block font-code text-[10px] font-bold uppercase tracking-[0.16em] opacity-80">
+                  <span className="block font-code text-[10px] font-bold uppercase tracking-[0.16em]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <span className="block font-display text-base font-bold leading-tight">{block.label}</span>
-                  <span className="block truncate font-code text-[11px] opacity-85">
+                  <span className="block font-code text-[11px] [overflow-wrap:anywhere]">
                     {typeof block.detail === "function" ? block.detail(on && animate) : block.detail}
                   </span>
                 </span>

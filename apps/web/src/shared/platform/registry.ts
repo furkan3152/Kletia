@@ -20,6 +20,9 @@ import type { NetworkCapabilities } from "@kletia/sdk";
 const REGISTRY_ACTIONS: Readonly<Record<NetworkKey, readonly IntentActionKind[]>> = Object.freeze({
   base: ["swap", "transfer", "bridge", "deposit"],
   arbitrum: ["swap", "transfer", "bridge", "deposit"],
+  ethereum: ["transfer", "deposit"],
+  optimism: ["transfer", "deposit"],
+  polygon: ["transfer", "deposit"],
   solana: ["swap", "stake", "transfer", "bridge"],
   arc: ["transfer"],
   "arbitrum-sepolia": ["transfer"],

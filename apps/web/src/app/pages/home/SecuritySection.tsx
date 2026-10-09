@@ -71,15 +71,15 @@ export function SecuritySection() {
       <EvidenceChain />
       <Reveal as="ul" stagger className="group/controls grid gap-px border-[3px] border-white/80 bg-white/30 sm:grid-cols-2 lg:grid-cols-3">
         {CONTROLS.map((control, index) => (
-          <li key={control.title} data-reveal-item className="group bg-[#111318] p-6 transition-colors duration-150 hover:bg-[#161a22] motion-reduce:transition-none dark:bg-[#060A14] dark:hover:bg-[#0A1020]">
+          <li key={control.title} data-reveal-item className="group grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 bg-[#111318] p-5 sm:block sm:p-6 transition-colors duration-150 hover:bg-[#161a22] motion-reduce:transition-none dark:bg-[#060A14] dark:hover:bg-[#0A1020]">
             <span
-              className="flex h-10 w-10 items-center justify-center border-2 border-[#FFD60A] text-[#FFD60A] transition-colors duration-150 group-hover:bg-[#FFD60A] group-hover:text-[#111318] group-data-[reveal=shown]/controls:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] motion-reduce:!animate-none motion-reduce:transition-none"
+              className="row-span-2 flex h-10 w-10 items-center justify-center border-2 border-[#FFD60A] text-[#FFD60A] transition-colors duration-150 group-hover:bg-[#FFD60A] group-hover:text-[#111318] group-data-[reveal=shown]/controls:animate-[kl-stamp_320ms_var(--kl-ease-snap)_backwards] motion-reduce:!animate-none motion-reduce:transition-none"
               style={{ animationDelay: `${200 + Math.min(index, 8) * 60}ms` }}
             >
               {control.icon}
             </span>
-            <h3 className="mt-4 font-display text-lg font-bold">{control.title}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-white/75">{control.body}</p>
+            <h3 className="font-display text-lg font-bold leading-snug sm:mt-4">{control.title}</h3>
+            <p className="mt-1.5 text-sm sm:mt-2 leading-relaxed text-white/75">{control.body}</p>
           </li>
         ))}
       </Reveal>

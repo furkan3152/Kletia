@@ -52,7 +52,7 @@ interface EdgePath {
 
 /** API statuses of a source step while its funds are moving towards the next step. */
 const MOVING = new Set<IntentStep["status"]>(["submitted", "confirmed", "settling"]);
-const EDGE_INK = "transition-[stroke] duration-240 ease-kl-standard motion-reduce:transition-none";
+const EDGE_FILL = "transition-opacity duration-240 ease-kl-standard motion-reduce:transition-none";
 
 function SummaryItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -265,7 +265,18 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
               const moving = live && source !== undefined && MOVING.has(source);
               return (
                 // Keyed by edge id (not by `d`), so a re-measure keeps the path and never replays the draw.
-                <g key={path.id} style={cssVars({ "--kl-edge": path.color })}>
+                <g key={path.id}>
+                  {/* Settled: a solid band in the destination network's colour fills in under the ink line
+                      (the ink stays on top, so the edge keeps its contrast on light network colours). */}
+                  <path
+                    d={path.d}
+                    fill="none"
+                    stroke={path.color}
+                    strokeWidth={7}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={cx(EDGE_FILL, settled ? "opacity-100" : "opacity-0")}
+                  />
                   <FlowLine
                     d={path.d}
                     color={path.color}
@@ -276,10 +287,6 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
                     drawDelay={edgeBuildDelay(depths.get(path.to) ?? 0)}
                     packets={moving ? 2 : 0}
                     active={moving}
-                    inkClassName={cx(
-                      EDGE_INK,
-                      settled ? "stroke-[color:var(--kl-edge)]" : "stroke-[#1A1A1A] dark:stroke-[#CBD5E1]",
-                    )}
                   />
                 </g>
               );

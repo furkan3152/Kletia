@@ -44,7 +44,8 @@ export const REFERENCE_STALE_MS = 60 * 60 * 1000;
 const SOLANA_EXPIRY_GRACE_MS = 180_000;
 /**
  * Lamport tolerance for native-SOL amount checks: covers one token-account rent
- * (2,039,280 lamports) created or reclaimed inside a swap transaction.
+ * created or reclaimed inside a swap transaction (historically 2,039,280
+ * lamports; 1,488,440 for a 165-byte account as read on 2026-10-09).
  */
 export const SOL_RENT_TOLERANCE_LAMPORTS = 2_100_000n;
 

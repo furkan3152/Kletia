@@ -19,6 +19,7 @@ import {
   readySteps,
   resolveChain,
   sameAccount,
+  sameAddressAccount,
   signWebhookPayload,
   toBaseUnits,
   topologicalOrder,
@@ -58,6 +59,10 @@ test("CAIP-10 accounts format, parse and compare", () => {
   assert.equal(evm, `eip155:8453:${EVM_ADDRESS}`);
   assert.equal(parseAccountId(evm).chain.key, "base");
   assert.ok(sameAccount(evm, `eip155:8453:${EVM_ADDRESS.toLowerCase()}`));
+  assert.ok(!sameAccount(evm, `eip155:42161:${EVM_ADDRESS}`), "sameAccount is chain-exact");
+  assert.ok(sameAddressAccount(evm, `eip155:42161:${EVM_ADDRESS.toLowerCase()}`), "same EVM address on another eip155 network");
+  assert.ok(!sameAddressAccount(evm, "eip155:42161:0x000000000000000000000000000000000000bEEF"));
+  assert.ok(!sameAddressAccount(evm, "not-an-account"));
   const sol = formatAccountId("solana", SOL_ADDRESS);
   assert.equal(parseAccountId(sol).address, SOL_ADDRESS);
   assert.equal(parseAccountId(`eip155:8453:${SOL_ADDRESS}`), null);

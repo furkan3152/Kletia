@@ -61,6 +61,13 @@ export interface AdapterAction extends AdapterRoute {
   readonly venue?: string;
   /** Withdraw only: close the whole position at `venue` ("withdraw all"). */
   readonly closePosition?: boolean;
+  /**
+   * Cross-network steps: the user's own account on `destinationNetwork`, when
+   * the intent's accounts identify one. Unlike `recipient` (which may be a
+   * third party), venues may hand it rights on the destination, such as
+   * cancelling an unfilled deBridge DLN order.
+   */
+  readonly destinationAccount?: ParsedAccountId;
 }
 
 export interface PlannedStep {

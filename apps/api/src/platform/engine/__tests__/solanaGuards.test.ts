@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { encodeFunctionData, parseAbi } from "viem";
 import { CHAINS, parseAccountId, type ParsedAccountId } from "@kletia/core";
 import {
   assertSolanaWalletRecipient,
@@ -13,7 +14,7 @@ import { relayAdapter } from "../adapters/relay.js";
 import { solanaTransferAdapter } from "../adapters/solanaTransfer.js";
 import type { AdapterAction } from "../adapters/types.js";
 import type { ResolvedAsset } from "../assets.js";
-import { EVM_ADDRESS, OTHER_SOL_ADDRESS, randomSolanaSignature, RELAY_EVM_TARGET, SOL_ADDRESS } from "./helpers.js";
+import { EVM_ADDRESS, OTHER_SOL_ADDRESS, randomSolanaSignature, SOL_ADDRESS } from "./helpers.js";
 import { installRpcMock, type RpcMock } from "./rpcMock.js";
 
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -299,6 +300,12 @@ describe("Solana transfer planning checks the recipient and mint", () => {
 });
 
 describe("Relay bridges into Solana check the destination recipient", () => {
+  const RELAY_DEPOSITORY = "0x4cD00E387622C35bDDB9b4c962C136462338BC31";
+  const relayDeposit = (amount: string) => encodeFunctionData({
+    abi: parseAbi(["function depositErc20(address depositor, address token, uint256 amount, bytes32 id)"]),
+    functionName: "depositErc20",
+    args: [EVM_ADDRESS, USDC_BASE, BigInt(amount), `0x${"34".repeat(32)}`],
+  });
   const usdcBase: ResolvedAsset = {
     network: "base",
     id: `${CHAINS.base.id}/erc20:${USDC_BASE}` as ResolvedAsset["id"],
@@ -334,7 +341,8 @@ describe("Relay bridges into Solana check the destination recipient", () => {
           id: "deposit",
           kind: "transaction",
           requestId: `0x${"12".repeat(32)}`,
-          items: [{ status: "incomplete", data: { from: EVM_ADDRESS, to: RELAY_EVM_TARGET, data: "0x1234", value: "0", chainId: 8453 } }],
+          // A deposit into the pinned Relay depository (plan checks the target and decodes the deposit).
+          items: [{ status: "incomplete", data: { from: EVM_ADDRESS, to: RELAY_DEPOSITORY, data: relayDeposit("25000000"), value: "0", chainId: 8453 } }],
         }],
         fees: { gas: { amountUsd: "0.01" } },
         details: {

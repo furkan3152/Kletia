@@ -7,19 +7,25 @@ This index separates current product truth from deployment procedure, network-sp
 | Goal | Start here | Then read |
 |---|---|---|
 | Understand the product and trust model | [Architecture overview](architecture/overview.md) | [Repository structure](architecture/repository-structure.md) |
-| Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md) |
+| Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Error catalog](platform/errors.md), [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md), [widget and hooks](../packages/widget/README.md), [CLI](../packages/cli/README.md) |
+| Connect an AI agent | [MCP server](platform/mcp.md) | [Platform API v1](platform/api-v1.md) |
+| Bridge between networks | [Cross-chain venues](networks/cross-chain-venues.md) (Relay, LI.FI, deBridge DLN auction) | [Platform API v1](platform/api-v1.md) |
 | Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting](deployment/self-hosting.md) |
 | Work on Base | [Base DeFi registry](networks/base-defi-registry.md) | [Base contracts](../contracts/base/README.md), [Base MCP notes](base-mcp/README.md) |
 | Work on Arc | [Arc contracts](../contracts/arc/README.md) | [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md) |
 | Work on Arbitrum | [Arbitrum workflow](networks/arbitrum-workflow.md) | [Architecture overview](architecture/overview.md) |
 | Work on Solana | [Solana network guide](networks/solana.md) | [Platform API v1](platform/api-v1.md) |
+| Work on Ethereum, OP Mainnet or Polygon | [Ethereum](networks/ethereum.md), [OP Mainnet](networks/optimism.md), [Polygon](networks/polygon.md) | [Cross-chain venues](networks/cross-chain-venues.md) |
 | Test a real-data release | [MVP live-test runbook](runbooks/mvp-live-test.md) | [Render runbook](deployment/render.md) |
 
 ## Canonical product documents
 
 - [Architecture overview](architecture/overview.md) — components, lanes, custody, execution, evidence, and failure model.
 - [Repository structure](architecture/repository-structure.md) — module ownership, path stability, and extension rules.
-- [Platform API v1](platform/api-v1.md) — public integration contract (REST, events, webhooks).
+- [Platform API v1](platform/api-v1.md) — public integration contract (REST, events, webhooks, keys, idempotency, usage).
+- [Error catalog](platform/errors.md) — every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
+- [MCP server](platform/mcp.md) — read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
+- Packages: [@kletia/core](../packages/core/README.md), [@kletia/sdk](../packages/sdk/README.md) (with `@kletia/sdk/server` webhook helpers), [@kletia/widget](../packages/widget/README.md) (with `@kletia/widget/hooks`) and the [@kletia/cli](../packages/cli/README.md) command line.
 - [Root README](../README.md) — project overview, setup, verification, and current release boundary.
 - [API README](../apps/api/README.md) and [web README](../apps/web/README.md) — application development.
 - [Security policy](../SECURITY.md), [contribution guide](../CONTRIBUTING.md), and [changelog](../CHANGELOG.md).
@@ -30,6 +36,10 @@ This index separates current product truth from deployment procedure, network-sp
 - Arbitrum: [production and Testnet workflow](networks/arbitrum-workflow.md)
 - Arc Testnet: [contract workspace](../contracts/arc/README.md), [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md)
 - Solana: [network guide](networks/solana.md)
+- Ethereum: [network guide](networks/ethereum.md)
+- OP Mainnet: [network guide](networks/optimism.md)
+- Polygon PoS: [network guide](networks/polygon.md)
+- Between networks: [cross-chain venues](networks/cross-chain-venues.md) — Relay, LI.FI and deBridge DLN, pinned contracts and the bridge auction
 
 ## Deployment and operations
 

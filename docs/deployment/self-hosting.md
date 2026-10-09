@@ -19,8 +19,11 @@ docker compose up --build
 
 The compose file runs the API in development mode so the browser may call it
 over local HTTP. Optional variables are read from your shell:
-`BASE_RPC_URL`, `ARBITRUM_RPC_URL`, `SOLANA_RPC_URL`, `JUPITER_API_KEY`,
-`RELAY_API_KEY`, `KLETIA_OPERATOR_API_KEYS`, `KLETIA_POSTGRES_PASSWORD` and
+`BASE_RPC_URL`, `ARBITRUM_RPC_URL`, `ETHEREUM_RPC_URL`, `OPTIMISM_RPC_URL`,
+`POLYGON_RPC_URL`, `SOLANA_RPC_URL`, `JUPITER_API_KEY`, `RELAY_API_KEY`,
+`LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN`, `KLETIA_WEB_ORIGIN` (default
+`http://localhost:10000`, used for error docs and MCP hand-off links),
+`KLETIA_OPERATOR_API_KEYS`, `KLETIA_POSTGRES_PASSWORD` and
 `VITE_WALLETCONNECT_PROJECT_ID`. Without private RPC URLs the API uses
 rate-limited public endpoints and `GET /api/capabilities` reports anything that
 still needs configuration.

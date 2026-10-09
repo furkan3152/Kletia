@@ -11,8 +11,8 @@ import { configureVenueQuoteTimeout, netMinimumOutput } from "../auction.js";
 import { planIntent } from "../planner.js";
 import { quoteRoutes } from "../quotes.js";
 import { createIntent, prepareStep } from "../service.js";
-import { ACCOUNTS, EVM_ADDRESS } from "./helpers.js";
-import { nativeCost, resetVenueEngine, venueScripts, type VenueScript } from "./venueStubs.js";
+import { ACCOUNTS, EVM_ACCOUNT, EVM_ADDRESS, OTHER_SOL_ADDRESS, SOL_ADDRESS } from "./helpers.js";
+import { bridgeCalls, nativeCost, resetVenueEngine, venueScripts, type VenueScript } from "./venueStubs.js";
 
 const BRIDGE = { kind: "bridge", network: "base", from: "USDC", amount: "25", toNetwork: "arbitrum" } as const;
 
@@ -193,5 +193,29 @@ describe("prepare holds extra costs to the plan", () => {
     await assert.rejects(prepareStep(intent.id, "s1"), (error: unknown) => error instanceof PlatformError && error.code === "QUOTE_MOVED" && /0\.001006 ETH/u.test(error.message));
     venueScripts["debridge-dln"] = { ...dln, preparedCosts: (action) => [nativeCost("base", "1", 0), { ...nativeCost(action.network, "1"), asset: "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", symbol: "USDC", decimals: 6 }] };
     await assert.rejects(prepareStep(intent.id, "s1"), (error: unknown) => error instanceof PlatformError && error.code === "QUOTE_MOVED", "a cost the plan did not have");
+  });
+});
+
+describe("destination account of cross-network steps", () => {
+  beforeEach(() => resetVenueEngine({ bridges: true }));
+
+  it("hands venues the user's own destination account, at plan and again at prepare, even with a third-party recipient", async () => {
+    const intent = await createIntent({
+      actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS, protocol: "debridge-dln" }],
+      accounts: ACCOUNTS,
+    });
+    assert.equal(intent.steps[0]?.protocol, "debridge-dln");
+    const planned = bridgeCalls.at(-1);
+    assert.equal(planned?.recipient.address, OTHER_SOL_ADDRESS);
+    assert.equal(planned?.destinationAccount?.address, SOL_ADDRESS);
+    await prepareStep(intent.id, "s1");
+    const prepared = bridgeCalls.at(-1);
+    assert.notEqual(prepared, planned);
+    assert.equal(prepared?.destinationAccount?.address, SOL_ADDRESS, "actionForStep derives the same account from the intent");
+  });
+
+  it("leaves it unset when the intent has no account on the destination's VM", async () => {
+    await planIntent({ actions: [{ ...BRIDGE, toNetwork: "solana", recipient: OTHER_SOL_ADDRESS, protocol: "debridge-dln" }], accounts: [EVM_ACCOUNT] });
+    assert.equal(bridgeCalls.at(-1)?.destinationAccount, undefined);
   });
 });

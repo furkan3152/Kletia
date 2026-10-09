@@ -152,6 +152,30 @@ export function protocolRegistry(): readonly ProtocolView[] {
 }
 
 /** Canonical assets, optionally for one network (key, CAIP-2 id or EVM chain id). */
+/** Filter of GET /v1/venues: a known network (key, CAIP-2 id or EVM chain id) and a lending protocol id. */
+export function venueFilter(network: string | undefined, protocol: string | undefined): { network?: NetworkKey; protocol?: ProtocolId } {
+  const filter: { network?: NetworkKey; protocol?: ProtocolId } = {};
+  if (network !== undefined && network !== "") {
+    const chain = resolveChain(network);
+    if (!chain) {
+      throw invalidRequest(`Unknown network "${network.slice(0, 40)}". Use a key such as ${NETWORK_KEYS.join(", ")} or a CAIP-2 id.`, [
+        { path: "network", message: "Unknown network." },
+      ]);
+    }
+    filter.network = chain.key;
+  }
+  if (protocol !== undefined && protocol !== "") {
+    const lending = PROTOCOLS.filter((entry) => entry.kinds?.includes("deposit")).map((entry) => entry.id);
+    if (!lending.includes(protocol as ProtocolId)) {
+      throw invalidRequest(`Unknown lending protocol "${protocol.slice(0, 40)}". Use one of ${lending.join(", ")}.`, [
+        { path: "protocol", message: "Unknown lending protocol." },
+      ]);
+    }
+    filter.protocol = protocol as ProtocolId;
+  }
+  return filter;
+}
+
 export function assetRegistry(network: string | undefined): readonly AssetDescriptor[] {
   if (network === undefined || network === "") return ASSETS;
   const chain = resolveChain(network);

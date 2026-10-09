@@ -37,6 +37,23 @@ after(async () => {
   await server.close();
 });
 
+describe("GET /v1/venues", () => {
+  it("validates the network and lending protocol filters", async () => {
+    assertError(await call(server, "GET", "/venues?network=atlantis"), 400, "INVALID_REQUEST");
+    const swapOnly = assertError(await call(server, "GET", "/venues?protocol=jupiter"), 400, "INVALID_REQUEST");
+    assert.match(swapOnly.error.message, /lending protocol/u);
+  });
+
+  it("lists only EVM lending venues: a Solana-only protocol has none, without any read", async () => {
+    const reply = await call<{ venues: unknown[]; unavailable: unknown[] }>(server, "GET", "/venues?protocol=kamino");
+    assert.equal(reply.status, 200);
+    assert.equal(reply.headers.get("cache-control"), "public, max-age=60");
+    assert.deepEqual(reply.body, { venues: [], unavailable: [] });
+    const filtered = await call<{ venues: unknown[] }>(server, "GET", "/venues?network=solana&protocol=jupiter-lend");
+    assert.deepEqual(filtered.body.venues, []);
+  });
+});
+
 describe("GET /v1/errors", () => {
   it("serves the whole catalog with docs links and provider families, cacheably", async () => {
     const reply = await call<{ errors: { code: string; status: number | null; docs: string; retryable: boolean }[]; families: { pattern: string; code: string }[] }>(

@@ -4,7 +4,7 @@
  * @kletia/core so they never drift from the registries; shapes mirror the
  * handlers in router.ts and the types in @kletia/core.
  */
-import { CHAINS, ERROR_CATEGORIES, INTENT_SPEC_VERSION, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
+import { CHAINS, ERROR_CATEGORIES, INTENT_SPEC_VERSION, MAX_MAX_SECONDS, MIN_MAX_SECONDS, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
 import { REJECTION_CODES } from "../index.js";
 import { ACTION_KINDS } from "./catalog.js";
 import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
@@ -127,6 +127,12 @@ function schemas(): JsonObject {
       preferProtocols: arrayOf(ref("ProtocolId")),
       avoidProtocols: arrayOf(ref("ProtocolId")),
       allowTestnets: bool(),
+      maxSeconds: int({
+        minimum: MIN_MAX_SECONDS,
+        maximum: MAX_MAX_SECONDS,
+        default: 600,
+        description: "Longest settlement estimate a cross-network step may take; slower venue quotes lose the bridge auction.",
+      }),
     }),
     IntentRequest: {
       ...obj(
@@ -210,9 +216,12 @@ function schemas(): JsonObject {
         expectedOutput: ref("AssetAmount"),
         minimumOutput: ref("AssetAmount"),
         recipient: ref("AccountId"),
+        recipientName: str({ description: "Name the recipient was resolved from (ENS, Basenames, SNS); resolved again before every prepare." }),
+        venue: str({ description: "Registry venue id (e.g. base:aave-v3:usdc) a deposit or withdraw executes against." }),
         dependsOn: arrayOf(str()),
         settlement: ref("StepSettlement"),
         feesUsd: num(),
+        extraCosts: arrayOf(ref("AssetAmount"), { description: "Value paid on top of the input, such as a bridge's fixed native fee." }),
         estimatedSeconds: int({ minimum: 0 }),
         status: ref("StepStatus"),
         evidence: arrayOf(ref("StepEvidence")),
@@ -450,6 +459,7 @@ function schemas(): JsonObject {
             account: str({ maxLength: 128, description: "Sender address or CAIP-10 account (placeholder when omitted)." }),
             recipient: str({ maxLength: 128 }),
             slippageBps: int({ minimum: 1, maximum: 1000 }),
+            maxSeconds: int({ minimum: MIN_MAX_SECONDS, maximum: MAX_MAX_SECONDS, default: 600, description: "Longest acceptable settlement estimate; slower routes are not eligible as best." }),
           },
           ["network", "from", "to", "amount"],
           { title: "Flat" },
@@ -476,6 +486,7 @@ function schemas(): JsonObject {
             account: str({ maxLength: 128 }),
             recipient: str({ maxLength: 128 }),
             slippageBps: int({ minimum: 1, maximum: 1000 }),
+            maxSeconds: int({ minimum: MIN_MAX_SECONDS, maximum: MAX_MAX_SECONDS, default: 600, description: "Longest acceptable settlement estimate; slower routes are not eligible as best." }),
           },
           ["from", "to"],
           { title: "Nested (SDK)" },
@@ -491,14 +502,17 @@ function schemas(): JsonObject {
         input: ref("AssetAmount"),
         output: ref("AssetAmount"),
         minimumOutput: ref("AssetAmount"),
+        netMinimumOutput: { ...ref("AssetAmount"), description: "Guaranteed output net of extra costs; absent when those costs cannot be priced." },
         feesUsd: num(),
+        extraCosts: arrayOf(ref("AssetAmount"), { description: "Value paid on top of the input (e.g. a fixed native fee)." }),
         estimatedSeconds: int({ minimum: 0 }),
         transactionCount: int({ minimum: 0 }),
         settlement: ref("StepSettlement"),
         warnings: arrayOf(str()),
         quoteId: str(),
+        eligible: bool({ description: "False when the route cannot be chosen as best (too slow, unpriced extra costs, another asset)." }),
       },
-      ["protocol", "label", "network", "toNetwork", "input", "output", "minimumOutput", "estimatedSeconds", "transactionCount", "settlement", "warnings"],
+      ["protocol", "label", "network", "toNetwork", "input", "output", "minimumOutput", "estimatedSeconds", "transactionCount", "settlement", "warnings", "eligible"],
     ),
     QuoteResponse: obj(
       {
@@ -761,6 +775,33 @@ function schemas(): JsonObject {
     NetworksResponse: obj({ networks: arrayOf(ref("NetworkCapabilities")) }, ["networks"]),
     ProtocolsResponse: obj({ protocols: arrayOf(ref("Protocol")) }, ["protocols"]),
     AssetsResponse: obj({ assets: arrayOf(ref("Asset")) }, ["assets"]),
+    LendingMetrics: obj(
+      {
+        venue: str({ description: "Registry venue id, e.g. base:aave-v3:usdc (use as params.venue)." }),
+        protocol: ref("ProtocolId"),
+        network: ref("NetworkKey"),
+        name: str(),
+        asset: str({ description: "Underlying asset symbol." }),
+        supplyApy: { type: ["number", "null"], description: "Variable supply APY as a fraction (0.045 = 4.5%); advisory, null when unreadable." },
+        apySource: str({ enum: ["rate", "share-price", "unavailable"], description: "`rate`: the current on-chain supply rate; `share-price`: realised share-price growth over apyWindowSeconds." }),
+        apyWindowSeconds: int({ minimum: 0 }),
+        totalSupplied: { oneOf: [ref("AssetAmount"), { type: "null" }], description: "Underlying supplied to the venue (TVL)." },
+        exitLiquidity: { oneOf: [ref("AssetAmount"), { type: "null" }], description: "Underlying that can leave the venue now." },
+        utilization: { type: ["number", "null"], minimum: 0, maximum: 1 },
+        observedAt: str({ format: "date-time" }),
+        warnings: arrayOf(str()),
+      },
+      ["venue", "protocol", "network", "name", "asset", "supplyApy", "apySource", "totalSupplied", "exitLiquidity", "utilization", "observedAt", "warnings"],
+    ),
+    VenuesResponse: obj(
+      {
+        venues: arrayOf(ref("LendingMetrics")),
+        unavailable: arrayOf(obj({ venue: str(), code: str(), message: str() }, ["venue", "code", "message"]), {
+          description: "Venues whose on-chain reads failed or no longer match the registry.",
+        }),
+      },
+      ["venues", "unavailable"],
+    ),
     WebhookResponse: obj({ webhook: ref("Webhook") }, ["webhook"]),
     WebhookListResponse: obj({ webhooks: arrayOf(ref("Webhook")) }, ["webhooks"]),
     WebhookDeliveryResponse: obj({ delivery: ref("WebhookDelivery") }, ["delivery"]),
@@ -870,12 +911,26 @@ function paths(): JsonObject {
         responses: { "200": ok("AssetsResponse", "Assets."), ...errors() },
       },
     },
+    "/v1/venues": {
+      get: {
+        operationId: "listVenues",
+        tags: ["Registry"],
+        summary: "EVM lending venues with rates, size and exit liquidity",
+        description:
+          "Every executable EVM lending venue in the registry (Aave V3, Compound V3, Morpho vaults, Moonwell), read on-chain and cached for 60 seconds. Values are advisory: plan and prepare re-read what they gate on. Solana venues (Jupiter Lend, Kamino) report their rate in plan notes.",
+        parameters: [
+          { name: "network", in: "query", required: false, description: "Network key, CAIP-2 id or EVM chain id.", schema: str({ maxLength: 128 }) },
+          { name: "protocol", in: "query", required: false, description: "Lending protocol id, e.g. aave-v3, compound-v3, morpho, moonwell.", schema: str({ maxLength: 40 }) },
+        ],
+        responses: { "200": ok("VenuesResponse", "Venues."), ...errors() },
+      },
+    },
     "/v1/quotes": {
       post: {
         operationId: "quoteRoutes",
         tags: ["Quotes"],
         summary: "Best routes for one asset movement (same- or cross-network)",
-        description: "Quotes are advisory and never persisted. `best` is the route with the highest guaranteed output.",
+        description: "Quotes are advisory and never persisted. Routes are ranked like the planner's bridge auction (guaranteed output net of priced extra costs, then time within `maxSeconds`, then transaction count); `best` is the first eligible route.",
         requestBody: jsonBody("QuoteRequest"),
         responses: { "200": ok("QuoteResponse", "Routes."), ...errors("413", "415", "422", "502", "504") },
       },

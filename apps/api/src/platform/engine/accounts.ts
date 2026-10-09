@@ -23,6 +23,19 @@ export function parseAccounts(accounts: readonly AccountId[]): ParsedAccountId[]
   });
 }
 
+/**
+ * The user's own account on `network` when the intent's accounts identify
+ * exactly one (as `accountForNetwork` would pick it), otherwise undefined.
+ */
+export function ownAccountOn(accounts: readonly ParsedAccountId[], network: NetworkKey): ParsedAccountId | undefined {
+  try {
+    return accountForNetwork(accounts, network);
+  } catch (error) {
+    if (error instanceof PlatformError && (error.code === "ACCOUNT_REQUIRED" || error.code === "ACCOUNT_AMBIGUOUS")) return undefined;
+    throw error;
+  }
+}
+
 /** Picks (and if needed re-homes) the user's account for `network`. */
 export function accountForNetwork(accounts: readonly ParsedAccountId[], network: NetworkKey): ParsedAccountId {
   const chain = CHAINS[network];

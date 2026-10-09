@@ -2,6 +2,40 @@
 
 All notable changes are recorded in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version labels follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Entries describe implementation and evidence boundaries; they do not imply an audit or funded lifecycle unless stated explicitly.
 
+## [Unreleased]
+
+Round 3: more networks and venues behind the same intent engine, and the
+infrastructure surfaces integrators asked for. Every new address was read back
+on-chain on 2026-10-09; nothing in this release signs or holds funds.
+
+### Added
+
+- Networks: Ethereum (`eip155:1`), OP Mainnet (`eip155:10`) and Polygon PoS (`eip155:137`) in the chain and asset registries, with chain-id-attested RPCs (`ETHEREUM_RPC_URL`, `OPTIMISM_RPC_URL`, `POLYGON_RPC_URL`, keyless public fallbacks) and per-network health.
+- Bridge auction: Relay, LI.FI (Across, Polymer CCTP) and deBridge DLN quote every cross-network step in parallel; the winner has the highest guaranteed output net of priced extra costs, then the shortest time within `constraints.maxSeconds` (default 600 s), then the fewest transactions. Losing quotes are recorded as evidence and `POST /v1/quotes` ranks routes the same way (`eligible`, `netMinimumOutput`, `extraCosts`). "via lifi / debridge / relay" names one venue.
+- Lending: `withdraw` (including "withdraw all") and registry venues (`YIELD_VENUES`, `params.venue`, `step.venue`) for Aave V3 (now also on Ethereum, OP Mainnet and Polygon), Compound V3, Morpho vaults (MetaMorpho and Vault V2, factory-proven), Moonwell, Jupiter Lend and Kamino, with on-chain APY notes and `GET /v1/venues` (supply APY, size and exit liquidity of the EVM lending venues; `kletia.venues()`, `kletia venues`).
+- Recipient names: ENS (`*.eth`, through the pinned Universal Resolver; CCIP-Read refused), Basenames (`*.base.eth`) and SNS (`*.sns`), resolved again before every prepare (`409 RECIPIENT_NAME_CHANGED`).
+- Platform API: error catalog (`GET /v1/errors`, `ERROR_CATALOG` in `@kletia/core`, a `docs` link on every error), key self-management (list, rotate with a grace window, revoke), `Idempotency-Key` on state-changing POSTs, webhook test deliveries and delivery logs, `GET /v1/usage`, a status badge, and a read-only MCP server at `/v1/mcp` with a Studio hand-off link.
+- `@kletia/sdk`: retries with exponential backoff and automatic idempotency keys, typed error codes, `keys`, `webhooks.test/deliveries`, `usage()`, `errors()`, `intents.wait()` and `watchIntent`; `@kletia/sdk/server` webhook handlers for fetch-style runtimes, Hono, Express and `node:http`.
+- `@kletia/widget/hooks`: `KletiaProvider`, `useKletiaIntent`, `useIntent`, `useQuote`, `useNetworks`, `usePortfolio`.
+- `@kletia/cli` (`kletia`): health, registries, quote, plan (dry run unless `--save`), intents get/list/watch, keys, webhooks (including `verify` and `forward` to localhost), usage, errors and openapi. Published with the other packages.
+
+### Security
+
+- Venue contracts, programs, vaults and markets come only from the pinned registry (`VENUE_CONTRACTS`, `YIELD_VENUES`); provider calldata is decoded and every target, spender, token, amount, recipient and fee is checked against it before a payload is returned. Venue state that disagrees with the registry is refused with `422 VENUE_UNVERIFIED`.
+- Lending outcomes are proven from the venue's own events and token movements bound to the prepared payload (`SUPPLY_REPAID_DEBT`, `VENUE_REJECTED` and `OUTCOME_NOT_PROVEN` fail a step). Moonwell WETH markets must report their pinned WETH unwrapper.
+- deBridge DLN's fixed fee must equal the on-chain value, an extra cost above the planned one fails prepare with `QUOTE_MOVED`, and an unfilled DLN order's cancel right goes to the user's own destination account whenever the intent names one.
+- Rotated-out key secrets cannot manage keys (`403 KEY_SECRET_ROTATED`); stored idempotent responses that contain secrets are encrypted with `KLETIA_PLATFORM_SECRET`.
+
+### Changed
+
+- Relay uses its v3 status and request endpoints and is restricted to its pinned contracts per network.
+- MCP and CLI treat the user's own address on another network of the same VM (a bridge's default recipient) as their own when listing external recipients.
+- New configuration: `KLETIA_WEB_ORIGIN`, `KLETIA_MCP_ALLOWED_ORIGINS`, `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN` and the three RPC variables (see `apps/api/.env.example`, `render.yaml` and `docker-compose.yml`).
+
+### Fixed
+
+- Basenames resolution reads the resolver the Base registry names for each name, so names moved to the new resolver resolve again.
+
 ## [2.0.0] - 2026-10-08
 
 Kletia becomes intent infrastructure for EVM networks and Solana: one engine

@@ -12,12 +12,13 @@ npm install @kletia/core
 | Module | Exports |
 |---|---|
 | Chains | `CHAINS` (Base, Arbitrum One, Ethereum, OP Mainnet, Polygon PoS, Solana, plus Arc / Arbitrum Sepolia / Solana Devnet testnets), `NetworkKey`, `resolveChain`, `explorerTxUrl`, `sameCapitalLane` |
-| Identities | CAIP-10 `formatAccountId` / `parseAccountId` / `sameAccount`, CAIP-19 `formatAssetId` / `parseAssetId`, `isEvmAddress`, `isSolanaAddress`, `isSolanaSignature`, base58 codec |
+| Identities | CAIP-10 `formatAccountId` / `parseAccountId` / `sameAccount` (same chain) / `sameAddressAccount` (same address on any chain of the VM), CAIP-19 `formatAssetId` / `parseAssetId`, `isEvmAddress`, `isSolanaAddress`, `isSolanaSignature`, base58 codec |
 | Amounts | `toBaseUnits`, `fromBaseUnits`, `formatAmount`, `applySlippage` (exact, bigint based) |
 | Registries | `ASSETS` (canonical per-network tokens), `PROTOCOLS` (venues, capabilities and executable `kinds`), `YIELD_VENUES` / `getYieldVenue` / `findYieldVenue` (pinned lending markets and vaults), `VENUE_CONTRACTS` / `venueContracts` (pinned bridge, aggregator and name-service contracts) |
 | Intents | `IntentRequest`, `IntentGraph`, `IntentStep`, `StepExecutionPayload`, `TransactionRequest` |
 | Lifecycle | `canTransitionStep`, `readySteps`, `deriveIntentStatus`, `topologicalOrder`, `validateIntentGraph` |
-| Validation | `validateIntentRequest` |
+| Validation | `validateIntentRequest`, `MIN_MAX_SECONDS` / `MAX_MAX_SECONDS` |
+| Errors | `ERROR_CATALOG` (every API error and step-failure code with status, category, retry rule and remedy), `describeError`, `resolveErrorCode`, `isRetryableError`, `errorDocsUrl`, `errorCatalogRows` |
 | Events | `KletiaEventMap`, `KletiaEvent`, `createEventBus` |
 | Webhooks | `signWebhookPayload`, `verifyWebhookSignature` |
 

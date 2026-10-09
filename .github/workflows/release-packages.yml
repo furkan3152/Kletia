@@ -1,6 +1,6 @@
 name: Release packages
 
-# Publishes @kletia/core, @kletia/sdk and @kletia/widget to npm with provenance
+# Publishes @kletia/core, @kletia/sdk, @kletia/widget and @kletia/cli to npm with provenance
 # when a tag such as `packages-v0.1.0` is pushed. The tag version must equal the
 # version in every package manifest. Requires the NPM_TOKEN repository secret.
 on:
@@ -44,7 +44,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           expected="${TAG#packages-v}"
-          for name in core sdk widget; do
+          for name in core sdk widget cli; do
             actual=$(node -p "require('./packages/$name/package.json').version")
             if [ "$actual" != "$expected" ]; then
               echo "packages/$name is $actual but the tag is $expected" >&2
@@ -61,6 +61,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          for name in core sdk widget; do
+          for name in core sdk widget cli; do
             npm publish --workspace "@kletia/$name" --access public --provenance
           done

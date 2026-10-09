@@ -64,9 +64,9 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | 403 | A rotated-out secret managing keys (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`) |
 | 404 | Unknown intent, step, webhook, key or path |
 | 405 | Wrong method (with an `Allow` header) |
-| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`) |
+| 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
-| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
 | 502 / 503 | Upstream provider unavailable, or a feature not configured (`WEBHOOKS_NOT_CONFIGURED`) |
 
@@ -78,6 +78,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | GET | `/v1/networks` | public | Chain registry plus per-network capabilities |
 | GET | `/v1/protocols` | public | Protocol registry |
 | GET | `/v1/assets?network=` | public | Canonical asset registry |
+| GET | `/v1/venues?network=&protocol=` | public | EVM lending venues with supply APY, size and exit liquidity (advisory, cached 60 s) |
 | POST | `/v1/quotes` | public | Best routes for one asset movement (same- or cross-network) |
 | GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account |
 | POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence) |
@@ -132,7 +133,28 @@ Structured alternative:
 ```
 
 `amount: "max"` on a dependent step means "the guaranteed output of the
-previous step". Response: `201 { "intent": IntentGraph }`. A dry run returns `200` and is not stored. Repeating a `clientReference` returns the original intent with `200` and `Idempotent-Replayed: true`.
+previous step"; on a `withdraw` it closes the whole position at the venue
+("withdraw all"). Response: `201 { "intent": IntentGraph }`. A dry run returns `200` and is not stored. Repeating a `clientReference` returns the original intent with `200` and `Idempotent-Replayed: true`.
+
+Action and constraint options:
+
+- `actions[].recipient` takes an address, a CAIP-10 account or a name:
+  `*.eth` (ENS), `*.base.eth` (Basenames) or `*.sns` (SNS). See
+  [Recipient names](#recipient-names).
+- `actions[].params.venue` picks a lending venue for a `deposit` or
+  `withdraw`: a registry id such as `base:morpho:steakhouse-prime-usdc`, its
+  slug, or the vault / market address on that network. Without it the planner
+  uses the named protocol's default venue for the asset (or the first lending
+  protocol with an executable venue) and says so in the step's warnings. The
+  chosen id is returned as `step.venue`.
+- `constraints.maxSeconds` (10-86400, default 600) is the longest settlement
+  estimate a cross-network step may take; see [Bridge auction](#bridge-auction).
+  `constraints.preferProtocols` / `avoidProtocols` steer or exclude venues,
+  and `protocol` on a bridge action ("via lifi") names a single venue.
+
+Steps also carry `venue` (deposit / withdraw), `recipientName` (the name the
+recipient was resolved from) and `extraCosts` (value paid on top of the input,
+such as a deBridge fixed fee in the native asset, with `usd` when priced).
 
 `GET /v1/intents` accepts `?limit=1..100` (default 20).
 
@@ -149,7 +171,40 @@ previous step". Response: `201 { "intent": IntentGraph }`. A dry run returns `20
 `from.account` and `to.recipient` are optional. Without them Kletia quotes with
 neutral stand-in accounts, which is accurate for pricing but not executable.
 
-Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protocol`, `input`, `output`, `minimumOutput`, `feesUsd`, `estimatedSeconds`, `transactionCount` and `settlement`; `unavailable` lists venues that could not quote with the reason. A flat body (`network`, `from`, `to`, `toNetwork`, `amount`) is also accepted.
+Response: `{ routes, best, quotedAt, unavailable }`. Each route carries `protocol`, `input`, `output`, `minimumOutput`, `feesUsd`, `estimatedSeconds`, `transactionCount`, `settlement` and `eligible`, plus `extraCosts` and `netMinimumOutput` (the minimum net of priced extra costs) when a venue charges on top of the input. Routes are ranked like the [bridge auction](#bridge-auction); `best` is the first `eligible` route, and `maxSeconds` in the body (10-86400, default 600) sets the time limit. `unavailable` lists venues that could not quote with the reason. A flat body (`network`, `from`, `to`, `toNetwork`, `amount`) is also accepted.
+
+### Bridge auction
+
+For every cross-network `bridge` step the planner asks each venue that serves
+the route (Relay, LI.FI, deBridge DLN) for a quote in parallel, with an 8 s
+timeout per venue, and picks the winner by:
+
+1. the highest guaranteed output net of extra costs (a venue whose extra costs
+   cannot be priced is not eligible);
+2. then the shortest settlement estimate within `constraints.maxSeconds`;
+3. then the fewest transactions.
+
+Losing and failing quotes are recorded as `quote` evidence on the step.
+`preferProtocols` puts venues first, `avoidProtocols` never quotes them, and a
+named venue ("bridge 25 USDC from base to arbitrum via lifi") skips the
+auction. At prepare, an extra cost above the planned amount plus the step's
+slippage, or one the plan did not have, is refused with `409 QUOTE_MOVED`.
+Every venue's contracts and programs are pinned in the registry
+(`VENUE_CONTRACTS`); see [cross-chain venues](../networks/cross-chain-venues.md).
+
+### Recipient names
+
+`*.eth` resolves through the pinned ENS Universal Resolver (off-chain
+CCIP-Read resolvers are refused), `*.base.eth` through the Base registry's
+resolver, and `*.sns` to the SNS registry owner on Solana. `.sol` names are
+refused while SNS has them paused. Off Ethereum, an ENS name's own record for
+the network comes first, then its default EVM record; its Ethereum record is
+used only for an externally owned account (EIP-7702 delegations included) or a contract deployed on the target network, with a warning. The
+resolved address is the step's `recipient`, the name is `recipientName`, and
+the resolution is recorded as evidence. The name is resolved again before
+every prepare: a different address returns `409 RECIPIENT_NAME_CHANGED`. A
+name with no address for the network returns `422 RECIPIENT_NAME_UNRESOLVED`;
+an unsupported kind of name, `422 RECIPIENT_NAME_UNSUPPORTED`.
 
 ### Step execution
 
@@ -326,9 +381,25 @@ shields.io endpoint document:
 | `swap` | Solana | Jupiter |
 | `swap` | Base, Arbitrum | Relay (same-network) |
 | `stake` (liquid) | Solana | Jupiter route into JitoSOL / mSOL / JupSOL |
-| `transfer` | All | Native / ERC-20 / SPL (with ATA creation) |
-| `bridge` (and bridge-and-swap) | Base ↔ Solana, Arbitrum ↔ Solana, Base ↔ Arbitrum | Relay |
-| `deposit` | Base, Arbitrum | Aave V3 supply |
+| `transfer` | All | Native / ERC-20 / SPL (with ATA creation); recipients may be ENS, Basenames or SNS names |
+| `bridge` (and bridge-and-swap) | Any pair of Base, Arbitrum One, Ethereum, OP Mainnet, Polygon PoS and Solana a venue serves | Auction of Relay, LI.FI (Across, Polymer CCTP) and deBridge DLN |
+| `deposit` / `withdraw` | Base, Arbitrum One, Ethereum, OP Mainnet, Polygon PoS | Aave V3 |
+| `deposit` / `withdraw` | Base, Arbitrum One, Ethereum, OP Mainnet | Compound V3 (Comet) |
+| `deposit` / `withdraw` | Base, Arbitrum One, Ethereum | Morpho vaults (MetaMorpho, Vault V2; allowlisted) |
+| `deposit` / `withdraw` | Base, OP Mainnet | Moonwell (WETH markets pay withdrawals in ETH) |
+| `deposit` / `withdraw` | Solana | Jupiter Lend, Kamino (Kamino withdrawals take an exact amount) |
+
+`GET /v1/venues` lists the EVM lending venues (Aave V3, Compound V3, Morpho,
+Moonwell) with their registry id (usable as `params.venue`), supply APY,
+supplied amount, exit liquidity and utilization, read on-chain and cached for
+60 seconds; these values are advisory. Solana venues report their rate in the
+plan's step warnings.
+
+Every lending venue is pinned in the registry (`YIELD_VENUES` in
+`@kletia/core`) and re-checked on-chain at plan and prepare; a venue whose
+on-chain state disagrees is refused with `422 VENUE_UNVERIFIED`. Deposits and
+withdrawals pay the acting account; verification requires the venue's own
+events or token movements bound to the prepared payload.
 
 Natural-language text is compiled by a deterministic grammar (no model
 involved). Unsupported wording returns `422 INTENT_UNSUPPORTED` with examples.

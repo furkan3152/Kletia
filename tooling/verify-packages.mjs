@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const packages = ["core", "sdk", "widget"];
+const packages = ["core", "sdk", "widget", "cli"];
 const failures = [];
 const fail = (message) => failures.push(message);
 

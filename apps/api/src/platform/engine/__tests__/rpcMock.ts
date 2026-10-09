@@ -47,9 +47,9 @@ export interface SolanaTxFixture {
 export interface RpcMock {
   readonly evm: Map<string, EvmTxFixture>;
   readonly solana: Map<string, SolanaTxFixture>;
-  /** Relay `/requests/v2?hash=` responses by deposit hash. */
+  /** Relay `/requests/v3?depositTxHash=` (keyed; and legacy `/requests/v2?hash=`) responses by deposit hash. */
   readonly relayRequests: Map<string, unknown[]>;
-  /** Relay `/intents/status/v2` responses by request id. */
+  /** Relay `/intents/status/v3` (and legacy v2) responses by request id. */
   readonly relayStatus: Map<string, unknown>;
   /** Relay `/quote` response factory. */
   relayQuote: ((body: Record<string, unknown>) => unknown) | null;
@@ -251,6 +251,17 @@ export function installRpcMock(): RpcMock {
       if (parsed.pathname === "/intents/status/v2") {
         const status = mock.relayStatus.get(parsed.searchParams.get("requestId") ?? "");
         return status ? json(status) : json({ status: "waiting" });
+      }
+      if (parsed.pathname === "/requests/v3") {
+        // Like the live API: v3 refuses requests without an API key.
+        if (!new Headers(init?.headers).get("x-api-key")) {
+          return json({ code: "FST_ERR_VALIDATION", message: "headers must have required property 'x-api-key'" }, 400);
+        }
+        return json({ requests: mock.relayRequests.get(parsed.searchParams.get("depositTxHash") ?? "") ?? [] });
+      }
+      if (parsed.pathname === "/intents/status/v3") {
+        const status = mock.relayStatus.get(parsed.searchParams.get("requestId") ?? "");
+        return status ? json(status) : json({ status: "unknown" });
       }
       if (parsed.pathname === "/quote" && mock.relayQuote) {
         return json(mock.relayQuote(JSON.parse(bodyText) as Record<string, unknown>));

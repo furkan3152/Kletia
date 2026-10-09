@@ -142,6 +142,23 @@ export function sameAccount(a: string, b: string): boolean {
   );
 }
 
+/**
+ * True when two CAIP-10 accounts are the same address in the same namespace,
+ * on any chain of it: an EVM address on every eip155 network, a Solana address
+ * on every cluster. This is how the planner re-homes a user's account onto
+ * another network of the same VM (e.g. the default recipient of a bridge).
+ * A smart-contract account need not exist at that address on every chain.
+ */
+export function sameAddressAccount(a: string, b: string): boolean {
+  const left = parseAccountId(a);
+  const right = parseAccountId(b);
+  if (!left || !right || left.chain.namespace !== right.chain.namespace) return false;
+  return (
+    normalizeAddress(left.chain.namespace, left.address) ===
+    normalizeAddress(right.chain.namespace, right.address)
+  );
+}
+
 /** Asset namespaces: `slip44` for natives, `erc20` on EVM, `token` for SPL mints. */
 export type AssetNamespace = "slip44" | "erc20" | "token";
 

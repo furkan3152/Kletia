@@ -146,7 +146,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["base", "optimism"],
     capabilities: ["execute", "discover"],
     website: "https://moonwell.fi",
-    summary: "mToken supply and redeem; success requires Mint/Redeem events (error codes do not revert).",
+    summary: "mToken supply and redeem; success requires Mint/Redeem events (error codes do not revert). WETH markets pay withdrawals out in native ETH.",
     kinds: ["deposit", "withdraw"],
   },
   {
@@ -455,6 +455,12 @@ export interface CTokenVenue extends YieldVenueBase {
   readonly comptroller: string;
   /** Router that wraps native ETH into this market (`mint(address)` payable). */
   readonly nativeRouter?: string;
+  /**
+   * WETH unwrapper of a market that pays redeems out in native ETH
+   * (Moonwell MWethDelegate). The mToken's `wethUnwrapper()` must equal it;
+   * it is only matched in receipt logs, never called or approved.
+   */
+  readonly nativePayout?: string;
 }
 
 export interface JupiterLendVenue extends YieldVenueBase {
@@ -523,12 +529,18 @@ function vault(network: NetworkKey, slug: string, name: string, address: string,
   };
 }
 
-function mtoken(network: NetworkKey, address: string, asset: string, comptroller: string, nativeRouter?: string): CTokenVenue {
+function mtoken(
+  network: NetworkKey,
+  address: string,
+  asset: string,
+  comptroller: string,
+  native?: { readonly router: string; readonly payout: string },
+): CTokenVenue {
   const slug = asset.toLowerCase();
   return {
     id: `${network}:moonwell:${slug}`, slug, protocol: "moonwell", network, kind: "ctoken", name: `Moonwell ${asset}`,
     asset, target: address, spender: address, receipt: { address, decimals: 8 }, comptroller,
-    ...(nativeRouter ? { nativeRouter } : {}), actions: BOTH,
+    ...(native ? { nativeRouter: native.router, nativePayout: native.payout } : {}), actions: BOTH,
   };
 }
 
@@ -595,9 +607,15 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   comet("optimism", "0xE36A30D249f7761327fd973001A32010b521b6Fd", "WETH", 18),
   // Moonwell mTokens (8-decimal receipts; recipient must be the account)
   mtoken("base", "0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22", "USDC", BASE_MOONWELL),
-  mtoken("base", "0x628ff693426583D9a7FB391E54366292F509D457", "WETH", BASE_MOONWELL, "0x70778cfcFC475c7eA0f24cC625Baf6EaE475D0c9"),
+  mtoken("base", "0x628ff693426583D9a7FB391E54366292F509D457", "WETH", BASE_MOONWELL, {
+    router: "0x70778cfcFC475c7eA0f24cC625Baf6EaE475D0c9",
+    payout: "0x1382cFf3CeE10D283DccA55A30496187759e4cAf",
+  }),
   mtoken("optimism", "0x8E08617b0d66359D73Aa11E11017834C29155525", "USDC", OPTIMISM_MOONWELL),
-  mtoken("optimism", "0xb4104C02BBf4E9be85AAa41a62974E4e28D59A33", "WETH", OPTIMISM_MOONWELL, "0xc4Ab8C031717d7ecCCD653BE898e0f92410E11dC"),
+  mtoken("optimism", "0xb4104C02BBf4E9be85AAa41a62974E4e28D59A33", "WETH", OPTIMISM_MOONWELL, {
+    router: "0xc4Ab8C031717d7ecCCD653BE898e0f92410E11dC",
+    payout: "0xa962F2974A846b30366251f4634384C1e42aeF16",
+  }),
   // Morpho ERC-4626 vaults (curated by (network, address); never resolved by name or symbol)
   vault("base", "steakhouse-prime-usdc", "Steakhouse Prime USDC", "0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9", "USDC", "vault-v2"),
   vault("base", "gauntlet-usdc-prime", "Gauntlet USDC Prime", "0x050cE30b927Da55177A4914EC73480238BAD56f0", "USDC", "vault-v2"),

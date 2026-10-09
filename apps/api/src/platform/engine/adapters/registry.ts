@@ -1,8 +1,15 @@
 import type { IntentConstraints, IntentStep, ProtocolId } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { aaveV3Adapter } from "./aaveV3.js";
+import { debridgeDlnAdapter } from "./debridge.js";
 import { evmTransferAdapter } from "./evmTransfer.js";
 import { jupiterAdapter } from "./jupiter.js";
+import { jupiterLendAdapter } from "./jupiterLend.js";
+import { kaminoAdapter } from "./kamino.js";
+import { compoundV3Adapter } from "./lending/compoundV3.js";
+import { erc4626Adapter } from "./lending/erc4626.js";
+import { moonwellAdapter } from "./lending/moonwell.js";
+import { lifiAdapter } from "./lifi.js";
 import { relayAdapter } from "./relay.js";
 import { solanaTransferAdapter } from "./solanaTransfer.js";
 import type { AdapterRoute, ProtocolAdapter } from "./types.js";
@@ -13,7 +20,14 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze([
   solanaTransferAdapter,
   evmTransferAdapter,
   relayAdapter,
+  lifiAdapter,
+  debridgeDlnAdapter,
   aaveV3Adapter,
+  compoundV3Adapter,
+  erc4626Adapter,
+  moonwellAdapter,
+  jupiterLendAdapter,
+  kaminoAdapter,
 ]);
 
 export const EXECUTABLE_PROTOCOLS: readonly ProtocolId[] = Object.freeze(

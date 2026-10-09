@@ -49,7 +49,7 @@ import {
   type YieldVenueAction,
 } from "@kletia/core";
 import { PlatformError, toPlatformError, unsupported } from "../errors.js";
-import { accountForNetwork, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
+import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
 import { activeProtocolAdapters, candidateAdapters } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, ProtocolAdapter } from "./adapters/types.js";
 import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
@@ -560,6 +560,7 @@ async function draftStep(
   const requested = choice ? choice.venue.protocol : action.protocol === "jupiter" && action.kind === "stake" ? undefined : action.protocol;
   const candidates = candidateAdapters(route, request.constraints, requested);
   if (candidates.length === 0) throw noCandidates(route, requested);
+  const destinationAccount = route.destinationNetwork !== route.network ? ownAccountOn(accounts, route.destinationNetwork) : undefined;
   const adapterAction: AdapterAction = {
     ...route,
     amount,
@@ -569,6 +570,7 @@ async function draftStep(
     ...(action.provider ? { provider: action.provider } : {}),
     ...(choice ? { venue: choice.venue.id } : {}),
     ...(closePosition ? { closePosition: true } : {}),
+    ...(destinationAccount ? { destinationAccount } : {}),
   };
   const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request);
   if (closePosition && !(BigInt(planned.input.amount) > 0n)) {
@@ -886,6 +888,8 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     if (source) amount = portionOf(source.amount, ref?.portionBps ?? 10_000);
     if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", "The funding step produced too little to continue.", 422);
   }
+  // Same derivation as at plan time, from the intent's own accounts.
+  const destinationAccount = destinationNetwork !== step.network ? ownAccountOn(parseAccounts(graph.request.accounts), destinationNetwork) : undefined;
   return {
     kind: step.kind,
     network: step.network,
@@ -899,6 +903,7 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     ...(ref?.provider ? { provider: ref.provider } : {}),
     ...(venue ? { venue: venue.id } : {}),
     ...(ref?.closePosition && step.kind === "withdraw" ? { closePosition: true } : {}),
+    ...(destinationAccount ? { destinationAccount } : {}),
   };
 }
 

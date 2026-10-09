@@ -1,0 +1,64 @@
+{
+  "name": "@kletia/cli",
+  "version": "0.1.0",
+  "description": "Command line for the Kletia intent API: quote, plan and watch cross-network intents, and manage API keys and webhooks. Never signs or holds funds.",
+  "license": "MIT",
+  "author": "Kletia",
+  "homepage": "https://github.com/furkan3152/Kletia/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furkan3152/Kletia.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/furkan3152/Kletia/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "kletia": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@kletia/core": "0.1.0",
+    "@kletia/sdk": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "5.9.3"
+  },
+  "keywords": [
+    "kletia",
+    "intents",
+    "cli",
+    "solana",
+    "evm",
+    "cross-chain"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

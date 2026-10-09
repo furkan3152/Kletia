@@ -173,7 +173,7 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
   const changed = compareEvmPins(pinned, current);
   if (changed) {
     await reportContractAnomaly(snapshot.contract, "pins_changed", changed);
-    throw new PlatformError("CONTRACT_CHANGED", `${snapshot.integrator.name}'s contract changed since it was registered: ${changed} The registration is suspended until the integrator reverifies it.`, 409);
+    throw new PlatformError("CONTRACT_CHANGED", `${snapshot.integrator.name}'s contract changed since it was registered: ${changed.replace(/([^.])$/u, "$1.")} The registration is suspended until the integrator reverifies it.`, 409);
   }
 
   // 2. Values and calldata.

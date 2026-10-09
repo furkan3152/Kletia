@@ -223,7 +223,10 @@ reason.
   allowlisted; native and loader programs, venue programs, registry mints and
   the deployment's deny list are refused (`PROGRAM_NOT_ALLOWED`).
 - `payees` (≤ 2): the only third parties a top-level System transfer may pay,
-  each with a lamport cap.
+  each with a lamport cap. A payee only widens the transfer rule: the
+  transaction must still invoke the action's `primaryProgram`, so a bare
+  SOL transfer (for example the `transfer-sol` sample action) is always
+  refused. Plain payments are Kletia's own `send` action.
 - Registration fetches each action's metadata (`GET` the `href` without
   placeholders: 8 s, 64 KB, no redirects) and records `title`, `label` and
   `disabled` on the entry (`actions[].metadata`).
@@ -232,12 +235,48 @@ Kletia executes only actions that return a single transaction for the user
 (`type: "transaction"`); `message`, `post`, `external-link` and chained
 responses are refused (`ACTION_RESPONSE_UNSUPPORTED`). The transaction must
 have one signer (the user as fee payer, unsigned), no durable nonce, only
-allowlisted or built-in programs at the top level, no approvals, authority
-changes or transfers of the user's tokens (also as inner instructions), and
-bounded compute and priority fees; anything else is refused with
-`ACTION_TRANSACTION_REJECTED` and the precise reason. Kletia sends the user's
-address to your action server when it fetches a transaction; the review says
-so.
+allowlisted or built-in programs at the top level (Lighthouse: assertion
+instructions only), no approvals, authority changes or transfers of the
+user's tokens, and bounded compute and priority fees; anything else is
+refused with `ACTION_TRANSACTION_REJECTED` and the precise reason. Kletia
+sends the user's address to your action server when it fetches a
+transaction; the review says so.
+
+**The user's signature reaches only your allowlisted programs.** The user
+signs the whole transaction, and Solana lets any program that receives the
+user's wallet in a cross-program invocation (CPI) act with that signature on
+everything the user controls: stake accounts, mints, nonce accounts,
+positions in other protocols. Kletia therefore scans the simulated and the
+landed inner instructions and refuses:
+
+- native and loader programs anywhere in the CPI tree (Stake, Vote, the BPF
+  loaders, Address Lookup Table, Config, ...), whatever the allowlist says;
+- any program outside `programs` and the built-ins (System, Token,
+  Token-2022, ATA, Memo) that receives the user's wallet. A program that never
+  receives the wallet cannot sign for the user, so it may run (for example an
+  AMM a router calls with its own authority);
+- on the built-ins, any use of the user's authority whose effect the balance
+  checks do not see: approvals, authority changes, mints, freezes and thaws,
+  spends from token accounts the user is only a delegate or multisig signer
+  of, closes of the user's token accounts to someone else, and System
+  Assign / Allocate / seed / nonce instructions. Transfers and burns from the
+  user's own token accounts and account creation are held to the amount
+  rules.
+
+The simulation also compares the states of the transaction's writable
+accounts: an account of a native program (a stake account, program data, a
+lookup table), a System account other than the user's wallet, a mint the user
+can mint or freeze, or a token account the user is only a delegate of must
+not lose value or change hands.
+
+Allowlisting a program trusts it with the user's signature: it can act on
+anything the user holds **in that program** (positions, obligations,
+escrows). Allowlist only programs you control, never a third-party protocol
+the user may have funds in. A router whose route hands the wallet to
+programs you have not allowlisted is refused: for example the public Jupiter
+blink passes the user's wallet to AMM programs that change with every quote,
+so it only runs when the route's programs are allowlisted. The review lists
+the programs the signature reaches.
 
 ## What registration checks
 
@@ -275,7 +314,8 @@ RATE_LIMITED`).
   receive `contract.registered` at once and `contract.activated` at
   activation, so a stolen key cannot silently put a drainer in front of your
   users. Tests work while pending; planning answers `409 CONTRACT_PENDING`
-  (retryable). **Testnets** activate at once.
+  (retryable, with `Retry-After` set to the seconds until `activatesAt`).
+  **Testnets** activate at once.
 - An integrator name that uses a reserved brand also waits for **domain
   verification**: publish
 
@@ -411,8 +451,12 @@ from the pinned emitter with its `where` bindings satisfied, the user's token
 movements match (exact input debit, no other debit or approval, declared
 output at least the planned floor) and the pins at the receipt block still
 match. A Solana action step additionally requires the prepared instructions,
-in order (only ComputeBudget and Lighthouse instructions may be added by the
-wallet), and no authority or owner changes on the user's accounts.
+in order (the wallet may add only ComputeBudget and Lighthouse assertion
+instructions, which move nothing; a Lighthouse MemoryWrite or MemoryClose, or
+an addition that calls another program, makes it another transaction:
+`REFERENCE_MISMATCH`, and the step keeps waiting for the prepared one), no
+authority or owner changes on the user's accounts, and the CPI scan above
+over the landed inner instructions.
 
 ## Sessions
 
@@ -464,9 +508,10 @@ Authorization: Bearer kl_dev_…
   SESSION_ORIGIN_FORBIDDEN`; the frame checks the real host origin first),
   then plans the template with the visitor's accounts under **your** key and
   returns `201 { "intent" }`. A plan that fails gives the use back. With
-  several uses, each intent's `clientReference` is suffixed `:<n>`; an
-  intent of another visitor is never handed out (`409
-  CLIENT_REFERENCE_EXISTS`).
+  several uses, each intent's `clientReference` is suffixed `:<n>`, where
+  `n` counts claimed uses and is never reused (a use given back keeps its
+  number, so concurrent visitors never collide); an intent of another
+  visitor is never handed out (`409 CLIENT_REFERENCE_EXISTS`).
 
 A leaked session id lets someone else run the same fixed actions with their
 own funds and wallet, nothing more. A revoked key's sessions stop working.
@@ -545,5 +590,8 @@ differently on-chain (for example keyed on `block.coinbase`, `tx.gasprice` or
 a mutable storage pointer that is not a proxy slot) can still take what the
 user approved **for that one step**. Exact approvals, value caps, the
 per-step and per-day caps, the post-landing outcome check and the suspension
-it triggers bound the damage to the step amount. This is why the review always
+it triggers bound the damage to the step amount. On Solana, the same holds
+for the user's balances and for accounts the CPI scan covers; what the user
+holds inside an allowlisted program is in that program's hands (see
+"The user's signature reaches only your allowlisted programs"). This is why the review always
 says "Not audited by Kletia" and why integrators are named on every step.

@@ -142,6 +142,10 @@ export function solanaActionReview(input: SolanaReviewInput): ContractReview {
     upgradeAuthority: pin.upgradeAuthority,
   }));
   const notices = [CONTRACT_REVIEW_NOTICE, `Kletia sent your address to ${domain} to build this transaction.`];
+  if (programs.length > 0) {
+    // Only these programs (and Solana's System, Token and associated-token programs, held to fixed rules) receive the user's signature.
+    notices.push(`Your signature reaches ${programs.map((program) => shortAddress(program.id)).join(", ")} (chosen by ${integrator.name}); each can act on anything you hold in that program.`);
+  }
   for (const program of programs) {
     if (program.verified !== true) notices.push(`Program ${shortAddress(program.id)} source is not verified (OtterSec).`);
     if (program.upgradeable && program.upgradeAuthority) notices.push(`Program ${shortAddress(program.id)} is upgradeable by ${shortAddress(program.upgradeAuthority)}.`);

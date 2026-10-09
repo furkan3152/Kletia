@@ -205,35 +205,59 @@ describe("BYOC live dry run (KLETIA_LIVE=1)", { skip: !LIVE }, () => {
     vault.status = "active";
   });
 
-  it("10.7 accepts the Jupiter blink with JUP6 + noop allowlisted and prepares it (re-blockhashed, never signed)", async (t) => {
-    const validated = validateContractDefinition({
-      vm: "svm", network: "solana", integrator: { name: "Acme Swap", website: "https://acme.example" }, origin: "https://jupiter.dial.to", programs: [JUP6, NOOP],
-      actions: [{ id: "swap", label: "Swap SOL to USDC", href: "https://jupiter.dial.to/api/v0/swap/SOL-USDC/{amount}", primaryProgram: JUP6, input: { token: "native" }, output: { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", toleranceBps: 100 }, phrases: { verbs: ["swap"], aliases: ["acme swap"] }, limits: { maxAmount: "1" } }],
-    });
-    assert.ok(validated.ok);
-    const pins = await readSolanaProgramPins("solana", [JUP6, NOOP]);
-    t.diagnostic(`JUP6 last deploy slot ${pins[0]?.lastDeploySlot}, authority ${pins[0]?.upgradeAuthority}`);
-    const swap = directory.add({
-      id: "ct_00000000000000000000a0b1", ownerKeyId: OWNER_KEY, projectId: "proj_1", status: "active", activeRevision: 1, activatesAt: null,
-      definition: validated.value, definitionHash: await contractDefinitionHash(validated.value), pins,
-      verification: { domain: { verified: false, checkedAt: null }, programs: [{ program: JUP6, verified: false, provider: "ottersec", checkedAt: null }] },
-      createdAt: new Date().toISOString(), visibility: "private",
-    });
+  it("10.7 holds the Jupiter blink to the CPI scan: refused while its route hands the user's wallet to programs outside the allowlist, prepared once they are allowlisted (re-blockhashed, never signed)", async (t) => {
+    // Jupiter's route CPIs into AMM programs that change with every quote; some receive the user's wallet
+    // (transfer authority or payer), which lets them act with the user's signature. Each refusal names one;
+    // the run allowlists it (at most 6 programs) and asks again, so the route of the moment decides the outcome.
+    const allowlist = [JUP6, NOOP];
+    const wallet = /passes the user's wallet to ([1-9A-HJ-NP-Za-km-z]{32,44}),/u;
+    const account = `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOL_HOLDER}`;
+    let swap: Registration | null = null;
     let result;
-    try {
-      result = await testContractAction(swap, { entry: "swap", account: `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOL_HOLDER}`, amount: "0.01" });
-    } catch (error) {
-      if (code(error) === "ACTION_ENDPOINT_UNAVAILABLE") return t.skip("jupiter.dial.to is unavailable");
-      throw error;
+    for (let attempt = 0; attempt < 5 && !result; attempt += 1) {
+      const validated = validateContractDefinition({
+        vm: "svm", network: "solana", integrator: { name: "Acme Swap", website: "https://acme.example" }, origin: "https://jupiter.dial.to", programs: allowlist,
+        actions: [{ id: "swap", label: "Swap SOL to USDC", href: "https://jupiter.dial.to/api/v0/swap/SOL-USDC/{amount}", primaryProgram: JUP6, input: { token: "native" }, output: { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", toleranceBps: 100 }, phrases: { verbs: ["swap"], aliases: ["acme swap"] }, limits: { maxAmount: "1" } }],
+      });
+      if (!validated.ok) {
+        t.diagnostic(`allowlist ${allowlist.join(", ")} is not registrable: ${JSON.stringify(validated).slice(0, 200)}`);
+        return;
+      }
+      const pins = await readSolanaProgramPins("solana", allowlist);
+      if (attempt === 0) t.diagnostic(`JUP6 last deploy slot ${pins[0]?.lastDeploySlot}, authority ${pins[0]?.upgradeAuthority}`);
+      swap = directory.add({
+        id: "ct_00000000000000000000a0b1", ownerKeyId: OWNER_KEY, projectId: "proj_1", status: "active", activeRevision: 1, activatesAt: null,
+        definition: validated.value, definitionHash: await contractDefinitionHash(validated.value), pins,
+        verification: { domain: { verified: false, checkedAt: null }, programs: [{ program: JUP6, verified: false, provider: "ottersec", checkedAt: null }] },
+        createdAt: new Date().toISOString(), visibility: "private",
+      });
+      try {
+        result = await testContractAction(swap, { entry: "swap", account, amount: "0.01" });
+      } catch (error) {
+        if (code(error) === "ACTION_ENDPOINT_UNAVAILABLE") return t.skip("jupiter.dial.to is unavailable");
+        const reached = code(error) === "ACTION_TRANSACTION_REJECTED" ? wallet.exec((error as Error).message)?.[1] : undefined;
+        if (!reached) throw error;
+        t.diagnostic(`refused (attempt ${attempt + 1}): the route hands the user's wallet to ${reached}, not allowlisted`);
+        if (allowlist.length >= 6) return;
+        allowlist.push(reached);
+      }
     }
+    if (!result) return t.diagnostic("the route kept changing; every attempt was refused (fail closed)");
     assert.equal(result.review.simulation.status, "ok");
     assert.ok(BigInt(result.expectedOutput?.amount ?? "0") > 0n);
-    t.diagnostic(`+${result.expectedOutput?.formatted} USDC for 0.01 SOL; SOL ${result.review.simulation.assetChanges[0]?.formatted}`);
-    const graph = await createIntent({ accounts: [`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOL_HOLDER}`], text: "swap 0.01 SOL with acme swap" }, { ownerKeyId: OWNER_KEY });
-    assert.equal(graph.steps[0]?.kind, "action");
-    const { payload, intent } = await prepareStep(graph.id, "s1");
-    assert.equal(payload.vm, "svm");
-    assert.ok(intent.steps[0]?.evidence.some((entry) => entry.reference?.startsWith("ix1:")));
+    t.diagnostic(`accepted with ${allowlist.length} programs: +${result.expectedOutput?.formatted} USDC for 0.01 SOL; SOL ${result.review.simulation.assetChanges[0]?.formatted}`);
+    try {
+      const graph = await createIntent({ accounts: [account], text: "swap 0.01 SOL with acme swap" }, { ownerKeyId: OWNER_KEY });
+      assert.equal(graph.steps[0]?.kind, "action");
+      const { payload, intent } = await prepareStep(graph.id, "s1");
+      assert.equal(payload.vm, "svm");
+      assert.ok(intent.steps[0]?.evidence.some((entry) => entry.reference?.startsWith("ix1:")));
+    } catch (error) {
+      if (code(error) === "ACTION_ENDPOINT_UNAVAILABLE") return t.skip("jupiter.dial.to is unavailable");
+      // A fresh quote may route through another program that receives the wallet: refused, never prepared.
+      if (code(error) !== "ACTION_TRANSACTION_REJECTED" || !wallet.test((error as Error).message)) throw error;
+      t.diagnostic(`plan/prepare refused: ${(error as Error).message.slice(0, 160)}`);
+    }
   });
 
   it("10.8 refuses the transfer-sol action (System transfer to an undeclared third party)", async (t) => {

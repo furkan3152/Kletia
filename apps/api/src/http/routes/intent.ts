@@ -130,7 +130,7 @@ router.post(
     try {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const evidence = await Promise.race([
-        resolveBasenameEvidence(name),
+        resolveBasenameEvidence(name, network.id),
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(
             () => reject(new Error("basename_revalidation_timeout")),

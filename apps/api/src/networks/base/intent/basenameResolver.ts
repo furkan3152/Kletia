@@ -14,6 +14,7 @@ import { namehash, normalize } from "viem/ens";
 import { venueContracts } from "@kletia/core";
 
 import { basePublicClient } from "../../../shared/config/client.js";
+import { NETWORKS, type NetworkId } from "../../../shared/config/networks.js";
 
 /**
  * Basenames are resolved through the Base registry: registry.resolver(node)
@@ -32,6 +33,11 @@ export const BASENAMES_RESOLVERS: readonly Address[] = venueContracts("basenames
 export const BASE_COIN_TYPE = 0x80000000n | 8453n;
 /** ENSIP-1 coin type of an Ethereum address record (`addr(bytes32)`). */
 export const ETH_COIN_TYPE = 60n;
+
+/** ENSIP-11 coin type of an EVM chain (0x80000000 | chainId). */
+export function evmCoinType(chainId: number): bigint {
+  return 0x80000000n | BigInt(chainId);
+}
 
 const REGISTRY_ABI = parseAbi(["function resolver(bytes32 node) view returns (address)"]);
 const RESOLVER_ABI = parseAbi([
@@ -126,14 +132,22 @@ export async function readBasenameRecords(
   return { name: normalized, resolver, block, addresses };
 }
 
+/**
+ * Resolves a Basename for a transfer on `network`: that network's own
+ * address record first (ENSIP-11; coin type 8453 on Base), then the Ethereum
+ * address record Basenames sets by default. A record set for another network
+ * (e.g. a Base-only Safe) never pays a transfer on Arbitrum or Arc.
+ */
 export async function resolveBasenameEvidence(
   name: string,
+  network: NetworkId = "base",
+  client: PublicClient = basePublicClient as PublicClient,
 ): Promise<BasenameResolutionEvidence | null> {
   if (!name) return null;
   try {
-    // Base's own record first (ENSIP-11), then the Ethereum address record Basenames sets by default.
-    const records = await readBasenameRecords(name, [BASE_COIN_TYPE, ETH_COIN_TYPE]);
-    const address = records ? (records.addresses.get(BASE_COIN_TYPE) ?? records.addresses.get(ETH_COIN_TYPE) ?? null) : null;
+    const chainCoinType = evmCoinType(NETWORKS[network].chainId);
+    const records = await readBasenameRecords(name, [chainCoinType, ETH_COIN_TYPE], client);
+    const address = records ? (records.addresses.get(chainCoinType) ?? records.addresses.get(ETH_COIN_TYPE) ?? null) : null;
     if (records && address) {
       const observedAtMs = Date.now();
       return {

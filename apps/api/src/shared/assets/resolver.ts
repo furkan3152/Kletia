@@ -196,6 +196,7 @@ export interface AssetResolverDependencies {
   readonly checkBaseTokenSecurity?: (address: Address) => Promise<boolean>;
   readonly resolveBasename?: (
     name: string,
+    network?: NetworkId,
   ) => Promise<BasenameResolutionEvidence | null>;
   readonly now?: () => number;
 }
@@ -1261,6 +1262,7 @@ async function resolveRecipient(
   now: number,
   basenameResolver: (
     name: string,
+    network: NetworkId,
   ) => Promise<BasenameResolutionEvidence | null>,
 ): Promise<RecipientResolutionEvidence> {
   const raw = normalizeAssetReference(reference);
@@ -1288,7 +1290,8 @@ async function resolveRecipient(
       "Recipient must be a full EVM address or a resolvable .base.eth name.",
     );
   }
-  const result = await basenameResolver(raw);
+  // The record for the network the transfer runs on (a Base-only record never pays an Arbitrum or Arc transfer).
+  const result = await basenameResolver(raw, network);
   if (!result) {
     throw new EntityResolutionError(
       "BASENAME_UNRESOLVED",
@@ -1308,7 +1311,7 @@ async function resolveRecipient(
     crossNetworkIdentity: network !== "base",
     warning:
       network !== "base"
-        ? "Basename resolved on Base; Arc transaction will go to the same EVM address. Verify network and 0x recipient before signing."
+        ? `Basename resolved on Base; the ${NETWORKS[network].displayName} transaction will go to its ${NETWORKS[network].displayName} or Ethereum address record. Verify network and 0x recipient before signing.`
         : undefined,
   };
 }

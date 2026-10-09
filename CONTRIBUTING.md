@@ -104,3 +104,13 @@ npm run check:docs        # documentation or paths changed
 5. For value-bearing changes, include reproducible read-only evidence first. Never post secrets or unredacted sensitive logs.
 
 Reviewers should be able to answer: what changed, which network owns it, what authority it has, how failure behaves, what was verified, and what remains unproven.
+
+## Releasing the packages
+
+`@kletia/core`, `@kletia/sdk` and `@kletia/widget` share one version.
+
+1. Bump `version` in all three `packages/*/package.json` files and every `@kletia/*` dependency between them, then run `npm install` so the lockfile follows.
+2. Run `npm run build:packages && npm run test:packages && npm run check:packages`.
+3. Add a changelog entry, merge to `main`, then push a tag `packages-v<version>`.
+
+`.github/workflows/release-packages.yml` checks the tag against the manifests, tests and inspects the tarballs, and publishes in dependency order with npm provenance (repository secret `NPM_TOKEN`, environment `npm`).

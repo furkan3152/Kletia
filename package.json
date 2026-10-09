@@ -30,12 +30,13 @@
     "build:web": "npm run build:packages && npm run build -w @kletia/web",
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
-    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
+    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run check:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
     "build:packages": "npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget",
     "test:packages": "npm test -w @kletia/core && npm test -w @kletia/sdk",
     "test:api": "npm test -w @kletia/api",
     "start:api": "npm run start -w @kletia/api",
-    "postinstall": "npm run build:packages"
+    "postinstall": "npm run build:packages",
+    "check:packages": "node tooling/verify-packages.mjs"
   },
   "overrides": {
     "axios": "1.20.0",

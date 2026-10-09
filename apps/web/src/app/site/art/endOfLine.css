@@ -1,0 +1,136 @@
+/* End of the line (404): a buffer stop at a platform that does not exist,
+   drawn in elevation with the map's ink, paper and hard shadows. */
+
+.kla-eol {
+  display: block;
+  width: 100%;
+  height: auto;
+  --eol-ink: #1a1a1a;
+}
+.dark .kla-eol {
+  --eol-ink: #cbd5e1;
+}
+.kla-eol__ink-fill {
+  fill: var(--eol-ink);
+}
+.kla-eol__ground {
+  stroke: var(--eol-ink);
+  stroke-width: 3;
+}
+.kla-eol__platform {
+  fill: var(--kla-card);
+  stroke: var(--eol-ink);
+  stroke-width: 3;
+}
+.kla-eol__edge {
+  fill: #ffd60a;
+  stroke: var(--eol-ink);
+  stroke-width: 3;
+}
+.kla-eol__shine {
+  stroke: var(--kla-paper);
+  stroke-width: 2;
+  opacity: 0.55;
+}
+.kla-eol__grass {
+  fill: none;
+  stroke: var(--eol-ink);
+  stroke-width: 2;
+}
+.kla-eol__ballast {
+  opacity: 0.45;
+}
+.kla-eol__shadow {
+  fill: var(--kla-shadow);
+}
+.dark .kla-eol__shadow {
+  fill: #02050b;
+}
+.kla-eol__sign {
+  fill: #ffd60a;
+  stroke: #1a1a1a;
+  stroke-width: 3.5;
+}
+.kla-eol__sign-k {
+  font: 800 12px/1 var(--kla-font-mono);
+  letter-spacing: 0.32em;
+  fill: #1a1a1a;
+}
+.kla-eol__sign-n {
+  font: 700 46px/1 var(--kla-font-display);
+  letter-spacing: -0.04em;
+  fill: #1a1a1a;
+}
+.kla-eol__notice {
+  fill: #fffcf2;
+  stroke: #1a1a1a;
+  stroke-width: 2;
+}
+.kla-eol__notice-head {
+  fill: #1a1a1a;
+}
+.kla-eol__notice-k {
+  font: 800 7.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.2em;
+  fill: #ffd60a;
+}
+.kla-eol__notice-lines {
+  stroke: #1a1a1a;
+  stroke-width: 2.5;
+  opacity: 0.45;
+}
+.kla-eol__pin {
+  fill: #ff5a5f;
+  stroke: #1a1a1a;
+  stroke-width: 1;
+}
+.kla-eol__hazard-y {
+  fill: #ffd60a;
+}
+.kla-eol__hazard-k {
+  fill: #1a1a1a;
+}
+.kla-eol__beam {
+  stroke: #1a1a1a;
+  stroke-width: 3;
+}
+.kla-eol__buffer {
+  fill: var(--kla-card);
+  stroke: var(--eol-ink);
+  stroke-width: 3;
+}
+.kla-eol__lens {
+  fill: #ff5a5f;
+  stroke: #fffcf2;
+  stroke-width: 2;
+}
+.kla-eol__glow {
+  fill: none;
+  stroke: #ff5a5f;
+  stroke-width: 2;
+  stroke-dasharray: 3 4;
+  opacity: 0.7;
+}
+@keyframes kla-lamp {
+  50% {
+    fill: #7a2a2c;
+  }
+}
+@keyframes kla-glow {
+  50% {
+    opacity: 0;
+  }
+}
+.kla-eol--animate .kla-eol__lens {
+  animation: kla-lamp 1.4s steps(1, end) 5;
+}
+.kla-eol--animate .kla-eol__glow {
+  animation: kla-glow 1.4s steps(1, end) 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kla-eol--animate .kla-eol__lens,
+  .kla-eol--animate .kla-eol__glow {
+    animation: none;
+  }
+}

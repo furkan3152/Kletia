@@ -141,7 +141,6 @@ const VERBS = [
   "swap", "convert", "trade", "exchange", "sell", "buy", "bridge", "move", "send", "transfer", "pay", "port",
   "stake", "deposit", "supply", "lend", "withdraw", "redeem",
 ];
-const VERB_ALT = VERBS.join("|");
 
 const AMOUNT =
   "(?<amt>\\d{1,3}(?:\\.\\d{1,2})?%|\\$\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+|all|max|everything|it|them|that|half|a\\s+quarter|quarter)" +

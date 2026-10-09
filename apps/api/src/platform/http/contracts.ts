@@ -79,6 +79,7 @@ import { PlatformError, type PlatformIssue } from "../errors.js";
 import {
   buildEvent,
   configureContractDirectory,
+  contractDirectory,
   isEvmNetwork,
   proxyRefusalReason,
   type ActionTransport,
@@ -1651,13 +1652,14 @@ export function createContractDirectory(): ContractDirectory {
   };
 }
 
-let installed = false;
-
-/** Installs the directory into the engine (idempotent; called by createPlatformRouter). */
+/**
+ * Installs the directory into the engine (called by createPlatformRouter).
+ * Idempotent, and it never replaces a directory an embedder or a test
+ * installed (`configurePlatform({ contracts })`).
+ */
 export function installContractDirectory(): void {
-  if (installed) return;
+  if (contractDirectory() !== null) return;
   configureContractDirectory(createContractDirectory());
-  installed = true;
 }
 
 /* ================================================================== usage */

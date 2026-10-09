@@ -1,0 +1,116 @@
+/* Spec sheet: a blueprint in action blue, white line work and yellow for
+   the parts that belong to you. */
+
+.kla-spec-host {
+  container-type: inline-size;
+}
+.kla-spec {
+  display: block;
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  border: 3px solid var(--kla-ink);
+  box-shadow: 6px 6px 0 var(--kla-shadow);
+  --kla-spec-paper: #0052ff;
+}
+.dark .kla-spec {
+  --kla-spec-paper: #0a3cc2;
+}
+.kla-spec--portrait {
+  display: none;
+}
+@container (max-width: 559px) {
+  .kla-spec--landscape {
+    display: none;
+  }
+  .kla-spec--portrait {
+    display: block;
+    max-width: 440px;
+  }
+}
+.kla-spec__paper {
+  fill: var(--kla-spec-paper);
+}
+.kla-spec__grid {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+}
+.kla-spec__grid--major {
+  stroke: rgba(255, 255, 255, 0.2);
+}
+.kla-spec__frame {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1.5;
+}
+.kla-spec__box {
+  fill: rgba(255, 255, 255, 0.07);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+.kla-spec__box--yours {
+  fill: rgba(255, 214, 10, 0.12);
+  stroke: #ffd60a;
+  stroke-width: 2.5;
+}
+.kla-spec__tag {
+  font: 800 9px/1 var(--kla-font-mono);
+  letter-spacing: 0.18em;
+  fill: #ffd60a;
+}
+.kla-spec__title {
+  font: 800 14px/1 var(--kla-font-mono);
+  letter-spacing: 0.06em;
+  fill: #ffffff;
+}
+.kla-spec--portrait .kla-spec__title {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.kla-spec__sub {
+  font: 500 11.5px/1 var(--kla-font-body);
+  fill: rgba(255, 255, 255, 0.88);
+}
+.kla-spec--portrait .kla-spec__sub {
+  font-size: 11px;
+}
+.kla-spec__flow path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+.kla-spec__dashed {
+  stroke-dasharray: 6 4;
+}
+.kla-spec__head {
+  fill: #ffffff;
+}
+.kla-spec__note {
+  font: 600 10.5px/1 var(--kla-font-mono);
+  letter-spacing: 0.03em;
+  fill: #ffffff;
+  paint-order: stroke;
+  stroke: var(--kla-spec-paper);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.kla-spec__note--tight {
+  font-size: 9.5px;
+  letter-spacing: 0;
+}
+.kla-spec__note--block {
+  stroke-width: 0;
+}
+.kla-spec--portrait .kla-spec__note {
+  font-size: 10px;
+}
+.kla-spec--portrait .kla-spec__note--tight {
+  font-size: 9px;
+  letter-spacing: 0;
+}
+.kla-spec__block rect,
+.kla-spec__block path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}

@@ -207,7 +207,8 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
     declarations,
   };
 
-  // 3. Approvals (exact, pinned spender, only when short).
+  // 3. Approvals: exact and to the pinned spender. Stricter than "only when short": an allowance above the
+  // amount (an earlier unlimited approval) is lowered to exactly the amount, so the step can never pull more.
   const spender = snapshot.approvalSpender ? getAddress(snapshot.approvalSpender) : null;
   const approvals: { data: Hex; amount: bigint }[] = [];
   let existing: bigint | null = null;
@@ -215,7 +216,7 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
     existing = stage === "plan"
       ? await readAllowance(network, inputToken, account, spender).catch(() => 0n)
       : await readAllowance(network, inputToken, account, spender);
-    if (existing < amount) {
+    if (existing !== amount) {
       if (existing > 0n && needsApprovalReset(network, inputToken)) {
         approvals.push({ data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, 0n] }), amount: 0n });
       }
@@ -266,7 +267,7 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
       recipient,
       inputToken,
       outputToken,
-      spender: approvals.length > 0 ? spender : null,
+      spender,
       approvals: approvals.map((approval) => ({ from: account, to: inputToken as string, data: approval.data })),
       call: { from: account, to: target, data, value },
     });
@@ -376,7 +377,7 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
       }]
     : [];
   if (input && spender && amount !== null && approvals.length === 0 && existing !== null) {
-    warnings.push(`Uses the existing ${input.symbol} allowance of ${fromBaseUnits(existing, input.decimals)} for ${short(spender)}.`);
+    warnings.push(`Uses the existing ${input.symbol} allowance of exactly ${fromBaseUnits(existing, input.decimals)} for ${short(spender)}.`);
   }
   const at = new Date(options.now).toISOString();
   const simulationWarnings = evaluated ? [] : [simulationNote ?? "Simulation was unavailable at planning."];
@@ -397,7 +398,12 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
       ...(simulatedBlock !== null ? { block: simulatedBlock.toString() } : {}),
       assetChanges: flowsForReview ? await assetChangeRows(network, flowsForReview, true) : [],
       ...(evaluated ? { networkFee: await networkFee(network, gas, feesUsd) } : {}),
-      warnings: [...simulationWarnings, ...(overrides && evaluated && stage === "plan" ? ["Simulated with the step amount credited to the account (it arrives from an earlier step)."] : [])],
+      warnings: [
+        ...simulationWarnings,
+        ...(overrides && evaluated
+          ? [stage === "plan" ? "Simulated with the step amount credited to the account (it arrives from an earlier step)." : "Simulated with a balance override: the account holds less than the amount."]
+          : []),
+      ],
     },
     ...(thirdParty ? { thirdPartyRecipient: recipient } : {}),
   });

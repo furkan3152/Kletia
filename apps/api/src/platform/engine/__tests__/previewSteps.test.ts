@@ -124,6 +124,22 @@ describe("EVM step previews", () => {
     assert.equal(prepare.violations[0]?.rule, "I1");
   });
 
+  it("never asks a withdraw's wallet to hold the input (it comes out of the position)", async () => {
+    const { graph: planned, source } = await relayJob();
+    const withdraw: IntentStep = { ...(planned.steps[0] as IntentStep), kind: "withdraw", settlement: { kind: "same-network" } };
+    const graph: IntentGraph = { ...planned, steps: [withdraw] };
+    const job = buildEvmJobs(graph, new Map([["s1", source]]), "prepare")[0];
+    assert.ok(job);
+    const block = job.blocks[0];
+    assert.ok(block);
+    // The wallet holds none of the underlying before the step (the position does).
+    const results = block.calls.map(() => ({ status: "success" as const, returnData: word(0n), gasUsed: 30_000n, logs: [] as { address: string; topics: string[]; data: string }[] }));
+    const run: Extract<SimulatedJob, { status: "ok" }> = { status: "ok", job, block: 1n, endpoint: "test", blocks: [{ plan: block, calls: results as never, overridden: null, overrideMissing: false }], gasPrice: 1n, arbitrumL1: new Map(), at: Date.now() };
+    const built = await evmStepPreview({ ...context(graph, source, "prepare"), step: withdraw }, run, run.blocks[0] as never);
+    assert.equal(built.violations.some((violation) => violation.rule === "I6"), false);
+    assert.equal(built.needs.length, 0);
+  });
+
   it("ignores Polygon's 0x…1010 system logs", async () => {
     const { graph, job, source } = await relayJob();
     const system = { address: "0x0000000000000000000000000000000000001010", topics: [TRANSFER, topic(PROBE_USER), topic(DEPOSITORY)], data: word(5n) };
@@ -237,6 +253,37 @@ describe("Solana step previews", () => {
     assert.equal(sol?.expected.amount, (-(50_000_000n + 27_211n)).toString(), "0.05 SOL and the fee, the closed account's reserve included");
     assert.deepEqual(result.violations, [], "the input debit is exact once wrapped SOL is counted");
     assert.equal(result.step.fees.some((fee) => fee.kind === "rent"), false);
+  });
+
+  it("shows rent of accounts a venue creates as a fee and tolerates it only up to a cap", async () => {
+    configurePlatform({ adapters: STUB_ADAPTERS });
+    const graph = (await planIntentWithPreviews({ text: "swap 1 SOL to USDC", accounts: ACCOUNTS })).graph;
+    const step = { ...(graph.steps[0] as IntentStep), status: "awaiting_signature" as const };
+    const credit = BigInt(step.expectedOutput?.amount ?? "0");
+    const ORDER = "Ord1111111111111111111111111111111111111111";
+    const simulate = (orderRent: number) => () => ({
+      context: { slot: 1 },
+      value: {
+        err: null,
+        fee: 5_000,
+        preBalances: [3_000_000_000, 1, 0, 2_039_280],
+        postBalances: [3_000_000_000 - 1_000_000_000 - 5_000 - orderRent, 1, orderRent, 2_039_280],
+        preTokenBalances: [{ accountIndex: 3, mint: USDC_SOL, owner: SOL_ADDRESS, uiTokenAmount: { amount: "0", decimals: 6 } }],
+        postTokenBalances: [{ accountIndex: 3, mint: USDC_SOL, owner: SOL_ADDRESS, uiTokenAmount: { amount: credit.toString(), decimals: 6 } }],
+        loadedAddresses: { writable: [ORDER, ATA], readonly: [] },
+        innerInstructions: [],
+      },
+    });
+    const transaction: TransactionRequest = { vm: "svm", network: "solana", feePayer: SOL_ADDRESS, transaction: unsignedSolanaTransaction(SOL_ADDRESS, JUPITER_PROGRAM), encoding: "base64", description: "swap" };
+    chain.world.solanaSimulation = simulate(5_000_000);
+    const small = await previewPreparedStep(graph, step, { transactions: [transaction], quoteBinding: "ef".repeat(32) }, { simulate: true });
+    assert.deepEqual(small.violations, []);
+    assert.deepEqual(small.step.fees.map((fee) => [fee.kind, fee.label, fee.amount, fee.paid]), [["network", "Solana network fee", "5000", "on-top"], ["rent", "Account rent (venue accounts)", "5000000", "on-top"]]);
+    chain.world.solanaSimulation = simulate(40_000_000);
+    await assert.rejects(
+      previewPreparedStep(graph, step, { transactions: [transaction], quoteBinding: "ef".repeat(32) }, { simulate: true }),
+      (error: { code?: string }) => error.code === "SIMULATION_ASSET_CHANGE_REFUSED",
+    );
   });
 
   it("keeps a Solana step funded by a pending bridge quoted (no Solana override exists)", async () => {

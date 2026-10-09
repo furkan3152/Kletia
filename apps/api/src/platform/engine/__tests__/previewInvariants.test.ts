@@ -5,7 +5,8 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { CHAINS, type IntentStep } from "@kletia/core";
+import { aggregatePreview, CHAINS, type IntentGraph, type IntentStep, type StepPreview } from "@kletia/core";
+import { materialPreviewChanges } from "../preview/index.js";
 import { PlatformError } from "../../errors.js";
 import {
   assertInvariants,
@@ -171,5 +172,43 @@ describe("Solana invariants", () => {
     assert.equal(solanaViolations({ ...base, tokenDeltas: new Map([[MINT, 149_000_000n], ["So1other1111111111111111111111111111111111", -5n]]) }, solRules)[0]?.rule, "I3");
     assert.equal(solanaViolations({ ...base, tokenDeltas: new Map([[MINT, 1n]]) }, solRules)[0]?.rule, "I5");
     assert.equal(solanaViolations({ ...base, balanceBefore: 1n }, solRules)[0]?.rule, "I6");
+  });
+});
+
+describe("material change at prepare", () => {
+  const USER_SOL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+  const account = `${CHAINS.solana.id}:${USER_SOL}`;
+  const SOL = `${CHAINS.solana.id}/slip44:501`;
+  const graph = {
+    id: "int_0123456789abcdef0123456789abcdef",
+    request: { accounts: [account] },
+    steps: [{ id: "s1", account, settlement: { kind: "same-network" } }],
+  } as unknown as IntentGraph;
+  const amount = (value: bigint) => ({ amount: value.toString(), formatted: value.toString() });
+  const step = (sol: bigint, fees: StepPreview["fees"]): StepPreview => ({
+    stepId: "s1",
+    network: "solana",
+    kind: "swap",
+    status: "simulated",
+    at: "2026-10-09T00:00:00.000Z",
+    deltas: [{ network: "solana", account: account as never, asset: SOL as never, symbol: "SOL", decimals: 9, listed: true, expected: amount(sol), worst: amount(sol), certainty: "simulated", steps: ["s1"], role: "you" }],
+    payments: [],
+    fees,
+    approvals: [],
+    issues: [],
+  });
+  const native = { asset: SOL as never, symbol: "SOL", decimals: 9 };
+
+  it("judges network fees and account rent apart from the amounts (a quoted plan knew neither)", () => {
+    const before = aggregatePreview(graph, [step(-1_000_000_000n, [])], {}, 0);
+    const after = aggregatePreview(graph, [step(-1_000_000_000n - 5_000n - 2_039_280n, [
+      { stepId: "s1", network: "solana", kind: "network", label: "fee", asset: native, amount: "5000", paid: "on-top", certainty: "simulated" },
+      { stepId: "s1", network: "solana", kind: "rent", label: "rent", asset: native, amount: "2039280", paid: "refundable", certainty: "simulated" },
+    ])], {}, 0);
+    assert.deepEqual(materialPreviewChanges(before, after, graph), []);
+    const worse = aggregatePreview(graph, [step(-1_100_000_000n - 5_000n, [
+      { stepId: "s1", network: "solana", kind: "network", label: "fee", asset: native, amount: "5000", paid: "on-top", certainty: "simulated" },
+    ])], {}, 0);
+    assert.deepEqual(materialPreviewChanges(before, worse, graph).map((change) => change.code), ["PREVIEW_WORSE_AMOUNT"]);
   });
 });

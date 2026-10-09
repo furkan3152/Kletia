@@ -11,9 +11,9 @@
  *   `events` subscribes to every type that exists at creation time, so older
  *   webhooks never start receiving types added later.
  */
-import { CONTRACT_EVENT_TYPES, type ContractEventType } from "@kletia/core";
+import { CONTRACT_EVENT_TYPES, RECEIPT_EVENT_TYPE, type ContractEventType } from "@kletia/core";
 import { PlatformError } from "../errors.js";
-import type { IntentEventType } from "../index.js";
+import type { IntentEventType, ReceiptEventType } from "../index.js";
 import { HttpError, invalidRequest, isRecord } from "./context.js";
 import { dbQuery, dbTransaction, platformDatabaseUrl } from "./db.js";
 import { assertPublicWebhookUrl } from "./netguard.js";
@@ -26,11 +26,15 @@ const EVENT_TYPE_SET: Readonly<Record<IntentEventType, true>> = {
   "intent.step_updated": true,
 };
 
-/** Intent events (routed by the intent's key) and contract events (routed by the registration's key). */
-export type WebhookEventType = IntentEventType | ContractEventType;
+/**
+ * Intent events and `intent.receipt_issued` (routed by the intent's key) and
+ * contract events (routed by the registration's key).
+ */
+export type WebhookEventType = IntentEventType | ReceiptEventType | ContractEventType;
 
 export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = Object.freeze([
   ...(Object.keys(EVENT_TYPE_SET) as IntentEventType[]),
+  RECEIPT_EVENT_TYPE,
   ...CONTRACT_EVENT_TYPES,
 ]);
 

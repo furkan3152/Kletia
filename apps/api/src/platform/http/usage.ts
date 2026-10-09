@@ -12,7 +12,8 @@
  * The report adds the caller's live rate-limit window from this process's
  * limiter, the intents the key created in the window, by status, and its
  * custom contract activity (registrations, suspensions, and today's prepared
- * custom contract steps with their priced notional, UTC day).
+ * custom contract steps with their priced notional, UTC day) and its receipts
+ * (issued in the window, waiting, active shares).
  */
 import type { Request, RequestHandler } from "express";
 import type { RateLimitRequestHandler } from "express-rate-limit";
@@ -22,6 +23,7 @@ import { contractUsage, type ContractUsage } from "./contracts.js";
 import { authOf, invalidRequest, queryParam } from "./context.js";
 import { dbQuery, platformDatabaseUrl } from "./db.js";
 import { TIER_LIMITS } from "./limits.js";
+import { receiptStore } from "./receipts/store.js";
 
 export const USAGE_FLUSH_INTERVAL_MS = 30_000;
 const LAST_USED_INTERVAL_MS = 60_000;
@@ -259,6 +261,8 @@ export interface UsageReport {
   readonly series: readonly { readonly hour: string; readonly requests: number }[];
   readonly intents: { readonly created: number; readonly byStatus: Readonly<Record<string, number>> };
   readonly contracts: ContractUsage;
+  /** Receipts of the key's intents: issued in the window, intents waiting for one, active shares. */
+  readonly receipts: { readonly issued: number; readonly pending: number; readonly sharesActive: number };
 }
 
 export function parseUsageWindow(req: Request): UsageWindow {
@@ -325,6 +329,7 @@ export async function usageReport(
 
   const intents = await intentCounts(auth.keyId, since);
   const contracts = await contractUsage(auth.keyId);
+  const receipts = await receiptStore().ownerCounts(auth.keyId, since, new Date(now).toISOString());
   return {
     keyId: auth.keyId,
     tier: auth.tier,
@@ -339,5 +344,6 @@ export async function usageReport(
     series: [...series.entries()].map(([hour, count]) => ({ hour, requests: count })),
     intents: { created: Object.values(intents).reduce((sum, count) => sum + count, 0), byStatus: intents },
     contracts,
+    receipts,
   };
 }

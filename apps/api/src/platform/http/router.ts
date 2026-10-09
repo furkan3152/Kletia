@@ -80,6 +80,11 @@ import { mcpOriginGuard } from "./mcp/origin.js";
 import { serveMcp } from "./mcp/server.js";
 import { openApiJson } from "./openapi.js";
 import { rememberIntentOwner } from "./owners.js";
+import { assertNoPreviewBody, installPreviewStore, latestPreview, parsePrepareBody, parseQuotesQuery, PREVIEW_ACK_HEADER, recomputePreview, startPreviewPruner } from "./preview.js";
+import { startReceiptEventBuffer } from "./receipts/events.js";
+import { receiptHandlers } from "./receipts/handlers.js";
+import { startReceiptIssuer } from "./receipts/issuer.js";
+import { startReceiptLog } from "./receipts/log.js";
 import { platformSecretStatus } from "./secrets.js";
 import { createSession, createSessionIntent, getSession, startSessionPruner } from "./sessions.js";
 import { streamIntentEvents, type StreamOptions } from "./sse.js";
@@ -115,6 +120,23 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/intents/:id/refresh", auth: "public" },
   { method: "post", path: "/intents/:id/cancel", auth: "public" },
   { method: "get", path: "/intents/:id/events", auth: "public" },
+  { method: "post", path: "/intents/:id/preview", auth: "public" },
+  { method: "get", path: "/intents/:id/preview", auth: "public" },
+  { method: "get", path: "/intents/:id/receipt", auth: "public" },
+  { method: "get", path: "/intents/:id/receipts", auth: "public" },
+  { method: "post", path: "/intents/:id/receipt/shares", auth: "public" },
+  { method: "get", path: "/intents/:id/receipt/shares", auth: "public" },
+  { method: "delete", path: "/intents/:id/receipt/shares/:shareId", auth: "public" },
+  { method: "delete", path: "/intents/:id/receipt/disclosures", auth: "public" },
+  // Before /receipts/:receiptId, which would otherwise capture "keys" and "log".
+  { method: "get", path: "/receipts/keys", auth: "public" },
+  { method: "get", path: "/receipts/log", auth: "public" },
+  { method: "get", path: "/receipts/log/inclusion", auth: "public" },
+  { method: "get", path: "/receipts/log/:seq", auth: "public" },
+  { method: "post", path: "/receipts/log/:seq/anchor", auth: "operator" },
+  { method: "get", path: "/receipts/:receiptId", auth: "public" },
+  { method: "get", path: "/receipts/:receiptId/status", auth: "public" },
+  { method: "get", path: "/receipts/:receiptId/shares/:shareId", auth: "public" },
   { method: "post", path: "/webhooks", auth: "key" },
   { method: "get", path: "/webhooks", auth: "key" },
   { method: "delete", path: "/webhooks/:id", auth: "key" },
@@ -492,16 +514,23 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       idempotent({ route: "POST /intents", applies: (req) => !isDryRun(req) }),
       handle(async (req, res) => {
         const dryRun = booleanQuery(req, "dryRun");
+        // ?preview=true: also the plan-stage asset-change preview (never stored in the intent).
+        const withPreview = booleanQuery(req, "preview");
         const owner = authOf(req).keyId;
-        const { intent, replayed } = await createIntentDetailed(req.body, { ...(owner ? { ownerKeyId: owner } : {}), dryRun });
+        const { intent, replayed, preview } = await createIntentDetailed(req.body, {
+          ...(owner ? { ownerKeyId: owner } : {}),
+          dryRun,
+          ...(withPreview ? { preview: true } : {}),
+        });
+        const body = { intent, ...(preview ? { preview } : {}) };
         if (dryRun) {
-          sendJson(res, 200, { intent });
+          sendJson(res, 200, body);
           return;
         }
         rememberIntentOwner(intent.id, owner);
         // A repeated clientReference returns the intent stored by the earlier request.
         if (replayed) res.setHeader("Idempotent-Replayed", "true");
-        sendJson(res, replayed ? 200 : 201, { intent });
+        sendJson(res, replayed ? 200 : 201, body);
       }),
     ],
     "get /intents": [
@@ -521,8 +550,11 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       handle(async (req, res) => {
         const id = intentIdParam(req);
         const stepId = stepIdParam(req);
-        const { intent, payload } = await prepareStep(id, stepId);
-        sendJson(res, 200, { payload, intent });
+        // Optional { acknowledgedPreview }: a materially worse payload is refused with 409 PREVIEW_CHANGED.
+        const options = parsePrepareBody(req.body);
+        const { intent, payload, preview, previewAck } = await prepareStep(id, stepId, options);
+        if (previewAck) res.setHeader(PREVIEW_ACK_HEADER, previewAck);
+        sendJson(res, 200, { payload, intent, ...(preview ? { preview } : {}), ...(previewAck ? { previewAck } : {}) });
       }),
     ],
     "post /intents/:id/steps/:stepId/submit": [
@@ -550,6 +582,20 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         await streamIntentEvents(req, res, options.stream);
       }),
     ],
+    "post /intents/:id/preview": [
+      handle(async (req, res) => {
+        const id = intentIdParam(req);
+        const refreshQuotes = parseQuotesQuery(req);
+        assertNoPreviewBody(req.body);
+        sendJson(res, 200, { preview: await recomputePreview(id, refreshQuotes) });
+      }),
+    ],
+    "get /intents/:id/preview": [
+      handle(async (req, res) => {
+        sendJson(res, 200, { preview: await latestPreview(intentIdParam(req)) });
+      }),
+    ],
+    ...receiptHandlers(),
     "post /webhooks": [
       requireApiKey,
       idempotent({ route: "POST /webhooks", secret: true }),
@@ -602,6 +648,9 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   installNameResolvers();
   // The engine resolves integrator contract registrations through this directory (idempotent).
   installContractDirectory();
+  // Previews persist in Postgres when a database is configured; receipt events are buffered for SSE replay.
+  installPreviewStore();
+  startReceiptEventBuffer();
   // Boot-time configuration: operator key hashes and the webhook sealing key.
   loadOperatorKeys();
   platformSecretStatus();
@@ -646,8 +695,9 @@ let stopBackground: (() => void) | null = null;
 
 /**
  * Starts the settlement poller, the webhook dispatcher, the usage flusher,
- * the contract pin watcher and the hourly pruning of idempotency records,
- * delivery logs and expired sessions, once per process. Returns an idempotent stop function. Call it on long-running
+ * the contract pin watcher, the receipt issuer and transparency log, and the
+ * hourly pruning of idempotency records, delivery logs, expired sessions and
+ * previews, once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
  * per request and expired rows wait for a long-running instance).
  */
@@ -661,6 +711,9 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startDeliveryPruner(),
     startContractWatcher(),
     startSessionPruner(),
+    startPreviewPruner(),
+    startReceiptIssuer(),
+    startReceiptLog(),
   ];
   const stop = () => {
     if (stopBackground !== stop) return;

@@ -1,7 +1,8 @@
 /**
  * MCP tools served at /v1/mcp. Every tool is read-only: it reads registries,
- * quotes, dry-run plans, intents, balances or the caller's contract
- * registrations through the same engine calls as the REST handlers. No tool
+ * quotes, dry-run plans, intents, balances, previews, receipts or the
+ * caller's contract registrations through the same engine calls as the REST
+ * handlers. No tool
  * prepares, signs, submits or stores anything, and no calldata reaches an
  * agent; `create_signing_link` hands the user a Studio link to plan and sign
  * with their own wallet. Custom contract steps (registered with the caller's
@@ -41,6 +42,7 @@ import { createContractDirectory, getContract, keyContext, listContracts, parseC
 import { contractTestLimiter } from "../limits.js";
 import { PlatformError } from "../../errors.js";
 import { errorDocsLink } from "../errorsRoute.js";
+import { GET_RECEIPT_TOOL, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
 
 type JsonSchema = Record<string, unknown>;
@@ -467,13 +469,15 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
         throw invalidRequest("Provide text or actions.", [{ path: "text", message: "Required unless actions are given." }]);
       }
       // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run.
-      const { intent } = await createIntentDetailed(args, { dryRun: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+      const { intent, preview } = await createIntentDetailed(args, { dryRun: true, preview: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
       return {
         dryRun: true,
         summary: summaryView(intent),
         steps: intent.steps.map(stepView),
         warnings: intent.warnings,
         externalRecipients: externalRecipients(intent),
+        // The fare breakdown (stage plan): what leaves the user's wallets, what arrives, fees and needs.
+        ...(preview ? { preview: previewSummary(preview) } : {}),
         expiresAt: intent.expiresAt,
         next: "Nothing was stored. To execute, call create_signing_link with the same text and give the link to the user.",
       };
@@ -481,7 +485,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   },
   {
     name: "get_intent",
-    description: "Read a stored intent by id: status, steps, amounts, recipients and on-chain evidence.",
+    description: "Read a stored intent by id: status, steps, amounts, recipients, on-chain evidence and whether its verifiable receipt is issued.",
     inputSchema: {
       type: "object",
       properties: { intentId: { type: "string", pattern: INTENT_ID_PATTERN.source, description: "int_ followed by 32 hex characters." } },
@@ -501,6 +505,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
         steps: intent.steps.map(stepView),
         warnings: intent.warnings,
         externalRecipients: externalRecipients(intent),
+        receipt: await receiptLine(intent.id),
       };
     },
   },
@@ -626,6 +631,8 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
       return testView(await testContract(await keyContext(caller.tier, keyId), id, parsed.value));
     },
   },
+  PREVIEW_INTENT_TOOL,
+  GET_RECEIPT_TOOL,
 ] satisfies KletiaTool[]);
 
 function textOf(value: Record<string, unknown>): string {

@@ -34,6 +34,8 @@ import { IDEMPOTENCY_LOCK_MS, IDEMPOTENCY_TTL_MS } from "./idempotency.js";
 import { API_KEY_ID_PATTERN, DEFAULT_ROTATION_GRACE_SECONDS, MAX_ACTIVE_KEYS_PER_PROJECT, MAX_ROTATION_GRACE_SECONDS } from "./keys.js";
 import { CONTRACT_TESTS_PER_MINUTE, CONTRACT_WRITES_PER_HOUR, KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
 import { HANDOFF_MAX_TEXT } from "./mcp/handoff.js";
+import { PREVIEW_ACK_HEADER_SCHEMA, previewPaths, previewSchemas } from "./previewOpenapi.js";
+import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES } from "./webhooks.js";
@@ -861,6 +863,11 @@ function schemas(): JsonObject {
         summary: ref("IntentSummary"),
         warnings: arrayOf(str()),
         metadata: { type: "object", additionalProperties: str() },
+        plan: obj(
+          { digest: str({ pattern: "^[0-9a-f]{64}$" }), record: ref("PlanRecord") },
+          ["digest", "record"],
+          { description: "The plan as created, recorded once (receipts commit to it); prepare never changes it." },
+        ),
       },
       ["spec", "id", "createdAt", "updatedAt", "expiresAt", "status", "request", "interpretation", "steps", "edges", "summary", "warnings"],
     ),
@@ -907,6 +914,7 @@ function schemas(): JsonObject {
         expiresAt: int({ description: "Unix seconds; prepare again after this." }),
         quoteBinding: str(),
         review: { ...ref("ContractReview"), description: "Custom contract steps: the review of exactly these transactions. Show it to the user before handing the transactions to the wallet." },
+        preview: { ...ref("StepPreview"), description: "The simulated (or quoted) effect of exactly these transactions; `preview.quoteBinding` equals `quoteBinding`." },
       },
       ["vm", "transactions", "expiresAt", "quoteBinding"],
     ),
@@ -980,13 +988,14 @@ function schemas(): JsonObject {
       { description: "Contract registration lifecycle, delivered to the webhooks of the registration's own key only." },
     ),
     KletiaEvent: {
-      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ContractEvent")],
+      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ReceiptIssuedEvent"), ref("ContractEvent")],
       discriminator: {
         propertyName: "type",
         mapping: {
           "intent.created": "#/components/schemas/IntentCreatedEvent",
           "intent.status_changed": "#/components/schemas/IntentStatusChangedEvent",
           "intent.step_updated": "#/components/schemas/IntentStepUpdatedEvent",
+          "intent.receipt_issued": "#/components/schemas/ReceiptIssuedEvent",
           ...Object.fromEntries(CONTRACT_EVENT_TYPES.map((type) => [type, "#/components/schemas/ContractEvent"])),
         },
       },
@@ -1231,8 +1240,19 @@ function schemas(): JsonObject {
           },
           ["enabled", "simulation"],
         ),
+        receipts: obj(
+          {
+            signer: str({ enum: ["configured", "development", "missing", "disabled"], description: "`missing`: receipts queue until a signing key is configured; `disabled`: the kill switch is on." }),
+            store: str({ enum: ["memory", "postgres", "unavailable"] }),
+            queue: { type: ["integer", "null"], minimum: 0, description: "Intents waiting for a receipt (finality, retries, a missing key)." },
+            oldestPendingSeconds: { type: ["integer", "null"], minimum: 0 },
+            lastBatch: { oneOf: [obj({ seq: int({ minimum: 1 }), anchored: bool() }, ["seq", "anchored"]), { type: "null" }] },
+          },
+          ["signer", "store", "queue", "oldestPendingSeconds", "lastBatch"],
+        ),
+        preview: obj({ store: str({ enum: ["memory", "postgres", "custom"] }) }, ["store"]),
       },
-      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "webhooks", "contracts"],
+      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "webhooks", "contracts", "receipts", "preview"],
     ),
 
     Webhook: obj(
@@ -1372,8 +1392,13 @@ function schemas(): JsonObject {
           ["registered", "suspended", "preparedToday", "notionalTodayUsd"],
           { description: "The key's contract registrations and today's custom contract activity." },
         ),
+        receipts: obj(
+          { issued: int({ minimum: 0 }), pending: int({ minimum: 0 }), sharesActive: int({ minimum: 0 }) },
+          ["issued", "pending", "sharesActive"],
+          { description: "Receipts of the key's intents issued in the window, intents waiting for one, and active shares." },
+        ),
       },
-      ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents", "contracts"],
+      ["keyId", "tier", "window", "since", "generatedAt", "rateLimit", "totals", "byRoute", "series", "intents", "contracts", "receipts"],
     ),
     ShieldsBadge: obj(
       {
@@ -1425,10 +1450,24 @@ function schemas(): JsonObject {
     ),
 
     ...contractSchemas(),
+    ...previewSchemas(),
+    ...receiptSchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
+    IntentCreateResponse: obj(
+      { intent: ref("IntentGraph"), preview: { ...ref("IntentPreview"), description: "With `preview=true`: the plan-stage asset-change preview (stage `plan`)." } },
+      ["intent"],
+    ),
     IntentListResponse: obj({ intents: arrayOf(ref("IntentGraph")) }, ["intents"]),
-    PreparedStepResponse: obj({ payload: ref("StepExecutionPayload"), intent: ref("IntentGraph") }, ["payload", "intent"]),
+    PreparedStepResponse: obj(
+      {
+        payload: ref("StepExecutionPayload"),
+        intent: ref("IntentGraph"),
+        preview: { ...ref("IntentPreview"), description: "The whole intent with this step freshly simulated (stage `prepare`)." },
+        previewAck: str({ enum: ["matched", "unknown"], description: "Present when `acknowledgedPreview` was sent (also in the response header)." }),
+      },
+      ["payload", "intent"],
+    ),
     NetworksResponse: obj({ networks: arrayOf(ref("NetworkCapabilities")) }, ["networks"]),
     ProtocolsResponse: obj({ protocols: arrayOf(ref("Protocol")) }, ["protocols"]),
     AssetsResponse: obj({ assets: arrayOf(ref("Asset")) }, ["assets"]),
@@ -1611,11 +1650,21 @@ function paths(): JsonObject {
         description:
           "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200)." +
           IDEMPOTENCY_NOTE,
-        parameters: [{ name: "dryRun", in: "query", required: false, schema: str({ enum: ["true", "false", "1", "0"] }) }, idempotencyKeyParam],
+        parameters: [
+          { name: "dryRun", in: "query", required: false, schema: str({ enum: ["true", "false", "1", "0"] }) },
+          {
+            name: "preview",
+            in: "query",
+            required: false,
+            description: "Also return the asset-change preview (stage `plan`), simulated from the transactions the quotes already returned; never a failed create (unsimulated steps are quoted).",
+            schema: str({ enum: ["true", "false", "1", "0"] }),
+          },
+          idempotencyKeyParam,
+        ],
         requestBody: jsonBody("IntentRequest"),
         responses: {
-          "201": ok("IntentResponse", "Intent planned and stored.", REPLAYED_HEADER),
-          "200": ok("IntentResponse", "Dry run, or idempotent replay of an existing intent.", REPLAYED_HEADER),
+          "201": ok("IntentCreateResponse", "Intent planned and stored.", REPLAYED_HEADER),
+          "200": ok("IntentCreateResponse", "Dry run, or idempotent replay of an existing intent.", REPLAYED_HEADER),
           ...errors("409", "413", "415", "422", "502", "504"),
         },
       },
@@ -1643,9 +1692,10 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Build wallet-ready transactions for a ready step",
         description:
-          "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED.",
+          "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED. The payload is simulated before it is handed out (`payload.preview`, and the whole intent in `preview`); a payload whose simulated effect differs from its step is refused (SIMULATION_FAILED, SIMULATION_ASSET_CHANGE_REFUSED, QUOTE_MOVED, INSUFFICIENT_BALANCE). Send `acknowledgedPreview` (the digest of the preview the user approved): a materially worse payload answers 409 PREVIEW_CHANGED with `error.preview`; an unknown digest is not an error (`Kletia-Preview-Ack: unknown`).",
         parameters: [intentIdParam, stepIdParam],
-        responses: { "200": ok("PreparedStepResponse", "Payload and updated intent."), ...errors("404", "409", "410", "422", "502", "504") },
+        requestBody: { required: false, content: { "application/json": { schema: ref("PrepareStepRequest") } } },
+        responses: { "200": ok("PreparedStepResponse", "Payload, updated intent and preview.", PREVIEW_ACK_HEADER_SCHEMA), ...errors("404", "409", "410", "422", "502", "503", "504") },
       },
     },
     "/v1/intents/{id}/steps/{stepId}/submit": {
@@ -1705,6 +1755,8 @@ function paths(): JsonObject {
         },
       },
     },
+    ...previewPaths(),
+    ...receiptPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2064,6 +2116,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Portfolio", description: "Balances of one CAIP-10 account." },
       { name: "Intents", description: "Plan, prepare, submit, verify and cancel intents." },
       { name: "Events", description: "Server-Sent Events per intent." },
+      { name: "Receipts", description: "Signed, privacy-preserving receipts of finished intents, verifiable offline and re-checkable on-chain; shares, keys and the transparency log." },
       { name: "Webhooks", description: "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs." },
       { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
       { name: "Usage", description: "Per-key request counts and rate-limit state." },
@@ -2078,7 +2131,7 @@ export function buildOpenApiDocument(): JsonObject {
           operationId: "receiveIntentEvent",
           summary: "Intent event delivery",
           description:
-            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile.",
+            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile. `intent.receipt_issued` is sent once a receipt is issued (after every reference is finalized; ids and digest only); webhooks created before it existed do not receive it unless re-created.",
           parameters: [
             { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
             { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
@@ -2151,19 +2204,19 @@ export function buildOpenApiDocument(): JsonObject {
         BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
         Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, NOT_FOUND)."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, ...)."),
-        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED)."),
+        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, NOT_FOUND)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, ...)."),
+        Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },
         },
         InternalError: errorResponse("Unexpected error (INTERNAL_ERROR)."),
         BadGateway: errorResponse("An upstream provider or RPC failed (PROVIDER_UNAVAILABLE, RPC_UNAVAILABLE, ACTION_ENDPOINT_UNAVAILABLE)."),
-        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE)."),
+        Unavailable: errorResponse("Storage or a feature is unavailable (STORE_UNAVAILABLE, also when a presented API key cannot be verified; WEBHOOKS_NOT_CONFIGURED, CONTRACTS_DISABLED, SIMULATION_UNAVAILABLE, RECEIPTS_DISABLED)."),
         GatewayTimeout: errorResponse("An upstream provider timed out (UPSTREAM_TIMEOUT, RPC_TIMEOUT)."),
       },
       schemas: schemas(),

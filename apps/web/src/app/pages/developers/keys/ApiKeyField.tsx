@@ -30,8 +30,8 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
           {label}
         </label>
         {key ? (
-          <Badge tone="yellow" title="Held in this tab's memory only">
-            {maskKey(key)} in memory
+          <Badge tone="yellow" title="Held in this tab's memory only" className="!tracking-[0.08em]">
+            <span className="font-code normal-case">{maskKey(key)}</span> in memory
           </Badge>
         ) : (
           <Badge tone="neutral">Public tier</Badge>

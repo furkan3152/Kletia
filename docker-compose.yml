@@ -1,0 +1,68 @@
+# Self-hosted Kletia for local evaluation: PostgreSQL + API + web.
+#
+#   KLETIA_PLATFORM_SECRET=$(openssl rand -hex 32) docker compose up --build
+#
+# Web: http://localhost:10000   API: http://localhost:3001 (/api and /v1)
+#
+# The API runs in development mode here so the browser may call it over local
+# HTTP. For a public deployment use HTTPS origins, NODE_ENV=production,
+# CORS_ORIGINS and your own RPC endpoints (see docs/deployment/self-hosting.md).
+name: kletia
+
+services:
+  postgres:
+    image: postgres:16.10-alpine3.22
+    environment:
+      POSTGRES_DB: kletia
+      POSTGRES_USER: kletia
+      POSTGRES_PASSWORD: ${KLETIA_POSTGRES_PASSWORD:-kletia-local-only}
+    volumes:
+      - kletia-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kletia -d kletia"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+      KLETIA_DATABASE_URL: postgres://kletia:${KLETIA_POSTGRES_PASSWORD:-kletia-local-only}@postgres:5432/kletia
+      KLETIA_PLATFORM_SECRET: ${KLETIA_PLATFORM_SECRET:?Set KLETIA_PLATFORM_SECRET (openssl rand -hex 32)}
+      KLETIA_OPERATOR_API_KEYS: ${KLETIA_OPERATOR_API_KEYS:-}
+      BASE_RPC_URL: ${BASE_RPC_URL:-}
+      ARBITRUM_RPC_URL: ${ARBITRUM_RPC_URL:-}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
+      JUPITER_API_KEY: ${JUPITER_API_KEY:-}
+      RELAY_API_KEY: ${RELAY_API_KEY:-}
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_BACKEND_URL: http://localhost:3001
+        VITE_ALLOW_LOCAL_BACKEND: "true"
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "10000:10000"
+
+volumes:
+  kletia-postgres:

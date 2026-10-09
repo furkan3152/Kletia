@@ -515,7 +515,7 @@ function dlnPreview(action: AdapterAction, order: CheckedOrder): PlannedStepPrev
     transactions: dlnEvmTransactions(action, action.network, order),
     approvalSpender: order.source.toLowerCase(),
     ...(protocolFee !== null && protocolFee > 0
-      ? { venueFees: [{ kind: "venue" as const, label: "deBridge protocol fee", usd: protocolFee, paid: "deducted" as const, certainty: "quoted" as const }] }
+      ? { venueFees: [{ kind: "venue" as const, label: "deBridge protocol fee", usd: Math.round(protocolFee * 1e6) / 1e6, paid: "deducted" as const, certainty: "quoted" as const }] }
       : {}),
     expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS,
   };

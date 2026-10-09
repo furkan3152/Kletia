@@ -86,7 +86,11 @@ describe("API key projects", () => {
     assert.equal(keys.find((key) => key.id === sibling.id)?.current, false);
     const serialized = JSON.stringify(keys);
     assert.ok(!serialized.includes(root.key) && !serialized.includes(sibling.key), "secrets are never listed");
-    assert.deepEqual(Object.keys(self ?? {}).sort(), ["createdAt", "current", "id", "last4", "lastUsedAt", "name", "previousExpiresAt", "revokedAt", "rotatedAt", "tier"]);
+    assert.deepEqual(Object.keys(self ?? {}).sort(), [
+      "createdAt", "current", "depth", "descendants", "expiresAt", "id", "kind", "last4", "lastUsedAt", "name", "parentId", "policyVersion",
+      "previousExpiresAt", "revokedAt", "rotatedAt", "tier",
+    ]);
+    assert.equal((self as unknown as { kind?: string }).kind, "project");
     // A key issued without a key starts its own project.
     const stranger = await issue(server, "stranger");
     assert.deepEqual((await list(server, stranger.key)).map((key) => key.id), [stranger.id]);

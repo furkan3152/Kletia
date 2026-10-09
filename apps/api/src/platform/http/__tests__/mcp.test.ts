@@ -134,27 +134,39 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     assert.equal(meta?.["io.modelcontextprotocol/serverInfo"]?.name, "kletia");
   });
 
-  it("lists only read-only tools, including the signing hand-off", async () => {
+  it("lists read-only tools (plus the two keyed creators), including the signing hand-off", async () => {
     const reply = await rpc("tools/list");
     assert.equal(reply.status, 200, JSON.stringify(reply.body));
     const tools = (reply.body.result?.tools ?? []) as { name: string; annotations?: Record<string, unknown>; inputSchema: { type: string } }[];
     const names = tools.map((tool) => tool.name).sort();
     assert.deepEqual(names, [
+      "check_intent",
+      "create_intent",
+      "create_link",
       "create_signing_link",
+      "get_approval",
       "get_contract",
       "get_intent",
+      "get_link",
+      "get_policy",
       "get_portfolio",
       "get_quote",
+      "get_receipt",
       "list_assets",
       "list_contracts",
       "list_intents",
+      "list_links",
       "list_networks",
       "list_protocols",
       "plan_intent",
+      "preview_intent",
+      "quote_link",
       "test_contract_action",
     ]);
+    // create_intent and create_link store an intent or a link for a human to sign (never a transaction).
+    const writers = new Set(["create_intent", "create_link"]);
     for (const tool of tools) {
-      assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} is read-only`);
+      assert.equal(tool.annotations?.readOnlyHint, !writers.has(tool.name), `${tool.name} readOnlyHint`);
       assert.equal(tool.annotations?.destructiveHint, false, `${tool.name} is not destructive`);
       assert.equal(tool.inputSchema.type, "object");
       assert.doesNotMatch(tool.name, /prepare|submit|sign_tx|send/u);

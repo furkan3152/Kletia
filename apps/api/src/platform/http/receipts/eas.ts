@@ -114,6 +114,9 @@ export async function attestReceipt(
 /** Offline check of an envelope: UID recomputed, EIP-712 signature by `signer`, attested digest. */
 export async function verifyEasEnvelope(envelope: EasEnvelope, digest: string): Promise<boolean> {
   try {
+    const domain = envelope.sig.domain;
+    if (domain.name !== EAS_DOMAIN.name || domain.version !== EAS_DOMAIN.version || domain.chainId !== EAS_DOMAIN.chainId ||
+      domain.verifyingContract.toLowerCase() !== EAS_DOMAIN.verifyingContract.toLowerCase() || envelope.sig.primaryType !== "Attest") return false;
     const message = typedMessage(envelope.sig.message);
     if (message.schema !== EAS_SCHEMA_UID || message.recipient !== zeroAddress) return false;
     const [attested, spec] = decodeAbiParameters(parseAbiParameters("bytes32, string, uint32"), message.data);

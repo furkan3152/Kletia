@@ -233,9 +233,18 @@ export async function revokeReceiptShare(intentId: string, shareId: string, now 
   if (result === "missing") throw new PlatformError("RECEIPT_SHARE_NOT_FOUND", "No such share for this intent.", 404);
 }
 
+/**
+ * Deletes the stored disclosures of every receipt of the intent and every
+ * share. With no receipt yet nothing could be withdrawn, so the caller is told
+ * (409) rather than answered 204 for a no-op.
+ */
 export async function withdrawReceiptDisclosures(intentId: string, now = Date.now()): Promise<void> {
-  await getIntent(intentId);
-  await receiptStore().withdraw(intentId, new Date(now).toISOString());
+  const graph = await getIntent(intentId);
+  const touched = await receiptStore().withdraw(intentId, new Date(now).toISOString());
+  if (touched === 0) {
+    if (graph.status === "expired") throw notApplicable();
+    throw notReady(graph.status);
+  }
 }
 
 /* ------------------------------------------------------------------ public */

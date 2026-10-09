@@ -486,8 +486,12 @@ describe("GET /v1/openapi.json", () => {
             ? `ct_${"0".repeat(24)}`
             : path.startsWith("/sessions")
               ? `cs_${"0".repeat(32)}`
-              : `int_${"0".repeat(32)}`;
-    for (const route of PLATFORM_ROUTES.filter((entry) => entry.method === "post" || entry.method === "patch")) {
+              : path.startsWith("/links") || path.startsWith("/blinks")
+                ? `lk_${"0".repeat(24)}`
+                : path.startsWith("/policy/approvals")
+                  ? `apr_${"0".repeat(32)}`
+                  : `int_${"0".repeat(32)}`;
+    for (const route of PLATFORM_ROUTES.filter((entry) => entry.method === "post" || entry.method === "patch" || entry.method === "put")) {
       const path = route.path.replace(":id", sampleId(route.path)).replace(":stepId", "s1");
       const reply = await call<ErrorEnvelope>(server, route.method.toUpperCase(), path, { key, body: {}, headers: { "idempotency-key": "not a valid key!" } });
       const code = (reply.body as Partial<ErrorEnvelope>).error?.code;
@@ -508,9 +512,15 @@ describe("GET /v1/openapi.json", () => {
       [
         "POST /v1/intents",
         "POST /v1/intents/{id}/cancel",
+        "POST /v1/intents/{id}/receipt/shares",
         "POST /v1/intents/{id}/steps/{stepId}/submit",
         "POST /v1/keys",
         "POST /v1/keys/{id}/rotate",
+        "POST /v1/keys/{id}/children",
+        "PUT /v1/keys/{id}/policy",
+        "PUT /v1/projects/current/policy",
+        "POST /v1/links",
+        "PATCH /v1/links/{id}",
         "POST /v1/webhooks",
         "POST /v1/contracts",
         "PATCH /v1/contracts/{id}",
@@ -1088,16 +1098,34 @@ describe("webhooks", () => {
     assert.equal(created.status, 201);
     assert.match(created.body.webhook.id, /^wh_[0-9a-f]{24}$/u);
     assert.match(created.body.webhook.secret ?? "", /^whsec_[0-9A-Za-z]{32}$/u);
-    // Without `events`: every type that exists now, contract registration events included.
+    // Without `events`: every type that exists now, receipt and contract registration events included.
     assert.deepEqual(created.body.webhook.events, [
       "intent.created",
       "intent.status_changed",
       "intent.step_updated",
+      "intent.receipt_issued",
       "contract.registered",
       "contract.activated",
       "contract.suspended",
       "contract.reactivated",
+      "link.created",
+      "link.activated",
+      "link.updated",
+      "link.paused",
+      "link.suspended",
+      "link.exhausted",
+      "link.expired",
+      "link.deleted",
+      "policy.violation",
+      "policy.approval_requested",
+      "policy.approval_decided",
+      "policy.amendment_pending",
+      "policy.amended",
+      "policy.spend_threshold",
+      "key.created",
+      "key.revoked",
     ]);
+    assert.equal((created.body.webhook as { scope?: string }).scope, "self");
     const listed = await call<{ webhooks: Record<string, unknown>[] }>(server, "GET", "/webhooks", { key });
     assert.equal(listed.body.webhooks.length, 1);
     assert.equal("secret" in (listed.body.webhooks[0] ?? {}), false);

@@ -273,7 +273,7 @@ export function parseUsageWindow(req: Request): UsageWindow {
   return value;
 }
 
-async function intentCounts(keyId: string, since: string): Promise<Record<string, number>> {
+export async function intentCounts(keyId: string, since: string): Promise<Record<string, number>> {
   const intents = getIntentStore();
   if (intents.countByOwner) return intents.countByOwner(keyId, since);
   // Stores without the counter: the most recent 200 intents.

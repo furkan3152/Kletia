@@ -66,5 +66,29 @@ export {
   type DispatcherStats,
 } from "./dispatcher.js";
 export { isPublicAddress, assertPublicWebhookUrl } from "./netguard.js";
+export {
+  installPreviewStore,
+  IntentPreviewLimiter,
+  PostgresPreviewStore,
+  previewLimiter,
+  PREVIEW_ACK_HEADER,
+  PREVIEWS_PER_INTENT_PER_MINUTE,
+  startPreviewPruner,
+} from "./preview.js";
+export {
+  activeReceiptSigner,
+  configureReceiptSigner,
+  receiptKeys,
+  receiptSignerStatus,
+  resetReceiptKeyring,
+  signerFromSeed,
+  type ReceiptSigner,
+  type ReceiptSignerStatus,
+} from "./receipts/signer.js";
+export { configureReceiptStore, MemoryReceiptStore, PostgresReceiptStore, receiptStore, type ReceiptStore, type StoredReceipt } from "./receipts/store.js";
+export { enqueueReceipt, ReceiptIssuer, receiptIssuer, startReceiptIssuer, type ProcessOutcome, type ReceiptIssuerOptions } from "./receipts/issuer.js";
+export { closeReceiptBatch, configureAnchorTransport, merkleTree, readEasTimestamp, reportAnchor, startReceiptLog, watchAnchors } from "./receipts/log.js";
+export { decryptShare, encryptShare, parseShareUrl } from "./receipts/shares.js";
+export { attestReceipt, verifyEasEnvelope, EAS_ADDRESS, EAS_SCHEMA, EAS_SCHEMA_UID, type EasEnvelope } from "./receipts/eas.js";
 export { closePlatformDatabase } from "./db.js";
 export { HttpError } from "./context.js";

@@ -1,5 +1,6 @@
-/* Spec sheet: a blueprint in action blue, white line work and yellow for
-   the parts that belong to you. */
+/* Spec sheet: a cyanotype blueprint (Prussian blue, never the action blue
+   of the buttons), white line work and yellow for the parts that belong to
+   you. */
 
 .kla-spec-host {
   container-type: inline-size;
@@ -11,10 +12,10 @@
   box-sizing: border-box;
   border: 3px solid var(--kla-ink);
   box-shadow: 6px 6px 0 var(--kla-shadow);
-  --kla-spec-paper: #0052ff;
+  --kla-spec-paper: #17407a;
 }
 .dark .kla-spec {
-  --kla-spec-paper: #0a3cc2;
+  --kla-spec-paper: #12335f;
 }
 .kla-spec--portrait {
   display: none;

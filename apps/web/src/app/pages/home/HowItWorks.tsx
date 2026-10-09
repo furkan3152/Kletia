@@ -91,9 +91,10 @@ export function HowItWorks() {
 
         <div className="min-w-0">
           <p className={cx("mb-5 font-code text-[10px] font-bold uppercase tracking-[0.16em]", TEXT_MUTED)}>One ticket, three stamps</p>
-          <ol className="grid grid-cols-3 gap-3 pl-2 sm:gap-6 sm:pl-3">
+          {/* Phones: one stub per row with its caption beside it, so a stamp never lands on the punched holes. */}
+          <ol className="grid gap-9 pl-2 sm:grid-cols-3 sm:gap-6 sm:pl-3">
             {STUBS.map((stub, index) => (
-              <li key={stub.state} className="min-w-0">
+              <li key={stub.state} className="grid min-w-0 grid-cols-[10.5rem_minmax(0,1fr)] items-center gap-6 sm:block">
                 <TicketStub
                   serial={HERO_SERIAL}
                   legs={2}
@@ -104,7 +105,7 @@ export function HowItWorks() {
                   stampDelayMs={index * 160}
                   className={stub.pose}
                 />
-                <p className={cx("mt-8 text-[12.5px] leading-relaxed sm:text-sm", TEXT_MUTED)}>{stub.caption}</p>
+                <p className={cx("text-[15px] leading-relaxed sm:mt-8 sm:text-sm", TEXT_MUTED)}>{stub.caption}</p>
               </li>
             ))}
           </ol>

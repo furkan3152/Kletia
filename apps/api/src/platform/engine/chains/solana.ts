@@ -24,7 +24,14 @@ import {
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
 import { createHash } from "node:crypto";
 import { explorerTxUrl, isSolanaAddress, isSolanaSignature, WRAPPED_SOL_MINT, type SolanaProgramPin } from "@kletia/core";
-import { SOLANA_RPC_URLS, solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
+import {
+  isUnsupportedTransactionVersion,
+  SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION,
+  SOLANA_RPC_URLS,
+  solanaRpc,
+  warnUnsupportedTransactionVersion,
+  type SolanaNetworkKey,
+} from "../../../networks/solana/index.js";
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
 import { PlatformError } from "../../errors.js";
 import { isRecord } from "../util.js";
@@ -87,33 +94,153 @@ export interface UnsignedSolanaTransactionInfo {
   readonly signers: readonly string[];
   /** Programs invoked by top-level instructions, in order, de-duplicated. */
   readonly programs: readonly string[];
+  /** Message version (absent on hand-built values: treat as legacy or v0). */
+  readonly version?: SolanaMessageVersion;
+  /** Compute-budget config of a version 1 message (null for legacy and v0, which use ComputeBudget instructions). */
+  readonly config?: SolanaTransactionConfig | null;
 }
 
-/** Decodes an unsigned base64 wire transaction (legacy or v0 only). */
+export type SolanaMessageVersion = "legacy" | 0 | 1;
+
+/**
+ * Compute-budget settings a version 1 message carries in its header instead
+ * of ComputeBudget instructions (null when unset). The priority fee is a
+ * total in lamports, not a price per compute unit.
+ */
+export interface SolanaTransactionConfig {
+  readonly priorityFeeLamports: bigint | null;
+  readonly computeUnitLimit: number | null;
+  readonly loadedAccountsDataSizeLimit: number | null;
+  readonly heapSize: number | null;
+}
+
+/**
+ * Highest total priority fee a provider-built version 1 transaction may set:
+ * the legacy and v0 bound, MAX_COMPUTE_UNITS x MAX_COMPUTE_UNIT_PRICE
+ * (1,400,000 lamports, 0.0014 SOL).
+ */
+export const MAX_V1_PRIORITY_FEE_LAMPORTS = (BigInt(MAX_COMPUTE_UNITS) * MAX_COMPUTE_UNIT_PRICE) / 1_000_000n;
+/** Wire size limits: legacy and v0 keep the existing bound; version 1 transactions may be up to 4,096 bytes. */
+const LEGACY_BASE64_LIMIT = 1_700 * 2;
+const V1_TRANSACTION_SIZE_LIMIT = 4_096;
+const V1_BASE64_LIMIT = Math.ceil(V1_TRANSACTION_SIZE_LIMIT / 3) * 4;
+/** Config fields a version 1 message may declare (priority fee: bits 0-1, unit limit: 2, loaded data: 3, heap: 4). */
+const V1_CONFIG_KNOWN_BITS = 0x1f;
+const MAX_LOADED_ACCOUNTS_DATA_SIZE = 64 * 1024 * 1024;
+const MIN_HEAP_SIZE = 32 * 1024;
+const MAX_HEAP_SIZE = 256 * 1024;
+
+type CompiledMessage = ReturnType<ReturnType<typeof getCompiledTransactionMessageDecoder>["decode"]>;
+type V1CompiledMessage = Extract<CompiledMessage, { readonly version: 1 }>;
+
+/** Reads the config values of a version 1 message in wire order (fee, unit limit, loaded data, heap). */
+function v1Config(message: V1CompiledMessage): SolanaTransactionConfig {
+  const mask = message.configMask;
+  if ((mask & ~V1_CONFIG_KNOWN_BITS) !== 0) throw new Error("unknown config fields");
+  const values = [...message.configValues];
+  const take = (present: boolean, kind: "u32" | "u64") => {
+    if (!present) return null;
+    const value = values.shift();
+    if (!value || value.kind !== kind) throw new Error("config values do not match the mask");
+    return value.value;
+  };
+  const priorityFee = take((mask & 3) === 3, "u64");
+  const computeUnitLimit = take((mask & 4) !== 0, "u32");
+  const loadedAccountsDataSizeLimit = take((mask & 8) !== 0, "u32");
+  const heapSize = take((mask & 16) !== 0, "u32");
+  if (values.length > 0) throw new Error("config values do not match the mask");
+  return {
+    priorityFeeLamports: priorityFee === null ? null : BigInt(priorityFee),
+    computeUnitLimit: computeUnitLimit === null ? null : Number(computeUnitLimit),
+    loadedAccountsDataSizeLimit: loadedAccountsDataSizeLimit === null ? null : Number(loadedAccountsDataSizeLimit),
+    heapSize: heapSize === null ? null : Number(heapSize),
+  };
+}
+
+/**
+ * Checks the compute-budget config of a provider's version 1 message with the
+ * same bounds as computeBudgetMismatch: a unit limit up to the
+ * per-transaction maximum, a total priority fee up to
+ * MAX_V1_PRIORITY_FEE_LAMPORTS, a valid heap frame and loaded-data limit.
+ * Returns why the config is refused, or null.
+ */
+export function v1ConfigMismatch(config: SolanaTransactionConfig): string | null {
+  if (config.computeUnitLimit !== null && config.computeUnitLimit > MAX_COMPUTE_UNITS) return "requests too many compute units";
+  if (config.priorityFeeLamports !== null && config.priorityFeeLamports > MAX_V1_PRIORITY_FEE_LAMPORTS) return "sets a priority fee above the cap";
+  if (config.loadedAccountsDataSizeLimit !== null && config.loadedAccountsDataSizeLimit > MAX_LOADED_ACCOUNTS_DATA_SIZE) return "requests too much loaded account data";
+  if (config.heapSize !== null && (config.heapSize < MIN_HEAP_SIZE || config.heapSize > MAX_HEAP_SIZE || config.heapSize % 1024 !== 0)) {
+    return "requests an invalid heap frame";
+  }
+  return null;
+}
+
+/**
+ * One top-level instruction of a compiled message (any version): program and
+ * account indexes into the message's account list, raw data.
+ */
+interface CompiledInstructionView {
+  readonly programIndex: number;
+  readonly accountIndexes: readonly number[];
+  readonly data: Uint8Array;
+}
+
+function compiledInstructions(message: CompiledMessage): CompiledInstructionView[] {
+  if (message.version === 1) {
+    if (message.instructionHeaders.length !== message.numInstructions || message.instructionPayloads.length !== message.numInstructions) {
+      throw new Error("instruction headers and payloads disagree");
+    }
+    return message.instructionHeaders.map((header, index) => {
+      const payload = message.instructionPayloads[index];
+      if (!payload) throw new Error("missing instruction payload");
+      return { programIndex: header.programAccountIndex, accountIndexes: payload.instructionAccountIndices, data: Uint8Array.from(payload.instructionData) };
+    });
+  }
+  return message.instructions.map((instruction) => ({
+    programIndex: instruction.programAddressIndex,
+    accountIndexes: instruction.accountIndices ?? [],
+    data: Uint8Array.from(instruction.data ?? []),
+  }));
+}
+
+/**
+ * Decodes an unsigned base64 wire transaction (legacy, v0 or v1). A version 1
+ * message carries its compute budget in a config header: it is held to the
+ * same unit-limit and priority-fee caps as ComputeBudget instructions, and
+ * unknown config fields are refused.
+ */
 export function inspectUnsignedSolanaTransaction(base64: string): UnsignedSolanaTransactionInfo {
-  if (typeof base64 !== "string" || base64.length === 0 || base64.length > 1_700 * 2 || !/^[A-Za-z0-9+/]+=*$/u.test(base64)) {
+  if (typeof base64 !== "string" || base64.length === 0 || base64.length > V1_BASE64_LIMIT || !/^[A-Za-z0-9+/]+=*$/u.test(base64)) {
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned a malformed Solana transaction.", 502);
   }
+  let info: UnsignedSolanaTransactionInfo;
   try {
     const bytes = getBase64Encoder().encode(base64);
     const transaction = getTransactionDecoder().decode(bytes);
     const message = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
-    if (message.version !== 0 && message.version !== "legacy") {
+    if (message.version !== 0 && message.version !== "legacy" && message.version !== 1) {
       throw new Error("unsupported version");
+    }
+    if (message.version === 1 ? bytes.length > V1_TRANSACTION_SIZE_LIMIT : base64.length > LEGACY_BASE64_LIMIT) {
+      throw new Error("oversized transaction");
     }
     const feePayer = String(message.staticAccounts[0] ?? "");
     const signers = message.staticAccounts.slice(0, message.header.numSignerAccounts).map(String);
     const programs: string[] = [];
-    for (const instruction of message.instructions) {
-      const program = message.staticAccounts[instruction.programAddressIndex];
+    for (const instruction of compiledInstructions(message)) {
+      const program = message.staticAccounts[instruction.programIndex];
       if (program === undefined) throw new Error("program outside static accounts");
       if (!programs.includes(String(program))) programs.push(String(program));
     }
-    return { feePayer, signers, programs };
+    info = { feePayer, signers, programs, version: message.version, config: message.version === 1 ? v1Config(message) : null };
   } catch (error) {
     if (error instanceof PlatformError) throw error;
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an undecodable Solana transaction.", 502);
   }
+  const mismatch = info.config ? v1ConfigMismatch(info.config) : null;
+  if (mismatch) {
+    throw new PlatformError("PROVIDER_TRANSACTION_REJECTED", `The provider transaction ${mismatch}.`, 502);
+  }
+  return info;
 }
 
 /**
@@ -133,7 +260,7 @@ export function assertSolanaTransactionOwner(base64: string, owner: string): Uns
 }
 
 export interface DecodedSolanaTransaction extends UnsignedSolanaTransactionInfo {
-  readonly version: 0 | "legacy";
+  readonly version: SolanaMessageVersion;
   /** Every top-level instruction, lookup-table accounts resolved. */
   readonly instructions: readonly DecodedSolanaInstruction[];
   /** Address lookup tables the message loads accounts from. */
@@ -197,8 +324,14 @@ export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64:
   } catch {
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an undecodable Solana transaction.", 502);
   }
-  if (message.version !== 0 && message.version !== "legacy") {
+  if (message.version !== 0 && message.version !== "legacy" && message.version !== 1) {
     throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an unsupported Solana transaction version.", 502);
+  }
+  let compiled: CompiledInstructionView[];
+  try {
+    compiled = compiledInstructions(message);
+  } catch {
+    throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider returned an undecodable Solana transaction.", 502);
   }
   const staticAccounts = message.staticAccounts.map(String);
   const { numSignerAccounts, numReadonlySignerAccounts, numReadonlyNonSignerAccounts } = message.header;
@@ -209,6 +342,7 @@ export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64:
       : index < staticAccounts.length - numReadonlyNonSignerAccounts;
     return { address, signer, writable };
   });
+  // Version 1 messages list every account statically (no lookup tables).
   const lookups = message.version === 0 ? (message.addressTableLookups ?? []) : [];
   if (lookups.length > MAX_LOOKUP_TABLES) {
     throw new PlatformError("PROVIDER_TRANSACTION_REJECTED", "The provider transaction loads too many lookup tables.", 502);
@@ -228,9 +362,9 @@ export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64:
   for (const lookup of lookups) {
     for (const index of lookup.readonlyIndexes) metas.push({ address: entry(String(lookup.lookupTableAddress), index), signer: false, writable: false });
   }
-  const instructions = message.instructions.map((instruction): DecodedSolanaInstruction => {
-    const program = staticAccounts[instruction.programAddressIndex];
-    const accountMetas = (instruction.accountIndices ?? []).map((index) => metas[index]);
+  const instructions = compiled.map((instruction): DecodedSolanaInstruction => {
+    const program = staticAccounts[instruction.programIndex];
+    const accountMetas = instruction.accountIndexes.map((index) => metas[index]);
     if (program === undefined || accountMetas.some((meta) => meta === undefined)) {
       throw new PlatformError("PROVIDER_TRANSACTION_INVALID", "The provider transaction references an account outside its message.", 502);
     }
@@ -239,7 +373,7 @@ export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64:
       program,
       accounts: resolved.map((meta) => meta.address),
       metas: resolved,
-      data: Uint8Array.from(instruction.data ?? []),
+      data: instruction.data,
     };
   });
   return {
@@ -559,7 +693,14 @@ interface SolanaSignatureRead {
   readonly slot: string | null;
   /** Parsed transaction body; null when not (yet) readable. */
   readonly details: SolanaTransactionDetails | null;
+  /** Why a landed body is not readable when the RPC said so (a version newer than this client reads). */
+  readonly unreadable?: string;
 }
+
+const UNSUPPORTED_VERSION = Symbol("unsupported transaction version");
+
+/** Text of an observation whose body the RPC refused to return in a version this client reads. */
+export const SOLANA_VERSION_UNREADABLE = `The transaction uses a version newer than ${SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION}, which Kletia cannot read yet.`;
 
 /** Reads a signature's status and, once confirmed, its body and balance deltas. */
 async function readSolanaSignature(network: SolanaNetworkKey, signatureValue: string): Promise<SolanaSignatureRead> {
@@ -574,10 +715,16 @@ async function readSolanaSignature(network: SolanaNetworkKey, signatureValue: st
   const statusError = status.err ? rpcErrorText(status.err) : null;
   const confirmation = status.confirmationStatus === "finalized" ? "finalized" : status.confirmationStatus === "confirmed" ? "confirmed" : "processed";
   if (!statusError && confirmation === "processed") return { confirmation, statusError, slot, details: null };
+  // Legacy, v0 and v1 bodies share the json shape read below (v1: no lookup tables, plus `transactionConfig`).
   const raw: unknown = await rpc
-    .getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed", encoding: "json" })
+    .getTransaction(sig, { maxSupportedTransactionVersion: SOLANA_MAX_SUPPORTED_TRANSACTION_VERSION, commitment: "confirmed", encoding: "json" })
     .send({ abortSignal: rpcAbortSignal() })
-    .catch(() => null);
+    .catch((error: unknown) => (isUnsupportedTransactionVersion(error) ? UNSUPPORTED_VERSION : null));
+  if (raw === UNSUPPORTED_VERSION) {
+    // Permanent for this client (transient failures are retried on the next read): logged, and never confirmed.
+    warnUnsupportedTransactionVersion(network, signatureValue);
+    return { confirmation, statusError, slot, details: null, unreadable: SOLANA_VERSION_UNREADABLE };
+  }
   if (!isRecord(raw) || !isRecord(raw.transaction) || !isRecord(raw.transaction.message) || !isRecord(raw.meta)) {
     return { confirmation, statusError, slot, details: null };
   }
@@ -669,8 +816,9 @@ export async function observeSolanaTransaction(
   if (read.confirmation === null) return { ...base, ...empty, status: "not_found", error: null };
   const details = read.details;
   if (!details) {
-    // Confirmed (or failed) per status, but the body is not readable yet: report it unconfirmed.
-    return { ...base, ...empty, status: read.statusError ? "failed" : "processed", error: read.statusError };
+    // Confirmed (or failed) per status, but the body is not readable yet: report it unconfirmed (never failed for
+    // a version this client cannot read: it may have succeeded).
+    return { ...base, ...empty, status: read.statusError ? "failed" : "processed", error: read.statusError ?? read.unreadable ?? null };
   }
   const payerMismatch = details.feePayer !== expectedFeePayer;
   const landed: SolanaLandedStatus = read.confirmation === "finalized" ? "finalized" : "confirmed";

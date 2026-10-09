@@ -1,5 +1,5 @@
 import type { IntentGraph, IntentStep } from "@kletia/core";
-import { Sparkles, TriangleAlert, Wand2 } from "lucide-react";
+import { Braces, GitMerge, TriangleAlert } from "lucide-react";
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { LocalStepPhase } from "../../../shared/platform/useIntentExecution";
@@ -187,7 +187,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <section aria-label="Interpretation" className={cx(INK_BORDER, SURFACE, "p-4 sm:p-5")}>
           <h4 className={cx(LABEL, "flex items-center gap-2")}>
-            <Wand2 className="h-4 w-4 text-[#0052FF] dark:text-[#7EA6FF]" aria-hidden="true" />
+            <Braces className="h-4 w-4" aria-hidden="true" />
             Interpretation
           </h4>
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -209,14 +209,14 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
         </section>
         <section aria-label="Planner optimizations" className={cx(INK_BORDER, SURFACE, "p-4 sm:p-5")}>
           <h4 className={cx(LABEL, "flex items-center gap-2")}>
-            <Sparkles className="h-4 w-4 text-[#6D28D9] dark:text-[#A78BFA]" aria-hidden="true" />
+            <GitMerge className="h-4 w-4" aria-hidden="true" />
             Optimizations
           </h4>
           {interpretation.optimizations && interpretation.optimizations.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm">
               {interpretation.optimizations.map((item) => (
                 <li key={item} className="flex gap-2">
-                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#6D28D9] dark:bg-[#A78BFA]" />
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 bg-[#1A1A1A] dark:bg-[#CBD5E1]" />
                   <span>{item}</span>
                 </li>
               ))}

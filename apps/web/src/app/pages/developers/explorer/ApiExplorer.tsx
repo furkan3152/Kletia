@@ -1,4 +1,4 @@
-import { ArrowDownRight, KeyRound, Link2, Play, RefreshCw, ShieldAlert, Square, WandSparkles } from "lucide-react";
+import { ArrowDownRight, Code2, KeyRound, Link2, Play, RefreshCw, ShieldAlert, Square } from "lucide-react";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { PLATFORM_ORIGIN, type PlatformError } from "../../../../shared/platform/kletiaClient";
@@ -167,7 +167,7 @@ function OperationNav({
                       )}
                     >
                       <MethodBadge method={operation.method} className="min-w-[2.9rem] !text-[9px]" />
-                      <span className="min-w-0 flex-1 truncate">{shortPath(operation.path)}</span>
+                      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{shortPath(operation.path)}</span>
                       {operation.auth === "key" ? (
                         <KeyRound className="h-3 w-3 shrink-0 text-[#45464B] dark:text-[#A9B6C8]" aria-label="Needs an API key" />
                       ) : null}
@@ -480,7 +480,7 @@ export function ApiExplorer({ operations, source, onReloadSpec }: ApiExplorerPro
 
             <div className="flex min-w-0 flex-col gap-3">
               <p className={cx(LABEL, "flex items-center gap-2", TEXT_MUTED)}>
-                <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Copy as
               </p>
               <CodeBlock tabs={tabs} label={`Snippets for ${operation.id}`} maxHeightClassName="max-h-80" />

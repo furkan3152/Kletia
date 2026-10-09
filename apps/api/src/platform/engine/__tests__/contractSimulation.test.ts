@@ -181,7 +181,7 @@ describe("simulation endpoints", () => {
 
 describe("balance-slot discovery", () => {
   it("finds USDC's slot 9 (Solidity layout) and builds the override", async () => {
-    assert.deepEqual(await discoverBalanceSlot("base", USDC_BASE, USER), { slot: 9, layout: "solidity" });
+    assert.deepEqual(await discoverBalanceSlot("base", USDC_BASE, USER), { kind: "mapping", slot: 9n, layout: "solidity" });
     const override = await balanceOverride("base", USDC_BASE, USER, 123n);
     assert.ok(override);
     const simulated = await simulateEvmCalls("base", {
@@ -192,15 +192,16 @@ describe("balance-slot discovery", () => {
   });
 
   it("finds slot 0 and Vyper-ordered mappings, and caches a miss", async () => {
-    assert.deepEqual(await discoverBalanceSlot("base", OTHER_TOKEN, USER), { slot: 0, layout: "solidity" });
+    assert.deepEqual(await discoverBalanceSlot("base", OTHER_TOKEN, USER), { kind: "mapping", slot: 0n, layout: "solidity" });
     const vyper = "0x3434343434343434343434343434343434343434";
     harness.world.tokens.set(vyper, { symbol: "VY", decimals: 18, slot: 3, layout: "vyper" });
-    assert.deepEqual(await discoverBalanceSlot("base", vyper, USER), { slot: 3, layout: "vyper" });
+    assert.deepEqual(await discoverBalanceSlot("base", vyper, USER), { kind: "mapping", slot: 3n, layout: "vyper" });
+    // A rebasing token (balance = stored shares x index) never reads a marker back: no override.
     const odd = "0x5656565656565656565656565656565656565656";
-    harness.world.tokens.set(odd, { symbol: "ODD", decimals: 18, slot: 51, layout: "solidity" });
+    harness.world.tokens.set(odd, { symbol: "ODD", decimals: 18, slot: 51, layout: "solidity", multiplier: 3n });
     assert.equal(await discoverBalanceSlot("base", odd, USER), null);
-    const before = harness.world.simulateCount;
+    const before = [harness.world.simulateCount, harness.world.accessListCount];
     assert.equal(await balanceOverride("base", odd, USER, 1n), null);
-    assert.equal(harness.world.simulateCount, before, "a miss is cached");
+    assert.deepEqual([harness.world.simulateCount, harness.world.accessListCount], before, "a miss is cached");
   });
 });

@@ -45,7 +45,7 @@ export function StatusBoard({ data }: { readonly data: HomeData }) {
       tone="paper"
       bordered
       reveal
-      title="Every network, checked from your browser."
+      title="Every network, checked while you read this."
       intro={
         <>
           This board calls <code className="font-code text-[0.9em]">GET /v1/health</code> on the public API through{" "}

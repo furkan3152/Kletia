@@ -11,6 +11,8 @@ import type { CaipChainId, NetworkKey, VirtualMachine } from "./chains.js";
 import type { AccountId, AssetId } from "./caip.js";
 import type { ProtocolId } from "./protocols.js";
 import type { ContractReview, ContractStepCall } from "./contracts.js";
+import type { StepPreview } from "./preview.js";
+import type { PlanRecord } from "./receipts.js";
 
 export const INTENT_SPEC_VERSION = "kletia.intent/v1" as const;
 
@@ -162,6 +164,12 @@ export interface EvmTransactionRequest {
   /** Wei as a decimal integer string. */
   readonly value: string;
   readonly gas?: string;
+  /**
+   * Pinned account nonce (decimal), set when the owner's rule book pins
+   * nonces (policy `execution.pinNonce`): two payloads with the same nonce
+   * cannot both land. Signers that declare `honorsNonce` must use it.
+   */
+  readonly nonce?: string;
   readonly description: string;
 }
 
@@ -192,6 +200,57 @@ export interface StepExecutionPayload {
    * audited by Kletia"). Render it before handing the transactions to a wallet.
    */
   readonly review?: ContractReview;
+  /**
+   * Simulated (or quoted) effect of exactly these transactions; its
+   * `quoteBinding` equals the payload's (asset-change preview).
+   */
+  readonly preview?: StepPreview;
+  /** Rule Book clearance of this payload: the decision and the exposure counted against caps. */
+  readonly policy?: StepPolicyClearance;
+}
+
+/** Ties a prepared payload to the policy decision that cleared it. */
+export interface StepPolicyClearance {
+  readonly decisionId: string;
+  readonly exposureId: string;
+  /** USD notional counted, decimal with 2 decimals; null when no USD rule applied. */
+  readonly notionalUsd: string | null;
+  /** Hashes (`sha256:…`) of every rule book in the owner's chain, root first. */
+  readonly chainHashes: readonly string[];
+}
+
+/** One rule book of a key's policy chain, as stamped on intents and decisions. */
+export interface PolicyChainLink {
+  readonly scope: "project" | "key";
+  /** `prj_…` for the project rule book, the key id otherwise. */
+  readonly id: string;
+  readonly version: number;
+  /** `sha256:` + hex of the canonical document. */
+  readonly hash: string;
+}
+
+/**
+ * Plan-time policy stamp of a stored intent (immutable, like the rest of the
+ * graph). `confirm` intents are on hold until an approver approves.
+ */
+export interface IntentPolicyStamp {
+  readonly decisionId: string;
+  readonly outcome: "allow" | "confirm";
+  /** Owner key whose chain was evaluated. */
+  readonly keyId: string;
+  readonly chain: readonly PolicyChainLink[];
+  /** Fresh value of the intent in USD (2 decimals); null when no USD rule needed it. */
+  readonly notionalUsd: string | null;
+  readonly evaluatedAt: string;
+  readonly approval?: {
+    readonly id: string;
+    /** `<web origin>/approve#apr_…`: safe to hand to the agent (reading is not approving). */
+    readonly url: string;
+    readonly expiresAt: string;
+    readonly ceilingUsd: string;
+    /** Rule ids that asked for the approval (`confirm.aboveUsd`, …). */
+    readonly triggers: readonly string[];
+  };
 }
 
 export interface StepEvidence {
@@ -316,4 +375,12 @@ export interface IntentGraph {
   readonly summary: IntentSummary;
   readonly warnings: readonly string[];
   readonly metadata?: Readonly<Record<string, string>>;
+  /**
+   * The plan as created, captured once at planning (`buildPlanRecord`), and
+   * its digest (`planRecordDigest`). Absent on intents created before plan
+   * records. Receipts commit to it; prepare never changes it.
+   */
+  readonly plan?: { readonly digest: string; readonly record: PlanRecord };
+  /** Rule Book stamp of an intent planned for a key with a policy chain. */
+  readonly policy?: IntentPolicyStamp;
 }

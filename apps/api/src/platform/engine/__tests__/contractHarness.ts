@@ -3,8 +3,9 @@
  * router over `fetch`, a small EVM world (ERC-20 tokens with a configurable
  * balance slot, an ERC-4626 style vault with switchable misbehaviour) that
  * answers eth_call, multicall, eth_simulateV1 (state overrides, traced native
- * transfers), code / storage / proof reads and landed receipts, plus Solana
- * RPC handlers. Any request nobody handles fails the test loudly.
+ * transfers), eth_createAccessList, code / storage / proof reads and landed
+ * receipts, plus Solana RPC handlers. Any request nobody handles fails the
+ * test loudly.
  */
 import {
   decodeFunctionData,
@@ -129,9 +130,15 @@ export const VAULT_ABI = parseAbi([
 export interface TokenConfig {
   readonly symbol: string;
   readonly decimals: number;
-  /** Balance mapping slot and layout (USDC: 9, solidity). */
-  readonly slot: number;
-  readonly layout: "solidity" | "vyper";
+  /** Balance mapping slot and layout (USDC: 9, solidity). `solady` keys are `keccak256(owner ‖ 0x00…00 ‖ 0x87a211a2)` (slot unused). */
+  readonly slot: number | bigint;
+  readonly layout: "solidity" | "vyper" | "solady";
+  /** `balanceOf` reads the owner's native balance divided by this (Arc's USDC view: 10^12); no storage involved. */
+  readonly nativeScale?: bigint;
+  /** `balanceOf` returns the stored word times this (shares × index, a rebasing token). */
+  readonly multiplier?: bigint;
+  /** Balances stored as uintN (UNI, COMP: 96): `balanceOf` reads the low N bits of the word. */
+  readonly valueBits?: number;
 }
 
 export interface LogEntry {
@@ -173,6 +180,9 @@ export interface EvmWorld {
   /** Simulation URLs that answer with an RPC error / fail at transport level. */
   readonly simulateErrors: Set<string>;
   simulateCount: number;
+  /** URLs that do not serve eth_createAccessList (-32601). */
+  readonly accessListErrors: Set<string>;
+  accessListCount: number;
   /** Landed transactions by hash (lower case). */
   readonly landed: Map<string, { tx: Record<string, unknown>; receipt: Record<string, unknown>; block: bigint; timestamp: number }>;
   /** Code / storage per block override for pins-at-block reads: `${block}:${address}`. */
@@ -187,7 +197,11 @@ export interface EvmWorld {
 
 const key = (...parts: string[]) => parts.map((part) => part.toLowerCase()).join(":");
 
+/** Solady ERC20 `_BALANCE_SLOT_SEED`. */
+const SOLADY_BALANCE_SEED = "0000000000000000" + "87a211a2";
+
 export function storageKey(owner: string, token: TokenConfig): string {
+  if (token.layout === "solady") return keccak256(`${getAddress(owner).toLowerCase()}${SOLADY_BALANCE_SEED}` as Hex).toLowerCase();
   return token.layout === "solidity"
     ? keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [getAddress(owner), BigInt(token.slot)])).toLowerCase()
     : keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "address" }], [BigInt(token.slot), getAddress(owner)])).toLowerCase();
@@ -206,11 +220,15 @@ interface ExecState {
 
 function balanceOf(world: EvmWorld, state: ExecState, token: string, owner: string): bigint {
   const config = world.tokens.get(token.toLowerCase());
+  if (config?.nativeScale) return (state.native.get(owner.toLowerCase()) ?? world.native.get(owner.toLowerCase()) ?? 0n) / config.nativeScale;
   const id = key(token, owner);
   if (state.balances.has(id)) return state.balances.get(id) as bigint;
   if (config) {
     const diff = state.overrides.stateDiff.get(token.toLowerCase())?.get(storageKey(owner, config));
-    if (diff !== undefined) return diff;
+    if (diff !== undefined) {
+      const stored = config.valueBits ? diff & ((1n << BigInt(config.valueBits)) - 1n) : diff;
+      return stored * (config.multiplier ?? 1n);
+    }
   }
   return world.balances.get(id) ?? 0n;
 }
@@ -411,6 +429,8 @@ export function installEvmHarness(): EvmHarness {
     proofs: true,
     simulateErrors: new Set(),
     simulateCount: 0,
+    accessListErrors: new Set(),
+    accessListCount: 0,
     landed: new Map(),
     codeAt: new Map(),
     beacons: new Map(),
@@ -459,6 +479,26 @@ export function installEvmHarness(): EvmHarness {
       const state = freshState();
       readOverrides(overrides, state);
       return ethCall(tx as { to: string; data?: string; from?: string }, state);
+    },
+    eth_createAccessList: ([tx], url) => {
+      world.accessListCount += 1;
+      if (world.accessListErrors.has(url)) throw new RpcError(-32601, "the method eth_createAccessList does not exist/is not available");
+      const call = tx as { to: string; data?: string };
+      const token = world.tokens.get(call.to.toLowerCase());
+      const accessList: { address: string; storageKeys: string[] }[] = [];
+      if (token && call.data?.startsWith("0x70a08231")) {
+        const owner = decodeFunctionData({ abi: erc20Abi, data: call.data as Hex }).args[0] as string;
+        // Like a proxied token: the EIP-1967 implementation and admin slots, then the balance word.
+        const keys = token.nativeScale
+          ? []
+          : [
+              "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+              "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103",
+              storageKey(owner, token),
+            ];
+        accessList.push({ address: call.to.toLowerCase(), storageKeys: keys }, { address: "0x8b194beae1d3e0788a1a35173978001acdfba668", storageKeys: [] });
+      }
+      return { accessList, gasUsed: "0x8ac0" };
     },
     eth_simulateV1: ([request], url) => {
       world.simulateCount += 1;

@@ -18,12 +18,14 @@
  *   PlatformNumber, LineRule, TrackDivider,
  *   Perforation, CropMarks, HalftoneEdge          ./Ornaments
  *   PlatformSign, SpecSheet, EndOfLine            ./PlatformSign, ./SpecSheet, ./EndOfLine
+ *   LineStrip (the in-car strip map)              ./LineStrip
  */
 
 export type { BoardRow, DepartureBoardProps } from "./DepartureBoard";
 export type { EndOfLineProps } from "./EndOfLine";
 export type { IconProps } from "./Icon";
 export type { LineBulletProps } from "./LineBullet";
+export type { LineStripProps, StripStop } from "./LineStrip";
 export type { LinkBound, LinkPublisher, LinkTicketProps } from "./LinkTicket";
 export type { MapCardProps, RouteMapCardProps } from "./MapCard";
 export type { CropMarksProps, LineRuleProps, PlatformNumberProps, TrackDividerProps } from "./Ornaments";

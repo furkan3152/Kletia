@@ -10,7 +10,7 @@ export function FinalCta() {
   return (
     <section
       aria-labelledby="final-cta-heading"
-      className="relative overflow-hidden border-t-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] [--kla-muted:#3A3B3F] [--kla-table:#FFD60A] [--kla-text:#1A1A1A] dark:border-[#4B5563]"
+      className="relative overflow-hidden border-t-[3px] border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] [--kla-muted:#3A3B3F] [--kla-table:#FFD60A] [--kla-text:#1A1A1A] dark:border-[#4B5563] [&_:focus-visible]:!outline-[#1A1A1A]"
     >
       <HalftoneEdge className="text-[#1A1A1A]" />
       <div className={cx(CONTAINER, "relative grid items-center gap-12 pb-20 pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:pb-24 lg:pt-14")}>
@@ -27,11 +27,11 @@ export function FinalCta() {
             have, or drop in the widget and skip most of the code.
           </p>
           <div className="mt-10 flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
+            {/* Blue is the primary action everywhere, on the yellow notice too. */}
             <ButtonLink
               to="/developers#keys"
-              variant="ink"
               size="lg"
-              className="w-full [--kla-plate:#0052FF] dark:!bg-[#1A1A1A] dark:!text-white dark:hover:!bg-black sm:w-auto"
+              className="w-full !border-[#1A1A1A] !shadow-[3px_3px_0_#1A1A1A] [--kla-plate:#FFD60A] sm:w-auto"
             >
               <Icon name="key" size={20} />
               Get an API key

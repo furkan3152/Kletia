@@ -49,7 +49,7 @@ export function HeroSection({ venues }: HeroSectionProps) {
         <div className="min-w-0 xl:pt-6">
           <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#1A1A1A] bg-[#FBFAF7] px-3 py-1.5 font-code text-[11px] font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4B5563] dark:bg-[#131E32]">
             <Icon name="route" size={18} />
-            <span>
+            <span className="[text-wrap:balance]">
               Intent routing API · {production} networks · {venues} venues
             </span>
           </p>
@@ -89,16 +89,27 @@ export function HeroSection({ venues }: HeroSectionProps) {
             </Link>
           </p>
 
-          <ul className="mt-9 flex flex-wrap gap-2" aria-label="Facts">
-            {FACTS.map((fact) => (
-              <li
-                key={fact}
-                className="border-2 border-[#1A1A1A]/35 px-2.5 py-1.5 font-code text-[11.5px] font-semibold leading-none text-[#45464B] dark:border-white/25 dark:text-[#A9B6C8]"
-              >
-                {fact}
-              </li>
-            ))}
-          </ul>
+          {/* The small print on the back of a ticket, not a row of badges. */}
+          <div className="mt-9 max-w-xl border-t-2 border-dashed border-[#1A1A1A]/30 pt-4 dark:border-white/20">
+            <p id="hero-conditions" className="font-code text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#45464B] dark:text-[#A9B6C8]">
+              Conditions of carriage
+            </p>
+            <ul
+              aria-labelledby="hero-conditions"
+              className="mt-2 flex flex-wrap gap-x-2 gap-y-1 font-code text-[12px] font-semibold leading-relaxed text-[#1A1A1A] dark:text-[#E2E8F0]"
+            >
+              {FACTS.map((fact, index) => (
+                <li key={fact}>
+                  {fact}
+                  {index < FACTS.length - 1 ? (
+                    <span aria-hidden="true" className="text-[#45464B] dark:text-[#A9B6C8]">
+                      {" "}·
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <figure className="relative m-0 min-w-0 px-1 pt-7 sm:px-7">

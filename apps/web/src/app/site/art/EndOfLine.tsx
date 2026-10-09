@@ -81,10 +81,10 @@ export function EndOfLine({ animate: wantAnimate = true, platform = "404", class
       <rect x={438} y={108} width={8} height={104} className="kla-eol__ink-fill" />
       <rect x={302} y={46} width={176} height={76} className="kla-eol__shadow" />
       <rect x={296} y={40} width={176} height={76} className="kla-eol__sign" />
-      <text x={384} y={63} textAnchor="middle" className="kla-eol__sign-k">
+      <text x={384} y={59} textAnchor="middle" className="kla-eol__sign-k">
         PLATFORM
       </text>
-      <text x={384} y={104} textAnchor="middle" className="kla-eol__sign-n">
+      <text x={384} y={106} textAnchor="middle" className="kla-eol__sign-n">
         {platform}
       </text>
 

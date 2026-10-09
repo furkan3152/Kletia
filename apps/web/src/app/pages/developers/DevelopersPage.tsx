@@ -144,7 +144,7 @@ export default function DevelopersPage() {
         <div className={cx(CONTAINER, "grid gap-12 py-14 sm:py-20 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:items-center xl:gap-14")}>
           <div className="min-w-0">
             <PlatformNumber n={1}>Developers · Platform API v1</PlatformNumber>
-            <h1 className="mt-6 text-balance font-display text-[clamp(2.4rem,6.4vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">
+            <h1 className="mt-6 text-balance font-display text-[clamp(2.4rem,6.4vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em] xl:text-[3.25rem]">
               Put <span className="whitespace-nowrap">cross-network</span> routes inside your own product.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>

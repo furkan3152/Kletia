@@ -98,7 +98,7 @@ export function UseCases() {
       title={`${countWordTitle(USE_CASES.length)} products that move money between networks.`}
       intro="Each example is a sentence the v1 grammar accepts today. Open one in Studio to see its legs."
     >
-      <div className="kla-grain border-[3px] border-[#1A1A1A] bg-[#FFFCF2] text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-grain:var(--kla-stock-grain)] [--kla-plate:#FFD60A]">
+      <div className="kla-grain border-[3px] border-[#1A1A1A] bg-[#FFFCF2] text-[#1A1A1A] shadow-hard-lg dark:bg-[#ECE6D6] [--kla-grain:var(--kla-stock-grain)] [--kla-plate:#FFD60A] [&_:focus-visible]:!outline-[#0052FF]">
         <p className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 bg-[#1A1A1A] px-5 py-3 font-code text-xs font-extrabold uppercase leading-tight tracking-[0.18em] text-[#FFD60A] sm:px-6">
           <span>Timetable · routes in service</span>
           <span className="font-semibold text-[#F4F1EA]">Valid on the v1 grammar</span>

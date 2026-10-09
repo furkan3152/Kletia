@@ -115,7 +115,7 @@ function Flaps({
   );
 }
 
-/** A shortened CAIP-2 id for the chain column (the full id is in the title). */
+/** A shortened CAIP-2 id for the chain column (the full id is in the title and read aloud). */
 function shortCaip(id: string): string {
   return id.length > 18 ? `${id.slice(0, 16)}…` : id;
 }
@@ -152,7 +152,8 @@ export function DepartureBoard({
           <Flaps text={name} width={NAME_WIDTH} enabled={enabled} run={inView} className="kla-board__name-flaps" />
         </th>
         <td className="kla-board__caip" title={row.line.id}>
-          {shortCaip(row.line.id)}
+          <span aria-hidden="true">{shortCaip(row.line.id)}</span>
+          <span className="kla-sr">{row.line.id}</span>
         </td>
         <td className="kla-board__rpc">
           <span className="kla-sr">{describeLatency(row.latencyMs)}</span>

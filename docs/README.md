@@ -25,6 +25,11 @@ This index separates current product truth from deployment procedure, network-sp
 - [Repository structure](architecture/repository-structure.md) — module ownership, path stability, and extension rules.
 - [Platform API v1](platform/api-v1.md) — public integration contract (REST, events, webhooks, keys, idempotency, usage).
 - [Error catalog](platform/errors.md) — every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
+- [Contracts](platform/contracts.md) — register your own EVM contracts and Solana Actions.
+- [Asset preview](platform/preview.md) — the fare breakdown and `PREVIEW_CHANGED`.
+- [Receipts](platform/receipts.md) — signed, selectively disclosed, independently verifiable receipts.
+- [Policies](platform/policies.md) — the Rule Book, agent keys and approvals.
+- [Intent links](platform/links.md) — shareable, bounded intents at `/go/<id>`.
 - [MCP server](platform/mcp.md) — read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
 - [Embed web component](platform/embed.md) — `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.
 - [OpenAPI document](platform/openapi.json) and [API collections](platform/collections/README.md) — the machine-readable contract (generated from the API source, drift-checked by `npm run check:openapi`) and a Postman v2.1 collection for Postman, Insomnia, Bruno and Hoppscotch.

@@ -5,11 +5,11 @@
 <h1 align="center">Kletia</h1>
 
 <p align="center">
-  <strong>Intent infrastructure for EVM and Solana.</strong>
+  <strong>Solana-first intent infrastructure across nine networks.</strong>
 </p>
 
 <p align="center">
-  Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Ethereum, OP Mainnet, Polygon, Arc and Solana.<br>
+  Say the outcome — Kletia compiles it into verified, wallet-signed steps across six production networks and three test networks, with 33 protocol integrations.<br>
   Use it as an app, or put cross-network intents into your own product with one API, SDK, React widget, web component, CLI and MCP server.
 </p>
 
@@ -40,15 +40,15 @@ Kletia turns an outcome into an **intent graph**: a DAG of network-bound steps, 
 
 | For | Kletia gives you |
 |---|---|
-| **Users** | One console for Base, Arbitrum, Arc and Solana: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
+| **Users** | A Solana-first console and multi-network Studio: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
 | **Builders** | Platform API v1 (with OpenAPI and a Postman collection), a typed SDK with webhook helpers, a drop-in React widget and hooks, a `<kletia-intent>` web component and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
 | **Agents** | A read-only MCP server at `/v1/mcp`, deterministic intent compilation, x402 pay-per-call and REST — a safe planning surface for autonomous software that never holds keys and hands signing to the user. |
 
 ## Infrastructure
 
 Every surface below talks to the same Platform API v1 and the same planner the
-Kletia app uses. None of them holds keys or signs: value-moving transactions are
-always signed in the user's own wallet.
+Kletia app uses. The API holds no user wallet keys. SDK and widget signers delegate
+value-moving transactions to the user's own wallet.
 
 | Surface | Use it for |
 |---|---|
@@ -220,13 +220,19 @@ flowchart LR
 |---|---|---|
 | **Base** (`eip155:8453`) | Production | Kletia Intent Router V2 swaps, Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3, Morpho vaults and Moonwell deposit/withdraw; token launch (LaunchFactory V2), Basenames, x402 |
 | **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3 and Morpho vaults; staged Base → Arbitrum workflows |
-| **Ethereum** (`eip155:1`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Morpho vaults; ENS recipients |
+| **Ethereum** (`eip155:1`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3, Morpho vaults, SparkLend and Yearn V3; ENS recipients |
 | **OP Mainnet** (`eip155:10`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Moonwell |
 | **Polygon PoS** (`eip155:137`) | Production (intent platform) | Transfers (POL and ERC-20), bridges (Relay, LI.FI; deBridge DLN from Polygon only when named, since its POL fee has no price source yet), Aave V3 |
-| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Jupiter Lend and Kamino deposit/withdraw, bridges to every EVM network above (Relay, deBridge DLN; LI.FI into Solana), SNS recipients |
-| **Arc Testnet** (`eip155:5042002`) | Testnet | Native-USDC swap, lending, staking, Vault V2, batch and memo payments, Circle App Kit |
+| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter aggregation, venue-bound Raydium and Orca swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Jupiter Lend and Kamino deposit/withdraw, bridges to every EVM network above (Relay, deBridge DLN; LI.FI into Solana), SNS recipients |
+| **Arc Testnet** (`eip155:5042002`) | Testnet | Vault V2, batch and memo payments, Circle App Kit; DeFi V2 sources are ready, with new swap/lending/staking exposure disabled until separately deployed and identity-pinned |
 | **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Circle Testnet USDC and Aave supply |
 | **Solana Devnet** | Testnet | Transfers and portfolio |
+
+The registry contains **33 protocols**. The two custom integration types are separate:
+integrators register private/project contracts for their own products, not the
+public Kletia execution catalog. The public console, Studio and shared links
+refuse custom-contract execution; an authorized integrator widget/session can
+run it in the integrator's product. See [custom contracts](docs/platform/contracts.md).
 
 Production and testnet capital never share one intent. Every venue contract,
 program, vault and market is pinned in the registry
@@ -235,7 +241,8 @@ program, vault and market is pinned in the registry
 built, and served at `GET /v1/protocols`. Network guides:
 [Ethereum](docs/networks/ethereum.md), [OP Mainnet](docs/networks/optimism.md),
 [Polygon](docs/networks/polygon.md), [Solana](docs/networks/solana.md) and
-[cross-chain venues](docs/networks/cross-chain-venues.md).
+[cross-chain venues](docs/networks/cross-chain-venues.md). Spark and Yearn details
+and read-only evidence are in the [lending guide](docs/networks/evm-lending-additions.md).
 
 ## Architecture
 
@@ -305,17 +312,27 @@ npm run dev:api              # http://localhost:3001  (/api and /v1)
 npm run dev:web              # http://localhost:5174
 ```
 
-Every feature that needs no secret works out of the box: public, identity-pinned deployments are applied as defaults and re-validated on-chain on every request. `GET /api/capabilities` lists anything that still needs an operator key (for example Webacy risk scoring, Allora, Across, CDP on-ramp) and the app shows it instead of hiding it.
+Existing public deployment routes that need no secret work with live providers: public, identity-pinned deployments are applied as defaults and re-validated on-chain on every request. `GET /api/capabilities` lists anything that still needs an operator key (for example Webacy risk scoring, Allora, Across, CDP on-ramp) and the app shows it instead of hiding it.
+
+See the [platform readiness report](docs/runbooks/platform-readiness.md) for
+the delivered integrations, validation evidence and remaining deployment needs.
 
 ## Verification
 
 ```bash
 npm run verify            # structure, docs, privacy gates, package tests and tarballs,
                           # OpenAPI and collection drift, embed bridge tests, typecheck,
-                          # builds, intent matrices, lint, contract compilation
+                          # builds, intent matrices, lint, contract compilation and 81 local contract tests
+npm run test:e2e          # Chromium desktop + mobile journeys (install: npx playwright install chromium)
 npm run verify:mvp-live   # live, no-mock dependency preflight
 npm run generate:openapi  # refresh docs/platform/openapi.json and the Postman collection
 ```
+
+Use PostgreSQL for durable verification: set `KLETIA_TEST_DATABASE_URL` to a
+dedicated test database before `npm run verify`. CI provisions PostgreSQL and
+also runs the browser suite. Arc DeFi V2 requires new deployments; the
+[Arc migration runbook](contracts/arc/DEFI_V2_MIGRATION.md) lists the exact
+source identities and configuration.
 
 | Evidence | What it proves | What it does not prove |
 |---|---|---|

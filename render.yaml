@@ -108,6 +108,20 @@ services:
         value: "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d"
       - key: ARC_VAULT_V2_RUNTIME_CODEHASH
         value: "0xa6cb476a1243a6d9bc71909a5774d1340061e91bcb47cd8aea3df1f5444bec1f"
+      # Source-ready V2 contracts require a separate reviewed deployment.
+      # Unset blocks new exposure and preserves explicit legacy exits.
+      - key: ARC_SWAP_V2_ADDRESS
+        sync: false
+      - key: ARC_SWAP_V2_RUNTIME_CODEHASH
+        sync: false
+      - key: ARC_STAKING_V2_ADDRESS
+        sync: false
+      - key: ARC_STAKING_V2_RUNTIME_CODEHASH
+        sync: false
+      - key: ARC_LENDING_V2_ADDRESS
+        sync: false
+      - key: ARC_LENDING_V2_RUNTIME_CODEHASH
+        sync: false
       - key: OPENROUTER_API_KEY
         sync: false
       - key: WEBACY_API_KEY
@@ -341,6 +355,12 @@ services:
         value: vault_v2
       - key: VITE_ARC_VAULT_V2_ADDRESS
         value: "0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d"
+      - key: VITE_ARC_SWAP_V2_ADDRESS
+        sync: false
+      - key: VITE_ARC_STAKING_V2_ADDRESS
+        sync: false
+      - key: VITE_ARC_LENDING_V2_ADDRESS
+        sync: false
       - key: VITE_BASE_SWAP_EXECUTION_MODE
         value: intent_v2
       - key: VITE_BASE_PAYMASTER_ENABLED

@@ -10,10 +10,15 @@ import {
 } from "wagmi";
 import {
   ARC_CONTRACTS,
+  ARC_DEFI_V2_ADDRESSES,
+  ARC_NEW_CAPITAL_READY,
   ARC_SWAP_ABI,
   ARC_LENDING_ABI,
+  arcDefiPositionAddress,
 } from "../config";
 import { NETWORKS } from "../../../shared/config/networks";
+import { ArcPositionContractSelector } from "./ArcPositionContractSelector";
+import { arcPositionExitPrompt } from "../runtime/positionIntents";
 
 const ARC_CHAIN_ID = NETWORKS.arc.chainId;
 
@@ -28,6 +33,12 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const isArcConnected = isConnected && chainId === ARC_CHAIN_ID;
+  const [legacyPosition, setLegacyPosition] = React.useState(
+    ARC_DEFI_V2_ADDRESSES.lending === null,
+  );
+  const lendingAddress = arcDefiPositionAddress("lending", legacyPosition);
+  const swapAddress = arcDefiPositionAddress("swap", legacyPosition);
+  const canAddCapital = ARC_NEW_CAPITAL_READY.lending && !legacyPosition;
   const balance = useBalance({ address, chainId: ARC_CHAIN_ID });
   const { data: kletRawBalance, isError: isKletBalanceError } = useReadContract(
     {
@@ -57,13 +68,13 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
   } = useReadContracts({
     contracts: [
       {
-        address: ARC_CONTRACTS.Swap as `0x${string}`,
+        address: swapAddress,
         abi: ARC_SWAP_ABI,
         functionName: "usdcReserve",
         chainId: ARC_CHAIN_ID,
       },
       {
-        address: ARC_CONTRACTS.Swap as `0x${string}`,
+        address: swapAddress,
         abi: ARC_SWAP_ABI,
         functionName: "tokenReserve",
         chainId: ARC_CHAIN_ID,
@@ -87,7 +98,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
 
   const { data: collateralBig, isError: isCollateralReadError } =
     useReadContract({
-      address: ARC_CONTRACTS.Lending as `0x${string}`,
+      address: lendingAddress,
       abi: ARC_LENDING_ABI,
       functionName: "collateralBalance",
       args: [address || "0x0000000000000000000000000000000000000000"],
@@ -96,7 +107,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
     });
 
   const { data: borrowedBig, isError: isBorrowedReadError } = useReadContract({
-    address: ARC_CONTRACTS.Lending as `0x${string}`,
+    address: lendingAddress,
     abi: ARC_LENDING_ABI,
     functionName: "getBorrowedBalance",
     args: [address || "0x0000000000000000000000000000000000000000"],
@@ -105,7 +116,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
   });
 
   const { data: ltvBips, isError: isLtvReadError } = useReadContract({
-    address: ARC_CONTRACTS.Lending as `0x${string}`,
+    address: lendingAddress,
     abi: ARC_LENDING_ABI,
     functionName: "LTV_BIPS",
     chainId: ARC_CHAIN_ID,
@@ -113,7 +124,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
 
   const { data: healthFactorRaw, isError: isHealthReadError } = useReadContract(
     {
-      address: ARC_CONTRACTS.Lending as `0x${string}`,
+      address: lendingAddress,
       abi: ARC_LENDING_ABI,
       functionName: "healthFactor",
       args: [address || "0x0000000000000000000000000000000000000000"],
@@ -251,6 +262,19 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
         </div>
       </div>
 
+      <div className="border-[3px] border-[#1A1A1A] bg-white p-4 dark:border-[#4B5563] dark:bg-[#1E293B]">
+        <ArcPositionContractSelector
+          position="lending"
+          legacy={legacyPosition}
+          hasV2={ARC_DEFI_V2_ADDRESSES.lending !== null}
+          onChange={setLegacyPosition}
+        />
+        <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+          Balances, debt and risk below refer to the {legacyPosition ? "legacy" : "V2"}{" "}
+          lending contract. Check the selected position before preparing an exit.
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] p-6 shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569]">
           <div className="flex items-center gap-3 mb-4 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-3">
@@ -330,7 +354,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                   "Deposit 1 KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
                 )
               }
-              disabled={!isArcConnected}
+              disabled={!isArcConnected || !canAddCapital}
               className="mt-6 w-full p-3 bg-[#0052FF] text-white font-black uppercase tracking-widest border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
             >
               Collateral Management
@@ -363,7 +387,7 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
                   "Borrow 1 native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
                 )
               }
-              disabled={!isArcConnected}
+              disabled={!isArcConnected || !canAddCapital}
               className="mt-6 w-full p-3 bg-[#0052FF] text-white font-black uppercase tracking-widest border-[3px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] hover:-translate-y-1 hover:shadow-[6px_6px_0_#1A1A1A] dark:hover:shadow-[6px_6px_0_#475569] active:translate-y-0 active:shadow-[1px_1px_0_#1A1A1A] transition-all"
             >
               Borrowing Operations
@@ -376,37 +400,46 @@ export const ArcLendingDashboard: React.FC<LendingDashboardProps> = ({
         <h3 className="text-xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-widest mb-6 border-b-[4px] border-[#1A1A1A] dark:border-[#4B5563] pb-2 inline-block">
           ⚡ Prepare Lending Operations
         </h3>
+        {!canAddCapital && (
+          <p role="status" className="mb-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+            {legacyPosition && ARC_NEW_CAPITAL_READY.lending
+              ? "Legacy lending accepts repayment and withdrawals only. Select V2 for new collateral and borrowing."
+              : "New collateral and borrowing are unavailable until the upgraded lending and swap contracts are configured. Existing positions can still be repaid or withdrawn."}
+          </p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             {
               icon: "💰",
               title: "Add Collateral",
+              newCapital: true,
               prompt:
                 "Deposit 1 KLET as collateral in Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
             {
               icon: "💸",
               title: "Borrow",
+              newCapital: true,
               prompt:
                 "Borrow 1 native USDC from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
             },
             {
               icon: "💳",
               title: "Repay",
-              prompt:
-                "Repay 1 native USDC to Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
+              newCapital: false,
+              prompt: arcPositionExitPrompt("lending_repay", legacyPosition),
             },
             {
               icon: "🔓",
               title: "Withdraw Collateral",
-              prompt:
-                "Withdraw 1 KLET collateral from Kletia Lending on Arc Testnet; prepare the route and simulate it before wallet approval",
+              newCapital: false,
+              prompt: arcPositionExitPrompt("lending_withdraw", legacyPosition),
             },
-          ].map((action, idx) => (
+          ].map((action) => (
             <button
-              key={idx}
+              key={action.title}
               onClick={() => onActionClick(action.prompt)}
-              disabled={!isArcConnected}
+              disabled={!isArcConnected || (action.newCapital && !canAddCapital)}
               className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-[#1E293B] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[6px_6px_0_#1A1A1A] dark:shadow-[6px_6px_0_#475569] hover:-translate-y-1 hover:shadow-[8px_8px_0_#1A1A1A] active:translate-y-0 active:shadow-[2px_2px_0_#1A1A1A] transition-all"
             >
               <div

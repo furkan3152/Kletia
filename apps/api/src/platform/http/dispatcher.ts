@@ -34,6 +34,12 @@
  *   owner's queue meanwhile.
  * Events of intents whose key was revoked are not routed (revoking also
  * deletes the key's webhooks; this covers a cleanup that failed).
+ * With Postgres, routing seals the body into a durable, bounded delivery queue
+ * before the first attempt. Workers claim fenced leases, persist retries and
+ * attempt logs atomically, and recover interrupted deliveries after restart.
+ * Receivers deduplicate by event id (at-least-once while retries remain).
+ * The source mutation and routing are not one database transaction.
+ *
  * Every drop is counted and logged. Every attempt and drop is also written to
  * the per-webhook delivery log (deliveries.ts) through a fire-and-forget
  * recorder, so the log never delays delivery.
@@ -43,16 +49,18 @@ import { isIP } from "node:net";
 import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
 import { subscribeIntentEvents, subscribePolicyEvents, subscribeReceiptEvents, type IntentEvent, type PolicyEvent, type ReceiptEvent } from "../index.js";
-import { apiKeyStore, isKeyRevoked, keyKindOf } from "./auth.js";
+import { apiKeyStore, isKeyRevoked, keyKindOf, keyLive, loadOperatorKeys } from "./auth.js";
 import { subscribeContractEvents, type ContractEvent } from "./contracts.js";
 import { subscribeLinkEvents, type LinkEvent } from "./links/events.js";
 import { subscribeKeyEvents, type KeyEvent } from "./policies/announce.js";
 import { rawProjectId } from "./policies/store.js";
+import { platformDatabaseUrl } from "./db.js";
 import { classifyDeliveryError, classifyStatus, newDeliveryId, recordDelivery, type DeliveryRecord, type DeliveryError } from "./deliveries.js";
 import { guardedLookup, isPublicAddress } from "./netguard.js";
 import { resolveIntentOwner } from "./owners.js";
 import { sealingAvailable } from "./secrets.js";
 import { webhookSecret, webhooksForOwner } from "./webhooks.js";
+import { PostgresWebhookQueue, WEBHOOK_QUEUE_POLL_MS, type QueuedWebhook } from "./webhookQueue.js";
 
 export const WEBHOOK_RETRY_DELAYS_MS: readonly number[] = Object.freeze([1_000, 5_000, 25_000]);
 export const WEBHOOK_TIMEOUT_MS = 5_000;
@@ -191,6 +199,8 @@ export interface DispatcherStats {
   readonly dropped: number;
   /** Webhooks currently paused after consecutive failures. */
   readonly pausedWebhooks: number;
+  /** Postgres queued/retry counts are the last shared snapshot; remaining counters describe this worker. */
+  readonly storage: "memory" | "postgres";
 }
 
 export class WebhookDispatcher {
@@ -214,11 +224,21 @@ export class WebhookDispatcher {
   private failed = 0;
   private dropped = 0;
   private lastDropLog = 0;
+  private readonly durable: PostgresWebhookQueue | null;
+  private durableTimer: NodeJS.Timeout | null = null;
+  private polling = false;
+  private durableWaiting = { queued: 0, retries: 0 };
 
   constructor(
     readonly transport: WebhookTransport = httpsTransport,
     private readonly recorder: DeliveryRecorder = recordDelivery,
-  ) {}
+    private readonly options: { readonly pollMs?: number } = {},
+  ) {
+    this.durable = platformDatabaseUrl() ? new PostgresWebhookQueue({
+      queued: WEBHOOK_MAX_QUEUE, perOwner: WEBHOOK_MAX_QUEUED_PER_OWNER,
+      concurrency: CONCURRENCY, perOwnerConcurrency: WEBHOOK_MAX_IN_FLIGHT_PER_OWNER,
+    }) : null;
+  }
 
   start(): void {
     if (this.unsubscribe) return;
@@ -234,9 +254,16 @@ export class WebhookDispatcher {
     this.unsubscribeContracts = subscribeContractEvents(onEvent);
     this.unsubscribeReceipts = subscribeReceiptEvents(onEvent);
     this.unsubscribeFeatures = [subscribeLinkEvents(onEvent), subscribePolicyEvents(onEvent), subscribeKeyEvents(onEvent)];
+    if (this.durable) {
+      this.durableTimer = setInterval(() => void this.pollDurable(), Math.max(25, this.options.pollMs ?? WEBHOOK_QUEUE_POLL_MS));
+      this.durableTimer.unref?.();
+      void this.pollDurable();
+    }
   }
 
   stop(): void {
+    if (this.durableTimer) clearInterval(this.durableTimer);
+    this.durableTimer = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.unsubscribeContracts?.();
@@ -260,13 +287,14 @@ export class WebhookDispatcher {
     for (const breaker of this.breakers.values()) if (breaker.pausedUntil > now) pausedWebhooks += 1;
     return {
       running: this.unsubscribe !== null,
-      queued: this.queued,
+      queued: this.durable ? this.durableWaiting.queued : this.queued,
       inFlight: this.active,
-      scheduledRetries: this.timers.size,
+      scheduledRetries: this.durable ? this.durableWaiting.retries : this.timers.size,
       delivered: this.delivered,
       failed: this.failed,
       dropped: this.dropped,
       pausedWebhooks,
+      storage: this.durable ? "postgres" : "memory",
     };
   }
 
@@ -364,8 +392,116 @@ export class WebhookDispatcher {
       // A revoked key's webhooks never receive events (a store failure throws: nothing is sent).
       if (await isKeyRevoked(target.ownerKeyId)) continue;
       for (const hook of hooks) {
-        this.enqueue({ webhookId: hook.id, ownerKeyId: target.ownerKeyId, url: hook.url, event, body, attempt: 1 });
+        if (this.durable) {
+          await this.durable.enqueue({ webhookId: hook.id, ownerKeyId: target.ownerKeyId,
+            eventId: event.id, eventType: event.type, body,
+            ...(eventIntentId(event) ? { intentId: eventIntentId(event) } : {}),
+          });
+        } else {
+          this.enqueue({ webhookId: hook.id, ownerKeyId: target.ownerKeyId, url: hook.url, event, body, attempt: 1 });
+        }
       }
+    }
+    if (this.durable) void this.pollDurable();
+  }
+
+  /** Fresh status reads before every delivery, including retries. */
+  private async liveOwner(keyId: string): Promise<boolean> {
+    if (keyId.startsWith("op_")) return [...loadOperatorKeys().values()].some((key) => key.id === keyId);
+    const owner = await apiKeyStore().findById(keyId);
+    if (!owner || !keyLive(owner, Date.now())) return false;
+    for (const ancestorId of owner.lineage ?? []) {
+      const ancestor = await apiKeyStore().findById(ancestorId);
+      if (!ancestor || !keyLive(ancestor, Date.now())) return false;
+    }
+    return true;
+  }
+
+  private async pollDurable(): Promise<void> {
+    if (!this.durable || !this.unsubscribe || this.polling || !sealingAvailable()) return;
+    this.polling = true;
+    try {
+      const now = Date.now();
+      const paused = [...this.breakers].filter(([, breaker]) => breaker.pausedUntil > now).map(([id]) => id);
+      const jobs = await this.durable.claim(CONCURRENCY - this.active, [...new Set([...this.busyWebhooks, ...paused])]);
+      this.durableWaiting = await this.durable.waiting();
+      for (const job of jobs) {
+        if (!this.unsubscribe) {
+          await this.durable.release(job, 0);
+          continue;
+        }
+        this.active += 1;
+        this.busyWebhooks.add(job.webhookId);
+        void this.deliverDurable(job).catch((error: unknown) => {
+          // Its lease remains recoverable if storage was unavailable while
+          // recording the result; no success is silently acknowledged.
+          console.warn("[platform] durable webhook delivery deferred:", error instanceof Error ? error.message : error);
+        }).finally(() => {
+          this.active -= 1;
+          this.busyWebhooks.delete(job.webhookId);
+          if (this.unsubscribe) void this.pollDurable();
+        });
+      }
+    } catch (error) {
+      console.warn("[platform] webhook queue polling deferred:", error instanceof Error ? error.message : error);
+    } finally {
+      this.polling = false;
+    }
+  }
+
+  private async deliverDurable(job: QueuedWebhook): Promise<void> {
+    const queue = this.durable;
+    if (!queue) return;
+    if (!this.unsubscribe || !sealingAvailable()) return queue.release(job);
+    let attempted = false;
+    let started = 0;
+    let outcome: { status: DeliveryRecord["status"]; httpStatus?: number; durationMs?: number; error?: DeliveryError };
+    let retryAt: string | undefined;
+    try {
+      const hook = (await webhooksForOwner(job.ownerKeyId, { fresh: true })).find((entry) => entry.id === job.webhookId);
+      const origin = job.intentId ? await resolveIntentOwner(job.intentId) : null;
+      // Unknown includes a failing intent store after restart. Preserve the
+      // sealed job until its immutable owner can be resolved again.
+      if (job.intentId && origin === undefined) return queue.release(job);
+      if (!hook || !await this.liveOwner(job.ownerKeyId) ||
+          (job.intentId && (!origin || !await this.liveOwner(origin)))) {
+        outcome = { status: "dropped" };
+      } else {
+        const signature = await signWebhookPayload(webhookSecret(hook), job.body);
+        attempted = true;
+        started = performance.now();
+        const status = await this.transport(new URL(hook.url), job.body, {
+          "content-type": "application/json", "user-agent": WEBHOOK_USER_AGENT,
+          "kletia-signature": signature, "kletia-event-id": job.eventId,
+          "kletia-event-type": job.eventType, "kletia-webhook-id": job.webhookId,
+          "kletia-delivery-attempt": String(job.attempt),
+        });
+        outcome = { ...classifyStatus(status), httpStatus: status, durationMs: Math.round(performance.now() - started) };
+      }
+    } catch (error) {
+      if (!attempted) {
+        // A failing key/webhook store or signing key never spends an endpoint
+        // retry, and never falls through into sending without authorization.
+        await queue.release(job);
+        return;
+      }
+      outcome = { status: "failed", error: classifyDeliveryError(error), durationMs: Math.round(performance.now() - started) };
+    }
+    if (outcome.status === "failed") {
+      this.recordFailure(job.webhookId);
+      const delay = WEBHOOK_RETRY_DELAYS_MS[job.attempt - 1];
+      if (delay !== undefined) retryAt = new Date(Math.max(Date.now() + delay, this.breakers.get(job.webhookId)?.pausedUntil ?? 0)).toISOString();
+    }
+    const value: DeliveryRecord = {
+      id: newDeliveryId(), webhookId: job.webhookId, ownerKeyId: job.ownerKeyId,
+      eventId: job.eventId, eventType: job.eventType, ...(job.intentId ? { intentId: job.intentId } : {}),
+      attempt: job.attempt, ...outcome, ...(retryAt ? { nextRetryAt: retryAt } : {}), at: new Date().toISOString(),
+    };
+    if (await queue.finish(job, value, retryAt)) {
+      if (outcome.status === "succeeded") { this.delivered += 1; this.breakers.delete(job.webhookId); }
+      else if (outcome.status === "dropped") this.dropped += 1;
+      else if (!retryAt) this.failed += 1;
+      if (this.recorder !== recordDelivery) this.recorder(value);
     }
   }
 
@@ -458,9 +594,20 @@ export class WebhookDispatcher {
     let started = 0;
     let failure: { error: DeliveryError; httpStatus?: number } | null = null;
     try {
-      // The webhook may have been deleted since the event was queued.
-      const hook = (await webhooksForOwner(delivery.ownerKeyId)).find((entry) => entry.id === delivery.webhookId);
-      if (!hook) return;
+      // Deletion, revocation and ancestor expiry also apply to queued retries.
+      const hook = (await webhooksForOwner(delivery.ownerKeyId, { fresh: true })).find((entry) => entry.id === delivery.webhookId);
+      const intentId = eventIntentId(delivery.event);
+      const origin = intentId ? await resolveIntentOwner(intentId) : null;
+      if (intentId && origin === undefined) {
+        this.retry(delivery, WEBHOOK_QUEUE_POLL_MS, false);
+        return;
+      }
+      if (!hook || !await this.liveOwner(delivery.ownerKeyId) ||
+          (intentId && (!origin || !await this.liveOwner(origin)))) {
+        this.dropped += 1;
+        this.record(delivery, { status: "dropped" });
+        return;
+      }
       const signature = await signWebhookPayload(webhookSecret(hook), delivery.body);
       attempted = true;
       started = performance.now();
@@ -483,6 +630,10 @@ export class WebhookDispatcher {
       failure = { error: outcome.error ?? "http_status", httpStatus: status };
       reason = `HTTP ${status}`;
     } catch (error) {
+      if (!attempted) {
+        this.retry(delivery, WEBHOOK_QUEUE_POLL_MS, false);
+        return;
+      }
       if (attempted) failure = { error: classifyDeliveryError(error) };
       reason = error instanceof Error ? error.message.slice(0, 120) : "delivery error";
     }
@@ -531,7 +682,7 @@ export class WebhookDispatcher {
     }
   }
 
-  private retry(delivery: Delivery, delayMs: number): void {
+  private retry(delivery: Delivery, delayMs: number, spendAttempt = true): void {
     const owner = delivery.ownerKeyId;
     if ((this.retries.get(owner)?.size ?? 0) >= WEBHOOK_MAX_RETRIES_PER_OWNER) {
       this.drop(`too many pending retries for this key; ${delivery.event.type} ${delivery.event.id} for ${delivery.webhookId}`, delivery);
@@ -541,7 +692,7 @@ export class WebhookDispatcher {
       delayMs,
       () => {
         if (timer) this.forgetRetry(owner, timer);
-        this.enqueue({ ...delivery, attempt: delivery.attempt + 1 });
+        this.enqueue({ ...delivery, attempt: delivery.attempt + (spendAttempt ? 1 : 0) });
       },
       delivery,
     );

@@ -158,7 +158,7 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder="bridge 25 USDC from base to solana"
+            placeholder="swap 0.1 SOL to USDC on solana"
             hint="Plain English. Press Ctrl/⌘ + Enter to plan."
             error={studio.textError}
             mono

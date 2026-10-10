@@ -18,6 +18,7 @@ import {
   type NetworkMode,
 } from "../shared/config/networks";
 import { BACKEND_URL } from "../shared/config/runtime";
+import { assertFirstPartyContractExecution } from "../shared/platform/contractExecutionBoundary";
 import {
   hasBaseIntentV2Marker,
   hasExecutableIntentActionBinding,
@@ -382,11 +383,14 @@ export default function App() {
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isAppSidebarOpen, setIsAppSidebarOpen] = useState(false);
-  // EVM workspaces follow the wallet network (useNetwork). The Solana
-  // workspace is stored separately and never asks the EVM wallet to switch.
-  const [isSolanaWorkspace, setIsSolanaWorkspace] = useState(
-    () => readStorage(WORKSPACE_STORAGE_KEY) === "solana",
-  );
+  // Start new, disconnected visitors on Solana. Existing workspace/network
+  // preferences and restored EVM accounts keep their selected workspace.
+  // Solana is stored separately and never asks the EVM wallet to switch.
+  const [isSolanaWorkspace, setIsSolanaWorkspace] = useState(() => {
+    const savedWorkspace = readStorage(WORKSPACE_STORAGE_KEY);
+    if (savedWorkspace !== null) return savedWorkspace === "solana";
+    return readStorage("kletia-network-mode") === null && !address;
+  });
   const [solanaTab, setSolanaTab] = useState<SolanaTab>("overview");
   const workspaceMode: WorkspaceMode = isSolanaWorkspace ? "solana" : networkMode;
   const [input, setInput] = useState("");
@@ -2033,6 +2037,9 @@ export default function App() {
           "Selected route index is invalid. Recreate the intent.",
         );
       }
+
+      assertFirstPartyContractExecution({ action: data.action, actionType: data.actionType });
+      assertFirstPartyContractExecution({ action: activeRoute.action });
 
       if (
         !walletMatchesNetwork ||

@@ -39,6 +39,7 @@ import {
   type CometVenue,
   type CTokenVenue,
   type Erc4626Venue,
+  type YearnVaultVenue,
   type EvmTransactionRequest,
   type IntentStep,
   type NetworkKey,
@@ -68,7 +69,7 @@ export const UNWRAP_GAS = 60_000n;
 
 const READ_TIMEOUT_MS = 10_000;
 
-export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue;
+export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | YearnVaultVenue | CTokenVenue;
 export type EvmLendingKind = EvmLendingVenue["kind"];
 export type VenueOfKind<K extends EvmLendingKind> = Extract<EvmLendingVenue, { kind: K }>;
 export type LendingKind = "deposit" | "withdraw";

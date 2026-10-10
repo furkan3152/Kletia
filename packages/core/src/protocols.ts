@@ -13,8 +13,9 @@
  * - `VENUE_CONTRACTS`: contracts and programs a settlement venue, aggregator or
  *   name service may be called through, per network.
  *
- * Every address below was read back on-chain (eth_call / getAccountInfo) on
- * 2026-10-09; see docs/networks/*.md for the evidence.
+ * Canonical sources and read-only observations are documented in
+ * docs/networks/*.md. Runtime preparation rechecks venue identities; a
+ * published address alone never establishes a venue's current availability.
  */
 import type { NetworkKey } from "./chains.js";
 import type { IntentActionKind } from "./intent.js";
@@ -47,6 +48,8 @@ export type ProtocolId =
   | "uniswap-v3"
   | "aerodrome"
   | "aave-v3"
+  | "spark"
+  | "yearn-v3"
   | "compound-v3"
   | "moonwell"
   | "morpho"
@@ -60,6 +63,8 @@ export type ProtocolId =
   | "lifi"
   | "debridge-dln"
   | "jupiter"
+  | "raydium"
+  | "orca"
   | "jupiter-lend"
   | "kamino"
   | "jito"
@@ -132,6 +137,26 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://aave.com",
     summary: "Supply and withdraw (exact or full position); outcomes proven by Pool Supply/Withdraw events.",
     kinds: ["deposit", "withdraw"],
+  },
+  {
+    id: "spark",
+    name: "SparkLend",
+    category: "lending",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    kinds: ["deposit", "withdraw"],
+    website: "https://spark.fi",
+    summary: "Canonical-pinned SparkLend reserves for supply and withdrawal on Ethereum.",
+  },
+  {
+    id: "yearn-v3",
+    name: "Yearn V3",
+    category: "yield",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    kinds: ["deposit", "withdraw"],
+    website: "https://yearn.fi",
+    summary: "Curated ERC-4626 vaults with official registry endorsement and explicit exit loss caps.",
   },
   {
     id: "compound-v3",
@@ -261,6 +286,26 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://jup.ag",
     summary: "Solana liquidity aggregator across Meteora, Raydium, Orca, Phoenix and more.",
     kinds: ["swap", "stake"],
+  },
+  {
+    id: "raydium",
+    name: "Raydium",
+    category: "dex",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    kinds: ["swap"],
+    website: "https://raydium.io",
+    summary: "Venue-pinned direct exact-in swaps on Raydium CLMM or CP pools, using Jupiter as quote and instruction transport.",
+  },
+  {
+    id: "orca",
+    name: "Orca",
+    category: "dex",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    kinds: ["swap"],
+    website: "https://www.orca.so",
+    summary: "Venue-pinned direct exact-in Whirlpool swaps, using Jupiter as quote and instruction transport.",
   },
   {
     id: "jupiter-lend",
@@ -414,7 +459,7 @@ export function protocolExecutesKind(protocol: ProtocolId, kind: IntentActionKin
 
 /* ------------------------------------------------------------ yield venues */
 
-export type YieldVenueKind = "aave-reserve" | "comet" | "erc4626" | "ctoken" | "jupiter-lend" | "kamino-reserve";
+export type YieldVenueKind = "aave-reserve" | "comet" | "erc4626" | "yearn-vault" | "ctoken" | "jupiter-lend" | "kamino-reserve";
 export type YieldVenueAction = "deposit" | "withdraw";
 export type MorphoGeneration = "metamorpho-v1.0" | "metamorpho-v1.1" | "vault-v2";
 
@@ -487,6 +532,16 @@ export interface CTokenVenue extends YieldVenueBase {
   readonly nativePayout?: string;
 }
 
+/** Yearn's extended ERC-4626 calls require explicit loss limits on exits. */
+export interface YearnVaultVenue extends YieldVenueBase {
+  readonly kind: "yearn-vault";
+  readonly spender: string;
+  readonly receipt: ReceiptToken;
+  /** Official registries; at least one must endorse this exact vault. */
+  readonly registries: readonly string[];
+  readonly apiVersion: string;
+}
+
 export interface JupiterLendVenue extends YieldVenueBase {
   readonly kind: "jupiter-lend";
   /** The jlToken mint credited to the wallet. */
@@ -505,7 +560,7 @@ export interface KaminoReserveVenue extends YieldVenueBase {
   readonly supplyVault?: string;
 }
 
-export type YieldVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue | JupiterLendVenue | KaminoReserveVenue;
+export type YieldVenue = AaveReserveVenue | CometVenue | Erc4626Venue | YearnVaultVenue | CTokenVenue | JupiterLendVenue | KaminoReserveVenue;
 
 /** MetaMorpho / Vault V2 factories per network (null: no such factory is used there). */
 export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Record<MorphoGeneration, string | null>>>>> = Object.freeze({
@@ -608,6 +663,23 @@ const OPTIMISM_MOONWELL = "0xCa889f40aae37FFf165BccF69aeF1E82b5C511B9";
  * first entry is the default the planner picks when no venue is named.
  */
 export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
+  // SparkLend's official Ethereum address registry; runtime checks re-read reserve identities.
+  {
+    id: "ethereum:spark:usdc", slug: "usdc", protocol: "spark", network: "ethereum", kind: "aave-reserve", name: "SparkLend USDC",
+    asset: "USDC", target: "0xC13e21B648A5Ee794902342038FF3aDAB66BE987", spender: "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+    dataProvider: "0xFc21d6d146E6086B8359705C8b28512a983db0cb", receipt: { address: "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815", decimals: 6 }, actions: BOTH,
+  },
+  {
+    id: "ethereum:spark:weth", slug: "weth", protocol: "spark", network: "ethereum", kind: "aave-reserve", name: "SparkLend WETH",
+    asset: "WETH", target: "0xC13e21B648A5Ee794902342038FF3aDAB66BE987", spender: "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+    dataProvider: "0xFc21d6d146E6086B8359705C8b28512a983db0cb", receipt: { address: "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB", decimals: 18 }, actions: BOTH,
+  },
+  {
+    id: "ethereum:yearn-v3:usdc-1", slug: "usdc-1", protocol: "yearn-v3", network: "ethereum", kind: "yearn-vault", name: "Yearn V3 USDC-1",
+    asset: "USDC", target: "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204", spender: "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+    receipt: { address: "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204", decimals: 6 },
+    registries: ["0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038", "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af"], apiVersion: "3.0.2", actions: BOTH,
+  },
   // Aave V3 reserves (Pool = spender; aToken = receipt)
   aave("base", BASE_AAVE_POOL, BASE_AAVE_DATA, "USDC", "0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB", 6),
   aave("base", BASE_AAVE_POOL, BASE_AAVE_DATA, "WETH", "0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7", 18),
@@ -744,6 +816,9 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "debridge-dln", network: "solana", role: "dln-source", address: "src5qyZHqTqecJV4aY6Cb6zDZLMDzrDKKezs22MPHr4" },
   { protocol: "debridge-dln", network: "solana", role: "dln-destination", address: "dst5MGcFPoBeREFAA5E3tU5ij8m5uVYwkzkSAbsLbNo" },
   // Solana lending programs
+  { protocol: "raydium", network: "solana", role: "program", address: "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK" },
+  { protocol: "raydium", network: "solana", role: "program", address: "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C" },
+  { protocol: "orca", network: "solana", role: "program", address: "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc" },
   { protocol: "jupiter-lend", network: "solana", role: "program", address: JUPITER_LEND_PROGRAM },
   { protocol: "jupiter-lend", network: "solana", role: "liquidity-program", address: JUPITER_LIQUIDITY_PROGRAM },
   { protocol: "kamino", network: "solana", role: "program", address: KAMINO_PROGRAM },

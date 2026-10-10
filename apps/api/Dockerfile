@@ -29,7 +29,8 @@ FROM node:22.23.1-alpine3.24 AS runtime
 WORKDIR /repo
 ENV NODE_ENV=production PORT=10000
 
-COPY package.json package-lock.json .npmrc ./
+# Keep root metadata readable by USER node under a restrictive host umask.
+COPY --chmod=644 package.json package-lock.json .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY packages/sdk/package.json packages/sdk/
 COPY packages/widget/package.json packages/widget/
@@ -42,10 +43,14 @@ RUN --mount=type=secret,id=npm_ca,required=false \
 
 COPY --from=build /repo/packages/core/dist packages/core/dist
 COPY --from=build /repo/apps/api/dist apps/api/dist
+# COPY preserves host permissions; runtime manifests and artifacts are read-only
+# to node, with traversable directories. npm-installed executable bits stay intact.
+RUN find packages apps -type d -exec chmod 755 {} + \
+  && find packages apps -type f -exec chmod 644 {} +
 
 USER node
 EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
+  CMD wget -Y off -qO- "http://127.0.0.1:${PORT}/health" >/dev/null || exit 1
 
 CMD ["node", "apps/api/dist/index.js"]

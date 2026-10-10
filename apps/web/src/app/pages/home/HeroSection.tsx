@@ -24,7 +24,7 @@ function mapEdition(): string {
 }
 
 export interface HeroSectionProps {
-  /** Protocol count copy, e.g. "29 protocols + your own contracts" (live /v1/protocols when available, else the registry). */
+  /** Public protocol count (live /v1/protocols when available, else the registry). */
   readonly protocols: string;
 }
 

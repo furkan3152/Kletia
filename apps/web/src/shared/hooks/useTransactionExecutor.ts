@@ -30,6 +30,7 @@ import {
   BASE_LAUNCH_FACTORY_V2_RUNTIME_CODEHASH,
 } from "../../networks/base/config/launchFactoryV2";
 import { BACKEND_URL, BASE_PAYMASTER_ENABLED } from "../config/runtime";
+import { assertFirstPartyContractExecution } from "../platform/contractExecutionBoundary";
 
 const SECURITY_BLOCK_THRESHOLD = 50;
 const BASE_MAINNET_CHAIN_ID = 8_453;
@@ -493,6 +494,7 @@ export function useTransactionExecutor() {
       plan: NetworkTransactionPlan,
       onLog: LogHandler = () => undefined,
     ): Promise<TransactionExecutionResult> => {
+      assertFirstPartyContractExecution({ action: plan.action });
       const expectedNetwork = getNetwork(plan.network);
       if (expectedNetwork.chainId !== plan.chainId) {
         throw new Error(

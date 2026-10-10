@@ -1,5 +1,15 @@
 # Kletia Platform API errors
 
+## Direct Solana DEX checks
+
+| Code | HTTP | Retry | Meaning | Remedy |
+|---|---|---|---|---|
+| <a id="error-SOLANA_SWAP_INVALID"></a>`SOLANA_SWAP_INVALID` | 422 | no | Invalid direct swap | Use two distinct initialized classic SPL mints and a positive u64 input amount. |
+| <a id="error-DEX_ASSET_UNSUPPORTED"></a>`DEX_ASSET_UNSUPPORTED` | 422 | no | Unsupported direct DEX asset | Use initialized classic SPL tokens with the registry's expected decimals; direct Token-2022 routes are unsupported. |
+| <a id="error-DEX_QUOTE_MISMATCH"></a>`DEX_QUOTE_MISMATCH` | 502 | yes | Direct DEX quote mismatch | Request a fresh quote matching the venue, mints, amount and slippage. |
+| <a id="error-DEX_INSTRUCTION_INVALID"></a>`DEX_INSTRUCTION_INVALID` | 502 | yes | Invalid direct DEX instructions | Request a fresh route; the provider returned malformed or unsupported instructions. |
+| <a id="error-SIMULATION_UNVERIFIED"></a>`SIMULATION_UNVERIFIED` | 502 | yes | Direct DEX simulation unverified | Use a complete RPC simulation with the reviewed pool CPI evidence, or another venue. |
+
 Every failed request returns the same envelope and a stable code:
 
 ```json

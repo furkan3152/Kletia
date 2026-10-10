@@ -11,12 +11,13 @@ import type { EvmLendingVenue, LendingMetrics } from "./common.js";
 import { compoundMetrics } from "./compoundV3.js";
 import { morphoMetrics } from "./erc4626.js";
 import { moonwellMetrics } from "./moonwell.js";
+import { yearnMetrics } from "./yearn.js";
 
 const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { readonly value: Promise<LendingMetrics>; readonly expiresAt: number }>();
 
 export function isEvmLendingVenue(venue: { readonly kind: string; readonly network: NetworkKey }): venue is EvmLendingVenue {
-  return ["aave-reserve", "comet", "erc4626", "ctoken"].includes(venue.kind) && CHAINS[venue.network].vm === "evm";
+  return ["aave-reserve", "comet", "erc4626", "yearn-vault", "ctoken"].includes(venue.kind) && CHAINS[venue.network].vm === "evm";
 }
 
 function read(venue: EvmLendingVenue): Promise<LendingMetrics> {
@@ -27,6 +28,8 @@ function read(venue: EvmLendingVenue): Promise<LendingMetrics> {
       return compoundMetrics(venue);
     case "erc4626":
       return morphoMetrics(venue);
+    case "yearn-vault":
+      return yearnMetrics(venue);
     case "ctoken":
       return moonwellMetrics(venue);
   }

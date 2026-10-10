@@ -6,5 +6,7 @@ export { aaveV3Adapter, aaveMetrics } from "../aaveV3.js";
 export { compoundV3Adapter, compoundMetrics } from "./compoundV3.js";
 export { erc4626Adapter, morphoMetrics } from "./erc4626.js";
 export { moonwellAdapter, moonwellMetrics } from "./moonwell.js";
+export { sparkAdapter, sparkMetrics } from "./spark.js";
+export { yearnAdapter, yearnMetrics } from "./yearn.js";
 export { listLendingMetrics, readLendingMetrics, resetLendingMetricsCache, type LendingMetricsListing } from "./metrics.js";
 export type { LendingMetrics } from "./common.js";

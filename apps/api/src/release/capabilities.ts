@@ -8,6 +8,7 @@ import { APPLIED_PUBLIC_DEFAULTS } from "../shared/config/environment.js";
 import {
   ARBITRUM_MVP_ENABLED,
   ARC_VAULT_EXECUTION_MODE,
+  ARC_DEFI_V2_DEPLOYMENTS,
 } from "../shared/config/networks.js";
 import { ARBITRUM_SEPOLIA_MVP_ENABLED } from "../networks/arbitrum-sepolia/config.js";
 import { platformSecretStatus } from "../platform/http/secrets.js";
@@ -164,6 +165,20 @@ export function readFeatureCapabilities(): {
           ? "Runtime codehash pinned."
           : "Legacy V1 vault in use.",
     },
+    ...(["swap", "staking", "lending"] as const).map((kind): FeatureCapability => {
+      const configured = Boolean(ARC_DEFI_V2_DEPLOYMENTS[kind]) && (kind !== "lending" || Boolean(ARC_DEFI_V2_DEPLOYMENTS.swap));
+      const prefix = `ARC_${kind.toUpperCase()}_V2`;
+      return {
+        id: `arc.${kind}_v2`,
+        network: "arc",
+        name: `Arc ${kind} V2`,
+        state: configured ? "live" : "disabled",
+        detail: configured
+          ? "Compiled V2 source identity is pinned and rechecked on-chain before every plan."
+          : "New exposure is disabled until a reviewed V2 deployment is configured; existing legacy positions can exit explicitly.",
+        requires: [`${prefix}_ADDRESS`, `${prefix}_RUNTIME_CODEHASH`, ...(kind === "lending" ? ["ARC_SWAP_V2_ADDRESS", "ARC_SWAP_V2_RUNTIME_CODEHASH"] : [])],
+      };
+    }),
     {
       id: "arbitrum.network",
       network: "arbitrum",
@@ -185,7 +200,7 @@ export function readFeatureCapabilities(): {
     {
       id: "solana.network",
       network: "solana",
-      name: "Solana (Jupiter, transfers, Kamino, Relay)",
+      name: "Solana (Jupiter, Raydium, Orca, lending, transfers, bridges)",
       state: "live",
       detail: has("SOLANA_RPC_URL")
         ? "Private RPC configured."

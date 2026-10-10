@@ -31,7 +31,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     id: "coverage",
     question: "Which networks and protocols are supported?",
     answer: [
-      "Kletia knows {networks} networks and {protocols} today{ownContracts}. Each protocol is marked execute, quote or discover, so you can see what Kletia does with it. Mainnet and testnet networks are separate capital and never share a plan.",
+      "Kletia knows {networks} networks and {protocols} today. {ownContracts}Each protocol is marked execute, quote or discover, so you can see what Kletia does with it. Mainnet and testnet networks are separate capital and never share a plan.",
     ],
     links: [
       { label: "Network status", to: "/networks" },
@@ -99,5 +99,5 @@ export function fillCounts(
   return text
     .replace(/\{networks\}/gu, String(counts.networks))
     .replace(/\{protocols\}/gu, protocolNoun(counts.protocols))
-    .replace(/\{ownContracts\}/gu, counts.ownContracts ? ", plus the contracts you register yourself" : "");
+    .replace(/\{ownContracts\}/gu, counts.ownContracts ? "Developers can register custom contracts for their own project integrations; Kletia's main website does not execute them. " : "");
 }

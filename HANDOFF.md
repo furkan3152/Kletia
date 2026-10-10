@@ -14,25 +14,15 @@ State of the repository when the Claude Code session paused (2026-10-10), writte
 
 Last verified before the final review: API tests 883/883 (Postgres), package tests passing, web typecheck/lint/build, safety harnesses and browser QA green.
 
-## What is left (in priority order)
+## What is left
 
-The last adversarial review found five issues. The fix step was interrupted by a usage limit.
+The final review's five findings (receipt withdrawal race, EAS time leak, receipt-page copied command, approver-key loosening, link activation bypass) are all fixed, each with a regression test. `npm run verify` (including API tests on Postgres, OpenAPI drift check and contract compile) passed on this state.
 
-| # | Severity | Issue | Status |
-|---|---|---|---|
-| F4 | high | `confirm.approvers.keys` removal is classified as a tightening and applies immediately, skipping the amendment delay (`packages/core/src/policy.ts` `comparePolicies`, applied in `apps/api/src/platform/http/policies/store.ts` `planWrite`). Fix: treat empty/absent `keys` as "every project key" in `compareAllowlist`. | **Partly edited in the tree, not tested.** Needs core test for `[A] -> []` and `[A] -> absent`, an HTTP test that the change is `pending` under a delay. |
-| F5 | medium | Pausing then resuming a *pending* link skips the activation delay (`apps/api/src/platform/http/links/service.ts` `patchLink`). A rotated-out secret can still create/patch links (no `viaPreviousSecret` check, unlike policies, contracts, keys). | **Not started.** Fix: resuming a still-pending link returns to `pending` with the original `activatesAt`; refuse link writes with a previous secret. Add regression tests. |
-| F3 | low | Receipt page copies `window.location.href` into a shell command (`apps/web/src/app/pages/receipt/ReceiptPage.tsx`, `receiptLink.ts`). Fix: rebuild the link from receiptId, shareId and key; quote safely. | **Partly edited, not tested.** |
-| F1 | medium | Withdrawing receipt disclosures during an issuance was undone (`receipts/store.ts`, `issuer.ts`). | Fixed in the tree; regression test should be confirmed. |
-| F2 | low | EAS envelope exposed the exact issuance second (`receipts/eas.ts`). | Fixed in the tree; confirm the test. |
+Remaining ideas, none blocking:
 
-The reproduction tests for each finding are in the Claude session scratch dir, which is not in git; the scenarios above are enough to recreate them.
-
-Then:
-
-1. Run the full chain: `npm run verify`, API tests with `KLETIA_TEST_DATABASE_URL=postgres://kletia:kletia@127.0.0.1:5432/kletia_test`, `npm run check:openapi` (regenerate with `npm run generate:openapi` if the API changed).
-2. Update `README.md`, `CHANGELOG.md` and `docs/README.md` so they describe the final state (networks, protocols, receipts, Rule Book, links, BYOC) without claiming an audit.
-3. The commit history contains several `wip:` commits; squash or rewrite as you prefer.
+1. Browser QA of the new web pages against a real API was done before the last fixes; rerun the safety harnesses if you change web code.
+2. The commit history contains several `wip:` commits; squash as you prefer.
+3. Operator tasks below (keys, receipt signing key) before any public deployment.
 
 ## Known limits and operator tasks
 

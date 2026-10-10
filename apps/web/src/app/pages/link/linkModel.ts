@@ -7,7 +7,7 @@
  * (`?from=arbitrum&asset=USDC&amount=250`), never a recipient or a contract,
  * and a prefilled amount still has to sit inside the publisher's bounds.
  */
-import { CHAINS, isNetworkKey, linkFundingOptions, type LinkView, type NetworkKey } from "@kletia/core";
+import { CHAINS, isNetworkKey, linkFundingOptions, type IntentPreview, type LinkView, type NetworkKey } from "@kletia/core";
 
 export interface FundingOption {
   /** "arbitrum:USDC" */
@@ -242,4 +242,30 @@ export function visitorAccounts(
     out.push(`${CHAINS[network].id}:${address}`);
   }
   return out;
+}
+
+/**
+ * Issues an indicative quote reports about its stand-in account rather than
+ * about the route: the stand-in holds nothing, so its balance is short and a
+ * simulation of its first spend reverts.
+ */
+const STAND_IN_ISSUES = new Set(["INSUFFICIENT_BALANCE", "SIMULATION_FAILED", "PREVIEW_GAS_ON_ARRIVAL"]);
+
+/**
+ * The fare of an indicative quote (`POST /v1/links/{id}/quote` without
+ * accounts), as the page prints it: what the route pays, gets and costs, but
+ * nothing about the stand-in account's balances ("you have 0 USDC", gas to
+ * bring, "would fail on-chain"), which would describe nobody. The visitor's
+ * own quote, after connecting, is shown in full and approved before signing.
+ */
+export function indicativeFare(preview: IntentPreview): IntentPreview {
+  const steps = preview.steps.map((step) => ({ ...step, issues: step.issues.filter((issue) => issue.severity === "block" || !STAND_IN_ISSUES.has(issue.code)) }));
+  return {
+    ...preview,
+    // Kletia could not simulate the stand-in's spend; the numbers are the venues' quotes.
+    basis: preview.basis === "unavailable" ? "quoted" : preview.basis,
+    needs: [],
+    warnings: preview.warnings.filter((warning) => !/^PREVIEW_GAS_ON_ARRIVAL:/u.test(warning)),
+    steps,
+  };
 }

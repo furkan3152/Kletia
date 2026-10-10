@@ -94,6 +94,10 @@ export function describePlatformError(error: PlatformError): string {
   if (error.status >= 500) {
     return `The Kletia API failed to handle the request (${error.status}).`;
   }
+  if (error.code === "PREVIEW_CHANGED") {
+    // Reached only after the fare changed more than once in a row (each change was shown and approved).
+    return "The fare kept changing while Kletia prepared this step, so nothing was signed. Retry to get a fresh fare and review it again.";
+  }
   return error.message;
 }
 

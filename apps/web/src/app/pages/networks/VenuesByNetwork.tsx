@@ -5,6 +5,7 @@ import { AnimatedNumber } from "../../site/motion/AnimatedNumber";
 import { Reveal } from "../../site/motion/Reveal";
 import { categoryIcon, categoryWord, lineFor } from "../../site/art";
 import { Icon } from "../../site/art/Icon";
+import { isOwnContractEntry, protocolNoun } from "../../site/protocolCount";
 import { LineBullet } from "../../site/art/LineBullet";
 import { Badge } from "../../site/ui/Badge";
 import { cx, FOCUS_RING, INK_BORDER, LABEL, SHADOW_HARD, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
@@ -30,7 +31,10 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
     <Reveal as="ul" stagger className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
       {networks.map((network) => {
         const label = networkLabel(network.key);
-        const venues = protocolsOnNetwork(protocols, network.key).sort(
+        const onNetwork = protocolsOnNetwork(protocols, network.key);
+        // Count real protocols only; the "custom" entries mean your own contracts can be called here, named apart.
+        const ownContracts = onNetwork.some(isOwnContractEntry);
+        const venues = onNetwork.filter((protocol) => !isOwnContractEntry(protocol)).sort(
           (a, b) => RANK[strongestCapability(a)] - RANK[strongestCapability(b)] || a.name.localeCompare(b.name),
         );
         const counts = capabilityCounts(venues);
@@ -66,7 +70,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                   <span className="block font-display text-4xl font-bold leading-none tracking-[-0.04em]">
                     <AnimatedNumber value={venues.length} />
                   </span>
-                  <span className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>{venues.length === 1 ? "venue" : "venues"}</span>
+                  <span className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>{venues.length === 1 ? "protocol" : "protocols"}</span>
                 </p>
               </div>
 
@@ -74,6 +78,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                 <Badge tone="blue">Execute {counts.execute}</Badge>
                 <Badge tone="yellow">Quote {counts.quote}</Badge>
                 <Badge tone="neutral">Discover {counts.discover}</Badge>
+                {ownContracts ? <Badge tone="ink">+ your own contracts</Badge> : null}
               </p>
 
               {kinds.length > 0 ? (
@@ -105,7 +110,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                     FOCUS_RING,
                   )}
                 >
-                  View {venues.length} {venues.length === 1 ? "protocol" : "protocols"}
+                  View {protocolNoun(venues.length)}
                   <span className="sr-only"> on {label.name}</span>
                   <ArrowRight
                     className="h-3.5 w-3.5 transition-transform duration-150 group-hover/link:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/link:translate-x-0"

@@ -1,7 +1,7 @@
 import "../../site/art/base.css";
 import "./link.css";
 
-import { CHAINS, explorerAddressUrl, isNetworkKey, type LinkView } from "@kletia/core";
+import { CHAINS, explorerAddressUrl, isNetworkKey, toChecksumAddress, type LinkView } from "@kletia/core";
 import { useId } from "react";
 
 import { LineBullet } from "../../site/art/LineBullet";
@@ -26,6 +26,16 @@ export interface FixedByPublisherProps {
 
 function explorerFor(network: string, address: string): string | null {
   return isNetworkKey(network) ? httpsOnly(explorerAddressUrl(network, address)) : null;
+}
+
+/** EVM addresses print in their checksummed form (EIP-55), so a reader can compare them with a wallet's. */
+function displayAddress(network: string, address: string): string {
+  if (!isNetworkKey(network) || CHAINS[network].vm !== "evm" || !/^0x[0-9a-fA-F]{40}$/u.test(address)) return address;
+  try {
+    return toChecksumAddress(address);
+  } catch {
+    return address;
+  }
 }
 
 function NetworkTag({ network }: { readonly network: string }) {
@@ -63,7 +73,7 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
                       {recipient.name ? <span className="font-display text-lg font-bold">{recipient.name}</span> : null}
                       <NetworkTag network={recipient.network} />
                     </span>
-                    <span className="kl-link-fixed__addr">{recipient.address}</span>
+                    <span className="kl-link-fixed__addr">{displayAddress(recipient.network, recipient.address)}</span>
                     {recipient.name ? (
                       <span className="text-xs font-semibold text-[#45464B]">
                         The name was resolved and pinned when the link was published. If it ever points elsewhere, the link pauses itself.
@@ -105,7 +115,7 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
                       <span className="font-display text-lg font-bold">{contract.label}</span>
                       <NetworkTag network={contract.network} />
                     </span>
-                    <span className="kl-link-fixed__addr">{contract.address}</span>
+                    <span className="kl-link-fixed__addr">{displayAddress(contract.network, contract.address)}</span>
                     <span className="text-xs font-semibold text-[#45464B]">
                       {contract.integrator ? `Registered by ${contract.integrator}` : "Registered by the publisher"}
                       {contract.revision !== null ? `, revision ${contract.revision}` : ""}
@@ -138,7 +148,9 @@ export function FixedByPublisher({ view, needsAcknowledgement, acknowledged, onA
             <label htmlFor={checkboxId} className="text-sm font-semibold leading-relaxed">
               {view.publisher.domainVerified
                 ? "I checked the custom contract above. Kletia did not audit it."
-                : `I understand that ${view.publisher.domain ?? "this publisher's website"} has not verified this link, and I checked the recipients and contracts above myself.`}
+                : nothingFixed
+                  ? `I understand that ${view.publisher.domain ?? "this publisher's website"} has not verified this link, so nobody confirmed who published it.`
+                  : `I understand that ${view.publisher.domain ?? "this publisher's website"} has not verified this link, and I checked the recipients and contracts above myself.`}
             </label>
           </div>
         ) : null}

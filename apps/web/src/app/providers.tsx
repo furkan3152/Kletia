@@ -45,7 +45,7 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: "Kletia Omni-Engine",
+    appName: "Kletia",
     projectId: hasWalletConnectProjectId ? walletConnectProjectId! : "",
   },
 );

@@ -13,22 +13,24 @@ import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { cx, HARD_SHADOW, INK_BORDER, INK_BORDER_THIN, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { ApiKeyField } from "./ApiKeyField";
 import { formatTimestamp, GRACE_OPTIONS, keyedClient } from "./keyClient";
-import { DEV_KEY_PATTERN, maskKey, useSessionKey } from "./sessionKey";
+import { AGENT_KEY_SHAPE, DEV_KEY_PATTERN, maskKey, useSessionKey } from "./sessionKey";
 import { UsagePanel } from "./UsagePanel";
 
 const NAME_PATTERN = /^[\w .:-]{1,64}$/u;
 
-interface Secret {
-  readonly kind: "issued" | "rotated";
+export interface Secret {
+  readonly kind: "issued" | "rotated" | "agent";
   readonly id: string;
   readonly name: string;
   readonly key: string;
   readonly previousExpiresAt?: string | null;
+  /** Agent keys: when the key stops authenticating. */
+  readonly expiresAt?: string | null;
   /** True when the session key was replaced by this secret. */
   readonly swapped?: boolean;
 }
 
-function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?: () => void; onDone: () => void }) {
+export function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?: () => void; onDone: () => void }) {
   const { key: sessionKey } = useSessionKey();
   const inUse = sessionKey === secret.key;
   return (
@@ -37,12 +39,14 @@ function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?: () =>
       className="kl-drop flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-4 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569] sm:p-5"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <p className={LABEL}>{secret.kind === "issued" ? "Key issued" : "Key rotated"}</p>
+        <p className={LABEL}>{secret.kind === "issued" ? "Key issued" : secret.kind === "agent" ? "Agent key issued" : "Key rotated"}</p>
         <Badge tone="ink">{secret.name}</Badge>
       </div>
       <p className="flex items-start gap-2 text-sm font-bold">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        Copy it now into your server&apos;s secret store. This is the only time Kletia shows this secret.
+        {secret.kind === "agent"
+          ? "Copy it now into the agent's secret store (its MCP client or signer configuration). This is the only time Kletia shows this secret."
+          : "Copy it now into your server's secret store. This is the only time Kletia shows this secret."}
       </p>
       <div className="flex flex-col gap-2 border-[3px] border-[#1A1A1A] bg-white p-3 sm:flex-row sm:items-center">
         <code className="min-w-0 flex-1 break-all font-code text-sm">{secret.key}</code>
@@ -51,6 +55,12 @@ function SecretReveal({ secret, onUse, onDone }: { secret: Secret; onUse?: () =>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 font-code text-xs">
         <dt className="font-bold">id</dt>
         <dd className="break-all">{secret.id}</dd>
+        {secret.kind === "agent" && secret.expiresAt ? (
+          <>
+            <dt className="font-bold">expires</dt>
+            <dd>{formatTimestamp(secret.expiresAt)}</dd>
+          </>
+        ) : null}
         {secret.kind === "rotated" ? (
           <>
             <dt className="font-bold">old secret</dt>
@@ -193,6 +203,7 @@ function KeyRow({
           <p className="flex min-w-0 flex-wrap items-center gap-2 font-bold">
             <span className="min-w-0 break-words">{item.name}</span>
             <Badge tone={status.tone}>{status.label}</Badge>
+            {item.kind === "agent" ? <Badge tone="purple">Agent{item.depth ? ` · level ${item.depth}` : ""}</Badge> : null}
             {item.current ? <Badge tone="ink">In memory</Badge> : null}
           </p>
           <p className={cx("break-all font-code text-[11px]", TEXT_MUTED)}>
@@ -252,7 +263,9 @@ function KeyRow({
         <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
           <p className="flex items-start gap-2 text-sm font-bold">
             <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            Revoke {item.name}? Requests with it fail at once here and within 15 seconds everywhere. This cannot be undone.
+            Revoke {item.name}? Requests with it fail at once here and within 15 seconds everywhere.
+            {item.descendants ? ` Its ${item.descendants === 1 ? "agent key is" : `${item.descendants} agent keys are`} revoked with it.` : ""} This cannot be
+            undone.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ink" loading={busy} onClick={onRevoke}>
@@ -343,7 +356,9 @@ function ManageKeysCard() {
       {!loaded ? (
         <p className={cx("border-[3px] border-dashed border-[#1A1A1A]/30 p-4 text-sm dark:border-white/15", TEXT_MUTED)}>
           {key
-            ? "That is not a complete developer key (kl_dev_ followed by 32 letters and digits). Operator keys are configuration and cannot be managed here."
+            ? AGENT_KEY_SHAPE.test(key)
+              ? "That is an agent key. Agent keys never manage project keys: open the Rule Book below to see its rule book, its own agent keys and its decisions."
+              : "That is not a complete developer key (kl_dev_ followed by 32 letters and digits). Operator keys are configuration and cannot be managed here."
             : "Paste a developer key above, or issue one, to list, rotate and revoke the keys of its project."}
         </p>
       ) : list.status === "loading" ? (

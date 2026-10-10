@@ -13,8 +13,11 @@ import {
   isContractStep,
   policyHold,
   policyOutcome,
+  RECEIPT_SHARE_GROUPS,
   RECEIPT_SHARE_PROFILES,
   receiptApplies,
+  receiptGroupsLabel,
+  receiptPendingText,
   receiptShareHref,
 } from "../dist/review.js";
 import { createIntentSession } from "../dist/hooks/index.js";
@@ -121,6 +124,36 @@ test("fareModel: you pay, you get with at least, transit collapsed, fees in USD,
   assert.equal(fare.warnings.some((w) => /‮/u.test(w)), false);
   assert.deepEqual(fare.legend, ["simulated", "simulated-assumed-funds", "venue-minimum", "quoted", "estimated"]);
   assert.equal(fare.totals.youGetAtLeast, "$99.37");
+});
+
+test("fareModel: coded intent warnings print their sentence once; codes the fare already shows are dropped", () => {
+  const fare = fareModel(
+    designPreview({
+      warnings: [
+        "Step 2 was simulated with 99.465943 USDC that Relay delivers to you on Arbitrum; it will be simulated again before you sign it.",
+        "PREVIEW_GAS_ON_ARRIVAL: you need about 0.000008 ETH on Arbitrum One to sign step 2.",
+        "PREVIEW_UNPRICED: no price for 1 asset(s); totals that need them are null.",
+        "PREVIEW_SOMETHING_NEW: the venue changed its route.",
+      ],
+    }),
+    graph,
+  );
+  assert.deepEqual(fare.warnings.filter((w) => !/^Step 2 is/u.test(w)), [
+    "Step 2 was simulated with 99.465943 USDC that Relay delivers to you on Arbitrum; it will be simulated again before you sign it.",
+    "The venue changed its route.",
+  ]);
+  assert.equal(fare.warnings.some((w) => /PREVIEW_|null/u.test(w)), false);
+  assert.equal(fare.bring.length, 1, "gas on arrival stays under Bring");
+});
+
+test("fareModel: EVM recipients print in full, checksummed (EIP-55)", () => {
+  const fare = fareModel(
+    designPreview({
+      payments: [{ stepId: "s1", network: "base", recipient: "eip155:8453:0x2211d1d0020daea8039e46cf1367962070d77da9", asset: USDC_BASE, symbol: "USDC", decimals: 6, expected: amount("25000000", "+25"), worst: amount("25000000", "+25"), certainty: "quoted" }],
+    }),
+    graph,
+  );
+  assert.equal(fare.paidToOthers[0].recipient, "0x2211d1D0020DAEA8039E46Cf1367962070d77DA9");
 });
 
 test("fareModel: unpriced amounts are never $0, payments keep the full address, blocking issues surface", () => {
@@ -357,4 +390,101 @@ test("the intent session keeps the plan preview and opens stored intents with th
   assert.equal(session.getState().intent.id, intent.id);
   assert.equal(session.getState().preview.digest, digested.digest);
   assert.deepEqual(calls.slice(1), [`GET /v1/intents/${intent.id}`, `GET /v1/intents/${intent.id}/preview`, `POST /v1/intents/${intent.id}/preview`]);
+});
+
+test("the intent session turns a session into an intent for the configured accounts, with its fare", async () => {
+  const SOL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+  const ACCOUNT = `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:${SOL}`;
+  const SESSION = `cs_${"9".repeat(32)}`;
+  const intent = { spec: "kletia.intent/v1", id: "int_" + "f".repeat(32), status: "planned", updatedAt: "x", summary: { title: "Deposit" }, steps: [] };
+  const preview = designPreview({ intentId: intent.id });
+  const digested = { ...preview, digest: await previewDigest(preview) };
+  const calls = [];
+  const client = new KletiaClient({
+    baseUrl: "http://localhost:3001",
+    retryBaseDelayMs: 1,
+    fetch: async (url, init) => {
+      const { pathname } = new URL(url);
+      calls.push({ call: `${init.method} ${pathname}`, body: init.body ? JSON.parse(init.body) : null });
+      if (init.method === "POST" && pathname === `/v1/sessions/${SESSION}/intents`) return jsonResponse(201, { intent });
+      if (init.method === "POST" && pathname === `/v1/intents/${intent.id}/preview`) return jsonResponse(200, { preview: digested });
+      if (pathname === `/v1/sessions/cs_${"0".repeat(32)}/intents`) return jsonResponse(403, { error: { code: "SESSION_ORIGIN_FORBIDDEN", message: "Not for this origin." } });
+      throw new Error(`unexpected ${init.method} ${pathname}`);
+    },
+  });
+  const session = createIntentSession(client, { accounts: [ACCOUNT], preview: true });
+  session.attach();
+  const created = await session.startSession(SESSION, { hostOrigin: "https://acme.example", amount: "25" });
+  assert.equal(created.id, intent.id);
+  assert.equal(session.getState().phase, "planned");
+  assert.equal(session.getState().preview.digest, digested.digest);
+  assert.deepEqual(calls[0], { call: `POST /v1/sessions/${SESSION}/intents`, body: { accounts: [ACCOUNT], hostOrigin: "https://acme.example", amount: "25" } });
+  // Without a page origin (no browser, none given) nothing is sent.
+  calls.length = 0;
+  assert.equal(await session.startSession(SESSION), null);
+  assert.equal(calls.length, 0);
+  assert.match(String(session.getState().error?.message), /allowedOrigins/u);
+  // The API's refusal is the session's error.
+  assert.equal(await session.startSession(`cs_${"0".repeat(32)}`, { hostOrigin: "https://evil.example" }), null);
+  assert.equal(session.getState().error?.code, "SESSION_ORIGIN_FORBIDDEN");
+  // Without accounts nothing is sent either.
+  const empty = createIntentSession(client, { accounts: [] });
+  empty.attach();
+  calls.length = 0;
+  assert.equal(await empty.startSession(SESSION, { hostOrigin: "https://acme.example" }), null);
+  assert.equal(calls.length, 0);
+});
+
+test("receipt share groups: labels for profiles and custom choices, pending reasons in words", () => {
+  assert.equal(receiptGroupsLabel([]), "Route only");
+  assert.equal(receiptGroupsLabel(["steps.s1.amounts", "steps.s2.amounts", "intent.outcome"]), "Route and amounts");
+  assert.equal(receiptGroupsLabel(["steps.*.amounts", "intent.outcome", "steps.*.evidence", "intent.timing"]), "Proof");
+  assert.equal(receiptGroupsLabel(RECEIPT_SHARE_GROUPS.map((group) => group.pattern)), "Everything");
+  assert.equal(receiptGroupsLabel(["intent.timing", "steps.s1.evidence"]), "Custom: timing, transactions");
+  assert.equal(receiptGroupsLabel(["something.else"]), "Custom");
+  // Groups that reveal addresses say so (the share dialog shows the evidence warning for them).
+  assert.deepEqual(RECEIPT_SHARE_GROUPS.filter((group) => group.revealsAddresses).map((group) => group.pattern), ["steps.*.evidence", "steps.*.parties", "intent.request"]);
+  assert.match(receiptPendingText("awaiting_finality"), /final on-chain/u);
+  assert.match(receiptPendingText("rpc_unavailable"), /Public nodes/u);
+  assert.equal(receiptPendingText("<script>"), receiptPendingText("awaiting_finality"));
+  assert.equal(receiptPendingText(undefined), receiptPendingText("awaiting_finality"));
+});
+
+test("ContractReview prints what moved since planning, struck through", async (t) => {
+  const s = await server(t);
+  if (!s) return;
+  const planned = review();
+  const prepared = review({
+    simulation: { ...planned.simulation, assetChanges: [{ ...planned.simulation.assetChanges[0] }, { ...planned.simulation.assetChanges[1], delta: "89000000000000000000", formatted: "+89" }] },
+  });
+  const html = s.render(s.h(s.widget.ContractReview, { review: prepared, planned }));
+  assert.ok(html.includes("Changed since planning"));
+  assert.ok(html.includes("<s>"));
+  const same = s.render(s.h(s.widget.ContractReview, { review: planned, planned }));
+  assert.equal(same.includes("Changed since planning"), false);
+});
+
+test("the widget opens an integrator's intent with its fare, its contract review and the wallet it needs", async (t) => {
+  const s = await server(t);
+  if (!s) return;
+  // Server rendering shows the first paint: the intent is loading, nothing can be executed yet.
+  const html = s.render(s.h(s.widget.KletiaIntentWidget, { accounts: [], intentId: `int_${"a".repeat(32)}` }));
+  assert.equal(html.includes("<textarea"), false, "no free text when the integrator named the intent");
+  assert.ok(/<button[^>]*disabled=""[^>]*>Execute<\/button>/u.test(html), "Execute stays disabled while loading");
+  const sessionHtml = s.render(s.h(s.widget.KletiaIntentWidget, { accounts: [], sessionId: `cs_${"b".repeat(32)}` }));
+  assert.equal(sessionHtml.includes("<textarea"), false);
+});
+
+test("fareModel names the wallet of each row only when several wallets of one kind move money", () => {
+  const single = fareModel(designPreview(), graph);
+  assert.ok([...single.youPay, ...single.youGet].every((entry) => entry.accountLabel === null), "one EVM wallet on two chains is one wallet");
+  const OTHER = "eip155:8453:0x1111111111111111111111111111111111111111";
+  const preview = designPreview();
+  const two = fareModel(
+    { ...preview, rows: [...preview.rows, row("base", OTHER, USDC_BASE, "USDC", 6, amount("-5000000", "-5", -5), amount("-5000000", "-5", -5), "simulated", ["s1"])] },
+    graph,
+  );
+  const labels = two.youPay.map((entry) => entry.accountLabel);
+  assert.ok(labels.includes("0x1111…1111"));
+  assert.ok(labels.includes("0x5eed…c0de"));
 });

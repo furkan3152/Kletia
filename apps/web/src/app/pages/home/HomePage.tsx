@@ -1,5 +1,6 @@
 import { CHAINS, PROTOCOLS, type ProtocolDescriptor } from "@kletia/core";
 
+import { countProtocols, protocolCountLabel } from "../../site/protocolCount";
 import { CodeShowcase } from "./CodeShowcase";
 import { Faq } from "./Faq";
 import { FeatureGrid } from "./FeatureGrid";
@@ -22,9 +23,11 @@ export default function HomePage() {
   const data = useHomeData();
   const protocols: readonly ProtocolDescriptor[] = data.liveProtocols ? data.protocols.data! : PROTOCOLS;
   const networkCount = data.liveNetworks ? data.networks.data!.length : Object.keys(CHAINS).length;
+  // Real protocols only: the "custom" entries are the doors for your own contracts and are named separately.
+  const counted = countProtocols(protocols);
   return (
     <>
-      <HeroSection venues={protocols.length} />
+      <HeroSection protocols={protocolCountLabel(protocols)} />
       <StatusBoard data={data} />
       <NetworkStrip protocols={protocols} />
       <HowItWorks />
@@ -33,7 +36,7 @@ export default function HomePage() {
       <FeatureGrid />
       <UseCases />
       <SecuritySection />
-      <Faq networks={networkCount} protocols={protocols.length} />
+      <Faq networks={networkCount} protocols={counted.protocols} ownContracts={counted.ownContracts} />
       <FinalCta />
     </>
   );

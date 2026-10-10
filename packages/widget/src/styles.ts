@@ -32,7 +32,7 @@ export const WIDGET_CSS = `
 .kw-net{display:inline-flex;align-items:center;gap:6px;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase}
 .kw-dot{width:10px;height:10px;border:2px solid var(--kw-line);border-radius:50%}
 .kw-status{font:800 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;padding:3px 6px;border:2px solid var(--kw-line)}
-.kw-status[data-tone="ok"]{background:var(--kw-ok);color:#fff}
+.kw-status[data-tone="ok"]{background:#067647;color:#fff}
 .kw-status[data-tone="bad"]{background:var(--kw-bad);color:#fff}
 .kw-status[data-tone="live"]{background:#ffd60a;color:#141414}
 .kw-io{font-size:13px;color:var(--kw-muted)}
@@ -51,7 +51,7 @@ export const WIDGET_CSS = `
 .kw-btn-sm{flex:0 0 auto;min-height:36px;padding:4px 10px;font-size:11px}
 .kw-input{width:100%;min-height:44px;border:2px solid var(--kw-line);background:transparent;color:inherit;padding:8px 10px;font:inherit;font-size:15px;margin-bottom:8px}
 .kw-input:focus{outline:3px solid var(--kw-accent);outline-offset:2px}
-.kw-glyph{flex:none;vertical-align:-1px}
+.kw-glyph{display:inline-block;flex:none;vertical-align:-1px}
 .kw-fare{margin:12px 0;border:2px solid var(--kw-line);border-top-width:4px;background:var(--kw-stock);color:var(--kw-stock-ink);padding:10px 12px;font-size:13px;--kw-muted:var(--kw-stock-muted)}
 .kw-fare .kw-warn{color:#92400e}
 .kw-fare .kw-error{color:#b42318}
@@ -64,8 +64,11 @@ export const WIDGET_CSS = `
 .kw-fare-list li{margin:2px 0}
 .kw-fare-row{display:grid;grid-template-columns:minmax(72px,30%) minmax(0,1fr);gap:8px;align-items:baseline}
 .kw-fare-net{font:700 11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;overflow-wrap:anywhere}
+.kw-fare-acct{text-transform:none;font-weight:600}
 .kw-fare-vals{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-width:0}
-.kw-fare-money{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:6px}
+.kw-fare-money{display:inline-flex;flex-wrap:nowrap;align-items:baseline;gap:6px;min-width:0;max-width:100%}
+.kw-fare-body{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:6px;min-width:0}
+.kw-fare-money>.kw-plate,.kw-fare-money>.kw-fare-body{flex:0 1 auto;min-width:0}
 .kw-fare-amt{font:700 13px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .kw-fare-usd{font:600 12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
 .kw-fare-note{font-size:11.5px;color:var(--kw-muted)}
@@ -98,7 +101,11 @@ export const WIDGET_CSS = `
 .kw-ack{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600}
 .kw-ack input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--kw-accent)}
 .kw-gate{margin:12px 0;border:3px solid var(--kw-line);box-shadow:var(--kw-shadow);padding:10px 12px;background:var(--kw-paper)}
+.kw-gate:focus{outline:none}
+.kw-gate:focus-visible{outline:3px solid var(--kw-accent);outline-offset:2px}
 .kw-gate-title{margin:0 0 4px;font-weight:900}
+.kw-hint{margin:6px 0 0;font-size:12px;font-weight:600}
+.kw-stopped{margin:10px 0 0;border:2px dashed var(--kw-line);padding:8px;font-size:13px;font-weight:600}
 .kw-policy{margin-top:10px;border:3px solid var(--kw-line);padding:8px 10px;font-size:13px;display:grid;gap:6px}
 .kw-policy p{margin:0}
 .kw-policy-held{border-color:#b45309}

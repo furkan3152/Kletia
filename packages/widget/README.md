@@ -49,8 +49,9 @@ manage your webhooks. Use the keyless public tier (omit `clientOptions`) or a
 - **Custom contracts.** Every `call` / `action` step shows its
   `ContractReview` (who, what, permissions, result, provenance, "Not audited
   by Kletia"); an unverified source, program or domain needs an
-  acknowledgement before **Execute**, and the prepared review needs **Sign
-  this step** before the wallet opens.
+  acknowledgement before **Execute**, and the prepared review (with what
+  moved since planning struck through) needs **Sign this step** before the
+  wallet opens. **Stop** at either gate signs nothing.
 - **Rule Book.** A hold for approval shows the rule ids and the approval
   link (https only); refusals show the rules, observed values and limits.
 - **Receipts.** A finished intent shows its receipt stamp and **Share
@@ -78,7 +79,7 @@ and the button changes to **Resubmit**: it reports them instead of asking the
 wallet to sign the step again.
 
 Without `signers` the widget plans and reviews intents but does not execute
-them — useful for quotes and previews. For non-React pages, embed the hosted
+them, which is useful for quotes and previews. For non-React pages, embed the hosted
 widget with an iframe:
 
 ```html
@@ -119,7 +120,7 @@ function Checkout({ accounts, signers }) {
 
 | Hook | Returns |
 |---|---|
-| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun?, preview?, onPreview?, onReview?, onApprovalRequired? })` | `plan(text)`, `open(intentId)`, `execute()`, `cancel()`, `reset()`, `intent`, `preview`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences`. `onPreview` / `onReview` / `onApprovalRequired` are `executeIntent`'s gates (see `@kletia/sdk`); the preview gate runs with the plan's `preview` |
+| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun?, preview?, onPreview?, onReview?, onApprovalRequired? })` | `plan(text)`, `open(intentId)`, `startSession(sessionId, { hostOrigin?, amount? })`, `execute()`, `cancel()`, `reset()`, `intent`, `preview`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences`. `open` loads an intent your backend created; `startSession` turns a session into an intent for `accounts` (`hostOrigin` defaults to `location.origin` and must be in the session's `allowedOrigins`). `onPreview` / `onReview` / `onApprovalRequired` are `executeIntent`'s gates (see `@kletia/sdk`); the preview gate runs with the plan's `preview` |
 | `useIntent(intentId)` | `intent`, `status` (`loading`, `live` on the event stream, `polling`, `done`, `error`), `error`, `lastEvent` |
 | `useQuote(request, { debounceMs: 400 })` | `data`, `status`, `error`, `reload()`; pass `null` to quote nothing |
 | `useNetworks()`, `usePortfolio(accountId)` | `data`, `status`, `error`, `reload()` |
@@ -167,7 +168,8 @@ frameworks.
 `@kletia/widget/review` exports the pure models the widget renders, for your
 own UI: `fareModel(preview, intent)`, `contractReviewModel(review)`,
 `policyHold(intent)`, `policyOutcome(error)`, `approvalHref`,
-`receiptShareHref`, `RECEIPT_SHARE_PROFILES`, `CERTAINTY_INFO`. They return
+`receiptShareHref`, `receiptGroupsLabel`, `receiptPendingText`,
+`RECEIPT_SHARE_PROFILES`, `RECEIPT_SHARE_GROUPS`, `CERTAINTY_INFO`. They return
 plain text (control and direction-override characters removed) and only
 https links. The components are exported too: `FareBreakdown`,
 `ContractReview`, `PolicyNotice`, `ReceiptStamp`.

@@ -24,8 +24,8 @@ function mapEdition(): string {
 }
 
 export interface HeroSectionProps {
-  /** Venues Kletia can call (live /v1/protocols when available, else the registry). */
-  readonly venues: number;
+  /** Protocol count copy, e.g. "29 protocols + your own contracts" (live /v1/protocols when available, else the registry). */
+  readonly protocols: string;
 }
 
 /**
@@ -33,7 +33,7 @@ export interface HeroSectionProps {
  * prints. The map and the ticket are illustrations; everything they say is
  * also in the copy on the left.
  */
-export function HeroSection({ venues }: HeroSectionProps) {
+export function HeroSection({ protocols }: HeroSectionProps) {
   const production = PRODUCTION.length;
   return (
     <section
@@ -50,7 +50,7 @@ export function HeroSection({ venues }: HeroSectionProps) {
           <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#1A1A1A] bg-[#FBFAF7] px-3 py-1.5 font-code text-[11px] font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4B5563] dark:bg-[#131E32]">
             <Icon name="route" size={18} />
             <span className="[text-wrap:balance]">
-              Intent routing API · {production} networks · {venues} venues
+              Intent routing API · {production} networks · {protocols}
             </span>
           </p>
 

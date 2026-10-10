@@ -26,6 +26,13 @@ export const AUTH_TIERS: readonly AuthTier[] = [
     accent: "#FFD60A",
   },
   {
+    name: "Agent",
+    how: "Authorization: Bearer kl_agt_…",
+    limit: "300 requests/min per key",
+    capabilities: "A key issued under another key and bound by a rule book. It always expires, never manages project keys and never approves.",
+    accent: "#6D28D9",
+  },
+  {
     name: "Operator",
     how: "Key configured in KLETIA_OPERATOR_API_KEYS",
     limit: "1200 requests/min per key",
@@ -47,9 +54,42 @@ export const EVENT_TYPES: readonly { type: string; description: string; fields: 
     fields: "intentId, stepId, network, status, evidence?",
   },
   {
+    type: "intent.receipt_issued",
+    description: "A signed receipt was issued once every transaction of the intent was final.",
+    fields: "intentId, receiptId, sequence, status, terminal, digest, kid, supersedes",
+  },
+  {
     type: "webhook.test",
     description: "Sent only by POST /v1/webhooks/{id}/test, to check an endpoint.",
     fields: "webhookId",
+  },
+];
+
+/** Event families beyond intents, routed to the owning key's webhooks (and `scope: "subtree"` webhooks of its ancestors). */
+export const EVENT_FAMILIES: readonly { title: string; types: readonly string[]; fields: string; note: string }[] = [
+  {
+    title: "Rule Book",
+    types: ["policy.violation", "policy.approval_requested", "policy.approval_decided", "policy.amendment_pending", "policy.amended", "policy.spend_threshold"],
+    fields: "projectId, keyId, decisionId, and the rules, approval, version or window concerned",
+    note: "An approval request carries the https approval link for a human.",
+  },
+  {
+    title: "Keys",
+    types: ["key.created", "key.revoked"],
+    fields: "projectId, keyId, kind, parentId, expiresAt; a revocation lists its cascade",
+    note: "Revoking a key revokes its whole subtree in one event.",
+  },
+  {
+    title: "Custom contracts",
+    types: ["contract.registered", "contract.activated", "contract.suspended", "contract.reactivated"],
+    fields: "contractId, ownerKeyId, network, target, revision, reason?",
+    note: "Registered fires before activation, so a stolen key cannot add a contract silently.",
+  },
+  {
+    title: "Intent links",
+    types: ["link.created", "link.activated", "link.updated", "link.paused", "link.suspended", "link.exhausted", "link.expired", "link.deleted"],
+    fields: "linkId, ownerKeyId, revision, reason?",
+    note: "Intent events of link visitors carry metadata.linkId.",
   },
 ];
 
@@ -72,6 +112,10 @@ export interface TocItem {
 export const TOC: readonly TocItem[] = [
   { id: "quickstart", label: "Quickstart", short: "Start" },
   { id: "keys", label: "Keys & auth", short: "Keys" },
+  { id: "rulebook", label: "Rule Book", short: "Rule Book" },
+  { id: "contracts", label: "Contracts", short: "Contracts" },
+  { id: "links", label: "Links", short: "Links" },
+  { id: "receipts", label: "Receipts", short: "Receipts" },
   { id: "explorer", label: "API explorer", short: "Explorer" },
   { id: "recipes", label: "Recipes", short: "Recipes" },
   { id: "events", label: "Events & webhooks", short: "Events" },

@@ -35,11 +35,25 @@ VITE_BASE_PAYMASTER_ENABLED=false
 The three public RPC URLs above avoid embedding a private Alchemy key in the
 browser. A domain-restricted browser RPC can replace them later.
 
-`apps/web/vercel.json` sets the framing policy: every path except `/embed` and
-`/embed/*` gets `X-Frame-Options: SAMEORIGIN` and
+`apps/web/vercel.json` sets the framing policy: every path except `/embed`,
+`/embed/*` and `/go/*` gets `X-Frame-Options: SAMEORIGIN` and
 `Content-Security-Policy: frame-ancestors 'self'`; only the embeddable widget
-page sends `frame-ancestors *`. After a deploy, `curl -sI <domain>/embed` must
-show no `X-Frame-Options`.
+page sends `frame-ancestors *`, and intent link pages (`/go/*`) send
+`X-Frame-Options: DENY` with `frame-ancestors 'none'`. After a deploy,
+`curl -sI <domain>/embed` must show no `X-Frame-Options`.
+
+It also routes the public pages the API helps to serve:
+
+- `/go/<linkId>` and `/go/<linkId>/card.png` are external rewrites to
+  `https://api.kletiaai.xyz/v1/links/<linkId>/page` and `…/card.png`, placed
+  before the SPA catch-all. The API returns the site's `go-shell.html` with the
+  link's preview tags (it reads the shell from `KLETIA_WEB_ORIGIN`).
+- `/r/*`, `/approve` and the link pages carry `X-Robots-Tag: noindex, nofollow`
+  (the share card does not, so link previews can fetch it).
+- `/actions.json` (Solana Actions) and `/.well-known/kletia-receipt-keys.json`
+  (the receipt key mirror) answer every origin. Both are files in
+  `apps/web/public`; `actions.json` points at the production API, so a preview
+  deployment with its own API needs its own copy.
 
 ## Backend project
 

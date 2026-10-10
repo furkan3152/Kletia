@@ -246,7 +246,9 @@ function LinkSign({ linkId, view, option, amount, needed, quoted, onClose }: Lin
               describeAccount={describeAccount}
               blockedReason={binding?.message ?? null}
               onReplan={() => void plan()}
-              onConfirm={() => void execution.resume(created.intent.id)}
+              // Confirming this review approves the fare it shows: it is not asked for again before the first
+              // signature. Its digest still goes to prepare, and a fare that changed is shown again.
+              onConfirm={() => void execution.resume(created.intent.id, { approvedPreview: created.preview })}
             />
           ) : null}
 

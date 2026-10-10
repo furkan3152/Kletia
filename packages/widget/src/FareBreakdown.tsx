@@ -21,13 +21,14 @@ export function CertaintyGlyph({ certainty }: { readonly certainty: Certainty })
 }
 
 function Money({ value, plate }: { readonly value: FareMoney; readonly plate?: string }) {
+  // The glyph and its amount never part: the amount (or the plate) wraps inside its own box.
   const body = (
-    <>
+    <span className="kw-fare-body">
       <span className="kw-fare-amt">
         {value.amount} {value.symbol}
       </span>
       <span className="kw-fare-usd">{value.usd ?? "price unavailable"}</span>
-    </>
+    </span>
   );
   return (
     <span className="kw-fare-money" title={CERTAINTY_INFO[value.certainty].sentence}>
@@ -47,7 +48,10 @@ function Money({ value, plate }: { readonly value: FareMoney; readonly plate?: s
 function RowLine({ row, kind }: { readonly row: FareRow; readonly kind: "pay" | "get" }) {
   return (
     <li className="kw-fare-row">
-      <span className="kw-fare-net">{row.networkName}</span>
+      <span className="kw-fare-net" title={row.account}>
+        {row.networkName}
+        {row.accountLabel ? <span className="kw-fare-acct"> · {row.accountLabel}</span> : null}
+      </span>
       <span className="kw-fare-vals">
         <Money value={row.expected} />
         {row.note ? <span className="kw-fare-note">{row.note}</span> : null}

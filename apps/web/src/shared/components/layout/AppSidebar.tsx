@@ -438,7 +438,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </button>
           ) : null}
           <div>
-            Kletia Omni Engine V2.0
+            Kletia Console
             <br />
             Powered by {presentation.shortName}
           </div>

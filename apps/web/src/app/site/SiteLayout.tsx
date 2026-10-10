@@ -53,7 +53,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       {/* Shared print filters (stamp ink, rough edge), mounted once for every page. */}
       <PaperDefs />
       <SiteHeader theme={theme} onToggleTheme={toggle} />
-      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+      {/* At least the first screen: pages that load their data after mount (receipts, links, approvals)
+          grow inside it, so the footer never shifts while it is in view (CLS). */}
+      <main id="main-content" tabIndex={-1} className="min-h-[calc(100vh-4.5rem)] flex-1 focus:outline-none">
         <React.Suspense fallback={<PageFallback />}>{children}</React.Suspense>
       </main>
       <SiteFooter />

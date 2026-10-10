@@ -119,9 +119,10 @@ example a `call` step), and hands the id to your page:
 <kletia-intent intent="int_3f9a…" reference="order-42"></kletia-intent>
 ```
 
-The frame reads the intent, shows its review and fare, and asks the visitor
-to connect the wallet the intent was planned for ("This intent was prepared
-for 0x5eed…c0de; connect that wallet"). Nothing is prepared until the visitor
+The frame reads the intent (`GET /v1/intents/{id}`, never a new plan),
+shows its review and fare, and asks the visitor to connect the wallet the
+intent was planned for ("This intent was prepared for 0x5eed…c0de on Base.
+Connect that wallet to sign it."). Nothing is prepared until the visitor
 presses Execute. The host gets `kletia:step-updated` and `kletia:completed`
 for it (no `kletia:intent-created`: you made it).
 
@@ -135,14 +136,18 @@ to your page:
 ```
 
 The frame shows who is asking ("acme.example is asking you to: …", with your
-integrator name and whether your domain is verified) and, once the visitor
-connects a wallet, turns the session into an intent for that wallet with
+integrator name and whether your domain is verified), the session's actions
+and, when the session lets the visitor choose an amount, its bounds. Once the
+visitor connects a wallet and presses **Plan with my wallet**, the frame turns
+the session into an intent for that wallet with
 `POST /v1/sessions/{id}/intents`. A session runs only inside the element (or
 a host that completes the bridge handshake): the host origin the bridge
 proved must be one of the session's `allowedOrigins`, otherwise the frame
 refuses before anything is planned (the API checks the same origin again).
-`kletia:intent-created` carries the intent id and, as `reference`, the
-session's `clientReference`.
+Opened on its own (a new tab, or a frame whose host never connects), the
+frame does not even read the session. `kletia:intent-created` carries the
+intent id and, as `reference`, the session's `clientReference` (`order-A-1029:1`
+for the first use).
 
 Either way the frame never takes instructions from your page: the bridge is
 one-way (frame to host), and the only inputs are the attributes above.
@@ -169,8 +174,9 @@ one-way (frame to host), and the only inputs are the attributes above.
   implementation, Solana programs) and "Not audited by Kletia". An
   unverified source, program or domain needs an explicit acknowledgement
   before Execute, and after Kletia prepares the step the prepared review is
-  shown again and needs a second confirmation ("Sign this step") before the
-  wallet opens.
+  shown again (with anything that moved since planning struck through) and
+  needs a second confirmation ("Sign this step") before the wallet opens.
+  Stopping at either check signs nothing.
 - **Rule Book outcomes.** When your key's rule book holds the intent for
   approval, the frame says "Held for approval", names the rules that asked
   for it and links the approval request (an https `…/approve#apr_…` link:

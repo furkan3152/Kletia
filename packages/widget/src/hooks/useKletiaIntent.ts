@@ -7,6 +7,7 @@ import {
   type IntentSessionConfig,
   type IntentSessionState,
   type PlanInput,
+  type StartSessionOptions,
 } from "./intentSession.js";
 
 export interface UseKletiaIntentOptions extends IntentSessionConfig {
@@ -19,6 +20,8 @@ export interface UseKletiaIntentResult extends IntentSessionState {
   plan(input: PlanInput): Promise<IntentGraph | null>;
   /** Opens a stored intent (e.g. one your backend created) to review and execute it. */
   open(intentId: string): Promise<IntentGraph | null>;
+  /** Turns a session your backend created (`cs_…`) into an intent for `accounts`, to review and execute it. */
+  startSession(sessionId: string, options?: StartSessionOptions): Promise<IntentGraph | null>;
   /** Executes the planned intent with `signers`; resubmits `pendingReferences` instead of signing again. */
   execute(): Promise<IntentGraph | null>;
   /** Stops a running execution and cancels the intent on Kletia (refused once a step was submitted). */
@@ -52,7 +55,15 @@ export function useKletiaIntent(options: UseKletiaIntentOptions): UseKletiaInten
   useEffect(() => session.attach(), [session]);
   const state = useSyncExternalStore(session.subscribe, session.getState, session.getState);
   return useMemo(
-    () => ({ ...state, plan: session.plan, open: session.open, execute: session.execute, cancel: session.cancel, reset: session.reset }),
+    () => ({
+      ...state,
+      plan: session.plan,
+      open: session.open,
+      startSession: session.startSession,
+      execute: session.execute,
+      cancel: session.cancel,
+      reset: session.reset,
+    }),
     [state, session],
   );
 }

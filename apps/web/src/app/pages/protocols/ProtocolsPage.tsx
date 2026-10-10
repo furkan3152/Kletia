@@ -10,6 +10,7 @@ import { Reveal } from "../../site/motion/Reveal";
 import { useReducedMotion } from "../../site/motion/useReducedMotion";
 import { categoryIcon, categoryWord, type IconName } from "../../site/art";
 import { Icon } from "../../site/art/Icon";
+import { isOwnContractEntry, protocolNoun, realProtocols } from "../../site/protocolCount";
 import { CONTRIBUTING_URL, GITHUB_URL } from "../../site/siteLinks";
 import { Badge } from "../../site/ui/Badge";
 import { Button, ButtonLink } from "../../site/ui/Button";
@@ -71,7 +72,7 @@ function directoryRows(protocols: readonly ProtocolEntry[]): DirectoryRow[] {
  * the live list loads it is printed from the registry, so the sign keeps its
  * size and nothing below it moves.
  */
-function DirectorySign({ protocols }: { readonly protocols: readonly ProtocolEntry[] }) {
+function DirectorySign({ protocols, ownContracts }: { readonly protocols: readonly ProtocolEntry[]; readonly ownContracts: boolean }) {
   const rows = useMemo(() => directoryRows(protocols), [protocols]);
   const totals = useMemo(() => protocolTotals(protocols), [protocols]);
   return (
@@ -84,7 +85,7 @@ function DirectorySign({ protocols }: { readonly protocols: readonly ProtocolEnt
         className="flex items-baseline justify-between gap-4 bg-[#FFD60A] px-5 py-3 font-code text-xs font-extrabold uppercase tracking-[0.18em] text-[#1A1A1A]"
       >
         <span>Station directory</span>
-        <span className="font-semibold">{totals.protocols} platforms</span>
+        <span className="font-semibold">{protocolNoun(totals.protocols)}</span>
       </h2>
       <ul className="px-5 py-2">
         {rows.map((row) => (
@@ -101,6 +102,7 @@ function DirectorySign({ protocols }: { readonly protocols: readonly ProtocolEnt
       </ul>
       <p className="border-t-[3px] border-[#F4F1EA]/20 px-5 py-3 font-code text-[11px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-[#F4F1EA]/85">
         {totals.execute} built by Kletia · {totals.crossChain} cross-network · {totals.networks} networks
+        {ownContracts ? <span className="block text-[#FFD60A]">+ your own contracts</span> : null}
       </p>
     </aside>
   );
@@ -191,6 +193,45 @@ const SERVICE_CHIP: Readonly<Record<"execute" | "quote" | "discover", string>> =
   discover: "border-current",
 };
 
+/**
+ * Bring your own contract, shown apart from the directory: the registry's
+ * "custom" entries are not protocols but the doors your own registrations use.
+ */
+function OwnContractsPanel({ entries }: { readonly entries: readonly ProtocolEntry[] }) {
+  return (
+    <aside
+      aria-labelledby="own-contracts-heading"
+      className={cx("mt-10 grid gap-6 bg-[#FFF7CC] p-6 text-[#1A1A1A] dark:bg-[#1A2841] dark:text-[#E2E8F0] sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center", INK_BORDER, SHADOW_HARD)}
+    >
+      <div className="min-w-0">
+        <p className={cx(LABEL, "flex items-center gap-2 font-code")}>
+          <Icon name="contract" size={22} />
+          Not counted above
+        </p>
+        <h3 id="own-contracts-heading" className="mt-3 font-display text-2xl font-bold tracking-[-0.02em] sm:text-3xl">
+          Plus your own contracts
+        </h3>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed">
+          Register your own EVM contract or Solana Action with your API key, and intents created with that key can call it. Kletia
+          pins its code, simulates every call and shows who you are on every step. It does not audit your contract.
+        </p>
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {entries.map((entry) => (
+            <li key={entry.id} className="border-2 border-[#1A1A1A] bg-white px-2.5 py-1 font-code text-xs font-bold dark:border-[#4B5563] dark:bg-[#0B1120]">
+              {entry.name}
+              <span className="font-medium"> · {networksOf(entry).length} {networksOf(entry).length === 1 ? "network" : "networks"}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <ButtonLink to="/developers#contracts" variant="primary" className="self-start lg:self-center">
+        Register a contract
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </ButtonLink>
+    </aside>
+  );
+}
+
 /** /protocols: every venue Kletia can plan with, live from GET /v1/protocols with a registry fallback. */
 export default function ProtocolsPage() {
   const protocolsResource = useApiResource("protocols", fetchProtocols);
@@ -198,10 +239,13 @@ export default function ProtocolsPage() {
 
   const liveProtocols = (protocolsResource.data?.length ?? 0) > 0;
   const protocolsLoading = protocolsResource.status === "loading" && !liveProtocols;
-  const protocols = useMemo<readonly ProtocolEntry[]>(
+  const listed = useMemo<readonly ProtocolEntry[]>(
     () => (liveProtocols ? (protocolsResource.data as readonly ProtocolEntry[]) : registryProtocols()),
     [liveProtocols, protocolsResource.data],
   );
+  // The directory counts and lists real protocols; the "custom" entries are the doors for your own contracts, shown apart.
+  const protocols = useMemo(() => realProtocols(listed), [listed]);
+  const ownContractEntries = useMemo(() => listed.filter(isOwnContractEntry), [listed]);
   const liveNetworks = (networksResource.data?.length ?? 0) > 0;
   const networkOrder = useMemo(
     () => sortNetworks(liveNetworks ? networksResource.data! : registryNetworks()).map((network) => network.key as string),
@@ -254,7 +298,7 @@ export default function ProtocolsPage() {
             </div>
             <h1 className="mt-6 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-[1] tracking-[-0.045em]">
               {/* While the live list loads the count comes from the registry, so the heading never re-wraps. */}
-              {totals.protocols} venues Kletia can route through.
+              {protocolNoun(totals.protocols)} Kletia can route through{ownContractEntries.length > 0 ? ", plus your own contracts" : ""}.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
               <strong className="text-[#1A1A1A] dark:text-white">Execute</strong> means Kletia builds the transaction.{" "}
@@ -279,7 +323,7 @@ export default function ProtocolsPage() {
               </Link>
             </div>
           </div>
-          <DirectorySign protocols={protocols} />
+          <DirectorySign protocols={protocols} ownContracts={ownContractEntries.length > 0} />
         </div>
       </header>
 
@@ -330,6 +374,7 @@ export default function ProtocolsPage() {
           ) : (
             <ProtocolGrid protocols={filtered} platforms={platforms} />
           )}
+          {ownContractEntries.length > 0 ? <OwnContractsPanel entries={ownContractEntries} /> : null}
         </div>
       </section>
 

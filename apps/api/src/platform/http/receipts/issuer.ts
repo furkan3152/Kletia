@@ -335,7 +335,7 @@ export class ReceiptIssuer {
     const attester = easAttester();
     if (attester) {
       try {
-        const envelope = await attestReceipt(attester, { digest, spec: built.payload.spec, sequence, issuedAt, refUID: latest?.attestations?.eas?.sig.uid ?? null });
+        const envelope = await attestReceipt(attester, { digest, spec: built.payload.spec, sequence, issuedOn: built.payload.issuedOn, refUID: latest?.attestations?.eas?.sig.uid ?? null });
         if (await verifyEasEnvelope(envelope, digest)) eas = envelope;
         else console.error(`[platform] EAS envelope for ${receiptId} did not verify; issued without it.`);
       } catch (error) {
@@ -357,6 +357,7 @@ export class ReceiptIssuer {
       payload: built.payload,
       signature: value,
       // A withdrawal covers later receipts of the intent too: their disclosures are never stored.
+      // `store.issue` re-checks under its lock, so a withdrawal that lands while this one is built still applies.
       disclosures: withdrawnAt ? null : built.disclosures,
       disclosuresWithdrawnAt: withdrawnAt,
       attestations: eas ? { eas } : null,
@@ -374,6 +375,8 @@ export class ReceiptIssuer {
       await store.reschedule(entry.intentId, { notBefore: issuedAt, pendingReason: entry.pendingReason });
       return { kind: "stale" };
     }
+    // The store may have applied a withdrawal that landed meanwhile: report what it holds.
+    const stored = (await store.byId(receiptId)) ?? receipt;
     publishReceiptEvent({
       intentId: graph.id,
       receiptId,
@@ -384,7 +387,7 @@ export class ReceiptIssuer {
       kid: signer.kid,
       supersedes: receipt.supersedes,
     });
-    return { kind: "issued", receipt };
+    return { kind: "issued", receipt: stored };
   }
 }
 

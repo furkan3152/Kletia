@@ -5,6 +5,7 @@ import { Link } from "../routes/Link";
 import { Icon } from "./art/Icon";
 import { LineRule } from "./art/Ornaments";
 import { KletiaMark } from "./KletiaMark";
+import { protocolCountLabel } from "./protocolCount";
 import {
   API_DOC_URL,
   CONTRIBUTING_URL,
@@ -64,6 +65,7 @@ const FOCUS_ON_INK =
 const CHAIN_LIST = Object.values(CHAINS);
 const PRODUCTION = CHAIN_LIST.filter((chain) => chain.lane !== "testnet").length;
 const TESTNETS = CHAIN_LIST.length - PRODUCTION;
+const PROTOCOL_COUNT = protocolCountLabel(PROTOCOLS);
 
 /** Site footer: product, developer and company links plus the custody statement. */
 export function SiteFooter() {
@@ -121,7 +123,7 @@ export function SiteFooter() {
             . Kletia is in development and has not been audited.
           </p>
           <p className="font-code">
-            {PRODUCTION} production networks · {TESTNETS} testnets · {PROTOCOLS.length} venues in @kletia/core
+            {PRODUCTION} production networks · {TESTNETS} testnets · {PROTOCOL_COUNT} in @kletia/core
           </p>
         </div>
       </div>

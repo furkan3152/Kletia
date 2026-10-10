@@ -6,6 +6,8 @@ export interface ContractReviewProps {
   readonly review: ContractReviewData;
   /** "Step 2": which leg this review belongs to. */
   readonly title?: string;
+  /** The plan-time review: when the prepared one moves the assets differently, the planned changes are printed struck through. */
+  readonly planned?: ContractReviewData | null;
   /** Controlled acknowledgement (shown only when the review needs one). */
   readonly acknowledged?: boolean;
   readonly onAcknowledge?: (acknowledged: boolean) => void;
@@ -17,8 +19,11 @@ export interface ContractReviewProps {
  * result, provenance and the fixed "Not audited by Kletia" notice. Every
  * value an integrator controls is printed as text; links are https only.
  */
-export function ContractReview({ review, title, acknowledged = false, onAcknowledge, disabled = false }: ContractReviewProps) {
+export function ContractReview({ review, title, planned, acknowledged = false, onAcknowledge, disabled = false }: ContractReviewProps) {
   const model = contractReviewModel(review);
+  const before = planned ? contractReviewModel(planned) : null;
+  const plannedChanges = before ? before.result.changes.map((change) => change.text).join(", ") : "";
+  const moved = before !== null && plannedChanges !== model.result.changes.map((change) => change.text).join(", ");
   const ackId = useId();
   const headingId = useId();
   return (
@@ -125,6 +130,11 @@ export function ContractReview({ review, title, acknowledged = false, onAcknowle
                 Simulated{model.result.where ? ` at ${model.result.where}` : ""}
                 {model.result.networkFee ? `, network fee about ${model.result.networkFee}` : ""}.
               </span>
+              {moved ? (
+                <span className="kw-block kw-warn">
+                  Changed since planning: <s>{plannedChanges || "no changes"}</s>
+                </span>
+              ) : null}
             </>
           ) : (
             <span className="kw-warn">Kletia could not simulate this transaction. It will not be signed.</span>

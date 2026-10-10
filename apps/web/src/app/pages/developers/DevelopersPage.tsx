@@ -1,5 +1,5 @@
 import { ArrowUpRight, FileCode2, Radio, Webhook } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { errorCatalogRows, PROTOCOLS } from "@kletia/core";
 import { PLATFORM_ORIGIN, sdkSignal } from "../../../shared/platform/kletiaClient";
@@ -26,11 +26,12 @@ import {
   WEBHOOK_VERIFY,
 } from "../../site/snippets";
 import { Badge } from "../../site/ui/Badge";
+import { Skeleton, SkeletonGroup } from "../../site/ui/Skeleton";
 import { ButtonLink } from "../../site/ui/Button";
 import { CodeBlock } from "../../site/ui/CodeBlock";
 import { CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { BridgeAuction } from "./BridgeAuction";
-import { AUTH_TIERS, DELIVERY_HEADERS, EVENT_TYPES, TOC } from "./devContent";
+import { AUTH_TIERS, DELIVERY_HEADERS, EVENT_FAMILIES, EVENT_TYPES, TOC } from "./devContent";
 import { DocSection } from "./DocSection";
 import { ErrorsReference } from "./ErrorsReference";
 import { ApiExplorer, type SpecSource } from "./explorer/ApiExplorer";
@@ -41,6 +42,21 @@ import { KeyManager } from "./keys/KeyManager";
 import { SessionKeyProvider } from "./keys/SessionKeyProvider";
 import { RecipesSection } from "./RecipesSection";
 import { VenuesPanel } from "./VenuesPanel";
+
+/* The key-backed panels load as their own chunks, after the page itself. */
+const RuleBookPanel = lazy(() => import("./rulebook/RuleBookPanel"));
+const ContractsPanel = lazy(() => import("./contracts/ContractsPanel"));
+const LinksPanel = lazy(() => import("./links/LinksPanel"));
+const ReceiptsGuide = lazy(() => import("./receipts/ReceiptsGuide"));
+
+function PanelFallback({ label }: { label: string }) {
+  return (
+    <SkeletonGroup label={label} className="flex flex-col gap-3">
+      <Skeleton surface="card" className="h-12" />
+      <Skeleton surface="card" className="h-48" />
+    </SkeletonGroup>
+  );
+}
 
 function useActiveSection(ids: readonly string[]): string {
   const [active, setActive] = useState(ids[0] ?? "");
@@ -148,8 +164,9 @@ export default function DevelopersPage() {
               Put <span className="whitespace-nowrap">cross-network</span> routes inside your own product.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
-              One REST API, a TypeScript SDK, a React widget, an iframe embed and a read-only MCP server. You plan on your server,
-              your users sign in their wallets, and Kletia tells your server when each leg lands.
+              One REST API, a TypeScript SDK, a React widget, an iframe embed and an MCP server for agents. You plan on your server,
+              your users sign in their wallets, and Kletia tells your server when each leg lands, then signs a receipt you can check
+              without trusting us.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <ButtonLink to="/developers#quickstart" className="[--kla-plate:#FFD60A]">
@@ -295,7 +312,7 @@ export default function DevelopersPage() {
             intro="Three tiers share one API. Every response carries X-Request-Id and RateLimit headers, and errors use stable UPPER_SNAKE_CASE codes."
           >
             <div className="flex flex-col gap-8">
-              <ul id="auth" className="grid scroll-mt-36 gap-4 md:grid-cols-3 lg:scroll-mt-28">
+              <ul id="auth" className="grid scroll-mt-36 gap-4 md:grid-cols-2 lg:scroll-mt-28 2xl:grid-cols-4">
                 {AUTH_TIERS.map((tier) => (
                   <li key={tier.name} className={cx("flex flex-col", INK_BORDER, HARD_SHADOW, SURFACE)}>
                     <div className="h-2.5 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]" style={{ backgroundColor: tier.accent }} aria-hidden="true" />
@@ -313,8 +330,58 @@ export default function DevelopersPage() {
           </DocSection>
 
           <DocSection
-            id="explorer"
+            id="rulebook"
             index={3}
+            title="Rule Book"
+            intro={
+              <>
+                Bound what Kletia plans and prepares for each key: networks, assets, recipients, caps per step, intent, day and week, a
+                timetable and approvals. Give an agent its own <code className="font-code">kl_agt_</code> key with its own rule book.
+                Tightening applies at once; loosening waits the delay you set. Kletia still never signs.
+              </>
+            }
+          >
+            <Suspense fallback={<PanelFallback label="Loading the Rule Book" />}>
+              <RuleBookPanel />
+            </Suspense>
+          </DocSection>
+
+          <DocSection
+            id="contracts"
+            index={4}
+            title="Custom contracts"
+            intro="Register your own EVM contract functions or Solana Actions, test them with the review your users will see, and reverify after an upgrade. Kletia pins the code and simulates every call; it does not audit your contract."
+          >
+            <Suspense fallback={<PanelFallback label="Loading your contracts" />}>
+              <ContractsPanel />
+            </Suspense>
+          </DocSection>
+
+          <DocSection
+            id="links"
+            index={5}
+            title="Intent links"
+            intro="Publish a page that does one fixed thing in the visitor's own wallet, from any network you allow. Pause it, read its counters and share its card. Counters never hold visitor data."
+          >
+            <Suspense fallback={<PanelFallback label="Loading your links" />}>
+              <LinksPanel />
+            </Suspense>
+          </DocSection>
+
+          <DocSection
+            id="receipts"
+            index={6}
+            title="Receipts"
+            intro="Every finished intent gets a receipt Kletia signs once its transactions are final. Check it offline, re-read the chain yourself, and trust a key only when two origins agree."
+          >
+            <Suspense fallback={<PanelFallback label="Loading the receipt keys" />}>
+              <ReceiptsGuide />
+            </Suspense>
+          </DocSection>
+
+          <DocSection
+            id="explorer"
+            index={7}
             title="API explorer"
             badge={<Badge tone={source.state === "live" ? "green" : source.state === "loading" ? "neutral" : "yellow"}>{source.state === "live" ? "Live" : source.state === "loading" ? "Loading" : "Offline"}</Badge>}
             intro="Every operation in Platform API v1, generated from the OpenAPI document the API serves. Requests go to the real API, planning defaults to a dry run, and nothing is signed here."
@@ -324,11 +391,12 @@ export default function DevelopersPage() {
 
           <DocSection
             id="recipes"
-            index={4}
+            index={8}
             title="Recipes"
             intro={
               <>
-                Copy-ready integrations for the SDK, the React widget and hooks, the embed, MCP clients and the CLI. Secrets always come
+                Copy-ready integrations for the SDK, the React widget and hooks, the embed, the Rule Book, custom contracts, links,
+                receipts, MCP clients and the CLI. Secrets always come
                 from the environment. Link to one with <code className="font-code [font-variant-ligatures:none]">#recipe-&lt;name&gt;</code>.
               </>
             }
@@ -338,9 +406,9 @@ export default function DevelopersPage() {
 
           <DocSection
             id="events"
-            index={5}
+            index={9}
             title="Events and webhooks"
-            intro="Follow an intent live over Server-Sent Events, or register a webhook, send it a signed test and read its delivery log."
+            intro="Follow an intent live over Server-Sent Events, or register a webhook, send it a signed test and read its delivery log. Rule Book, key, contract and link events go to the owning key's webhooks."
           >
             <div className="grid gap-6">
               <ul className="grid gap-4 md:grid-cols-2">
@@ -352,6 +420,26 @@ export default function DevelopersPage() {
                   </li>
                 ))}
               </ul>
+              <ul className="grid gap-4 md:grid-cols-2" aria-label="Other event families">
+                {EVENT_FAMILIES.map((family) => (
+                  <li key={family.title} className={cx("flex min-w-0 flex-col gap-2 p-4", INK_BORDER, SURFACE)}>
+                    <p className="font-display text-lg font-bold">{family.title}</p>
+                    <p className="flex min-w-0 flex-wrap gap-1.5">
+                      {family.types.map((type) => (
+                        <code key={type} className="border-2 border-[#1A1A1A]/20 px-1.5 py-0.5 font-code text-[12px] font-bold text-[#0047E0] dark:border-white/15 dark:text-[#7EA6FF]">
+                          {type}
+                        </code>
+                      ))}
+                    </p>
+                    <p className={cx("font-code text-[11px]", TEXT_MUTED)}>data: {family.fields}</p>
+                    <p className="text-sm">{family.note}</p>
+                  </li>
+                ))}
+              </ul>
+              <p className={cx("text-sm", TEXT_MUTED)}>
+                A webhook created without <code className="font-code">events</code> gets the types that existed when it was created; list new types
+                explicitly, or create the webhook with <code className="font-code">{'"scope": "subtree"'}</code> to also hear a key&apos;s agent keys.
+              </p>
               <div className="flex flex-col gap-3 border-[3px] border-[#1A1A1A] bg-[#FFD60A] p-4 text-[#1A1A1A] dark:border-[#4B5563]">
                 <p className={LABEL}>Delivery headers</p>
                 <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[13rem_minmax(0,1fr)]">
@@ -394,7 +482,7 @@ export default function DevelopersPage() {
 
           <DocSection
             id="venues"
-            index={6}
+            index={10}
             title="Venues and bridge auction"
             intro="Pick a lending venue by id for deposits and withdrawals, and see how the planner chooses a bridge for every cross-network step."
           >
@@ -409,7 +497,7 @@ export default function DevelopersPage() {
 
           <DocSection
             id="errors"
-            index={7}
+            index={11}
             title="Errors"
             intro={
               <>
@@ -424,22 +512,26 @@ export default function DevelopersPage() {
 
           <DocSection
             id="agents"
-            index={8}
+            index={12}
             title="Agents"
-            intro="Agents plan with the same deterministic API and hand every value-moving step to a human-controlled wallet. Agents never sign."
+            intro="Agents plan with the same deterministic API, under a rule book, and hand every value-moving step to a wallet they do not control. Agents never sign."
           >
             <div className="grid gap-5 md:grid-cols-3">
               <InfoCard icon="board" title="MCP server">
-                Read-only tools at <code className="break-all font-code text-[12px]">{MCP_URL}</code>: networks, quotes, dry-run
-                plans, intents, balances and a Studio signing link.{" "}
+                Tools at <code className="break-all font-code text-[12px]">{MCP_URL}</code>: networks, quotes, dry-run plans with
+                their fare, intents, receipts, rule books, contracts and links. Only create_intent and create_link store anything.{" "}
                 <Link to="/developers#recipe-mcp" className={cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
                   Connect a client
                 </Link>
                 .
               </InfoCard>
-              <InfoCard icon="route" title="v1 API for agents">
-                Plan with POST /v1/intents, follow progress over SSE and react to webhooks. Grammar-compiled plans make agent behaviour
-                reproducible; INTENT_UNSUPPORTED returns phrases the grammar understands.
+              <InfoCard icon="shield" title="Agent keys and rule books">
+                Give each agent a <code className="font-code text-[12px]">kl_agt_</code> key with its own rule book: caps, recipients,
+                a timetable and approvals a human gives on the approval page.{" "}
+                <Link to="/developers#recipe-mcp-agent" className={cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+                  Set one up
+                </Link>
+                .
               </InfoCard>
               <InfoCard icon="transfer" title="x402 pay-per-call">
                 HTTP 402 payments in USDC on Base for paid resources. Kletia prepares capped, public-HTTPS payment plans; the
@@ -448,10 +540,10 @@ export default function DevelopersPage() {
             </div>
             <ol className={cx("mt-6 grid gap-3 p-4 text-sm md:grid-cols-4", INK_BORDER, SURFACE)}>
               {[
-                ["list_networks", "Learn valid networks and actions."],
-                ["get_quote / plan_intent", "Show the plan; confirm every externalRecipients address with the user."],
-                ["create_signing_link", "Hand the user a Studio link: their wallet re-plans, reviews and signs."],
-                ["get_intent", "Follow settlement with the id Studio shows."],
+                ["get_policy", "Learn what the rule book allows this key, and what is left today."],
+                ["check_intent / plan_intent", "Check before acting; confirm every externalRecipients address with the user."],
+                ["create_signing_link / create_intent", "Hand the user a Studio link, or store an intent your signer runs; a held one comes with an approval link for a human."],
+                ["get_intent / get_receipt", "Follow settlement, then read the signed receipt."],
               ].map(([tool, text], index) => (
                 <li key={tool} className="flex min-w-0 gap-2">
                   <span className="font-display text-xl font-bold leading-none">{index + 1}</span>

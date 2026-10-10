@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 
 import { Badge } from "../../../site/ui/Badge";
 import { cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
-import { DEV_KEY_PATTERN, maskKey, useSessionKey } from "./sessionKey";
+import { maskKey, portalKeyKind, useSessionKey } from "./sessionKey";
 
 export interface ApiKeyFieldProps {
   readonly className?: string;
@@ -21,7 +21,7 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
   const id = useId();
   const { key, setKey, clear } = useSessionKey();
   const [visible, setVisible] = useState(false);
-  const shapeWarning = key && !DEV_KEY_PATTERN.test(key) && !key.startsWith("kl_");
+  const shapeWarning = key && !portalKeyKind(key) && !key.startsWith("kl_");
   return (
     <div className={cx("flex min-w-0 flex-col gap-1.5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -92,7 +92,7 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
       </div>
       <p id={`${id}-hint`} className={cx("text-xs leading-relaxed", TEXT_MUTED)}>
         {shapeWarning ? (
-          <span className="font-bold text-[#B91C1C] dark:text-[#FCA5A5]">That does not look like a Kletia key (kl_dev_…). </span>
+          <span className="font-bold text-[#B91C1C] dark:text-[#FCA5A5]">That does not look like a Kletia key (kl_dev_… or kl_agt_…). </span>
         ) : null}
         Kept in this tab&apos;s memory only: never stored, never put in a snippet, gone on reload. Paste a key here only on a
         device you trust, and keep production keys on your server.

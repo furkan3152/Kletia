@@ -28,6 +28,7 @@ import {
   formatDate,
   fundingOptions,
   httpsOnly,
+  indicativeFare,
   linkSentence,
   linkSerial,
   linkState,
@@ -309,7 +310,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
                     Indicative fare for a stand-in account. Kletia quotes again with your own wallet, and asks you to approve the fare before anything is
                     signed.
                   </p>
-                  <FareTable preview={quote.response.preview} intent={quote.response.intent} />
+                  <FareTable preview={indicativeFare(quote.response.preview)} intent={quote.response.intent} />
                 </div>
               ) : quote.status === "error" ? (
                 <ApiErrorPanel error={quote.error} title="No fare for this choice" onRetry={retry} />
@@ -423,7 +424,8 @@ export default function LinkPage() {
   const { state, reload } = useLinkView(linkId);
   if (state.phase === "loading") {
     return (
-      <div className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
+      // Keyed: the loaded page mounts new nodes instead of reusing (and moving) this one, a layout shift with reduced motion.
+      <div key="loading" className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
         <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
           Reading the link
         </span>

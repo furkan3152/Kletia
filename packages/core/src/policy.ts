@@ -824,8 +824,10 @@ function contractsVerdict(active: PolicyDocument["contracts"], next: PolicyDocum
  * allowlists shrink, denylists grow, limits and caps drop, the mode moves
  * towards `paused`, recipients towards `own`, names towards `deny`,
  * schedules shrink inside the same time zone, confirmation thresholds drop
- * or triggers grow, approvers are removed, permissions turn off, nonce
- * pinning turns on, and the amendment delay grows. `active` null: the first
+ * or triggers grow, approver wallets are removed, an approver key list is
+ * set or narrowed (an empty or absent key list lets every project key
+ * approve, so emptying it loosens), permissions turn off, nonce pinning
+ * turns on, and the amendment delay grows. `active` null: the first
  * version (everything present tightens). `next` null: removal (every
  * restriction loosens).
  */
@@ -867,8 +869,15 @@ export function comparePolicies(active: PolicyDocument | null, next: PolicyDocum
   add("confirm.aboveUsd", compareLimit(usdOrNull(a.confirm?.aboveUsd), usdOrNull(b.confirm?.aboveUsd)));
   // Triggers: more triggers is tighter (a denylist-like set).
   add("confirm.when", compareDenylist(a.confirm?.when ?? [], b.confirm?.when ?? []));
-  // Approvers: adding any approver is loosening.
-  add("confirm.approvers.keys", compareAllowlist(a.confirm?.approvers?.keys ?? [], b.confirm?.approvers?.keys ?? []));
+  // Approver keys: a listed set lets only those project keys approve, while an empty or absent list lets
+  // every project key outside the requester's subtree approve (§7.3), so it is the loosest value (null =
+  // everyone): adding a key or dropping the list loosens, narrowing a list or setting one tightens.
+  const approverKeys = (document: PolicyDocument): readonly string[] | null => {
+    const keys = document.confirm?.approvers?.keys;
+    return keys && keys.length > 0 ? keys : null;
+  };
+  add("confirm.approvers.keys", compareAllowlist(approverKeys(a), approverKeys(b)));
+  // Approver wallets: only listed wallets approve, so an empty list is the tightest value.
   add("confirm.approvers.wallets", compareAllowlist(a.confirm?.approvers?.wallets ?? [], b.confirm?.approvers?.wallets ?? []));
   add("confirm.approvers.requireWallet", compareRank(a.confirm?.approvers?.requireWallet ? 1 : 0, b.confirm?.approvers?.requireWallet ? 1 : 0));
   add("confirm.ttlSeconds", compareLimit(BigInt(a.confirm?.ttlSeconds ?? POLICY_LIMITS.defaultConfirmTtlSeconds), BigInt(b.confirm?.ttlSeconds ?? POLICY_LIMITS.defaultConfirmTtlSeconds)));

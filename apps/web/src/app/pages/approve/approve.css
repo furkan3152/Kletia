@@ -1,0 +1,127 @@
+/* The approval gate: a ticket held at the gate, its decision stamps and the
+   approver desk. Printed objects keep their ink at night (the art rule);
+   only the paper around them changes. */
+
+.kl-adie--approved {
+  --kla-stamp-ink: #0b7a4b;
+  --kla-rot: -5deg;
+}
+.kl-adie--rejected {
+  --kla-stamp-ink: #c8102e;
+  --kla-rot: 4deg;
+}
+.kl-adie__word {
+  font-size: 20px;
+  letter-spacing: 0.06em;
+}
+/* The strike runs behind the word: stock-coloured outline keeps it legible. */
+.kl-adie__word--rejected {
+  paint-order: stroke;
+  stroke: var(--kla-stock, #fffcf2);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.kl-gate .kla-ticket__main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.kl-gate__title {
+  font: 700 17px/1.3 var(--kla-font-display);
+  overflow-wrap: anywhere;
+}
+.kl-gate__legs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid #1a1a1a;
+}
+.kl-gate__leg {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed rgb(26 26 26 / 0.45);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.kl-gate__leg-no {
+  font: 800 12px/1.6 var(--kla-font-mono);
+}
+.kl-gate__leg-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.kl-gate__leg-to {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+.kl-gate__mono {
+  font: 600 12.5px/1.45 var(--kla-font-mono);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.kl-gate__k {
+  font: 800 10px/1.4 var(--kla-font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.kl-gate__money {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.kl-gate__money > div {
+  padding: 8px 10px;
+  border: 2px solid #1a1a1a;
+}
+.kl-gate__money > div:last-child {
+  background: #ffd60a;
+}
+.kl-gate__money dd {
+  margin: 2px 0 0;
+  font: 700 19px/1.2 var(--kla-font-display);
+}
+.kl-gate__triggers {
+  margin: 0;
+  padding-left: 18px;
+  list-style: square;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.kl-gate__digest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  font: 600 12px/1.5 var(--kla-font-mono);
+}
+.kl-gate__stub-n {
+  font: 800 22px/1.1 var(--kla-font-display);
+  overflow-wrap: anywhere;
+}
+.kl-gate__stub-sub {
+  margin-top: 4px;
+  font: 700 10.5px/1.35 var(--kla-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kl-gate .kla-ticket__stamp.kl-adie {
+  right: 18px;
+  width: 136px;
+}
+
+@container (max-width: 500px) {
+  .kl-gate__money {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kl-gate .kla-ticket__stamp.kl-adie {
+    width: 132px;
+  }
+}

@@ -251,6 +251,27 @@ test("comparePolicies: schedules (bitmap coverage, time zone change), approvers,
   assert.deepEqual(diff({ schema, label: "a" }, { schema, label: "b" }), { tightened: [], loosened: [] }, "labels are neutral");
 });
 
+test("comparePolicies: an empty or absent approver key list lets every project key approve, so dropping it loosens", () => {
+  const A = "key_0123456789abcdef01234567";
+  const B = "key_0123456789abcdef01234568";
+  const only = (keys) => ok({ schema, confirm: { aboveUsd: "1", ...(keys ? { approvers: { keys } } : {}) } }).value;
+  const listed = only([A]);
+  for (const [label, open] of [["absent", only(undefined)], ["empty", ok({ schema, confirm: { aboveUsd: "1", approvers: { keys: [] } } }).value], ["wallets only", ok({ schema, confirm: { aboveUsd: "1", approvers: { wallets: [`solana:*:${SOL}`] } } }).value]]) {
+    const dropped = diff(listed, open);
+    assert.ok(dropped.loosened.includes("confirm.approvers.keys"), `[A] -> ${label} loosens`);
+    assert.equal(dropped.tightened.includes("confirm.approvers.keys"), false, `[A] -> ${label} never tightens`);
+    assert.ok(diff(open, listed).tightened.includes("confirm.approvers.keys"), `${label} -> [A] tightens`);
+    assert.equal(diff(open, listed).loosened.includes("confirm.approvers.keys"), false);
+  }
+  assert.deepEqual(diff(listed, only([A, B])), { tightened: [], loosened: ["confirm.approvers.keys"] }, "adding a key loosens");
+  assert.deepEqual(diff(only([A, B]), listed), { tightened: ["confirm.approvers.keys"], loosened: [] }, "narrowing tightens");
+  assert.deepEqual(diff(listed, only([B])).loosened, ["confirm.approvers.keys"], "swapping keys loosens");
+  assert.deepEqual(diff(only(undefined), ok({ schema, confirm: { aboveUsd: "1", approvers: { keys: [] } } }).value), { tightened: [], loosened: [] }, "absent and empty are the same");
+  // Removing the whole rule book or the confirm section loosens it too.
+  assert.ok(diff(listed, { schema }).loosened.includes("confirm.approvers.keys"));
+  assert.ok(diff(listed, null).loosened.includes("confirm.approvers.keys"));
+});
+
 test("templates: observer is valid as is; the others validate once their fill points are given", () => {
   assert.equal(POLICY_TEMPLATES.observer.document, OBSERVER_POLICY);
   assert.equal(validatePolicy(POLICY_TEMPLATES.observer.document).ok, true);

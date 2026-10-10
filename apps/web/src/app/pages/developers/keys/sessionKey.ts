@@ -24,6 +24,17 @@ export function useSessionKey(): SessionKeyState {
 
 /** Developer key shape: `kl_dev_` + 32 base62 characters. */
 export const DEV_KEY_PATTERN = /^kl_dev_[0-9A-Za-z]{32}$/u;
+/** Agent key shape (Rule Book): `kl_agt_` + 32 base62 characters. */
+export const AGENT_KEY_SHAPE = /^kl_agt_[0-9A-Za-z]{32}$/u;
+
+export type PortalKeyKind = "developer" | "agent";
+
+/** Which kind of complete key is loaded, or null (empty, partial or an operator key). */
+export function portalKeyKind(key: string): PortalKeyKind | null {
+  if (DEV_KEY_PATTERN.test(key)) return "developer";
+  if (AGENT_KEY_SHAPE.test(key)) return "agent";
+  return null;
+}
 
 /** `kl_dev_…r7VC` (never render a full key outside the one-time reveal). */
 export function maskKey(key: string): string {

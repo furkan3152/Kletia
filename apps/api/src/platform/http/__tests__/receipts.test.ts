@@ -48,7 +48,7 @@ useTestEnvironment();
 const { createPlatformRouter, platformErrorHandler } = await import("../index.js");
 const { configureHealthProbe } = await import("../health.js");
 const { configureReceiptSigner, loadReceiptKeyring, resetReceiptKeyring, signerFromSeed } = await import("../receipts/signer.js");
-const { configureReceiptStore, MemoryReceiptStore } = await import("../receipts/store.js");
+const { configureReceiptStore, MemoryReceiptStore, receiptStore: receiptStoreNow } = await import("../receipts/store.js");
 const { ReceiptIssuer, intentStateDigest, startReceiptIssuer } = await import("../receipts/issuer.js");
 const { closeReceiptBatch, configureAnchorTransport, EAS_GET_TIMESTAMP_SELECTOR, EAS_TIMESTAMP_SELECTOR, EAS_TIMESTAMPED_TOPIC, merkleTree, watchAnchors } = await import("../receipts/log.js");
 const { decryptShare, parseShareUrl } = await import("../receipts/shares.js");
@@ -142,9 +142,10 @@ async function enqueueByEvent(issuer: InstanceType<typeof ReceiptIssuer>, intent
 /** Queues an intent and processes it once, due now. */
 async function issueNow(issuer: InstanceType<typeof ReceiptIssuer>, intentId: string) {
   const due = new Date(clock - 1_000).toISOString();
-  await store.enqueue({ intentId, ownerKeyId: null, reason: "scan", notBefore: due });
-  const entry = await store.queueEntry(intentId);
-  if (entry && Date.parse(entry.notBefore) > clock) await store.reschedule(intentId, { notBefore: due, pendingReason: entry.pendingReason });
+  const current = receiptStoreNow();
+  await current.enqueue({ intentId, ownerKeyId: null, reason: "scan", notBefore: due });
+  const entry = await current.queueEntry(intentId);
+  if (entry && Date.parse(entry.notBefore) > clock) await current.reschedule(intentId, { notBefore: due, pendingReason: entry.pendingReason });
   return issuer.runDue();
 }
 
@@ -184,6 +185,62 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.KLETIA_RECEIPTS_ENABLED;
 });
+
+/**
+ * Withdraws an intent's disclosures while its next receipt (sequence 2) is
+ * being built (the collector waits on a gate) and checks the withdrawal still
+ * covers that receipt: nothing stored or served, shares refused (410).
+ */
+async function withdrawDuringIssuance(): Promise<void> {
+  const created = await call<{ intent: IntentGraph }>(server, "POST", "/intents", { body: SWAP });
+  const id = created.body.intent.id;
+  const intents = getIntentStore();
+  const planned = (await intents.get(id)) as IntentGraph;
+  const failedStep: IntentStep = { ...(planned.steps[0] as IntentStep), status: "failed", failure: { code: "SIMULATION_FAILED", message: "reverted" } };
+  const failed: IntentGraph = { ...planned, status: "failed", steps: [failedStep], updatedAt: new Date(Date.parse(planned.updatedAt) + 1).toISOString() };
+  await intents.update(id, failed, planned.updatedAt);
+  assert.equal((await issueNow(newIssuer(), id))[0]?.kind, "issued");
+
+  const now = new Date(Date.parse(failed.updatedAt) + 1).toISOString();
+  const settledStep: IntentStep = {
+    ...(planned.steps[0] as IntentStep),
+    status: "settled",
+    references: [SIGNATURE],
+    evidence: [
+      { kind: "note", network: "solana", reference: SIGNATURE, observedAt: now, detail: "References submitted." },
+      { kind: "transaction", network: "solana", reference: SIGNATURE, observedAt: now },
+    ],
+  };
+  await intents.update(id, { ...failed, status: "completed", steps: [settledStep], updatedAt: now }, failed.updatedAt);
+
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let collecting!: () => void;
+  const started = new Promise<void>((resolve) => { collecting = resolve; });
+  const slow = newIssuer({
+    collect: async (graph) => {
+      collecting();
+      await gate;
+      return collect(graph);
+    },
+  });
+  const running = issueNow(slow, id);
+  await started;
+  assert.equal((await call(server, "DELETE", `/intents/${id}/receipt/disclosures`)).status, 204, "the withdrawal is accepted mid-issuance");
+  release();
+  const [outcome] = await running;
+  assert.equal(outcome?.kind, "issued", JSON.stringify(outcome));
+  assert.equal(outcome?.kind === "issued" ? outcome.receipt.disclosures : "missing", null, "the outcome reports what the store holds");
+
+  const two = await receiptOf(id);
+  assert.equal(two.payload.sequence, 2);
+  assert.equal(two.disclosures, undefined, "the receipt built during the withdrawal serves no disclosures");
+  assert.equal((await verifyReceipt(two, { keys: [signer.publicKey] })).valid, true, "its signed payload still verifies");
+  const stored = await receiptStoreNow().latest(id);
+  assert.equal(stored?.disclosures, null, "nothing private is stored");
+  assert.ok(stored?.disclosuresWithdrawnAt, "the withdrawal time is carried over");
+  assertError(await call(server, "POST", `/intents/${id}/receipt/shares`, { body: { profile: "full" } }), 410, "RECEIPT_DISCLOSURES_WITHDRAWN");
+}
 
 /* ============================================================ issuer */
 
@@ -491,6 +548,10 @@ describe("receipt routes", () => {
     assertError(await call(server, "POST", `/intents/${intent.id}/receipt/shares`, { body: {} }), 410, "RECEIPT_DISCLOSURES_WITHDRAWN");
     assertError(await call(server, "GET", `/receipts/${receiptId}/shares/${created.body.share.id}`), 404, "RECEIPT_SHARE_NOT_FOUND");
     assertError(await call(server, "GET", `/receipts/${receiptId}`), 404, "RECEIPT_NOT_FOUND");
+  });
+
+  it("keeps a withdrawal that lands while the next receipt is being built (no disclosures stored, shares refused)", async () => {
+    await withdrawDuringIssuance();
   });
 });
 
@@ -840,8 +901,12 @@ describe("receipt keys", () => {
     const ring = loadReceiptKeyring();
     assert.ok(ring.attester);
     const digest = createHash("sha256").update("a receipt").digest("hex");
-    const envelope = await attestReceipt(ring.attester, { digest, spec: "kletia.receipt/v1", sequence: 1, issuedAt: new Date().toISOString() });
+    const envelope = await attestReceipt(ring.attester, { digest, spec: "kletia.receipt/v1", sequence: 1, issuedOn: "2026-10-10" });
     assert.equal(envelope.sig.domain.chainId, 8453);
+    assert.equal(envelope.sig.message.time, String(Date.UTC(2026, 9, 10) / 1000), "the attestation time is the start of the UTC day");
+    for (const bad of ["2026-10-10T04:08:14.340Z", "2026-02-30", "", "1791605294"]) {
+      await assert.rejects(attestReceipt(ring.attester, { digest, spec: "kletia.receipt/v1", sequence: 1, issuedOn: bad }), /YYYY-MM-DD/u, bad);
+    }
     assert.equal(envelope.sig.message.recipient, "0x0000000000000000000000000000000000000000");
     assert.equal(await verifyEasEnvelope(envelope, digest), true);
     assert.equal(await verifyEasEnvelope(envelope, createHash("sha256").update("another").digest("hex")), false);
@@ -857,6 +922,20 @@ describe("receipt keys", () => {
     const eas = receipt.attestations?.eas as Parameters<typeof verifyEasEnvelope>[0] | undefined;
     assert.ok(eas, "envelope attached");
     assert.equal(await verifyEasEnvelope(eas, receipt.digest), true);
+    // The envelope travels with every shared receipt, even a fully sealed "route" share: it must
+    // not reveal the exact issuance time that the sealed intent.timing group holds.
+    const dayStart = Date.parse(`${receipt.payload.issuedOn}T00:00:00Z`) / 1000;
+    assert.equal(eas.sig.message.time, String(dayStart));
+    const routeShare = await call<{ share: { receiptId: string; groups: string[] } }>(server, "POST", `/intents/${intent.id}/receipt/shares`, { body: { profile: "route" } });
+    assert.equal(routeShare.status, 201);
+    assert.deepEqual(routeShare.body.share.groups, []);
+    const shown = await call<{ receipt: ReceiptDocument }>(server, "GET", `/receipts/${routeShare.body.share.receiptId}`, { anonymous: true });
+    assert.equal(shown.status, 200);
+    assert.equal(shown.body.receipt.disclosures, undefined);
+    const publicTime = Number((shown.body.receipt.attestations?.eas as { sig: { message: { time: string } } } | undefined)?.sig.message.time);
+    assert.equal(publicTime, dayStart, "the public envelope says only the day");
+    const sealedIssuedAt = (receipt.disclosures?.["intent.timing"]?.value as { issuedAt?: string } | undefined)?.issuedAt;
+    assert.ok(sealedIssuedAt && Date.parse(sealedIssuedAt) / 1000 - publicTime >= 0 && Date.parse(sealedIssuedAt) / 1000 - publicTime < 86_400);
     const keys = await call<{ attesters: { address: string; chain: string }[] }>(server, "GET", "/receipts/keys");
     assert.equal(keys.body.attesters[0]?.address, ring.attester.address);
     assert.equal(keys.body.attesters[0]?.chain, "eip155:8453");
@@ -910,4 +989,18 @@ describe("receipts on Postgres", { skip: databaseUrl ? false : "set KLETIA_TEST_
       delete process.env.KLETIA_DATABASE_URL;
     }
   }));
+
+  it("keeps a withdrawal that lands while the next receipt is being built, on the Postgres store", async () => {
+    const { PostgresReceiptStore } = await import("../receipts/store.js");
+    const { closePlatformDatabase } = await import("../db.js");
+    process.env.KLETIA_DATABASE_URL = databaseUrl;
+    configureReceiptStore(new PostgresReceiptStore());
+    try {
+      await withdrawDuringIssuance();
+    } finally {
+      configureReceiptStore(store);
+      await closePlatformDatabase();
+      delete process.env.KLETIA_DATABASE_URL;
+    }
+  });
 });

@@ -149,6 +149,32 @@ function contract(name: string, make: () => ReceiptStore, databaseUrl?: string):
       assert.equal(await store.share(live), null);
     });
 
+    it("stores a receipt built before a withdrawal without its disclosures (the withdrawal is re-read under the lock)", async () => {
+      const store = make();
+      const intentId = `int_${hex(16)}`;
+      const one = receipt(intentId, 1, "7".repeat(64));
+      assert.equal(await store.issue(one, null, null), "issued");
+      // The issuer read `latest` (not withdrawn) and built sequence 2 with every disclosure...
+      const built = receipt(intentId, 2, "8".repeat(64), { supersedes: one.digest });
+      assert.ok(built.disclosures && built.disclosuresWithdrawnAt === null);
+      // ...then the owner withdrew before it was stored.
+      const at = new Date(Date.now() - 5_000).toISOString();
+      assert.equal(await store.withdraw(intentId, at), 1);
+      assert.equal(await store.issue(built, one.id, null), "issued");
+      const two = await store.latest(intentId);
+      assert.equal(two?.id, built.id);
+      assert.equal(two?.disclosures, null, "no disclosure is stored after a withdrawal");
+      assert.equal(two?.disclosuresWithdrawnAt, at, "the withdrawal time is carried over");
+      // And a third one stays withdrawn too.
+      const three = receipt(intentId, 3, "9".repeat(64), { supersedes: built.digest });
+      assert.equal(await store.issue(three, built.id, null), "issued");
+      assert.equal((await store.latest(intentId))?.disclosures, null);
+      // Another intent is not affected.
+      const other = receipt(`int_${hex(16)}`, 1, "7".repeat(64));
+      assert.equal(await store.issue(other, null, null), "issued");
+      assert.notEqual((await store.byId(other.id))?.disclosures, null);
+    });
+
     it("closes chained batches with leaf indexes and paths, pages leaves and records one anchor", () => withDatabaseTestLock(databaseUrl, "receipt-log", async () => {
       const store = make();
       // Batch whatever earlier runs left unbatched, so the next batch holds exactly ours.

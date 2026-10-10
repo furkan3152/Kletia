@@ -258,15 +258,15 @@ services:
         value: noindex, nofollow
       # Intent link pages are never framed, by anyone. The API sends the same
       # headers; these rules hold whether or not the rewrite forwards them.
+      # (No X-Robots-Tag here: the rule would also cover /go/<id>/card.png,
+      # which link previews must be able to fetch; every link page carries
+      # <meta name="robots" content="noindex,nofollow"> from the API.)
       - path: /go/*
         name: X-Frame-Options
         value: DENY
       - path: /go/*
         name: Content-Security-Policy
         value: frame-ancestors 'none'
-      - path: /go/*
-        name: X-Robots-Tag
-        value: noindex, nofollow
       # The embeddable widget is the only page other sites may frame.
       - path: /embed
         name: Content-Security-Policy

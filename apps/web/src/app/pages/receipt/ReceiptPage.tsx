@@ -13,9 +13,9 @@ import { ApiErrorPanel } from "../../site/ui/ApiErrorPanel";
 import { Button, ButtonLink } from "../../site/ui/Button";
 import { CopyButton } from "../../site/ui/CopyButton";
 import { CONTAINER, cx, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
-import { plannedRows, reportRows, summarize, type RecheckRow } from "./recheck";
+import { browserSources, plannedRows, reportRows, summarize, type RecheckRow } from "./recheck";
 import { RecheckBoard } from "./RecheckBoard";
-import { parseReceiptFragment, receiptIdFromPath, receiptPageUrl, REVERIFY_COMMAND, reverifyCommandFor } from "./receiptLink";
+import { parseReceiptFragment, receiptIdFromPath, REVERIFY_COMMAND, reverifyCommandFor } from "./receiptLink";
 import { formatDay, offlineVerdict, receiptModel, stampDay } from "./receiptModel";
 import { ReceiptTicket } from "./ReceiptTicket";
 import { useReceipt, type LoadedReceipt } from "./useReceipt";
@@ -25,6 +25,9 @@ type Recheck =
   | { readonly phase: "running" }
   | { readonly phase: "done"; readonly report: ReverifyReport; readonly at: Date }
   | { readonly phase: "error"; readonly message: string };
+
+/** The public nodes this page asks from the reader's browser (the SDK defaults minus nodes that refuse browsers). */
+const RECHECK_SOURCES = browserSources(DEFAULT_REVERIFY_RPCS);
 
 const PAPER = "kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
 
@@ -78,7 +81,7 @@ function Missing() {
 
 function Loading() {
   return (
-    <div className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
+    <div key="loading" className={cx(CONTAINER, "flex min-h-[50vh] items-center justify-center py-16")} role="status">
       <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
         Checking the receipt
       </span>
@@ -86,7 +89,15 @@ function Loading() {
   );
 }
 
-function ReceiptView({ loaded, hasKeyInUrl, onReload }: { readonly loaded: LoadedReceipt; readonly hasKeyInUrl: boolean; readonly onReload: () => void }) {
+interface ReceiptViewProps {
+  readonly loaded: LoadedReceipt;
+  /** The share id and key parsed (and checked) from the fragment; null without a valid share link. */
+  readonly shareLink: { readonly shareId: string; readonly key: string } | null;
+  readonly onReload: () => void;
+}
+
+function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
+  const hasKeyInUrl = shareLink !== null;
   const { document, verification, share, status, provenance } = loaded;
   const model = useMemo(() => receiptModel(document), [document]);
   const verdict = useMemo(() => offlineVerdict(verification), [verification]);
@@ -100,7 +111,7 @@ function ReceiptView({ loaded, hasKeyInUrl, onReload }: { readonly loaded: Loade
   const display = useCallback((url: string) => displayRpcUrl(url), []);
   const rows: readonly RecheckRow[] = useMemo(() => {
     if (recheck.phase === "done") return reportRows(document, model.legs, recheck.report);
-    return plannedRows(document, model.legs, DEFAULT_REVERIFY_RPCS, display, recheck.phase === "running" ? "checking" : "ready");
+    return plannedRows(document, model.legs, RECHECK_SOURCES, display, recheck.phase === "running" ? "checking" : "ready");
   }, [display, document, model.legs, recheck]);
   const summary = recheck.phase === "done" ? summarize(recheck.report, model.legs) : null;
   const rechecked = summary && summary.verdict === "verified" ? { day: stampDay(todayUtc()), sources: summary.agreeingSources } : null;
@@ -111,7 +122,7 @@ function ReceiptView({ loaded, hasKeyInUrl, onReload }: { readonly loaded: Loade
     controllerRef.current = controller;
     setRecheck({ phase: "running" });
     try {
-      const report = await reverifyReceipt(document, { keys: loaded.keys, signal: controller.signal });
+      const report = await reverifyReceipt(document, { keys: loaded.keys, rpcs: RECHECK_SOURCES, signal: controller.signal });
       if (!controller.signal.aborted) setRecheck({ phase: "done", report, at: new Date() });
     } catch (error) {
       if (!controller.signal.aborted) setRecheck({ phase: "error", message: error instanceof Error ? error.message.slice(0, 200) : "The recheck failed." });
@@ -127,7 +138,8 @@ function ReceiptView({ loaded, hasKeyInUrl, onReload }: { readonly loaded: Loade
     }
   };
 
-  const pageUrl = receiptPageUrl(window.location.origin, model.receiptId);
+  // Rebuilt from the checked parts, never from window.location.href (which may carry appended text).
+  const copiedCommand = reverifyCommandFor(window.location.origin, model.receiptId, keyInUrl ? shareLink : null);
   const announcement = verdict.kind === "verified" ? "Receipt verified in this browser." : `Receipt void. ${verdict.sentence}`;
 
   return (
@@ -227,12 +239,16 @@ function ReceiptView({ loaded, hasKeyInUrl, onReload }: { readonly loaded: Loade
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <code className="min-w-0 flex-1 bg-[#082a66] px-3 py-2 text-white">{REVERIFY_COMMAND}</code>
                 <CopyButton
-                  text={reverifyCommandFor(keyInUrl ? window.location.href : pageUrl)}
-                  label="Copy the command with this page's link"
+                  text={copiedCommand ?? REVERIFY_COMMAND}
+                  label={copiedCommand ? "Copy the command with this page's link" : "Copy the command"}
                   notify="inline"
                 />
               </div>
-              <p className="mt-2 text-xs text-[#DCE6FA]">The copied command includes this page's link{keyInUrl ? ", with its key" : ""}.</p>
+              <p className="mt-2 text-xs text-[#DCE6FA]">
+                {copiedCommand
+                  ? `The copied command includes this page's link${keyInUrl ? ", with its key" : ""}. The link is in double quotes, so bash, zsh, PowerShell and Command Prompt read it the same way.`
+                  : "Paste this receipt's link in place of <this link>."}
+              </p>
             </div>
           </div>
 
@@ -324,5 +340,6 @@ export default function ReceiptPage() {
       </div>
     );
   }
-  return <ReceiptView key={`${receiptId}:${fragment.kind}`} loaded={state.receipt} hasKeyInUrl={fragment.kind === "share"} onReload={reload} />;
+  const shareLink = fragment.kind === "share" ? { shareId: fragment.shareId, key: fragment.key } : null;
+  return <ReceiptView key={`${receiptId}:${fragment.kind}`} loaded={state.receipt} shareLink={shareLink} onReload={reload} />;
 }

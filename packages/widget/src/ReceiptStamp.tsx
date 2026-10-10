@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { KletiaApiError, type KletiaClient } from "@kletia/sdk";
-import { RECEIPT_EVIDENCE_WARNING, RECEIPT_SHARE_PROFILES, receiptApplies, receiptShareHref, type ReceiptShareProfile } from "./review.js";
+import { RECEIPT_EVIDENCE_WARNING, RECEIPT_SHARE_PROFILES, receiptApplies, receiptPendingText, receiptShareHref, type ReceiptShareProfile } from "./review.js";
 
 type ReceiptState =
   | { readonly status: "checking" }
-  | { readonly status: "pending"; readonly expectedBy: string | null; readonly retryAfterSeconds: number }
+  | { readonly status: "pending"; readonly expectedBy: string | null; readonly retryAfterSeconds: number; readonly reason: string | null }
   | { readonly status: "ready"; readonly receiptId: string; readonly sequence: number | null }
   | { readonly status: "none" }
   | { readonly status: "error"; readonly message: string };
@@ -65,7 +65,7 @@ export function ReceiptStamp({ client, intentId, intentStatus, fallbackOrigin }:
         }
         const pending = result.pending;
         const retry = Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, (pending?.retryAfterSeconds ?? 30) * 1000));
-        setState({ status: "pending", expectedBy: pending?.expectedBy ?? null, retryAfterSeconds: Math.round(retry / 1000) });
+        setState({ status: "pending", expectedBy: pending?.expectedBy ?? null, retryAfterSeconds: Math.round(retry / 1000), reason: pending?.reason ?? null });
         timer = setTimeout(() => void check(), retry);
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -74,7 +74,7 @@ export function ReceiptStamp({ client, intentId, intentStatus, fallbackOrigin }:
           return;
         }
         if (error instanceof KletiaApiError && error.code === "RECEIPT_NOT_READY") {
-          setState({ status: "pending", expectedBy: null, retryAfterSeconds: MIN_POLL_MS / 1000 });
+          setState({ status: "pending", expectedBy: null, retryAfterSeconds: MIN_POLL_MS / 1000, reason: null });
           timer = setTimeout(() => void check(), MIN_POLL_MS);
           return;
         }
@@ -94,7 +94,8 @@ export function ReceiptStamp({ client, intentId, intentStatus, fallbackOrigin }:
     const by = state.expectedBy && Number.isFinite(Date.parse(state.expectedBy)) ? new Date(state.expectedBy).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : null;
     return (
       <p className="kw-receipt kw-muted" role="status">
-        Receipt: waiting for every leg to be final on-chain{by ? `, expected by ${by}` : ""}. Kletia signs it then.
+        Receipt: {receiptPendingText(state.reason)}
+        {by && (state.reason === null || state.reason === "awaiting_finality") ? ` Expected by ${by}.` : ""}
       </p>
     );
   }
@@ -103,7 +104,7 @@ export function ReceiptStamp({ client, intentId, intentStatus, fallbackOrigin }:
     setSharing(true);
     setShareError(null);
     try {
-      const { share: created } = await client.receipts.share(intentId, { profile });
+      const { share: created } = await client.receipts.share(intentId, { profile, ...(state.sequence !== null ? { sequence: state.sequence } : {}) });
       if (!mounted.current) return;
       const href = receiptShareHref(created, { fallbackOrigin: fallbackOrigin ?? null });
       if (!href) setShareError("Kletia returned a receipt link this widget cannot open.");

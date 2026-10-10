@@ -156,6 +156,15 @@ export interface ResumeOptions {
    * reload may be signed again (they checked their wallet activity).
    */
   readonly confirmResign?: boolean;
+  /**
+   * The fare the user just approved for this intent in a review this hook
+   * did not render (an intent made elsewhere, e.g. by an intent link or an
+   * integrator). It counts as approved, so it is not asked for again before
+   * the first signature; its digest still goes to prepare, and a fare that
+   * changed is shown again before anything is signed. Ignored when it
+   * belongs to another intent.
+   */
+  readonly approvedPreview?: IntentPreview | null;
 }
 
 export interface IntentExecution extends ConnectedIntentSigners {
@@ -1015,6 +1024,11 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       if (resumeOptions.confirmResign) {
         for (const stepId of reconfirmStepIdsRef.current) allowResignRef.current.add(`${id}:${stepId}`);
       }
+      const approved = resumeOptions.approvedPreview && resumeOptions.approvedPreview.intentId === id ? resumeOptions.approvedPreview : null;
+      if (approved) {
+        createdIdsRef.current.add(id);
+        setPreview(approved);
+      }
       setError(null);
       setPauseReason(null);
       setResumableIntentId(null);
@@ -1034,9 +1048,9 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         if (sessionKey) clearIntentSession(sessionKey);
         return refreshed;
       }
-      return execute(refreshed);
+      return execute(refreshed, approved !== null);
     },
-    [commitIntent, execute, getClient, sessionKey],
+    [commitIntent, execute, getClient, sessionKey, setPreview],
   );
 
   const cancel = useCallback(async () => {

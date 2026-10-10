@@ -79,9 +79,10 @@ const frameHeaders = (pathname) =>
           "Content-Security-Policy": "frame-ancestors 'self'",
         };
 
-// Receipts, approvals and intent links carry user content: never indexed.
+// Receipts, approvals and intent link pages carry user content: never
+// indexed. (A link's share card, /go/<id>/card.png, is served without it.)
 const robotsHeaders = (pathname) =>
-  /^\/(?:r|go|approve)(?:\/|$)/u.test(pathname)
+  /^\/(?:r|go|approve)(?:\/|$)/u.test(pathname) && !LINK_CARD.test(pathname)
     ? { "X-Robots-Tag": "noindex, nofollow" }
     : {};
 
@@ -213,9 +214,10 @@ const server = createServer(async (request, response) => {
       send(response, method, upstream?.status === 404 ? 404 : 502, { ...commonHeaders, "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" }, Buffer.from("Card unavailable"));
       return;
     }
+    // No X-Robots-Tag: link previews must be able to fetch the card.
     send(response, method, 200, {
       ...commonHeaders,
-      ...robotsHeaders(url.pathname),
+      ...frameHeaders(url.pathname),
       "Content-Type": "image/png",
       "Cache-Control": upstream.headers.get("cache-control") || "public, max-age=300",
       ...(upstream.headers.get("etag") ? { ETag: upstream.headers.get("etag") } : {}),

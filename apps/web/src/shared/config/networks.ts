@@ -229,7 +229,7 @@ export const NETWORKS = {
     },
     color: "#0052FF",
     icon: "🔵",
-    badge: "OMNI-ENGINE",
+    badge: "CONSOLE",
     isTestnet: false,
     enabled: true,
     apiPrefix: "/api",
@@ -240,7 +240,7 @@ export const NETWORKS = {
         items: [
           {
             id: "chat",
-            label: "Omni-Engine",
+            label: "Kletia Chat",
             icon: "chat",
             action: { type: "tab", tab: "chat" },
           },
@@ -406,7 +406,7 @@ export const NETWORKS = {
         items: [
           {
             id: "chat",
-            label: "Omni-Engine",
+            label: "Kletia Chat",
             icon: "chat",
             action: { type: "tab", tab: "chat" },
           },
@@ -546,7 +546,7 @@ export const NETWORKS = {
         id: "command-center",
         label: "Command Center",
         items: [
-          { id: "chat", label: "Omni-Engine", icon: "chat", action: { type: "tab", tab: "chat" } },
+          { id: "chat", label: "Kletia Chat", icon: "chat", action: { type: "tab", tab: "chat" } },
         ],
       },
       {

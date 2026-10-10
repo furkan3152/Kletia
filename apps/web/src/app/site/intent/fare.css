@@ -118,6 +118,11 @@
   letter-spacing: 0.04em;
   overflow-wrap: anywhere;
 }
+.klf__acct {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .klf__net .kla-bullet {
   font-size: 9px;
   min-width: 2.4em;
@@ -182,6 +187,8 @@
   overflow-wrap: anywhere;
 }
 .klf__mark {
+  /* Inline with its number (the site's preflight makes SVGs blocks). */
+  display: inline-block;
   flex: none;
   width: 11px;
   height: 11px;

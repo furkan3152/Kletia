@@ -198,6 +198,12 @@ anchor on Base. Per anchor the result is `match`, `mismatch`, `conflict`,
 `unavailable` (public nodes prune history: "not found" is never evidence of
 absence) or `not_finalized`.
 
+The receipt page runs in the reader's browser, so it skips public nodes that
+refuse requests from web pages: `api.mainnet-beta.solana.com` answers `403`
+to any request that carries an `Origin` header. Solana legs are then checked
+by one public node, and the page says so ("Only one public node answered");
+for an independent second source, run the CLI or pass your own `rpcs`.
+
 ## Privacy and sharing
 
 Receipts are private: `GET /v1/receipts/{receiptId}` answers `404` until the
@@ -230,7 +236,9 @@ stored response is encrypted at rest). Shares default to 30 days
 per receipt, and `DELETE …/receipt/shares/{shareId}` revokes one.
 
 `DELETE /v1/intents/{id}/receipt/disclosures` withdraws every stored
-disclosure of the intent's receipts (later ones included) and every share.
+disclosure of the intent's receipts (later ones included, also a receipt
+that was being built when the withdrawal arrived: the store re-reads the
+withdrawal under the same per-intent lock before it inserts) and every share.
 The signed payloads (commitments only) and log leaves stay; copies already
 downloaded cannot be recalled. Before the first receipt there is nothing to
 withdraw: `409 RECEIPT_NOT_READY` (or `RECEIPT_NOT_APPLICABLE`).
@@ -282,9 +290,13 @@ With `KLETIA_EAS_ATTESTER_KEY` (a secp256k1 key without funds), each receipt
 also carries an EAS **offchain** attestation (Version 2) of its digest,
 schema `bytes32 receiptDigest,string spec,uint32 sequence`, domain
 `EAS Attestation` / `1.0.1` / chain 8453 / the EAS predeploy, recipient the
-zero address, `refUID` the superseded receipt's attestation. It verifies
-offline with `ecrecover` (no transaction) and in any EAS tooling; it says
-nothing beyond the digest. `GET /v1/receipts/keys` lists the attester.
+zero address, `refUID` the superseded receipt's attestation, and `time` the
+start (00:00:00 UTC) of the payload's `issuedOn` day, never the issuance
+second (the exact time stays in the sealed `intent.timing` group; the
+envelope is served with every shared receipt, sealed groups or not). It
+verifies offline with `ecrecover` (no transaction) and in any EAS tooling;
+it says nothing beyond the digest, the sequence and the public day.
+`GET /v1/receipts/keys` lists the attester.
 
 ## Keys and rotation
 

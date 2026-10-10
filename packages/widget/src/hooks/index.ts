@@ -22,6 +22,7 @@ export type {
   IntentSessionConfig,
   IntentSessionState,
   PlanInput,
+  StartSessionOptions,
 } from "./intentSession.js";
 export { createIntentFollower } from "./intentFollower.js";
 export type { IntentFollower, IntentFollowState, IntentFollowStatus } from "./intentFollower.js";

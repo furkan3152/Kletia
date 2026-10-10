@@ -823,7 +823,7 @@ export const ArcDashboardWidget: React.FC<{
 
         <div className="z-10 flex flex-col gap-4 max-w-2xl">
           <div className="inline-block bg-white text-[#1A1A1A] border-[3px] border-[#1A1A1A] font-black uppercase tracking-widest text-xs px-3 py-1 shadow-[3px_3px_0_#1A1A1A] w-max">
-            KLETIA OMNI-ENGINE
+            KLETIA CONSOLE
           </div>
           <h2 className="text-4xl md:text-6xl font-black text-white tracking-tight uppercase leading-none drop-shadow-[4px_4px_0_#1A1A1A]">
             DASHBOARD
@@ -1063,7 +1063,7 @@ export const ArcDashboardWidget: React.FC<{
           <span className="w-8 h-8 bg-[#FACC15] border-[3px] border-[#1A1A1A] flex items-center justify-center shadow-[2px_2px_0_#1A1A1A]">
             ⚡
           </span>
-          Kletia Omni-Features
+          Kletia features
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[

@@ -3,6 +3,7 @@
  * the docs (security model, API v1, developer portal); nothing new is
  * promised here. Links are internal paths or anchors.
  */
+import { protocolNoun } from "../../site/protocolCount";
 
 export interface FaqLink {
   readonly label: string;
@@ -12,7 +13,7 @@ export interface FaqLink {
 export interface FaqItem {
   readonly id: string;
   readonly question: string;
-  /** Paragraphs. `{protocols}` and `{networks}` are replaced with live counts. */
+  /** Paragraphs. `{networks}`, `{protocols}` ("29 protocols") and `{ownContracts}` are replaced with live counts. */
   readonly answer: readonly string[];
   readonly links?: readonly FaqLink[];
 }
@@ -28,9 +29,9 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   },
   {
     id: "coverage",
-    question: "Which networks and venues are supported?",
+    question: "Which networks and protocols are supported?",
     answer: [
-      "Kletia knows {networks} networks and {protocols} venues today. Each venue is marked execute, quote or discover, so you can see what Kletia does with it. Mainnet and testnet networks are separate capital and never share a plan.",
+      "Kletia knows {networks} networks and {protocols} today{ownContracts}. Each protocol is marked execute, quote or discover, so you can see what Kletia does with it. Mainnet and testnet networks are separate capital and never share a plan.",
     ],
     links: [
       { label: "Network status", to: "/networks" },
@@ -87,6 +88,16 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   },
 ];
 
-export function fillCounts(text: string, counts: { readonly networks: number; readonly protocols: number }): string {
-  return text.replace(/\{networks\}/gu, String(counts.networks)).replace(/\{protocols\}/gu, String(counts.protocols));
+/**
+ * `{protocols}` counts real protocols only (never the "custom" registry
+ * entries); `{ownContracts}` names bring-your-own-contract separately.
+ */
+export function fillCounts(
+  text: string,
+  counts: { readonly networks: number; readonly protocols: number; readonly ownContracts?: boolean },
+): string {
+  return text
+    .replace(/\{networks\}/gu, String(counts.networks))
+    .replace(/\{protocols\}/gu, protocolNoun(counts.protocols))
+    .replace(/\{ownContracts\}/gu, counts.ownContracts ? ", plus the contracts you register yourself" : "");
 }

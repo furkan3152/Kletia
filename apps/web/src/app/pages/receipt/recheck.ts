@@ -45,6 +45,30 @@ export const RESULT_SPEECH: Readonly<Record<RecheckResult, string>> = {
 
 type SourceList = Readonly<Partial<Record<string, readonly string[]>>>;
 
+/**
+ * Public nodes that refuse requests made from a web page: they answer a CORS
+ * preflight but return 403 "Access forbidden" to any request that carries an
+ * Origin header (api.mainnet-beta.solana.com, observed 2026-10-10). Asked from
+ * the reader's browser they can only ever say "no data", which would turn
+ * every Solana leg into "not conclusive"; the CLI still asks them.
+ */
+export const BROWSER_REFUSED_RPCS: ReadonlySet<string> = new Set(["https://api.mainnet-beta.solana.com"]);
+
+/**
+ * The sources the receipt page asks: the SDK's defaults minus the ones that
+ * refuse browsers. A network left with one source is checked by that source
+ * alone, and the report says so (the SDK's single-source rule).
+ */
+export function browserSources(defaults: SourceList): Record<string, readonly string[]> {
+  const out: Record<string, readonly string[]> = {};
+  for (const [network, urls] of Object.entries(defaults)) {
+    if (!urls) continue;
+    const usable = urls.filter((url) => !BROWSER_REFUSED_RPCS.has(url));
+    out[network] = usable.length > 0 ? usable : urls;
+  }
+  return out;
+}
+
 function legNo(legs: readonly Pick<LegModel, "id" | "index">[], stepId: string): string {
   const index = legs.find((leg) => leg.id === stepId)?.index ?? 0;
   return String(index + 1).padStart(2, "0");

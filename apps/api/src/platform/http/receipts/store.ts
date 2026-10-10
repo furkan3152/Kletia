@@ -6,9 +6,11 @@
  * Postgres transactions:
  * - issuance: `pg_advisory_xact_lock(hashtextextended('kletia_receipts:' || intent))`,
  *   re-read the latest receipt, drop the candidate when its state digest is
- *   already receipted or another issuer got there first, insert with
- *   `sequence + 1`, mark the previous `superseded_by`, delete the queue row
- *   only when nothing re-queued it meanwhile (`revision`);
+ *   already receipted or another issuer got there first, re-read the intent's
+ *   disclosure withdrawal (a withdrawal under the same lock covers the new
+ *   receipt: no disclosures stored), insert with `sequence + 1`, mark the
+ *   previous `superseded_by`, delete the queue row only when nothing
+ *   re-queued it meanwhile (`revision`);
  * - queue claim: `FOR UPDATE SKIP LOCKED` with a 2-minute lease;
  * - log close: one global advisory lock, unbatched rows in `(issued_at, id)`
  *   order `FOR UPDATE`, the batch and every leaf's index and audit path in
@@ -125,7 +127,9 @@ export interface ReceiptStore {
   /**
    * Stores a receipt when the intent's latest receipt is still `expectedLatestId`
    * (else `stale`) and its state digest differs (else `duplicate`); then marks the
-   * previous one superseded and removes the queue row of `queueRevision`.
+   * previous one superseded and removes the queue row of `queueRevision`. When the
+   * intent's disclosures were withdrawn (checked atomically with the insert), the
+   * receipt is stored without disclosures and with the withdrawal time.
    */
   issue(receipt: StoredReceipt, expectedLatestId: string | null, queueRevision: number | null): Promise<IssueResult>;
   /** Deletes stored disclosures of every receipt of the intent and every share. Returns how many receipts it touched. */
@@ -187,6 +191,8 @@ export class MemoryReceiptStore implements ReceiptStore {
   private readonly queue = new Map<string, QueueEntry>();
   private readonly shares = new Map<string, StoredShare>();
   private readonly batchRows = new Map<number, StoredBatch>();
+  /** Intent id -> first withdrawal time; outlives receipt eviction so later receipts stay withdrawn. */
+  private readonly withdrawals = new Map<string, string>();
   private revisions = 0;
 
   async latest(intentId: string): Promise<StoredReceipt | null> {
@@ -216,7 +222,12 @@ export class MemoryReceiptStore implements ReceiptStore {
   async issue(receipt: StoredReceipt, expectedLatestId: string | null, queueRevision: number | null): Promise<IssueResult> {
     // No await before the write: the check and the insert are atomic in this process.
     let latest: StoredReceipt | null = null;
-    for (const candidate of this.receipts.values()) if (candidate.intentId === receipt.intentId && (!latest || candidate.sequence > latest.sequence)) latest = candidate;
+    let withdrawnAt: string | null = this.withdrawals.get(receipt.intentId) ?? null;
+    for (const candidate of this.receipts.values()) {
+      if (candidate.intentId !== receipt.intentId) continue;
+      if (!latest || candidate.sequence > latest.sequence) latest = candidate;
+      if (candidate.disclosuresWithdrawnAt && (withdrawnAt === null || candidate.disclosuresWithdrawnAt < withdrawnAt)) withdrawnAt = candidate.disclosuresWithdrawnAt;
+    }
     const finish = (result: IssueResult): IssueResult => {
       if (result !== "stale" && queueRevision !== null) this.dequeueSync(receipt.intentId, queueRevision);
       return result;
@@ -226,7 +237,9 @@ export class MemoryReceiptStore implements ReceiptStore {
     if (receipt.sequence !== (latest?.sequence ?? 0) + 1) return "stale";
     for (const existing of this.receipts.values()) if (existing.digest === receipt.digest) return "stale";
     if (latest) this.receipts.set(latest.id, { ...latest, supersededBy: receipt.id });
-    this.receipts.set(receipt.id, receipt);
+    // A withdrawal that landed while this receipt was being built still covers it:
+    // decided here, atomically with the insert, never from the issuer's earlier read.
+    this.receipts.set(receipt.id, withdrawnAt ? { ...receipt, disclosures: null, disclosuresWithdrawnAt: withdrawnAt } : receipt);
     evict(this.receipts, MAX_MEMORY_RECEIPTS);
     return finish("issued");
   }
@@ -239,6 +252,10 @@ export class MemoryReceiptStore implements ReceiptStore {
       touched += 1;
     }
     for (const [id, share] of this.shares) if (share.intentId === intentId) this.shares.delete(id);
+    if (touched > 0 && !this.withdrawals.has(intentId)) {
+      this.withdrawals.set(intentId, at);
+      evict(this.withdrawals, MAX_MEMORY_RECEIPTS);
+    }
     return touched;
   }
 
@@ -687,6 +704,13 @@ export class PostgresReceiptStore implements ReceiptStore {
         return "duplicate";
       }
       if ((latest?.id ?? null) !== expectedLatestId || receipt.sequence !== Number(latest?.sequence ?? 0) + 1) return "stale";
+      // `withdraw` takes the same lock: a withdrawal that landed while this receipt was
+      // being built still covers it (no disclosures stored), whatever the issuer read earlier.
+      const withdrawal = await client.query<{ at: Date | string | null }>(
+        "SELECT min(disclosures_withdrawn_at) AS at FROM kletia_receipts WHERE intent_id = $1 AND disclosures_withdrawn_at IS NOT NULL",
+        [receipt.intentId],
+      );
+      const withdrawnAt = isoOrNull(withdrawal.rows[0]?.at ?? null) ?? receipt.disclosuresWithdrawnAt;
       const inserted = await client.query(
         `INSERT INTO kletia_receipts (id, intent_id, owner_key_id, sequence, intent_status, state_digest, digest, kid, payload, signature,
            disclosures, disclosures_withdrawn_at, attestations, supersedes, issued_at)
@@ -703,8 +727,8 @@ export class PostgresReceiptStore implements ReceiptStore {
           receipt.kid,
           JSON.stringify(receipt.payload),
           receipt.signature,
-          receipt.disclosures === null ? null : JSON.stringify(receipt.disclosures),
-          receipt.disclosuresWithdrawnAt,
+          receipt.disclosures === null || withdrawnAt ? null : JSON.stringify(receipt.disclosures),
+          withdrawnAt,
           receipt.attestations === null ? null : JSON.stringify(receipt.attestations),
           receipt.supersedes,
           receipt.issuedAt,

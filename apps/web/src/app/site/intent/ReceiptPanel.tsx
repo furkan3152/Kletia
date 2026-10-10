@@ -1,8 +1,11 @@
 import { KletiaApiError, type ReceiptShare } from "@kletia/sdk";
 import {
   RECEIPT_EVIDENCE_WARNING,
+  RECEIPT_SHARE_GROUPS,
   RECEIPT_SHARE_PROFILES,
   receiptApplies,
+  receiptGroupsLabel,
+  receiptPendingText,
   receiptShareHref,
   type ReceiptShareProfile,
 } from "@kletia/widget/review";
@@ -16,8 +19,15 @@ import { cx, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
 
 type ReceiptState =
   | { readonly status: "checking" }
-  | { readonly status: "pending"; readonly expectedBy: string | null }
-  | { readonly status: "ready"; readonly receiptId: string; readonly sequence: number; readonly document: unknown }
+  | { readonly status: "pending"; readonly expectedBy: string | null; readonly reason: string | null }
+  | {
+      readonly status: "ready";
+      readonly receiptId: string;
+      readonly sequence: number;
+      readonly document: unknown;
+      /** A newer state of the intent is queued for the next issue. */
+      readonly newer: boolean;
+    }
   | { readonly status: "none" }
   | { readonly status: "error" };
 
@@ -40,15 +50,6 @@ function receiptNumber(receiptId: string): string {
   return `${hex.slice(0, 4)}·${hex.slice(4, 8)}`;
 }
 
-function profileOf(groups: readonly string[]): string {
-  if (groups.length === 0) return "Route only";
-  const hasEvidence = groups.some((group) => group.includes("evidence"));
-  const hasParties = groups.some((group) => group.includes("parties") || group === "intent.request");
-  if (hasParties) return "Everything";
-  if (hasEvidence) return "Proof";
-  return "Route and amounts";
-}
-
 /**
  * The owner's receipt of a finished intent. Receipts are private until the
  * owner shares them, so this prints the receipt stamp, waits for finality
@@ -60,7 +61,8 @@ function profileOf(groups: readonly string[]): string {
 export function ReceiptPanel({ intentId, intentStatus, className }: { readonly intentId: string; readonly intentStatus: string; readonly className?: string }) {
   const [state, setState] = useState<ReceiptState>({ status: "checking" });
   const [open, setOpen] = useState(false);
-  const [profile, setProfile] = useState<ReceiptShareProfile>("route");
+  const [profile, setProfile] = useState<ReceiptShareProfile | "custom">("route");
+  const [groups, setGroups] = useState<readonly string[]>(["steps.*.amounts", "intent.outcome"]);
   const [expiry, setExpiry] = useState(2);
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState<string | null>(null);
@@ -97,17 +99,23 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
         if (controller.signal.aborted) return;
         const receipt = result.receipt;
         if (receipt && typeof receipt.payload?.receiptId === "string") {
-          setState({ status: "ready", receiptId: receipt.payload.receiptId, sequence: receipt.payload.sequence, document: receipt });
+          setState({
+            status: "ready",
+            receiptId: receipt.payload.receiptId,
+            sequence: receipt.payload.sequence,
+            document: receipt,
+            newer: Boolean(result.pending),
+          });
           void loadShares();
           return;
         }
         const retry = Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, (result.pending?.retryAfterSeconds ?? 30) * 1000));
-        setState({ status: "pending", expectedBy: result.pending?.expectedBy ?? null });
+        setState({ status: "pending", expectedBy: result.pending?.expectedBy ?? null, reason: result.pending?.reason ?? null });
         timer = window.setTimeout(() => void check(), retry);
       } catch (caught) {
         if (controller.signal.aborted) return;
         if (caught instanceof KletiaApiError && caught.code === "RECEIPT_NOT_READY") {
-          setState({ status: "pending", expectedBy: null });
+          setState({ status: "pending", expectedBy: null, reason: null });
           timer = window.setTimeout(() => void check(), MIN_POLL_MS);
           return;
         }
@@ -141,8 +149,9 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
       <section aria-label="Receipt" className={shell}>
         <p className={LABEL}>Receipt</p>
         <p className="text-sm font-semibold" role="status">
-          Waiting for every leg to be final on-chain{by ? `, expected by ${by}` : ""}. Kletia signs the receipt then; this page checks
-          again by itself.
+          {receiptPendingText(state.reason)}
+          {by && (state.reason === null || state.reason === "awaiting_finality") ? ` Expected by ${by}.` : ""} This page checks again by
+          itself.
         </p>
       </section>
     );
@@ -155,7 +164,8 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
     try {
       const seconds = EXPIRY_OPTIONS[expiry]?.seconds;
       const { share: created } = await getKletiaClient().receipts.share(intentId, {
-        profile,
+        ...(profile === "custom" ? { groups } : { profile }),
+        sequence: ready.sequence,
         expiresInSeconds: seconds === undefined ? 2_592_000 : seconds,
       });
       if (!mounted.current) return;
@@ -193,7 +203,12 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   };
-  const chosen = RECEIPT_SHARE_PROFILES.find((item) => item.id === profile);
+  const revealsAddresses =
+    profile === "custom"
+      ? RECEIPT_SHARE_GROUPS.some((group) => group.revealsAddresses && groups.includes(group.pattern))
+      : Boolean(RECEIPT_SHARE_PROFILES.find((item) => item.id === profile)?.revealsAddresses);
+  const toggleGroup = (pattern: string, on: boolean) =>
+    setGroups((current) => (on ? [...current.filter((item) => item !== pattern), pattern] : current.filter((item) => item !== pattern)));
 
   return (
     <section aria-label="Receipt" className={shell}>
@@ -207,6 +222,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
         <p className="text-sm font-semibold">
           Kletia signed receipt No. {receiptNumber(ready.receiptId)}
           {ready.sequence > 1 ? ` (issue ${ready.sequence})` : ""}. It is private until you share a link.
+          {ready.newer ? " A newer issue is being prepared for the latest state of this intent." : ""}
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -238,7 +254,40 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
               </span>
             </label>
           ))}
-          {chosen?.revealsAddresses ? (
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+            <input
+              type="radio"
+              name={groupId}
+              value="custom"
+              checked={profile === "custom"}
+              onChange={() => setProfile("custom")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#0052FF]"
+            />
+            <span>
+              <span className="font-bold">Choose what to show.</span>{" "}
+              <span className={TEXT_MUTED}>The route is always shown; tick the parts to add.</span>
+            </span>
+          </label>
+          {profile === "custom" ? (
+            <ul className="ml-6 flex flex-col gap-1.5 border-l-[3px] border-[#1A1A1A]/30 pl-3 dark:border-white/20" aria-label="Parts to show">
+              {RECEIPT_SHARE_GROUPS.map((group) => (
+                <li key={group.pattern}>
+                  <label className="flex cursor-pointer items-start gap-2.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={groups.includes(group.pattern)}
+                      onChange={(event) => toggleGroup(group.pattern, event.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[#0052FF]"
+                    />
+                    <span>
+                      <span className="font-bold">{group.label}.</span> <span className={TEXT_MUTED}>{group.description}</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {revealsAddresses ? (
             <p className="border-2 border-[#1A1A1A] bg-[#FFF3B0] px-2.5 py-1.5 text-xs font-bold text-[#1A1A1A]">{RECEIPT_EVIDENCE_WARNING}</p>
           ) : null}
           <label htmlFor={expiryId} className="mt-1 text-xs font-bold">
@@ -295,7 +344,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
             {shares.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-dashed border-[#1A1A1A]/20 pt-1.5 text-sm dark:border-white/10">
                 <span>
-                  <span className="font-bold">{profileOf(item.groups)}</span>
+                  <span className="font-bold">{receiptGroupsLabel(item.groups)}</span>
                   <span className={TEXT_MUTED}>
                     {" "}
                     · {item.expiresAt && Number.isFinite(Date.parse(item.expiresAt)) ? `expires ${dayFormatter.format(new Date(item.expiresAt))}` : "no expiry"}

@@ -232,7 +232,14 @@ type Gate =
       readonly reason: PreviewGateContext["reason"];
       readonly stepTitle: string;
     }
-  | { readonly kind: "review"; readonly review: ContractReviewData; readonly stepTitle: string; readonly stepNumber: number };
+  | {
+      readonly kind: "review";
+      readonly review: ContractReviewData;
+      /** The plan-time review, to show what moved since planning. */
+      readonly planned: ContractReviewData | null;
+      readonly stepTitle: string;
+      readonly stepNumber: number;
+    };
 
 const GATE_COPY: Readonly<Record<PreviewGateContext["reason"], string>> = {
   "before-prepare": "Check the fare before Kletia prepares this step.",
@@ -298,8 +305,11 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const [sessionAmount, setSessionAmount] = useState("");
   /** This widget ran (or opened) a stored intent, so its receipt is the user's to share. */
   const [owned, setOwned] = useState(false);
+  /** Why the last execution stopped without an error (the user stopped at a gate). */
+  const [stopped, setStopped] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const gateResolve = useRef<((approved: boolean) => void) | null>(null);
+  const gateRef = useRef<HTMLDivElement | null>(null);
   /** Digests of fares the user approved (pressing Execute approves the fare on screen). */
   const approvedDigests = useRef(new Set<string>());
 
@@ -321,6 +331,12 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
       resolve?.(false);
     };
   }, []);
+
+  // A decision before the wallet prompt takes focus, so keyboard and screen-reader users meet it first.
+  const gateKey = gate ? (gate.kind === "fare" ? `fare:${gate.preview.digest}` : `review:${gate.stepNumber}`) : null;
+  useEffect(() => {
+    if (gateKey) gateRef.current?.focus();
+  }, [gateKey]);
 
   const origin = useMemo(() => {
     if (hostOrigin !== undefined) return hostOrigin;
@@ -363,11 +379,15 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           if (!INTENT_ID.test(intentId)) throw new KletiaApiError({ code: "INTENT_NOT_FOUND", message: "This link does not name a Kletia intent.", status: 0 });
           const loaded = await client.intents.get(intentId, { signal: controller.signal });
           if (controller.signal.aborted) return;
+          // The fare is read before anything renders: the review then appears once, with its fare,
+          // instead of the steps being pushed down when the fare arrives (layout shift).
+          const loadedFare = await loadFare(loaded, controller.signal);
+          if (controller.signal.aborted) return;
           setIntent(loaded);
           setOwned(true);
           setHold(policyHold(loaded, { fallbackOrigin: linkOrigin }));
+          setFare(loadedFare);
           notify.current.onIntentOpened?.(loaded);
-          setFare(await loadFare(loaded, controller.signal));
         } else if (sessionId) {
           if (!isSessionId(sessionId)) throw new KletiaApiError({ code: "SESSION_NOT_FOUND", message: "This link does not name a Kletia session.", status: 0 });
           const view = await client.sessions.get(sessionId, { signal: controller.signal });
@@ -402,6 +422,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     setIntent(null);
     setFare(null);
     setHold(null);
+    setStopped(null);
     setUnreported({});
     try {
       const request = {
@@ -449,10 +470,13 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     setPhase("executing");
     setError(null);
     setHold(null);
+    setStopped(null);
     setOwned(true);
     // Pressing Execute approves the fare on screen; any other fare is shown again first.
     const shown = fare;
     if (shown) approvedDigests.current.add(shown.digest);
+    /** The newest fare the user approved: printed struck through when a later one is worse. */
+    let lastApproved = shown;
     const ask = (next: Gate) =>
       new Promise<boolean>((resolve) => {
         if (controller.signal.aborted) {
@@ -493,20 +517,27 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
                 const approved = await ask({
                   kind: "fare",
                   preview: next,
-                  previous: shown,
+                  previous: lastApproved,
                   changes: context.changes,
                   reason: context.reason,
                   stepTitle: titleOf(context.step),
                 });
                 if (approved) {
                   approvedDigests.current.add(next.digest);
+                  lastApproved = next;
                   setFare(next);
+                } else {
+                  setStopped(`You stopped before signing ${titleOf(context.step)}. Nothing was signed for it.`);
                 }
                 return approved;
               },
             }
           : {}),
-        onReview: (step, review) => ask({ kind: "review", review, stepTitle: titleOf(step), stepNumber: step.index + 1 }),
+        onReview: async (step, review, context) => {
+          const approved = await ask({ kind: "review", review, planned: context.planned ?? null, stepTitle: titleOf(step), stepNumber: step.index + 1 });
+          if (!approved) setStopped(`You stopped before signing ${titleOf(step)}. Nothing was signed for it.`);
+          return approved;
+        },
         onApprovalRequired: (_approval, policyError) => {
           setHold(policyOutcome(policyError, { fallbackOrigin: linkOrigin }));
         },
@@ -666,8 +697,18 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         ) : null}
       </div>
 
+      {intent && !finished && !busy && !gate && signers && missingAck ? (
+        <p className="kw-muted kw-hint">Read the custom contract below and tick its acknowledgement to enable Execute.</p>
+      ) : null}
+
       {gate ? (
-        <div className="kw-gate" role="alertdialog" aria-label={gate.kind === "fare" ? "Check the fare again" : "Confirm the custom contract"}>
+        <div
+          ref={gateRef}
+          tabIndex={-1}
+          className="kw-gate"
+          role="group"
+          aria-label={gate.kind === "fare" ? "Check the fare again before signing" : "Confirm the custom contract before signing"}
+        >
           {gate.kind === "fare" ? (
             <>
               <p className="kw-gate-title">{gate.stepTitle}</p>
@@ -691,7 +732,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
             <>
               <p className="kw-gate-title">{gate.stepTitle}</p>
               <p>Kletia prepared this step. Check the contract before your wallet asks you to sign.</p>
-              <ContractReview review={gate.review} title={`Step ${gate.stepNumber}`} acknowledged={gateAck} onAcknowledge={setGateAck} />
+              <ContractReview review={gate.review} planned={gate.planned} title={`Step ${gate.stepNumber}`} acknowledged={gateAck} onAcknowledge={setGateAck} />
               <div className="kw-row">
                 <button
                   type="button"
@@ -717,10 +758,20 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           <div className="kw-error">{describeError(error)}</div>
         ) : null}
         {hold && !finished ? <PolicyNotice outcome={hold} {...(signers ? { onCheckAgain: () => void execute(), busy } : {})} /> : null}
+        {stopped && !busy && !finished ? (
+          <p className="kw-stopped" role="status">
+            {stopped} Press Execute to see it again.
+          </p>
+        ) : null}
         {unbound ? (
           <div className="kw-error">
             This intent was prepared for <code className="kw-break">{shortAddress(unbound.account)}</code> on {CHAINS[unbound.network]?.name ?? unbound.network}. Connect that wallet to sign it.
           </div>
+        ) : null}
+        {intent && (intentId || sessionId) && (intent.status === "expired" || intent.status === "cancelled") ? (
+          <p className="kw-stopped" role="status">
+            This intent {intent.status === "expired" ? "expired" : "was cancelled"}, so nothing can be signed here. Ask the site that sent you here for a new one.
+          </p>
         ) : null}
         {intent ? (
           <>

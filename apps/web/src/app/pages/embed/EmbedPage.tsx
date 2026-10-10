@@ -252,12 +252,23 @@ export default function EmbedPage() {
       </LazyBoundary>
       {!live ? (
         <p className="kl-fade-in px-0.5 text-xs font-semibold text-[#45464B] dark:text-[#A9B6C8]">
-          Plans below use demo accounts and are not saved. Connect a wallet to plan with your own accounts and sign.
+          {target?.kind === "intent"
+            ? "Review it here, then connect the wallet it was prepared for to sign it."
+            : target?.kind === "session"
+              ? "Connect a wallet: the plan is made for your own accounts, and you sign every step."
+              : "Plans below use demo accounts and are not saved. Connect a wallet to plan with your own accounts and sign."}
         </p>
       ) : null}
       {plannedIntent ? (
         // Keyed by plan: a new plan with an outside recipient rises in and rings once again.
-        <ExternalRecipientWarning key={plannedIntent.id} intent={plannedIntent} owned={accounts} live={live} />
+        // Without a wallet, "own" accounts are the ones the plan was made for (demo accounts, or the
+        // accounts an integrator planned its intent for); with one, the wallets connected here.
+        <ExternalRecipientWarning
+          key={plannedIntent.id}
+          intent={plannedIntent}
+          owned={live ? accounts : plannedIntent.request.accounts}
+          live={live}
+        />
       ) : null}
       {sessionBlocked ? (
         <SessionNeedsHost waiting={sessionWaiting} />

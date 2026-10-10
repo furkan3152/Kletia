@@ -10,11 +10,14 @@ import { FAQ_ITEMS, fillCounts } from "./faqContent";
 
 export interface FaqProps {
   readonly networks: number;
+  /** Real protocols (registry entries whose category is not "custom"). */
   readonly protocols: number;
+  /** Whether bring-your-own-contract entries are offered (named separately from the count). */
+  readonly ownContracts: boolean;
 }
 
 /** Frequently asked questions as native disclosures (keyboard and screen-reader friendly without JS). */
-export function Faq({ networks, protocols }: FaqProps) {
+export function Faq({ networks, protocols, ownContracts }: FaqProps) {
   return (
     <section
       id="faq"
@@ -90,7 +93,7 @@ export function Faq({ networks, protocols }: FaqProps) {
               <div className="border-t-2 border-dashed border-[#1A1A1A]/20 px-5 pb-5 pt-4 dark:border-white/10">
                 {item.answer.map((paragraph, index) => (
                   <p key={index} className={cx("text-[15px] leading-relaxed", TEXT_MUTED, index > 0 && "mt-3")}>
-                    {fillCounts(paragraph, { networks, protocols })}
+                    {fillCounts(paragraph, { networks, protocols, ownContracts })}
                   </p>
                 ))}
                 {item.links && item.links.length > 0 ? (

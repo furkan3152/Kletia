@@ -1,0 +1,330 @@
+/* Rule Book panel: the booklet, article plates, the branch-line key tree,
+   the three-aspect lamp, the timetable grid, fare gauges, the inspection
+   desk's punches and strikes, and the decision board. Printed objects keep
+   their stock at night; only frames follow the theme. */
+
+.kl-rb-plate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #ffd60a;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 3px 3px 0 var(--kla-shadow, #1a1a1a);
+  font: 800 10px/1 var(--kla-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.kl-rb-plate b {
+  font: 700 18px/1 var(--kla-font-display, ui-sans-serif, sans-serif);
+  letter-spacing: -0.03em;
+}
+
+/* The booklet cover. */
+.kl-rb-cover {
+  position: relative;
+  background:
+    var(--kla-stock-grain, none),
+    #fffcf2;
+  color: #1a1a1a;
+  border: 3px solid #1a1a1a;
+  box-shadow: 6px 6px 0 var(--kla-shadow, #1a1a1a);
+}
+.dark .kl-rb-cover {
+  background:
+    var(--kla-stock-grain, none),
+    #ece6d6;
+}
+.kl-rb-cover::before {
+  /* the stitched spine */
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 14px;
+  width: 0;
+  border-left: 2px dashed rgb(26 26 26 / 0.35);
+}
+
+/* The branch line: a trunk with stations and thinner branches. */
+.kl-rb-tree {
+  --trunk: #1a1a1a;
+}
+.dark .kl-rb-tree {
+  --trunk: #e2e8f0;
+}
+.kl-rb-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.kl-rb-tree .kl-rb-tree__line {
+  position: relative;
+  padding-left: 28px;
+}
+.kl-rb-tree .kl-rb-tree__line::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
+  width: 6px;
+  background: var(--trunk);
+}
+.kl-rb-tree .kl-rb-tree__branch {
+  position: relative;
+  padding-left: 30px;
+  margin-left: 6px;
+}
+.kl-rb-tree .kl-rb-tree__branch::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  left: 6px;
+  width: 3px;
+  background: var(--trunk);
+  opacity: 0.85;
+}
+.kl-rb-tree .kl-rb-tree__branch > li {
+  position: relative;
+}
+.kl-rb-tree .kl-rb-tree__branch > li::before {
+  /* the turnout from the branch to the station */
+  content: "";
+  position: absolute;
+  top: 22px;
+  left: -24px;
+  width: 20px;
+  height: 3px;
+  background: var(--trunk);
+  opacity: 0.85;
+}
+.kl-rb-station {
+  position: relative;
+}
+.kl-rb-station::before {
+  /* the station tick on the line */
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: -26px;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  background: #fffcf2;
+  border: 3px solid var(--trunk);
+  border-radius: 999px;
+}
+.kl-rb-tree .kl-rb-tree__branch .kl-rb-station::before {
+  display: none;
+}
+
+/* Three-aspect signal lamp: live (green), dry run (yellow), paused (red). */
+.kl-rb-lamp {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  background: #121418;
+  border: 2px solid #050608;
+  border-radius: 6px;
+}
+.kl-rb-lamp i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #2a2e37;
+}
+.kl-rb-lamp[data-aspect="paused"] i:nth-child(1) {
+  background: #ff5a5f;
+  box-shadow: 0 0 6px #ff5a5f;
+}
+.kl-rb-lamp[data-aspect="dry-run"] i:nth-child(2) {
+  background: #ffd60a;
+  box-shadow: 0 0 6px #ffd60a;
+}
+.kl-rb-lamp[data-aspect="live"] i:nth-child(3) {
+  background: #4ade80;
+  box-shadow: 0 0 6px #4ade80;
+}
+
+/* Fare gauge: a ticket strip filling up. */
+.kl-rb-gauge {
+  position: relative;
+  height: 16px;
+  border: 2px solid #1a1a1a;
+  background: repeating-linear-gradient(90deg, transparent 0 9px, rgb(26 26 26 / 0.18) 9px 10px), #fffcf2;
+  overflow: hidden;
+}
+.dark .kl-rb-gauge {
+  border-color: #e2e8f0;
+  background: repeating-linear-gradient(90deg, transparent 0 9px, rgb(26 26 26 / 0.18) 9px 10px), #ece6d6;
+}
+.kl-rb-gauge > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #0052ff;
+}
+.kl-rb-gauge[data-level="warn"] > span {
+  background: #ffd60a;
+}
+.kl-rb-gauge[data-level="full"] > span {
+  background: #c8102e;
+}
+
+/* Timetable grid: 7 x 24 half-tone cells. */
+.kl-rb-grid {
+  display: grid;
+  grid-template-columns: 2.6rem repeat(24, minmax(0, 1fr));
+  gap: 2px;
+  min-width: 34rem;
+}
+.kl-rb-grid__cell {
+  height: 26px;
+  border: 1.5px solid rgb(26 26 26 / 0.35);
+  background: #fffcf2;
+  cursor: pointer;
+}
+.dark .kl-rb-grid__cell {
+  border-color: rgb(226 232 240 / 0.35);
+  background: #131e32;
+}
+.kl-rb-grid__cell[aria-checked="true"] {
+  background: #0052ff;
+  border-color: #1a1a1a;
+}
+.dark .kl-rb-grid__cell[aria-checked="true"] {
+  background: #7ea6ff;
+  border-color: #e2e8f0;
+}
+.kl-rb-grid__cell:focus-visible {
+  outline: 3px solid #ffd60a;
+  outline-offset: 1px;
+  position: relative;
+  z-index: 1;
+}
+.kl-rb-grid[aria-readonly="true"] .kl-rb-grid__cell {
+  cursor: default;
+}
+
+/* Inspection desk marks: a punched hole (pass), a stamp (trigger), a red strike (fail). */
+.kl-rb-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+.kl-rb-mark--pass {
+  border-radius: 999px;
+  background: var(--kla-table, #f4f1ea);
+  border: 2px solid #1a1a1a;
+  box-shadow: inset 2px 2px 0 rgb(0 0 0 / 0.25);
+}
+.kl-rb-mark--trigger {
+  border: 2.5px solid #a84b00;
+  color: #a84b00;
+  font: 900 13px/1 var(--kla-font-display, sans-serif);
+  transform: rotate(-6deg);
+}
+.kl-rb-mark--fail {
+  position: relative;
+  border: 2.5px solid #c8102e;
+}
+.kl-rb-mark--fail::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  background: #c8102e;
+  transform: rotate(-35deg);
+}
+.kl-rb-mark--warn {
+  border: 2px dashed #a84b00;
+}
+/* At night the marks sit on the dark table, so the ink lightens (3:1 against it). */
+.dark .kl-rb-mark--pass {
+  background: #0b1120;
+  border-color: #cbd5e1;
+  box-shadow: inset 2px 2px 0 rgb(0 0 0 / 0.6);
+}
+.dark .kl-rb-mark--trigger,
+.dark .kl-rb-mark--warn {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+.dark .kl-rb-mark--fail {
+  border-color: #ff8a8e;
+}
+.dark .kl-rb-mark--fail::after {
+  background: #ff8a8e;
+}
+.kl-rb-strike {
+  text-decoration: line-through;
+  text-decoration-color: #c8102e;
+  text-decoration-thickness: 2px;
+}
+.dark .kl-rb-strike {
+  text-decoration-color: #ff8a8e;
+}
+
+/* Decision board rows: flap-like tiles, printed at once (no riffle). */
+.kl-rb-flap {
+  display: inline-block;
+  padding: 3px 6px;
+  background: #1b1e25;
+  border: 1px solid #050608;
+  box-shadow: inset 0 -1px 0 #050608, inset 0 1px 0 #2a2e37;
+  font: 800 11px/1.1 var(--kla-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  color: #f4f1ea;
+  white-space: nowrap;
+}
+.kl-rb-flap[data-tone="cleared"],
+.kl-rb-flap[data-tone="approved"] {
+  color: #4ade80;
+}
+.kl-rb-flap[data-tone="held"],
+.kl-rb-flap[data-tone="observed"] {
+  color: #ffd60a;
+}
+.kl-rb-flap[data-tone="refused"],
+.kl-rb-flap[data-tone="rejected"] {
+  color: #ff8a8e;
+}
+
+/* Policy stamps (dies) on the desk ticket. */
+.kl-rb-die {
+  display: block;
+  overflow: visible;
+}
+/* The ink goes through the stamp's own variable so the order of stamp.css does not matter. */
+.kl-rb-die--cleared {
+  --kla-stamp-ink: #0b7a4b;
+  transform: rotate(-6deg);
+}
+.kl-rb-die--refused {
+  --kla-stamp-ink: #c8102e;
+  transform: rotate(5deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kl-rb-die--press {
+    animation: kl-rb-press 260ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  }
+}
+@keyframes kl-rb-press {
+  from {
+    opacity: 0;
+    transform: scale(1.35) rotate(var(--kl-rb-rot, -6deg));
+  }
+  to {
+    opacity: 1;
+  }
+}

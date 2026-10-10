@@ -155,6 +155,13 @@ export interface IntentSession {
    * `execute()` can run it; with `preview`, its latest preview is loaded too.
    */
   open(intentId: string): Promise<IntentGraph | null>;
+  /**
+   * Turns a session your backend created (`cs_…`) into an intent for the
+   * configured accounts (`POST /v1/sessions/{id}/intents`) so `execute()`
+   * can run it. `hostOrigin` (default `location.origin`) must be one of the
+   * session's `allowedOrigins`; `amount` must be within its bounds.
+   */
+  startSession(sessionId: string, options?: StartSessionOptions): Promise<IntentGraph | null>;
   /** Executes the planned intent with the configured signers; resolves with the latest intent, or null. */
   execute(): Promise<IntentGraph | null>;
   /** Stops a running execution, then cancels the intent on Kletia (refused once a step was submitted). */
@@ -163,6 +170,16 @@ export interface IntentSession {
   reset(): void;
   /** Starts accepting work (mount). The returned function detaches (unmount): it aborts execution and ignores late results. */
   attach(): () => void;
+}
+
+export interface StartSessionOptions {
+  readonly hostOrigin?: string;
+  readonly amount?: string;
+}
+
+function pageOrigin(): string | null {
+  const value = (globalThis as { location?: { origin?: unknown } }).location?.origin;
+  return typeof value === "string" && value !== "null" ? value : null;
 }
 
 function missing(message: string): Error {
@@ -251,6 +268,48 @@ export function createIntentSession(client: KletiaClient, initial: IntentSession
       }
       if (mine !== epoch) return null;
       dispatch({ type: "plan_succeeded", intent, preview });
+      return intent;
+    } catch (error) {
+      if (mine !== epoch) return null;
+      dispatch({ type: "plan_failed", error });
+      return null;
+    } finally {
+      if (planning === controller) planning = null;
+    }
+  };
+
+  const startSession = async (sessionId: string, options: StartSessionOptions = {}): Promise<IntentGraph | null> => {
+    if (attached === 0) return null;
+    stopExecution();
+    planning?.abort();
+    epoch += 1;
+    const mine = epoch;
+    dispatch({ type: "plan_started" });
+    const hostOrigin = options.hostOrigin ?? pageOrigin();
+    if (config.accounts.length === 0) {
+      dispatch({ type: "plan_failed", error: missing("Connect at least one account to run this session.") });
+      return null;
+    }
+    if (!hostOrigin) {
+      dispatch({ type: "plan_failed", error: missing("A session runs only on an http(s) page listed in its allowedOrigins.") });
+      return null;
+    }
+    const controller = new AbortController();
+    planning = controller;
+    try {
+      const { intent } = await client.sessions.createIntent(
+        sessionId,
+        { accounts: config.accounts, hostOrigin, ...(options.amount ? { amount: options.amount } : {}) },
+        { signal: controller.signal },
+      );
+      let preview: IntentPreview | null = null;
+      if (config.preview) {
+        preview = await client.intents.preview(intent.id, { signal: controller.signal, maxRetries: 0 }).catch(() =>
+          client.intents.getPreview(intent.id, { signal: controller.signal }).catch(() => null),
+        );
+      }
+      if (mine !== epoch) return null;
+      dispatch({ type: "plan_succeeded", intent, preview: preview && preview.intentId === intent.id ? preview : null });
       return intent;
     } catch (error) {
       if (mine !== epoch) return null;
@@ -388,6 +447,7 @@ export function createIntentSession(client: KletiaClient, initial: IntentSession
     },
     plan,
     open,
+    startSession,
     execute,
     cancel,
     reset,

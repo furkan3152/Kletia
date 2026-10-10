@@ -39,6 +39,36 @@ Frontend Static Site:
 
 `npm ci` runs the root `postinstall`, which builds `@kletia/core`, `@kletia/sdk`, `@kletia/widget` and `@kletia/cli` before the applications.
 
+## Public pages and files on the static site
+
+The static site serves four kinds of public page besides the app. Their
+rules live in `render.yaml` (`routes` and `headers` of `kletia-frontend`):
+
+| Path | Served by | Rules |
+|---|---|---|
+| `/go/<linkId>` | Rewrite to `https://api.kletiaai.xyz/v1/links/<linkId>/page` | The API returns this site's `go-shell.html` with the link's title, description and share card injected between `<!--kletia:head-->` markers (crawlers do not run JavaScript). `X-Frame-Options: DENY` and `frame-ancestors 'none'`: an intent link page is never framed. The page says `noindex,nofollow` in its meta tag. |
+| `/go/<linkId>/card.png` | Rewrite to `…/v1/links/<linkId>/card.png` | The share card. Listed before `/go/:id` (first match wins). No `X-Robots-Tag`, so link previews can fetch it. |
+| `/r/<receiptId>` | The app (`/index.html`) | Shared receipts: `X-Frame-Options: SAMEORIGIN`, `X-Robots-Tag: noindex, nofollow`, `Disallow: /r/` in `robots.txt`. The share key stays in the fragment (`#s=…&k=…`), which never reaches a server. |
+| `/approve#apr_…` | The app | Rule Book approvals: `SAMEORIGIN`, `noindex`, `Disallow: /approve`. The approval id stays in the fragment. |
+| `/actions.json` | File (`apps/web/public/actions.json`) | Maps `/go/*` to `https://api.kletiaai.xyz/v1/blinks/*` for Solana Actions clients, with the Actions CORS headers. |
+| `/.well-known/kletia-receipt-keys.json` | File | The second origin of the receipt key set: verifiers trust a key only when the API (`GET /v1/receipts/keys`) and this file both list it. `Access-Control-Allow-Origin: *`, `application/json`, one hour of cache. |
+| `/go-shell.html` | File | The shell the API reads for link pages (`KLETIA_WEB_ORIGIN/go-shell.html`); it loads the current entry, styles and fonts from this origin's `/index.html`, so it never goes stale after a release. `no-cache`. |
+
+Render applies a rewrite only when no file exists at the path, and a rewrite
+to a full URL proxies (the browser stays on `kletiaai.xyz/go/…`). Whether
+Render forwards the API's own response headers through a rewrite is not
+documented, so the framing headers above are also set as static-site rules.
+A static site cannot answer a CORS preflight; Actions clients read
+`actions.json` with a simple `GET`, which the `Access-Control-Allow-Origin: *`
+header covers.
+
+The receipt key mirror ships empty until the operator generates the
+production receipt key. Rotation and the first key follow the same rule:
+add the public key to `apps/web/public/.well-known/kletia-receipt-keys.json`
+(the exact JSON `GET /v1/receipts/keys` returns, `keys` and `attesters`) in
+the release that sets `KLETIA_RECEIPT_SIGNING_KEY`; until both origins list a
+key, receipt pages and `kletia receipt verify` refuse it (`KEY_UNKNOWN`).
+
 ## Domains
 
 - frontend: `https://kletiaai.xyz`
@@ -88,10 +118,11 @@ After CI succeeds and Render deploys the exact commit:
 6. `/api/release/mvp-readiness` reports every check without turning an unavailable dependency green.
 7. `https://kletiaai.xyz`, `/developers`, `/networks`, `/studio`, `/embed` and `/app` load without localhost requests.
 8. `curl -sI https://kletiaai.xyz/embed` shows `Content-Security-Policy: frame-ancestors *` and no `X-Frame-Options`; `curl -sI https://kletiaai.xyz/app` shows `X-Frame-Options: SAMEORIGIN`. Only `/embed` may be framed by other sites; the app also refuses to render any other page inside a cross-origin frame.
-9. Switching Base → Arbitrum → Solana → Arc in the console clears stale executable state; EVM and Solana wallets stay connected independently.
-10. Test one read-only intent on every enabled network before a value-bearing intent.
-11. Verify value-bearing operations by receipt, settlement and protocol state, not only by a hash.
-12. Confirm no server secret appears in the static bundle.
+9. `curl -sI https://kletiaai.xyz/go/<a link id>` shows `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and an HTML body whose `<title>` names the link; `/go/<id>/card.png` answers `image/png`. `curl -s https://kletiaai.xyz/actions.json` returns the `/v1/blinks/*` rule with `Access-Control-Allow-Origin: *`; `curl -sI https://kletiaai.xyz/.well-known/kletia-receipt-keys.json` shows `application/json` and `Access-Control-Allow-Origin: *`; `/r/<id>` and `/approve` show `X-Robots-Tag: noindex, nofollow`.
+10. Switching Base → Arbitrum → Solana → Arc in the console clears stale executable state; EVM and Solana wallets stay connected independently.
+11. Test one read-only intent on every enabled network before a value-bearing intent.
+12. Verify value-bearing operations by receipt, settlement and protocol state, not only by a hash.
+13. Confirm no server secret appears in the static bundle.
 
 ## Evidence language
 

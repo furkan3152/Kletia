@@ -105,8 +105,20 @@ configured entirely through environment variables.
 - Keep one long-running API process (or more behind a load balancer): the
   settlement poller and webhook dispatcher run inside it.
 - Keep the web server's framing rules: only `/embed` may be framed by other
-  sites. `scripts/serve-production.mjs` (used by the web image) already sends
-  them.
+  sites, and intent link pages (`/go/*`) by none. `scripts/serve-production.mjs`
+  (used by the web image) already sends them.
+- Intent link pages and Solana Actions: set `KLETIA_API_ORIGIN` on the web
+  container (for example `https://api.example.com`) and `KLETIA_WEB_ORIGIN` on
+  the API to the web origin. The web server then proxies `/go/<id>` and
+  `/go/<id>/card.png` to the API (5 s timeout, 512 KB, no cookies forwarded),
+  so link previews get each link's title and card, and it serves an
+  `actions.json` that points Solana Actions clients at that API. Without
+  `KLETIA_API_ORIGIN` the app still renders `/go/<id>`, with generic preview
+  tags, and `actions.json` points at the hosted API.
+- Receipts: publish your API's receipt public keys in
+  `apps/web/public/.well-known/kletia-receipt-keys.json` (the JSON of
+  `GET /v1/receipts/keys`) before you build the web image. Receipt pages trust
+  a key only when the API and the web origin both list it.
 - Optional integrations (Webacy, Allora, Across, CDP on-ramp, x402) stay
   disabled until their keys are set; set `KLETIA_REQUIRE_ALL_FEATURES=true` to
   refuse to start without them.

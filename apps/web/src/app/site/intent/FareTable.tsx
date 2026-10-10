@@ -41,12 +41,15 @@ function Usd({ value }: { readonly value: string | null }) {
   return value ? <span className="klf__usd">{value}</span> : <span className="klf__usd klf__usd--none">price unavailable</span>;
 }
 
-function Network({ network, name }: { readonly network: string; readonly name: string }) {
+function Network({ network, name, account, accountLabel }: { readonly network: string; readonly name: string; readonly account?: string; readonly accountLabel?: string | null }) {
   const line = lineFor(network);
   return (
-    <span className="klf__net">
+    <span className="klf__net" title={account}>
       {line ? <LineBullet line={line} decorative /> : null}
-      {name}
+      <span>
+        {name}
+        {accountLabel ? <span className="klf__acct"> · {accountLabel}</span> : null}
+      </span>
     </span>
   );
 }
@@ -63,7 +66,7 @@ function Amount({ value }: { readonly value: FareMoney }) {
 function MoneyRow({ row, kind }: { readonly row: FareRow; readonly kind: "pay" | "get" }) {
   return (
     <li className="klf__row">
-      <Network network={row.network} name={row.networkName} />
+      <Network network={row.network} name={row.networkName} account={row.account} accountLabel={row.accountLabel} />
       <span className="klf__val">
         <Amount value={row.expected} />
         {kind === "get" ? <span className="klf__note">expected</span> : null}

@@ -28,7 +28,9 @@ import {
   formatPreviewAmount,
   isNetworkKey,
   RECEIPT_ID_PATTERN,
+  RECEIPT_PROFILES,
   RECEIPT_SHARE_ID_PATTERN,
+  toChecksumAddress,
   type Certainty,
   type ContractReview,
   type IntentGraph,
@@ -41,7 +43,7 @@ import {
 
 // C0/C1 controls, bidirectional overrides and isolates, zero-width marks.
 // eslint-disable-next-line no-control-regex
-const UNSAFE_TEXT = /[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁠-⁩﻿]+/gu;
+const UNSAFE_TEXT = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]+/gu;
 
 /** Text an integrator, venue or API controls, safe to print in a text node: no controls or direction overrides, bounded length. */
 export function cleanText(value: unknown, max = 200): string {
@@ -176,6 +178,11 @@ export interface FareRow {
   readonly networkName: string;
   /** The user's account on that network (CAIP-10). */
   readonly account: string;
+  /**
+   * "0x5eed…c0de" when the fare moves money of more than one wallet of the
+   * same kind (so each row says whose it is); null otherwise.
+   */
+  readonly accountLabel: string | null;
   /** What leaves or arrives (expected). */
   readonly expected: FareMoney;
   /** The bound in the user's disfavour when it differs from `expected` ("up to" for debits, "at least" for credits). */
@@ -282,6 +289,21 @@ function isNative(asset: string): boolean {
 }
 
 const HIDDEN_ISSUE_CODES = new Set(["PREVIEW_GAS_ON_ARRIVAL", "PREVIEW_UNPRICED", "INSUFFICIENT_BALANCE"]);
+/**
+ * The address part of a CAIP-10 account, in full; EVM addresses in their
+ * checksummed form (EIP-55), as wallets and explorers print them.
+ */
+function printedAddress(account: string): string {
+  const address = cleanText(account.slice(account.lastIndexOf(":") + 1), 120);
+  if (!account.startsWith("eip155:")) return address;
+  try {
+    return toChecksumAddress(address);
+  } catch {
+    return address;
+  }
+}
+/** "PREVIEW_UNPRICED: no price for …" → code and sentence. */
+const CODED_WARNING = /^([A-Z][A-Z0-9_]{2,63}):\s*/u;
 
 /**
  * Display model of an intent preview. `intent` (optional) numbers the legs
@@ -348,7 +370,8 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
       key,
       network: row.network,
       networkName: networkLabel(row.network),
-      account: row.account,
+      account: cleanText(row.account, 140),
+      accountLabel: null,
       expected: money(row.expected, symbol, certainty),
       bound: differs ? money(row.worst, symbol, certainty) : null,
       note: feeNote,
@@ -356,6 +379,19 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
     };
     (debit ? youPay : youGet).push(entry);
   }
+  // Several wallets of one kind (two EVM addresses, say): every row names its wallet.
+  const owners = new Map<string, Set<string>>();
+  for (const entry of [...youPay, ...youGet]) {
+    const namespace = entry.account.split(":")[0] ?? "";
+    const address = entry.account.slice(entry.account.lastIndexOf(":") + 1);
+    const set = owners.get(namespace) ?? new Set<string>();
+    set.add(namespace === "eip155" ? address.toLowerCase() : address);
+    owners.set(namespace, set);
+  }
+  const label = (entry: FareRow): FareRow =>
+    (owners.get(entry.account.split(":")[0] ?? "")?.size ?? 0) > 1 ? { ...entry, accountLabel: shortAddress(entry.account) } : entry;
+  youPay.splice(0, youPay.length, ...youPay.map(label));
+  youGet.splice(0, youGet.length, ...youGet.map(label));
 
   const paidToOthers: FarePayment[] = (preview.payments ?? []).map((payment, position) => {
     const certainty = note(certaintyOf(payment.certainty));
@@ -363,7 +399,7 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
     return {
       key: `${payment.stepId}|${payment.recipient}|${position}`,
       networkName: networkLabel(payment.network),
-      recipient: cleanText(payment.recipient.slice(payment.recipient.lastIndexOf(":") + 1), 120),
+      recipient: printedAddress(payment.recipient),
       recipientName: cleanText(payment.recipientName, 80) || null,
       expected: money(payment.expected, symbol, certainty),
       atLeast: payment.worst.amount !== payment.expected.amount ? money(payment.worst, symbol, certainty) : null,
@@ -443,7 +479,14 @@ export function fareModel(preview: IntentPreview, intent?: Pick<IntentGraph, "st
   const blocking: PreviewIssue[] = [];
   const seen = new Set<string>();
   for (const warning of preview.warnings ?? []) {
-    const text = cleanText(warning, 300);
+    // Intent-level warnings arrive as "PREVIEW_CODE: sentence". The code is for programs: the
+    // sentence is shown, and codes the fare already prints as rows (gas on arrival under Bring,
+    // unpriced assets under the totals) are not repeated.
+    const raw = cleanText(warning, 300);
+    const coded = CODED_WARNING.exec(raw);
+    if (coded && HIDDEN_ISSUE_CODES.has(coded[1]!)) continue;
+    const sentence = coded ? raw.slice(coded[0].length).trim() : raw;
+    const text = sentence ? `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}` : "";
     if (text && !seen.has(text)) {
       seen.add(text);
       warnings.push(text);
@@ -934,6 +977,48 @@ export const RECEIPT_SHARE_PROFILES: readonly {
 
 export const RECEIPT_EVIDENCE_WARNING = "Showing transactions reveals the addresses that sent them.";
 
+/**
+ * The disclosure groups a share can open one by one (group path patterns,
+ * `*` = every step), for a "choose what to show" share. The route itself
+ * (networks, steps, venues, statuses) is always visible.
+ */
+export const RECEIPT_SHARE_GROUPS: readonly {
+  readonly pattern: string;
+  readonly label: string;
+  readonly description: string;
+  /** Reveals account addresses (directly, or through the transactions on any explorer). */
+  readonly revealsAddresses: boolean;
+}[] = Object.freeze([
+  { pattern: "steps.*.amounts", label: "Step amounts", description: "What each step took in and paid out, and its fees.", revealsAddresses: false },
+  { pattern: "intent.outcome", label: "Outcome", description: "What the whole intent consumed and delivered.", revealsAddresses: false },
+  { pattern: "intent.timing", label: "Timing", description: "When it started, finished and became final.", revealsAddresses: false },
+  { pattern: "intent.plan", label: "Plan", description: "The plan Kletia committed to before you signed.", revealsAddresses: false },
+  { pattern: "steps.*.evidence", label: "Transactions", description: "Transaction references, so anyone can re-check them on-chain.", revealsAddresses: true },
+  { pattern: "steps.*.parties", label: "Accounts", description: "Your accounts and the recipients of each step.", revealsAddresses: true },
+  { pattern: "intent.request", label: "Request", description: "What you asked for, word for word.", revealsAddresses: true },
+]);
+
+const PROFILE_IDS: readonly ReceiptShareProfile[] = ["route", "amounts", "proof", "full"];
+
+/** `steps.s1.amounts` → `steps.*.amounts`; intent groups stay as they are. */
+function groupPattern(group: string): string {
+  return /^steps\.[^.]+\.[a-z]+$/u.test(group) ? group.replace(/^steps\.[^.]+\./u, "steps.*.") : group;
+}
+
+/**
+ * What a share shows, in words: the profile name when its groups are exactly
+ * a profile's, else "Custom: …" with the group labels. Accepts concrete
+ * slots (`steps.s1.amounts`, as share lists return them) or patterns.
+ */
+export function receiptGroupsLabel(groups: readonly string[]): string {
+  const patterns = [...new Set(groups.filter((group) => typeof group === "string").map(groupPattern))];
+  const same = (list: readonly string[]) => list.length === patterns.length && list.every((pattern) => patterns.includes(pattern));
+  const profile = PROFILE_IDS.find((id) => same(RECEIPT_PROFILES[id]));
+  if (profile) return RECEIPT_SHARE_PROFILES.find((item) => item.id === profile)?.label ?? "Custom";
+  const labels = RECEIPT_SHARE_GROUPS.filter((group) => patterns.includes(group.pattern)).map((group) => group.label.toLowerCase());
+  return labels.length > 0 ? `Custom: ${labels.join(", ")}` : "Custom";
+}
+
 const SHARE_FRAGMENT = /^#s=(rsh_[0-9a-f]{24})&k=([A-Za-z0-9_-]{43})$/u;
 
 /**
@@ -957,6 +1042,21 @@ export function receiptShareHref(share: { readonly receiptId?: unknown; readonly
   const origin = options.fallbackOrigin;
   if (typeof origin === "string" && /^https?:\/\/[^/]+$/u.test(origin)) return `${origin}/r/${receiptId}${url.hash}`;
   return null;
+}
+
+const RECEIPT_PENDING_TEXT: Readonly<Record<string, string>> = Object.freeze({
+  queued: "Kletia queued this receipt and signs it shortly.",
+  awaiting_finality: "Waiting for every leg to be final on-chain. Kletia signs the receipt then.",
+  finality_timeout: "Finality is taking longer than usual. Kletia keeps checking and signs the receipt once every leg is final.",
+  rpc_unavailable: "Public nodes did not answer Kletia's finality check. It keeps trying and signs the receipt once every leg is final.",
+  anchor_reorged: "A block of this intent was reorganized. Kletia re-reads the legs before it signs anything.",
+  signer_missing: "This Kletia deployment is not signing receipts right now.",
+  issuer_error: "Kletia could not sign this receipt yet. It keeps trying.",
+});
+
+/** One sentence for a pending receipt (`pending.reason` from `GET …/receipt`). */
+export function receiptPendingText(reason: unknown): string {
+  return (typeof reason === "string" ? RECEIPT_PENDING_TEXT[reason] : undefined) ?? RECEIPT_PENDING_TEXT.awaiting_finality!;
 }
 
 /** Intent statuses a receipt can exist for. */

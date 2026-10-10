@@ -17,7 +17,9 @@ function recipeFromHash(hash: string): string | null {
   const id = RECIPE_HASH.exec(hash)?.[1] ?? HASH_ALIASES[hash] ?? null;
   return id && RECIPES.some((recipe) => recipe.id === id) ? id : null;
 }
-const GROUPS: readonly RecipeGroup[] = ["Browser", "Server", "Agents and tools"];
+const GROUPS: readonly RecipeGroup[] = ["Browser", "Server", "Platform features", "Agents and tools"];
+/** Recipes in the order the tab list shows them (by group), so arrow keys follow what the eye sees. */
+const ORDERED: readonly Recipe[] = GROUPS.flatMap((group) => RECIPES.filter((item) => item.group === group));
 
 function ReferenceTable({ title, rows }: { title: string; rows: readonly { name: string; values: string; description: string }[] }) {
   return (
@@ -54,12 +56,15 @@ function RecipeExtras({ recipe }: { recipe: Recipe }) {
   if (recipe.id === "mcp") {
     return (
       <div className={cx("min-w-0 p-4", INK_BORDER_THIN)}>
-        <p className={cx(LABEL, "mb-3")}>Tools (all read-only)</p>
+        <p className={cx(LABEL, "mb-1")}>Tools</p>
+        <p className={cx("mb-3 text-xs", TEXT_MUTED)}>Every tool is read-only except the two marked &ldquo;stores&rdquo;; none prepares, submits or signs.</p>
         <ul className="grid gap-x-6 gap-y-2.5 text-sm md:grid-cols-2">
           {MCP_TOOLS.map((tool) => (
             <li key={tool.name} className="min-w-0">
               <code className="font-code text-[12.5px] font-bold">{tool.name}</code>
               <span className={cx("ml-2 font-code text-[11px]", TEXT_MUTED)}>({tool.input})</span>
+              {tool.writes ? <span className="ml-2 border-2 border-current px-1 font-code text-[10px] font-black uppercase tracking-[0.08em]">stores</span> : null}
+              {tool.key ? <span className={cx("ml-2 font-code text-[10px] font-bold uppercase tracking-[0.08em]", TEXT_MUTED)}>key</span> : null}
               <span className={cx("block", TEXT_MUTED)}>{tool.output}</span>
             </li>
           ))}
@@ -74,21 +79,21 @@ function RecipeExtras({ recipe }: { recipe: Recipe }) {
 export function RecipesSection() {
   const { location } = useRoute();
   const fromHash = recipeFromHash(location.hash);
-  const [activeId, setActiveId] = useState(() => fromHash ?? RECIPES[0]!.id);
+  const [activeId, setActiveId] = useState(() => fromHash ?? ORDERED[0]!.id);
   const [seenLocation, setSeenLocation] = useState(location.key);
   if (seenLocation !== location.key) {
     setSeenLocation(location.key);
     if (fromHash && fromHash !== activeId) setActiveId(fromHash);
   }
-  const recipe = RECIPES.find((item) => item.id === activeId) ?? RECIPES[0]!;
+  const recipe = ORDERED.find((item) => item.id === activeId) ?? ORDERED[0]!;
   const swapKey = useChangeKey(recipe.id);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const next = nextTabIndex(event.key, index, RECIPES.length);
+    const next = nextTabIndex(event.key, index, ORDERED.length);
     if (next === null) return;
     event.preventDefault();
-    setActiveId(RECIPES[next]!.id);
+    setActiveId(ORDERED[next]!.id);
     tabRefs.current[next]?.focus();
   };
 
@@ -100,14 +105,14 @@ export function RecipesSection() {
         className="flex min-w-0 gap-1 overflow-x-auto border-b-[3px] border-[#1A1A1A] bg-[#F1EFE8] p-2 dark:border-[#4B5563] dark:bg-[#0F1A2C] lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r-[3px] lg:p-3"
       >
         {GROUPS.map((group) => {
-          const items = RECIPES.filter((item) => item.group === group);
+          const items = ORDERED.filter((item) => item.group === group);
           return (
             <React.Fragment key={group}>
               <p className={cx(LABEL, "hidden px-2 pb-1 pt-3 !text-[10px] first:pt-0 lg:block", TEXT_MUTED)} aria-hidden="true">
                 {group}
               </p>
               {items.map((item) => {
-                const index = RECIPES.indexOf(item);
+                const index = ORDERED.indexOf(item);
                 const selected = item.id === recipe.id;
                 return (
                   <button

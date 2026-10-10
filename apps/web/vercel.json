@@ -87,7 +87,12 @@
         {
           "key": "Content-Security-Policy",
           "value": "frame-ancestors 'none'"
-        },
+        }
+      ]
+    },
+    {
+      "source": "/go/:id(lk_[0-9a-f]{24})",
+      "headers": [
         {
           "key": "X-Robots-Tag",
           "value": "noindex, nofollow"

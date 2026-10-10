@@ -4,7 +4,10 @@
  * shape plus `signer`, verifiable fully offline with `ecrecover` (no chain
  * transaction is ever made). Only the digest, the spec and the sequence are
  * attested; the recipient stays the zero address, so attestations never link
- * a user to their receipts.
+ * a user to their receipts. The attestation time is the start (00:00:00 UTC)
+ * of the receipt's public `issuedOn` day, never the issuance second: the
+ * exact time sits in the sealed `intent.timing` group, and the envelope is
+ * served with every shared receipt, sealed groups or not.
  *
  * Domain (verified live on Base, 2026-10-09): name `EAS Attestation`, version
  * `1.0.1`, chain 8453, verifying contract the EAS predeploy
@@ -84,12 +87,24 @@ function typedMessage(envelope: EasEnvelope["sig"]["message"]) {
   };
 }
 
-/** Signs an EIP-712 offchain attestation of one receipt digest (an off-chain signature, never a transaction). */
+/** Seconds at 00:00:00 UTC of a `YYYY-MM-DD` day (the precision the receipt payload already makes public). */
+export function easDayTime(issuedOn: string): bigint {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(issuedOn);
+  const ms = match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : Number.NaN;
+  if (!match || !Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== issuedOn) throw new Error(`EAS attestation day must be YYYY-MM-DD, got ${JSON.stringify(issuedOn)}`);
+  return BigInt(ms / 1000);
+}
+
+/**
+ * Signs an EIP-712 offchain attestation of one receipt digest (an off-chain
+ * signature, never a transaction). Its time is the start of `issuedOn` (UTC),
+ * so the public envelope says no more about when Kletia signed than the payload.
+ */
 export async function attestReceipt(
   attester: EasAttester,
-  input: { readonly digest: string; readonly spec: string; readonly sequence: number; readonly issuedAt: string; readonly refUID?: string | null },
+  input: { readonly digest: string; readonly spec: string; readonly sequence: number; readonly issuedOn: string; readonly refUID?: string | null },
 ): Promise<EasEnvelope> {
-  const time = BigInt(Math.floor(Date.parse(input.issuedAt) / 1000));
+  const time = easDayTime(input.issuedOn);
   const data = encodeAbiParameters(parseAbiParameters("bytes32, string, uint32"), [`0x${input.digest}`, input.spec, input.sequence]);
   const refUID = (input.refUID && /^0x[0-9a-f]{64}$/u.test(input.refUID) ? input.refUID : zeroHash) as Hex;
   const salt = toHex(randomBytes(32));

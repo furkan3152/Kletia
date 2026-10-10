@@ -21,7 +21,8 @@
  *   prepared payload whose fare differs) opens a `fare` gate; nothing is
  *   signed until the user approves the new fare. A blocking preview issue
  *   is never signed through.
- * - every custom-contract step's prepared review (a `review` gate).
+ * Custom-contract requests are refused: those execute only through the
+ * integrator's own project, including its intent/session hosted frame.
  * A Rule Book hold (`POLICY_APPROVAL_REQUIRED`) pauses with `policyHold`.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -50,6 +51,7 @@ import type {
 import { blockingIssuesFor } from "@kletia/widget/review";
 
 import { syncIntentActivity } from "./intentActivity";
+import { assertFirstPartyContractExecution, CustomContractExecutionError, withContractPreparationBoundary } from "./contractExecutionBoundary";
 import {
   appendStepReference,
   clearIntentSession,
@@ -287,8 +289,14 @@ function unreportedReferences(error: KletiaExecutionError): readonly string[] {
 }
 
 function toExecutionError(error: unknown): IntentExecutionError {
+  if (error instanceof CustomContractExecutionError) {
+    return { code: error.code, message: error.message, stepId: null, retryable: false, platform: null };
+  }
   if (error instanceof KletiaExecutionError) {
     const cause = error.cause;
+    if (cause instanceof CustomContractExecutionError) {
+      return { code: cause.code, message: cause.message, stepId: error.stepId, retryable: false, platform: null };
+    }
     const unreported = unreportedReferences(error).length;
     if (cause instanceof KletiaApiError) {
       const platform = toPlatformError(cause);
@@ -405,13 +413,14 @@ function applyEvent(intent: IntentGraph, event: AnyKletiaEvent): IntentGraph | n
  * versions returned by submit and refresh.
  */
 function observeClient(client: KletiaClient, onIntent: (intent: IntentGraph) => void): KletiaClient {
-  const observed = Object.create(client) as KletiaClient;
+  const guarded = withContractPreparationBoundary(client);
+  const observed = Object.create(guarded) as KletiaClient;
   Object.defineProperty(observed, "intents", {
     value: {
-      ...client.intents,
+      ...guarded.intents,
       // Options (acknowledgedPreview, signal) must reach the API untouched.
       prepareStep: async (id: string, stepId: string, options?: PrepareStepOptions) => {
-        const prepared = await client.intents.prepareStep(id, stepId, options);
+        const prepared = await guarded.intents.prepareStep(id, stepId, options);
         if (prepared?.intent && prepared.intent.id === id) onIntent(prepared.intent);
         return prepared;
       },
@@ -682,6 +691,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       resolveGate(false);
       let accounts: readonly AccountId[];
       try {
+        assertFirstPartyContractExecution(request);
         accounts = resolveAccounts(request.accounts);
       } catch (caught) {
         setError(caught instanceof LocalPlanError ? caught.detail : toExecutionError(caught));
@@ -701,6 +711,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           { preview: true },
         );
         const created = planned.intent;
+        assertFirstPartyContractExecution(created);
         if (streamRef.current && streamRef.current.intentId !== created.id) stopStream();
         createdIdsRef.current.add(created.id);
         approvedDigestsRef.current.clear();
@@ -778,6 +789,15 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       clearPhases();
       commitIntent(graph);
 
+      try {
+        assertFirstPartyContractExecution(graph);
+      } catch (caught) {
+        setError(toExecutionError(caught));
+        setStatus("failed");
+        runRef.current = null;
+        return null;
+      }
+
       const binding = findBindingProblem(graph, connectedRef.current.accounts);
       if (binding) {
         setError(localError("ACCOUNT_MISMATCH", binding.message, binding.stepId));
@@ -804,6 +824,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             throw new DOMException("Execution was stopped before signing.", "AbortError");
           }
           if (!runStep) throw new Error("Kletia refused to sign: no step is being executed.");
+          assertFirstPartyContractExecution(runStep);
           const problem = transactionBindingProblem(runStep, request);
           if (problem) throw new Error(problem);
         },
@@ -913,17 +934,9 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
                   },
                 }
               : {}),
-            onReview: async (step, review, context) => {
-              const approved = await ask({
-                kind: "review",
-                stepId: step.id,
-                stepTitle: stepTitle(step),
-                stepIndex: step.index,
-                review,
-                planned: context.planned ?? null,
-              });
-              if (!approved) stoppedFor = `You stopped before signing “${step.title}”. Nothing was signed for it.`;
-              return approved;
+            onReview: (_step, review, context) => {
+              assertFirstPartyContractExecution(context.intent, review);
+              return false;
             },
             onApprovalRequired: (_approval, policyError) => {
               if (!isCurrent()) return;
@@ -932,6 +945,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             },
             beforeStep: (step, latest) => {
               if (controller.signal.aborted || !isCurrent()) return false;
+              assertFirstPartyContractExecution(latest);
               const blocked = ambiguousSteps(latest).filter((candidate) => candidate.id === step.id);
               if (blocked.length > 0) {
                 pausedFor = blocked;
@@ -998,6 +1012,13 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
 
   const start = useCallback(
     async (input: IntentRequestInput | IntentGraph): Promise<IntentGraph | null> => {
+      try {
+        assertFirstPartyContractExecution(input);
+      } catch (caught) {
+        setError(toExecutionError(caught));
+        setStatus("failed");
+        return null;
+      }
       if (isIntentGraph(input)) {
         if (createdIdsRef.current.has(input.id)) return execute(input, true);
         // Not persisted with the connected accounts (e.g. a dry-run preview): plan it again.

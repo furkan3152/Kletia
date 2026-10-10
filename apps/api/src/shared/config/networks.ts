@@ -24,6 +24,7 @@ import {
 } from "../../networks/base/protocols.js";
 import { configuredBaseIntentV2AddressManifest } from "../../networks/base/config/intentRouterV2Environment.js";
 import { configuredBaseTokenDeploymentTarget } from "../../networks/base/config/launchFactoryV2Environment.js";
+import { ARC_LEGACY_DEFI_CONTRACTS, configuredArcDefiDeployments } from "../../networks/arc/executionEnvironment.js";
 
 
 export type NetworkId = "base" | "arc" | "arbitrum";
@@ -98,15 +99,18 @@ export interface NetworkConfig {
   readonly enabled: boolean;
 }
 
+export const ARC_DEFI_V2_DEPLOYMENTS = configuredArcDefiDeployments(process.env);
+export { ARC_LEGACY_DEFI_CONTRACTS };
+
 export const ARC_CONTRACTS = {
-  Swap: getAddress("0x535EF89e3C3a74Cf1A76703972686cb7a2e34fe8"),
-  Lending: getAddress("0x2748a478Ec0f6D90FfdE89b27721f469126835F7"),
+  Swap: ARC_DEFI_V2_DEPLOYMENTS.swap?.address ?? ARC_LEGACY_DEFI_CONTRACTS.swap,
+  Lending: ARC_DEFI_V2_DEPLOYMENTS.lending?.address ?? ARC_LEGACY_DEFI_CONTRACTS.lending,
   Token: getAddress("0xAe77D247c26258397653a020995E957Bc88E039A"),
   BatchPay: getAddress("0x09B6d2987EcAF021533A2727d2967696595Fa6dd"),
   Vault: activeArcVaultAddress,
   MemoTransfer: getAddress("0x1633f12f31195B34feE6eDC250e1D543DAB72698"),
   AgentRegistry: getAddress("0xDEb07309c1689fEeCa44ac70939ce0297d511596"),
-  Staking: getAddress("0xB85a7F6335D0544b4951e5f07Bcd326722b2BC07"),
+  Staking: ARC_DEFI_V2_DEPLOYMENTS.staking?.address ?? ARC_LEGACY_DEFI_CONTRACTS.staking,
 } as const;
 
 const cdpNodeKey = process.env.CDP_NODE_API_KEY;
@@ -590,20 +594,20 @@ const ARC_OFFICIAL_MEMO = "0x5294E9927c3306DcBaDb03fe70b92e01cCede505";
 const ARC_OFFICIAL_MULTICALL3_FROM =
   "0x522fAf9A91c41c443c66765030741e4AaCe147D0";
 const ARC_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
-  swap: targetSet(ARC_CONTRACTS.Swap),
-  add_liquidity: targetSet(ARC_CONTRACTS.Swap),
-  remove_liquidity: targetSet(ARC_CONTRACTS.Swap),
-  stake: targetSet(ARC_CONTRACTS.Staking),
-  unstake: targetSet(ARC_CONTRACTS.Staking),
-  claim_rewards: targetSet(ARC_CONTRACTS.Staking),
-  claim_unstaked: targetSet(ARC_CONTRACTS.Staking),
-  vault_deposit: targetSet(ARC_CONTRACTS.Vault),
+  swap: targetSet(...(ARC_DEFI_V2_DEPLOYMENTS.swap ? [ARC_CONTRACTS.Swap] : [])),
+  add_liquidity: targetSet(...(ARC_DEFI_V2_DEPLOYMENTS.swap ? [ARC_CONTRACTS.Swap] : [])),
+  remove_liquidity: targetSet(ARC_CONTRACTS.Swap, ARC_LEGACY_DEFI_CONTRACTS.swap),
+  stake: targetSet(...(ARC_DEFI_V2_DEPLOYMENTS.staking ? [ARC_CONTRACTS.Staking] : [])),
+  unstake: targetSet(ARC_CONTRACTS.Staking, ARC_LEGACY_DEFI_CONTRACTS.staking),
+  claim_rewards: targetSet(ARC_CONTRACTS.Staking, ARC_LEGACY_DEFI_CONTRACTS.staking),
+  claim_unstaked: targetSet(ARC_CONTRACTS.Staking, ARC_LEGACY_DEFI_CONTRACTS.staking),
+  vault_deposit: targetSet(...(ARC_VAULT_EXECUTION_MODE === "vault_v2" ? [ARC_CONTRACTS.Vault] : [])),
   vault_withdraw: targetSet(ARC_CONTRACTS.Vault),
   vault_legacy_withdraw: targetSet(ARC_LEGACY_VAULT_ADDRESS),
-  lending_deposit: targetSet(ARC_CONTRACTS.Lending),
-  lending_withdraw: targetSet(ARC_CONTRACTS.Lending),
-  lending_borrow: targetSet(ARC_CONTRACTS.Lending),
-  lending_repay: targetSet(ARC_CONTRACTS.Lending),
+  lending_deposit: targetSet(...(ARC_DEFI_V2_DEPLOYMENTS.lending && ARC_DEFI_V2_DEPLOYMENTS.swap ? [ARC_CONTRACTS.Lending] : [])),
+  lending_withdraw: targetSet(ARC_CONTRACTS.Lending, ARC_LEGACY_DEFI_CONTRACTS.lending),
+  lending_borrow: targetSet(...(ARC_DEFI_V2_DEPLOYMENTS.lending && ARC_DEFI_V2_DEPLOYMENTS.swap ? [ARC_CONTRACTS.Lending] : [])),
+  lending_repay: targetSet(ARC_CONTRACTS.Lending, ARC_LEGACY_DEFI_CONTRACTS.lending),
   memo_send: targetSet(ARC_CONTRACTS.MemoTransfer),
   official_memo_send: targetSet(ARC_OFFICIAL_MEMO),
   arc_official_memo_payment: targetSet(ARC_OFFICIAL_MEMO),
@@ -613,6 +617,7 @@ const ARC_ACTION_TARGETS: Readonly<Record<string, ReadonlySet<string>>> = {
 const ARC_STATIC_TARGETS = new Set(
   [
     ...Object.values(ARC_CONTRACTS),
+    ...Object.values(ARC_LEGACY_DEFI_CONTRACTS),
     ...(ARC_VAULT_EXECUTION_MODE === "vault_v2"
       ? [ARC_LEGACY_VAULT_ADDRESS]
       : []),

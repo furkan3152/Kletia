@@ -1062,6 +1062,7 @@ export function isBeneficiaryArgName(name: string | undefined): boolean {
 
 const VENUE_WORDS: readonly string[] = [
   "aave", "compound", "comet", "morpho", "moonwell", "jupiter", "jup", "kamino", "lifi", "li.fi", "debridge", "dln",
+  "raydium", "orca", "spark", "sparklend", "spark lend", "spark-lend", "yearn", "yearn v3", "yearnv3", "yearn-v3",
   "relay", "jito", "marinade", "sanctum", "msol", "jitosol", "jupsol",
 ];
 const VENUE_PHRASES: readonly string[] = [
@@ -1155,6 +1156,10 @@ export const RESERVED_INTEGRATOR_NAMES: readonly {
   { word: "lifi", hosts: ["li.fi"], match: "word" },
   { word: "debridge", hosts: ["debridge.finance"], match: "substring" },
   { word: "jupiter", hosts: ["jup.ag"], match: "substring" },
+  { word: "raydium", hosts: ["raydium.io"], match: "substring" },
+  { word: "orca", hosts: ["orca.so"], match: "word" },
+  { word: "spark", hosts: ["spark.fi"], match: "word" },
+  { word: "yearn", hosts: ["yearn.fi"], match: "prefix" },
   { word: "kamino", hosts: ["kamino.finance"], match: "substring" },
   { word: "jito", hosts: ["jito.network"], match: "prefix" },
   { word: "marinade", hosts: ["marinade.finance"], match: "prefix" },

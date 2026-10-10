@@ -265,6 +265,8 @@ export interface DecodedSolanaTransaction extends UnsignedSolanaTransactionInfo 
   readonly instructions: readonly DecodedSolanaInstruction[];
   /** Address lookup tables the message loads accounts from. */
   readonly lookupTables: readonly string[];
+  /** Static keys followed by resolved lookup-table writable and read-only keys. */
+  readonly accountKeys: readonly string[];
 }
 
 /** Lookup tables one provider transaction may load (Kamino uses one or two). */
@@ -381,6 +383,7 @@ export async function decodeSolanaTransaction(network: SolanaNetworkKey, base64:
     version: message.version,
     instructions,
     lookupTables: lookups.map((lookup) => String(lookup.lookupTableAddress)),
+    accountKeys: metas.map((meta) => meta.address),
   };
 }
 
@@ -979,6 +982,8 @@ export async function simulateSolanaTransactionDetailed(
   base64: string,
   staticKeys: readonly string[],
   accounts: readonly string[],
+  /** True when `staticKeys` already contains the complete, RPC-verified lookup-table key list. */
+  resolvedKeys = false,
 ): Promise<DetailedSolanaSimulation | null> {
   let outcome;
   try {
@@ -999,7 +1004,7 @@ export async function simulateSolanaTransactionDetailed(
   if (!outcome.ok || !isRecord(outcome.result) || !isRecord(outcome.result.value)) return null;
   const value = outcome.result.value;
   const loaded = isRecord(value.loadedAddresses) ? value.loadedAddresses : {};
-  const keys = [...staticKeys, ...stringList(loaded.writable), ...stringList(loaded.readonly)];
+  const keys = resolvedKeys ? [...staticKeys] : [...staticKeys, ...stringList(loaded.writable), ...stringList(loaded.readonly)];
   const numbers = (list: unknown) => (Array.isArray(list) ? list.map(toBigInt) : null);
   const pre = numbers(value.preBalances);
   const post = numbers(value.postBalances);

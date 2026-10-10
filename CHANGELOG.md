@@ -4,6 +4,17 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Platform completion (2026-10-10)
+
+- Expanded the protocol registry from 29 to 33: venue-bound Raydium and Orca swaps on Solana, SparkLend USDC/WETH and Yearn V3 USDC-1 deposit/withdraw on Ethereum. Each has execution, identity and receipt regressions; read-only live evidence is documented in the network guides.
+- Preserved an explicitly chosen destination DEX across bridge optimization and added multi-step route/constraint regression coverage.
+- Made Solana the initial app workspace and Studio starter while preserving an existing network/wallet preference.
+- Enforced custom contract execution only in the integrator's own product: public console, Studio and links refuse it; scoped embeds retain authorized intent/session flows. Live key, ancestor and project access is rechecked before preparation.
+- Added a sealed PostgreSQL webhook delivery queue with fenced leases, restart recovery, persisted retries, bounded replica-wide concurrency and current registration/key checks. Graph commit and queue insertion are not an atomic outbox; SSE remains process-local.
+- Added separate Arc Swap/Staking/Lending V2 contracts fixing missing slippage/deadline guards, retroactive APR changes and stale oracle handling. Existing deployed sources/manifests are unchanged. New exposure requires separately deployed, compiled-source-pinned V2 runtimes; legacy exits remain explicit.
+- Added 81 local Base/Arc contract tests, Chromium desktop/mobile journeys, PostgreSQL-backed CI and an Arc runtime-pin drift gate.
+
+
 Round 4 and 5: bring your own contract, and the features that make Kletia
 more than a router. Nothing here signs or holds funds, and none of it has had an
 external audit.
@@ -27,7 +38,7 @@ external audit.
 
 ### Changed
 
-- The console badge reads Kletia instead of OMNI; the site counts 29 protocols plus your own contracts everywhere.
+- The console badge reads Kletia instead of OMNI; the public site counts supported protocols; custom registrations stay in the integrator project.
 
 Round 3: more networks and venues behind the same intent engine, and the
 infrastructure surfaces integrators asked for. Every new address was read back

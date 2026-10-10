@@ -223,12 +223,20 @@ async function assertSupplyCap(context: AaveContext, amount: bigint, state: Rese
   }
 }
 
+function protocolName(venue: AaveReserveVenue): string {
+  return venue.protocol === "spark" ? "SparkLend" : "Aave V3";
+}
+
+function poolName(venue: AaveReserveVenue): string {
+  return venue.protocol === "spark" ? "SparkLend Pool" : "Aave Pool";
+}
+
 function title(context: AaveContext, amount: bigint, symbol: string, close: boolean): string {
   const chain = CHAINS[context.network].name;
   const what = close ? `all ${symbol}` : `${formatAmount(fromBaseUnits(amount, context.underlying.decimals))} ${symbol}`;
   return context.kind === "deposit"
-    ? `Supply ${what} to Aave V3 on ${chain}`
-    : `Withdraw ${what} from Aave V3 on ${chain}`;
+    ? `Supply ${what} to ${protocolName(context.venue)} on ${chain}`
+    : `Withdraw ${what} from ${protocolName(context.venue)} on ${chain}`;
 }
 
 interface Quote {
@@ -276,7 +284,7 @@ async function supplyQuote(action: AdapterAction, context: AaveContext, stage: "
     expected: amount,
     // The aToken mint rounds the scaled amount down (credits amount - 1 wei).
     minimum: lessRounding(amount),
-    output: receiptAsset(network, venue.receipt, symbol, `Aave ${context.underlying.symbol}`),
+    output: receiptAsset(network, venue.receipt, symbol, `${protocolName(venue)} ${context.underlying.symbol}`),
     gas: SUPPLY_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n),
     warnings: [...warnings, ...(stage === "plan" ? apyNote({ supplyApy: reserveApy(state), apySource: "rate" }) : [])],
   };
@@ -293,21 +301,21 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   ]);
   const symbol = context.underlying.symbol;
   if (position === 0n) {
-    throw new PlatformError("POSITION_EMPTY", `The account has no ${symbol} supplied to Aave V3 on ${CHAINS[network].name}.`, 422);
+    throw new PlatformError("POSITION_EMPTY", `The account has no ${symbol} supplied to ${protocolName(venue)} on ${CHAINS[network].name}.`, 422);
   }
   const requested = action.closePosition ? position : BigInt(action.amount);
   if (requested <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", "Nothing to withdraw.", 422);
   if (requested > position) {
     throw new PlatformError(
       "INSUFFICIENT_BALANCE",
-      `The account has ${formatUnits(position, context.underlying.decimals, symbol)} supplied to Aave V3 on ${CHAINS[network].name}; ${formatUnits(requested, context.underlying.decimals, symbol)} was requested.`,
+      `The account has ${formatUnits(position, context.underlying.decimals, symbol)} supplied to ${protocolName(venue)} on ${CHAINS[network].name}; ${formatUnits(requested, context.underlying.decimals, symbol)} was requested.`,
       422,
     );
   }
   if (liquidity < requested) {
     throw new PlatformError(
       "VENUE_ILLIQUID",
-      `Aave V3 ${symbol} on ${CHAINS[network].name} can pay out ${formatUnits(liquidity, context.underlying.decimals, symbol)} right now (borrowers hold the rest); ${formatUnits(requested, context.underlying.decimals, symbol)} cannot be withdrawn yet.`,
+      `${protocolName(venue)} ${symbol} on ${CHAINS[network].name} can pay out ${formatUnits(liquidity, context.underlying.decimals, symbol)} right now (borrowers hold the rest); ${formatUnits(requested, context.underlying.decimals, symbol)} cannot be withdrawn yet.`,
       422,
     );
   }
@@ -319,7 +327,7 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   assertSimulation(simulation, `withdrawal from ${venue.name}`);
   const warnings = simulation.status === "unavailable" ? [SIMULATION_UNAVAILABLE] : [];
   if (account && account[1] > 0n) {
-    warnings.push("The account has an open Aave borrow; the withdrawal lowers its health factor (it was simulated against it).");
+    warnings.push(`The account has an open ${protocolName(venue)} borrow; the withdrawal lowers its health factor (it was simulated against it).`);
   }
   const gas = simulation.status === "ok" ? await callGas(network, request, WITHDRAW_GAS) : WITHDRAW_GAS.toString();
   // A close credits at least the position read now (interest only adds); rounding may shave a wei.
@@ -340,8 +348,8 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   };
 }
 
-async function quote(action: AdapterAction, stage: "plan" | "prepare"): Promise<{ context: AaveContext; quote: Quote }> {
-  const context = lendingContext(action, "aave-reserve", "aave-v3");
+async function quote(action: AdapterAction, stage: "plan" | "prepare", protocol: "aave-v3" | "spark"): Promise<{ context: AaveContext; quote: Quote }> {
+  const context = lendingContext(action, "aave-reserve", protocol);
   const result = context.kind === "deposit" ? await supplyQuote(action, context, stage) : await withdrawQuote(action, context);
   return { context, quote: result };
 }
@@ -351,7 +359,7 @@ async function quote(action: AdapterAction, stage: "plan" | "prepare"): Promise<
 function proveSupply(step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
-  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the Aave Pool." });
+  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `No landed transaction called the ${poolName(venue)}.` });
   const decoded = decodeFunctionData({ abi: POOL_ABI, data: call.input as Hex });
   if (decoded.functionName !== "supply" || !sameAddress(decoded.args[0], underlying) || !sameAddress(decoded.args[2], account)) {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The Pool call is not a supply of the venue's asset for the step account." });
@@ -369,14 +377,14 @@ function proveSupply(step: IntentStep, venue: AaveReserveVenue, underlying: Addr
   const receipt = step.minimumOutput as NonNullable<IntentStep["minimumOutput"]>;
   return {
     actualOutput: observed(receipt, amount),
-    evidence: [eventEvidence(step, call, observedAt, `Aave Pool Supply: ${formatUnits(amount, receipt.decimals, step.input?.symbol ?? "")} credited to ${account} (${receipt.symbol} minted).`)],
+    evidence: [eventEvidence(step, call, observedAt, `${poolName(venue)} Supply: ${formatUnits(amount, receipt.decimals, step.input?.symbol ?? "")} credited to ${account} (${receipt.symbol} minted).`)],
   };
 }
 
 function proveWithdraw(step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
-  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the Aave Pool." });
+  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `No landed transaction called the ${poolName(venue)}.` });
   const decoded = decodeFunctionData({ abi: POOL_ABI, data: call.input as Hex });
   if (decoded.functionName !== "withdraw" || !sameAddress(decoded.args[0], underlying) || !sameAddress(decoded.args[2], account)) {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The Pool call is not a withdrawal of the venue's asset to the step account." });
@@ -401,7 +409,7 @@ function proveWithdraw(step: IntentStep, venue: AaveReserveVenue, underlying: Ad
   if (received === null) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The ETH withdrawal landed without its unwrap transaction." });
   return {
     actualOutput: observed(output, received),
-    evidence: [eventEvidence(step, call, observedAt, `Aave Pool Withdraw: ${formatUnits(amount, output.decimals, output.symbol)} paid to ${account}.`)],
+    evidence: [eventEvidence(step, call, observedAt, `${poolName(venue)} Withdraw: ${formatUnits(amount, output.decimals, output.symbol)} paid to ${account}.`)],
   };
 }
 
@@ -439,61 +447,66 @@ export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetri
   };
 }
 
-export const aaveV3Adapter: ProtocolAdapter = {
-  id: "aave-v3",
-  protocols: ["aave-v3"],
-  label: "Aave V3",
+/** Shared Aave V3 pool semantics; every protocol keeps its own registry identity. */
+export function createPoolLendingAdapter(protocol: "aave-v3" | "spark", label: string): ProtocolAdapter {
+  return {
+    id: protocol,
+    protocols: [protocol],
+    label,
 
-  supports(route) {
-    return supportsLending(route, "aave-v3", "aave-reserve", { deposit: true, withdraw: true });
-  },
+    supports(route) {
+      return supportsLending(route, protocol, "aave-reserve", { deposit: true, withdraw: true });
+    },
 
-  async plan(action): Promise<PlannedStep> {
-    const { context, quote: planned } = await quote(action, "plan");
-    const fees = await estimateEvmFeeUsd(context.network, planned.gas);
-    return {
-      protocol: "aave-v3",
-      title: title(context, planned.input, action.input.symbol, action.closePosition === true),
-      mode: "wallet",
-      input: assetAmount(action.input, planned.input.toString()),
-      expectedOutput: assetAmount(planned.output, planned.expected.toString()),
-      minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      estimatedSeconds: 10 * planned.transactions.length,
-      settlement: { kind: "same-network" },
-      warnings: planned.warnings,
-      transactionCount: planned.transactions.length,
-      slippageBps: action.slippageBps,
-      // The plan already encodes the payload (no provider involved): the preview simulates it.
-      preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
-    };
-  },
+    async plan(action): Promise<PlannedStep> {
+      const { context, quote: planned } = await quote(action, "plan", protocol);
+      const fees = await estimateEvmFeeUsd(context.network, planned.gas);
+      return {
+        protocol,
+        title: title(context, planned.input, action.input.symbol, action.closePosition === true),
+        mode: "wallet",
+        input: assetAmount(action.input, planned.input.toString()),
+        expectedOutput: assetAmount(planned.output, planned.expected.toString()),
+        minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        estimatedSeconds: 10 * planned.transactions.length,
+        settlement: { kind: "same-network" },
+        warnings: planned.warnings,
+        transactionCount: planned.transactions.length,
+        slippageBps: action.slippageBps,
+        // The plan already encodes the payload (no provider involved): the preview simulates it.
+        preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
+      };
+    },
 
-  async prepare({ action }): Promise<PreparedPayload> {
-    const { context, quote: prepared } = await quote(action, "prepare");
-    const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
-    return {
-      transactions: prepared.transactions,
-      records: payloadRecords(context.network, prepared.transactions),
-      input: assetAmount(action.input, prepared.input.toString()),
-      expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
-      minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      warnings: prepared.warnings,
-    };
-  },
+    async prepare({ action }): Promise<PreparedPayload> {
+      const { context, quote: prepared } = await quote(action, "prepare", protocol);
+      const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
+      return {
+        transactions: prepared.transactions,
+        records: payloadRecords(context.network, prepared.transactions),
+        input: assetAmount(action.input, prepared.input.toString()),
+        expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
+        minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        warnings: prepared.warnings,
+      };
+    },
 
-  async verify(context) {
-    const venue = stepVenue(context.step, "aave-reserve");
-    const underlying = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
-    if (!venue || !underlying || !context.step.minimumOutput) {
-      return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The step has no Aave V3 registry venue or output." } };
-    }
-    const observedAt = new Date(context.now).toISOString();
-    const { result } = await verifyEvmReceipts(context, (receipts) =>
-      context.step.kind === "withdraw"
-        ? proveWithdraw(context.step, venue, getAddress(underlying), receipts, observedAt)
-        : proveSupply(context.step, venue, getAddress(underlying), receipts, observedAt));
-    return result;
-  },
-};
+    async verify(context) {
+      const venue = stepVenue(context.step, "aave-reserve");
+      const underlying = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
+      if (!venue || venue.protocol !== protocol || !underlying || !context.step.minimumOutput) {
+        return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: `The step has no ${label} registry venue or output.` } };
+      }
+      const observedAt = new Date(context.now).toISOString();
+      const { result } = await verifyEvmReceipts(context, (receipts) =>
+        context.step.kind === "withdraw"
+          ? proveWithdraw(context.step, venue, getAddress(underlying), receipts, observedAt)
+          : proveSupply(context.step, venue, getAddress(underlying), receipts, observedAt));
+      return result;
+    },
+  };
+}
+
+export const aaveV3Adapter = createPoolLendingAdapter("aave-v3", "Aave V3");

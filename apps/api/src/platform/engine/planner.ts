@@ -79,7 +79,7 @@ const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridg
 /** Kinds bound to an integrator contract registration (`contract` + `entry`). */
 const CONTRACT_KINDS: readonly IntentActionKind[] = ["call", "action"];
 /** Lending protocols in the order a deposit / withdraw without a named protocol tries them. */
-export const LENDING_PROTOCOLS: readonly ProtocolId[] = ["aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino"];
+export const LENDING_PROTOCOLS: readonly ProtocolId[] = ["aave-v3", "compound-v3", "morpho", "moonwell", "spark", "yearn-v3", "jupiter-lend", "kamino"];
 const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
   jito: "jito",
   marinade: "marinade",
@@ -340,7 +340,7 @@ function unsupportedRoute(route: AdapterRoute): PlatformError {
   const live = liveVenueNames(route.kind);
   const routes = "GET /v1/networks lists the live routes.";
   const messages: Record<string, string> = {
-    swap: `Swaps run on Solana (Jupiter) and on Base or Arbitrum (Relay); ${route.input.symbol} → ${route.output.symbol} on ${network} is not available.`,
+    swap: `Swaps run on Solana (Jupiter, Raydium and Orca) and on Base or Arbitrum (Relay); ${route.input.symbol} → ${route.output.symbol} on ${network} is not available for the requested protocol and constraints.`,
     stake: "Liquid staking runs on Solana mainnet (SOL → JitoSOL, mSOL or JupSOL).",
     bridge: live
       ? `Bridges run through ${live}; ${route.input.symbol} from ${network} to ${CHAINS[route.destinationNetwork].name} is not available. ${routes}`
@@ -627,9 +627,12 @@ function canMerge(bridge: NormalizedAction, next: NormalizedAction | undefined, 
   if (next.kind !== "swap" && next.kind !== "stake") return false;
   if (next.network !== bridge.destinationNetwork || next.amount.type !== "previous" || next.amount.portionBps !== 10_000) return false;
   if (next.recipient || !next.to) return false;
+  // A named destination venue must remain a separate, wallet-reviewed step.
+  // A bridge auction cannot promise that its destination swap uses that venue.
+  if (next.kind === "swap" && next.protocol && !getProtocol(next.protocol)?.crossChain) return false;
   const prefer = request.constraints?.preferProtocols ?? [];
-  // Preferring Jupiter (and no cross-network venue) means "swap on the destination", not one merged route.
-  if (prefer.includes("jupiter") && !prefer.some((id) => getProtocol(id)?.crossChain)) return false;
+  // A preferred local swap venue means "swap on the destination".
+  if (prefer.some((id) => getProtocol(id)?.kinds?.includes("swap") && !getProtocol(id)?.crossChain) && !prefer.some((id) => getProtocol(id)?.crossChain)) return false;
   if (next.from && bridge.to && next.from.toUpperCase() !== bridge.to.toUpperCase()) return false;
   if (next.from && !bridge.to && bridge.from && next.from.toUpperCase() !== bridge.from.toUpperCase()) return false;
   return true;

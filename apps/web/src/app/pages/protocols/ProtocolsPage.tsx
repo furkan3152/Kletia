@@ -102,7 +102,7 @@ function DirectorySign({ protocols, ownContracts }: { readonly protocols: readon
       </ul>
       <p className="border-t-[3px] border-[#F4F1EA]/20 px-5 py-3 font-code text-[11px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-[#F4F1EA]/85">
         {totals.execute} built by Kletia · {totals.crossChain} cross-network · {totals.networks} networks
-        {ownContracts ? <span className="block text-[#FFD60A]">+ your own contracts</span> : null}
+        {ownContracts ? <span className="block text-[#FFD60A]">Custom contracts belong to developer integrations</span> : null}
       </p>
     </aside>
   );
@@ -206,14 +206,15 @@ function OwnContractsPanel({ entries }: { readonly entries: readonly ProtocolEnt
       <div className="min-w-0">
         <p className={cx(LABEL, "flex items-center gap-2 font-code")}>
           <Icon name="contract" size={22} />
-          Not counted above
+          Developer integrations
         </p>
         <h3 id="own-contracts-heading" className="mt-3 font-display text-2xl font-bold tracking-[-0.02em] sm:text-3xl">
-          Plus your own contracts
+          Your project, your contracts
         </h3>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed">
-          Register your own EVM contract or Solana Action with your API key, and intents created with that key can call it. Kletia
-          pins its code, simulates every call and shows who you are on every step. It does not audit your contract.
+          Register your own EVM contract or Solana Action with your project's API key and use it in your own integration.
+          Your contracts stay scoped to your project and are not offered for signing on Kletia's main site.
+          Kletia pins the code and simulates calls; it does not audit your contract.
         </p>
         <ul className="mt-4 flex flex-wrap gap-2">
           {entries.map((entry) => (
@@ -298,7 +299,7 @@ export default function ProtocolsPage() {
             </div>
             <h1 className="mt-6 max-w-4xl text-balance font-display text-[clamp(2.5rem,7vw,4.5rem)] font-bold leading-[1] tracking-[-0.045em]">
               {/* While the live list loads the count comes from the registry, so the heading never re-wraps. */}
-              {protocolNoun(totals.protocols)} Kletia can route through{ownContractEntries.length > 0 ? ", plus your own contracts" : ""}.
+              {protocolNoun(totals.protocols)} Kletia can route through.
             </h1>
             <p className={cx("mt-6 max-w-2xl text-lg leading-relaxed", TEXT_MUTED)}>
               <strong className="text-[#1A1A1A] dark:text-white">Execute</strong> means Kletia builds the transaction.{" "}

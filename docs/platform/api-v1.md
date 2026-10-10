@@ -371,6 +371,12 @@ create, delete or test webhooks.
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
+SSE buffers and live subscriptions belong to one API process. A restart or
+connection to another replica can leave a gap; `Last-Event-ID` is not a
+durable cursor. Re-fetch `GET /v1/intents/{id}` on reconnect and periodically
+while following an active intent. An event stream alone cannot reconstruct
+every transition across replicas.
+
 Webhook deliveries are `POST` with header
 `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
 Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries also carry
@@ -380,17 +386,41 @@ are never followed. Webhook URLs must be public HTTPS; private, loopback,
 link-local and metadata addresses are refused at registration and again at
 every delivery. A key may register 10 webhooks.
 
+With Postgres, each routed delivery is stored before its first HTTP attempt;
+its event body is encrypted with the platform secret. Retries survive API
+restarts. Workers poll in bounded batches and claim 30-second fenced leases;
+an interrupted attempt becomes available after its lease expires. The queue
+deduplicates `(webhook id, event id)`, and the receiver must still deduplicate
+by event id: a crash after a successful HTTP response but before recording it
+can repeat that delivery. Attempt results and retry scheduling commit
+together. A retry re-reads the webhook and the key's full live lineage;
+deleted webhooks and revoked or expired keys receive no further attempts.
+Successful and exhausted queue rows discard the body and retain deduplication
+identifiers for seven days. In-memory development queues remain transient.
+
+The durable queue starts after an event is routed to a webhook. Source-state
+changes and event routing are not one transaction, so a process crash before
+the first queue insert can still lose that notification. Queue limits and
+exhausted retries can also prevent delivery; use the current intent state for
+reconciliation. This is bounded at-least-once delivery of queued work, not an
+exactly-once or complete event-history guarantee.
+
 Each key's deliveries are queued separately and served in turn with other
 keys: at most 200 wait per key (beyond that the key's oldest delivery is
 dropped), at most 2 are in flight per key and a webhook receives one delivery
 at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling
 up to 5 minutes while it keeps failing; its deliveries wait during the pause.
+Pause counters belong to the worker; a retry's scheduled delay is persisted
+with Postgres. Cross-worker leases share the in-flight limits, while a worker
+restart resets its pause counters.
 
 Webhook secrets are encrypted at rest with `KLETIA_PLATFORM_SECRET` (at least
 32 characters). It is required whenever `KLETIA_DATABASE_URL` is set; with the
 in-memory store a development key is used and `GET /v1/health` reports
 `webhooks.sealing: "development_fallback"`. `webhooks.dispatcher` reports the
-delivery queue of the answering API process.
+answering worker's activity and `storage` (`memory` or `postgres`). With
+Postgres, `queued` and `scheduledRetries` are the last shared queue snapshot;
+other counters describe the answering process.
 
 ## Idempotency
 

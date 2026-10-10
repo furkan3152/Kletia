@@ -6,8 +6,9 @@ This runbook defines how to test Kletia end to end without mock quotes, placehol
 
 - Base Mainnet: Intent Router V2 swaps, LaunchFactory V2, Relay swaps and bridges, Aave V3 supply.
 - Arbitrum One: Uniswap V3 / Aave V3 and Relay swaps and bridges.
-- Solana: Jupiter swaps and liquid staking, SOL/SPL transfers, Relay bridges to and from Base and Arbitrum.
-- Arc Testnet: swap, lending, staking, Vault V2, memo and batch payments.
+- Solana (primary network): Jupiter, Raydium and Orca swaps and liquid staking, SOL/SPL transfers, Relay bridges to and from Base and Arbitrum.
+- Ethereum: SparkLend USDC/WETH and Yearn V3 USDC-1 deposits and withdrawals.
+- Arc Testnet: reviewed DeFi V2 sources for swap/lending/staking (new deployment required), Vault V2, memo and batch payments.
 - Arbitrum Sepolia: Circle Testnet USDC and Aave supply.
 - Platform API v1: intent planning, step preparation, on-chain verification, settlement polling, SSE and webhooks.
 
@@ -16,10 +17,12 @@ This runbook defines how to test Kletia end to end without mock quotes, placehol
 ```bash
 nvm use
 npm ci
-npm run verify
+KLETIA_TEST_DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/kletia_test npm run verify
+npx playwright install chromium
+npm run test:e2e
 ```
 
-This verifies repository boundaries, package tests, privacy egress, intent/network binding, typechecks, builds, lint and contract compilation. It is not a funded transaction.
+This verifies repository boundaries, package tests, privacy egress, intent/network binding, typechecks, builds, lint, contract compilation, exact Arc runtime pins and local contract regressions. Browser fixtures cover project isolation and review boundaries without signing. It is not a funded transaction.
 
 ## 2. Live no-mock preflight
 
@@ -27,7 +30,7 @@ This verifies repository boundaries, package tests, privacy egress, intent/netwo
 npm run verify:mvp-live
 ```
 
-The same report is served while the API runs at `GET /api/release/mvp-readiness`. It checks Base, Arc, Arbitrum Sepolia and Solana identities and RPCs. HTTP 503 or a non-zero exit is correct while a required surface is missing. `GET /api/capabilities` shows which optional features need operator configuration.
+The same report is served while the API runs at `GET /api/release/mvp-readiness`. It checks Base, Arc, Arbitrum Sepolia and Solana identities and RPCs. Solana RPC is required because it is the primary product network. Arc DeFi requires separate V2 deployments and exact source/runtime identity; unconfigured deployments intentionally block this full preflight. HTTP 503 or a non-zero exit is correct while a required surface is missing. `GET /api/capabilities` shows which optional features need operator configuration.
 
 ## 3. Run locally
 

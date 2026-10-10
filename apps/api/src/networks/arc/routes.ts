@@ -20,6 +20,8 @@ import {
 } from "./abis.js";
 import {
   ARC_CONTRACTS,
+  ARC_DEFI_V2_DEPLOYMENTS,
+  ARC_LEGACY_DEFI_CONTRACTS,
   ARC_VAULT_EXECUTION_MODE,
   ARC_VAULT_V2_RUNTIME_CODEHASH,
   NETWORKS,
@@ -51,6 +53,15 @@ function addressParam(value: string | string[]): Address {
       400,
     );
   }
+}
+
+function defiReadTarget(req: Request, protocol: "swap" | "staking" | "lending"): Address {
+  const deployment = req.query.deployment;
+  if (deployment === undefined || deployment === "active") {
+    return ARC_CONTRACTS[protocol === "swap" ? "Swap" : protocol === "staking" ? "Staking" : "Lending"];
+  }
+  if (deployment === "legacy") return ARC_LEGACY_DEFI_CONTRACTS[protocol];
+  throw new ControlledRouteError("INVALID_DEPLOYMENT", "deployment must be active or legacy; arbitrary contract addresses are not supported.", 400);
 }
 
 function uintParam(value: string | string[], label: string): bigint {
@@ -105,6 +116,8 @@ router.get(
       rpcUrl: "https://rpc.testnet.arc.network",
       explorer: arc.explorerUrl,
       contracts: ARC_CONTRACTS,
+      legacyDefiContracts: ARC_LEGACY_DEFI_CONTRACTS,
+      defiExecution: Object.fromEntries(Object.entries(ARC_DEFI_V2_DEPLOYMENTS).map(([protocol, deployment]) => [protocol, deployment ? "configured_v2_requires_live_identity" : "legacy_withdrawal_only"])),
       ...metadata(),
     });
   }),
@@ -157,33 +170,34 @@ router.get(
 
 router.get(
   "/swap/info",
-  arcRoute(async (_req, res) => {
+  arcRoute(async (req, res) => {
+    const contract = defiReadTarget(req, "swap");
     const [kletPrice, tokenAddress, reserveUSDC, reserveToken] =
       await Promise.all([
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Swap,
+          address: contract,
           abi: ARC_SWAP_ABI,
           functionName: "consultKletPrice",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Swap,
+          address: contract,
           abi: ARC_SWAP_ABI,
           functionName: "token",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Swap,
+          address: contract,
           abi: ARC_SWAP_ABI,
           functionName: "reserveUSDC",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Swap,
+          address: contract,
           abi: ARC_SWAP_ABI,
           functionName: "reserveToken",
         }),
       ]);
     res.json({
       success: true,
-      contract: ARC_CONTRACTS.Swap,
+      contract: contract,
       kletPrice: kletPrice.toString(),
       kletPriceFormatted: formatUnits(kletPrice, 18),
       tokenAddress,
@@ -358,33 +372,34 @@ router.get(
 
 router.get(
   "/staking/info",
-  arcRoute(async (_req, res) => {
+  arcRoute(async (req, res) => {
+    const contract = defiReadTarget(req, "staking");
     const [aprBps, totalStaked, cooldownPeriod, rewardPoolBalance] =
       await Promise.all([
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Staking,
+          address: contract,
           abi: ARC_STAKING_ABI,
           functionName: "aprBps",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Staking,
+          address: contract,
           abi: ARC_STAKING_ABI,
           functionName: "totalStaked",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Staking,
+          address: contract,
           abi: ARC_STAKING_ABI,
           functionName: "cooldownPeriod",
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Staking,
+          address: contract,
           abi: ARC_STAKING_ABI,
           functionName: "rewardPoolBalance",
         }),
       ]);
     res.json({
       success: true,
-      contract: ARC_CONTRACTS.Staking,
+      contract: contract,
       aprBps: Number(aprBps),
       aprPercent: Number(aprBps) / 100,
       totalStaked: formatUnits(totalStaked, 18),
@@ -398,16 +413,17 @@ router.get(
 router.get(
   "/staking/user/:address",
   arcRoute(async (req, res) => {
+    const contract = defiReadTarget(req, "staking");
     const address = addressParam(req.params.address);
     const [info, pendingRewards] = await Promise.all([
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Staking,
+        address: contract,
         abi: ARC_STAKING_ABI,
         functionName: "getStakerInfo",
         args: [address],
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Staking,
+        address: contract,
         abi: ARC_STAKING_ABI,
         functionName: "pendingRewards",
         args: [address],
@@ -415,6 +431,7 @@ router.get(
     ]);
     res.json({
       success: true,
+      contract,
       address,
       stakedAmount: formatUnits(info[0], 18),
       stakingTimestamp: Number(info[1]),
@@ -592,7 +609,8 @@ router.get(
 
 router.get(
   "/lending/info",
-  arcRoute(async (_req, res) => {
+  arcRoute(async (req, res) => {
+    const contract = defiReadTarget(req, "lending");
     const [
       borrowRate,
       liquidityRate,
@@ -602,39 +620,39 @@ router.get(
       liquidityIndex,
     ] = await Promise.all([
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "currentBorrowRate",
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "currentLiquidityRate",
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "LTV_BIPS",
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "LIQ_THRESHOLD_BIPS",
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "borrowIndex",
       }),
       arcPublicClient.readContract({
-        address: ARC_CONTRACTS.Lending,
+        address: contract,
         abi: ARC_LENDING_ABI,
         functionName: "liquidityIndex",
       }),
     ]);
     res.json({
       success: true,
-      contract: ARC_CONTRACTS.Lending,
+      contract: contract,
       currentBorrowRate: borrowRate.toString(),
       currentLiquidityRate: liquidityRate.toString(),
       ltvBips: Number(ltvBips),
@@ -651,54 +669,57 @@ router.get(
 router.get(
   "/lending/user/:address",
   arcRoute(async (req, res) => {
+    const contract = defiReadTarget(req, "lending");
     const address = addressParam(req.params.address);
     const [collateral, borrowed, supplied, health, maxBorrow, kletPrice] =
       await Promise.all([
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "collateralBalance",
           args: [address],
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "getBorrowedBalance",
           args: [address],
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "getSuppliedBalance",
           args: [address],
         }),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "healthFactor",
           args: [address],
-        }),
+        }).catch(() => null),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "_getMaxBorrow",
           args: [address],
-        }),
+        }).catch(() => null),
         arcPublicClient.readContract({
-          address: ARC_CONTRACTS.Lending,
+          address: contract,
           abi: ARC_LENDING_ABI,
           functionName: "_getKletPrice",
-        }),
+        }).catch(() => null),
       ]);
     res.json({
       success: true,
+      contract,
       address,
       collateralKLET: formatUnits(collateral, 18),
       borrowedUSDC: formatUnits(borrowed, 18),
       suppliedUSDC: formatUnits(supplied, 18),
-      healthFactor: formatUnits(health, 18),
-      maxBorrowUSDC: formatUnits(maxBorrow, 18),
-      kletPriceUSDC: formatUnits(kletPrice, 18),
+      healthFactor: health === null ? null : formatUnits(health, 18),
+      maxBorrowUSDC: maxBorrow === null ? null : formatUnits(maxBorrow, 18),
+      kletPriceUSDC: kletPrice === null ? null : formatUnits(kletPrice, 18),
+      oracleAvailability: health === null || maxBorrow === null || kletPrice === null ? "unavailable" : "available",
       ...metadata(),
     });
   }),

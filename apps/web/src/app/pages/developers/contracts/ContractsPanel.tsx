@@ -95,7 +95,7 @@ export default function ContractsPanel() {
   const counting = mode === "list" && (list.data ?? []).some((contract) => contract.status === "pending" || contract.pendingRevision !== null);
   const now = useNow(1_000, counting);
 
-  if (!kind) return <NeedKey purpose="list, register, test and reverify your contracts" agentKeys />;
+  if (!kind) return <NeedKey purpose="list, register, test and reverify contracts for your own project integration" agentKeys />;
 
   const contracts = list.data ?? [];
   const onChanged = (message: string, removed = false) => {
@@ -106,6 +106,10 @@ export default function ContractsPanel() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <p className={cx("max-w-3xl text-sm leading-relaxed", TEXT_MUTED)}>
+        Registrations stay in your project and run through your own SDK, widget or integrator embed.
+        Kletia&apos;s main website does not execute custom contract calls. Registration does not add a contract to the public protocol catalog.
+      </p>
       <PortalTabs
         label="Contracts"
         active={mode}

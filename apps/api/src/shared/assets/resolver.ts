@@ -616,9 +616,13 @@ function resolveProtocol(
       "appkit_send",
       "appkit_bridge",
     ].includes(action);
+    const legacyExit = folded === "kletialegacy" && [
+      "unstake", "claim_rewards", "claim_unstaked", "remove_liquidity",
+      "lending_withdraw", "lending_repay",
+    ].includes(action);
     const accepted = appKitAction
       ? new Set(["circleappkit", "appkit", "circle"])
-      : new Set(["kletia", "arc", "kletiaarc"]);
+      : new Set(["kletia", "arc", "kletiaarc", ...(legacyExit ? ["kletialegacy"] : [])]);
     if (!accepted.has(folded)) {
       throw new EntityResolutionError(
         "PROTOCOL_ACTION_UNSUPPORTED",
@@ -627,7 +631,7 @@ function resolveProtocol(
     }
     return {
       original: protocol,
-      canonical: appKitAction ? "circle-app-kit" : "kletia-arc",
+      canonical: appKitAction ? "circle-app-kit" : legacyExit ? "kletia-arc-legacy" : "kletia-arc",
       matchedBy: "curated_alias",
     };
   }

@@ -17,6 +17,22 @@ jobs:
     name: Verify repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kletia
+          POSTGRES_PASSWORD: kletia_ci_tests
+          POSTGRES_DB: kletia_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kletia -d kletia_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      KLETIA_TEST_DATABASE_URL: postgres://kletia:kletia_ci_tests@127.0.0.1:5432/kletia_test
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -42,6 +58,12 @@ jobs:
 
       - name: Verify structure, packages, applications and contracts
         run: npm run verify
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test desktop and mobile browser journeys
+        run: npm run test:e2e
 
       - name: Reject high-severity runtime advisories
         run: |

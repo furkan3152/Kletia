@@ -3,9 +3,12 @@ import { keccak256 } from "viem";
 import { assertArbitrumSepoliaReadiness, ARBITRUM_SEPOLIA, arbitrumSepoliaPublicClient } from "../networks/arbitrum-sepolia/config.js";
 import { resolveConfiguredBaseSwapExecution } from "../networks/base/config/intentRouterV2Environment.js";
 import { validateBaseIntentV2Runtime } from "../networks/base/intent/routerV2Runtime.js";
+import { ARC_LENDING_ABI } from "../networks/arc/abis.js";
+import { assertReviewedArcDefiRuntime } from "../networks/arc/runtimeIdentity.js";
 import { readSolanaHealth } from "../networks/solana/index.js";
 import {
   ARC_CONTRACTS,
+  ARC_DEFI_V2_DEPLOYMENTS,
   ARC_VAULT_EXECUTION_MODE,
   ARC_VAULT_V2_RUNTIME_CODEHASH,
   NETWORKS,
@@ -127,6 +130,13 @@ async function baseIntentRouterCheck(): Promise<Readonly<Record<string, unknown>
 }
 
 async function arcProtocolCheck(): Promise<Readonly<Record<string, unknown>>> {
+  await Promise.all((["swap", "staking", "lending"] as const).map((kind) =>
+    assertReviewedArcDefiRuntime(kind, ARC_DEFI_V2_DEPLOYMENTS, {
+      getChainId: () => arcPublicClient.getChainId(),
+      getBytecode: (address) => arcPublicClient.getBytecode({ address }),
+      readSwapPool: (address) => arcPublicClient.readContract({ address, abi: ARC_LENDING_ABI, functionName: "swapPool" }),
+    }),
+  ));
   const addresses = Object.entries(ARC_CONTRACTS);
   const [chainId, blockNumber, codes] = await Promise.all([
     arcPublicClient.getChainId(),
@@ -156,6 +166,7 @@ async function arcProtocolCheck(): Promise<Readonly<Record<string, unknown>>> {
     chainId,
     blockNumber: blockNumber.toString(),
     contracts: Object.fromEntries(addresses),
+    defiV2: ARC_DEFI_V2_DEPLOYMENTS,
     vaultExecutionMode: ARC_VAULT_EXECUTION_MODE,
     vaultRuntimeCodehash: ARC_VAULT_V2_RUNTIME_CODEHASH,
   });
@@ -202,7 +213,7 @@ async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
       label: "Arc Testnet Kletia protocols",
       required: true,
       operation: arcProtocolCheck,
-      readyReason: "The Arc RPC has the expected chain ID and every MVP contract has live code; Vault V2 matches its pinned runtime hash.",
+      readyReason: "The Arc RPC has the expected chain ID and every MVP contract has live code; Swap, Staking, Lending and Vault V2 match their reviewed runtime identities.",
     }),
     checked({
       id: "arbitrum_sepolia_aave",
@@ -214,9 +225,8 @@ async function computeKletiaMvpReadiness(): Promise<KletiaMvpReadinessReport> {
     checked({
       id: "solana_rpc",
       label: "Solana Mainnet RPC",
-      // Informational: a public Solana RPC outage degrades Solana routes but
-      // does not block the user-signed EVM MVP smoke.
-      required: false,
+      // Solana is the primary product network; its availability is required.
+      required: true,
       operation: solanaRpcCheck,
       readyReason: "The configured Solana Mainnet RPC answered getSlot and getVersion at confirmed commitment.",
     }),

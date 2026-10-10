@@ -10,10 +10,13 @@ import { kaminoAdapter } from "./kamino.js";
 import { compoundV3Adapter } from "./lending/compoundV3.js";
 import { erc4626Adapter } from "./lending/erc4626.js";
 import { moonwellAdapter } from "./lending/moonwell.js";
+import { sparkAdapter } from "./lending/spark.js";
+import { yearnAdapter } from "./lending/yearn.js";
 import { lifiAdapter } from "./lifi.js";
 import { relayAdapter } from "./relay.js";
 import { solanaActionAdapter } from "./solanaAction.js";
 import { solanaTransferAdapter } from "./solanaTransfer.js";
+import { orcaAdapter, raydiumAdapter } from "./solanaDex.js";
 import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
 
 /**
@@ -27,6 +30,8 @@ export const CONTRACT_ADAPTERS: readonly ContractProtocolAdapter[] = Object.free
 /** Default preference order when several adapters can serve a route. */
 export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze([
   jupiterAdapter,
+  raydiumAdapter,
+  orcaAdapter,
   solanaTransferAdapter,
   evmTransferAdapter,
   relayAdapter,
@@ -36,6 +41,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze([
   compoundV3Adapter,
   erc4626Adapter,
   moonwellAdapter,
+  sparkAdapter,
+  yearnAdapter,
   jupiterLendAdapter,
   kaminoAdapter,
   ...CONTRACT_ADAPTERS,

@@ -26,7 +26,8 @@
  * - A registration is usable only by its owning key, or by keys of the same
  *   project when `visibility: "project"`; foreign and unknown ids are
  *   indistinguishable (404 CONTRACT_NOT_FOUND here, CONTRACT_UNKNOWN when
- *   planning). Registrations of a revoked key are unusable.
+ *   planning). The calling key, registration owner and their ancestors must
+ *   remain live and unexpired; the directory checks them again at prepare.
  * - Any anomaly the engine reports (pins changed, outcome mismatch, program
  *   changed) suspends the registration until the integrator re-verifies; an
  *   operator suspension can only be lifted by an operator.
@@ -91,7 +92,7 @@ import {
 } from "../index.js";
 import { isSolanaNetworkKey } from "../../networks/solana/index.js";
 import { createActionTransport } from "./actionTransport.js";
-import { apiKeyStore, isKeyRevoked } from "./auth.js";
+import { apiKeyStore, keyLive, loadOperatorKeys } from "./auth.js";
 import {
   activationDelaySeconds,
   comparePins,
@@ -1549,20 +1550,54 @@ function directoryTransport(): ActionTransport {
   return transport;
 }
 
-async function ownerUsable(record: ContractRecord, ownerKeyId: string): Promise<boolean> {
+type ContractKeyScope = { readonly projectId: string | null };
+
+/** Fresh key and lineage state: capability-based prepares must also stop after revocation or expiry. */
+async function liveContractScope(keyId: string): Promise<ContractKeyScope | null> {
+  if ([...loadOperatorKeys().values()].some((key) => key.id === keyId)) return { projectId: null };
+  const keys = apiKeyStore();
+  const key = await keys.findById(keyId);
+  const now = Date.now();
+  if (!key || !keyLive(key, now)) return null;
+  const lineage = key.lineage ?? [];
+  if (lineage.length > 0) {
+    const ancestors = new Map((await keys.findMany(lineage)).map((ancestor) => [ancestor.id, ancestor]));
+    if (!lineage.every((id) => {
+      const ancestor = ancestors.get(id);
+      return ancestor && ancestor.projectId === key.projectId && keyLive(ancestor, now);
+    })) return null;
+  }
+  return { projectId: key.projectId };
+}
+
+type ContractScopeReader = (keyId: string) => Promise<ContractKeyScope | null>;
+
+async function ownerUsable(record: ContractRecord, ownerKeyId: string, scopeOf: ContractScopeReader = liveContractScope): Promise<boolean> {
   if (record.status === "deleted") return false;
-  let allowed = record.ownerKeyId === ownerKeyId;
-  if (!allowed && record.visibility === "project" && record.projectId !== null) allowed = (await projectOf(ownerKeyId)) === record.projectId;
-  if (!allowed) return false;
-  // A revoked owner key takes its registrations with it (also for project keys).
-  return !(await isKeyRevoked(record.ownerKeyId));
+  const caller = await scopeOf(ownerKeyId);
+  if (!caller) return false;
+  if (record.ownerKeyId === ownerKeyId) return caller.projectId === record.projectId;
+  if (record.visibility !== "project" || record.projectId === null || caller.projectId !== record.projectId) return false;
+  const owner = await scopeOf(record.ownerKeyId);
+  return owner !== null && owner.projectId === record.projectId;
 }
 
 async function usableEntries(ownerKeyId: string): Promise<ContractEntry[]> {
-  const projectId = await projectOf(ownerKeyId);
+  // Share fresh reads within this operation, without a TTL that could keep revoked keys usable.
+  const scopes = new Map<string, Promise<ContractKeyScope | null>>();
+  const scopeOf: ContractScopeReader = (id) => {
+    let pending = scopes.get(id);
+    if (!pending) {
+      pending = liveContractScope(id);
+      scopes.set(id, pending);
+    }
+    return pending;
+  };
+  const caller = await scopeOf(ownerKeyId);
+  if (!caller) return [];
   const out: ContractEntry[] = [];
-  for (const raw of await contractStore().listVisible(ownerKeyId, projectId)) {
-    if (await ownerUsable(raw.record, ownerKeyId)) out.push(await settle(raw));
+  for (const raw of await contractStore().listVisible(ownerKeyId, caller.projectId)) {
+    if (await ownerUsable(raw.record, ownerKeyId, scopeOf)) out.push(await settle(raw));
   }
   return out;
 }

@@ -3,9 +3,9 @@
  *
  * The registry also lists two "custom" entries (EVM contract calls and Solana
  * Actions): they are the doors for bring-your-own-contract, not protocols.
- * Counts therefore include only entries whose category is not "custom", and
- * your own contracts are named separately ("29 protocols + your own
- * contracts"). Pure, dependency-free and safe for the entry bundle.
+ * Counts therefore include only entries whose category is not "custom".
+ * Custom contracts belong to project integrations and are explained there.
+ * Pure, dependency-free and safe for the entry bundle.
  */
 
 /** The registry category of bring-your-own-contract entries. */
@@ -47,8 +47,7 @@ export function protocolNoun(count: number): string {
   return `${count} ${count === 1 ? "protocol" : "protocols"}`;
 }
 
-/** "29 protocols + your own contracts" (or just "29 protocols" when the list has no custom entries). */
+/** Real protocol count for the public site, excluding project-specific contracts. */
 export function protocolCountLabel(entries: readonly Categorized[]): string {
-  const { protocols, ownContracts } = countProtocols(entries);
-  return ownContracts ? `${protocolNoun(protocols)} + your own contracts` : protocolNoun(protocols);
+  return protocolNoun(countProtocols(entries).protocols);
 }

@@ -2,7 +2,7 @@
 
 ## Product boundary
 
-Kletia is intent infrastructure for EVM networks and Solana. It converts an outcome ("bridge 50 USDC from Base to Solana and stake it as JitoSOL") into exact, network-bound steps, asks the user's own wallet to authorize every value-moving step, and advances only when step-specific evidence is verified.
+Kletia is Solana-first intent infrastructure across nine networks and 33 protocols. It converts an outcome ("bridge 50 USDC from Base to Solana and stake it as JitoSOL") into exact, network-bound steps, asks the user's own wallet to authorize every value-moving step, and advances only when step-specific evidence is verified.
 
 It ships in two forms that share one engine:
 
@@ -13,10 +13,19 @@ It ships in two forms that share one engine:
 |---|---|---|---|---|
 | `base` | Base | `eip155:8453` | Production | Intent Router V2 swaps, lending discovery, token launch, Basenames, x402 |
 | `arbitrum` | Arbitrum One | `eip155:42161` | Production | Uniswap V3 / Aave V3, staged Base workflows |
-| `solana` | Solana | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Production | Jupiter swaps, liquid staking, transfers, Kamino discovery |
-| `arc` | Arc Testnet | `eip155:5042002` | Testnet | Native-USDC protocols and Circle App Kit |
+| `ethereum` | Ethereum | `eip155:1` | Production | Aave, Compound, Morpho, SparkLend, Yearn V3, transfers, bridges, ENS |
+| `optimism` | OP Mainnet | `eip155:10` | Production | Aave, Compound, Moonwell, transfers, bridges |
+| `polygon` | Polygon PoS | `eip155:137` | Production | Aave, transfers, bridges |
+| `solana` | Solana | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | Production | Jupiter aggregation, Raydium and Orca swaps, liquid staking, transfers, Jupiter Lend and Kamino |
+| `arc` | Arc Testnet | `eip155:5042002` | Testnet | Vault V2, payments and Circle App Kit; new DeFi exposure requires reviewed V2 deployments |
 | `arbitrum-sepolia` | Arbitrum Sepolia | `eip155:421614` | Testnet | Circle Testnet USDC and Aave supply |
 | `solana-devnet` | Solana Devnet | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testnet | Transfers and portfolio |
+
+Custom contract registrations belong to the integrator's private/project scope.
+They run through the integrator's SDK/widget or an authorized hosted embed,
+and do not enter the public protocol catalog or execute through the first-party
+console, Studio or shared intent links. Current API-key ownership, ancestor
+revocation and project membership are checked again before preparation.
 
 Production and testnet capital never share one intent. Changing a network changes wallet family, chain identity, asset catalog, action vocabulary, target registry and evidence rules — it is never a cosmetic RPC switch.
 
@@ -41,7 +50,7 @@ flowchart TB
       AppRoutes["/api: console engines (Base, Arc, Arbitrum chat)"]
       V1["/v1: Platform API (keys, intents, SSE, webhooks)"]
       Planner[Deterministic grammar and planner]
-      Adapters[Adapters: Jupiter, Relay, Aave V3, transfers]
+      Adapters[Adapters: Jupiter, Raydium, Orca, bridges, lending, transfers]
       Store[Intent store and event buffer]
       Verify[On-chain and settlement verification]
     end
@@ -95,12 +104,12 @@ stateDiagram-v2
 
 1. A request carries natural language or structured actions plus CAIP-10 accounts (one per VM is typical).
 2. The deterministic grammar compiles text into actions. No model is involved in planning or execution; unsupported wording is refused with examples.
-3. The planner resolves each action to exact network identities, picks an adapter, quotes it live, chains dependent amounts through guaranteed minimum outputs, and may merge a bridge followed by a destination swap into one cross-network swap.
+3. The planner resolves each action to exact network identities, picks an adapter, quotes it live, chains dependent amounts through guaranteed minimum outputs, and may merge a bridge followed by a destination swap into one cross-network swap. An explicitly selected destination DEX remains a separate step.
 4. Each step is bound to exactly one network, one account and one protocol. Steps form a DAG; a step becomes `ready` only when its dependencies settle.
 5. `prepare` re-quotes and returns unsigned transactions (EVM calls or base64 Solana v0 transactions) with an expiry and a quote binding.
 6. The user's wallet signs. The client submits the references (hashes or signatures).
 7. The API verifies each reference on-chain: status, sender or fee payer equal to the bound account, target and chain. Cross-network steps stay `settling` until the settlement network reports a destination fill.
-8. Every transition emits an event to SSE subscribers and signed webhooks.
+8. Transitions emit events to process-local SSE subscribers and signed webhooks. PostgreSQL-backed webhook jobs survive restart and use fenced delivery leases. This queue starts at event routing; it is not atomic with the graph commit. Clients recover an SSE gap by fetching the current graph.
 
 ## Network execution boundaries
 

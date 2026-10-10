@@ -1,6 +1,7 @@
 import { KletiaClient } from "@kletia/sdk";
 
 import { BACKEND_URL } from "../../../shared/config/runtime";
+import { withContractPreparationBoundary } from "../../../shared/platform/contractExecutionBoundary";
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -18,7 +19,7 @@ function isIntentCreate(url: URL, init: RequestInit | undefined): boolean {
  * dry run: the widget can show a plan for the demo accounts without
  * persisting anything, and it cannot execute (no signers are passed).
  */
-export function createEmbedClient(mode: "plan" | "live"): KletiaClient {
+export function createEmbedClient(mode: "plan" | "live", integrationIntentId?: () => string | null): KletiaClient {
   const fetchImpl: FetchLike = (input, init) => {
     if (mode === "plan") {
       try {
@@ -33,5 +34,6 @@ export function createEmbedClient(mode: "plan" | "live"): KletiaClient {
     }
     return globalThis.fetch(input, init);
   };
-  return new KletiaClient({ baseUrl: BACKEND_URL, timeoutMs: 15_000, fetch: fetchImpl });
+  const client = new KletiaClient({ baseUrl: BACKEND_URL, timeoutMs: 15_000, fetch: fetchImpl });
+  return withContractPreparationBoundary(client, integrationIntentId ?? (() => null));
 }

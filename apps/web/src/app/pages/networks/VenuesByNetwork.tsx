@@ -32,7 +32,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
       {networks.map((network) => {
         const label = networkLabel(network.key);
         const onNetwork = protocolsOnNetwork(protocols, network.key);
-        // Count real protocols only; the "custom" entries mean your own contracts can be called here, named apart.
+        // Count real protocols only; custom calls belong to project integrations.
         const ownContracts = onNetwork.some(isOwnContractEntry);
         const venues = onNetwork.filter((protocol) => !isOwnContractEntry(protocol)).sort(
           (a, b) => RANK[strongestCapability(a)] - RANK[strongestCapability(b)] || a.name.localeCompare(b.name),
@@ -78,7 +78,7 @@ export function VenuesByNetwork({ networks, protocols }: VenuesByNetworkProps) {
                 <Badge tone="blue">Execute {counts.execute}</Badge>
                 <Badge tone="yellow">Quote {counts.quote}</Badge>
                 <Badge tone="neutral">Discover {counts.discover}</Badge>
-                {ownContracts ? <Badge tone="ink">+ your own contracts</Badge> : null}
+                {ownContracts ? <Badge tone="ink">Custom calls in project integrations</Badge> : null}
               </p>
 
               {kinds.length > 0 ? (

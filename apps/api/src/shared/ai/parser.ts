@@ -1591,6 +1591,35 @@ function promptBindingFailure(message: string): ParsedIntent {
   };
 }
 
+const ARC_LEGACY_MARKER = /\b(?:Kletia\s+Legacy|Legacy\s+Kletia)\s+(Staking|Lending|Swap)\b/giu;
+
+/** A legacy execution target must come from this turn, never a model guess. */
+function bindArcLegacyProtocol(
+  intent: ParsedIntent,
+  bindingText: string,
+): ParsedIntent {
+  if (!intent.isComplete) return intent;
+  const markers = [...bindingText.matchAll(ARC_LEGACY_MARKER)];
+  if (markers.length === 0) {
+    return /\blegacy\b/iu.test(String(intent.protocol || ""))
+      ? promptBindingFailure("The historical Arc target must be explicitly requested as Kletia Legacy Staking, Lending or Swap in this message.")
+      : intent;
+  }
+  if (markers.length !== 1 || intent.action === "workflow") {
+    return promptBindingFailure("Prepare one explicit Arc legacy exit at a time; each historical target requires its own instruction.");
+  }
+  const family = markers[0][1].toLowerCase();
+  const exits: Record<string, ReadonlySet<string>> = {
+    staking: new Set(["unstake", "claim_rewards", "claim_unstaked"]),
+    lending: new Set(["lending_withdraw", "lending_repay"]),
+    swap: new Set(["remove_liquidity"]),
+  };
+  if (!exits[family].has(intent.action)) {
+    return promptBindingFailure("The requested Arc legacy protocol supports existing position exits and debt repayment only; its action must match Staking, Lending or Swap.");
+  }
+  return { ...intent, protocol: "kletia legacy" };
+}
+
 function enforcePromptBoundIntent(
   intent: ParsedIntent,
   bindingText: string,
@@ -2076,11 +2105,12 @@ function enforcePromptBoundIntent(
                 : "best_rate"
             : intent.objective;
 
-  return {
+  const result = {
     ...grounded,
     objective,
     riskTolerance,
   };
+  return network === "arc" ? bindArcLegacyProtocol(result, bindingText) : result;
 }
 
 interface LocatedToken {
@@ -3143,7 +3173,10 @@ function parsePreparedDeterministicArcIntent(
   const finish = (intent: ParsedIntent | null): ParsedIntent | null =>
     bindPrivateFieldSlots(intent, userPrompt);
 
-  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+  if (
+    /\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt) &&
+    !/\b(?:withdraw|remove|repay|unstake|claim|deposit|stake|swap|send|pay|transfer|lend|borrow|bridge|add|çek|cek|yatır|yatir|gönder|gonder)\b/iu.test(prompt)
+  ) {
     return finish(deterministicIntent({
       action: "portfolio",
       amount: "0",
@@ -3463,6 +3496,18 @@ function parsePreparedDeterministicArcIntent(
   }
 
   match = new RegExp(
+    `^Remove ${ARC_WIDGET_AMOUNT} LP tokens from Kletia Swap on Arc Testnet; simulate it before wallet approval$`,
+    "i",
+  ).exec(prompt);
+  if (match) {
+    return finish(deterministicIntent({
+      action: "remove_liquidity",
+      amount: match[1],
+      message: "Preparing the Arc liquidity withdrawal.",
+    }));
+  }
+
+  match = new RegExp(
     `^Send ${ARC_WIDGET_AMOUNT} native USDC to ${ARC_WIDGET_ADDRESS} through Kletia Memo Pay on Arc Testnet with the permanent public on-chain memo (.+); simulate it before wallet approval$`,
     "i",
   ).exec(prompt);
@@ -3619,11 +3664,18 @@ function parsePreparedDeterministicArcIntent(
 export function parseDeterministicArcIntent(
   userPrompt: string,
 ): ParsedIntent | null {
-  const parserPrompt = preparePrivateFieldSlots(userPrompt);
-  return bindPrivateFieldSlots(
+  // Normalize only the three historical DeFi families for anchored grammar.
+  // The original text still controls the target binding below. Vault migration
+  // and other networks retain their independent semantics.
+  const parserPrompt = preparePrivateFieldSlots(userPrompt).replace(
+    ARC_LEGACY_MARKER,
+    (_marker, family: string) => `Kletia ${family}`,
+  );
+  const parsed = bindPrivateFieldSlots(
     parsePreparedDeterministicArcIntent(parserPrompt),
     userPrompt,
   );
+  return parsed ? bindArcLegacyProtocol(parsed, userPrompt) : null;
 }
 
 type ArbitrumNaturalClause =

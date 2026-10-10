@@ -22,6 +22,9 @@ ARG VITE_POLYGON_RPC_URL=
 ARG VITE_ARBITRUM_MVP_ENABLED=true
 ARG VITE_ARC_VAULT_EXECUTION_MODE=vault_v2
 ARG VITE_ARC_VAULT_V2_ADDRESS=0xBe385e3520C20D44697CC1bEEDc9DF759C3A184d
+ARG VITE_ARC_SWAP_V2_ADDRESS=
+ARG VITE_ARC_STAKING_V2_ADDRESS=
+ARG VITE_ARC_LENDING_V2_ADDRESS=
 ARG VITE_BASE_SWAP_EXECUTION_MODE=intent_v2
 ARG VITE_BASE_PAYMASTER_ENABLED=false
 
@@ -50,8 +53,11 @@ ENV NODE_ENV=production PORT=10000
 
 # The production server only uses Node built-ins and sends the same framing,
 # caching and security headers as the hosted static site.
-COPY --from=build /repo/apps/web/scripts/serve-production.mjs scripts/serve-production.mjs
+COPY --chmod=644 --from=build /repo/apps/web/scripts/serve-production.mjs scripts/serve-production.mjs
 COPY --from=build /repo/apps/web/dist dist
+# Vite preserves modes on copied public assets; USER node must read every file.
+RUN find scripts dist -type d -exec chmod 755 {} + \
+  && find scripts dist -type f -exec chmod 644 {} +
 
 USER node
 EXPOSE 10000

@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } fro
 
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
 import { externalRecipients, leaseSigners, PREVIEW_ACCOUNTS } from "../../../shared/platform/intentBinding";
+import { createIntegrationIntentScope } from "../../../shared/platform/contractExecutionBoundary";
 import { syncIntentActivity } from "../../../shared/platform/intentActivity";
 import { useRoute } from "../../routes/useRoute";
 import { Skeleton } from "../../site/ui/Skeleton";
@@ -160,7 +161,13 @@ export default function EmbedPage() {
   const [lastText, setLastText] = useState(params.text);
   const [planned, setPlanned] = useState<{ key: string; intent: IntentGraph } | null>(null);
   /** The intent a session created for this visitor: reopened by id if the widget remounts (the session may be used up). */
-  const [sessionIntentId, setSessionIntentId] = useState<string | null>(null);
+  const [sessionIntent, setSessionIntent] = useState<{ sessionId: string; intentId: string } | null>(null);
+  const sessionIntentId = target?.kind === "session" && sessionIntent?.sessionId === target.id ? sessionIntent.intentId : null;
+  const openIntentId = target?.kind === "intent" ? target.id : sessionIntentId;
+  const [integrationScope] = useState(() => createIntegrationIntentScope(openIntentId));
+  useLayoutEffect(() => {
+    integrationScope.set(openIntentId);
+  }, [integrationScope, openIntentId]);
 
   useLayoutEffect(() => {
     applyEmbedDocumentMode(params);
@@ -178,19 +185,20 @@ export default function EmbedPage() {
 
   const live = wallet.accounts.length > 0 && wallet.signers !== undefined;
   const accountsKey = wallet.accounts.map(ownerKey).join(",");
+  const targetKey = target ? `${target.kind}:${target.id}` : "text";
 
   // The widget's executor checks for cancellation only between steps, so a
   // step being prepared when the widget remounts (wallet switched or
   // disconnected) or the page unmounts would still open a wallet prompt.
   // Signers handed to one widget instance stop working once it is replaced.
-  const lease = useMemo(() => (live && wallet.signers ? leaseSigners(wallet.signers) : null), [live, wallet.signers]);
-  useEffect(() => lease?.activate(), [lease]);
-  const client = useMemo(() => createEmbedClient(live ? "live" : "plan"), [live]);
+  const lease = useMemo(() => (live && wallet.signers ? { targetKey, ...leaseSigners(wallet.signers) } : null), [live, targetKey, wallet.signers]);
+  useLayoutEffect(() => lease?.activate(), [lease]);
+  const client = useMemo(() => createEmbedClient(live ? "live" : "plan", integrationScope.get), [integrationScope, live]);
   const accounts = live ? wallet.accounts : PREVIEW_ACCOUNT_LIST;
 
   // A new account set invalidates any plan on screen: start fresh with the last prompt.
   // Keyed on owners, not networks, so a mid-step chain switch keeps the running execution.
-  const widgetKey = live ? `live:${accountsKey}` : "plan";
+  const widgetKey = `${live ? `live:${accountsKey}` : "plan"}:${targetKey}`;
   const plannedIntent = planned?.key === widgetKey ? planned.intent : null;
 
   const onIntentCreated = useCallback(
@@ -199,7 +207,7 @@ export default function EmbedPage() {
       setPlanned({ key: widgetKey, intent });
       if (target?.kind === "session") {
         // A session's intent is stored with the integrator's key; its client reference is the host's own.
-        setSessionIntentId(intent.id);
+        setSessionIntent({ sessionId: target.id, intentId: intent.id });
         bridge?.intentCreated(intent, true, intent.request.clientReference ?? null);
         return;
       }
@@ -232,7 +240,6 @@ export default function EmbedPage() {
   const onError = useCallback((error: unknown) => bridge?.error(error), [bridge]);
 
   // Flow A: the host's backend created the intent. Flow B: a session; it needs the host origin the bridge proved.
-  const openIntentId = target?.kind === "intent" ? target.id : sessionIntentId;
   const sessionWaiting = target?.kind === "session" && !openIntentId && bridge !== null && bridgeSnapshot.status !== "connected";
   const sessionBlocked = target?.kind === "session" && !openIntentId && (bridge === null || bridgeSnapshot.status !== "connected");
 

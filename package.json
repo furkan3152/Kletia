@@ -32,18 +32,21 @@
     "build:web": "npm run build:packages && npm run build -w @kletia/web",
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
-    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run check:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:openapi && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run test:web && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc",
+    "test:contracts": "npm --prefix contracts/base test && npm --prefix contracts/arc test",
+    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run check:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:openapi && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run test:web && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc && npm run check:arc-runtime-pins && npm run test:contracts",
     "build:packages": "npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget && npm run build -w @kletia/embed && npm run build -w @kletia/cli",
     "test:packages": "npm test -w @kletia/core && npm test -w @kletia/sdk && npm test -w @kletia/widget && npm test -w @kletia/embed && npm test -w @kletia/cli",
     "test:api": "npm test -w @kletia/api",
-    "test:web": "node --test apps/web/src/app/pages/embed/__tests__/*.test.mjs",
+    "test:web": "node --test apps/web/src/app/pages/embed/__tests__/*.test.mjs apps/web/src/networks/arc/runtime/__tests__/*.test.mjs",
     "start:api": "npm run start -w @kletia/api",
     "postinstall": "npm run build:packages",
     "check:packages": "node tooling/verify-packages.mjs",
     "generate:openapi": "node tooling/export-openapi.mjs && node tooling/generate-collections.mjs",
     "check:openapi": "node tooling/export-openapi.mjs --check && node tooling/generate-collections.mjs --check",
     "lint:openapi": "npx --yes @redocly/cli@2.54.2 lint docs/platform/openapi.json",
-    "bump:packages": "node tooling/bump-packages.mjs"
+    "bump:packages": "node tooling/bump-packages.mjs",
+    "check:arc-runtime-pins": "node tooling/generate-arc-runtime-pins.mjs --check",
+    "test:e2e": "playwright test --config test/e2e/playwright.config.mjs"
   },
   "overrides": {
     "axios": "1.20.0",
@@ -66,5 +69,8 @@
       "toml": "4.3.0"
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "1.58.2"
+  }
 }

@@ -36,15 +36,70 @@ const activeVaultAddress: Address =
     ? getAddress(configuredVaultV2Address!)
     : ARC_LEGACY_VAULT_ADDRESS;
 
+export const ARC_LEGACY_DEFI_CONTRACTS = Object.freeze({
+  swap: getAddress("0x535EF89e3C3a74Cf1A76703972686cb7a2e34fe8"),
+  staking: getAddress("0xB85a7F6335D0544b4951e5f07Bcd326722b2BC07"),
+  lending: getAddress("0x2748a478Ec0f6D90FfdE89b27721f469126835F7"),
+});
+
+function configuredDefiV2Address(
+  value: string | undefined,
+  legacy: Address,
+): Address | null {
+  if (!value?.trim()) return null;
+  const address = getAddress(value.trim());
+  if (
+    address.toLowerCase() === legacy.toLowerCase() ||
+    /^0x0{40}$/iu.test(address)
+  ) {
+    throw new Error("Arc V2 must use a new nonzero deployment address.");
+  }
+  return address;
+}
+
+/** Configuration enables the UI; the API separately verifies live reviewed-source identity. */
+export const ARC_DEFI_V2_ADDRESSES = Object.freeze({
+  swap: configuredDefiV2Address(
+    import.meta.env.VITE_ARC_SWAP_V2_ADDRESS,
+    ARC_LEGACY_DEFI_CONTRACTS.swap,
+  ),
+  staking: configuredDefiV2Address(
+    import.meta.env.VITE_ARC_STAKING_V2_ADDRESS,
+    ARC_LEGACY_DEFI_CONTRACTS.staking,
+  ),
+  lending: configuredDefiV2Address(
+    import.meta.env.VITE_ARC_LENDING_V2_ADDRESS,
+    ARC_LEGACY_DEFI_CONTRACTS.lending,
+  ),
+});
+
+export const ARC_NEW_CAPITAL_READY = Object.freeze({
+  swap: ARC_DEFI_V2_ADDRESSES.swap !== null,
+  staking: ARC_DEFI_V2_ADDRESSES.staking !== null,
+  lending:
+    ARC_DEFI_V2_ADDRESSES.lending !== null &&
+    ARC_DEFI_V2_ADDRESSES.swap !== null,
+});
+
+/** A legacy position always belongs to its original deployment, even with V2 active. */
+export function arcDefiPositionAddress(
+  protocol: keyof typeof ARC_LEGACY_DEFI_CONTRACTS,
+  legacy: boolean,
+): Address {
+  return legacy
+    ? ARC_LEGACY_DEFI_CONTRACTS[protocol]
+    : ARC_DEFI_V2_ADDRESSES[protocol] ?? ARC_LEGACY_DEFI_CONTRACTS[protocol];
+}
+
 export const ARC_CONTRACTS = {
-  Swap: "0x535EF89e3C3a74Cf1A76703972686cb7a2e34fe8",
-  Lending: "0x2748a478Ec0f6D90FfdE89b27721f469126835F7",
+  Swap: arcDefiPositionAddress("swap", false),
+  Lending: arcDefiPositionAddress("lending", false),
   Token: "0xAe77D247c26258397653a020995E957Bc88E039A",
   BatchPay: "0x09B6d2987EcAF021533A2727d2967696595Fa6dd",
   Vault: activeVaultAddress,
   MemoTransfer: "0x1633f12f31195B34feE6eDC250e1D543DAB72698",
   AgentRegistry: "0xDEb07309c1689fEeCa44ac70939ce0297d511596",
-  Staking: "0xB85a7F6335D0544b4951e5f07Bcd326722b2BC07",
+  Staking: arcDefiPositionAddress("staking", false),
 } as const;
 
 export const ARC_SWAP_ABI = [
@@ -369,14 +424,21 @@ export const ARC_SWAP_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "tokenAmount", type: "uint256" }],
+    inputs: [
+      { internalType: "uint256", name: "tokenAmount", type: "uint256" },
+      { internalType: "uint256", name: "minAmountOut", type: "uint256" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
     name: "swapTokenForUSDC",
     outputs: [{ internalType: "uint256", name: "usdcAmount", type: "uint256" }],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [],
+    inputs: [
+      { internalType: "uint256", name: "minAmountOut", type: "uint256" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
+    ],
     name: "swapUSDCForToken",
     outputs: [
       { internalType: "uint256", name: "tokenAmount", type: "uint256" },

@@ -17,8 +17,8 @@ export const ARC_SWAP_ABI = parseAbi([
   "function tokenReserve() view returns (uint256)",
   "function previewSwapTokenForUSDC(uint256 tokenAmount) view returns (uint256 usdcAmount)",
   "function previewSwapUSDCForToken(uint256 usdcAmount) view returns (uint256 tokenAmount)",
-  "function swapTokenForUSDC(uint256 tokenAmount) returns (uint256 usdcAmount)",
-  "function swapUSDCForToken() payable returns (uint256 tokenAmount)",
+  "function swapTokenForUSDC(uint256 tokenAmount,uint256 minAmountOut,uint256 deadline) returns (uint256 usdcAmount)",
+  "function swapUSDCForToken(uint256 minAmountOut,uint256 deadline) payable returns (uint256 tokenAmount)",
   "function addLiquidity(uint256 maxTokenAmount) payable returns (uint256 tokenAmount,uint256 lpMinted)",
   "function removeLiquidity(uint256 lpAmount) returns (uint256 usdcAmount,uint256 tokenAmount)",
   "function balanceOf(address owner) view returns (uint256)",
@@ -72,6 +72,7 @@ export const ARC_AGENT_REGISTRY_ABI = parseAbi([
 ]);
 
 export const ARC_LENDING_ABI = parseAbi([
+  "function swapPool() view returns (address)",
   "function currentBorrowRate() view returns (uint256)",
   "function currentLiquidityRate() view returns (uint256)",
   "function LTV_BIPS() view returns (uint256)",

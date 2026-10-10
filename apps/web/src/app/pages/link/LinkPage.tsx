@@ -5,6 +5,7 @@ import { Flag, PenLine } from "lucide-react";
 import React, { useEffect, useId, useMemo, useState } from "react";
 
 import { LazyBoundary } from "../../../shared/components/LazyBoundary";
+import { CUSTOM_CONTRACT_EXECUTION_MESSAGE, isCustomContractExecution } from "../../../shared/platform/contractExecutionBoundary";
 import { toPlatformError, type PlatformError } from "../../../shared/platform/kletiaClient";
 import { LINK_PATH_PATTERN } from "../../routes/routeTable";
 import { useRoute } from "../../routes/useRoute";
@@ -170,7 +171,8 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
   const [signing, setSigning] = useState(false);
   const quoted = quote.status === "ok" ? quote.response : null;
   const needed = quoted ? namespacesFor(quoted.intent) : [];
-  const canContinue = Boolean(choice && quoted && needed.length > 0 && (!needsAcknowledgement || acknowledged));
+  const integrationOnly = isCustomContractExecution(view.destination) || isCustomContractExecution(quoted?.intent);
+  const canContinue = Boolean(!integrationOnly && choice && quoted && needed.length > 0 && (!needsAcknowledgement || acknowledged));
 
   useEffect(() => {
     window.document.title = `${view.title} · ${view.publisher.name} | Kletia link`;
@@ -342,9 +344,9 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
             id="kl-link-sign"
             eyebrow="Sign in your wallet"
             title="Review the plan, then sign"
-            intro="Kletia plans with your own account, shows the fare again, and your wallet asks for every signature. Kletia never holds keys or funds."
+            intro={integrationOnly ? CUSTOM_CONTRACT_EXECUTION_MESSAGE : "Kletia plans with your own account, shows the fare again, and your wallet asks for every signature. Kletia never holds keys or funds."}
           />
-          {signing && option ? (
+          {signing && option && !integrationOnly ? (
             <LazyBoundary
               resetKey={option.key}
               fallback={(reload) => (
@@ -388,7 +390,9 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
               </Button>
               {!canContinue ? (
                 <p className={cx("text-sm", TEXT_MUTED)}>
-                  {!state.usable
+                  {integrationOnly
+                    ? "This link calls a custom contract. Continue through the publisher's own project integration."
+                    : !state.usable
                     ? "This link cannot start a new intent right now."
                     : !quoted
                       ? "A fare for your choice comes first."

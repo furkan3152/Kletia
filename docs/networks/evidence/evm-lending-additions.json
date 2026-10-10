@@ -1,0 +1,245 @@
+{
+  "observedAt": "2026-10-10T07:37:29.498Z",
+  "chainId": 1,
+  "block": 26160576,
+  "rpc": "https://eth.rpc.blxrbdn.com",
+  "evidenceLevel": "read-only identity; no funded execution",
+  "sources": [
+    "https://github.com/sparkdotfi/spark-address-registry/blob/master/src/SparkLend.sol",
+    "https://docs.yearn.fi/developers/addresses/v3-contracts",
+    "https://ydaemon.yearn.fi/1/vaults/0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204"
+  ],
+  "contracts": [
+    {
+      "address": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+      "bytecodeLength": 2400,
+      "codeHash": "0xb31875340e8b4553fcf22d1cffde6accb743ccd40c31d85ad83ff32eeec712c2"
+    },
+    {
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "bytecodeLength": 12289,
+      "codeHash": "0xe3e638b8969043a0bb98b01876325a9b5b311df51a89c72b8ac3fb175035c472"
+    },
+    {
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "bytecodeLength": 45,
+      "codeHash": "0x8f0740d97d5456d80fa79cc5c64834cb03cb40a46c70eea3e99b7ca030f923a9"
+    }
+  ],
+  "calls": [
+    {
+      "label": "spark:usdc:receipt",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveTokensAddresses",
+      "result": [
+        "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815",
+        "0x887Ac022983Ff083AEb623923789052A955C6798",
+        "0x7B70D04099CB9cfb1Db7B6820baDAfB4C5C70A67"
+      ],
+      "calldata": "0xd2493b6c000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "spark:usdc:config",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveConfigurationData",
+      "result": [
+        "6",
+        "0",
+        "0",
+        "0",
+        "1000",
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "calldata": "0x3e150141000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "spark:usdc:paused",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getPaused",
+      "result": false,
+      "calldata": "0xb55d9904000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "spark:usdc:caps",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveCaps",
+      "result": [
+        "68719476735",
+        "68719476735"
+      ],
+      "calldata": "0x46fbe558000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "spark:usdc:reserve",
+      "address": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+      "function": "getReserveData",
+      "result": {
+        "configuration": "748294547304193117959810866304145213852320274579456",
+        "liquidityIndex": "1182707367767237649627742108",
+        "currentLiquidityRate": "35592934116941999821089292",
+        "variableBorrowIndex": "1221263002908614928461780969",
+        "currentVariableBorrowRate": "43687663736861359444330371",
+        "currentStableBorrowRate": "0",
+        "lastUpdateTimestamp": 1791608111,
+        "id": 2,
+        "aTokenAddress": "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815",
+        "stableDebtTokenAddress": "0x887Ac022983Ff083AEb623923789052A955C6798",
+        "variableDebtTokenAddress": "0x7B70D04099CB9cfb1Db7B6820baDAfB4C5C70A67",
+        "interestRateStrategyAddress": "0xDE99e49E9e42B1d8490C38926e6C9A79010e6eF2",
+        "accruedToTreasury": "4371741674",
+        "unbacked": "0",
+        "isolationModeTotalDebt": "0"
+      },
+      "calldata": "0x35ea6a75000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "spark:weth:receipt",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveTokensAddresses",
+      "result": [
+        "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB",
+        "0x3c6b93D38ffA15ea995D1BC950d5D0Fa6b22bD05",
+        "0x2e7576042566f8D6990e07A1B61Ad1efd86Ae70d"
+      ],
+      "calldata": "0xd2493b6c000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "label": "spark:weth:config",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveConfigurationData",
+      "result": [
+        "18",
+        "8500",
+        "8600",
+        "10500",
+        "500",
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "calldata": "0x3e150141000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "label": "spark:weth:paused",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getPaused",
+      "result": false,
+      "calldata": "0xb55d9904000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "label": "spark:weth:caps",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "function": "getReserveCaps",
+      "result": [
+        "513178",
+        "743941"
+      ],
+      "calldata": "0x46fbe558000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "label": "spark:weth:reserve",
+      "address": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+      "function": "getReserveData",
+      "result": {
+        "configuration": "379853409989339186860760986409403286071077443739956",
+        "liquidityIndex": "1060472332650938368114451257",
+        "currentLiquidityRate": "14545697808649437840763842",
+        "variableBorrowIndex": "1086475305790363529037914003",
+        "currentVariableBorrowRate": "19072742827335773766924851",
+        "currentStableBorrowRate": "0",
+        "lastUpdateTimestamp": 1791617687,
+        "id": 3,
+        "aTokenAddress": "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB",
+        "stableDebtTokenAddress": "0x3c6b93D38ffA15ea995D1BC950d5D0Fa6b22bD05",
+        "variableDebtTokenAddress": "0x2e7576042566f8D6990e07A1B61Ad1efd86Ae70d",
+        "interestRateStrategyAddress": "0xDFB6206FfC5BA5B48D2852370ee6A1bf6887476a",
+        "accruedToTreasury": "14419441075515944712",
+        "unbacked": "0",
+        "isolationModeTotalDebt": "0"
+      },
+      "calldata": "0x35ea6a75000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "label": "yearn:endorsement:0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038",
+      "address": "0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038",
+      "function": "getEndorsedVaults",
+      "result": [
+        "0x22028E652a2e937c876F2577f8E78f692d6DAA93",
+        "0x4A77913d07b4154600A1E37234336f8273409c96",
+        "0x074134A2784F4F66b6ceD6f68849382990Ff3215",
+        "0x694E47AFD14A64661a04eee674FB331bCDEF3737",
+        "0xb6da41D4BDb484BDaD0BfAa79bC8E182E5095F7e",
+        "0xa08CEb657D9A8035A44A1b44b8d4C42eC31Dd4D4",
+        "0x7B5A0182E400b241b317e781a4e9dEdFc1429822",
+        "0x0e297dE4005883C757c9F09fdF7cF1363C20e626",
+        "0x888239Ffa9a0613F9142C808aA9F7d1948a14f75",
+        "0xF470EB50B4a60c9b069F7Fd6032532B8F5cC014d",
+        "0x00C8a649C9837523ebb406Ceb17a6378Ab5C74cF",
+        "0xF02B8c7FF1accD022CD78444dd9F56330cB699B9",
+        "0x696d02Db93291651ED510704c9b286841d506987",
+        "0xf1784A1bF0cBDE0F868838Dd093E65215343c4C0",
+        "0x863687e4E9751b57F38b4B0ebA04744C72d0f7B8"
+      ],
+      "calldata": "0x53d2e949000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "yearn:endorsement:0xff31A1B020c868F6eA3f61Eb953344920EeCA3af",
+      "address": "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af",
+      "function": "getEndorsedVaults",
+      "result": [
+        "0x7eE351aA702C8fC735D77Fb229b7676AC15D7c79",
+        "0xbDb97eC319c41c6FA383E94eCE6Bdf383dFC7BE4",
+        "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+        "0xf6E2d36c489e5B361CdC962D4568ceA663AD5ddC",
+        "0xAe7d8Db82480E6d8e3873ecbF22cf17b3D8A7308",
+        "0xfB7C06DDd70C74ac2F68D0F947Be3b4C503e3D6c",
+        "0x4Dd0FE8549641A04d7ab4f37dbb541aE7dBb2838",
+        "0x459F99D7c83Bc3653b1913B62D2978b1deDa01B5",
+        "0xf766c7293f4e0265dDfA8369F78a808dF8AC70c1",
+        "0x602DA189F5aDa033E9aC7096Fc39C7F44a77e942"
+      ],
+      "calldata": "0x53d2e949000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    },
+    {
+      "label": "yearn:asset",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "function": "asset",
+      "result": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "calldata": "0x38d52e0f"
+    },
+    {
+      "label": "yearn:decimals",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "function": "decimals",
+      "result": 6,
+      "calldata": "0x313ce567"
+    },
+    {
+      "label": "yearn:apiVersion",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "function": "apiVersion",
+      "result": "3.0.2",
+      "calldata": "0x25829410"
+    },
+    {
+      "label": "yearn:totalAssets",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "function": "totalAssets",
+      "result": "19305135193324",
+      "calldata": "0x01e1d114"
+    },
+    {
+      "label": "yearn:previewDeposit",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "function": "previewDeposit",
+      "result": "89197672",
+      "calldata": "0xef8b30f70000000000000000000000000000000000000000000000000000000005f5e100"
+    }
+  ]
+}

@@ -88,10 +88,13 @@ These values belong only to the API service:
 - `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID`, `RELAY_API_KEY`, `LIFI_API_KEY`, `DEBRIDGE_ACCESS_TOKEN`
 - `KLETIA_WEB_ORIGIN` (error docs and MCP hand-off links) and the optional `KLETIA_MCP_ALLOWED_ORIGINS`
 - Coinbase/CDP credentials for the on-ramp, x402 facilitator and paymaster
+- Arc DeFi activation: `ARC_SWAP_V2_ADDRESS` / `ARC_SWAP_V2_RUNTIME_CODEHASH`, `ARC_STAKING_V2_ADDRESS` / `ARC_STAKING_V2_RUNTIME_CODEHASH`, `ARC_LENDING_V2_ADDRESS` / `ARC_LENDING_V2_RUNTIME_CODEHASH`. Leave these unset until separately deployed reviewed V2 contracts are ready; new exposure stays disabled and legacy exits remain available. See [Arc execution readiness](../networks/arc-defi-v2-readiness.md).
 - `X402_TREASURY_ADDRESS`
 - `KLETIA_DATABASE_URL`, `KLETIA_PLATFORM_SECRET` (webhook secret encryption), `KLETIA_OPERATOR_API_KEYS`, `WORKFLOW_SIGNING_SECRET`
 
 Never upload a private key, deployer identity or user recovery material. The application prepares and verifies operations; users authorize every money movement in their own wallet.
+
+Set the corresponding `VITE_ARC_SWAP_V2_ADDRESS`, `VITE_ARC_STAKING_V2_ADDRESS` and `VITE_ARC_LENDING_V2_ADDRESS` on the static-site build after API activation. They are public addresses; runtime hashes and all credentials stay on the API.
 
 ## Local and CI gates
 

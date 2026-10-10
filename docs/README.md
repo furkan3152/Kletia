@@ -13,10 +13,11 @@ This index separates current product truth from deployment procedure, network-sp
 | Bridge between networks | [Cross-chain venues](networks/cross-chain-venues.md) (Relay, LI.FI, deBridge DLN auction) | [Platform API v1](platform/api-v1.md) |
 | Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting and container images](deployment/self-hosting.md) |
 | Work on Base | [Base DeFi registry](networks/base-defi-registry.md) | [Base contracts](../contracts/base/README.md), [Base MCP notes](base-mcp/README.md) |
-| Work on Arc | [Arc contracts](../contracts/arc/README.md) | [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md) |
+| Work on Arc | [Arc contracts](../contracts/arc/README.md) | [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md), [DeFi V2 migration](../contracts/arc/DEFI_V2_MIGRATION.md), [DeFi execution readiness](networks/arc-defi-v2-readiness.md) |
 | Work on Arbitrum | [Arbitrum workflow](networks/arbitrum-workflow.md) | [Architecture overview](architecture/overview.md) |
 | Work on Solana | [Solana network guide](networks/solana.md) | [Platform API v1](platform/api-v1.md) |
 | Work on Ethereum, OP Mainnet or Polygon | [Ethereum](networks/ethereum.md), [OP Mainnet](networks/optimism.md), [Polygon](networks/polygon.md) | [Cross-chain venues](networks/cross-chain-venues.md) |
+| Review the completed platform work | [Platform readiness report](runbooks/platform-readiness.md) | [MVP live-test runbook](runbooks/mvp-live-test.md) |
 | Test a real-data release | [MVP live-test runbook](runbooks/mvp-live-test.md) | [Render runbook](deployment/render.md) |
 
 ## Canonical product documents
@@ -42,9 +43,9 @@ This index separates current product truth from deployment procedure, network-sp
 
 - Base Mainnet: [Base DeFi registry](networks/base-defi-registry.md), [contract workspace](../contracts/base/README.md), [Base MCP integration](base-mcp/README.md), [plugin manifest notes](base-mcp/kletia-base-plugin.md)
 - Arbitrum: [production and Testnet workflow](networks/arbitrum-workflow.md)
-- Arc Testnet: [contract workspace](../contracts/arc/README.md), [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md)
+- Arc Testnet: [contract workspace](../contracts/arc/README.md), [Vault V2 migration](../contracts/arc/VAULT_V2_MIGRATION.md), [DeFi V2 migration](../contracts/arc/DEFI_V2_MIGRATION.md), [DeFi execution readiness](networks/arc-defi-v2-readiness.md)
 - Solana: [network guide](networks/solana.md)
-- Ethereum: [network guide](networks/ethereum.md)
+- Ethereum: [network guide](networks/ethereum.md), [SparkLend and Yearn V3](networks/evm-lending-additions.md)
 - OP Mainnet: [network guide](networks/optimism.md)
 - Polygon PoS: [network guide](networks/polygon.md)
 - Between networks: [cross-chain venues](networks/cross-chain-venues.md) — Relay, LI.FI and deBridge DLN, pinned contracts and the bridge auction

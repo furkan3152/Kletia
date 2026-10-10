@@ -492,8 +492,16 @@ function assertExpandable(stored: StoredLinkDefinition): void {
 }
 
 /** POST /v1/links. */
+/** Creating and changing links needs the current secret: a rotated-out one (grace window) may only delete. */
+function assertCurrentSecret(auth: AuthContext): void {
+  if (auth.viaPreviousSecret) {
+    throw new PlatformError("KEY_SECRET_ROTATED", "This secret was rotated and only authenticates until its grace window ends. Create and change links with the current secret.", 403);
+  }
+}
+
 export async function createLink(auth: AuthContext, body: unknown): Promise<LinkOwnerView> {
   assertLinksEnabled();
+  assertCurrentSecret(auth);
   const owner = ownerKey(auth);
   await assertAgentPermission(auth, "links");
   const now = linkClock();
@@ -624,6 +632,7 @@ const PATCH_FIELDS = ["title", "description", "status", "accept", "funding", "ma
 /** PATCH /v1/links/{id}: tighten only (§3.8). */
 export async function patchLink(auth: AuthContext, id: string, body: unknown): Promise<LinkOwnerView> {
   assertLinksEnabled();
+  assertCurrentSecret(auth);
   const initial = await managedLink(auth, id);
   const now = linkClock();
   if (!isRecord(body) || Object.keys(body).length === 0) throw invalidRequest("Send the fields to change.", [{ path: "", message: "Expected a non-empty object." }]);
@@ -735,8 +744,11 @@ export async function patchLink(auth: AuthContext, id: string, body: unknown): P
           }
           const first = current.destination.actions[0] as IntentActionSpec;
           const delay = repinned && CHAINS[first.network].lane === "production" && (pins.recipients.length > 0 || pins.contracts.length > 0) ? activationDelaySeconds() : 0;
-          status = delay > 0 ? "pending" : "active";
-          activatesAt = delay > 0 ? iso(now + delay * 1000) : null;
+          // A link paused while still pending keeps its remaining delay: pausing and resuming never shortens it.
+          const unserved = record.activatesAt !== null && Date.parse(record.activatesAt) > now ? Date.parse(record.activatesAt) : 0;
+          const readyAt = Math.max(unserved, delay > 0 ? now + delay * 1000 : 0);
+          status = readyAt > 0 ? "pending" : "active";
+          activatesAt = readyAt > 0 ? iso(readyAt) : null;
           pausedReason = null;
         }
       } else {

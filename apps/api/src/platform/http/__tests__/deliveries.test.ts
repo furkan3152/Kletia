@@ -200,7 +200,7 @@ describe("dispatcher drops", () => {
       release = () => resolve(204);
     });
     const dispatcher = new WebhookDispatcher(() => blocked, (record) => records.push(record));
-    const owner = `key_${randomBytes(12).toString("hex")}`;
+    const owner = (await (await import("../auth.js")).issueDeveloperKey("delivery-drop-test")).id;
     await createWebhook(owner, { url: `https://93.184.215.14/${owner}/drops`, events: ["intent.status_changed"] });
     dispatcher.start();
     try {

@@ -7,9 +7,13 @@ governance-approved adapter.
 
 ## Trust and governance boundary
 
-- Deploy `KletiaIntentRouterV2` with an OpenZeppelin `TimelockController` as
-  owner. Use a Safe as proposer/canceller. An EOA owner is not a production
-  configuration.
+- The active Base deployment uses a direct 2-of-2 governance Safe as owner,
+  with separate guardian and treasury Safes. The canonical
+  [`base-mainnet-v2.json`](../../../deployments/base-mainnet-v2.json) records
+  `direct_2_of_2_safe` and no Timelock. Governance actions therefore do not have
+  a mandatory onchain delay. The superseded Timelock topology remains recorded
+  for provenance; it is not the active governance boundary. An EOA owner is not
+  a production configuration.
 - The guardian may pause the router or disable an adapter. It cannot enable an
   adapter, unpause, change fees/treasury, rescue assets, or change ownership.
 - Adapters and protocol targets are runtime-code-hash pinned. Only register
@@ -48,8 +52,10 @@ future signing type; there is intentionally no executable bridge entrypoint.
 Bridge support must ship through a distinct typed adapter whose origin-deposit
 and destination-fill semantics are documented and tested.
 
-Before enabling a new adapter on Base Mainnet, run the unit suite on the
-supported Node version, add fork tests against each exact target, close the
-recorded release review, and exercise the final Timelock/Safe/guardian topology
-against a pinned local fork of Base Mainnet. An external audit is a separate
-optional process; this release does not deploy to Base Sepolia.
+Before enabling a new adapter on Base Mainnet, run `npm test` in this workspace
+on the supported Node version, add fork tests against each exact target, close
+the recorded release review, and exercise the active Safe/guardian/treasury
+topology against a pinned local fork of Base Mainnet. The local unit suite uses
+test-only protocol/token fixtures and does not establish live protocol or Safe
+readiness. An external audit is a separate optional process; this release does
+not deploy to Base Sepolia.

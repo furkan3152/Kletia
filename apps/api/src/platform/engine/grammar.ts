@@ -41,6 +41,10 @@ export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "withdraw 50 USDC from aave on base",
   "withdraw all USDC from compound on arbitrum",
   "deposit 10 USDC into jupiter lend",
+  "swap 1 SOL to USDC via raydium",
+  "swap 10 USDC to SOL on solana via orca",
+  "deposit 100 USDC into spark on ethereum",
+  "deposit 100 USDC into yearn on ethereum",
   "bridge 25 USDC from base to solana via lifi",
   "bridge 100 USDC from ethereum to base",
   "send 5 USDC to vitalik.eth on optimism",
@@ -54,9 +58,16 @@ const LENDING_VENUES: readonly { readonly pattern: RegExp; readonly protocol: Pr
   { pattern: /^moonwell$/iu, protocol: "moonwell" },
   { pattern: /^(?:jupiter|jup)[\s-]+(?:lend|earn)$/iu, protocol: "jupiter-lend" },
   { pattern: /^kamino(?:[\s-]+lend)?$/iu, protocol: "kamino" },
+  { pattern: /^spark(?:[\s-]*lend)?$/iu, protocol: "spark" },
+  { pattern: /^yearn(?:[\s-]*v3)?$/iu, protocol: "yearn-v3" },
 ];
 const LENDING_WORDS =
-  "aave(?:[\\s-]*v3)?|compound(?:[\\s-]*v3)?|comet|morpho(?:[\\s-]+vaults?)?|moonwell|(?:jupiter|jup)[\\s-]+(?:lend|earn)|kamino(?:[\\s-]+lend)?";
+  "aave(?:[\\s-]*v3)?|compound(?:[\\s-]*v3)?|comet|morpho(?:[\\s-]+vaults?)?|moonwell|(?:jupiter|jup)[\\s-]+(?:lend|earn)|kamino(?:[\\s-]+lend)?|spark(?:[\\s-]*lend)?|yearn(?:[\\s-]*v3)?";
+
+const SWAP_VENUES: typeof LENDING_VENUES = [
+  { pattern: /^raydium$/iu, protocol: "raydium" },
+  { pattern: /^orca$/iu, protocol: "orca" },
+];
 
 /** Cross-network venue words -> protocol ("bridge ... via lifi"). */
 const BRIDGE_VENUES: readonly { readonly pattern: RegExp; readonly protocol: ProtocolId }[] = [
@@ -90,13 +101,15 @@ export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   "moonwell",
   "jupiter lend", "jupiter earn", "jup lend", "jup earn",
   "kamino", "kamino lend",
+  "spark", "sparklend", "spark lend", "spark-lend", "yearn", "yearn v3", "yearnv3", "yearn-v3",
+  "raydium", "orca",
   "lifi", "li.fi", "debridge", "debridge dln", "dln", "relay",
   ...Object.keys(LIQUID_STAKING_TOKENS),
 ]);
 
 /** True when `word` is a venue the built-in patterns match (drift test). */
 export function isGrammarVenueWord(word: string): boolean {
-  return [...LENDING_VENUES, ...BRIDGE_VENUES].some((venue) => venue.pattern.test(word)) || Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase());
+  return [...LENDING_VENUES, ...BRIDGE_VENUES, ...SWAP_VENUES].some((venue) => venue.pattern.test(word)) || Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase());
 }
 
 export interface GrammarContext {
@@ -159,19 +172,21 @@ const ADDRESS = `(?<addr>0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-
 /** A Morpho vault slug after the venue word ("into morpho spark-usdc"); never a connector or "vault" itself. */
 const VAULT = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|vault|vaults|position)\\b)(?<vault>[a-z0-9][a-z0-9-]{2,63})";
 const LST_WORDS = Object.keys(LIQUID_STAKING_TOKENS).join("|");
+const SWAP_VENUE_SUFFIX = "(?:\\s+(?:via|using|through|with)\\s+(?<dex>raydium|orca))";
+const SWAP_SUFFIXES = [`${ON_NETWORK}?${SWAP_VENUE_SUFFIX}?`, `${SWAP_VENUE_SUFFIX}${ON_NETWORK}?`];
 
 const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"; regex: RegExp }[] = [
-  {
+  ...SWAP_SUFFIXES.flatMap((suffix) => [{
     kind: "swap",
     regex: new RegExp(
-      `^(?:swap|convert|trade|exchange|sell)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+(?:to|for|into)\\s+${ASSET("b")}${ON_NETWORK}?$`,
+      `^(?:swap|convert|trade|exchange|sell)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+(?:to|for|into)\\s+${ASSET("b")}${suffix}$`,
       "iu",
     ),
   },
   {
     kind: "buy",
-    regex: new RegExp(`^buy\\s+${ASSET("b")}\\s+(?:with|using)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?${ON_NETWORK}?$`, "iu"),
-  },
+    regex: new RegExp(`^buy\\s+${ASSET("b")}\\s+(?:with|using)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?${suffix}$`, "iu"),
+  }] as const),
   {
     kind: "bridge",
     regex: new RegExp(
@@ -286,7 +301,7 @@ function venueProtocol(raw: string | undefined, venues: typeof LENDING_VENUES, c
 function lendingDraft(clause: string, kind: "deposit" | "withdraw", groups: Record<string, string | undefined>, amount: AmountPhrase, network: NetworkKey | undefined): Draft {
   const protocol = venueProtocol(groups.venue, LENDING_VENUES, clause);
   const vault = groups.vault?.toLowerCase();
-  if (vault && protocol !== "morpho") throw clauseError(clause, `Only Morpho vaults are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
+  if (vault && protocol !== "morpho" && protocol !== "yearn-v3") throw clauseError(clause, `Only Morpho and Yearn vaults are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
   return {
     clause,
     kind,
@@ -315,6 +330,7 @@ function matchClause(clause: string): Draft {
           ...(groups.a ? { from: groups.a } : {}),
           ...(groups.b ? { to: groups.b } : {}),
           ...(network ? { network } : {}),
+          ...(groups.dex ? { protocol: venueProtocol(groups.dex, SWAP_VENUES, clause) } : {}),
         };
       case "bridge": {
         const source = networkFromGroup(groups.n1, clause);
@@ -360,7 +376,7 @@ function matchClause(clause: string): Draft {
     ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
     : `"${verb.slice(0, 32)}" is not a supported action.`;
   throw unsupported(
-    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL), deposit/supply/lend into and withdraw from Aave, Compound, Morpho, Moonwell, Jupiter Lend or Kamino.`,
+    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL), deposit/supply/lend into and withdraw from Aave, Compound, Morpho, Moonwell, SparkLend, Yearn V3, Jupiter Lend or Kamino.`,
     GRAMMAR_EXAMPLES,
     [{ path: "text", message: `Could not interpret "${clause.slice(0, 120)}".` }],
   );

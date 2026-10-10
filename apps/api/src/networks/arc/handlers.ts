@@ -18,6 +18,8 @@ import {
 } from "./abis.js";
 import {
   ARC_CONTRACTS,
+  ARC_DEFI_V2_DEPLOYMENTS,
+  ARC_LEGACY_DEFI_CONTRACTS,
   ARC_LEGACY_VAULT_ADDRESS,
   ARC_NATIVE_USDC_ADDRESS,
   ARC_VAULT_EXECUTION_MODE,
@@ -26,6 +28,10 @@ import {
   arcPublicClient,
   isNetworkTargetAllowed,
 } from "../../shared/config/networks.js";
+import type { ArcDefiProtocol } from "./executionEnvironment.js";
+import { ArcDefiReadinessError, assertReviewedArcDefiRuntime } from "./runtimeIdentity.js";
+import { ArcSwapBoundsError, boundedArcSwapCall } from "./swapBounds.js";
+import { readLegacyArcDefiPositions } from "./legacyPositions.js";
 
 export class ArcPlanError extends Error {
   readonly statusCode: number;
@@ -92,6 +98,45 @@ export interface ArcTransactionResult {
 }
 
 const ARC_DECIMALS = NETWORKS.arc.nativeAsset.decimals;
+
+const ARC_NEW_CAPITAL_ACTIONS = new Set(["swap", "add_liquidity", "stake", "lending_deposit", "lending_borrow"]);
+const ARC_DEFI_ACTION_PROTOCOLS: Readonly<Record<string, ArcDefiProtocol>> = {
+  swap: "swap", add_liquidity: "swap", remove_liquidity: "swap",
+  stake: "staking", unstake: "staking", claim_rewards: "staking", claim_unstaked: "staking",
+  lending_deposit: "lending", lending_withdraw: "lending", lending_borrow: "lending", lending_repay: "lending",
+};
+
+function legacyExitRequested(intent: ParsedIntent): boolean {
+  return /\blegacy\b/iu.test(String(intent.protocol ?? ""));
+}
+
+function arcDefiTarget(protocol: ArcDefiProtocol, intent: ParsedIntent): Address {
+  if (legacyExitRequested(intent)) return ARC_LEGACY_DEFI_CONTRACTS[protocol];
+  return ARC_DEFI_V2_DEPLOYMENTS[protocol]?.address ?? ARC_LEGACY_DEFI_CONTRACTS[protocol];
+}
+
+async function assertArcActionReadiness(action: string, intent: ParsedIntent): Promise<void> {
+  if (action === "vault_deposit" && ARC_VAULT_EXECUTION_MODE !== "vault_v2") {
+    throw new ArcPlanError("ARC_LEGACY_WITHDRAWAL_ONLY", "The legacy Arc vault accepts migration withdrawals only. Configure the identity-pinned Vault V2 before depositing.", 503);
+  }
+  const protocol = ARC_DEFI_ACTION_PROTOCOLS[action];
+  if (!protocol) return;
+  const newCapital = ARC_NEW_CAPITAL_ACTIONS.has(action);
+  if (legacyExitRequested(intent) && newCapital) {
+    throw new ArcPlanError("ARC_LEGACY_WITHDRAWAL_ONLY", "Legacy Arc contracts accept existing-position exits and debt repayment only; new exposure requires the reviewed V2 deployment.", 503);
+  }
+  if (!newCapital && (legacyExitRequested(intent) || !ARC_DEFI_V2_DEPLOYMENTS[protocol])) return;
+  try {
+    await assertReviewedArcDefiRuntime(protocol, ARC_DEFI_V2_DEPLOYMENTS, {
+      getChainId: () => arcPublicClient.getChainId(),
+      getBytecode: (address) => arcPublicClient.getBytecode({ address }),
+      readSwapPool: (address) => arcPublicClient.readContract({ address, abi: ARC_LENDING_ABI, functionName: "swapPool" }),
+    }, { requireLendingPoolIdentity: newCapital });
+  } catch (error) {
+    if (error instanceof ArcDefiReadinessError) throw new ArcPlanError(error.code, error.message, error.statusCode);
+    throw new ArcPlanError("ARC_DEFI_V2_IDENTITY_UNAVAILABLE", "Arc V2 source identity could not be verified against the live network; no transaction was prepared.", 503);
+  }
+}
 
 function normalizeArcAsset(value: unknown): string | undefined {
   const raw = String(value ?? "").trim();
@@ -365,17 +410,6 @@ async function handleSwap(intent: ParsedIntent, user: Address) {
         "KLET swap",
       );
 
-  const calldata = isUsdcToKlet
-    ? encodeFunctionData({
-        abi: ARC_SWAP_ABI,
-        functionName: "swapUSDCForToken",
-      })
-    : encodeFunctionData({
-        abi: ARC_SWAP_ABI,
-        functionName: "swapTokenForUSDC",
-        args: [amount],
-      });
-
   const output = await arcPublicClient.readContract({
     address: ARC_CONTRACTS.Swap,
     abi: ARC_SWAP_ABI,
@@ -384,9 +418,18 @@ async function handleSwap(intent: ParsedIntent, user: Address) {
       : "previewSwapTokenForUSDC",
     args: [amount],
   });
+  const userMinimum = intent.minimumOutput ? parsePositiveAmount(intent.minimumOutput, "Arc swap minimum output") : 0n;
+  let bounded: ReturnType<typeof boundedArcSwapCall>;
+  try {
+    bounded = boundedArcSwapCall({ amount, output, usdcToKlet: isUsdcToKlet, slippage: intent.slippage, userMinimum });
+  } catch (error) {
+    if (error instanceof ArcSwapBoundsError) throw new ArcPlanError(error.code, error.message);
+    throw error;
+  }
+  const { calldata, minimum } = bounded;
 
   return transactionResult("swap", {
-    name: "Kletia Arc Swap",
+    name: "Kletia Arc Swap V2",
     router: ARC_CONTRACTS.Swap,
     calldata,
     value: isUsdcToKlet ? amount.toString() : "0",
@@ -400,7 +443,7 @@ async function handleSwap(intent: ParsedIntent, user: Address) {
       : [createApproval(ARC_CONTRACTS.Token, ARC_CONTRACTS.Swap, amount)],
     expectedOutputAtomic: output.toString(),
     outputTokenAddress: isUsdcToKlet ? ARC_CONTRACTS.Token : undefined,
-    expectedOutput: `${formatUnits(output, 18)} ${isUsdcToKlet ? "KLET" : "USDC"}`,
+    expectedOutput: `${formatUnits(output, 18)} ${isUsdcToKlet ? "KLET" : "USDC"}; minimum ${formatUnits(minimum, 18)}, expires in 5 minutes`,
   });
 }
 
@@ -424,13 +467,14 @@ function handleStake(intent: ParsedIntent) {
 }
 
 async function handleUnstake(intent: ParsedIntent, user: Address) {
+  const target = arcDefiTarget("staking", intent);
   assertKletiaProtocol(intent, "Arc unstake");
   assertArcAsset(intent.tokenIn, ["USDC"], "Arc unstake", "tokenIn");
   assertArcAsset(intent.tokenOut, ["USDC"], "Arc unstake", "tokenOut");
   let amount: bigint;
   if (String(intent.amount || "").toUpperCase() === "MAX") {
     const info = await arcPublicClient.readContract({
-      address: ARC_CONTRACTS.Staking,
+      address: target,
       abi: ARC_STAKING_ABI,
       functionName: "getStakerInfo",
       args: [user],
@@ -448,7 +492,7 @@ async function handleUnstake(intent: ParsedIntent, user: Address) {
 
   return transactionResult("unstake", {
     name: "Kletia Arc Staking",
-    router: ARC_CONTRACTS.Staking,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_STAKING_ABI,
       functionName: "unstake",
@@ -462,16 +506,17 @@ async function handleUnstake(intent: ParsedIntent, user: Address) {
 }
 
 async function handleClaimRewards(intent: ParsedIntent, user: Address) {
+  const target = arcDefiTarget("staking", intent);
   assertKletiaProtocol(intent, "Arc staking reward claim");
   const [pendingRewards, rewardPoolBalance] = await Promise.all([
     arcPublicClient.readContract({
-      address: ARC_CONTRACTS.Staking,
+      address: target,
       abi: ARC_STAKING_ABI,
       functionName: "pendingRewards",
       args: [user],
     }),
     arcPublicClient.readContract({
-      address: ARC_CONTRACTS.Staking,
+      address: target,
       abi: ARC_STAKING_ABI,
       functionName: "rewardPoolBalance",
     }),
@@ -493,7 +538,7 @@ async function handleClaimRewards(intent: ParsedIntent, user: Address) {
 
   return transactionResult("claim_rewards", {
     name: "Kletia Arc Staking Rewards",
-    router: ARC_CONTRACTS.Staking,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_STAKING_ABI,
       functionName: "claimRewards",
@@ -506,9 +551,10 @@ async function handleClaimRewards(intent: ParsedIntent, user: Address) {
 }
 
 async function handleClaimUnstaked(intent: ParsedIntent, user: Address) {
+  const target = arcDefiTarget("staking", intent);
   assertKletiaProtocol(intent, "Arc unstake claim");
   const info = await arcPublicClient.readContract({
-    address: ARC_CONTRACTS.Staking,
+    address: target,
     abi: ARC_STAKING_ABI,
     functionName: "getStakerInfo",
     args: [user],
@@ -531,7 +577,7 @@ async function handleClaimUnstaked(intent: ParsedIntent, user: Address) {
 
   return transactionResult("claim_unstaked", {
     name: "Kletia Arc Staking Unstake Claim",
-    router: ARC_CONTRACTS.Staking,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_STAKING_ABI,
       functionName: "claimUnstaked",
@@ -806,15 +852,16 @@ async function handleAddLiquidity(intent: ParsedIntent) {
 }
 
 async function handleRemoveLiquidity(intent: ParsedIntent, user: Address) {
+  const target = arcDefiTarget("swap", intent);
   const amount = await resolveTokenOrLpAmount(
     intent.amount,
-    ARC_CONTRACTS.Swap,
+    target,
     user,
     "Arc LP removal",
   );
   return transactionResult("remove_liquidity", {
     name: "Kletia Arc Liquidity",
-    router: ARC_CONTRACTS.Swap,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_SWAP_ABI,
       functionName: "removeLiquidity",
@@ -864,6 +911,7 @@ function handleLendingDeposit(intent: ParsedIntent) {
 }
 
 async function handleLendingWithdraw(intent: ParsedIntent, user: Address) {
+  const target = arcDefiTarget("lending", intent);
   assertKletiaProtocol(intent, "Arc lending withdrawal");
   const token = assertArcAsset(
     intent.tokenIn || "KLET",
@@ -886,7 +934,7 @@ async function handleLendingWithdraw(intent: ParsedIntent, user: Address) {
   }
 
   const available = await arcPublicClient.readContract({
-    address: ARC_CONTRACTS.Lending,
+    address: target,
     abi: ARC_LENDING_ABI,
     functionName: token === "KLET" ? "collateralBalance" : "getSuppliedBalance",
     args: [user],
@@ -904,7 +952,7 @@ async function handleLendingWithdraw(intent: ParsedIntent, user: Address) {
 
   return transactionResult("lending_withdraw", {
     name: "Kletia Arc Lending",
-    router: ARC_CONTRACTS.Lending,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_LENDING_ABI,
       functionName: token === "KLET" ? "withdrawCollateral" : "withdrawUSDC",
@@ -949,6 +997,7 @@ function handleLendingBorrow(intent: ParsedIntent) {
 }
 
 function handleLendingRepay(intent: ParsedIntent) {
+  const target = arcDefiTarget("lending", intent);
   assertKletiaProtocol(intent, "Arc lending repayment");
   assertArcAsset(intent.tokenIn, ["USDC"], "Arc lending repayment", "tokenIn");
   assertArcAsset(
@@ -960,7 +1009,7 @@ function handleLendingRepay(intent: ParsedIntent) {
   const amount = parsePositiveAmount(intent.amount, "Arc debt repayment");
   return transactionResult("lending_repay", {
     name: "Kletia Arc Lending",
-    router: ARC_CONTRACTS.Lending,
+    router: target,
     calldata: encodeFunctionData({
       abi: ARC_LENDING_ABI,
       functionName: "repay",
@@ -1006,6 +1055,8 @@ export async function getArcPortfolio(userAddress: string) {
     lendingSupplied,
     lendingHealth,
     legacyVaultPosition,
+    activeLpBalance,
+    legacyDefi,
   ] = await Promise.all([
     arcPublicClient.getBalance({ address: user, blockNumber: observedBlock }),
     arcPublicClient.readContract({
@@ -1070,7 +1121,7 @@ export async function getArcPortfolio(userAddress: string) {
       functionName: "healthFactor",
       args: [user],
       blockNumber: observedBlock,
-    }),
+    }).catch(() => null),
     ARC_VAULT_EXECUTION_MODE === "vault_v2"
       ? Promise.all([
           arcPublicClient.readContract({
@@ -1089,6 +1140,8 @@ export async function getArcPortfolio(userAddress: string) {
           }),
         ])
       : Promise.resolve(null),
+    arcPublicClient.readContract({ address: ARC_CONTRACTS.Swap, abi: ARC_ERC20_ABI, functionName: "balanceOf", args: [user], blockNumber: observedBlock }),
+    readLegacyArcDefiPositions(user, observedBlock, { swap: ARC_CONTRACTS.Swap, staking: ARC_CONTRACTS.Staking, lending: ARC_CONTRACTS.Lending }),
   ]);
 
   const legacyVault =
@@ -1131,28 +1184,35 @@ export async function getArcPortfolio(userAddress: string) {
         pendingInterest: formatUnits(vaultPending, 18),
       },
       ...(legacyVault ? { legacyVault } : {}),
+      legacyDefi,
+      liquidity: { address: ARC_CONTRACTS.Swap, lpTokenBalance: formatUnits(activeLpBalance, 18) },
       staking: {
+        address: ARC_CONTRACTS.Staking,
         stakedAmount: formatUnits(stakingInfo[0], 18),
         pendingUnstake: formatUnits(stakingInfo[3], 18),
         pendingRewards: formatUnits(stakingPending, 18),
         cooldownRemaining: Number(stakingInfo[5]),
       },
       lending: {
+        address: ARC_CONTRACTS.Lending,
         collateralKLET: formatUnits(lendingCollateral, 18),
         borrowedUSDC: formatUnits(lendingBorrowed, 18),
         suppliedUSDC: formatUnits(lendingSupplied, 18),
-        healthFactor: formatUnits(lendingHealth, 18),
+        healthFactor: lendingHealth === null ? null : formatUnits(lendingHealth, 18),
+        healthAvailability: lendingHealth === null ? "unavailable" : "available",
       },
       routeAvailability: {
-        status: "available_for_intent_planning",
+        status: Object.values(ARC_DEFI_V2_DEPLOYMENTS).every(Boolean) ? "configured_v2_requires_live_identity" : "legacy_defi_withdrawal_only",
         contractRoutes: [
-          "swap USDC/KLET",
-          "vault deposit/full withdrawal",
-          "native USDC stake/unstake with reward and cooldown claims",
-          "KLET collateral and native USDC lending",
-          "USDC/KLET liquidity",
+          ...(ARC_DEFI_V2_DEPLOYMENTS.swap ? ["reviewed V2 USDC/KLET swaps and liquidity"] : ["legacy LP removal only"]),
+          ARC_VAULT_EXECUTION_MODE === "vault_v2" ? "Vault V2 deposit/full withdrawal" : "legacy vault full withdrawal only",
+          ...(ARC_DEFI_V2_DEPLOYMENTS.staking ? ["reviewed V2 staking and exits"] : ["legacy unstake and funded claims only"]),
+          ...(ARC_DEFI_V2_DEPLOYMENTS.lending && ARC_DEFI_V2_DEPLOYMENTS.swap ? ["reviewed V2 collateral and lending"] : ["legacy lending withdrawal and existing debt repayment only"]),
           "native USDC memo transfer",
         ],
+        disabledActions: [...ARC_NEW_CAPITAL_ACTIONS].filter((action) => !ARC_DEFI_V2_DEPLOYMENTS[ARC_DEFI_ACTION_PROTOCOLS[action]!] ||
+          (ARC_DEFI_ACTION_PROTOCOLS[action] === "lending" && !ARC_DEFI_V2_DEPLOYMENTS.swap)),
+        legacyExitProtocol: "kletia legacy",
         circleAppKitRoutes: [
           "USDC/EURC/cirBTC stable swap",
           "USDC/EURC send",
@@ -1179,6 +1239,7 @@ export async function dispatchArcAction(
 ): Promise<ArcTransactionResult> {
   const user = getAddress(userAddress);
   const action = String(intent.action || "").toLowerCase();
+  await assertArcActionReadiness(action, intent);
 
   let result: ArcTransactionResult;
   switch (action) {

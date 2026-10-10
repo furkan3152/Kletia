@@ -3,9 +3,12 @@ import { useAccount, useBalance, useChainId, useReadContract } from "wagmi";
 import { formatEther, isAddress, parseEther } from "viem";
 import {
   ARC_CONTRACTS,
+  ARC_DEFI_V2_ADDRESSES,
+  ARC_NEW_CAPITAL_READY,
   ARC_VAULT_EXECUTION_MODE,
   ARC_SWAP_ABI,
   ARC_LENDING_ABI,
+  arcDefiPositionAddress,
 } from "../config";
 import { NETWORKS } from "../../../shared/config/networks";
 import {
@@ -15,6 +18,8 @@ import {
 } from "../../../shared/config/intentExamples";
 import { WidgetId } from "../../../shared/types";
 import { ArcUnifiedBalanceCard } from "./ArcUnifiedBalanceCard";
+import { ArcPositionContractSelector } from "./ArcPositionContractSelector";
+import { arcPositionExitPrompt } from "../runtime/positionIntents";
 
 const ARC_CHAIN_ID = NETWORKS.arc.chainId;
 
@@ -149,6 +154,18 @@ export const ArcDashboardWidget: React.FC<{
   const { isConnected, address } = useAccount();
   const chainId = useChainId();
   const isArcConnected = isConnected && chainId === ARC_CHAIN_ID;
+  const [legacyLending, setLegacyLending] = useState(
+    ARC_DEFI_V2_ADDRESSES.lending === null,
+  );
+  const [legacyStaking, setLegacyStaking] = useState(
+    ARC_DEFI_V2_ADDRESSES.staking === null,
+  );
+  const [legacyLiquidity, setLegacyLiquidity] = useState(
+    ARC_DEFI_V2_ADDRESSES.swap === null,
+  );
+  const lendingAddress = arcDefiPositionAddress("lending", legacyLending);
+  const liquidityAddress = arcDefiPositionAddress("swap", legacyLiquidity);
+  const canAddLendingCapital = ARC_NEW_CAPITAL_READY.lending && !legacyLending;
   const balance = useBalance({ address, chainId: ARC_CHAIN_ID });
   const { data: kletRawBalance } = useReadContract({
     address: ARC_CONTRACTS.Token as `0x${string}`,
@@ -184,7 +201,7 @@ export const ArcDashboardWidget: React.FC<{
   // --- Portfolio Data ---
   const { data: lendingCollateral, isError: isLendingCollateralError } =
     useReadContract({
-      address: ARC_CONTRACTS.Lending as `0x${string}`,
+      address: lendingAddress,
       abi: ARC_LENDING_ABI,
       functionName: "collateralBalance",
       args: address ? [address] : undefined,
@@ -194,13 +211,22 @@ export const ArcDashboardWidget: React.FC<{
 
   const { data: lendingBorrow, isError: isLendingBorrowError } =
     useReadContract({
-      address: ARC_CONTRACTS.Lending as `0x${string}`,
+      address: lendingAddress,
       abi: ARC_LENDING_ABI,
       functionName: "getBorrowedBalance",
       args: address ? [address] : undefined,
       chainId: ARC_CHAIN_ID,
       query: { enabled: Boolean(address) },
     });
+
+  const { data: lpBalance, isError: isLpBalanceError } = useReadContract({
+    address: liquidityAddress,
+    abi: ARC_SWAP_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: Boolean(address) && activeWidget === "liquidity" },
+  });
 
   // --- Form States ---
   const [swapAmount, setSwapAmount] = useState("1");
@@ -214,6 +240,7 @@ export const ArcDashboardWidget: React.FC<{
   const [stakeAmount, setStakeAmount] = useState("1");
   const [lpUsdcAmount, setLpUsdcAmount] = useState("1");
   const [lpTokenAmount, setLpTokenAmount] = useState("10");
+  const [lpWithdrawalAmount, setLpWithdrawalAmount] = useState("1");
   const [intentError, setIntentError] = useState<string | null>(null);
   const previousAddressRef = React.useRef<string | undefined>(undefined);
 
@@ -285,7 +312,7 @@ export const ArcDashboardWidget: React.FC<{
     switch (activeWidget) {
       case "lending":
         return (
-          <div className="bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-4 flex flex-col md:flex-row items-center justify-between animate-slide-up">
+          <div className="bg-[#F3F4F6] dark:bg-[#1A2841] border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] p-6 animate-slide-up">
             <div className="mb-6 border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563] pb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-2xl font-black text-[#1A1A1A] dark:text-white uppercase tracking-tight">
@@ -293,7 +320,7 @@ export const ArcDashboardWidget: React.FC<{
                   <span className="text-sm text-gray-500">(built on Arc)</span>
                 </h3>
                 <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mt-1">
-                  Provide KLET Collateral, Borrow USDC
+                  {legacyLending ? "Legacy lending position" : "Upgraded lending position (V2)"}
                 </p>
               </div>
               <div className="bg-white border-[3px] border-[#1A1A1A] p-2 shadow-[2px_2px_0_#1A1A1A]">
@@ -315,9 +342,22 @@ export const ArcDashboardWidget: React.FC<{
                 </div>
               </div>
             </div>
+            <ArcPositionContractSelector
+              position="lending"
+              legacy={legacyLending}
+              hasV2={ARC_DEFI_V2_ADDRESSES.lending !== null}
+              onChange={setLegacyLending}
+            />
+            {!canAddLendingCapital && (
+              <p role="status" className="mb-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+                {legacyLending && ARC_NEW_CAPITAL_READY.lending
+                  ? "Legacy lending accepts repayment and withdrawals only. Select V2 for new collateral and borrowing."
+                  : "New collateral and borrowing are unavailable until the upgraded lending and swap contracts are configured. Existing positions can still be repaid or withdrawn."}
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <InputLabel>Add Collateral (KLET)</InputLabel>
+                <InputLabel>Collateral Amount (KLET)</InputLabel>
                 <InputField
                   type="number"
                   value={vaultAmount}
@@ -325,7 +365,7 @@ export const ArcDashboardWidget: React.FC<{
                   placeholder="0.00"
                 />
                 <ActionButton
-                  disabled={!vaultAmount}
+                  disabled={!vaultAmount || !canAddLendingCapital}
                   colorClass="bg-[#10B981] hover:bg-[#059669]"
                   onClick={() =>
                     seedIntent(() => {
@@ -342,7 +382,7 @@ export const ArcDashboardWidget: React.FC<{
                 </ActionButton>
               </div>
               <div>
-                <InputLabel>Borrow (USDC)</InputLabel>
+                <InputLabel>Borrow / Repay Amount (USDC)</InputLabel>
                 <InputField
                   type="number"
                   value={stakeAmount}
@@ -350,7 +390,7 @@ export const ArcDashboardWidget: React.FC<{
                   placeholder="0.00"
                 />
                 <ActionButton
-                  disabled={!stakeAmount}
+                  disabled={!stakeAmount || !canAddLendingCapital}
                   colorClass="bg-[#EF4444] hover:bg-[#DC2626]"
                   onClick={() =>
                     seedIntent(() => {
@@ -362,6 +402,28 @@ export const ArcDashboardWidget: React.FC<{
                   🔴 Prepare Borrow Intent
                 </ActionButton>
               </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ActionButton
+                disabled={!stakeAmount}
+                onClick={() => seedIntent(() => arcPositionExitPrompt(
+                  "lending_repay",
+                  legacyLending,
+                  parsePositiveAmount(stakeAmount, "Repayment"),
+                ))}
+              >
+                Prepare Repayment Intent
+              </ActionButton>
+              <ActionButton
+                disabled={!vaultAmount}
+                onClick={() => seedIntent(() => arcPositionExitPrompt(
+                  "lending_withdraw",
+                  legacyLending,
+                  parsePositiveAmount(vaultAmount, "Collateral withdrawal", 18),
+                ))}
+              >
+                Prepare Collateral Withdrawal
+              </ActionButton>
             </div>
           </div>
         );
@@ -418,14 +480,12 @@ export const ArcDashboardWidget: React.FC<{
               />
             </div>
             <div className="mb-4 border-[3px] border-[#1A1A1A] bg-[#FACC15] p-3 text-xs font-black text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A]">
-              TESTNET NOTICE: The deployed swap entrypoint does not accept a
-              client-side minimum output or deadline. This quote is read live
-              from Arc, while the button only prepares an editable intent. The
-              intent engine must rebuild and simulate the route before wallet
-              approval; re-check the final wallet details before signing.
+              {ARC_NEW_CAPITAL_READY.swap
+                ? "Swap V2 routes include a minimum output and expiry. The intent engine verifies the configured deployment and rebuilds the live quote before wallet approval. Review the final amount and expiry before signing."
+                : "New swaps are unavailable until the upgraded swap contract is configured. Quotes from the original pool remain available for reading and do not enable a swap."}
             </div>
             <ActionButton
-              disabled={!swapAmount}
+              disabled={!swapAmount || !ARC_NEW_CAPITAL_READY.swap}
               colorClass="bg-[#3B82F6] hover:bg-[#2563EB]"
               onClick={() =>
                 seedIntent(() => {
@@ -467,7 +527,7 @@ export const ArcDashboardWidget: React.FC<{
               />
             </div>
             <ActionButton
-              disabled={!vaultAmount}
+              disabled={!vaultAmount || ARC_VAULT_EXECUTION_MODE !== "vault_v2"}
               colorClass="bg-[#8B5CF6] hover:bg-[#7C3AED]"
               onClick={() =>
                 seedIntent(() => {
@@ -481,6 +541,12 @@ export const ArcDashboardWidget: React.FC<{
             >
               🔒 Prepare Vault Deposit Intent
             </ActionButton>
+            {ARC_VAULT_EXECUTION_MODE !== "vault_v2" && (
+              <p role="status" className="my-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+                The legacy Vault accepts withdrawals only. New deposits require
+                the configured Vault V2 deployment.
+              </p>
+            )}
             <ActionButton
               colorClass="bg-[#0052FF] hover:bg-[#0040DD] dark:bg-blue-600 dark:hover:bg-blue-500"
               onClick={() =>
@@ -531,7 +597,7 @@ export const ArcDashboardWidget: React.FC<{
               />
             </div>
             <ActionButton
-              disabled={!stakeAmount}
+              disabled={!stakeAmount || !ARC_NEW_CAPITAL_READY.staking}
               colorClass="bg-[#06B6D4] hover:bg-[#0891B2]"
               onClick={() =>
                 seedIntent(() => {
@@ -542,15 +608,25 @@ export const ArcDashboardWidget: React.FC<{
             >
               💎 Prepare Stake Intent
             </ActionButton>
+            {!ARC_NEW_CAPITAL_READY.staking && (
+              <p role="status" className="mt-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+                New stakes are unavailable until the upgraded staking contract
+                is configured. Unstaking and funded claims remain available for
+                existing legacy positions.
+              </p>
+            )}
+            <ArcPositionContractSelector
+              position="staking"
+              legacy={legacyStaking}
+              hasV2={ARC_DEFI_V2_ADDRESSES.staking !== null}
+              onChange={setLegacyStaking}
+            />
             <div className="flex gap-4 mt-4">
               <ActionButton
                 colorClass="bg-[#10B981] hover:bg-[#059669]"
                 className="mt-0"
                 onClick={() =>
-                  seedIntent(
-                    () =>
-                      "Claim all available rewards from Kletia Staking on Arc Testnet; simulate it before wallet approval",
-                  )
+                  seedIntent(() => arcPositionExitPrompt("claim_rewards", legacyStaking))
                 }
               >
                 🎁 Claim Rewards
@@ -562,7 +638,7 @@ export const ArcDashboardWidget: React.FC<{
                 onClick={() =>
                   seedIntent(() => {
                     const amount = parsePositiveAmount(stakeAmount, "Unstake");
-                    return `Unstake ${amount} native USDC from Kletia Staking on Arc Testnet and start the contract-defined cooldown; simulate it before wallet approval`;
+                    return arcPositionExitPrompt("unstake", legacyStaking, amount);
                   })
                 }
               >
@@ -572,10 +648,7 @@ export const ArcDashboardWidget: React.FC<{
                 colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
                 className="mt-0"
                 onClick={() =>
-                  seedIntent(
-                    () =>
-                      "Claim my cooled-down unstaked native USDC from Kletia Staking on Arc Testnet; simulate it before wallet approval",
-                  )
+                  seedIntent(() => arcPositionExitPrompt("claim_unstaked", legacyStaking))
                 }
               >
                 📤 Claim Unstaked
@@ -627,7 +700,9 @@ export const ArcDashboardWidget: React.FC<{
               most 5% movement from the live ratio.
             </div>
             <ActionButton
-              disabled={!lpUsdcAmount || !lpTokenAmount}
+              disabled={
+                !lpUsdcAmount || !lpTokenAmount || !ARC_NEW_CAPITAL_READY.swap
+              }
               colorClass="bg-[#10B981] hover:bg-[#059669]"
               onClick={() =>
                 seedIntent(() => {
@@ -645,6 +720,50 @@ export const ArcDashboardWidget: React.FC<{
               }
             >
               💧 Prepare Liquidity Intent
+            </ActionButton>
+            {!ARC_NEW_CAPITAL_READY.swap && (
+              <p role="status" className="mt-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+                New liquidity is unavailable until the upgraded swap contract
+                is configured. Existing LP tokens can still be removed from
+                their original pool.
+              </p>
+            )}
+            <ArcPositionContractSelector
+              position="liquidity"
+              legacy={legacyLiquidity}
+              hasV2={ARC_DEFI_V2_ADDRESSES.swap !== null}
+              onChange={setLegacyLiquidity}
+            />
+            <p className="mb-3 text-sm font-bold text-gray-600 dark:text-gray-400">
+              {legacyLiquidity ? "Legacy" : "V2"} LP balance:{" "}
+              {!address
+                ? "Connect your wallet to read"
+                : isLpBalanceError
+                  ? "Unavailable"
+                  : lpBalance === undefined
+                    ? "Checking…"
+                    : `${formatEther(lpBalance as bigint)} LP`}
+            </p>
+            <div className="mb-4">
+              <InputLabel>LP Tokens to Remove</InputLabel>
+              <InputField
+                aria-label="LP tokens to remove"
+                type="number"
+                value={lpWithdrawalAmount}
+                onChange={(event) => setLpWithdrawalAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <ActionButton
+              disabled={!lpWithdrawalAmount}
+              colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
+              onClick={() => seedIntent(() => arcPositionExitPrompt(
+                "remove_liquidity",
+                legacyLiquidity,
+                parsePositiveAmount(lpWithdrawalAmount, "LP withdrawal", 18),
+              ))}
+            >
+              Prepare LP Withdrawal Intent
             </ActionButton>
           </div>
         );

@@ -7,3 +7,6 @@
 contracts
 attachments
 docs
+
+test-results
+playwright-report

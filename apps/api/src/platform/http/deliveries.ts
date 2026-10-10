@@ -142,9 +142,10 @@ export class MemoryDeliveryStore implements DeliveryStore {
   }
 }
 
-const DELIVERIES_SCHEMA = {
+export const DELIVERIES_SCHEMA = {
   name: "kletia_webhook_deliveries",
   ddl: `
+SELECT pg_advisory_xact_lock(hashtextextended('kletia_schema:webhook_deliveries', 0));
 CREATE TABLE IF NOT EXISTS kletia_webhook_deliveries (
   id text PRIMARY KEY,
   webhook_id text NOT NULL,
@@ -253,9 +254,11 @@ export class PostgresDeliveryStore implements DeliveryStore {
 
   async deleteForWebhook(webhookId: string): Promise<void> {
     await dbQuery(DELIVERIES_SCHEMA, "DELETE FROM kletia_webhook_deliveries WHERE webhook_id = $1", [webhookId]);
+    await (await import("./webhookQueue.js")).cancelQueuedWebhook(webhookId);
   }
 
   async prune(now: number): Promise<void> {
+    await (await import("./webhookQueue.js")).pruneWebhookQueue(now);
     await dbQuery(DELIVERIES_SCHEMA, "DELETE FROM kletia_webhook_deliveries WHERE at < $1", [
       new Date(now - DELIVERY_RETENTION_DAYS * 86_400_000).toISOString(),
     ]);

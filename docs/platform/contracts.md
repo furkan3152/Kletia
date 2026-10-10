@@ -7,6 +7,12 @@ deposit it into acme vault"*. A registration belongs to one API key; only
 intents created with that key (or a key of its project, when shared) can use
 it.
 
+Registrations are execution capabilities for the integrator's own product.
+They do not join Kletia's public protocol catalog. The first-party console,
+Studio and shared links refuse custom-contract execution. Authorized SDK,
+widget and hosted embed intent/session flows keep the registration bound to
+the integrator's project and live credentials.
+
 > **Not audited by Kletia.** Kletia checks a registered contract's code
 > identity, encodes every call itself, simulates every transaction and
 > verifies the outcome on-chain. It does not review the contract's logic.

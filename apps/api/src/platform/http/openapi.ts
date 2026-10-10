@@ -1232,6 +1232,7 @@ function schemas(): JsonObject {
                 obj(
                   {
                     running: bool(),
+                    storage: str({ enum: ["memory", "postgres"] }),
                     queued: int(),
                     inFlight: int(),
                     scheduledRetries: int(),
@@ -1240,7 +1241,7 @@ function schemas(): JsonObject {
                     dropped: int(),
                     pausedWebhooks: int({ description: "Webhooks paused after consecutive delivery failures." }),
                   },
-                  ["running", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped", "pausedWebhooks"],
+                  ["running", "storage", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped", "pausedWebhooks"],
                 ),
                 { type: "null" },
               ],

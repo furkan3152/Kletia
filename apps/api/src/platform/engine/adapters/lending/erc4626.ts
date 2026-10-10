@@ -26,6 +26,7 @@ import {
   fromBaseUnits,
   nativeAssetId,
   type Erc4626Venue,
+  type YearnVaultVenue,
   type EvmTransactionRequest,
   type IntentStep,
 } from "@kletia/core";
@@ -110,6 +111,20 @@ export const FACTORY_ABI = parseAbi([
   "function isVaultV2(address target) view returns (bool)",
 ]);
 
+/** Yearn's three-argument redeem defaults to 100% loss: always use the bounded overload. */
+export const YEARN_VAULT_ABI = [
+  ...VAULT_ABI,
+  ...parseAbi([
+    "function withdraw(uint256 assets,address receiver,address owner,uint256 maxLoss) returns (uint256 shares)",
+    "function redeem(uint256 shares,address receiver,address owner,uint256 maxLoss) returns (uint256 assets)",
+    "function apiVersion() view returns (string)",
+  ]),
+] as const;
+
+export const YEARN_REGISTRY_ABI = parseAbi([
+  "function getEndorsedVaults(address asset) view returns (address[])",
+]);
+
 const DEPOSIT_GAS = 700_000n;
 /** Loss (bps) a full redeem tolerates between prepare and execution. */
 const REDEEM_TOLERANCE_BPS = 1n;
@@ -127,20 +142,45 @@ const BLOCK_SECONDS: Readonly<Record<EvmNetworkKey, number>> = {
   "arbitrum-sepolia": 0.25,
 };
 
-type VaultContext = LendingContext<Erc4626Venue>;
+type VaultVenue = Erc4626Venue | YearnVaultVenue;
+type VaultContext = LendingContext<VaultVenue>;
 
 interface VaultState {
   /** Non-zero Vault V2 gates (empty for MetaMorpho and ungated V2 vaults). */
   readonly gates: readonly string[];
 }
 
-function isV2(venue: Erc4626Venue): boolean {
-  return venue.generation === "vault-v2";
+function isV2(venue: VaultVenue): boolean {
+  return venue.kind === "erc4626" && venue.generation === "vault-v2";
+}
+
+/** Only the pinned vault may execute, and a canonical Yearn registry must endorse it. */
+async function readYearnVault(context: Pick<VaultContext, "network" | "token"> & { readonly venue: YearnVaultVenue }): Promise<VaultState> {
+  const { venue, network, token } = context;
+  const client = evmClient(network);
+  const vault = getAddress(venue.target);
+  const [endorsements, asset, decimals, version] = await withTimeout(Promise.all([
+    Promise.all(venue.registries.map((registry) => client.readContract({
+      address: getAddress(registry), abi: YEARN_REGISTRY_ABI, functionName: "getEndorsedVaults", args: [token],
+    }))),
+    client.readContract({ address: vault, abi: VAULT_ABI, functionName: "asset" }),
+    client.readContract({ address: vault, abi: VAULT_ABI, functionName: "decimals" }),
+    client.readContract({ address: vault, abi: YEARN_VAULT_ABI, functionName: "apiVersion" }),
+  ]));
+  if (!endorsements.some((addresses) => addresses.some((address) => sameAddress(address, vault)))) {
+    throw new PlatformError("VENUE_UNVERIFIED", `${venue.name} is not endorsed by its pinned Yearn registries. Kletia will not use it.`, 422);
+  }
+  assertPinned(asset, token, "asset()", venue);
+  if (decimals !== venue.receipt.decimals || version !== venue.apiVersion) {
+    throw new PlatformError("VENUE_UNVERIFIED", `${venue.name} reports share decimals ${decimals} and API version ${version}; expected ${venue.receipt.decimals} and ${venue.apiVersion}.`, 422);
+  }
+  return { gates: [] };
 }
 
 /** Proves the vault against the registry: factory provenance, underlying, share decimals, V2 gates. */
 async function readVault(context: Pick<VaultContext, "venue" | "network" | "token">): Promise<VaultState> {
   const { venue, network } = context;
+  if (venue.kind === "yearn-vault") return readYearnVault({ ...context, venue });
   const client = evmClient(network);
   const vault = getAddress(venue.target);
   const factory = getAddress(venue.factory);
@@ -188,7 +228,7 @@ async function vaultRead<F extends "balanceOf" | "maxDeposit" | "maxWithdraw" | 
  * fees), from historical eth_call reads; null when the RPC cannot serve them
  * or the vault is younger than a day.
  */
-async function realisedApy(venue: Erc4626Venue): Promise<{ apy: number; window: number } | null> {
+async function realisedApy(venue: VaultVenue): Promise<{ apy: number; window: number } | null> {
   const network = venue.network as EvmNetworkKey;
   const client = evmClient(network);
   const vault = getAddress(venue.target);
@@ -210,7 +250,7 @@ async function realisedApy(venue: Erc4626Venue): Promise<{ apy: number; window: 
 
 function title(context: VaultContext, amount: bigint, symbol: string, close: boolean): string {
   const what = close ? `all ${symbol}` : `${formatAmount(fromBaseUnits(amount, context.underlying.decimals))} ${symbol}`;
-  const where = `${context.venue.name} (Morpho) on ${CHAINS[context.network].name}`;
+  const where = `${context.venue.name} (${context.venue.protocol === "yearn-v3" ? "Yearn" : "Morpho"}) on ${CHAINS[context.network].name}`;
   return context.kind === "deposit" ? `Deposit ${what} into ${where}` : `Withdraw ${what} from ${where}`;
 }
 
@@ -316,11 +356,17 @@ async function withdrawQuote(action: AdapterAction, context: VaultContext): Prom
       );
     }
   }
-  const data = close
-    ? encodeFunctionData({ abi: VAULT_ABI, functionName: "redeem", args: [shares, owner, owner] })
-    : encodeFunctionData({ abi: VAULT_ABI, functionName: "withdraw", args: [requested, owner, owner] });
+  const yearn = venue.kind === "yearn-vault";
+  const executionAbi = yearn ? YEARN_VAULT_ABI : VAULT_ABI;
+  const data = yearn
+    ? close
+      ? encodeFunctionData({ abi: YEARN_VAULT_ABI, functionName: "redeem", args: [shares, owner, owner, REDEEM_TOLERANCE_BPS] })
+      : encodeFunctionData({ abi: YEARN_VAULT_ABI, functionName: "withdraw", args: [requested, owner, owner, 0n] })
+    : close
+      ? encodeFunctionData({ abi: VAULT_ABI, functionName: "redeem", args: [shares, owner, owner] })
+      : encodeFunctionData({ abi: VAULT_ABI, functionName: "withdraw", args: [requested, owner, owner] });
   const request = { from: owner, to: venue.target, data };
-  const simulation = await simulate(network, request, VAULT_ABI);
+  const simulation = await simulate(network, request, executionAbi);
   assertSimulation(simulation, `withdrawal from ${venue.name}`);
   // Redeeming a fixed share count pays at least the preview (the share price only grows) unless the
   // vault realises a loss before execution: hold it to one basis point below the preview.
@@ -348,15 +394,15 @@ async function withdrawQuote(action: AdapterAction, context: VaultContext): Prom
   };
 }
 
-async function quote(action: AdapterAction, stage: "plan" | "prepare"): Promise<{ context: VaultContext; quote: Quote }> {
-  const context = lendingContext(action, "erc4626", "morpho");
+async function quote(action: AdapterAction, stage: "plan" | "prepare", protocol: "morpho" | "yearn-v3"): Promise<{ context: VaultContext; quote: Quote }> {
+  const context = lendingContext(action, protocol === "yearn-v3" ? "yearn-vault" : "erc4626", protocol);
   const result = context.kind === "deposit" ? await depositQuote(action, context, stage) : await withdrawQuote(action, context);
   return { context, quote: result };
 }
 
 /* ------------------------------------------------------------ verification */
 
-function proveDeposit(step: IntentStep, venue: Erc4626Venue, asset: string, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
+function proveDeposit(step: IntentStep, venue: VaultVenue, asset: string, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
   if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the vault." });
@@ -388,13 +434,17 @@ function proveDeposit(step: IntentStep, venue: Erc4626Venue, asset: string, rece
   };
 }
 
-function proveWithdraw(step: IntentStep, venue: Erc4626Venue, asset: string, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
+function proveWithdraw(step: IntentStep, venue: VaultVenue, asset: string, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
   if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the vault." });
-  const decoded = decodeFunctionData({ abi: VAULT_ABI, data: call.input as Hex });
+  const decoded = decodeFunctionData({ abi: YEARN_VAULT_ABI, data: call.input as Hex });
   if ((decoded.functionName !== "withdraw" && decoded.functionName !== "redeem") || !sameAddress(decoded.args[1], account) || !sameAddress(decoded.args[2], account)) {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The vault call is not a withdrawal of the step account's shares to itself." });
+  }
+  if (decoded.args.length !== (venue.kind === "yearn-vault" ? 4 : 3) ||
+      (venue.kind === "yearn-vault" && decoded.args[3] !== (decoded.functionName === "redeem" ? REDEEM_TOLERANCE_BPS : 0n))) {
+    return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The vault withdrawal does not use the reviewed loss limit." });
   }
   const event = evmEvents([call], { address: venue.target, abi: VAULT_ABI, eventName: "Withdraw" }).find((entry) =>
     sameAddress(entry.args.sender, account) && sameAddress(entry.args.receiver, account) && sameAddress(entry.args.owner, account));
@@ -430,7 +480,7 @@ function proveWithdraw(step: IntentStep, venue: Erc4626Venue, asset: string, rec
 /* ----------------------------------------------------------------- metrics */
 
 /** Realised APY, total assets (TVL) and provenance warnings of a curated vault. */
-export async function morphoMetrics(venue: Erc4626Venue): Promise<LendingMetrics> {
+export async function erc4626Metrics(venue: VaultVenue): Promise<LendingMetrics> {
   const network = venue.network as EvmNetworkKey;
   const underlying = findAssetBySymbol(network, venue.asset);
   if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
@@ -457,61 +507,67 @@ export async function morphoMetrics(venue: Erc4626Venue): Promise<LendingMetrics
   };
 }
 
-export const erc4626Adapter: ProtocolAdapter = {
-  id: "morpho",
-  protocols: ["morpho"],
-  label: "Morpho Vaults",
+export function createErc4626Adapter(protocol: "morpho" | "yearn-v3", label: string): ProtocolAdapter {
+  const kind = protocol === "yearn-v3" ? "yearn-vault" : "erc4626";
+  return {
+    id: protocol,
+    protocols: [protocol],
+    label,
 
-  supports(route) {
-    return supportsLending(route, "morpho", "erc4626", { deposit: true, withdraw: true });
-  },
+    supports(route) {
+      return supportsLending(route, protocol, kind, { deposit: true, withdraw: true });
+    },
 
-  async plan(action): Promise<PlannedStep> {
-    const { context, quote: planned } = await quote(action, "plan");
-    const fees = await estimateEvmFeeUsd(context.network, planned.gas);
-    return {
-      protocol: "morpho",
-      title: title(context, planned.input, action.input.symbol, action.closePosition === true),
-      mode: "wallet",
-      input: assetAmount(action.input, planned.input.toString()),
-      expectedOutput: assetAmount(planned.output, planned.expected.toString()),
-      minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      estimatedSeconds: 10 * planned.transactions.length,
-      settlement: { kind: "same-network" },
-      warnings: planned.warnings,
-      transactionCount: planned.transactions.length,
-      slippageBps: action.slippageBps,
-      // The plan already encodes the payload (no provider involved): the preview simulates it.
-      preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
-    };
-  },
+    async plan(action): Promise<PlannedStep> {
+      const { context, quote: planned } = await quote(action, "plan", protocol);
+      const fees = await estimateEvmFeeUsd(context.network, planned.gas);
+      return {
+        protocol,
+        title: title(context, planned.input, action.input.symbol, action.closePosition === true),
+        mode: "wallet",
+        input: assetAmount(action.input, planned.input.toString()),
+        expectedOutput: assetAmount(planned.output, planned.expected.toString()),
+        minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        estimatedSeconds: 10 * planned.transactions.length,
+        settlement: { kind: "same-network" },
+        warnings: planned.warnings,
+        transactionCount: planned.transactions.length,
+        slippageBps: action.slippageBps,
+        // The plan already encodes the payload (no provider involved): the preview simulates it.
+        preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
+      };
+    },
 
-  async prepare({ action }): Promise<PreparedPayload> {
-    const { context, quote: prepared } = await quote(action, "prepare");
-    const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
-    return {
-      transactions: prepared.transactions,
-      records: payloadRecords(context.network, prepared.transactions),
-      input: assetAmount(action.input, prepared.input.toString()),
-      expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
-      minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      warnings: prepared.warnings,
-    };
-  },
+    async prepare({ action }): Promise<PreparedPayload> {
+      const { context, quote: prepared } = await quote(action, "prepare", protocol);
+      const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
+      return {
+        transactions: prepared.transactions,
+        records: payloadRecords(context.network, prepared.transactions),
+        input: assetAmount(action.input, prepared.input.toString()),
+        expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
+        minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        warnings: prepared.warnings,
+      };
+    },
 
-  async verify(context) {
-    const venue = stepVenue(context.step, "erc4626");
-    const asset = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
-    if (!venue || !asset || !context.step.minimumOutput) {
-      return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The step has no Morpho registry vault or output." } };
-    }
-    const observedAt = new Date(context.now).toISOString();
-    const { result } = await verifyEvmReceipts(context, (receipts) =>
-      context.step.kind === "withdraw"
-        ? proveWithdraw(context.step, venue, getAddress(asset), receipts, observedAt)
-        : proveDeposit(context.step, venue, getAddress(asset), receipts, observedAt));
-    return result;
-  },
-};
+    async verify(context) {
+      const venue = stepVenue(context.step, kind);
+      const asset = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
+      if (!venue || venue.protocol !== protocol || !asset || !context.step.minimumOutput) {
+        return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: `The step has no ${label} registry vault or output.` } };
+      }
+      const observedAt = new Date(context.now).toISOString();
+      const { result } = await verifyEvmReceipts(context, (receipts) =>
+        context.step.kind === "withdraw"
+          ? proveWithdraw(context.step, venue, getAddress(asset), receipts, observedAt)
+          : proveDeposit(context.step, venue, getAddress(asset), receipts, observedAt));
+      return result;
+    },
+  };
+}
+
+export const erc4626Adapter = createErc4626Adapter("morpho", "Morpho Vaults");
+export const morphoMetrics = erc4626Metrics;

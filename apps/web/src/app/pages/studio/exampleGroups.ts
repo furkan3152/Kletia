@@ -60,8 +60,8 @@ export const STUDIO_EXAMPLE_GROUPS: readonly StudioExampleGroup[] = [
   },
 ];
 
-/** Prompt in the composer before the user types (a two-network, two-step plan). */
-export const STUDIO_DEFAULT_PROMPT = "bridge 50 USDC from base to solana then swap half to JitoSOL";
+/** Solana-first prompt in the composer before the user types. */
+export const STUDIO_DEFAULT_PROMPT = "swap 0.1 SOL to USDC";
 
 /** First example of each group: a short, varied list for the "try a supported phrasing" fallback. */
 export const STUDIO_FALLBACK_EXAMPLES: readonly string[] = STUDIO_EXAMPLE_GROUPS.map((group) => group.examples[0]!);

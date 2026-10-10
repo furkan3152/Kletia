@@ -8563,6 +8563,8 @@
           "uniswap-v3",
           "aerodrome",
           "aave-v3",
+          "spark",
+          "yearn-v3",
           "compound-v3",
           "moonwell",
           "morpho",
@@ -8576,6 +8578,8 @@
           "lifi",
           "debridge-dln",
           "jupiter",
+          "raydium",
+          "orca",
           "jupiter-lend",
           "kamino",
           "jito",
@@ -10803,6 +10807,13 @@
                       "running": {
                         "type": "boolean"
                       },
+                      "storage": {
+                        "type": "string",
+                        "enum": [
+                          "memory",
+                          "postgres"
+                        ]
+                      },
                       "queued": {
                         "type": "integer"
                       },
@@ -10828,6 +10839,7 @@
                     },
                     "required": [
                       "running",
+                      "storage",
                       "queued",
                       "inFlight",
                       "scheduledRetries",

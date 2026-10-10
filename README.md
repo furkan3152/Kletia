@@ -185,6 +185,16 @@ push to `main` (`main`, `sha-<commit>`) and every `v*` release tag
 SBOM attached. Set `KLETIA_API_IMAGE` and `KLETIA_WEB_IMAGE` to run them through
 the same Compose file; see [self-hosting](docs/deployment/self-hosting.md).
 
+## What makes it different
+
+- Bring your own contract: register a contract or Solana Action; Kletia simulates every call, pins its code, and shows the user a clear review ([docs](docs/platform/contracts.md)).
+- Fare breakdown: before signing, the user sees every asset change on every network, labelled by how sure Kletia is ([docs](docs/platform/preview.md)).
+- Verifiable receipts: signed, selectively disclosable, checkable offline or against public RPCs ([docs](docs/platform/receipts.md)).
+- Rule Book: spending rules for projects, keys and AI agents, with approvals by wallet signature ([docs](docs/platform/policies.md)).
+- Intent links: a link that carries a bounded intent to anyone's wallet ([docs](docs/platform/links.md)).
+
+Kletia has not had an external security audit.
+
 ## How it works
 
 ```mermaid

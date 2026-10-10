@@ -4,6 +4,31 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+Round 4 and 5: bring your own contract, and the features that make Kletia
+more than a router. Nothing here signs or holds funds, and none of it has had an
+external audit.
+
+### Added
+
+- Bring your own contract: register an EVM contract (ABI bindings, forbidden selectors, code-hash and proxy-implementation pins) or a Solana Action. Every call is simulated before it is handed out, verified from events, and shown with the fixed "Not audited by Kletia" notice and an acknowledgement gate ([guide](docs/platform/contracts.md)).
+- Asset preview ("fare breakdown"): per-network, per-account asset changes with honest labels (simulated, assumed funds, venue minimum, quoted, estimated), fees in USD and gas-on-arrival warnings. Prepare refuses a payload that is worse than the preview the user approved (`PREVIEW_CHANGED`) ([guide](docs/platform/preview.md)).
+- Verifiable receipts: Ed25519 signatures over RFC 8785 canonical JSON, selective disclosure with owner-held keys, a transparency log, public keys at `/v1/receipts/keys` and `/.well-known/kletia-receipt-keys.json`, an optional EAS envelope, and a `/r/<id>` page that verifies in the browser ([guide](docs/platform/receipts.md)).
+- Rule Book policies: project, key and agent-key (`kl_agt_`) rules with Chainlink/Jupiter USD pricing that fails closed, atomic spend reservation, approvals by EIP-712 or Solana message signature (`/approve`), a hash-chained decision log, and "tighten now, loosen later" amendments ([guide](docs/platform/policies.md)).
+- Intent links (`lk_...`, `/go/<id>`): publisher-defined bounds, per-visitor funding, share cards, Solana Actions and Blinks, and an activation delay for links that pay a fixed third party ([guide](docs/platform/links.md)).
+- SDK, CLI, MCP, widget and embed support for all of the above, including integrator-created intents and sessions in the embed frame.
+- Developer portal panels for contracts, Rule Book, links and receipts; the Interchange art system (route maps, tickets, stamps, departure boards) across the site.
+
+### Security
+
+- Dropping `confirm.approvers.keys` (which lets every project key approve) is a loosening and waits out the amendment delay.
+- Pausing and resuming a pending link keeps its remaining activation delay; a rotated-out key secret cannot create or change links.
+- Withdrawing receipt disclosures during an issuance is no longer undone, and the public EAS envelope carries only the day the payload already makes public.
+- The receipt page rebuilds the link in its copied CLI command from checked parts, never from the address bar.
+
+### Changed
+
+- The console badge reads Kletia instead of OMNI; the site counts 29 protocols plus your own contracts everywhere.
+
 Round 3: more networks and venues behind the same intent engine, and the
 infrastructure surfaces integrators asked for. Every new address was read back
 on-chain on 2026-10-09; nothing in this release signs or holds funds.

@@ -256,6 +256,7 @@ export const ERROR_CATALOG = {
   INSUFFICIENT_BALANCE: intent("Insufficient balance", "Fund the account or lower the amount."),
   NETWORK_UNSUPPORTED: intent("Network not supported", "Use a network from GET /v1/networks that supports this action.", { otherStatuses: [500] }),
   PLAN_INVALID: intent("Plan invalid", "Simplify the intent; at most 8 steps are planned.", { otherStatuses: [502] }),
+  POSITION_UNAVAILABLE: upstream("Position not readable", "Kletia could not read this venue position right now, or does not list positions for this venue yet. The funds are unaffected; check the venue directly or retry later.", 502, { step: true }),
   POSITION_EMPTY: intent("No position to withdraw", "There is nothing deposited at this venue for the account."),
   PRICE_IMPACT_TOO_HIGH: intent("Price impact too high", "Move a smaller amount; routes that cost more than 5% are refused."),
   RECIPIENT_INVALID: intent("Invalid recipient", "Use an address or CAIP-10 account on the destination network."),

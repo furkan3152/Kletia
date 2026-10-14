@@ -36,6 +36,7 @@ import {
 import { authenticate, enforceAuthentication, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
 import { validateContractTestRequest } from "@kletia/core";
 import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
+import { clarifyRequested, deleteThread, getThread, handleIntentTurn, listThreads, mutatesThread, screenClarifySecrets } from "./clarify.js";
 import { assetRegistry, networkCapabilities, protocolRegistry, venueFilter } from "./catalog.js";
 import {
   authOf,
@@ -100,6 +101,7 @@ import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
 import { createSession, createSessionIntent, getSession, startSessionPruner } from "./sessions.js";
 import { streamIntentEvents, type StreamOptions } from "./sse.js";
+import { startThreadPruner } from "./threads.js";
 import { parseUsageWindow, startUsageFlusher, usageCounter, usageReport } from "./usage.js";
 import { createWebhook, deleteWebhook, listWebhooks } from "./webhooks.js";
 
@@ -218,6 +220,10 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/sessions", auth: "key" },
   { method: "get", path: "/sessions/:id", auth: "public" },
   { method: "post", path: "/sessions/:id/intents", auth: "public" },
+  // Kletia-held clarify threads: the key's own, read and deleted by id.
+  { method: "get", path: "/threads", auth: "key" },
+  { method: "get", path: "/threads/:id", auth: "key" },
+  { method: "delete", path: "/threads/:id", auth: "key" },
   { method: "get", path: "/errors", auth: "public" },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public" },
@@ -343,7 +349,7 @@ function webhookIdParam(req: Request): string {
   return id;
 }
 
-/** A dry run is side-effect free, so Idempotency-Key is ignored for it. */
+/** A dry run is side-effect free, so Idempotency-Key is ignored for it (unless it changes a Kletia-held thread). */
 function isDryRun(req: Request): boolean {
   const value: unknown = (req.query as Record<string, unknown>).dryRun;
   return value === "true" || value === "1";
@@ -589,8 +595,16 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       }),
     ],
     "post /intents": [
-      idempotent({ route: "POST /intents", applies: (req) => !isDryRun(req) }),
+      // ?clarify=true: secrets in a turn are refused before Idempotency-Key reserves anything.
+      screenClarifySecrets,
+      // A clarify turn that creates or changes a Kletia-held thread honours Idempotency-Key even as a dry run.
+      idempotent({ route: "POST /intents", applies: (req) => !isDryRun(req) || mutatesThread(req) }),
       handle(async (req, res) => {
+        // ?clarify=true: one clarify turn (clarify.ts); without it the strict planner below, unchanged.
+        if (clarifyRequested(req)) {
+          await handleIntentTurn(req, res);
+          return;
+        }
         const dryRun = booleanQuery(req, "dryRun");
         // ?preview=true: also the plan-stage asset-change preview (never stored in the intent).
         const withPreview = booleanQuery(req, "preview");
@@ -613,6 +627,25 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         // A repeated clientReference returns the intent stored by the earlier request.
         if (replayed) res.setHeader("Idempotent-Replayed", "true");
         sendJson(res, replayed ? 200 : 201, body);
+      }),
+    ],
+    "get /threads": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, await listThreads(req));
+      }),
+    ],
+    "get /threads/:id": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, await getThread(req));
+      }),
+    ],
+    "delete /threads/:id": [
+      requireApiKey,
+      handle(async (req, res) => {
+        await deleteThread(req);
+        res.status(204).end();
       }),
     ],
     "get /intents": [
@@ -833,8 +866,8 @@ let stopBackground: (() => void) | null = null;
 /**
  * Starts the settlement poller, the webhook dispatcher, the usage flusher,
  * the contract pin watcher, the receipt issuer and transparency log, and the
- * hourly pruning of idempotency records, delivery logs, expired sessions and
- * previews, once per process. Returns an idempotent stop function. Call it on long-running
+ * hourly pruning of idempotency records, delivery logs, expired sessions,
+ * previews and clarify threads, once per process. Returns an idempotent stop function. Call it on long-running
  * hosts only (not in serverless request handlers; there usage is written
  * per request and expired rows wait for a long-running instance).
  */
@@ -848,6 +881,7 @@ export function startPlatformBackground(options: PlatformBackgroundOptions = {})
     startDeliveryPruner(),
     startContractWatcher(),
     startSessionPruner(),
+    startThreadPruner(),
     startPreviewPruner(),
     startReceiptIssuer(options.receipts),
     startReceiptLog(),

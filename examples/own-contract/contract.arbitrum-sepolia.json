@@ -1,0 +1,121 @@
+{
+  "vm": "evm",
+  "network": "arbitrum-sepolia",
+  "address": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff",
+  "integrator": {
+    "name": "Acme Testnet",
+    "website": "https://acme.example"
+  },
+  "visibility": "private",
+  "abi": [
+    {
+      "type": "function",
+      "name": "supply",
+      "stateMutability": "nonpayable",
+      "inputs": [
+        {
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "name": "onBehalfOf",
+          "type": "address"
+        },
+        {
+          "name": "referralCode",
+          "type": "uint16"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "event",
+      "name": "Supply",
+      "anonymous": false,
+      "inputs": [
+        {
+          "name": "reserve",
+          "type": "address",
+          "indexed": true
+        },
+        {
+          "name": "user",
+          "type": "address",
+          "indexed": false
+        },
+        {
+          "name": "onBehalfOf",
+          "type": "address",
+          "indexed": true
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false
+        },
+        {
+          "name": "referralCode",
+          "type": "uint16",
+          "indexed": true
+        }
+      ]
+    }
+  ],
+  "addresses": [
+    {
+      "label": "ausdc",
+      "address": "0x460b97BD498E1157530AEb3086301d5225b91216"
+    }
+  ],
+  "actions": [
+    {
+      "id": "supply",
+      "label": "Supply USDC to the Acme testnet pool",
+      "function": "supply(address,uint256,address,uint16)",
+      "args": [
+        "$token",
+        "$amount",
+        "$account",
+        {
+          "literal": "0"
+        }
+      ],
+      "input": {
+        "token": "USDC",
+        "approval": {
+          "spender": "$self"
+        }
+      },
+      "output": {
+        "token": "ausdc",
+        "toleranceBps": 10,
+        "rebasing": true
+      },
+      "events": [
+        {
+          "event": "Supply",
+          "emitter": "$self",
+          "where": {
+            "onBehalfOf": "$account",
+            "amount": "$amount"
+          }
+        }
+      ],
+      "phrases": {
+        "verbs": [
+          "supply"
+        ],
+        "aliases": [
+          "acme pool"
+        ]
+      },
+      "limits": {
+        "maxAmount": "1000"
+      }
+    }
+  ]
+}

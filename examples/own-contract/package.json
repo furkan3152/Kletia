@@ -1,0 +1,21 @@
+{
+  "name": "kletia-example-own-contract",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Bring your own contract, testnet first: inspect, validate, register and test a contract call, then embed it with one session per page view.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "register": "node register.mjs contract.arbitrum-sepolia.json",
+    "start": "node session-server.mjs",
+    "check": "node smoke.mjs",
+    "build": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@kletia/core": "^0.1.0",
+    "@kletia/sdk": "^0.1.0"
+  },
+  "license": "MIT"
+}

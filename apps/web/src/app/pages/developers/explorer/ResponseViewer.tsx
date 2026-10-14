@@ -43,7 +43,7 @@ function RateLimitMeter({ exchange }: { readonly exchange: ExplorerExchange }) {
   const percent = limit ? Math.min(100, Math.round(((used ?? 0) / limit) * 100)) : 0;
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
-      <p className="flex flex-wrap items-center gap-x-2 font-code text-[11px]">
+      <p className="flex flex-wrap items-center gap-x-2 font-code text-xs">
         <Gauge className="h-3.5 w-3.5" aria-hidden="true" />
         <span className="font-bold">
           {rate.remaining}
@@ -85,7 +85,7 @@ function StreamFrames({ frames, truncated }: { readonly frames: readonly StreamF
           frame.event ?? (typeof data === "object" && data !== null && "type" in data ? String((data as { type: unknown }).type) : "message");
         return (
           <li key={`${frame.id ?? index}-${index}`} className="kl-rise flex min-w-0 flex-col gap-1" style={{ "--kl-i": Math.min(index, 8) } as React.CSSProperties}>
-            <p className="flex flex-wrap items-center gap-2 font-code text-[11px]">
+            <p className="flex flex-wrap items-center gap-2 font-code text-xs">
               <Badge tone="blue">{type}</Badge>
               {frame.id ? <span className={TEXT_MUTED}>id: {frame.id}</span> : null}
             </p>
@@ -129,7 +129,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
   return (
     <div className="kl-rise flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2 font-code text-xs">
-        <Badge key={exchange.seq} tone={statusTone(exchange.status)} className="kl-stamp !text-[11px]">
+        <Badge key={exchange.seq} tone={statusTone(exchange.status)} className="kl-stamp !text-xs">
           {exchange.status} {exchange.statusText || ""}
         </Badge>
         <span className={cx("inline-flex items-center gap-1 px-1.5 py-0.5", INK_BORDER_THIN)}>
@@ -151,7 +151,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
         <RateLimitMeter exchange={exchange} />
         {requestId ? (
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate font-code text-[11px]" title={requestId}>
+            <p className="min-w-0 truncate font-code text-xs" title={requestId}>
               <span className={TEXT_MUTED}>X-Request-Id </span>
               {requestId}
             </p>
@@ -200,7 +200,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
               onClick={() => setTab(item.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
               className={cx(
-                "-mb-[3px] min-h-10 border-[3px] border-b-0 px-3 text-[11px] font-black uppercase tracking-[0.12em]",
+                "-mb-[3px] min-h-10 border-[3px] border-b-0 px-3 text-xs font-black uppercase tracking-[0.12em]",
                 selected
                   ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#4B5563]"
                   : "border-transparent text-[#45464B] hover:text-[#1A1A1A] dark:text-[#A9B6C8] dark:hover:text-white",
@@ -289,7 +289,7 @@ export function ResponseViewer({ result, origin, onRetry }: ResponseViewerProps)
             type="button"
             onClick={onRetry}
             className={cx(
-              "w-fit border-2 border-current px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] hover:bg-white/40",
+              "w-fit border-2 border-current px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] hover:bg-white/40",
               FOCUS_RING,
             )}
           >

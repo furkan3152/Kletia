@@ -11,6 +11,17 @@ envelopes).
 npm install @kletia/sdk
 ```
 
+The packages are released together from a `packages-v*` tag of this
+repository (core, sdk, widget, embed and cli, same version, published to npm
+with provenance). Before a version is on npm, install the release's packages
+from a checkout of that tag:
+
+```bash
+git clone --branch packages-v<version> https://github.com/furkan3152/Kletia.git
+cd Kletia && npm ci && npm pack -w @kletia/core -w @kletia/sdk
+cd ../your-app && npm install ../Kletia/kletia-core-*.tgz ../Kletia/kletia-sdk-*.tgz
+```
+
 ## Plan an intent
 
 ```ts
@@ -40,9 +51,52 @@ it can list your intents and manage your webhooks. On your server:
 const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
 ```
 
-From the browser, either omit `apiKey` (public tier) or point `baseUrl` at
-your own proxy, e.g. `new KletiaClient({ baseUrl: location.origin + "/api/kletia" })`,
-which forwards `/api/kletia/v1/*` to the Kletia API with your key attached.
+From the browser, either omit `apiKey` (public tier), point `baseUrl` at
+your server's [`createKletiaProxy`](#browser-proxy-createkletiaproxy), e.g.
+`new KletiaClient({ baseUrl: location.origin + "/api/kletia" })`, or use a
+[publishable key](#publishable-keys-and-projects).
+
+### Clarifying questions
+
+`intents.create` refuses an incomplete sentence. `intents.turn` asks
+instead: one turn of `POST /v1/intents?clarify=true` answers `needs_input`
+with questions, `planned` with the intent, or `cancelled`. Send the returned
+`thread` back with an answer; once it is ready, a turn with the thread and no
+input stores the intent (the commit).
+
+```ts
+const accounts = [formatAccountId("solana", solanaAddress)];
+let turn = await kletia.intents.turn({ text: "swap SOL to USDC", accounts }, { dryRun: true, preview: true });
+while (turn.status === "needs_input") {
+  const question = turn.questions[0];              // prompt, why, options (label, detail, sentence), allowsText
+  const option = await askUser(question);          // e.g. "all"
+  turn = await kletia.intents.turn({ thread: turn.thread, accounts, answer: { question: question.id, option } }, { dryRun: true, preview: true });
+}
+if (turn.status === "planned") {
+  show(turn.sentence, turn.assumptions, turn.preview);       // what Kletia assumed, as chips
+  const stored = await kletia.intents.turn({ thread: turn.thread, accounts });  // commit
+}
+```
+
+The thread is held by your client (`kletia.thread/v1`, at most 16 KB): the
+API keeps nothing between turns. With an API key, `remember: true` on the
+first turn makes Kletia hold it instead (later turns send `threadId`; 30
+minutes idle, 24 hours at most, 50 turns); `kletia.threads.list()`,
+`threads.get(id)` and `threads.delete(id)` manage the key's threads. A turn
+that changes a Kletia-held thread is retried only with an Idempotency-Key
+(the client generates one when it has a key), and `expectedRev` refuses a
+thread that moved on (`THREAD_CONFLICT`); dry-run turns on client-held
+threads are safe to retry. Refusals are `KletiaApiError`s with the clarify
+codes (`ANSWER_INVALID`, `QUESTION_NOT_OPEN`, `THREAD_INVALID`,
+`THREAD_NOT_FOUND`, `THREAD_CLOSED`, `THREAD_REQUIRES_API_KEY`,
+`MESSAGE_SECRET_REFUSED`); the thread is unchanged after one.
+
+### List your intents
+
+```ts
+const recent = await kletia.intents.list({ limit: 50 });          // key required; `list(50)` works too
+const widget = await kletia.intents.list({ owner: publishableKeyId }); // an agent or publishable key below yours
+```
 
 ## Execute it with real wallets
 
@@ -60,6 +114,40 @@ const final = await executeIntent(kletia, intent, {
 `executeIntent` prepares each ready step, asks the wallet bound to that step
 to sign, submits the transaction references for on-chain verification and
 waits for cross-network settlement before unlocking dependent steps.
+
+### The journey: where the money is after every step
+
+```ts
+const { intent, preview, journey } = await kletia.intents.create(request, { journey: true }); // implies the preview
+const live = await kletia.intents.journey(intent.id);            // { stops, legs, now, consequences, blockers }
+const { intent: stopped } = await kletia.intents.stop(intent.id); // end it at the current stop
+
+await executeIntent(kletia, intent, signers, {
+  onPreview: approveFare,
+  onJourney: (next) => render(next),     // after the plan and when the journey changes (at most every 5 s)
+  journeyAnswers: { "gas-to-continue:out:s1:base": "bring-gas" },
+  onJourneyBlocked: (blockers) => ask(blockers),
+});
+```
+
+A journey lists each stop (network, holder, custody, amounts with an
+at-least bound, USD value and its source), each leg, and consequences
+(`block`, `act`, `warn`, `info`) with options. With `onJourney` or
+`journeyAnswers`, `executeIntent` reads the journey and stops before the
+wallet prompt of a step that has an unanswered `block` consequence (an answer
+must be one of that consequence's option ids), returning the intent like a
+declined preview; a journey it cannot read stops the run before signing.
+Options are data: the SDK never re-plans or stops anything on its own.
+Without either option no journey is fetched. `stop` answers 409
+`INTENT_IN_FLIGHT` (retryable, `Retry-After`) while a step is moving; never
+stop while you hold broadcast references that were not submitted.
+
+### Holdings
+
+```ts
+const one = await kletia.portfolio(account, { positions: true });       // + venue positions
+const many = await kletia.portfolios([baseAccount, solanaAccount], { positions: true }); // up to 12; failures listed
+```
 
 ### Recovering broadcast transactions
 
@@ -123,6 +211,18 @@ await kletia.intents.stream(intent.id, (event) => {
 const final = await kletia.intents.wait(intent.id, {
   timeoutMs: 10 * 60_000,
   onUpdate: (next) => render(next),
+});
+```
+
+Every event of your key, as its webhooks would receive them (contract,
+link, rule book and key events too), on one stream (key required, at most 2
+per key; `kletia listen` forwards it to localhost signed like webhooks):
+
+```ts
+await kletia.events.stream((event) => console.log(event.type, event.id), {
+  scope: "subtree",                         // also your agent and publishable keys
+  types: ["contract.activated", "link.created"],
+  lastEventId,                              // resume; de-duplicate by event id
 });
 ```
 
@@ -224,7 +324,8 @@ the event or throws `KletiaWebhookError` with a `reason`, and
 ## Keys, webhooks and usage
 
 ```ts
-const keys = await kletia.keys.list();                       // last4 only, never secrets
+const sandbox = await kletia.keys.create("staging", { sandbox: true }); // testnet lane only; sandbox.lane === "testnet"
+const keys = await kletia.keys.list();                       // last4 only, never secrets; each with its lane
 const rotated = await kletia.keys.rotate(keys[0].id, { graceSeconds: 3600 });
 await kletia.keys.revoke(oldKeyId);
 
@@ -234,6 +335,64 @@ const usage = await kletia.usage({ window: "7d" });
 const catalog = await kletia.errors();
 const lending = await kletia.venues({ network: "base", protocol: "morpho" }); // APY, TVL, exit liquidity
 ```
+
+## Browser proxy: createKletiaProxy
+
+`@kletia/sdk/server` turns your server into the browser's Kletia origin:
+the key stays on the server and only what a visitor's browser needs is
+forwarded.
+
+```ts
+import { createKletiaProxy, expressKletiaProxy } from "@kletia/sdk/server";
+
+// Fetch handlers (Next.js route handlers, Hono, Workers, Bun, Deno):
+const proxy = createKletiaProxy({ apiKey: process.env.KLETIA_API_KEY!, mount: "/api/kletia" });
+export const GET = proxy, POST = proxy;    // app/api/kletia/[...path]/route.ts
+
+// Express or node:http (before any JSON body parser):
+app.use("/api/kletia", expressKletiaProxy({ apiKey: process.env.KLETIA_API_KEY!, mount: "/api/kletia" }));
+```
+
+In the page: `new KletiaClient({ baseUrl: location.origin + "/api/kletia" })`
+or the widget's `baseUrl`. The default allowlist (`allow: "browser"`,
+`BROWSER_PROXY_RULES`) forwards registry and quote reads, `POST /v1/intents`
+(dry runs, previews and client-held clarify turns), intent reads and events
+(Server-Sent Events streamed through), journey, stop, preview,
+prepare/submit/refresh/cancel, receipt reads and shares, and the public
+session and link routes. Everything else (keys, webhooks, contracts, rule
+books, projects, usage, listing intents, Kletia-held threads) answers
+`403 PROXY_ROUTE_FORBIDDEN` without reaching Kletia. The browser's
+`Authorization`, `X-Kletia-Key`, `Cookie` and `Origin` are dropped (only a
+few headers pass, `X-Request-Id` among them), bodies are capped
+(`maxBodyBytes`, default 64 KB: 413) and redirects are never followed. Pass
+`allow: [{ method: "GET", path: "/intents/:id" }, …]` to replace the list.
+[examples/node-server](../../examples/node-server/README.md) runs it.
+
+## Publishable keys and projects
+
+A publishable key (`kl_pub_…`) identifies your project in browsers: it plans
+intents (owned by the key, so its parent's subtree webhooks fire), starts
+sessions from the project's stored flows and reads the project profile, from
+the origins you allow and under the project's defaults.
+
+```ts
+// Browser
+const kletia = new KletiaClient({ publishableKey: "kl_pub_…" });
+const profile = await kletia.publishable.profile();       // brand, allowed origins, lane, defaults, flows
+await kletia.sessions.create({ flow: "deposit", hostOrigin: location.origin });
+
+// Server (project key)
+const project = await server.projects.get();               // settings, version, hash, domain proof
+await server.projects.update({ allowedOrigins: ["https://shop.example"] }, { ifMatch: project.hash });
+await server.projects.verifyDomain();                      // https://<website>/.well-known/kletia.json
+const { key } = await server.projects.createPublishableKey({ label: "website" }); // shown once
+await server.projects.setLogo(pngBytes, "image/png");      // verified projects; PNG or WebP, 64 KB
+```
+
+With `publishableKey` the client refuses every server-only method locally
+(`PUBLISHABLE_KEY_FORBIDDEN`, status 0, nothing sent) and never sends an
+Idempotency-Key. `projects.update` takes the `hash` it is based on: a project
+changed meanwhile answers 409 `PROJECT_CONFLICT`.
 
 ## Custom contracts
 
@@ -472,7 +631,9 @@ the catalog codes from `@kletia/core`, plus SDK codes such as
 `OUTCOME_UNKNOWN`), the
 HTTP `status`, validation `issues`, `hints`, `retryAfterSeconds` when the API
 sent `Retry-After`, the `requestId` for support, its catalog `category`,
-`docsUrl`, and `retryable` (from the catalog).
+`docsUrl`, `retryable` (from the catalog) and `details`, the error's
+structured context when the API sends one (for example the candidate
+networks of `SOURCE_REQUIRED`).
 
 ```ts
 import { isKletiaError } from "@kletia/sdk";

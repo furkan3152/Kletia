@@ -13,8 +13,8 @@ interface PredictionData {
 }
 
 interface AlloraDashboardProps {
-  isDarkMode: boolean;
-  onActionClick: (prompt: string) => void;
+  /** Puts a sentence in the desk's composer with the Base engine pinned (unused by this read-only panel today). */
+  onActionClick?: (prompt: string) => void;
 }
 
 const ALLORA_ASSETS = ["ETH", "BTC"] as const;
@@ -47,9 +47,12 @@ function isPredictionData(
   );
 }
 
-export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
-  isDarkMode,
-}) => {
+/**
+ * Allora price inference as advisory market context (desk tool 10). Follows
+ * the site theme through the `dark` class on the document, like every desk
+ * surface.
+ */
+export const AlloraDashboard: React.FC<AlloraDashboardProps> = () => {
   const [data, setData] = useState<PredictionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,131 +129,91 @@ export const AlloraDashboard: React.FC<AlloraDashboardProps> = ({
     };
   }, [timeframe]);
 
-  const bgClass = isDarkMode
-    ? "bg-gray-900 text-gray-200"
-    : "bg-gray-50 text-black";
-  const cardBg = isDarkMode
-    ? "bg-gray-800 border-[#CCA000] shadow-[4px_4px_0_#CCA000]"
-    : "bg-white border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A]";
-  const headerText = isDarkMode ? "text-[#CCA000]" : "text-blue-600";
-
   return (
-    <div
-      className={`p-8 w-full max-w-7xl mx-auto min-h-[80vh] flex flex-col gap-6 ${bgClass}`}
-    >
-      <div className="flex flex-col md:flex-row justify-between items-center border-b-4 border-current pb-4">
+    <div className="flex w-full flex-col gap-5 text-fg">
+      <div className="flex flex-col gap-3 border-b-[3px] border-[#1A1A1A] pb-4 dark:border-[#4B5563] sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1
-            className={`text-4xl font-black uppercase tracking-tighter ${headerText}`}
-          >
-            Allora{" "}
-            <span className={isDarkMode ? "text-gray-100" : "text-gray-900"}>
-              Price Observation
-            </span>
-          </h1>
-          <p className="font-bold opacity-80 uppercase mt-2 tracking-widest text-sm">
-            Live Price + AI Prediction ➔ Neutral Direction
+          <h3 className="font-display text-xl font-bold">Allora price observation</h3>
+          <p className="mt-1 text-sm text-muted">
+            Live price and the Allora network's inference, shown as advisory market context.
           </p>
         </div>
 
-        <div className="mt-4 md:mt-0 flex items-center gap-4">
-          <label
-            htmlFor="allora-timeframe"
-            className="font-bold uppercase text-sm"
-          >
-            Timeframe:
+        <div className="flex items-center gap-3">
+          <label htmlFor="allora-timeframe" className="text-label uppercase">
+            Timeframe
           </label>
           <select
             id="allora-timeframe"
             value={timeframe}
             onChange={(e) => setTimeframe(e.target.value as "5m" | "8h")}
-            className={`min-h-10 p-2 border-2 font-bold transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
-              isDarkMode
-                ? "bg-gray-800 border-[#CCA000] text-[#CCA000]"
-                : "bg-white border-blue-600 text-blue-600"
-            }`}
+            className="min-h-11 border-2 border-control bg-surface px-2 text-sm font-bold text-fg focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
-            <option value="5m">5 Minutes (Short Term)</option>
-            <option value="8h">8 Hours (Medium Term)</option>
+            <option value="5m">5 minutes (short term)</option>
+            <option value="8h">8 hours (medium term)</option>
           </select>
         </div>
       </div>
 
       {loading && data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1">
-          <div
-            className={`w-16 h-16 border-8 border-dashed rounded-full animate-spin ${isDarkMode ? "border-[#CCA000]" : "border-blue-600"}`}
-          ></div>
-          <p className="mt-4 font-bold uppercase tracking-widest animate-pulse">
-            Market Analysis in Progress...
-          </p>
-        </div>
+        <p role="status" className="flex items-center gap-3 text-sm font-bold">
+          <span
+            aria-hidden="true"
+            className="h-6 w-6 animate-spin rounded-full border-4 border-dashed border-[#0052FF] motion-reduce:animate-none dark:border-[#7EA6FF]"
+          />
+          Reading the latest inference
+        </p>
       ) : error ? (
-        <div className="bg-red-500 text-white font-bold p-6 border-4 border-red-900 uppercase tracking-widest">
-          ❌ {error}
-        </div>
+        <p role="alert" className="border-[3px] border-[#1A1A1A] bg-[#FEE2E2] p-4 text-sm font-bold text-[#7F1D1D] dark:border-[#4B5563] dark:bg-[#3A1414] dark:text-[#FECACA]">
+          {error}
+        </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {data.map((item) => {
             const diffPercent = Number(item.predictedDeltaPercent);
             const isPositive = diffPercent > 0;
             const diffColor = isPositive
-              ? "text-green-500"
+              ? "text-[#047857] dark:text-[#6EE7B7]"
               : diffPercent < 0
-                ? "text-red-500"
-                : "text-gray-500";
-            const directionClass =
-              item.direction === "UP"
-                ? "border-green-500 text-green-500"
-                : item.direction === "DOWN"
-                  ? "border-red-500 text-red-500"
-                  : "border-gray-500 text-gray-500";
+                ? "text-[#B91C1C] dark:text-[#FCA5A5]"
+                : "text-muted";
 
             return (
               <div
                 key={item.asset}
-                className={`border-4 p-6 flex flex-col gap-4 transform transition-all duration-200 hover:-translate-y-2 hover:translate-x-2 ${cardBg}`}
+                className="flex flex-col gap-4 border-[3px] border-[#1A1A1A] bg-surface p-5 shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]"
               >
-                <div className="flex justify-between items-center border-b-2 border-dashed border-gray-500 pb-2">
-                  <h2 className="text-3xl font-black">{item.asset}</h2>
-                  <span
-                    className={`text-sm font-bold uppercase px-2 py-1 border-2 ${directionClass}`}
-                  >
+                <div className="flex items-center justify-between border-b-2 border-dashed border-[#1A1A1A]/40 pb-2 dark:border-white/20">
+                  <h4 className="font-display text-2xl font-bold">{item.asset}</h4>
+                  <span className={`border-2 border-current px-2 py-1 text-xs font-black uppercase ${diffColor}`}>
                     {item.direction}
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold uppercase opacity-70">
-                    Live Price (Binance)
-                  </span>
-                  <span className="text-xl font-bold">
-                    ${item.currentPrice}
-                  </span>
+                  <span className="text-label uppercase text-muted">Live price (Binance)</span>
+                  <span className="font-code text-xl font-bold">${item.currentPrice}</span>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold uppercase opacity-70">
-                    Allora Prediction ({timeframe})
-                  </span>
-                  <div className="flex items-end gap-2">
-                    <span className={`text-3xl font-black ${headerText}`}>
+                  <span className="text-label uppercase text-muted">Allora inference ({timeframe})</span>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <span className="font-code text-2xl font-bold text-[#0052FF] dark:text-[#7EA6FF]">
                       ${item.predictedPrice}
                     </span>
-                    <span className={`text-lg font-bold mb-1 ${diffColor}`}>
-                      {isPositive ? "▲" : diffPercent < 0 ? "▼" : "•"}{" "}
+                    <span className={`mb-0.5 text-base font-bold ${diffColor}`}>
+                      <span aria-hidden="true">{isPositive ? "▲" : diffPercent < 0 ? "▼" : "•"} </span>
                       {item.predictedDeltaPercent}%
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-auto pt-4 border-t-2 border-dashed border-gray-500 text-xs font-bold uppercase tracking-wide opacity-70">
-                  This is a model observation; not a buy/sell recommendation.
-                  <span className="block mt-1 normal-case">
-                    Updated:{" "}
-                    {new Date(item.fetchedAt).toLocaleTimeString("en-US")}
+                <p className="mt-auto border-t-2 border-dashed border-[#1A1A1A]/40 pt-3 text-xs font-bold text-muted dark:border-white/20">
+                  A model observation, not a buy or sell recommendation.
+                  <span className="mt-1 block font-normal">
+                    Updated {new Date(item.fetchedAt).toLocaleTimeString("en-US")}
                   </span>
-                </div>
+                </p>
               </div>
             );
           })}

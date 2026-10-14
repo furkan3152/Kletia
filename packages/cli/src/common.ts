@@ -2,6 +2,7 @@
  * Shared pieces of the command table: the command shape, exit codes and the
  * argument helpers every command module uses.
  */
+import { createInterface } from "node:readline";
 import { CHAINS, formatAccountId, parseAccountId, type AccountId, type NetworkKey } from "@kletia/core";
 import type { KletiaClient } from "@kletia/sdk";
 import { UsageError, type OptionSpec, type OptionValues } from "./args.js";
@@ -17,6 +18,8 @@ export const EXIT_INVALID = 3;
 export const EXIT_MISMATCH = 4;
 /** Receipt checks: nothing proved wrong, but not everything could be checked (sources unavailable, groups sealed, still pending). */
 export const EXIT_INCONCLUSIVE = 5;
+/** `plan`: Kletia asked a question and there is no terminal to answer it (the needs_input response is on stdout). */
+export const EXIT_NEEDS_INPUT = 6;
 export const EXIT_USAGE = 64;
 
 export interface CommandContext {
@@ -113,4 +116,46 @@ export function durationSeconds(value: string, option: string, usage: string): n
   if (!match) throw new UsageError(`--${option} takes a duration such as 30d, 12h, 90m or seconds.`, usage);
   const unit = match[2] === "d" ? 86_400 : match[2] === "h" ? 3_600 : match[2] === "m" ? 60 : 1;
   return Number(match[1]) * unit;
+}
+
+/* ------------------------------------------------------------ questions */
+
+/** Answers typed at a prompt: one line, or null at end of input. Embedders and tests pass `ask` on the io. */
+export interface Prompter {
+  ask(prompt: string): Promise<string | null>;
+  close(): void;
+}
+
+/**
+ * A line prompter when a person can answer and the command does not print
+ * JSON: `io.ask` when the embedder provides one, else stdin and stdout of
+ * this process when both are terminals. Null otherwise: the command then
+ * reports what it would have asked and exits.
+ */
+export function terminalPrompter(context: CommandContext): Prompter | null {
+  if (context.json) return null;
+  const custom = (context.io as { readonly ask?: (prompt: string) => Promise<string | null> }).ask;
+  if (typeof custom === "function") return { ask: custom, close: () => undefined };
+  if (!context.print.stdoutIsTerminal || process.stdin.isTTY !== true) return null;
+  const lines = createInterface({ input: process.stdin, output: process.stderr, terminal: true });
+  let closed = false;
+  lines.once("close", () => {
+    closed = true;
+  });
+  return {
+    ask: (prompt) =>
+      new Promise((resolve) => {
+        if (closed) {
+          resolve(null);
+          return;
+        }
+        const onClose = () => resolve(null);
+        lines.once("close", onClose);
+        lines.question(prompt, (answer) => {
+          lines.off("close", onClose);
+          resolve(answer);
+        });
+      }),
+    close: () => lines.close(),
+  };
 }

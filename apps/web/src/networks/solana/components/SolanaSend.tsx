@@ -7,7 +7,7 @@ import {
   toBaseUnits,
   type SolanaTransactionRequest,
 } from "@kletia/core";
-import { CircleCheck, Send, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import { useKletiaEvent } from "../../../shared/sync/bus";
 import { shortenAddress } from "../../../shared/wallet/types";
@@ -25,11 +25,11 @@ import { useSolanaExecution } from "../hooks/useSolanaExecution";
 import { useSolanaResource } from "../hooks/useSolanaResource";
 import { canonicalTokens } from "../tokens";
 import { ui } from "../styles";
-import { ConnectSolanaCta, DetailRow, ExecutionPanel, PanelHeader } from "./SolanaUi";
+import { DetailRow, ExecutionPanel } from "./SolanaUi";
 
 interface SolanaSendProps {
   owner: string | null;
-  /** Mainnet portfolio shared by the workspace. */
+  /** Mainnet portfolio from the desk's SolanaToolHost. */
   portfolio: SolanaPortfolio | null;
 }
 
@@ -69,7 +69,7 @@ function TransferReview({ details }: { details: TransferDetails }) {
         </p>
       ) : null}
       {prepared.token.symbol !== "SOL" ? (
-        <p className="text-xs font-bold text-gray-600 dark:text-slate-300">
+        <p className={ui.hint}>
           If the recipient has no {prepared.token.symbol} account yet, this transaction creates it and
           you pay its one-time rent deposit.
         </p>
@@ -78,6 +78,11 @@ function TransferReview({ details }: { details: TransferDetails }) {
   );
 }
 
+/**
+ * Send form (desk tool 05): SOL, SPL and Token-2022 transfers on mainnet or
+ * devnet. Kletia re-checks the mint on-chain and simulates the transfer; the
+ * wallet is asked only after useSolanaExecution's pre-sign checks pass.
+ */
 export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
   const [network, setNetwork] = React.useState<SolanaNetworkKey>("solana");
   const [symbol, setSymbol] = React.useState("SOL");
@@ -177,12 +182,6 @@ export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <PanelHeader
-        icon={Send}
-        title="Send"
-        description="SOL, SPL and Token-2022 transfers. Kletia re-checks the mint on-chain, simulates the transfer and shows the result before your wallet signs."
-      />
-      {!owner ? <ConnectSolanaCta /> : null}
 
       <form
         noValidate
@@ -215,7 +214,7 @@ export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
             ))}
           </div>
           {network === "solana-devnet" ? (
-            <p className="text-xs font-bold text-gray-600 dark:text-slate-300">
+            <p className={ui.hint}>
               Devnet tokens have no value. Make sure your wallet is also set to devnet.
             </p>
           ) : null}
@@ -253,7 +252,7 @@ export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
                   type="button"
                   disabled={locked}
                   onClick={() => setAmount(max)}
-                  className="text-[11px] font-black uppercase text-[#9945FF] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#9945FF] disabled:opacity-50 dark:text-[#C4A1FF]"
+                  className={ui.textButton}
                 >
                   Max {formatTokenAmount(max)}
                 </button>
@@ -271,7 +270,7 @@ export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
               aria-describedby={ids.amountHint}
               className={ui.input}
             />
-            <p id={ids.amountHint} className="text-xs font-bold text-gray-600 dark:text-slate-300" aria-live="polite">
+            <p id={ids.amountHint} className={ui.hint} aria-live="polite">
               {amountError ?? (overBalance ? `Amount exceeds your ${token.symbol} balance.` : " ")}
             </p>
           </div>
@@ -294,7 +293,7 @@ export function SolanaSend({ owner, portfolio }: SolanaSendProps) {
             aria-describedby={ids.recipientHint}
             className={`${ui.input} font-mono text-sm`}
           />
-          <p id={ids.recipientHint} className="text-xs font-bold text-gray-600 dark:text-slate-300" aria-live="polite">
+          <p id={ids.recipientHint} className={ui.hint} aria-live="polite">
             {recipientError ??
               (touched && !trimmedRecipient
                 ? "Enter the recipient's Solana address."

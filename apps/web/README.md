@@ -1,18 +1,28 @@
 # Kletia Web (@kletia/web)
 
-The Kletia browser application: the product site (home, developer portal, network status), the intent console (`/app`) with Base, Arbitrum, Arc and Solana workspaces, Intent Studio (`/studio`) with wallet execution, and the embeddable widget page (`/embed`). EVM and Solana wallets connect side by side; every transaction is prepared by the API and approved in the user's own wallet.
+The Kletia browser application: the product site (home, developer portal, network status), the desk at `/app` (one composer for all nine networks), Intent Studio (`/studio`, wallet-free dry runs) and the embeddable widget page (`/embed`). EVM and Solana wallets connect side by side; every transaction is prepared by the API and approved in the user's own wallet.
 
-## Layout
+## The desk (`/app`)
+
+The console is one desk, not a set of per-network workspaces:
+
+- Composer and departure board: one text box plans every sentence through Platform API v1 on all nine networks (six production networks and the three test-yard networks). The departure chip says where the money starts: Auto (chosen by balance) or any network; `?from=<network>` sets it and `?q=<sentence>` plans a sentence once.
+- Tasks: each sentence becomes a task card with its ticket, fare, journey and questions; tasks sign one at a time, keep their own resume records and survive a reload in the session. Sentences only the network engines handle (Kletia Intent Router V2, Basenames, Kletia's Arc contracts, Circle App Kit) run as Base, Arbitrum One or Arc engine tasks inline, loaded lazily from `src/app/console/legacy/`.
+- Holdings and Activity: one batched portfolio read for every connected account, with "Start here" and "Fund" (Coinbase on Base, Circle's faucet on Arc, a bridge sentence elsewhere); the activity rail lists signed transactions on every network.
+- Tools (`/app/tools`, `/app/tools/<id>`): every network's extras in one card language, each its own lazy chunk: x402 services, Basenames, address risk check, the Solana forms (Jupiter swap, send, liquid staking, lending rates) with the same pre-sign checks, Kletia's Arc contracts and lending, Allora predictions, the airdrop check, funding links and starter sentences pinned to an engine. A tool never sends anything: its sentences fill the composer with the right engine pinned.
+- Studio hand-off: Studio plans with preview accounts and never loads wallet code; "Run in the console" opens `/app?q=<sentence>&from=<departure>`, where the desk plans again with the user's own accounts.
+
+## Source layout
 
 - `src/main.tsx`, `src/app/router.tsx`, `src/app/routes/`: Entry (privacy egress guard first), history router and route table; every page is a lazy chunk and only wallet routes load wallet SDKs.
-- **`src/app/pages/`**: Home, Developers, Protocols (venue directory, live from `/v1/protocols`), Networks, Studio, Embed and 404.
+- `src/app/pages/`: Home, Developers, Protocols (venue directory, live from `/v1/protocols`), Networks, Studio, Embed, receipts, intent links, approvals and 404.
 - `src/app/site/`: Site shell, design primitives and the intent UI (graph view, review, progress, execution flow).
-- **`src/app/App.tsx`**: The intent console (EVM chat workspaces and the Solana workspace).
+- `src/app/console/`: The desk: shell, composer and departure board, tasks, holdings, activity, tools (`tools/`, with the Solana tool host and the funding flows) and the lazily loaded network engines (`legacy/`, with the only console-specific stylesheet, `legacyConsole.css`).
 - `src/networks/`: Network-owned UI and bindings (`base`, `arc`, `arbitrum`, `solana`).
 - `src/shared/wallet/`: Chain-agnostic wallet layer (wagmi/RainbowKit for EVM, Wallet Standard for Solana).
 - `src/shared/platform/`: Platform API v1 client, intent execution hook (`useIntentExecution`), signer binding checks and resumable sessions.
 - `src/shared/sync/`: Cross-feature event bus and the shared activity store.
-- **`src/shared/`**: Chat, layout, validation, state (zustand), privacy and safe storage.
+- `src/shared/`: The chat cards engine tasks render, validation, state (zustand), privacy and safe storage.
 
 ## Motion system
 
@@ -20,7 +30,7 @@ Kletia's motion is mechanical and snappy: cards drop onto the page, press into t
 
 - Tokens: `--kl-dur-*`, `--kl-ease-*`, `--kl-shift-*`, `--kl-stagger` and the theme-aware `--kl-shadow-ink` in `src/app/styles.css`, mirrored in `src/app/site/motion/tokens.ts`. Tailwind adds `shadow-hard*`, `ease-kl-*`, `duration-90/240/420` and the `kl-*` palette.
 - **Primitives** (`src/app/site/motion/`, one file each, no barrel): `Reveal` (scroll reveal), `AnimatedNumber` (count-up), `Marquee` (ticker with a Pause button), `Typewriter`, `FlowLine` (SVG edge with travelling packets), `useSpotlight`, `celebrate`/`useCelebrateOnce`, `runViewTransition`, `RouteEnter`, plus the hooks `useReducedMotion`, `usePageVisible`, `useInView`, `useAutoPause`, `usePrevious` and `useChangeKey`. UI pieces in `src/app/site/ui/`: `Skeleton`, `toast` + `Toaster` (mounted by the router), `Monogram`, and opt-in motion on `Button` (`loading`), `Card` (`spotlight`), `Section` (`reveal`, plus `platform` for its numbered plate), `Stat` (`animateTo`), `StatusDot` (`pulse`), `CodeBlock` (`reveal="lines"`, sliding tabs) and `CopyButton` (`notify`).
-- **CSS utilities**: `kl-rise`, `kl-drop`, `kl-node-in`, `kl-stamp`, `kl-shake`, `kl-fill-x`, `kl-draw` (SVG with `pathLength="1"`), `kl-msg-in`, `kl-attn-ring`, `kl-hatch`, `kl-shimmer`, `kl-lift`, `kl-spotlight`, `kl-details` and `kl-scroll-shadow`.
+- CSS utilities: `kl-rise`, `kl-drop`, `kl-node-in`, `kl-stamp`, `kl-shake`, `kl-fill-x`, `kl-draw` (SVG with `pathLength="1"`), `kl-attn-ring`, `kl-hatch`, `kl-shimmer`, `kl-lift`, `kl-spotlight`, `kl-details` and `kl-scroll-shadow`.
 - Reduced motion: under `prefers-reduced-motion: reduce` nothing moves. Content shows its final state (or an opacity-only fade of 150 ms or less), loops stop, count-ups show the final value, typing shows the full text and confetti does nothing. Every CSS class has a fallback in the reduced-motion block of `styles.css`, and every JavaScript primitive checks `useReducedMotion()`.
 - Loops: every infinite animation carries `.kl-loop` (or is in the pause list). It stops in hidden tabs (`html[data-kl-hidden]`, set by the router) and off-screen inside any element that uses `useAutoPause` (`data-kl-paused`). Anything that moves for more than 5 s has a visible pause control.
 - Content first: text is in the DOM and readable from the first paint. `Reveal` and `CodeBlock reveal="lines"` only hide content that starts below the viewport, focus forces it visible, and printing shows everything. Animated digits and typed text are `aria-hidden` next to an sr-only copy of the final value.
@@ -55,7 +65,7 @@ npm run dev:web        # from the root, or `npm run dev` here
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start the Vite development server. |
-| `npm run build` | Compile TypeScript, build the production bundle and enforce the entry bundle budget. |
+| `npm run build` | Compile TypeScript, build the production bundle, enforce the entry bundle budget and run the route-chunk check (`scripts/check-route-chunks.mjs`: no site route reaches wallet code except through the `/go`, `/approve` and `/embed` signing panels; the desk loads its engines and tools lazily). |
 | `npm run typecheck` | Type-check without emitting output. |
 | `npm run lint` | Run ESLint. |
 | `npm run verify:intent-user-journey` | Verify the browser intent boundaries for staged workflows and history redaction. |

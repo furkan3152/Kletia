@@ -8,7 +8,7 @@ import http from "node:http";
 import { after, before, describe, it } from "node:test";
 import { configurePlatform, getIntentStore } from "../../index.js";
 import { ACCOUNTS, resetEngine, SOL_ACCOUNT } from "../../engine/__tests__/helpers.js";
-import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestServer } from "./support.js";
+import { assertError, call, OPERATOR_KEY, serve, useClarifyWallet, useTestEnvironment, type TestServer } from "./support.js";
 
 useTestEnvironment();
 const { buildOpenApiDocument, createPlatformRouter, platformErrorHandler } = await import("../index.js");
@@ -106,6 +106,8 @@ async function callTool(name: string, args: Record<string, unknown>, key?: strin
 
 before(async () => {
   resetEngine();
+  // plan_intent clarifies by default: wallet facts come from offline stub holdings.
+  await useClarifyWallet();
   server = await serve((app) => {
     app.use(createCorsMiddleware());
     app.use("/v1", createPlatformRouter(), platformErrorHandler);
@@ -115,6 +117,7 @@ before(async () => {
 });
 
 after(async () => {
+  await useClarifyWallet(false);
   configurePlatform({ adapters: null });
   await server.close();
 });
@@ -272,6 +275,47 @@ describe("POST /v1/mcp (2026-07-28)", () => {
     });
     assert.equal(batch.status, 400);
     assert.equal(batch.body.error?.code, -32600);
+  });
+});
+
+describe("plan_intent clarifies", () => {
+  it("returns needs_input as a normal result with numbered options and their sentences, then plans the answer", async () => {
+    const before = (await getIntentStore().listActive(500)).length;
+    const asked = await callTool("plan_intent", { text: "swap SOL to USDC", accounts: ACCOUNTS });
+    assert.equal(asked.isError, undefined, JSON.stringify(asked));
+    assert.equal(asked.structuredContent.status, "needs_input");
+    assert.equal(asked.structuredContent.dryRun, true);
+    const questions = asked.structuredContent.questions as { id: string; purpose: boolean; options: { id: string; sentence?: string; recommended?: boolean }[] }[];
+    assert.equal(questions[0]?.id, "q.actions.0.amount");
+    assert.equal(questions[0]?.purpose, true);
+    assert.deepEqual(questions[0]?.options.map((option) => option.id), ["all", "half"]);
+    assert.ok(questions[0]?.options.every((option) => typeof option.sentence === "string" && option.sentence.startsWith("swap ")), "options carry sentences");
+    const text = asked.content[0]?.text ?? "";
+    assert.match(text, /^Kletia needs input/u);
+    assert.match(text, /1\) All[^\n]*leads to "swap 2\.49 SOL to USDC/u);
+    assert.match(text, /the person must answer/u);
+    const thread = asked.structuredContent.thread as { spec: string; id: string };
+    assert.equal(thread.spec, "kletia.thread/v1");
+
+    const planned = await callTool("plan_intent", { thread, accounts: ACCOUNTS, answer: { question: "q.actions.0.amount", option: "half" } });
+    assert.equal(planned.isError, undefined, JSON.stringify(planned));
+    assert.equal(planned.structuredContent.status, "planned");
+    assert.match(String(planned.structuredContent.sentence), /^swap 1\.25 SOL to USDC/u);
+    assert.equal((planned.structuredContent.steps as { protocol: string }[])[0]?.protocol, "jupiter");
+    assert.equal((await getIntentStore().listActive(500)).length, before, "MCP turns are dry runs");
+
+    // The planned sentence hands off to Studio as before.
+    const link = await callTool("create_signing_link", { text: String(planned.structuredContent.sentence) });
+    assert.equal(link.isError, undefined, JSON.stringify(link));
+    assert.match(String(link.structuredContent.url), /\/studio/u);
+  });
+
+  it("keeps the strict planner with clarify false or structured actions", async () => {
+    const strict = await callTool("plan_intent", { text: "swap SOL to USDC", accounts: ACCOUNTS, clarify: false });
+    assert.equal(strict.isError, true);
+    assert.equal((strict.structuredContent.error as { code: string }).code, "INTENT_UNSUPPORTED");
+    const mixed = await callTool("plan_intent", { thread: {}, accounts: ACCOUNTS, clarify: false });
+    assert.equal((mixed.structuredContent.error as { code: string }).code, "INVALID_REQUEST");
   });
 });
 

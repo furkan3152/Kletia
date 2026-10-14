@@ -28,7 +28,7 @@ export interface RequestEditorProps {
 }
 
 const CHIP = cx(
-  "inline-flex min-h-8 max-w-full items-center gap-1 border-2 border-[#1A1A1A] bg-white px-2 py-0.5 font-code text-[11px] hover:bg-[#FFF7CC] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]",
+  "inline-flex min-h-8 max-w-full items-center gap-1 border-2 border-[#1A1A1A] bg-white px-2 py-0.5 font-code text-code-s hover:bg-[#FFF7CC] dark:border-[#4B5563] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]",
   FOCUS_RING,
 );
 
@@ -67,7 +67,7 @@ function ParamField({
   const label = (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span className="font-code normal-case tracking-normal">{param.name}</span>{" "}
-      <span className="font-code text-[10px] font-semibold normal-case tracking-normal text-[#45464B] dark:text-[#A9B6C8]">
+      <span className="font-code text-code-s font-semibold normal-case tracking-normal text-muted">
         ({param.in}, {describeSchemaType(param.schema)})
       </span>
       {param.required ? <> <span className="text-[#B91C1C] dark:text-[#FCA5A5]">required</span></> : null}
@@ -102,7 +102,7 @@ function ParamField({
       )}
       {suggestions.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={`Recent values for ${param.name}`}>
-          <span className={cx("text-[11px]", TEXT_MUTED)}>Use:</span>
+          <span className={cx("text-xs", TEXT_MUTED)}>Use:</span>
           {suggestions.map((suggestion) => (
             <button key={suggestion} type="button" className={CHIP} onClick={() => onValue(suggestion)} title={suggestion} aria-label={`Use ${suggestion}`}>
               {shortId(suggestion)}
@@ -126,8 +126,8 @@ function SchemaRows({ schema, required }: { schema: JsonSchema; required: readon
             {required.includes(name) ? <span className="ml-1 text-[#B91C1C] dark:text-[#FCA5A5]">*</span> : null}
           </dt>
           <dd className={cx("min-w-0", TEXT_MUTED)}>
-            <span className="break-words font-code text-[11px] text-[#1A1A1A] dark:text-white">{describeSchemaType(property)}</span>
-            {describeConstraints(property).length > 0 ? <span className="font-code text-[11px]"> · {describeConstraints(property).join(" · ")}</span> : null}
+            <span className="break-words font-code text-code-s text-fg">{describeSchemaType(property)}</span>
+            {describeConstraints(property).length > 0 ? <span className="font-code text-code-s"> · {describeConstraints(property).join(" · ")}</span> : null}
             {property.description ? <span className="block">{property.description}</span> : null}
           </dd>
         </React.Fragment>
@@ -148,7 +148,7 @@ function BodySchema({ schema }: { schema: JsonSchema }) {
         {alternatives && alternatives.length > 0 ? (
           alternatives.map((alternative, index) => (
             <div key={index} className="flex flex-col gap-2">
-              <p className={cx(LABEL, "!text-[10px]")}>{alternative.title ?? `Shape ${index + 1}`}</p>
+              <p className={LABEL}>{alternative.title ?? `Shape ${index + 1}`}</p>
               <SchemaRows schema={alternative} required={alternative.required ?? []} />
             </div>
           ))
@@ -156,7 +156,7 @@ function BodySchema({ schema }: { schema: JsonSchema }) {
           <SchemaRows schema={schema} required={schema.required ?? []} />
         )}
         {schema.anyOf && schema.properties ? <SchemaRows schema={schema} required={schema.required ?? []} /> : null}
-        <p className={cx("text-[11px]", TEXT_MUTED)}>* required. Generated from the OpenAPI schema.</p>
+        <p className={cx("text-xs", TEXT_MUTED)}>* required. Generated from the OpenAPI schema.</p>
       </div>
     </details>
   );
@@ -201,7 +201,7 @@ export function RequestEditor({
           .map((group) => (
             <fieldset key={group.title} className="flex min-w-0 flex-col gap-3">
               <legend className={cx(LABEL, "mb-3", TEXT_MUTED)}>{group.title} parameters</legend>
-              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2 min-[1440px]:grid-cols-1 min-[1800px]:grid-cols-2">
                 {group.params.map((param) => (
                   <ParamField
                     key={`${param.in}-${param.name}`}
@@ -226,7 +226,7 @@ export function RequestEditor({
               <Braces className="h-3.5 w-3.5" aria-hidden="true" />
               JSON body{body.required ? "" : " (optional)"}
             </label>
-            <button type="button" onClick={formatBody} className={cx("text-[11px] font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+            <button type="button" onClick={formatBody} className={cx("inline-flex min-h-9 items-center text-xs font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
               Format
             </button>
           </div>
@@ -249,14 +249,14 @@ export function RequestEditor({
             id={bodyId}
             value={draft.bodyText}
             onChange={(event) => onChange({ bodyText: event.target.value })}
-            rows={Math.min(18, Math.max(5, lines + 1))}
+            rows={Math.min(22, Math.max(6, lines + 2))}
             spellCheck={false}
             autoComplete="off"
-            wrap="off"
+            wrap="soft"
             aria-invalid={bodyError ? true : undefined}
             aria-describedby={`${bodyId}-status`}
             className={cx(
-              "w-full min-w-0 resize-y border-[3px] border-[#1A1A1A] bg-[#0D1117] px-3 py-2.5 font-code text-[12.5px] leading-5 text-[#E6EDF3] caret-[#FFD60A] dark:border-[#4B5563]",
+              "w-full min-w-0 resize-y whitespace-pre-wrap break-words border-[3px] border-[#1A1A1A] bg-[#0D1117] px-3 py-2.5 font-code text-code leading-5 text-[#E6EDF3] caret-[#FFD60A] [overflow-wrap:anywhere] dark:border-[#4B5563]",
               FOCUS_RING,
             )}
           />
@@ -268,7 +268,7 @@ export function RequestEditor({
                 <p className="font-bold text-[#8A6100] dark:text-[#FFD60A]">The schema suggests a problem (the API decides; you can still send):</p>
                 <ul className="flex flex-col gap-0.5">
                   {bodyIssues.map((issue, index) => (
-                    <li key={`${issue.path}-${index}`} className="font-code text-[11px]">
+                    <li key={`${issue.path}-${index}`} className="font-code text-code-s">
                       {issue.path} {issue.message}
                     </li>
                   ))}

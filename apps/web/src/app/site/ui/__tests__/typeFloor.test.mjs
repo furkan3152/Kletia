@@ -19,15 +19,6 @@ const SCANNED = ["site/ui", "pages/developers"];
  * over its count, fails. Release removes this list.
  */
 const PENDING = {
-  "pages/developers/BridgeAuction.tsx": [1, "portal-build"],
-  "pages/developers/ErrorsReference.tsx": [3, "portal-build"],
-  "pages/developers/RecipesSection.tsx": [3, "portal-build"],
-  "pages/developers/VenuesPanel.tsx": [7, "portal-build"],
-  "pages/developers/components/CopyLinkButton.tsx": [1, "portal-build"],
-  "pages/developers/explorer/ApiExplorer.tsx": [5, "portal-build"],
-  "pages/developers/explorer/QuickStart.tsx": [1, "portal-build"],
-  "pages/developers/explorer/RequestEditor.tsx": [9, "portal-build"],
-  "pages/developers/explorer/ResponseViewer.tsx": [6, "portal-build"],
   "pages/developers/contracts/AbiFunctionPicker.tsx": [1, "portal-tools"],
   "pages/developers/contracts/BindingEditor.tsx": [3, "portal-tools"],
   "pages/developers/contracts/ContractDetail.tsx": [2, "portal-tools"],

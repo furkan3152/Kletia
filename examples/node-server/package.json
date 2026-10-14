@@ -1,0 +1,20 @@
+{
+  "name": "kletia-example-node-server",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A Node server that keeps the Kletia key: createKletiaProxy for the browser, a checkout route that sets the amount, verified and de-duplicated webhooks, and kletia listen for local events.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node smoke.mjs",
+    "build": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@kletia/core": "^0.1.0",
+    "@kletia/sdk": "^0.1.0"
+  },
+  "license": "MIT"
+}

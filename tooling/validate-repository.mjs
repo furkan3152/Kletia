@@ -50,7 +50,7 @@ const requiredFiles = [
   "apps/web/src/networks/base/x402/baseX402Buyer.ts",
   "apps/web/src/networks/arc/config.ts",
   "apps/web/src/networks/arbitrum/components/ArbitrumPortfolioViewer.tsx",
-  "apps/web/src/shared/components/layout/NetworkSwitcher.tsx",
+  "apps/web/src/app/console/DeskApp.tsx",
   "apps/web/src/cross-chain/components/WorkflowTimeline.tsx",
   "apps/web/public/kletia-logo.png",
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
@@ -293,12 +293,12 @@ if ((renderConfig.match(/branch: main/gu) ?? []).length !== 2) {
   fail("both Render services must deploy from main");
 }
 
-const navbarSource = readFileSync(
-  "apps/web/src/shared/components/layout/Navbar.tsx",
+const markSource = readFileSync(
+  "apps/web/src/app/site/KletiaMark.tsx",
   "utf8",
 );
-if (!navbarSource.includes('src="/kletia-logo.png"')) {
-  fail("Navbar must keep the local Kletia logo");
+if (!markSource.includes('src="/kletia-logo.png"')) {
+  fail("KletiaMark must keep the local Kletia logo");
 }
 
 if (!process.exitCode) {

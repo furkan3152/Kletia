@@ -144,7 +144,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | POST | `/v1/quotes` | public | Best routes for one asset movement (same- or cross-network) |
 | GET | `/v1/portfolio?accounts=` | public | Balances of up to 12 CAIP-10 accounts in one request (`?positions=true`; [portfolios](#portfolios)) |
 | GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account, priced with `priceSource` (`?positions=true` adds venue positions) |
-| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md), `?journey=true` for the [journey](journey.md)) |
+| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md), `?journey=true` for the [journey](journey.md), `?clarify=true` to ask [clarifying questions](clarify.md) instead of refusing) |
 | GET | `/v1/intents` | key | List intents created with the caller's key |
 | GET | `/v1/intents/{id}` | public | Read an intent |
 | POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`; `?journey=true` adds the journey at signing time) |
@@ -229,6 +229,9 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | POST | `/v1/sessions` | key | Create a session the embed turns into an intent for a visitor |
 | GET | `/v1/sessions/{id}` | public | Session view for the embed |
 | POST | `/v1/sessions/{id}/intents` | public | Turn a session into an intent for the visitor's accounts |
+| GET | `/v1/threads` | key | The key's Kletia-held [clarify threads](clarify.md#threads) (`?status=&limit=&cursor=`) |
+| GET | `/v1/threads/{id}` | key | One thread: its blob, context, last response and intents |
+| DELETE | `/v1/threads/{id}` | key | Delete a thread at once |
 | GET | `/v1/errors` | public | Error catalog |
 | GET | `/v1/status/badge` | public | Status badge (SVG, or `?format=shields`) |
 | POST | `/v1/mcp` | public | Model Context Protocol server ([mcp.md](mcp.md)) |
@@ -289,6 +292,36 @@ recipient was resolved from) and `extraCosts` (value paid on top of the input,
 such as a deBridge fixed fee in the native asset, with `usd` when priced).
 
 `GET /v1/intents` accepts `?limit=1..100` (default 20).
+
+#### Clarifying questions: `?clarify=true`
+
+`POST /v1/intents?clarify=true` takes an `IntentTurnRequest` (the request
+context plus at most one of `text`, `answer`, `assumption`, and at most one
+of `thread`, `threadId`) and asks instead of refusing an incomplete sentence.
+Without the flag (or with `clarify=false`) the endpoint is the strict planner,
+byte for byte as before. Full reference: [clarify.md](clarify.md).
+
+| Outcome | Status | Body |
+|---|---|---|
+| `needs_input` | 200 | `{ status, turn, questions, assumptions, draft, thread }` |
+| `planned`, stored | 201 (200 with `Idempotent-Replayed: true` when its clientReference already planned an intent) | `{ status, turn, intent, preview?, journey?, assumptions, sentence, thread }` |
+| `planned`, dry run | 200 | as above, nothing stored |
+| `cancelled` | 200 | `{ status: "cancelled", turn: "control", thread }` |
+| refusal | the code's status | the error envelope; the thread is unchanged |
+
+Threads are client-held by default: each response returns the whole thread
+(`kletia.thread/v1`, at most 16 KB) and the client sends it back. With an API
+key, `remember: true` on a first turn keeps the thread at Kletia: responses
+carry a `ThreadRef` (`id`, `rev`, `status`, `expiresAt`), later turns send
+`threadId` and may leave out the context, and `expectedRev` (or `If-Match:
+"<rev>"`) refuses a thread that moved on (`409 THREAD_CONFLICT`). Kletia-held
+threads expire 30 minutes after the last turn and 24 hours after creation,
+close after 50 turns (`409 THREAD_CLOSED`), belong to their key (`404
+THREAD_NOT_FOUND` for any other) and are capped at 1,000 open per key (`429
+RATE_LIMITED`). `GET /v1/threads`, `GET /v1/threads/{id}` and `DELETE
+/v1/threads/{id}` (204) read and delete them. The stored intent's
+clientReference is `<clientReference>:r<rev>` (default
+`thread:<threadId>:r<rev>`), so a retried commit returns the same intent.
 
 #### Where the money starts: `sourceNetwork`
 
@@ -706,6 +739,12 @@ Idempotency-Key: 7f6c1d0e-3b8a-4c2e-9a51-0d2f5b8e6a14
   (quotes, refresh, webhook tests, contract tests, session intents, MCP) are
   safe to repeat and ignore it (a session's use count already makes
   `POST /v1/sessions/{id}/intents` single-use).
+- Clarify turns (`POST /v1/intents?clarify=true`) that create or change a
+  Kletia-held thread (`remember: true` or `threadId`) honour the header even
+  as dry runs: a retry replays the stored turn instead of running a second
+  one. Client-held clarify dry runs ignore it, like other dry runs. A turn
+  whose text or answer carries a secret is refused before the key is
+  reserved, so nothing is stored for it.
 - Retryable Rule Book refusals (`POLICY_SPEND_LIMIT`, `POLICY_SCHEDULE_CLOSED`,
   `POLICY_PRICE_UNAVAILABLE`, `POLICY_APPROVAL_REQUIRED`) are never stored, so
   a retry is evaluated again. After loosening a rule book, retry a refused

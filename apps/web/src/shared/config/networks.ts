@@ -1,101 +1,9 @@
 import { defineChain, type Address, type Chain } from "viem";
 import { arbitrum, arbitrumSepolia, base, mainnet, optimism, polygon } from "viem/chains";
 import { ARC_CONTRACTS } from "../../networks/arc/config";
-import { ACTIVE_WALLET_ADDRESS } from "./intentExamples";
-import { BASE_PAYMASTER_ENABLED } from "./runtime";
 
 /** Wallet-switchable EVM networks of the console. */
 export type NetworkMode = "base" | "arc" | "arbitrum";
-
-/** Console workspaces: every EVM network plus the Solana workspace. */
-export type ConsoleWorkspace = NetworkMode | "solana";
-
-export type AppTab =
-  | "chat"
-  | "basename"
-  | "allora"
-  | "airdrop"
-  | "x402"
-  | "webacy"
-  | "arc"
-  | "lending";
-
-export type NetworkFeature =
-  | "baseMcpHandoff"
-  | "paymaster"
-  | "basename"
-  | "allora"
-  | "airdrop"
-  | "x402"
-  | "webacy"
-  | "arcDashboard"
-  | "arcLending"
-  | "arcContracts";
-
-export type NavigationIcon =
-  | "chat"
-  | "shield"
-  | "allora"
-  | "basename"
-  | "airdrop"
-  | "x402"
-  | "dashboard"
-  | "lending"
-  | "swap"
-  | "vault"
-  | "staking"
-  | "batch"
-  | "memo"
-  | "liquidity";
-
-export type NavigationAction =
-  | { readonly type: "tab"; readonly tab: AppTab }
-  | { readonly type: "prompt"; readonly prompt: string };
-
-export interface NetworkNavigationItem {
-  readonly id: string;
-  readonly label: string;
-  readonly icon: NavigationIcon;
-  readonly feature?: NetworkFeature;
-  readonly action: NavigationAction;
-}
-
-export interface NetworkNavigationSection {
-  readonly id: string;
-  readonly label: string;
-  readonly items: readonly NetworkNavigationItem[];
-}
-
-export interface NetworkFeatures {
-  readonly baseMcpHandoff: boolean;
-  readonly paymaster: boolean;
-  readonly basename: boolean;
-  readonly allora: boolean;
-  readonly airdrop: boolean;
-  readonly x402: boolean;
-  readonly webacy: boolean;
-  readonly arcDashboard: boolean;
-  readonly arcLending: boolean;
-  readonly arcContracts: boolean;
-}
-
-/**
- * How the console helps a user fund the active workspace:
- * - `onramp`: Coinbase onramp (Base only).
- * - `faucet`: official testnet faucet (Arc).
- * - `bridge`: move funds in from another network with Kletia Studio.
- */
-export interface FundingAction {
-  readonly kind: "onramp" | "faucet" | "bridge";
-  readonly label: string;
-  readonly url: string;
-}
-
-export const BRIDGE_FUNDING: FundingAction = {
-  kind: "bridge",
-  label: "Bridge funds",
-  url: "/studio",
-};
 
 export interface NetworkDefinition {
   readonly key: NetworkMode;
@@ -128,16 +36,11 @@ export interface NetworkDefinition {
   readonly usdc: Address;
   readonly klet?: Address;
   readonly contracts: Partial<Record<keyof typeof ARC_CONTRACTS, Address>>;
-  readonly features: NetworkFeatures;
-  readonly funding: FundingAction;
   readonly color: string;
-  readonly icon: string;
-  readonly badge: string;
   readonly isTestnet: boolean;
   readonly beta?: boolean;
   readonly enabled: boolean;
   readonly apiPrefix: string;
-  readonly navigation: readonly NetworkNavigationSection[];
 }
 
 export const arcTestnet = defineChain({
@@ -210,140 +113,10 @@ export const NETWORKS = {
     },
     usdc: BASE_USDC,
     contracts: {},
-    features: {
-      baseMcpHandoff: true,
-      paymaster: BASE_PAYMASTER_ENABLED,
-      basename: true,
-      allora: true,
-      airdrop: true,
-      x402: true,
-      webacy: true,
-      arcDashboard: false,
-      arcLending: false,
-      arcContracts: false,
-    },
-    funding: {
-      kind: "onramp",
-      label: "Fund Wallet",
-      url: "https://pay.coinbase.com",
-    },
     color: "#0052FF",
-    icon: "🔵",
-    badge: "CONSOLE",
     isTestnet: false,
     enabled: true,
     apiPrefix: "/api",
-    navigation: [
-      {
-        id: "command-center",
-        label: "Command Center",
-        items: [
-          {
-            id: "chat",
-            label: "Kletia Chat",
-            icon: "chat",
-            action: { type: "tab", tab: "chat" },
-          },
-        ],
-      },
-      {
-        id: "base-apps",
-        label: "Base Apps",
-        items: [
-          {
-            id: "webacy",
-            label: "Webacy Security",
-            icon: "shield",
-            feature: "webacy",
-            action: { type: "tab", tab: "webacy" },
-          },
-          {
-            id: "allora",
-            label: "Allora AI Hub",
-            icon: "allora",
-            feature: "allora",
-            action: { type: "tab", tab: "allora" },
-          },
-          {
-            id: "basename",
-            label: "Basename Claim",
-            icon: "basename",
-            feature: "basename",
-            action: { type: "tab", tab: "basename" },
-          },
-          {
-            id: "airdrop",
-            label: "Airdrop Simulator",
-            icon: "airdrop",
-            feature: "airdrop",
-            action: { type: "tab", tab: "airdrop" },
-          },
-          {
-            id: "x402",
-            label: "x402 Console",
-            icon: "x402",
-            feature: "x402",
-            action: { type: "tab", tab: "x402" },
-          },
-        ],
-      },
-      {
-        id: "base-defi",
-        label: "Intent DeFi",
-        items: [
-          {
-            id: "base-best-yield",
-            label: "Compare Live Yield",
-            icon: "lending",
-            action: {
-              type: "prompt",
-              prompt:
-                "Compare best yield for USDC among Aave, Moonwell, and Compound on Base Mainnet without preparing a transaction",
-            },
-          },
-          {
-            id: "base-lowest-borrow",
-            label: "Compare Borrow Cost",
-            icon: "vault",
-            action: {
-              type: "prompt",
-              prompt:
-                "Compare USDC borrow rates and available liquidity across Aave, Moonwell, and Compound on Base Mainnet without preparing a transaction",
-            },
-          },
-          {
-            id: "base-smart-swap",
-            label: "Scan Swap Routes",
-            icon: "swap",
-            action: {
-              type: "prompt",
-              prompt:
-                "Buy AERO with 10 USDC on Base Mainnet using the most efficient verified route and show the expected output before execution",
-            },
-          },
-          {
-            id: "base-stake-well",
-            label: "Stake WELL",
-            icon: "staking",
-            action: {
-              type: "prompt",
-              prompt:
-                "Stake 100 WELL in the Moonwell Safety Module on Base Mainnet and show the expected stkWELL output and risks before execution",
-            },
-          },
-          {
-            id: "base-arbitrum-workflow",
-            label: "Cross-chain Workflow",
-            icon: "liquidity",
-            action: {
-              type: "prompt",
-              prompt:
-                "Bridge 10 USDC from Base to Arbitrum with Across, then supply only the received USDC to Aave V3; show every checkpoint and require a separate wallet approval for each financial step",
-            },
-          },
-        ],
-      },
-    ],
   },
   arc: {
     key: "arc",
@@ -376,129 +149,10 @@ export const NETWORKS = {
     usdc: ARC_USDC,
     klet: ARC_CONTRACTS.Token,
     contracts: ARC_CONTRACTS,
-    features: {
-      baseMcpHandoff: false,
-      paymaster: false,
-      basename: false,
-      allora: false,
-      airdrop: false,
-      x402: false,
-      webacy: false,
-      arcDashboard: true,
-      arcLending: true,
-      arcContracts: true,
-    },
-    funding: {
-      kind: "faucet",
-      label: "USDC Faucet",
-      url: "https://faucet.circle.com",
-    },
     color: "#8B5CF6",
-    icon: "🌀",
-    badge: "BUILT ON ARC",
     isTestnet: true,
     enabled: true,
     apiPrefix: "/api/arc",
-    navigation: [
-      {
-        id: "command-center",
-        label: "Command Center",
-        items: [
-          {
-            id: "chat",
-            label: "Kletia Chat",
-            icon: "chat",
-            action: { type: "tab", tab: "chat" },
-          },
-          {
-            id: "arc-dashboard",
-            label: "Arc Dashboard",
-            icon: "dashboard",
-            feature: "arcDashboard",
-            action: { type: "tab", tab: "arc" },
-          },
-          {
-            id: "arc-lending",
-            label: "Lending & Borrow",
-            icon: "lending",
-            feature: "arcLending",
-            action: { type: "tab", tab: "lending" },
-          },
-        ],
-      },
-      {
-        id: "arc-contracts",
-        label: "Arc Contracts",
-        items: [
-          {
-            id: "arc-swap",
-            label: "Swap",
-            icon: "swap",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                "Swap 1 native USDC to KLET on Arc Testnet using the live on-chain Kletia route; simulate it before wallet approval",
-            },
-          },
-          {
-            id: "arc-vault",
-            label: "Vault",
-            icon: "vault",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                "Deposit 1 native USDC into the Kletia Vault on Arc Testnet; prepare the time-locked vault route and simulate it before wallet approval",
-            },
-          },
-          {
-            id: "arc-staking",
-            label: "Staking",
-            icon: "staking",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                "Stake 1 native USDC in Kletia Staking on Arc Testnet; prepare the route and simulate it before wallet approval",
-            },
-          },
-          {
-            id: "arc-batch",
-            label: "Batch Pay",
-            icon: "batch",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                `Atomically pay 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} on Arc Testnet through the official Multicall3From route; fail the whole batch if any payment fails and simulate it before wallet approval`,
-            },
-          },
-          {
-            id: "arc-memo",
-            label: "Memo Transfer",
-            icon: "memo",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                `Send 0.1 native USDC to ${ACTIVE_WALLET_ADDRESS} through Kletia Memo Pay on Arc Testnet with the permanent public on-chain memo "KLETIA-DEMO-001"; simulate it before wallet approval`,
-            },
-          },
-          {
-            id: "arc-liquidity",
-            label: "Liquidity Pool",
-            icon: "liquidity",
-            feature: "arcContracts",
-            action: {
-              type: "prompt",
-              prompt:
-                "Add 1 native USDC liquidity to the KLET/USDC pool on Arc Testnet and spend at most 10 KLET; calculate and show the live requirement and enforce that hard cap before wallet approval",
-            },
-          },
-        ],
-      },
-    ],
   },
   arbitrum: {
     key: "arbitrum",
@@ -519,74 +173,13 @@ export const NETWORKS = {
     },
     usdc: ARBITRUM_USDC,
     contracts: {},
-    features: {
-      baseMcpHandoff: false,
-      paymaster: false,
-      basename: false,
-      allora: false,
-      airdrop: false,
-      x402: false,
-      webacy: true,
-      arcDashboard: false,
-      arcLending: false,
-      arcContracts: false,
-    },
-    funding: BRIDGE_FUNDING,
     color: "#28A0F0",
-    icon: "◆",
-    badge: "PUBLIC BETA",
     beta: true,
     enabled:
       import.meta.env.VITE_ARBITRUM_MVP_ENABLED === "true" ||
       (import.meta.env.DEV && import.meta.env.VITE_ARBITRUM_MVP_ENABLED !== "false"),
     isTestnet: false,
     apiPrefix: "/api",
-    navigation: [
-      {
-        id: "command-center",
-        label: "Command Center",
-        items: [
-          { id: "chat", label: "Kletia Chat", icon: "chat", action: { type: "tab", tab: "chat" } },
-        ],
-      },
-      {
-        id: "arbitrum-defi",
-        label: "Arbitrum Beta",
-        items: [
-          {
-            id: "arbitrum-swap",
-            label: "Uniswap V3 Swap",
-            icon: "swap",
-            action: { type: "prompt", prompt: "Swap 10 USDC to WETH on Arbitrum One through the best live Uniswap V3 fee tier and show the exact quote before approval" },
-          },
-          {
-            id: "arbitrum-lend",
-            label: "Aave V3 Supply",
-            icon: "lending",
-            action: { type: "prompt", prompt: "Supply 10 USDC to Aave V3 on Arbitrum One after checking the live reserve and rate" },
-          },
-          {
-            id: "arbitrum-yield",
-            label: "Live Aave Rates",
-            icon: "vault",
-            action: { type: "prompt", prompt: "Show the live USDC supply and variable borrow rates from Aave V3 on Arbitrum without preparing a transaction" },
-          },
-        ],
-      },
-      {
-        id: "arbitrum-apps",
-        label: "Arbitrum Apps",
-        items: [
-          {
-            id: "webacy",
-            label: "Webacy Security",
-            icon: "shield",
-            feature: "webacy",
-            action: { type: "tab", tab: "webacy" },
-          },
-        ],
-      },
-    ],
   },
 } as const satisfies Record<NetworkMode, NetworkDefinition>;
 
@@ -693,37 +286,6 @@ export const getNetworkByChainId = (
 
 export const isNetworkMode = (value: unknown): value is NetworkMode =>
   value === "base" || value === "arc" || value === "arbitrum";
-
-export const isConsoleWorkspace = (value: unknown): value is ConsoleWorkspace =>
-  value === "solana" || isNetworkMode(value);
-
-/**
- * Presentation of the Solana workspace for shared chrome (navbar badge,
- * funding action, sidebar footer). Solana is not a wagmi chain, so it has no
- * NetworkDefinition.
- */
-export const SOLANA_WORKSPACE = {
-  key: "solana",
-  name: "Solana Mainnet",
-  shortName: "Solana",
-  color: "#9945FF",
-  accent: "#14F195",
-  badge: "SOLANA",
-  funding: BRIDGE_FUNDING,
-} as const;
-
-export interface WorkspacePresentation {
-  readonly name: string;
-  readonly shortName: string;
-  readonly color: string;
-  readonly badge: string;
-  readonly funding: FundingAction;
-}
-
-export const getWorkspacePresentation = (
-  workspace: ConsoleWorkspace,
-): WorkspacePresentation =>
-  workspace === "solana" ? SOLANA_WORKSPACE : NETWORKS[workspace];
 
 export const getApiPrefix = (mode: NetworkMode): string =>
   NETWORKS[mode].apiPrefix;

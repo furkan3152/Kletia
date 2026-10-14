@@ -2,12 +2,12 @@
  * The Tools view: every network's extras in one card language, filtered by
  * network and kind. Prompt tools put their sentences in the composer with
  * their network engine pinned (the only path to the Base engine's Intent
- * engine's Intent Router V2); link tools open their destination. Panels and
- * forms are hosted here from phase 5 (desk-tools-and-cleanup); until then an
- * open panel says so and its sentences still work from the composer.
+ * Router V2); link tools open their destination; panels, forms and
+ * read-only tools open here, each loaded as its own chunk (ToolPanel),
+ * with the composer still docked below.
  */
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowUpRight, Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 
 import { ACTIVE_WALLET_ADDRESS } from "../../../shared/config/intentExamples";
@@ -17,56 +17,15 @@ import { cx, INK_BORDER, LABEL, SURFACE } from "../../site/ui/styles";
 import { navigate } from "../../routes/useRoute";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
-import { DESK_MORE_COPY } from "../shell/deskCopy";
 import { getTool, TOOLS, type DeskTool, type ToolKind } from "./catalogue";
+import { ToolPanel } from "./ToolPanel";
+import { ToolSign } from "./ToolSign";
 
 const copy = DESK_COPY.tools;
 const KINDS: readonly ToolKind[] = ["panel", "form", "read-only", "prompt", "link"];
 
 const FILTER =
   "inline-flex min-h-11 items-center gap-1.5 border-2 border-control px-2.5 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[pressed=true]:bg-[#1A1A1A] aria-[pressed=true]:text-white dark:aria-[pressed=true]:bg-[#F1F5F9] dark:aria-[pressed=true]:text-[#0B1120]";
-
-function needsLabel(tool: DeskTool): string {
-  return copy.needs[tool.needs];
-}
-
-function ToolSign({ tool, onOpen }: { readonly tool: DeskTool; readonly onOpen: () => void }) {
-  return (
-    <li className={cx("flex flex-col gap-2 p-4", INK_BORDER, SURFACE)}>
-      <p className="flex items-center gap-2">
-        <span className="inline-flex h-8 min-w-8 items-center justify-center bg-[#1A1A1A] px-1.5 font-code text-xs font-bold text-white dark:bg-[#F1F5F9] dark:text-[#0B1120]" aria-hidden="true">
-          {String(tool.number).padStart(2, "0")}
-        </span>
-        <span className="font-display text-base font-bold">{tool.title}</span>
-      </p>
-      {tool.networks.length > 0 ? (
-        <p className="flex flex-wrap gap-1">
-          {tool.networks.map((network) => (
-            <LineBullet key={network} line={LINES[network]} />
-          ))}
-        </p>
-      ) : null}
-      <p className="text-sm">{tool.summary}</p>
-      <p className={cx(LABEL, "!text-[11px] text-muted")}>
-        {copy.kinds[tool.kind]} · {needsLabel(tool)}
-      </p>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`${copy.open} ${tool.title}`}
-        className="mt-auto inline-flex min-h-11 items-center justify-center gap-1.5 self-start border-[3px] border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg shadow-[2px_2px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] dark:shadow-[2px_2px_0_#475569]"
-      >
-        {copy.open}
-        {tool.kind === "link" && tool.external ? (
-          <>
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="sr-only"> ({copy.opensInNewTab})</span>
-          </>
-        ) : null}
-      </button>
-    </li>
-  );
-}
 
 function OpenTool({ tool, onBack }: { readonly tool: DeskTool; readonly onBack: () => void }) {
   const actions = useDeskActions();
@@ -91,7 +50,7 @@ function OpenTool({ tool, onBack }: { readonly tool: DeskTool; readonly onBack: 
         </h2>
       </div>
       {network && tool.needs !== "none" ? (
-        <p className="text-sm font-semibold text-muted">{copy.needsOn(needsLabel(tool), CHAINS[network].name)}</p>
+        <p className="text-sm font-semibold text-muted">{copy.needsOn(copy.needs[tool.needs], CHAINS[network].name)}</p>
       ) : null}
       <p className="text-sm">{tool.summary}</p>
       {tool.prompts ? (
@@ -110,9 +69,7 @@ function OpenTool({ tool, onBack }: { readonly tool: DeskTool; readonly onBack: 
           ))}
         </ul>
       ) : (
-        <p className={cx("p-4 text-sm font-semibold", INK_BORDER, SURFACE)} role="status">
-          {DESK_MORE_COPY.tools.panelPending}
-        </p>
+        <ToolPanel tool={tool} />
       )}
     </section>
   );
@@ -140,7 +97,7 @@ export function ToolsView({ toolId }: ToolsViewProps) {
   }, [kind, network, query]);
 
   const openTool = (tool: DeskTool) => {
-    // The Coinbase onramp needs a session token first: its flow arrives with the tool panels.
+    // The Coinbase onramp needs a session token first: it opens as a panel that runs that flow.
     if (tool.kind === "link" && tool.href && !tool.flow) {
       if (tool.external) window.open(tool.href, "_blank", "noopener,noreferrer");
       else navigate(tool.href);

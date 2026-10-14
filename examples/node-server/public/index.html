@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme checkout</title>
+    <style>
+      :root { color-scheme: light dark; --ink: #1f1a14; --paper: #f7f1e6; --line: #d9ccb6; --accent: #6d28d9; }
+      @media (prefers-color-scheme: dark) { :root { --ink: #f1eadf; --paper: #17140f; --line: #3a3127; --accent: #a78bfa; } }
+      body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: var(--paper); color: var(--ink); }
+      main { max-width: 560px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+      button { font: inherit; padding: 8px 14px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      pre { white-space: pre-wrap; border: 1px solid var(--line); padding: 12px; border-radius: 6px; min-height: 3em; }
+    </style>
+    <!-- The SDK's browser build, served by this server from node_modules (no CDN). -->
+    <script type="importmap">
+      { "imports": { "@kletia/sdk": "/vendor/sdk/index.js", "@kletia/core": "/vendor/core/index.js" } }
+    </script>
+  </head>
+  <body>
+    <main>
+      <h1>Acme T-shirt · 25 USDC</h1>
+      <p>Pay on Arbitrum Sepolia (testnet) with your own wallet. The price is set by the shop's server; your wallet signs every step.</p>
+      <div>
+        <button id="connect" type="button">Connect wallet</button>
+        <button id="pay" type="button" disabled>Review and pay</button>
+      </div>
+      <pre id="log" aria-live="polite"></pre>
+    </main>
+    <script type="module">
+      import { KletiaClient, eip1193Signer, executeIntent } from "@kletia/sdk";
+
+      // No key in the browser: every call goes through this shop's /api/kletia proxy.
+      const kletia = new KletiaClient({ baseUrl: `${location.origin}/api/kletia` });
+      const log = (line) => (document.getElementById("log").textContent += `${line}\n`);
+      let address = null;
+
+      document.getElementById("connect").addEventListener("click", async () => {
+        if (!window.ethereum) return log("No EVM wallet found in this browser.");
+        [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
+        log(`Connected ${address}`);
+        document.getElementById("pay").disabled = false;
+      });
+
+      document.getElementById("pay").addEventListener("click", async () => {
+        // The server decides what the order costs; the browser only names it.
+        const response = await fetch("/api/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ orderId: "order-42", address }) });
+        const order = await response.json();
+        if (!response.ok) return log(`Checkout refused: ${order.error?.message ?? response.status}`);
+        log(`Planned ${order.intentId}: ${order.title}`);
+        const final = await executeIntent(kletia, order.intentId, { evm: eip1193Signer(window.ethereum, address) }, {
+          // The fare gate: nothing is signed without the visitor's approval of this preview.
+          onPreview: (preview) => window.confirm(`Pay ${order.title}? Network fees and amounts are in the fare (${preview.digest.slice(0, 15)}…).`),
+          onUpdate: (intent) => log(`${intent.status}`),
+        });
+        log(`Finished: ${final.status}`);
+      });
+    </script>
+  </body>
+</html>

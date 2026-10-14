@@ -10,6 +10,7 @@
  * the wallet's chain exactly as before. `inlinePortfolio` prints a verified
  * portfolio scan in the message (the desk has no portfolio drawer).
  */
+import "./legacyConsole.css";
 import React from "react";
 import { formatUnits } from "viem";
 import { Bot, CheckCircle2, CreditCard, Loader2, User, Zap } from "lucide-react";
@@ -34,11 +35,6 @@ import ArcPortfolioViewer from "../../../networks/arc/components/ArcPortfolioVie
 import { ArbitrumPortfolioViewer } from "../../../networks/arbitrum/components/ArbitrumPortfolioViewer";
 import { AgentsHandoffCard } from "../../../shared/components/chat/AgentsHandoffCard";
 import { AGENTS_HANDOFF_WIDGET } from "../../../shared/components/chat/agentsHandoff";
-import { CrossNetworkHandoffCard } from "../../../shared/components/chat/CrossNetworkHandoffCard";
-import {
-  CROSS_NETWORK_HANDOFF_WIDGET,
-  readHandoffData,
-} from "../../../shared/components/chat/crossNetworkHandoff";
 import { AssetClarificationCard } from "../../../shared/components/chat/AssetClarificationCard";
 import { IntentPrivacyTraceCard } from "../../../shared/components/chat/IntentPrivacyTraceCard";
 import { EntityResolutionEvidenceCard } from "../../../shared/components/chat/EntityResolutionEvidenceCard";
@@ -189,11 +185,6 @@ export function LegacyMessageRow({
               )}
             {msg.widgetType === AGENTS_HANDOFF_WIDGET ? (
               <AgentsHandoffCard />
-            ) : null}
-            {msg.widgetType === CROSS_NETWORK_HANDOFF_WIDGET ? (
-              <CrossNetworkHandoffCard
-                prompt={readHandoffData(msg.widgetData)?.prompt ?? null}
-              />
             ) : null}
             {inlinePortfolio ? (
               <InlinePortfolio msg={msg} network={networkMode} address={address} />

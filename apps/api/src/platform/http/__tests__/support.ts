@@ -124,3 +124,31 @@ export async function withDatabaseTestLock<T>(databaseUrl: string | undefined, n
     await client.end().catch(() => undefined);
   }
 }
+
+/** Lamports and token units the clarify test wallet holds: 2.5 SOL on Solana, 120.4 USDC on Base, nothing else. */
+export const CLARIFY_WALLET = Object.freeze({ solLamports: 2_500_000_000n, baseUsdcUnits: 120_400_000n });
+
+/**
+ * Offline holdings for clarify turns (the engine's only fact source): the
+ * CLARIFY_WALLET balances, every other balance zero, other chain facts and
+ * names unknown. Never reads the network. `null` restores the RPC readers.
+ */
+export async function useClarifyWallet(enabled = true): Promise<void> {
+  const { configureHoldingsReaders } = await import("../../engine/holdings.js");
+  if (!enabled) {
+    configureHoldingsReaders(null);
+    return;
+  }
+  const offline = async (): Promise<never> => {
+    throw new Error("offline");
+  };
+  configureHoldingsReaders({
+    solanaBalance: async (network, _owner, mint) => (network === "solana" && mint === null ? CLARIFY_WALLET.solLamports : 0n),
+    evmBalance: async (network, _owner, token) =>
+      network === "base" && token?.toLowerCase() === "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" ? CLARIFY_WALLET.baseUsdcUnits : 0n,
+    gasPrice: offline,
+    solanaRent: offline,
+    solanaTokenAccountExists: offline,
+    resolveName: offline,
+  });
+}

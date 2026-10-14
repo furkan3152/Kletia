@@ -112,6 +112,12 @@
       "value": "",
       "type": "string",
       "description": "An intent link id (lk_…) from creating or listing links."
+    },
+    {
+      "key": "threadId",
+      "value": "",
+      "type": "string",
+      "description": "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."
     }
   ],
   "item": [
@@ -512,6 +518,12 @@
                 "value": "{{$guid}}",
                 "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
                 "disabled": true
+              },
+              {
+                "key": "If-Match",
+                "value": "",
+                "description": "With `clarify=true` and `threadId`: the thread revision the turn expects (as `expectedRev`), e.g. `\"3\"`; another revision is 409 THREAD_CONFLICT.",
+                "disabled": true
               }
             ],
             "body": {
@@ -554,10 +566,16 @@
                   "value": "live",
                   "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
                   "disabled": true
+                },
+                {
+                  "key": "clarify",
+                  "value": "true",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200).\n\nWith `clarify=true` the request is one turn of a task (`IntentTurnRequest`) and Kletia asks instead of refusing: `needs_input` (200) carries at most two questions, assumption chips and a draft; `planned` is 201 when stored (200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent); `cancelled` is 200; a refusal answers its catalogue status and the thread is unchanged. Threads are client-held by default (send `thread` back); `remember: true` (API keys only) keeps them at Kletia (`threadId`, `expectedRev`, `If-Match`). Idempotency-Key also applies to dry-run turns that create or change a Kletia-held thread. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -575,6 +593,12 @@
                 "key": "Idempotency-Key",
                 "value": "{{$guid}}",
                 "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              },
+              {
+                "key": "If-Match",
+                "value": "",
+                "description": "With `clarify=true` and `threadId`: the thread revision the turn expects (as `expectedRev`), e.g. `\"3\"`; another revision is 409 THREAD_CONFLICT.",
                 "disabled": true
               }
             ],
@@ -618,10 +642,16 @@
                   "value": "live",
                   "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
                   "disabled": true
+                },
+                {
+                  "key": "clarify",
+                  "value": "true",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200).\n\nWith `clarify=true` the request is one turn of a task (`IntentTurnRequest`) and Kletia asks instead of refusing: `needs_input` (200) carries at most two questions, assumption chips and a draft; `planned` is 201 when stored (200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent); `cancelled` is 200; a refusal answers its catalogue status and the thread is unchanged. Threads are client-held by default (send `thread` back); `remember: true` (API keys only) keeps them at Kletia (`threadId`, `expectedRev`, `If-Match`). Idempotency-Key also applies to dry-run turns that create or change a Kletia-held thread. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -639,6 +669,12 @@
                 "key": "Idempotency-Key",
                 "value": "{{$guid}}",
                 "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              },
+              {
+                "key": "If-Match",
+                "value": "",
+                "description": "With `clarify=true` and `threadId`: the thread revision the turn expects (as `expectedRev`), e.g. `\"3\"`; another revision is 409 THREAD_CONFLICT.",
                 "disabled": true
               }
             ],
@@ -682,10 +718,16 @@
                   "value": "live",
                   "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
                   "disabled": true
+                },
+                {
+                  "key": "clarify",
+                  "value": "true",
+                  "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200).\n\nWith `clarify=true` the request is one turn of a task (`IntentTurnRequest`) and Kletia asks instead of refusing: `needs_input` (200) carries at most two questions, assumption chips and a draft; `planned` is 201 when stored (200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent); `cancelled` is 200; a refusal answers its catalogue status and the thread is unchanged. Threads are client-held by default (send `thread` back); `remember: true` (API keys only) keeps them at Kletia (`threadId`, `expectedRev`, `If-Match`). Idempotency-Key also applies to dry-run turns that create or change a Kletia-held thread. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents` · operationId `createIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -967,6 +1009,71 @@
           "response": []
         },
         {
+          "id": "266cf8fe-c061-5cfd-889a-d93a06c8c4c8",
+          "name": "List the key's Kletia-held clarify threads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/threads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "threads"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "needs_input",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "`nextCursor` of the previous page.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Threads created with `remember: true` by this API key that have not expired, most recently used first. Publishable keys and the public tier have no Kletia-held threads.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/threads` · operationId `listThreads` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "4941790e-e6f7-592e-aaba-3325b3911399",
+          "name": "Read a Kletia-held clarify thread",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/threads/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "threads",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{threadId}}"
+                }
+              ]
+            },
+            "description": "The thread blob, its context, its last response and its intents. Another key's thread, or an expired one, is 404 THREAD_NOT_FOUND.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/threads/{id}` · operationId `getThread` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
           "id": "8a6c98c7-fdc8-5b44-827b-2363b3373169",
           "name": "The last preview computed for an intent",
           "request": {
@@ -1026,6 +1133,33 @@
               ]
             },
             "description": "Simulates the transactions the plan's quotes already returned (or quotes steps that cannot be simulated) and aggregates the whole intent: what leaves your wallets, what arrives, fees, approvals and what your wallets must hold. No provider is called unless `quotes=refresh` (ready steps re-quoted, once per 20 s per intent, at most 4 steps). At most 6 recomputations per intent per minute (429 RATE_LIMITED with Retry-After). Takes no body.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/preview` · operationId `refreshIntentPreview` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b1782177-97f7-5d4b-b9ca-d53b3b1ba492",
+          "name": "Delete a Kletia-held clarify thread",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/threads/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "threads",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{threadId}}"
+                }
+              ]
+            },
+            "description": "The row is removed at once; later turns on it get 404 THREAD_NOT_FOUND. Intents it planned are not affected.\n\nRequires an API key (set `apiKey`).\n\n`DELETE /v1/threads/{id}` · operationId `deleteThread` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

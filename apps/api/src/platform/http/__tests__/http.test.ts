@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import express, { type Express, type Router } from "express";
-import { CHAINS, NETWORK_KEYS, resolveErrorCode, verifyWebhookSignature, type IntentGraph, type NetworkKey } from "@kletia/core";
+import { CHAINS, CLARIFY_REASONS, NETWORK_KEYS, resolveErrorCode, verifyWebhookSignature, type IntentGraph, type NetworkKey } from "@kletia/core";
 import { configurePlatform, getIntentStore, STEP_ID_PATTERN, type IntentStore } from "../../index.js";
 import { MemoryIntentStore } from "../../engine/store.js";
 import {
@@ -553,7 +553,8 @@ describe("GET /v1/openapi.json", () => {
     const text = JSON.stringify(document);
     const mentioned = new Set([...text.matchAll(/\b([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\b/gu)].map((match) => match[1] as string));
     // Configuration variables the descriptions name (not error codes).
-    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS", "RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT"]);
+    // Clarify question reasons (ClarifyQuestion.reason) are not error codes either.
+    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS", "RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT", ...CLARIFY_REASONS]);
     const unknown = [...mentioned].filter((code) => !ignored.has(code) && !resolveErrorCode(code));
     assert.deepEqual(unknown, []);
   });

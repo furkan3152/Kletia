@@ -23,6 +23,8 @@ export type KletiaClientErrorCode =
   | "WAIT_TIMEOUT"
   /** A key rotated or revoked itself, the response was lost and the retry was refused; `cause` is the refusal. */
   | "OUTCOME_UNKNOWN"
+  /** `createKletiaProxy` refused a route outside its allowlist (answered locally; nothing reached Kletia). */
+  | "PROXY_ROUTE_FORBIDDEN"
   | `HTTP_${number}`;
 
 /** A catalogued API code (`ERROR_CATALOG` in `@kletia/core`), an SDK code, or a code newer than this SDK. */
@@ -70,6 +72,11 @@ export class KletiaApiError extends Error {
   readonly retryAfterSeconds: number | null;
   /** Documentation for this code: the API's `error.docs` link, or the catalog entry's. */
   readonly docsUrl: string | null;
+  /**
+   * Structured context of the error (`error.details`), e.g. the candidate
+   * networks of SOURCE_REQUIRED; null when the API sent none.
+   */
+  readonly details: Readonly<Record<string, unknown>> | null;
 
   constructor(input: {
     code: KletiaApiErrorCode;
@@ -80,10 +87,12 @@ export class KletiaApiError extends Error {
     requestId?: string | null;
     retryAfterSeconds?: number | null;
     docs?: string | null;
+    details?: Readonly<Record<string, unknown>> | null;
     cause?: unknown;
   }) {
     super(input.message, input.cause === undefined ? undefined : { cause: input.cause });
     this.name = "KletiaApiError";
+    this.details = input.details ?? null;
     this.code = input.code;
     this.status = input.status;
     this.issues = input.issues ?? [];

@@ -52,8 +52,11 @@ export async function stubServer(handler) {
   };
 }
 
-/** Runs the CLI in-process; `tty` makes stdout look like a terminal. */
-export async function cli(args, { base, env = {}, tty = false, stdin, fetch: fetchImpl } = {}) {
+/**
+ * Runs the CLI in-process; `tty` makes stdout look like a terminal. `answers`
+ * scripts a person at the prompt (one line per question; null is end of input).
+ */
+export async function cli(args, { base, env = {}, tty = false, stdin, fetch: fetchImpl, answers } = {}) {
   let stdout = "";
   let stderr = "";
   const code = await run(args, {
@@ -62,6 +65,7 @@ export async function cli(args, { base, env = {}, tty = false, stdin, fetch: fet
     env: { ...(base ? { KLETIA_BASE_URL: base } : {}), ...env },
     ...(stdin !== undefined ? { readStdin: async () => stdin } : {}),
     ...(fetchImpl ? { fetch: fetchImpl } : {}),
+    ...(answers ? { ask: async (prompt) => { stderr += prompt; return answers.length > 0 ? answers.shift() : null; } } : {}),
   });
   return { code, stdout, stderr };
 }

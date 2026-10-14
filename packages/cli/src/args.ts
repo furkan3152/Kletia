@@ -75,10 +75,30 @@ export function stringOption(values: OptionValues, name: string): string | undef
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Splits on commas outside parentheses, so a canonical signature such as
+ * `deposit(uint256,address)` stays one entry.
+ */
+export function splitList(value: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of value) {
+    if (char === "(") depth += 1;
+    else if (char === ")") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      out.push(current);
+      current = "";
+    } else current += char;
+  }
+  out.push(current);
+  return out.map((entry) => entry.trim()).filter(Boolean);
+}
+
 export function listOption(values: OptionValues, name: string): string[] {
   const value = values[name];
-  if (Array.isArray(value)) return value.flatMap((entry) => entry.split(",")).map((entry) => entry.trim()).filter(Boolean);
-  return typeof value === "string" ? [value] : [];
+  if (Array.isArray(value)) return value.flatMap((entry) => splitList(entry));
+  return typeof value === "string" ? splitList(value) : [];
 }
 
 export function integerOption(values: OptionValues, name: string, min: number, max: number, usage: string): number | undefined {

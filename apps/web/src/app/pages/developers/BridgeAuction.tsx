@@ -56,7 +56,7 @@ function RouteRow({ route, rank, winner }: { route: QuoteRoute; rank: number; wi
           ) : null}
           {!eligible ? <Badge tone="red">Not eligible</Badge> : null}
         </p>
-        <p className={cx("font-code text-[11px]", TEXT_MUTED)}>
+        <p className={cx("font-code text-code-s", TEXT_MUTED)}>
           {route.transactionCount} tx · {formatSeconds(route.estimatedSeconds) ?? "time unknown"}
           {route.feesUsd !== undefined ? ` · fees ${formatUsd(route.feesUsd)}` : ""}
           {route.extraCosts && route.extraCosts.length > 0

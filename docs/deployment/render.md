@@ -48,7 +48,7 @@ The hosted services were created in the dashboard before the repository became a
 | API (Web Service) | `apps/api` | `npm ci --legacy-peer-deps && npm run build` | `npm start` |
 | Site (Static Site) | `apps/web` | `npm ci --include=dev --legacy-peer-deps && npm run build` | publish `dist` |
 
-`npm ci` inside a workspace folder installs only that app's dependency tree, so the API install skips the widget and the CLI (it imports neither). The site build writes one HTML entry per fixed route (`developers.html`, `studio.html`, `app.html`, …) with the route's title and description, so those paths load without a rewrite rule.
+`npm ci` inside a workspace folder installs only that app's dependency tree, so the API install skips the widget, the embed and the CLI (it imports none of them). The services set `NODE_ENV=production`, which makes `npm ci` leave out devDependencies; the API therefore lists the tools its build needs (`typescript` and the `@types/*` packages) as dependencies. The site build writes one HTML entry per fixed route (`developers.html`, `studio.html`, `app.html`, …) with the route's title and description, so those paths load without a rewrite rule.
 
 Three things only the dashboard can set on these services (a Blueprint sets them from `render.yaml`):
 

@@ -8,7 +8,7 @@ import { prefersReducedMotion } from "../../../site/motion/useReducedMotion";
 import { Badge } from "../../../site/ui/Badge";
 import { Button } from "../../../site/ui/Button";
 import { CodeBlock } from "../../../site/ui/CodeBlock";
-import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
+import { CONTROL_BORDER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { CopyLinkButton } from "../components/CopyLinkButton";
 import { MethodBadge } from "../components/MethodBadge";
 import { ApiKeyField } from "../keys/ApiKeyField";
@@ -128,7 +128,8 @@ function OperationNav({
           value={selectedId}
           onChange={(event) => onSelect(event.target.value)}
           className={cx(
-            "min-h-11 w-full min-w-0 cursor-pointer border-[3px] border-[#1A1A1A] bg-white px-3 py-2 font-code text-[13px] font-semibold text-[#1A1A1A] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9]",
+            "min-h-11 w-full min-w-0 cursor-pointer bg-white px-3 py-2 font-code text-[13px] font-semibold text-fg dark:bg-[#0B1120]",
+            CONTROL_BORDER,
             FOCUS_RING,
           )}
         >
@@ -262,7 +263,7 @@ export function ApiExplorer({ operations, source, onReloadSpec }: ApiExplorerPro
       text: (
         <>
           Needs an API key: without one the API answers 401. Paste a key above, or{" "}
-          <Link to="/developers#keys" className="font-bold underline decoration-2 underline-offset-2">
+          <Link to="/developers/keys" className="font-bold underline decoration-2 underline-offset-2">
             issue one
           </Link>
           .
@@ -349,7 +350,7 @@ export function ApiExplorer({ operations, source, onReloadSpec }: ApiExplorerPro
     }
   };
 
-  const deepLink = `${typeof window === "undefined" ? "" : window.location.origin}/developers#op-${operation.id}`;
+  const deepLink = `${typeof window === "undefined" ? "" : window.location.origin}/developers/api/${operation.id}`;
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

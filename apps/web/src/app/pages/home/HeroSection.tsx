@@ -68,7 +68,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
           </p>
 
           <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
-            <ButtonLink to="/developers#keys" size="lg" className="w-full [--kla-plate:#FFD60A] sm:w-auto">
+            <ButtonLink to="/developers#start-key" size="lg" className="w-full [--kla-plate:#FFD60A] sm:w-auto">
               <Icon name="key" size={20} />
               Get an API key
             </ButtonLink>

@@ -2,7 +2,7 @@ import { Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Badge } from "../../../site/ui/Badge";
-import { cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
+import { CONTROL_BORDER, cx, FOCUS_RING, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
 import { maskKey, portalKeyKind, useSessionKey } from "./sessionKey";
 
 export interface ApiKeyFieldProps {
@@ -25,7 +25,7 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
   return (
     <div className={cx("flex min-w-0 flex-col gap-1.5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label htmlFor={id} className={cx(LABEL, "inline-flex items-center gap-1.5 text-[#1A1A1A] dark:text-[#E2E8F0]")}>
+        <label htmlFor={id} className={cx(LABEL, "inline-flex items-center gap-1.5 text-fg")}>
           <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
           {label}
         </label>
@@ -54,7 +54,8 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
           data-form-type="other"
           aria-describedby={`${id}-hint`}
           className={cx(
-            "min-h-11 w-full min-w-0 border-[3px] border-r-0 border-[#1A1A1A] bg-white px-3 py-2 font-code text-[13px] text-[#1A1A1A] placeholder:text-[#6B7280] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9] dark:placeholder:text-[#64748B]",
+            "min-h-11 w-full min-w-0 border-r-0 bg-white px-3 py-2 font-code text-[13px] text-fg placeholder:text-placeholder dark:bg-[#0B1120]",
+            CONTROL_BORDER,
             FOCUS_RING,
             "focus-visible:-outline-offset-4",
           )}
@@ -65,7 +66,8 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
           aria-pressed={visible}
           aria-label={visible ? "Hide key" : "Show key"}
           className={cx(
-            "inline-flex min-h-11 w-11 shrink-0 items-center justify-center border-[3px] border-[#1A1A1A] bg-[#F1EFE8] text-[#1A1A1A] hover:bg-[#FFD60A] dark:border-[#4B5563] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
+            "inline-flex min-h-11 w-11 shrink-0 items-center justify-center bg-[#F1EFE8] text-[#1A1A1A] hover:bg-[#FFD60A] dark:bg-[#1A2841] dark:text-white dark:hover:bg-[#22345A]",
+            CONTROL_BORDER,
             key ? "border-r-0" : "",
             FOCUS_RING,
           )}
@@ -81,7 +83,8 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
             }}
             aria-label="Forget key"
             className={cx(
-              "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 border-[3px] border-[#1A1A1A] bg-white px-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#1A1A1A] hover:bg-[#FFE4E4] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-white dark:hover:bg-[#2A1215]",
+              "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 bg-white px-3 text-xs font-black uppercase tracking-[0.08em] text-[#1A1A1A] hover:bg-[#FFE4E4] dark:bg-[#131E32] dark:text-white dark:hover:bg-[#2A1215]",
+              CONTROL_BORDER,
               FOCUS_RING,
             )}
           >
@@ -92,7 +95,7 @@ export function ApiKeyField({ className, label = "API key", compact = false }: A
       </div>
       <p id={`${id}-hint`} className={cx("text-xs leading-relaxed", TEXT_MUTED)}>
         {shapeWarning ? (
-          <span className="font-bold text-[#B91C1C] dark:text-[#FCA5A5]">That does not look like a Kletia key (kl_dev_… or kl_agt_…). </span>
+          <span className="font-bold text-danger">That does not look like a Kletia key (kl_dev_… or kl_agt_…). </span>
         ) : null}
         Kept in this tab&apos;s memory only: never stored, never put in a snippet, gone on reload. Paste a key here only on a
         device you trust, and keep production keys on your server.

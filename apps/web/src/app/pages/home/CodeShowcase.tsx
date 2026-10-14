@@ -54,14 +54,14 @@ export function CodeShowcase() {
             No build step? Drop in the React widget or the <code className="font-code text-[0.92em] text-white">/embed</code> iframe and skip most of the code.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
-            <ButtonLink to="/developers#quickstart" variant="accent" className="!border-white !shadow-[3px_3px_0_#FFFFFF]">
+            <ButtonLink to="/developers#start" variant="accent" className="!border-white !shadow-[3px_3px_0_#FFFFFF]">
               Quickstart
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </ButtonLink>
-            <ButtonLink to="/developers#explorer" variant="secondary" className="!border-white !shadow-[3px_3px_0_#FFD60A]">
+            <ButtonLink to="/developers/api" variant="secondary" className="!border-white !shadow-[3px_3px_0_#FFD60A]">
               Try the API in the explorer
             </ButtonLink>
-            <ButtonLink to="/developers#embed" variant="ghost" className="!border-white/40 !text-white hover:!bg-white/10">
+            <ButtonLink to="/developers/embed" variant="ghost" className="!border-white/40 !text-white hover:!bg-white/10">
               Embed guide
             </ButtonLink>
           </div>

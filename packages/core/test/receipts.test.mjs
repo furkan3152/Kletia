@@ -760,3 +760,35 @@ test("verifyReceipt never throws on hostile documents", async () => {
     assert.equal(outcome.valid, false);
   }
 });
+
+/* ------------------------------------------------------------- departure */
+
+test("projectRequest: sourceNetwork and gasOnArrival are projected; requests without them keep their pre-round-6 digest", () => {
+  const accounts = [
+    "eip155:8453:0x52908400098527886E0F7030069857D2E4169EE7",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+  ];
+  const text = {
+    text: "bridge 25 USDC from base to arbitrum",
+    accounts,
+    defaultNetwork: "base",
+    constraints: { maxSlippageBps: 50, avoidProtocols: ["lifi"], maxSeconds: 900 },
+    metadata: { b: "2", a: "1" },
+    clientReference: "order-1",
+  };
+  const structured = { actions: [{ kind: "swap", network: "solana", from: "SOL", to: "USDC", amount: "1" }], accounts: [accounts[1]] };
+  // Golden digests computed with the receipt code of commit 1f58460 (before sourceNetwork existed).
+  assert.equal(receiptRequestDigest(projectRequest(text)), "230f2b8cabd116cc65c587516d8d1ca2639f50668613bc9b92b9093cd8f1b22d");
+  assert.equal(receiptRequestDigest(projectRequest(structured)), "bb1ae187d63844adfc32197a39b4cd6b4b64db49d50820244066f6e8914029c8");
+  assert.equal("sourceNetwork" in projectRequest(text), false);
+
+  const departed = projectRequest({ ...text, sourceNetwork: "solana" });
+  assert.equal(departed.sourceNetwork, "solana");
+  assert.notEqual(receiptRequestDigest(departed), receiptRequestDigest(projectRequest(text)));
+  assert.equal(projectRequest({ ...text, sourceNetwork: "auto" }).sourceNetwork, "auto");
+
+  // gasOnArrival is a user-keyed map: projected as sorted pairs.
+  const topped = projectRequest({ ...text, constraints: { ...text.constraints, gasOnArrival: { optimism: "1.00", base: "0.50" } } });
+  assert.deepEqual(topped.constraints.gasOnArrival, [["base", "0.50"], ["optimism", "1.00"]]);
+  assert.doesNotThrow(() => receiptJcs(topped));
+});

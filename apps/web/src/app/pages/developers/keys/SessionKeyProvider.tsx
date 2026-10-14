@@ -1,12 +1,11 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React from "react";
 
-import { SessionKeyContext, type SessionKeyState } from "./sessionKey";
-
-/** Holds the visitor's developer key in memory for the developer portal. */
+/**
+ * Kept for pages that still wrap themselves in it. The key now lives in the
+ * module-level store (sessionKeyStore.ts) that `useSessionKey()` reads, so
+ * it survives navigation between pages; the provider holds nothing and
+ * never clears the key on unmount.
+ */
 export function SessionKeyProvider({ children }: { readonly children: React.ReactNode }) {
-  const [key, setRawKey] = useState("");
-  const setKey = useCallback((next: string) => setRawKey(next.trim()), []);
-  const clear = useCallback(() => setRawKey(""), []);
-  const value = useMemo<SessionKeyState>(() => ({ key, setKey, clear }), [key, setKey, clear]);
-  return <SessionKeyContext.Provider value={value}>{children}</SessionKeyContext.Provider>;
+  return <>{children}</>;
 }

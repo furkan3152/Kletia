@@ -29,7 +29,7 @@ export function FinalCta() {
           <div className="mt-10 flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
             {/* Blue is the primary action everywhere, on the yellow notice too. */}
             <ButtonLink
-              to="/developers#keys"
+              to="/developers#start-key"
               size="lg"
               className="w-full !border-[#1A1A1A] !shadow-[3px_3px_0_#1A1A1A] [--kla-plate:#FFD60A] sm:w-auto"
             >

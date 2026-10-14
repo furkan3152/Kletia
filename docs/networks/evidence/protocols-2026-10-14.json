@@ -1,0 +1,3285 @@
+{
+  "at": "2026-10-14T17:58:55.641Z",
+  "purpose": "Read-back of every round-6 registry pin in packages/core/src/protocols.ts and assets.ts (read-only RPC).",
+  "networks": {
+    "ethereum": {
+      "network": "ethereum",
+      "chainId": 1,
+      "rpc": "https://ethereum-rpc.publicnode.com",
+      "block": "26192388"
+    },
+    "base": {
+      "network": "base",
+      "chainId": 8453,
+      "rpc": "https://mainnet.base.org",
+      "block": "52605695"
+    },
+    "arbitrum": {
+      "network": "arbitrum",
+      "chainId": 42161,
+      "rpc": "https://arb1.arbitrum.io/rpc",
+      "block": "514815869"
+    },
+    "optimism": {
+      "network": "optimism",
+      "chainId": 10,
+      "rpc": "https://mainnet.optimism.io",
+      "block": "158200980"
+    },
+    "polygon": {
+      "network": "polygon",
+      "chainId": 137,
+      "rpc": "https://polygon-bor-rpc.publicnode.com",
+      "block": "95530276"
+    }
+  },
+  "evm": [
+    {
+      "network": "ethereum",
+      "label": "ethereum:uniswap-v3:v3 router",
+      "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      "size": 24497,
+      "codeHash": "0x6ec798e80f3a19de650826338677604e54d6664f44a33b53a20b22b1939f402e",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:uniswap-v3:v3 quoter",
+      "address": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+      "size": 8273,
+      "codeHash": "0x06148f47d0f41a68d3bc970030a7150e5d608cfbc28d372440a2e41ce543d92b",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:uniswap-v3:v3 factory",
+      "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "size": 24535,
+      "codeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            500
+          ],
+          "ok": true,
+          "value": 10,
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60,
+          "expect": "60",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:uniswap-v3:v3 router",
+      "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      "size": 24497,
+      "codeHash": "0x209f9820ed7257d51c2f96ee837e8ec057b44774899f4be16fc45bd30cbb16f6",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:uniswap-v3:v3 quoter",
+      "address": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+      "size": 8273,
+      "codeHash": "0xd8162b13ba57ce21a146063b10658bda0a3fd15c99f768c86283fce6640858a5",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:uniswap-v3:v3 factory",
+      "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "size": 24535,
+      "codeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            500
+          ],
+          "ok": true,
+          "value": 10,
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60,
+          "expect": "60",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:uniswap-v3:v3 router",
+      "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      "size": 24497,
+      "codeHash": "0x3199a91b0b54bb5e4717f543da9c1bd8efd451d200689d52ef0845d3aa7904f0",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:uniswap-v3:v3 quoter",
+      "address": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+      "size": 8273,
+      "codeHash": "0xd833dcf44a912014423afa2b637f23b5db5b7dc492494cbe3f46026a6d57b424",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:uniswap-v3:v3 factory",
+      "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "size": 24535,
+      "codeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            500
+          ],
+          "ok": true,
+          "value": 10,
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60,
+          "expect": "60",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "polygon:uniswap-v3:v3 router",
+      "address": "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      "size": 24497,
+      "codeHash": "0x04cdae9f4e3eea720a4d0ea57b46c20ae0c7f40ee77182f32dc63ddc0dfbba5b",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "expect": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "polygon:uniswap-v3:v3 quoter",
+      "address": "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+      "size": 8273,
+      "codeHash": "0x67d7cce806743d638e191025ab4233f44e99469f1bcda4c2b4b964b8af9099d9",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "expect": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "expect": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "polygon:uniswap-v3:v3 factory",
+      "address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "size": 24535,
+      "codeHash": "0x4d7b8525cd5d14343fa67a732fba5b24cddba11620ca88392f4ec6c52f91fd69",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            500
+          ],
+          "ok": true,
+          "value": 10,
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60,
+          "expect": "60",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:uniswap-v3:v3 router",
+      "address": "0x2626664c2603336E57B271c5C0b26F421741e481",
+      "size": 24497,
+      "codeHash": "0x38bd640f47df62b2fd5a6755a63f4976ad847dc9b946ae0d145d21d16bb124e4",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          "expect": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:uniswap-v3:v3 quoter",
+      "address": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+      "size": 8273,
+      "codeHash": "0xceb5b8bc35e09fc64b1c48c6b920e0d2e37d5710e4f3ef214e1a81f75acee51e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          "expect": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:uniswap-v3:v3 factory",
+      "address": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+      "size": 24535,
+      "codeHash": "0x95707a4ac71f20181a63ef7d180e3c625be5d20fc8f6f980befa966bad568132",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            500
+          ],
+          "ok": true,
+          "value": 10,
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60,
+          "expect": "60",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "uniswap-v3",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-initial router",
+      "address": "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5",
+      "size": 9908,
+      "codeHash": "0x8ca2876cc2c509da1648ef2ad21a8849c261cf7316b675119b98ba298c8657e7",
+      "eip7702OrProxyHint": "0x6080604052600436106101025760003560e01c8063c04b",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+          "expect": "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-initial quoter",
+      "address": "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0",
+      "size": 6934,
+      "codeHash": "0xfb0ab713266d089d5b6ac48d50455c4fadc9cd49a1efcc83a091e7c2e48dad0e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+          "expect": "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-initial factory",
+      "address": "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+      "size": 4958,
+      "codeHash": "0x7340cf80843bd721bcaefbfc050e38304cb4174c239e6e914e3056f27f39b11c",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "tickSpacingToFee(int24) view returns (uint24)",
+          "args": [
+            100
+          ],
+          "ok": true,
+          "value": 500
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauge-caps router",
+      "address": "0xcbBb8035cAc7D4B3Ca7aBb74cF7BdF900215Ce0D",
+      "size": 9908,
+      "codeHash": "0x116aef8b4b99ede08ea33d1e471630246b502205e94f52539125177a3dc3532c",
+      "eip7702OrProxyHint": "0x6080604052600436106101025760003560e01c8063c04b",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+          "expect": "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauge-caps quoter",
+      "address": "0x3d4C22254F86f64B7eC90ab8F7aeC1FBFD271c6C",
+      "size": 6934,
+      "codeHash": "0xdc5386ee08f05c42a71fd24c42a7db805acd24c15f311b010666d061e7c65257",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+          "expect": "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauge-caps factory",
+      "address": "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+      "size": 5235,
+      "codeHash": "0x0e72100f63ce8e32c95370fa9636d38c8cf434a820f2a7a69985e50930d2cb85",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "tickSpacingToFee(int24) view returns (uint24)",
+          "args": [
+            100
+          ],
+          "ok": true,
+          "value": 500
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauges-v3 router",
+      "address": "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F",
+      "size": 9908,
+      "codeHash": "0xfedc4e21e1097b0ec1b4f1aa901cf645c22f9e5d297727b0f37275ee1d083df4",
+      "eip7702OrProxyHint": "0x6080604052600436106101025760003560e01c8063c04b",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+          "expect": "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauges-v3 quoter",
+      "address": "0x514c8B5f54112481E28028F1166Bd78501089259",
+      "size": 6934,
+      "codeHash": "0x4c4c43e0024343e65597f0f0a1b829aaf69e5a6c0a0148fb63d28ff5730be551",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+          "expect": "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:aerodrome:cl-gauges-v3 factory",
+      "address": "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+      "size": 5235,
+      "codeHash": "0x4961963494e47f363617ab9a0f3999a28b33c519e51392952db06350cce700bd",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "tickSpacingToFee(int24) view returns (uint24)",
+          "args": [
+            100
+          ],
+          "ok": true,
+          "value": 500
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "aerodrome",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-initial router",
+      "address": "0x0792a633F0c19c351081CF4B211F68F79bCc9676",
+      "size": 9908,
+      "codeHash": "0x34ab14bbf7d3a5143f7a1eb215d1f7ff0844349252b1c5eb65a6f9d0fdebb227",
+      "eip7702OrProxyHint": "0x6080604052600436106101025760003560e01c8063c04b",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          "expect": "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-initial quoter",
+      "address": "0x89D8218ed5fF1e46d8dcd33fb0bbeE3be1621466",
+      "size": 6934,
+      "codeHash": "0xe895ed33f6bfaa9351d2b3b491cfa1150aa2dfa492f506acb91fdd564c793ba9",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          "expect": "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-initial factory",
+      "address": "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+      "size": 4958,
+      "codeHash": "0x54e70bfdb89910349654db2f06c4a5cdbb9f4c74c781fe59276c1fa7b3f7f95e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "tickSpacingToFee(int24) view returns (uint24)",
+          "args": [
+            100
+          ],
+          "ok": true,
+          "value": 500
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-gauges-v2 router",
+      "address": "0xbA3aEe516399388C779463183d00bB579f5041Ca",
+      "size": 9908,
+      "codeHash": "0xd03800b94f63cbb830ead9ea30ae60f28308c49432dfdf89721d479941a00845",
+      "eip7702OrProxyHint": "0x6080604052600436106101025760003560e01c8063c04b",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+          "expect": "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "swap-router"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-gauges-v2 quoter",
+      "address": "0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB",
+      "size": 6934,
+      "codeHash": "0x60b807dbd95ea407781a6efe04b566a57740606bc8b5364c1e9ce004b134b158",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+          "expect": "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+          "match": true
+        },
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "quoter"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:velodrome:cl-gauges-v2 factory",
+      "address": "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+      "size": 5173,
+      "codeHash": "0xe6ce7d505ef62fec70e5fd128e3449c19a7cbc6acc2e29a5236fb8bded8988d2",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "tickSpacingToFee(int24) view returns (uint24)",
+          "args": [
+            100
+          ],
+          "ok": true,
+          "value": 500
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "velodrome",
+        "role": "pool-factory"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:sparklend:usdc reserve",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "size": 12289,
+      "codeHash": "0xe3e638b8969043a0bb98b01876325a9b5b311df51a89c72b8ac3fb175035c472",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "getReserveTokensAddresses(address) view returns (address,address,address)",
+          "args": [
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+          ],
+          "ok": true,
+          "value": [
+            "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815",
+            "0x887Ac022983Ff083AEb623923789052A955C6798",
+            "0x7B70D04099CB9cfb1Db7B6820baDAfB4C5C70A67"
+          ],
+          "expect": "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:sparklend:usdc"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:sparklend:usdc aToken",
+      "address": "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815",
+      "size": 2400,
+      "codeHash": "0x077e8c88e5535988fd2aca6383174ed3c54c66c84388036e5b880ecfa9c85bb5",
+      "eip7702OrProxyHint": "0x60806040526004361061005a5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "UNDERLYING_ASSET_ADDRESS() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "POOL() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "expect": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:sparklend:usdc"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:sparklend:weth reserve",
+      "address": "0xFc21d6d146E6086B8359705C8b28512a983db0cb",
+      "size": 12289,
+      "codeHash": "0xe3e638b8969043a0bb98b01876325a9b5b311df51a89c72b8ac3fb175035c472",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "getReserveTokensAddresses(address) view returns (address,address,address)",
+          "args": [
+            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+          ],
+          "ok": true,
+          "value": [
+            "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB",
+            "0x3c6b93D38ffA15ea995D1BC950d5D0Fa6b22bD05",
+            "0x2e7576042566f8D6990e07A1B61Ad1efd86Ae70d"
+          ],
+          "expect": "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:sparklend:weth"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:sparklend:weth aToken",
+      "address": "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB",
+      "size": 2400,
+      "codeHash": "0x077e8c88e5535988fd2aca6383174ed3c54c66c84388036e5b880ecfa9c85bb5",
+      "eip7702OrProxyHint": "0x60806040526004361061005a5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "UNDERLYING_ASSET_ADDRESS() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "POOL() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "expect": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:sparklend:weth"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:spark-savings:usdc vault",
+      "address": "0xBc65ad17c5C0a2A4D159fa5a503f4992c7B545FE",
+      "size": 163,
+      "codeHash": "0xbe9b8e94d668710d7f221060210f6432bcc39a509505efd2cfd672a7d8a402e3",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0xf943Cb8D5f06f2bBF352878ebEF3Ec5C537A20bA",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "psm() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA188EEC8F81263234dA3622A406892F3D630f98c",
+          "expect": "0xA188EEC8F81263234dA3622A406892F3D630f98c",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:spark-savings:usdc"
+      },
+      "implementation": {
+        "expect": "0xf943Cb8D5f06f2bBF352878ebEF3Ec5C537A20bA",
+        "got": "0xf943Cb8D5f06f2bBF352878ebEF3Ec5C537A20bA",
+        "match": true
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:spark-savings:spusdc vault",
+      "address": "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d",
+      "size": 163,
+      "codeHash": "0x9dc4caa1d9a88e199d6e4ceaf889a4f6c229cb265c96a3e9473d999b352afff8",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "getRoleMember(bytes32,uint256) view returns (address)",
+          "args": [
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0"
+          ],
+          "ok": true,
+          "value": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+          "expect": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:spark-savings:spusdc"
+      },
+      "implementation": {
+        "expect": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "got": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "match": true
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:spark-savings:speth vault",
+      "address": "0xfE6eb3b609a7C8352A241f7F3A21CEA4e9209B8f",
+      "size": 163,
+      "codeHash": "0x9dc4caa1d9a88e199d6e4ceaf889a4f6c229cb265c96a3e9473d999b352afff8",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "getRoleMember(bytes32,uint256) view returns (address)",
+          "args": [
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0"
+          ],
+          "ok": true,
+          "value": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+          "expect": "0x3300f198988e4C9C63F75dF86De36421f06af8c4",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:spark-savings:speth"
+      },
+      "implementation": {
+        "expect": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "got": "0x1b992302652A92611DCd5090D1Cb388C6377f455",
+        "match": true
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:spark-savings:usdc vault",
+      "address": "0x3128a0F7f0ea68E7B7c9B00AFa7E41045828e858",
+      "size": 163,
+      "codeHash": "0xbe9b8e94d668710d7f221060210f6432bcc39a509505efd2cfd672a7d8a402e3",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0x6ACC02ddd82206a44ff4EC13977E63d1a29C7723",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "expect": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "psm() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1601843c5E9bC251A3272907010AFa41Fa18347E",
+          "expect": "0x1601843c5E9bC251A3272907010AFa41Fa18347E",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "base:spark-savings:usdc"
+      },
+      "implementation": {
+        "expect": "0x6ACC02ddd82206a44ff4EC13977E63d1a29C7723",
+        "got": "0x6ACC02ddd82206a44ff4EC13977E63d1a29C7723",
+        "match": true
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:spark-savings:usdc vault",
+      "address": "0x940098b108fB7D0a7E374f6eDED7760787464609",
+      "size": 163,
+      "codeHash": "0xbe9b8e94d668710d7f221060210f6432bcc39a509505efd2cfd672a7d8a402e3",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0xdC8DF20bE448E41FdE88E2478d6Bc4d3C9A092d6",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "expect": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "psm() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266",
+          "expect": "0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "arbitrum:spark-savings:usdc"
+      },
+      "implementation": {
+        "expect": "0xdC8DF20bE448E41FdE88E2478d6Bc4d3C9A092d6",
+        "got": "0xdC8DF20bE448E41FdE88E2478d6Bc4d3C9A092d6",
+        "match": true
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "optimism:spark-savings:usdc vault",
+      "address": "0xCF9326e24EBfFBEF22ce1050007A43A3c0B6DB55",
+      "size": 163,
+      "codeHash": "0xbe9b8e94d668710d7f221060210f6432bcc39a509505efd2cfd672a7d8a402e3",
+      "eip7702OrProxyHint": "0x6080604052600a600c565b005b60186014601a565b6050",
+      "proxy": {
+        "implementation": "0x3a1d3A9B0eD182d7B17aa61393D46a4f4EE0CEA5",
+        "admin": null
+      },
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+          "expect": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "psm() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xe0F9978b907853F354d79188A3dEfbD41978af62",
+          "expect": "0xe0F9978b907853F354d79188A3dEfbD41978af62",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "optimism:spark-savings:usdc"
+      },
+      "implementation": {
+        "expect": "0x3a1d3A9B0eD182d7B17aa61393D46a4f4EE0CEA5",
+        "got": "0x3a1d3A9B0eD182d7B17aa61393D46a4f4EE0CEA5",
+        "match": true
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:fluid:usdc fToken",
+      "address": "0x9Fb7b4477576Fe5B32be4C1843aFB1e55F251B33",
+      "size": 19617,
+      "codeHash": "0x131b2014b67d86e5a1fcd6be7b6817b76ae9ac1663266f88366e526666297828",
+      "eip7702OrProxyHint": "0x6080604052600436106103135760003560e01c80637ece",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x724d0c9497Fa89B2C6A4585e08380c91a92ab9b6",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "132742734402573",
+            "1167781040940",
+            "1221272708788"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:fluid:usdc"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:fluid:weth fToken",
+      "address": "0x90551c1795392094FE6D29B758EcCD233cFAa260",
+      "size": 21098,
+      "codeHash": "0x22f5fcde01d5702c916f85fff3958152ecb7fd03612e5600b1e72d1536ec2097",
+      "eip7702OrProxyHint": "0x60806040526004361061038f5760003560e01c80637d7c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x0000000000000000000000000000000000000000",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "912674409312761577354",
+            "1082922102994",
+            "1082922102993"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:fluid:weth"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:fluid:usdc fToken",
+      "address": "0x1A996cb54bb95462040408C06122D45D6Cdb6096",
+      "size": 19617,
+      "codeHash": "0x9c80b29776890f7adf531de64df342cbb09c99ee5af4b583c0d1c70d2e86291b",
+      "eip7702OrProxyHint": "0x6080604052600436106103135760003560e01c80637ece",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "expect": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x65913Cf72695bA29f51fD23D9FCa208e1cB94974",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "55386563142072",
+            "1093327240106",
+            "1134143641964"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "arbitrum:fluid:usdc"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "arbitrum:fluid:weth fToken",
+      "address": "0x45Df0656F8aDf017590009d2f1898eeca4F0a205",
+      "size": 21098,
+      "codeHash": "0x451fc3c6fbf2e22a9c0d7ebc03d61d33d66cda45041a7e739798d2e539c03e80",
+      "eip7702OrProxyHint": "0x60806040526004361061038f5760003560e01c80637d7c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x0000000000000000000000000000000000000000",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "160610960549432196406",
+            "1034394318158",
+            "1034394318158"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "arbitrum:fluid:weth"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:fluid:usdc fToken",
+      "address": "0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169",
+      "size": 19617,
+      "codeHash": "0x7bb1bad9cc6f098488c71a052e917f646cb335cf64c64d244e6d14ee57b7c743",
+      "eip7702OrProxyHint": "0x6080604052600436106103135760003560e01c80637ece",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "expect": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0xe6c7AfB08108c3257048b346718DEA1F3dF3E86C",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "10875218574600",
+            "1091604852713",
+            "1137119297318"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "base:fluid:usdc"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "base",
+      "label": "base:fluid:weth fToken",
+      "address": "0x9272D6153133175175Bc276512B2336BE3931CE9",
+      "size": 21098,
+      "codeHash": "0xc72eb7d214a85268c64e5d01f31f97abd8de48b8f23d8d8f32fa951f9c6c146a",
+      "eip7702OrProxyHint": "0x60806040526004361061038f5760003560e01c80637d7c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x0000000000000000000000000000000000000000",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "39407627400337017512",
+            "1029487865294",
+            "1029487865294"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "base:fluid:weth"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "polygon:fluid:usdc fToken",
+      "address": "0x571d456b578fDC34E26E6D636736ED7c0CDB9d89",
+      "size": 19617,
+      "codeHash": "0xa0437f1b2f2ab328e4c6ac6a3ac12abbd25897486dd4470f64aefe375ea507d2",
+      "eip7702OrProxyHint": "0x6080604052600436106103135760003560e01c80637ece",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+          "expect": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x0000000000000000000000000000000000000000",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "233442683604",
+            "1038533591908",
+            "1038533591908"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "polygon:fluid:usdc"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "polygon:fluid:weth fToken",
+      "address": "0xD3154535E4D0e179583ad694859E4e876EB12d24",
+      "size": 19617,
+      "codeHash": "0x4f33410734ad2a34da5aadcd3187a4d53dba3cf38ffab5496dd8852a1e993a72",
+      "eip7702OrProxyHint": "0x6080604052600436106103135760003560e01c80637ece",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+          "expect": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "getData() view returns (address,address,address,address,address,bool,uint256,uint256,uint256)",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+            "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+            "0x0000000000000000000000000000000000000000",
+            "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "0x264786EF916af64a1DB19F513F24a3681734ce92",
+            false,
+            "58510768871245540814",
+            "1015112508165",
+            "1015112508165"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "polygon:fluid:weth"
+      },
+      "fluid": {
+        "liquidity": {
+          "expect": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+          "got": "0x52aa899454998be5b000ad077a46bbe360f4e497",
+          "match": true
+        },
+        "lendingFactory": {
+          "expect": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+          "got": "0x54b91a0d94cb471f37f949c60f7fa7935b551d03",
+          "match": true
+        },
+        "listedByFactory": true
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:yearn-v3:usdc-1 vault",
+      "address": "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204",
+      "size": 45,
+      "codeHash": "0x8f0740d97d5456d80fa79cc5c64834cb03cb40a46c70eea3e99b7ca030f923a9",
+      "eip7702OrProxyHint": "0x363d3d373d3d3d363d731ab62413e0cf2ebeb73da7d40c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        },
+        {
+          "call": "apiVersion() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "3.0.2",
+          "expect": "3.0.2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:yearn-v3:usdc-1"
+      },
+      "eip1167": {
+        "expect": "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467",
+        "got": "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467",
+        "match": true
+      },
+      "endorsements": [
+        {
+          "registry": "0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038",
+          "ok": true,
+          "value": true
+        },
+        {
+          "registry": "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af",
+          "ok": true,
+          "value": true
+        }
+      ]
+    },
+    {
+      "network": "ethereum",
+      "label": "ethereum:yearn-v3:weth-1 vault",
+      "address": "0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0",
+      "size": 45,
+      "codeHash": "0x8f0740d97d5456d80fa79cc5c64834cb03cb40a46c70eea3e99b7ca030f923a9",
+      "eip7702OrProxyHint": "0x363d3d373d3d3d363d731ab62413e0cf2ebeb73da7d40c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        },
+        {
+          "call": "apiVersion() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "3.0.2",
+          "expect": "3.0.2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "venue": "ethereum:yearn-v3:weth-1"
+      },
+      "eip1167": {
+        "expect": "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467",
+        "got": "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467",
+        "match": true
+      },
+      "endorsements": [
+        {
+          "registry": "0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038",
+          "ok": true,
+          "value": true
+        },
+        {
+          "registry": "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af",
+          "ok": true,
+          "value": true
+        }
+      ]
+    },
+    {
+      "network": "ethereum",
+      "label": "sparklend addresses-provider",
+      "address": "0x02C3eA4e34C0cBd694D2adFa2c690EECbC1793eE",
+      "size": 9846,
+      "codeHash": "0xe03e30292b3cd7fd822d0717ab9bbface21c775fdcdadd8be1fa4b8eda5d16c8",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "getPool() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "expect": "0xC13e21B648A5Ee794902342038FF3aDAB66BE987",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "sparklend",
+        "role": "addresses-provider"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "fluid lending-factory",
+      "address": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+      "size": 8305,
+      "codeHash": "0x8489c155ce8c58e8fd4a6dc6799c1e5d23259b55f69ceaeb8d525db13da01e9a",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "allTokens() view returns (address[])",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x9Fb7b4477576Fe5B32be4C1843aFB1e55F251B33",
+            "0x90551c1795392094FE6D29B758EcCD233cFAa260",
+            "0x5C20B550819128074FD538Edf79791733ccEdd18",
+            "0x2411802D8BEA09be0aF8fD8D08314a63e706b29C",
+            "0x6A29A46E21C730DcA1d8b23d637c101cec605C5B",
+            "0x2BBE31d63E6813E3AC858C04dae43FB2a72B0D11",
+            "0x15e8c742614b5D8Db4083A41Df1A14F5D2bFB400"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "lending-factory"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "fluid liquidity",
+      "address": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+      "size": 4462,
+      "codeHash": "0xb3a458c72a3a0b3aa773f2c3e21d0eadfb06dacdc4568f447d9019d1c1451c35",
+      "eip7702OrProxyHint": "0x60806040526004361061009a5760003560e01c8063908b",
+      "calls": [],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "liquidity"
+      }
+    },
+    {
+      "network": "base",
+      "label": "fluid lending-factory",
+      "address": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+      "size": 8305,
+      "codeHash": "0x8489c155ce8c58e8fd4a6dc6799c1e5d23259b55f69ceaeb8d525db13da01e9a",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "allTokens() view returns (address[])",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x9272D6153133175175Bc276512B2336BE3931CE9",
+            "0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169",
+            "0x896E39f0E9af61ECA9dD2938E14543506ef2c2b5",
+            "0x1943FA26360f038230442525Cf1B9125b5DCB401",
+            "0xf62e339f21d8018940f188F6987Bcdf02A849619",
+            "0x8DdbfFA3CFda2355a23d6B11105AC624BDbE3631"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "lending-factory"
+      }
+    },
+    {
+      "network": "base",
+      "label": "fluid liquidity",
+      "address": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+      "size": 4462,
+      "codeHash": "0xb3a458c72a3a0b3aa773f2c3e21d0eadfb06dacdc4568f447d9019d1c1451c35",
+      "eip7702OrProxyHint": "0x60806040526004361061009a5760003560e01c8063908b",
+      "calls": [],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "liquidity"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "fluid lending-factory",
+      "address": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+      "size": 8305,
+      "codeHash": "0x8489c155ce8c58e8fd4a6dc6799c1e5d23259b55f69ceaeb8d525db13da01e9a",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "allTokens() view returns (address[])",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x45Df0656F8aDf017590009d2f1898eeca4F0a205",
+            "0x1A996cb54bb95462040408C06122D45D6Cdb6096",
+            "0x4A03F37e7d3fC243e3f99341d36f4b829BEe5E03",
+            "0x66C25Cd75EBdAA7E04816F643d8E46cecd3183c9",
+            "0x0D00C4A2f766b7AFE2cc8F6467E296400A32B239",
+            "0xbE3860FD4c3facDf8ad57Aa8c1A36D6dc4390a49",
+            "0x3459fcc94390C3372c0F7B4cD3F8795F0E5aFE96",
+            "0x037dFf1C12805707d7c29F163E0F09fC9102657A",
+            "0x24BB6C093e15658AcE2C34bEe9ac16F0A6ED2b01"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "lending-factory"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "fluid liquidity",
+      "address": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+      "size": 4462,
+      "codeHash": "0xb3a458c72a3a0b3aa773f2c3e21d0eadfb06dacdc4568f447d9019d1c1451c35",
+      "eip7702OrProxyHint": "0x60806040526004361061009a5760003560e01c8063908b",
+      "calls": [],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "liquidity"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "fluid lending-factory",
+      "address": "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03",
+      "size": 8305,
+      "codeHash": "0x8489c155ce8c58e8fd4a6dc6799c1e5d23259b55f69ceaeb8d525db13da01e9a",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "allTokens() view returns (address[])",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x571d456b578fDC34E26E6D636736ED7c0CDB9d89",
+            "0x6f5e34eFf43D9ab7c977512509C53840B5EfBA85",
+            "0xD3154535E4D0e179583ad694859E4e876EB12d24",
+            "0x8C618d33463f10DDAeCbA2739fCfb25d58C23243",
+            "0x41b8B33A413681CB7d869D287E99C30c6DF775b9",
+            "0xd70dD80Bc39d56E21A4475F72021BC6C5B0E4518"
+          ]
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "lending-factory"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "fluid liquidity",
+      "address": "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497",
+      "size": 4462,
+      "codeHash": "0xb3a458c72a3a0b3aa773f2c3e21d0eadfb06dacdc4568f447d9019d1c1451c35",
+      "eip7702OrProxyHint": "0x60806040526004361061009a5760003560e01c8063908b",
+      "calls": [],
+      "verified": true,
+      "row": {
+        "protocol": "fluid",
+        "role": "liquidity"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "yearn-v3 registry",
+      "address": "0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038",
+      "size": 9167,
+      "codeHash": "0x98cfc1492a28602c4101e816c5631f81059bc3e46606744ebc6287d46351c7d2",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "isEndorsed(address) view returns (bool)",
+          "args": [
+            "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204"
+          ],
+          "ok": true,
+          "value": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "yearn-v3",
+        "role": "registry"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "yearn-v3 registry",
+      "address": "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af",
+      "size": 8827,
+      "codeHash": "0x8175c8976bfa694ccdcf18f22c862d27290aa3993c98c57db0c0e0d412ed14bf",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "isEndorsed(address) view returns (bool)",
+          "args": [
+            "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204"
+          ],
+          "ok": true,
+          "value": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "yearn-v3",
+        "role": "registry"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "yearn-v3 vault-original",
+      "address": "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467",
+      "size": 23675,
+      "codeHash": "0x4075239962ac41f7f4876a094deea45dfb667d719de30f4abceaf35348db9858",
+      "eip7702OrProxyHint": "0x6003361161000c576123a7565b60003560e01c34615c69",
+      "calls": [
+        {
+          "call": "apiVersion() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "3.0.2",
+          "expect": "3.0.2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "yearn-v3",
+        "role": "vault-original"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "lido deposit-target",
+      "address": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+      "size": 6492,
+      "codeHash": "0x630181884786c962140041cffa3acffbf39d8c93bde1a62b7b55046e57400557",
+      "eip7702OrProxyHint": "0x60806040526004361061012e5760003560e01c80639576",
+      "calls": [
+        {
+          "call": "stETH() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "expect": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "match": true
+        },
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "wstETH",
+          "expect": "wstETH",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "lido",
+        "role": "deposit-target"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "lido lst-token",
+      "address": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      "size": 1035,
+      "codeHash": "0xb9c1c929064cd21734c102a698e68bf617feefcfa5a9f62407c45401546736bf",
+      "eip7702OrProxyHint": "0x60806040526004361061006c5763ffffffff7c01000000",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "stETH",
+          "expect": "stETH",
+          "match": true
+        },
+        {
+          "call": "isStakingPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "lido",
+        "role": "lst-token"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "lido locator",
+      "address": "0xC1d0b3DE6792Bf6b4b37EccdcC24e45978Cfd2Eb",
+      "size": 2497,
+      "codeHash": "0x9bc25fa4b2f98d56db4aa4156a6dc98360ccd4ef9c7bc7f891797b0024272100",
+      "eip7702OrProxyHint": "0x6080604052600436106100745760003560e01c8063916f",
+      "calls": [
+        {
+          "call": "lido() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "expect": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "lido",
+        "role": "locator"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "rocket-pool storage",
+      "address": "0x1d8f8f00cfa6758d7bE78336684788Fb0ee0Fa46",
+      "size": 11270,
+      "codeHash": "0x06ca4c6dae1ac07c034c4db6ac4c2f7179a02f66cf2c266a383e090b3b407dae",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "getAddress(bytes32) view returns (address)",
+          "args": [
+            "0x65dd923ddfc8d8ae6088f80077201d2403cbd565f0ba25e09841e2799ec90bb2"
+          ],
+          "ok": true,
+          "value": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+          "expect": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "rocket-pool",
+        "role": "storage"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "rocket-pool deposit-target",
+      "address": "0xCE15294273CFb9D9b628F4D61636623decDF4fdC",
+      "size": 22228,
+      "codeHash": "0x24f381868ed2031a1297eda5173719b16916270ca7f3001f4f428c2fb78ff03d",
+      "eip7702OrProxyHint": "0x6080604052600436101561001257600080fd5b60008035",
+      "calls": [
+        {
+          "call": "getBalance() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "31739140722506135779"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "rocket-pool",
+        "role": "deposit-target"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "rocket-pool lst-token",
+      "address": "0xae78736Cd615f374D3085123A210448E74Fc6393",
+      "size": 8800,
+      "codeHash": "0xe34255314ec42825a6444800e6894665b8c74e84e9dd2f20866f7057812b3adf",
+      "eip7702OrProxyHint": "0x60806040526004361061016e5760003560e01c80636c98",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "rETH",
+          "expect": "rETH",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "rocket-pool",
+        "role": "lst-token"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "etherfi deposit-target",
+      "address": "0xcfC6d9Bd7411962Bfe7145451A7EF71A24b6A7A2",
+      "size": 190,
+      "codeHash": "0x52cc00cb09a7c8bb8950c90a97e766bea305d594bde752f1fb59853b6a700301",
+      "eip7702OrProxyHint": "0x608060405236601057600e6013565b005b600e5b601f60",
+      "calls": [
+        {
+          "call": "weETH() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+          "expect": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "etherfi",
+        "role": "deposit-target"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "etherfi liquidity-pool",
+      "address": "0x308861A430be4cce5502d0A12724771Fc6DaF216",
+      "size": 845,
+      "codeHash": "0x0b58ec11caee361ca0c1e484c12f6e7177634222186f7639bd9183dfee9d2278",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "eETH() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x35fA164735182de50811E8e2E824cFb9B6118ac2",
+          "expect": "0x35fA164735182de50811E8e2E824cFb9B6118ac2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "etherfi",
+        "role": "liquidity-pool"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "etherfi lst-token",
+      "address": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+      "size": 845,
+      "codeHash": "0x0b58ec11caee361ca0c1e484c12f6e7177634222186f7639bd9183dfee9d2278",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "weETH",
+          "expect": "weETH",
+          "match": true
+        },
+        {
+          "call": "eETH() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x35fA164735182de50811E8e2E824cFb9B6118ac2",
+          "expect": "0x35fA164735182de50811E8e2E824cFb9B6118ac2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "etherfi",
+        "role": "lst-token"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "etherfi underlying-token",
+      "address": "0x35fA164735182de50811E8e2E824cFb9B6118ac2",
+      "size": 845,
+      "codeHash": "0x0b58ec11caee361ca0c1e484c12f6e7177634222186f7639bd9183dfee9d2278",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "eETH",
+          "expect": "eETH",
+          "match": true
+        },
+        {
+          "call": "liquidityPool() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x308861A430be4cce5502d0A12724771Fc6DaF216",
+          "expect": "0x308861A430be4cce5502d0A12724771Fc6DaF216",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "etherfi",
+        "role": "underlying-token"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "across spoke-pool",
+      "address": "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+      "size": 680,
+      "codeHash": "0x932cddc50793da935ccf915651ad67f6b746e9936fcc5614f0ff492563782c75",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "chainId() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1",
+          "expect": "1",
+          "match": true
+        },
+        {
+          "call": "wrappedNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "across",
+        "role": "spoke-pool"
+      }
+    },
+    {
+      "network": "base",
+      "label": "across spoke-pool",
+      "address": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+      "size": 680,
+      "codeHash": "0x932cddc50793da935ccf915651ad67f6b746e9936fcc5614f0ff492563782c75",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "chainId() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "8453",
+          "expect": "8453",
+          "match": true
+        },
+        {
+          "call": "wrappedNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "across",
+        "role": "spoke-pool"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "across spoke-pool",
+      "address": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
+      "size": 680,
+      "codeHash": "0x932cddc50793da935ccf915651ad67f6b746e9936fcc5614f0ff492563782c75",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "chainId() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "42161",
+          "expect": "42161",
+          "match": true
+        },
+        {
+          "call": "wrappedNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "across",
+        "role": "spoke-pool"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "across spoke-pool",
+      "address": "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
+      "size": 680,
+      "codeHash": "0x932cddc50793da935ccf915651ad67f6b746e9936fcc5614f0ff492563782c75",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "chainId() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "10",
+          "expect": "10",
+          "match": true
+        },
+        {
+          "call": "wrappedNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "across",
+        "role": "spoke-pool"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "across spoke-pool",
+      "address": "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
+      "size": 680,
+      "codeHash": "0x932cddc50793da935ccf915651ad67f6b746e9936fcc5614f0ff492563782c75",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "chainId() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "137",
+          "expect": "137",
+          "match": true
+        },
+        {
+          "call": "wrappedNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "expect": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "across",
+        "role": "spoke-pool"
+      }
+    },
+    {
+      "network": "base",
+      "label": "cctp-v2 token-messenger",
+      "address": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "expect": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "expect": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-messenger"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "cctp-v2 token-messenger",
+      "address": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "expect": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "expect": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-messenger"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "cctp-v2 token-messenger",
+      "address": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "expect": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "expect": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-messenger"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "cctp-v2 token-messenger",
+      "address": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "expect": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "expect": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-messenger"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "cctp-v2 token-messenger",
+      "address": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "expect": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "expect": "0xfd78EE919681417d192449715b2594ab58f5D002",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-messenger"
+      }
+    },
+    {
+      "network": "base",
+      "label": "cctp-v2 message-transmitter",
+      "address": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "message-transmitter"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "cctp-v2 message-transmitter",
+      "address": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 3,
+          "expect": "3",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "message-transmitter"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "cctp-v2 message-transmitter",
+      "address": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 0,
+          "expect": "0",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "message-transmitter"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "cctp-v2 message-transmitter",
+      "address": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 2,
+          "expect": "2",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "message-transmitter"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "cctp-v2 message-transmitter",
+      "address": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 7,
+          "expect": "7",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "message-transmitter"
+      }
+    },
+    {
+      "network": "base",
+      "label": "cctp-v2 token-minter",
+      "address": "0xfd78EE919681417d192449715b2594ab58f5D002",
+      "size": 9295,
+      "codeHash": "0xfc330d52b7656b971ef47bbb8cd44877181fbc9ac0fe76cb4cb5bb364a992eff",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "burnLimitsPerMessage(address) view returns (uint256)",
+          "args": [
+            "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          ],
+          "ok": true,
+          "value": "10000000000000"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-minter"
+      }
+    },
+    {
+      "network": "arbitrum",
+      "label": "cctp-v2 token-minter",
+      "address": "0xfd78EE919681417d192449715b2594ab58f5D002",
+      "size": 9295,
+      "codeHash": "0xfc330d52b7656b971ef47bbb8cd44877181fbc9ac0fe76cb4cb5bb364a992eff",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "burnLimitsPerMessage(address) view returns (uint256)",
+          "args": [
+            "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+          ],
+          "ok": true,
+          "value": "10000000000000"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-minter"
+      }
+    },
+    {
+      "network": "ethereum",
+      "label": "cctp-v2 token-minter",
+      "address": "0xfd78EE919681417d192449715b2594ab58f5D002",
+      "size": 9295,
+      "codeHash": "0xfc330d52b7656b971ef47bbb8cd44877181fbc9ac0fe76cb4cb5bb364a992eff",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "burnLimitsPerMessage(address) view returns (uint256)",
+          "args": [
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+          ],
+          "ok": true,
+          "value": "10000000000000"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-minter"
+      }
+    },
+    {
+      "network": "optimism",
+      "label": "cctp-v2 token-minter",
+      "address": "0xfd78EE919681417d192449715b2594ab58f5D002",
+      "size": 9295,
+      "codeHash": "0xfc330d52b7656b971ef47bbb8cd44877181fbc9ac0fe76cb4cb5bb364a992eff",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "burnLimitsPerMessage(address) view returns (uint256)",
+          "args": [
+            "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
+          ],
+          "ok": true,
+          "value": "10000000000000"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-minter"
+      }
+    },
+    {
+      "network": "polygon",
+      "label": "cctp-v2 token-minter",
+      "address": "0xfd78EE919681417d192449715b2594ab58f5D002",
+      "size": 9295,
+      "codeHash": "0xfc330d52b7656b971ef47bbb8cd44877181fbc9ac0fe76cb4cb5bb364a992eff",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "burnLimitsPerMessage(address) view returns (uint256)",
+          "args": [
+            "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+          ],
+          "ok": true,
+          "value": "10000000000000"
+        }
+      ],
+      "verified": true,
+      "row": {
+        "protocol": "cctp-v2",
+        "role": "token-minter"
+      }
+    }
+  ],
+  "solana": [
+    {
+      "protocol": "raydium",
+      "role": "program",
+      "address": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+      "label": "Raydium",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929882,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "raydium",
+      "role": "program",
+      "address": "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK",
+      "label": "Raydium CLMM",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929883,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "raydium",
+      "role": "program",
+      "address": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
+      "label": "Raydium CP",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929883,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "orca",
+      "role": "program",
+      "address": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+      "label": "Whirlpool",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929883,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "meteora",
+      "role": "program",
+      "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+      "label": "Meteora DLMM",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929883,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "meteora",
+      "role": "program",
+      "address": "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG",
+      "label": "Meteora DAMM v2",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929884,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "cctp-v2",
+      "role": "token-messenger-minter",
+      "address": "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929884,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "cctp-v2",
+      "role": "message-transmitter",
+      "address": "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929884,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "pyth",
+      "role": "program",
+      "address": "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929885,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    },
+    {
+      "protocol": "pyth",
+      "role": "receiver",
+      "address": "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929885,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    }
+  ],
+  "assets": [
+    {
+      "network": "ethereum",
+      "label": "asset wstETH",
+      "address": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+      "size": 6492,
+      "codeHash": "0x630181884786c962140041cffa3acffbf39d8c93bde1a62b7b55046e57400557",
+      "eip7702OrProxyHint": "0x60806040526004361061012e5760003560e01c80639576",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "wstETH",
+          "expect": "wstETH",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "symbol": "wstETH"
+    },
+    {
+      "network": "ethereum",
+      "label": "asset rETH",
+      "address": "0xae78736Cd615f374D3085123A210448E74Fc6393",
+      "size": 8800,
+      "codeHash": "0xe34255314ec42825a6444800e6894665b8c74e84e9dd2f20866f7057812b3adf",
+      "eip7702OrProxyHint": "0x60806040526004361061016e5760003560e01c80636c98",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "rETH",
+          "expect": "rETH",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "symbol": "rETH"
+    },
+    {
+      "network": "ethereum",
+      "label": "asset weETH",
+      "address": "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+      "size": 845,
+      "codeHash": "0x0b58ec11caee361ca0c1e484c12f6e7177634222186f7639bd9183dfee9d2278",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "weETH",
+          "expect": "weETH",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 18,
+          "expect": "18",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "symbol": "weETH"
+    },
+    {
+      "network": "base",
+      "label": "asset USDbC",
+      "address": "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
+      "size": 2096,
+      "codeHash": "0x8cd2f08c7ee9e6ab6e0180e8d6cb0613bbd54d2c4ae2ecdcaddfcdd9a226215b",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "symbol() view returns (string)",
+          "args": [],
+          "ok": true,
+          "value": "USDbC",
+          "expect": "USDbC",
+          "match": true
+        },
+        {
+          "call": "decimals() view returns (uint8)",
+          "args": [],
+          "ok": true,
+          "value": 6,
+          "expect": "6",
+          "match": true
+        }
+      ],
+      "verified": true,
+      "symbol": "USDbC",
+      "transferOnly": true
+    }
+  ],
+  "unpinned": [
+    {
+      "protocol": "across",
+      "role": "spoke-program",
+      "address": "DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru",
+      "rpc": "https://api.mainnet-beta.solana.com",
+      "slot": 456929885,
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "verified": true
+    }
+  ],
+  "summary": {
+    "checked": 106,
+    "verified": 106,
+    "failed": []
+  },
+  "source": "core-contracts read-back script (round 6 build scratch), driven by the built @kletia/core registry: every round-6 VENUE_CONTRACTS row, DEX_DEPLOYMENTS entry, new YIELD_VENUES row and new asset.",
+  "notPinned": [
+    {
+      "address": "DLv3NggMiSaef97YCkew5xKUHDh13tVGZ7tydt3ZeAru",
+      "reason": "Across Solana spoke program verifies (executable, upgradeable loader) but Across does not list Solana among its networks yet, so the row is left out of VENUE_CONTRACTS."
+    }
+  ],
+  "probeRerun": {
+    "at": "2026-10-14T17:54:06Z",
+    "scripts": [
+      "probe-uniswap",
+      "probe-solidly",
+      "probe-lending",
+      "probe-staking",
+      "probe-bridges",
+      "probe-solana",
+      "probe-oracles"
+    ],
+    "result": "Identity fields (addresses, code presence, factory/router/quoter links, owners, selectors) equal the design evidence of 13:00-13:40 UTC; only live values differ (rates, supplies, oracle rounds, block numbers). The Rocket Pool deposit simulation in probe-staking failed inside the script (viem decode error), not on chain."
+  }
+}

@@ -224,7 +224,7 @@ function OwnContractsPanel({ entries }: { readonly entries: readonly ProtocolEnt
           ))}
         </ul>
       </div>
-      <ButtonLink to="/developers#contracts" variant="primary" className="self-start lg:self-center">
+      <ButtonLink to="/developers/contracts" variant="primary" className="self-start lg:self-center">
         Register a contract
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </ButtonLink>

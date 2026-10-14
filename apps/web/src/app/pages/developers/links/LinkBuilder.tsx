@@ -323,7 +323,7 @@ export function LinkBuilder({ apiKey, contracts, ruleBook, keyId, onCreated }: L
         </div>
         <p className={cx("text-xs", TEXT_MUTED)}>
           New publishers print unverified until their domain file lists the link.{" "}
-          <Link to="/developers#recipe-links" className={cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+          <Link to="/developers/recipes/links" className={cx("font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
             The links recipe
           </Link>{" "}
           shows the same with the SDK.

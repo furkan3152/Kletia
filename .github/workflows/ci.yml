@@ -17,6 +17,24 @@ jobs:
     name: Verify repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The API suites run their Postgres variants (stores, durable webhook queue)
+    # against this throwaway database instead of skipping them.
+    services:
+      postgres:
+        image: postgres:16.10-alpine3.22
+        env:
+          POSTGRES_USER: kletia
+          POSTGRES_PASSWORD: kletia_ci_tests
+          POSTGRES_DB: kletia_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kletia -d kletia_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      KLETIA_TEST_DATABASE_URL: postgres://kletia:kletia_ci_tests@127.0.0.1:5432/kletia_test
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -40,7 +58,7 @@ jobs:
       - name: Install Arc contract dependencies
         run: npm --prefix contracts/arc ci --include=dev --legacy-peer-deps
 
-      - name: Verify structure, packages, applications and contracts
+      - name: Verify structure, packages, applications, contracts and their tests
         run: npm run verify
 
       - name: Reject high-severity runtime advisories

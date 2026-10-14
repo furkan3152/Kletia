@@ -451,3 +451,27 @@ test("assets.unlisted: core venue position tokens (aTokens, vault shares, jlToke
   // assets.allow and assets.categories still apply to position tokens as written.
   assert.deepEqual(failed(run({ assets: { allow: ["USDC"] } }, facts([deposit]))), ["assets.allow"]);
 });
+
+test("T3: protocols.deny and protocols.allow apply to the protocols a step is routed through", () => {
+  const raydium = facts([stepFacts({ kind: "swap", protocol: "raydium", network: "solana", recipient: OWN_SOL })]);
+  // Denying the transport denies the routed venue.
+  const denied = run({ protocols: { deny: ["jupiter"] } }, raydium);
+  assert.ok(failed(denied).includes("protocols.deny"));
+  const deny = denied.allViolations.find((violation) => violation.rule === "protocols.deny");
+  assert.match(deny.message, /raydium runs through jupiter, which is denied/u);
+  assert.equal(deny.observed, "raydium (via jupiter)");
+  assert.ok(failed(run({ protocols: { deny: ["raydium"] } }, raydium)).includes("protocols.deny"));
+  assert.ok(!failed(run({ protocols: { deny: ["orca"] } }, raydium)).includes("protocols.deny"));
+  // An allow list must allow the transport too (fail closed).
+  const allowOnly = run({ protocols: { allow: ["raydium"] } }, raydium);
+  assert.ok(failed(allowOnly).includes("protocols.allow"));
+  assert.match(allowOnly.allViolations.find((violation) => violation.rule === "protocols.allow").message, /runs through jupiter, which is not an allowed protocol/u);
+  assert.ok(!failed(run({ protocols: { allow: ["raydium", "jupiter"] } }, raydium)).includes("protocols.allow"));
+  // A plain Jupiter step is unchanged; so is the observed value of an unrouted protocol.
+  const jupiter = facts([stepFacts({ kind: "swap", protocol: "jupiter", network: "solana", recipient: OWN_SOL })]);
+  assert.ok(!failed(run({ protocols: { allow: ["jupiter"] } }, jupiter)).includes("protocols.allow"));
+  assert.equal(run({ protocols: { deny: ["jupiter"] } }, jupiter).allViolations.find((violation) => violation.rule === "protocols.deny").observed, "jupiter");
+  // Narrowing: an allow list without jupiter avoids jupiter, which drops routed venues at route search.
+  const narrowed = narrowConstraints([doc({ protocols: { allow: ["raydium"] } })], { text: "swap", accounts: [OWN_SOL] }).constraints;
+  assert.ok(narrowed.avoidProtocols.includes("jupiter") && !narrowed.avoidProtocols.includes("raydium"));
+});

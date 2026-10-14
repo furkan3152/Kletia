@@ -26,6 +26,13 @@ export interface AssetDescriptor {
    * scaled by 10^(native decimals - token decimals). Arc USDC.
    */
   readonly nativeBalanceView?: true;
+  /**
+   * Listed so balances and transfers show the token by name, but no swap,
+   * bridge, deposit or price route uses it: a step that would spend or
+   * receive it through a venue is ROUTE_UNSUPPORTED. USDbC (Base's legacy
+   * bridged USDC, a different token from USDC).
+   */
+  readonly transferOnly?: true;
 }
 
 function native(network: NetworkKey, group?: AssetDescriptor["group"]): AssetDescriptor {
@@ -99,6 +106,7 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   evm("base", "DAI", "Dai Stablecoin", "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", 18, "stablecoin"),
   evm("base", "EURC", "Euro Coin", "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42", 6, "stablecoin", "EURC"),
   evm("base", "AERO", "Aerodrome", "0x940181a94A35A4569E4529A3CDfB74e38FD98631", 18, "governance"),
+  { ...evm("base", "USDbC", "USD Base Coin", "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", 6, "stablecoin"), transferOnly: true },
   // Arbitrum One
   native("arbitrum", "ETH"),
   evm("arbitrum", "USDC", "USD Coin", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 6, "stablecoin", "USDC"),
@@ -108,6 +116,10 @@ export const ASSETS: readonly AssetDescriptor[] = Object.freeze([
   native("ethereum", "ETH"),
   evm("ethereum", "USDC", "USD Coin", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6, "stablecoin", "USDC"),
   evm("ethereum", "WETH", "Wrapped Ether", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", 18, "wrapped", "ETH"),
+  // EVM liquid staking tokens (no identity group: they accrue against ETH, never 1:1)
+  evm("ethereum", "wstETH", "Wrapped liquid staked Ether 2.0", "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0", 18, "liquid-staking"),
+  evm("ethereum", "rETH", "Rocket Pool ETH", "0xae78736Cd615f374D3085123A210448E74Fc6393", 18, "liquid-staking"),
+  evm("ethereum", "weETH", "Wrapped eETH", "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee", 18, "liquid-staking"),
   // OP Mainnet (USDC is Circle-native, CCTP V2 domain 2)
   native("optimism", "ETH"),
   evm("optimism", "USDC", "USD Coin", "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", 6, "stablecoin", "USDC"),

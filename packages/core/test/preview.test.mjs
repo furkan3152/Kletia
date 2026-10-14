@@ -312,3 +312,39 @@ test("formatPreviewAmount: signed, six significant digits, truncated toward zero
   assert.equal(formatPreviewAmount(1_234_567_890n, 0), "+1234567890");
   assert.equal(formatPreviewAmount(-1n, 18), "-0.000000000000000001");
 });
+
+test("journey 6.5: a reserve kept for network fees rides on its row (capped, never in the digest); quoted fee lines may be estimated", async () => {
+  const withReserve = stepPreviews();
+  // The bridge credit on Arbitrum keeps 0.2 USDC back from the funded deposit (amount flow F6).
+  const credit = withReserve[0].deltas[2];
+  withReserve[0].deltas[2] = { ...credit, keptForFees: "200000" };
+  withReserve[1].deltas[0] = { ...withReserve[1].deltas[0], expected: { amount: "-99765772", formatted: "" }, worst: { amount: "-99265943", formatted: "" } };
+  withReserve[1].fees = [{ ...withReserve[1].fees[0], certainty: "estimated" }];
+  const preview = aggregatePreview(graph(), withReserve, PRICES, AT);
+  const row = preview.rows.find((entry) => entry.asset === USDC_ARB);
+  assert.equal(row.role, "you");
+  assert.equal(row.expected.amount, "200000");
+  assert.equal(row.keptForFees, "200000");
+  assert.equal(preview.fees.find((fee) => fee.stepId === "s2").certainty, "estimated");
+  assert.ok(CERTAINTY_ORDER.includes("estimated"));
+
+  // Capped at what the row still credits in the worst case.
+  const capped = stepPreviews();
+  capped[0].deltas[2] = { ...credit, keptForFees: "999999999999" };
+  capped[1].deltas[0] = { ...capped[1].deltas[0], expected: { amount: "-99765772", formatted: "" }, worst: { amount: "-99365943", formatted: "" } };
+  const cappedRow = aggregatePreview(graph(), capped, PRICES, AT).rows.find((entry) => entry.asset === USDC_ARB);
+  assert.equal(cappedRow.keptForFees, "100000");
+
+  // Transit rows and malformed values carry none; the digest ignores the field.
+  const transit = stepPreviews();
+  transit[0].deltas[2] = { ...credit, keptForFees: "200000" };
+  const transitPreview = aggregatePreview(graph(), transit, PRICES, AT);
+  assert.equal(transitPreview.rows.find((entry) => entry.asset === USDC_ARB).keptForFees, undefined);
+  const malformed = stepPreviews();
+  malformed[0].deltas[2] = { ...credit, keptForFees: "-5" };
+  assert.equal(aggregatePreview(graph(), malformed, PRICES, AT).rows.find((entry) => entry.asset === USDC_ARB).keptForFees, undefined);
+  const plain = stepPreviews();
+  plain[1].deltas[0] = withReserve[1].deltas[0];
+  plain[1].fees = withReserve[1].fees;
+  assert.equal(aggregatePreview(graph(), plain, PRICES, AT).digest, preview.digest);
+});

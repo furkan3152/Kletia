@@ -14,7 +14,6 @@ import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { keyedClient } from "../keys/keyClient";
 import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
-import { NeedKey } from "../portal/NeedKey";
 import { PortalTabs } from "../portal/PortalTabs";
 import { useNow } from "../portal/useNow";
 import { ContractDetail } from "./ContractDetail";
@@ -95,7 +94,8 @@ export default function ContractsPanel() {
   const counting = mode === "list" && (list.data ?? []).some((contract) => contract.status === "pending" || contract.pendingRevision !== null);
   const now = useNow(1_000, counting);
 
-  if (!kind) return <NeedKey purpose="list, register, test and reverify your contracts" agentKeys />;
+  // The page's KeyGate asks for a key; the panel renders only with one.
+  if (!kind) return null;
 
   const contracts = list.data ?? [];
   const onChanged = (message: string, removed = false) => {

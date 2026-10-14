@@ -11,7 +11,7 @@ import { formatAssetId, parseAccountId, parseAssetId, sameAddressAccount, type A
 import { canonicalJson } from "./contracts.js";
 import { sha256Hex } from "./hash.js";
 import type { AssetAmount, IntentActionKind, IntentConstraints, IntentGraph, IntentRequest, PolicyChainLink } from "./intent.js";
-import { PROTOCOLS, YIELD_VENUES, type ProtocolId } from "./protocols.js";
+import { PROTOCOLS, YIELD_VENUES, protocolDependencies, type ProtocolId } from "./protocols.js";
 import {
   accountMatchesPattern,
   AGENT_POLICY_DEFAULTS,
@@ -36,6 +36,12 @@ export const INTENT_DEFAULT_MAX_SECONDS = 600;
 export const EXECUTABLE_PROTOCOLS: readonly ProtocolId[] = Object.freeze(
   PROTOCOLS.filter((protocol) => protocol.capabilities.includes("execute")).map((protocol) => protocol.id),
 );
+
+/** "raydium (via jupiter)" for a routed protocol, the id otherwise (decision log `observed`). */
+function observedProtocol(protocol: ProtocolId): string {
+  const via = protocolDependencies(protocol).slice(1);
+  return via.length > 0 ? `${protocol} (via ${via.join(", ")})` : protocol;
+}
 
 /* ===================================================================== facts */
 
@@ -460,13 +466,35 @@ export function evaluatePolicy(policy: PolicyDocument | null, facts: PolicyFacts
     const allow = doc.kinds.allow;
     each("kinds.allow", allSteps, (step) => (allow.includes(step.kind) ? null : { path: `steps[${step.index}].kind`, message: `Step kind ${step.kind} is not allowed.`, observed: step.kind }), allow.join(", "));
   }
+  // A step uses its protocol and every protocol it is routed through (Raydium swaps run through
+  // the Jupiter program): an allow list must allow all of them, a deny of any of them denies the step.
   if (doc.protocols?.allow) {
     const allow = doc.protocols.allow;
-    each("protocols.allow", allSteps, (step) => (allow.includes(step.protocol) ? null : { path: `steps[${step.index}].protocol`, message: `${step.protocol} is not an allowed protocol.`, observed: step.protocol }), allow.join(", "));
+    each(
+      "protocols.allow",
+      allSteps,
+      (step) => {
+        const missing = protocolDependencies(step.protocol).find((protocol) => !allow.includes(protocol));
+        if (missing === undefined) return null;
+        const message = missing === step.protocol ? `${step.protocol} is not an allowed protocol.` : `${step.protocol} runs through ${missing}, which is not an allowed protocol.`;
+        return { path: `steps[${step.index}].protocol`, message, observed: observedProtocol(step.protocol) };
+      },
+      allow.join(", "),
+    );
   }
   if (doc.protocols?.deny) {
     const denied = doc.protocols.deny;
-    each("protocols.deny", allSteps, (step) => (denied.includes(step.protocol) ? { path: `steps[${step.index}].protocol`, message: `${step.protocol} is denied.`, observed: step.protocol } : null), denied.join(", "));
+    each(
+      "protocols.deny",
+      allSteps,
+      (step) => {
+        const hit = protocolDependencies(step.protocol).find((protocol) => denied.includes(protocol));
+        if (hit === undefined) return null;
+        const message = hit === step.protocol ? `${step.protocol} is denied.` : `${step.protocol} runs through ${hit}, which is denied.`;
+        return { path: `steps[${step.index}].protocol`, message, observed: observedProtocol(step.protocol) };
+      },
+      denied.join(", "),
+    );
   }
 
   // Article 4: private sidings.

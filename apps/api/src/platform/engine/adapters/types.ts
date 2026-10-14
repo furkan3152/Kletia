@@ -14,6 +14,13 @@
  * - Value paid above the step amount (a bridge's fixed native fee) is reported
  *   in `PlannedStep.extraCosts` / `PreparedPayload.extraCosts` so the
  *   cross-network auction compares venues by net guaranteed output.
+ * - Named-only venues (`explicitOnly`) are never picked by route search unless
+ *   the request names or prefers their protocol; venues routed through
+ *   another protocol (`routedVia` in the registry) drop out when that
+ *   protocol is avoided.
+ * - Journey facts: `positionOf` and `venueCapacity` read what an account holds
+ *   at a venue and how much the venue can take or pay out, from the reads the
+ *   adapter already makes for "withdraw all" and deposit checks.
  */
 import type {
   AssetAmount,
@@ -31,6 +38,9 @@ import type {
   StepEvidence,
   StepSettlement,
   TransactionRequest,
+  VenueCapacity,
+  VenuePosition,
+  YieldVenue,
 } from "@kletia/core";
 import type { ResolvedAsset } from "../assets.js";
 import type { RegisteredContract } from "../contracts/directory.js";
@@ -99,6 +109,12 @@ export interface AdapterAction extends AdapterRoute {
   readonly destinationAccount?: ParsedAccountId;
   /** Call / action steps only: the registration snapshot and binding context (`adapterForProtocol` adapters). */
   readonly call?: ContractCallContext;
+  /**
+   * Cross-network steps (journey gas on arrival): USD of destination gas to
+   * deliver with the leg, as a decimal string ("0.50"). Only set for adapters
+   * whose `supportsGasTopup(route)` is true; prepare rebuilds it from the step ref.
+   */
+  readonly gasTopupUsd?: string;
 }
 
 /**
@@ -163,6 +179,15 @@ export interface PlannedStep {
   readonly review?: ContractReview;
   /** Quote transactions for the plan-time preview (asset-change preview); optional. */
   readonly preview?: PlannedStepPreview;
+  /**
+   * Where `minimumOutput` is enforced: "onchain" when the transaction itself
+   * reverts below it (Kletia-encoded DEX and lending calls), "claimed" when
+   * only the provider's quote states it (solver-filled routes). The
+   * same-network auction prefers "onchain" on ties. Unset: "claimed".
+   */
+  readonly floor?: "onchain" | "claimed";
+  /** Gas delivered on the destination with this leg (journey gas on arrival), in the destination's gas asset. */
+  readonly gasTopup?: AssetAmount;
 }
 
 /**
@@ -208,6 +233,8 @@ export interface PreparedPayload {
   readonly warnings: readonly string[];
   /** Call / action steps: the review of exactly these transactions (returned as `payload.review`). */
   readonly review?: ContractReview;
+  /** Gas top-up these transactions deliver (same top-up the plan asked for). */
+  readonly gasTopup?: AssetAmount;
 }
 
 /** Prepared payload of a call / action step (input and outputs optional, review required). */
@@ -242,7 +269,17 @@ export type VerificationResult =
 export type SettlementResult =
   | { readonly status: "settling"; readonly evidence: readonly StepEvidence[]; readonly trackingId?: string }
   | { readonly status: "settled"; readonly evidence: readonly StepEvidence[]; readonly actualOutput?: AssetAmount }
-  | { readonly status: "failed"; readonly evidence: readonly StepEvidence[]; readonly failure: StepFailure };
+  | {
+      readonly status: "failed";
+      readonly evidence: readonly StepEvidence[];
+      readonly failure: StepFailure;
+      /**
+       * What reached the recipient on the destination although the leg failed
+       * its checks (a fill below the floor): recorded as the step's
+       * `observedCredit`, never spent by a later step.
+       */
+      readonly credited?: AssetAmount;
+    };
 
 export interface ProtocolAdapter {
   /** Primary protocol id; `protocols` lists every id this adapter executes. */
@@ -256,11 +293,27 @@ export interface ProtocolAdapter {
    * opts in with `true`; otherwise its payloads carry a quoted preview.
    */
   readonly previewAtPrepare?: boolean;
+  /**
+   * Served only when the request names the protocol (`protocol`, a "via ..."
+   * phrase) or lists it in `preferProtocols`; route search never picks it on
+   * its own (named Solana pools).
+   */
+  readonly explicitOnly?: boolean;
   supports(route: AdapterRoute): boolean;
+  /** True when this adapter can deliver destination gas with the route (`AdapterAction.gasTopupUsd`). */
+  supportsGasTopup?(route: AdapterRoute): boolean;
   plan(action: AdapterAction): Promise<PlannedStep>;
   prepare(context: PrepareContext): Promise<PreparedPayload>;
   verify(context: VerifyContext): Promise<VerificationResult>;
   poll?(step: IntentStep, now: number): Promise<SettlementResult>;
+  /**
+   * What `owner` holds at `venue` (one of this adapter's YIELD_VENUES), or
+   * null when the account has no position there. Read-only; throws on a
+   * failed read (unknown is never zero).
+   */
+  positionOf?(venue: YieldVenue, owner: ParsedAccountId): Promise<VenuePosition | null>;
+  /** How much `venue` can take and pay out now (caps, exit liquidity, pause and freeze flags). Read-only. */
+  venueCapacity?(venue: YieldVenue): Promise<VenueCapacity>;
 }
 
 /**

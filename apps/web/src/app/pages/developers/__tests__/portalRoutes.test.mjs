@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { classifyHealth, SLOW_HEALTH_MS } from "../shell/healthModel.ts";
 import { GET_KEY_HREF, legacyHashTarget, matchPortal, PORTAL_GROUPS, PORTAL_PAGES } from "../shell/portalRoutes.ts";
 
 const CONTRACT_ID = "ct_02d4b1c6e8f04a7b9c3d5e6f7a8b9c0d";
@@ -181,4 +182,34 @@ test("Get a key leads to the key form on the Overview", () => {
   assert.equal(GET_KEY_HREF, "/developers#start-key");
   assert.equal(matchPortal(GET_KEY_HREF.split("#")[0]).page.id, "overview");
   assert.equal(legacyHashTarget("#start-key"), null, "the anchor is not redirected away");
+});
+
+const networks = (up, total) => Array.from({ length: total }, (_, index) => ({ ok: index < up }));
+
+test("the portal bar's API status never invents numbers it did not read", () => {
+  const checking = classifyHealth({ report: null, status: "loading", error: null, latencyMs: null });
+  assert.equal(checking.state, "checking");
+  assert.equal(checking.tone, "neutral");
+  assert.equal(checking.networksUp, null);
+  const down = classifyHealth({ report: null, status: "error", error: { status: 0, unreachable: true }, latencyMs: 9000 });
+  assert.equal(down.state, "unreachable");
+  assert.equal(down.tone, "danger");
+  assert.equal(down.networksTotal, null);
+  // A fresh failure wins over the last good report.
+  const stale = classifyHealth({ report: { status: "ok", networks: networks(9, 9) }, status: "error", error: { status: 502, unreachable: false }, latencyMs: 40 });
+  assert.equal(stale.state, "unreachable");
+});
+
+test("the API status counts networks and flags slow answers", () => {
+  const ok = classifyHealth({ report: { status: "ok", networks: networks(9, 9) }, status: "success", error: null, latencyMs: 120 });
+  assert.deepEqual([ok.state, ok.tone, ok.label], ["ok", "success", "API ok · 9/9"]);
+  const slow = classifyHealth({ report: { status: "ok", networks: networks(9, 9) }, status: "success", error: null, latencyMs: SLOW_HEALTH_MS + 1 });
+  assert.deepEqual([slow.state, slow.tone], ["slow", "warning"]);
+  const degraded = classifyHealth({ report: { status: "degraded", networks: networks(7, 9) }, status: "success", error: null, latencyMs: 80 });
+  assert.deepEqual([degraded.state, degraded.tone, degraded.label, degraded.networksUp], ["degraded", "warning", "7/9 networks", 7]);
+  const none = classifyHealth({ report: { status: "down", networks: networks(0, 9) }, status: "success", error: null, latencyMs: 80 });
+  assert.deepEqual([none.state, none.tone], ["down", "danger"]);
+  // Reloading keeps the last report on screen instead of falling back to "checking".
+  const reloading = classifyHealth({ report: { status: "ok", networks: networks(9, 9) }, status: "loading", error: null, latencyMs: 120 });
+  assert.equal(reloading.state, "ok");
 });

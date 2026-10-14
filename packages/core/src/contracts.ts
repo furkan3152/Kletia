@@ -962,13 +962,25 @@ export function isBeneficiaryArgName(name: string | undefined): boolean {
 
 /* =========================================================== reserved words */
 
+/** Brand-unique venue words: refused anywhere in an alias. */
 const VENUE_WORDS: readonly string[] = [
   "aave", "compound", "comet", "morpho", "moonwell", "jupiter", "jup", "kamino", "lifi", "li.fi", "debridge", "dln",
   "relay", "jito", "marinade", "sanctum", "msol", "jitosol", "jupsol",
+  // round 6 (protocols design 4.1)
+  "velodrome", "raydium", "meteora", "sparklend", "etherfi", "wsteth", "steth", "reth", "weeth", "eeth", "rocketpool",
+  "yearn", "uniswap", "aerodrome",
 ];
+/**
+ * Venue phrases and common English venue words: refused as a whole alias
+ * only, so existing aliases such as "fluid vault" keep working.
+ */
 const VENUE_PHRASES: readonly string[] = [
   "aave v3", "aavev3", "compound v3", "compoundv3", "morpho vault", "morpho vaults", "jupiter lend", "jupiter earn",
-  "jup lend", "jup earn", "kamino lend", "debridge dln", "cctp", "across", "uniswap", "aerodrome",
+  "jup lend", "jup earn", "kamino lend", "debridge dln", "cctp", "across",
+  // round 6 (protocols design 4.1)
+  "fluid", "spark", "orca", "lido", "pyth", "chainlink", "velo", "uni", "aero", "whirlpool", "whirlpools",
+  "uniswap v3", "spark savings", "spark lend", "fluid lend", "fluid lending", "yearn v3", "rocket pool", "ether.fi",
+  "susdc", "spusdc", "speth", "cctp v2",
 ];
 const NETWORK_WORDS: readonly string[] = [
   "base", "arbitrum", "arb", "ethereum", "optimism", "op", "polygon", "matic", "arc", "solana", "sol", "devnet",
@@ -1063,6 +1075,20 @@ export const RESERVED_INTEGRATOR_NAMES: readonly {
   { word: "sanctum", hosts: ["sanctum.so"], match: "prefix" },
   { word: "webacy", hosts: ["webacy.com"], match: "substring" },
   { word: "allora", hosts: ["allora.network"], match: "prefix" },
+  // round 6 (protocols design 4.1)
+  { word: "velodrome", hosts: ["velodrome.finance"], match: "prefix" },
+  { word: "raydium", hosts: ["raydium.io"], match: "substring" },
+  { word: "orca", hosts: ["orca.so"], match: "word" },
+  { word: "meteora", hosts: ["meteora.ag"], match: "prefix" },
+  { word: "lido", hosts: ["lido.fi"], match: "word" },
+  { word: "rocketpool", hosts: ["rocketpool.net"], match: "substring" },
+  { word: "etherfi", hosts: ["ether.fi"], match: "prefix" },
+  { word: "sparklend", hosts: ["spark.fi"], match: "substring" },
+  { word: "spark", hosts: ["spark.fi"], match: "word" },
+  { word: "fluid", hosts: ["fluid.io", "instadapp.io"], match: "word" },
+  { word: "yearn", hosts: ["yearn.fi"], match: "word" },
+  { word: "chainlink", hosts: ["chain.link"], match: "substring" },
+  { word: "pyth", hosts: ["pyth.network"], match: "word" },
 ]);
 
 /** The reserved brand an integrator name uses (see RESERVED_INTEGRATOR_NAMES), or null. */

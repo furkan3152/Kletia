@@ -14,7 +14,10 @@
  *   name service may be called through, per network.
  *
  * Every address below was read back on-chain (eth_call / getAccountInfo) on
- * 2026-10-09; see docs/networks/*.md for the evidence.
+ * 2026-10-09; see docs/networks/*.md for the evidence. The round-6 additions
+ * (DEX deployments, SparkLend, Spark Savings, Fluid, Yearn V3, Lido, Rocket
+ * Pool, ether.fi, Raydium, Orca, Meteora, Across, CCTP V2 and Pyth) were read
+ * back on 2026-10-14: docs/networks/evidence/protocols-2026-10-14.json.
  */
 import type { NetworkKey } from "./chains.js";
 import type { IntentActionKind } from "./intent.js";
@@ -73,7 +76,20 @@ export type ProtocolId =
   | "webacy"
   | "allora"
   | "custom-call"
-  | "solana-actions";
+  | "solana-actions"
+  | "velodrome"
+  | "sparklend"
+  | "spark-savings"
+  | "fluid"
+  | "yearn-v3"
+  | "lido"
+  | "rocket-pool"
+  | "etherfi"
+  | "raydium"
+  | "orca"
+  | "meteora"
+  | "chainlink"
+  | "pyth";
 
 export interface ProtocolDescriptor {
   readonly id: ProtocolId;
@@ -91,6 +107,19 @@ export interface ProtocolDescriptor {
    * deployment is reported by GET /v1/protocols (`executable`).
    */
   readonly kinds?: readonly IntentActionKind[];
+  /**
+   * Executed outside Platform API v1: "console" (the legacy console routes)
+   * or "service" (the API's own paid routes). Such entries never count as
+   * executable through the intent engine.
+   */
+  readonly execution?: "console" | "service";
+  /**
+   * Protocols whose programs or APIs every transaction of this protocol also
+   * uses (Raydium, Orca and Meteora swaps run through the Jupiter program).
+   * Rule Books and avoidProtocols apply to the whole chain: see
+   * `protocolDependencies`.
+   */
+  readonly routedVia?: readonly ProtocolId[];
 }
 
 const EVM_PRODUCTION: readonly NetworkKey[] = ["base", "arbitrum", "ethereum", "optimism", "polygon"];
@@ -104,24 +133,37 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["execute", "quote"],
     website: "https://basescan.org",
     summary: "Identity-pinned router that executes reviewed Base swap routes with exact output floors.",
+    execution: "console",
   },
   {
     id: "uniswap-v3",
     name: "Uniswap V3",
     category: "dex",
-    networks: ["base", "arbitrum"],
+    networks: EVM_PRODUCTION,
     capabilities: ["execute", "quote"],
     website: "https://uniswap.org",
-    summary: "Concentrated-liquidity AMM used for quoted single-hop and multi-hop swaps.",
+    summary: "Concentrated-liquidity AMM: exact-in swaps quoted by the pinned QuoterV2 and sent through the pinned SwapRouter02 with an on-chain minimum output.",
+    kinds: ["swap"],
   },
   {
     id: "aerodrome",
     name: "Aerodrome",
     category: "dex",
     networks: ["base"],
-    capabilities: ["quote", "discover"],
+    capabilities: ["execute", "quote", "discover"],
     website: "https://aerodrome.finance",
-    summary: "Base liquidity hub; volatile, stable and Slipstream pools.",
+    summary: "Base liquidity hub: Slipstream pools quoted on-chain and swapped through pinned routers with an on-chain minimum output.",
+    kinds: ["swap"],
+  },
+  {
+    id: "velodrome",
+    name: "Velodrome",
+    category: "dex",
+    networks: ["optimism"],
+    capabilities: ["execute", "quote", "discover"],
+    website: "https://velodrome.finance",
+    summary: "OP Mainnet liquidity hub: Slipstream pools quoted on-chain and swapped through pinned routers with an on-chain minimum output.",
+    kinds: ["swap"],
   },
   {
     id: "aave-v3",
@@ -164,6 +206,46 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     kinds: ["deposit", "withdraw"],
   },
   {
+    id: "sparklend",
+    name: "SparkLend",
+    category: "lending",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    website: "https://spark.fi",
+    summary: "Sky-backed money market (Aave V3 fork): supply and withdraw pinned reserves; outcomes proven by Pool Supply/Withdraw events.",
+    kinds: ["deposit", "withdraw"],
+  },
+  {
+    id: "spark-savings",
+    name: "Spark Savings",
+    category: "yield",
+    networks: ["ethereum", "base", "arbitrum", "optimism"],
+    capabilities: ["execute", "discover"],
+    website: "https://spark.fi",
+    summary: "Savings vaults at the Sky Savings Rate: sUSDC on four networks, spUSDC and spETH on Ethereum; implementation-pinned ERC-4626.",
+    kinds: ["deposit", "withdraw"],
+  },
+  {
+    id: "fluid",
+    name: "Fluid Lending",
+    category: "lending",
+    networks: ["ethereum", "base", "arbitrum", "polygon"],
+    capabilities: ["execute", "discover"],
+    website: "https://fluid.io",
+    summary: "fToken deposits and withdrawals with on-chain share and asset floors; fTokens proven by the Fluid LendingFactory.",
+    kinds: ["deposit", "withdraw"],
+  },
+  {
+    id: "yearn-v3",
+    name: "Yearn V3",
+    category: "yield",
+    networks: ["ethereum"],
+    capabilities: ["execute", "discover"],
+    website: "https://yearn.fi",
+    summary: "Registry-endorsed V3 vaults (clones of the 3.0.2 vault); every exit passes an explicit loss limit.",
+    kinds: ["deposit", "withdraw"],
+  },
+  {
     id: "basenames",
     name: "Basenames",
     category: "naming",
@@ -171,6 +253,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["execute", "discover"],
     website: "https://www.base.org/names",
     summary: "Onchain names on Base; resolution and registration.",
+    execution: "console",
   },
   {
     id: "ens",
@@ -198,16 +281,18 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["execute", "discover"],
     website: "https://x402.org",
     summary: "HTTP-native USDC payments for paid APIs and agents.",
+    execution: "service",
   },
   {
     id: "across",
     name: "Across",
     category: "bridge",
-    networks: ["base", "arbitrum"],
+    networks: EVM_PRODUCTION,
     capabilities: ["execute", "quote"],
     website: "https://across.to",
-    summary: "Intent-based bridge for fast EVM-to-EVM transfers.",
+    summary: "Intent bridge: Kletia encodes the SpokePool deposit (exact output, fill deadline); fills are proven on the destination network.",
     crossChain: true,
+    kinds: ["bridge"],
   },
   {
     id: "cctp-v2",
@@ -216,8 +301,9 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: [...EVM_PRODUCTION, "arc", "arbitrum-sepolia", "solana", "solana-devnet"],
     capabilities: ["execute", "quote"],
     website: "https://www.circle.com/cross-chain-transfer-protocol",
-    summary: "Native USDC burn-and-mint with attested messages.",
+    summary: "Native USDC burn-and-mint (Fast Transfer) with Circle's Forwarding Service minting on the destination; the fee is capped on-chain by maxFee.",
     crossChain: true,
+    kinds: ["bridge"],
   },
   {
     id: "relay",
@@ -261,6 +347,39 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://jup.ag",
     summary: "Solana liquidity aggregator across Meteora, Raydium, Orca, Phoenix and more.",
     kinds: ["swap", "stake"],
+  },
+  {
+    id: "raydium",
+    name: "Raydium",
+    category: "dex",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    website: "https://raydium.io",
+    summary: "Swaps on one owner-checked Raydium AMM, CLMM or CPMM pool when named (\"via raydium\"), routed through the Jupiter program; every instruction is validated.",
+    kinds: ["swap"],
+    routedVia: ["jupiter"],
+  },
+  {
+    id: "orca",
+    name: "Orca",
+    category: "dex",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    website: "https://www.orca.so",
+    summary: "Swaps on one owner-checked Orca Whirlpool when named (\"via orca\"), routed through the Jupiter program; every instruction is validated.",
+    kinds: ["swap"],
+    routedVia: ["jupiter"],
+  },
+  {
+    id: "meteora",
+    name: "Meteora",
+    category: "dex",
+    networks: ["solana"],
+    capabilities: ["execute", "quote"],
+    website: "https://www.meteora.ag",
+    summary: "Swaps on one owner-checked Meteora DLMM or DAMM v2 pool when named (\"via meteora\"), routed through the Jupiter program; every instruction is validated.",
+    kinds: ["swap"],
+    routedVia: ["jupiter"],
   },
   {
     id: "jupiter-lend",
@@ -310,6 +429,36 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "JupSOL and the Sanctum LST family, entered through Jupiter routes.",
   },
   {
+    id: "lido",
+    name: "Lido",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://lido.fi",
+    summary: "Stake ETH for wstETH in one transaction; pause state and stake limit are read before every plan.",
+    kinds: ["stake"],
+  },
+  {
+    id: "rocket-pool",
+    name: "Rocket Pool",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://rocketpool.net",
+    summary: "Stake ETH for rETH through the deposit pool resolved from RocketStorage; fee, minimum and capacity are checked.",
+    kinds: ["stake"],
+  },
+  {
+    id: "etherfi",
+    name: "ether.fi",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://ether.fi",
+    summary: "Stake ETH for weETH (restaked ETH, slashing risk) through the pinned DepositAdapter.",
+    kinds: ["stake"],
+  },
+  {
     id: "spl-token",
     name: "SPL Token",
     category: "token-program",
@@ -347,6 +496,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["execute", "discover"],
     website: "https://testnet.arcscan.app",
     summary: "Arc Testnet swap, lending, vault, staking, batch and memo payments.",
+    execution: "console",
   },
   {
     id: "circle-app-kit",
@@ -357,6 +507,7 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://developers.circle.com",
     summary: "Circle-managed USDC transfer and unified balance planning on Arc.",
     crossChain: true,
+    execution: "console",
   },
   {
     id: "webacy",
@@ -375,6 +526,24 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     capabilities: ["discover"],
     website: "https://allora.network",
     summary: "Decentralised price inference used as advisory market context.",
+  },
+  {
+    id: "chainlink",
+    name: "Chainlink",
+    category: "data",
+    networks: EVM_PRODUCTION,
+    capabilities: ["discover"],
+    website: "https://chain.link",
+    summary: "Price feeds read on-chain for Rule Book USD limits and swap guards (heartbeat- and sequencer-checked).",
+  },
+  {
+    id: "pyth",
+    name: "Pyth",
+    category: "data",
+    networks: ["solana"],
+    capabilities: ["discover"],
+    website: "https://pyth.network",
+    summary: "Solana push price feeds (owner-, feed-id- and freshness-checked) as a second source for SOL and Solana LST prices.",
   },
   {
     id: "custom-call",
@@ -406,6 +575,22 @@ export function protocolsForNetwork(network: NetworkKey): ProtocolDescriptor[] {
   return PROTOCOLS.filter((protocol) => protocol.networks.includes(network));
 }
 
+/**
+ * `protocol` followed by every protocol it is routed through (`routedVia`,
+ * transitively, each once). A Rule Book deny of any of them denies the step;
+ * an allow list must allow all of them; avoidProtocols drops the adapter.
+ */
+export function protocolDependencies(id: ProtocolId): readonly ProtocolId[] {
+  const out: ProtocolId[] = [];
+  const visit = (current: ProtocolId): void => {
+    if (out.includes(current)) return;
+    out.push(current);
+    for (const next of getProtocol(current)?.routedVia ?? []) visit(next);
+  };
+  visit(id);
+  return out;
+}
+
 /** True when the registry lists `kind` as executable through `protocol`. */
 export function protocolExecutesKind(protocol: ProtocolId, kind: IntentActionKind): boolean {
   const descriptor = getProtocol(protocol);
@@ -414,7 +599,16 @@ export function protocolExecutesKind(protocol: ProtocolId, kind: IntentActionKin
 
 /* ------------------------------------------------------------ yield venues */
 
-export type YieldVenueKind = "aave-reserve" | "comet" | "erc4626" | "ctoken" | "jupiter-lend" | "kamino-reserve";
+export type YieldVenueKind =
+  | "aave-reserve"
+  | "comet"
+  | "erc4626"
+  | "ctoken"
+  | "jupiter-lend"
+  | "kamino-reserve"
+  | "fluid-ftoken"
+  | "spark-vault"
+  | "yearn-vault";
 export type YieldVenueAction = "deposit" | "withdraw";
 export type MorphoGeneration = "metamorpho-v1.0" | "metamorpho-v1.1" | "vault-v2";
 
@@ -444,6 +638,7 @@ interface YieldVenueBase {
   readonly actions: readonly YieldVenueAction[];
 }
 
+/** Aave V3 reserves and Aave V3 forks (SparkLend): same Pool interface, protocol tells them apart. */
 export interface AaveReserveVenue extends YieldVenueBase {
   readonly kind: "aave-reserve";
   /** The Pool: ERC-20 spender for supply. */
@@ -460,6 +655,7 @@ export interface CometVenue extends YieldVenueBase {
   readonly receipt: ReceiptToken;
 }
 
+/** Morpho vaults only; other ERC-4626 families have their own kinds with their own provenance checks. */
 export interface Erc4626Venue extends YieldVenueBase {
   readonly kind: "erc4626";
   /** The vault (spender = target = share token). */
@@ -505,7 +701,57 @@ export interface KaminoReserveVenue extends YieldVenueBase {
   readonly supplyVault?: string;
 }
 
-export type YieldVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue | JupiterLendVenue | KaminoReserveVenue;
+export interface FluidFTokenVenue extends YieldVenueBase {
+  readonly kind: "fluid-ftoken";
+  /** The fToken (target = spender = share token). */
+  readonly spender: string;
+  /** fToken shares, decimals = asset decimals. */
+  readonly receipt: ReceiptToken;
+  /** getData().lendingFactory_ must equal it and its allTokens() must list the fToken. */
+  readonly lendingFactory: string;
+  /** getData().liquidity_ must equal it. */
+  readonly liquidity: string;
+}
+
+export type SparkVaultGeneration = "susdc-v1" | "spark-vault-v2";
+
+export interface SparkVaultVenue extends YieldVenueBase {
+  readonly kind: "spark-vault";
+  /** The vault (target = spender = share token). */
+  readonly spender: string;
+  readonly receipt: ReceiptToken;
+  readonly generation: SparkVaultGeneration;
+  /** EIP-1967 implementation slot must equal it. */
+  readonly implementation: string;
+  /** susdc-v1: psm() must equal it. */
+  readonly psm?: string;
+  /** spark-vault-v2: getRoleMember(DEFAULT_ADMIN_ROLE, 0) must equal it. */
+  readonly admin?: string;
+}
+
+export interface YearnVaultVenue extends YieldVenueBase {
+  readonly kind: "yearn-vault";
+  /** The vault (target = spender = share token). */
+  readonly spender: string;
+  readonly receipt: ReceiptToken;
+  /** At least one registry must endorse the vault. */
+  readonly registries: readonly string[];
+  /** apiVersion() must equal it ("3.0.2"). */
+  readonly apiVersion: string;
+  /** EIP-1167 clone target the vault's code must point to. */
+  readonly implementation: string;
+}
+
+export type YieldVenue =
+  | AaveReserveVenue
+  | CometVenue
+  | Erc4626Venue
+  | CTokenVenue
+  | JupiterLendVenue
+  | KaminoReserveVenue
+  | FluidFTokenVenue
+  | SparkVaultVenue
+  | YearnVaultVenue;
 
 /** MetaMorpho / Vault V2 factories per network (null: no such factory is used there). */
 export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Record<MorphoGeneration, string | null>>>>> = Object.freeze({
@@ -529,9 +775,22 @@ export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Reco
 const BOTH: readonly YieldVenueAction[] = ["deposit", "withdraw"];
 
 function aave(network: NetworkKey, pool: string, dataProvider: string, asset: string, aToken: string, decimals: number): AaveReserveVenue {
+  return aaveFamily("aave-v3", "Aave V3", network, pool, dataProvider, asset, aToken, decimals);
+}
+
+function aaveFamily(
+  protocol: "aave-v3" | "sparklend",
+  label: string,
+  network: NetworkKey,
+  pool: string,
+  dataProvider: string,
+  asset: string,
+  aToken: string,
+  decimals: number,
+): AaveReserveVenue {
   const slug = asset.toLowerCase();
   return {
-    id: `${network}:aave-v3:${slug}`, slug, protocol: "aave-v3", network, kind: "aave-reserve", name: `Aave V3 ${asset}`,
+    id: `${network}:${protocol}:${slug}`, slug, protocol, network, kind: "aave-reserve", name: `${label} ${asset}`,
     asset, target: pool, spender: pool, dataProvider, receipt: { address: aToken, decimals }, actions: BOTH,
   };
 }
@@ -593,6 +852,53 @@ function kaminoReserve(asset: string, reserve: string, supplyVault?: string): Ka
   };
 }
 
+function sparkVault(
+  network: NetworkKey,
+  slug: string,
+  name: string,
+  address: string,
+  asset: string,
+  decimals: number,
+  generation: SparkVaultGeneration,
+  implementation: string,
+  pins: { readonly psm?: string; readonly admin?: string },
+): SparkVaultVenue {
+  return {
+    id: `${network}:spark-savings:${slug}`, slug, protocol: "spark-savings", network, kind: "spark-vault", name,
+    asset, target: address, spender: address, receipt: { address, decimals }, generation, implementation, ...pins, actions: BOTH,
+  };
+}
+
+/** Fluid's LendingFactory and Liquidity share one address on every network Kletia uses. */
+const FLUID_LENDING_FACTORY = "0x54B91A0D94cb471F37f949c60F7Fa7935b551D03";
+const FLUID_LIQUIDITY = "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497";
+
+function fToken(network: NetworkKey, asset: string, address: string, decimals: number): FluidFTokenVenue {
+  const slug = asset.toLowerCase();
+  return {
+    id: `${network}:fluid:${slug}`, slug, protocol: "fluid", network, kind: "fluid-ftoken", name: `Fluid ${asset}`,
+    asset, target: address, spender: address, receipt: { address, decimals },
+    lendingFactory: FLUID_LENDING_FACTORY, liquidity: FLUID_LIQUIDITY, actions: BOTH,
+  };
+}
+
+/** Yearn V3: the current and legacy registries, and the 3.0.2 vault every endorsed vault clones. */
+const YEARN_REGISTRIES = Object.freeze(["0xd40ecF29e001c76Dcc4cC0D9cd50520CE845B038", "0xff31A1B020c868F6eA3f61Eb953344920EeCA3af"]);
+const YEARN_VAULT_ORIGINAL = "0x1ab62413e0cf2eBEb73da7D40C70E7202ae14467";
+
+function yearnVault(network: NetworkKey, slug: string, name: string, address: string, asset: string, decimals: number): YearnVaultVenue {
+  return {
+    id: `${network}:yearn-v3:${slug}`, slug, protocol: "yearn-v3", network, kind: "yearn-vault", name,
+    asset, target: address, spender: address, receipt: { address, decimals },
+    registries: YEARN_REGISTRIES, apiVersion: "3.0.2", implementation: YEARN_VAULT_ORIGINAL, actions: BOTH,
+  };
+}
+
+const SPARKLEND_POOL = "0xC13e21B648A5Ee794902342038FF3aDAB66BE987";
+const SPARKLEND_DATA = "0xFc21d6d146E6086B8359705C8b28512a983db0cb";
+const SPARK_VAULT_V2_IMPLEMENTATION = "0x1b992302652A92611DCd5090D1Cb388C6377f455";
+const SPARK_VAULT_V2_ADMIN = "0x3300f198988e4C9C63F75dF86De36421f06af8c4";
+
 const BASE_AAVE_POOL = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
 const BASE_AAVE_DATA = "0x0F43731EB8d45A581f4a36DD74F5f358bc90C73A";
 /** Arbitrum, OP Mainnet and Polygon share the Pool and data-provider addresses (different deployments). */
@@ -651,6 +957,28 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   vault("arbitrum", "bitget-steakhouse-usdc", "Bitget x Steakhouse USDC", "0xbeeff1D5dE8F79ff37a151681100B039661da518", "USDC", "vault-v2"),
   vault("ethereum", "steakhouse-prime-usdc", "Steakhouse Prime USDC", "0xbeef088055857739C12CD3765F20b7679Def0f51", "USDC", "vault-v2"),
   vault("ethereum", "gauntlet-usdc-prime", "Gauntlet USDC Prime", "0x8c106EEDAd96553e64287A5A6839c3Cc78afA3D0", "USDC", "vault-v2"),
+  // SparkLend reserves (Aave V3 fork: same venue kind, protocol "sparklend")
+  aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "USDC", "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815", 6),
+  aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "WETH", "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB", 18),
+  // Spark Savings (sUSDC first: Ethereum's default USDC savings venue)
+  sparkVault("ethereum", "usdc", "Spark Savings USDC (sUSDC)", "0xBc65ad17c5C0a2A4D159fa5a503f4992c7B545FE", "USDC", 18, "susdc-v1", "0xf943Cb8D5f06f2bBF352878ebEF3Ec5C537A20bA", { psm: "0xA188EEC8F81263234dA3622A406892F3D630f98c" }),
+  sparkVault("ethereum", "spusdc", "Spark Savings USDC (spUSDC)", "0x28B3a8fb53B741A8Fd78c0fb9A6B2393d896a43d", "USDC", 6, "spark-vault-v2", SPARK_VAULT_V2_IMPLEMENTATION, { admin: SPARK_VAULT_V2_ADMIN }),
+  sparkVault("ethereum", "speth", "Spark Savings ETH (spETH)", "0xfE6eb3b609a7C8352A241f7F3A21CEA4e9209B8f", "WETH", 18, "spark-vault-v2", SPARK_VAULT_V2_IMPLEMENTATION, { admin: SPARK_VAULT_V2_ADMIN }),
+  sparkVault("base", "usdc", "Spark Savings USDC (sUSDC)", "0x3128a0F7f0ea68E7B7c9B00AFa7E41045828e858", "USDC", 18, "susdc-v1", "0x6ACC02ddd82206a44ff4EC13977E63d1a29C7723", { psm: "0x1601843c5E9bC251A3272907010AFa41Fa18347E" }),
+  sparkVault("arbitrum", "usdc", "Spark Savings USDC (sUSDC)", "0x940098b108fB7D0a7E374f6eDED7760787464609", "USDC", 18, "susdc-v1", "0xdC8DF20bE448E41FdE88E2478d6Bc4d3C9A092d6", { psm: "0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266" }),
+  sparkVault("optimism", "usdc", "Spark Savings USDC (sUSDC)", "0xCF9326e24EBfFBEF22ce1050007A43A3c0B6DB55", "USDC", 18, "susdc-v1", "0x3a1d3A9B0eD182d7B17aa61393D46a4f4EE0CEA5", { psm: "0xe0F9978b907853F354d79188A3dEfbD41978af62" }),
+  // Fluid fTokens (proven by the LendingFactory)
+  fToken("ethereum", "USDC", "0x9Fb7b4477576Fe5B32be4C1843aFB1e55F251B33", 6),
+  fToken("ethereum", "WETH", "0x90551c1795392094FE6D29B758EcCD233cFAa260", 18),
+  fToken("arbitrum", "USDC", "0x1A996cb54bb95462040408C06122D45D6Cdb6096", 6),
+  fToken("arbitrum", "WETH", "0x45Df0656F8aDf017590009d2f1898eeca4F0a205", 18),
+  fToken("base", "USDC", "0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169", 6),
+  fToken("base", "WETH", "0x9272D6153133175175Bc276512B2336BE3931CE9", 18),
+  fToken("polygon", "USDC", "0x571d456b578fDC34E26E6D636736ED7c0CDB9d89", 6),
+  fToken("polygon", "WETH", "0xD3154535E4D0e179583ad694859E4e876EB12d24", 18),
+  // Yearn V3 vaults (registry-endorsed clones of the 3.0.2 vault)
+  yearnVault("ethereum", "usdc-1", "Yearn V3 USDC-1", "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204", "USDC", 6),
+  yearnVault("ethereum", "weth-1", "Yearn V3 WETH-1", "0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0", "WETH", 18),
   // Jupiter Lend Earn (jlToken mint = receipt). jlWSOL is listed for discovery until SOL wrapping is supported.
   jlToken("USDC", "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D", 6),
   jlToken("USDT", "Cmn4v2wipYV41dkakDvCgFJpxhtaaKt11NyWV8pjSE8A", 6),
@@ -716,18 +1044,154 @@ export type VenueContractRole =
   | "universal-resolver"
   | "resolver"
   | "name-program"
-  | "tld-parent";
+  | "tld-parent"
+  /** DEX deployments (generated from DEX_DEPLOYMENTS). */
+  | "pool-factory"
+  | "swap-router"
+  | "quoter"
+  | "factory-registry"
+  /** Lending and savings. */
+  | "addresses-provider"
+  | "psm"
+  | "lending-factory"
+  | "liquidity"
+  | "vault-original"
+  /** EVM liquid staking. */
+  | "deposit-target"
+  | "lst-token"
+  | "underlying-token"
+  | "locator"
+  | "storage"
+  | "liquidity-pool"
+  /** Bridges. */
+  | "spoke-pool"
+  | "spoke-program"
+  | "token-messenger"
+  | "message-transmitter"
+  | "token-minter"
+  | "token-messenger-minter"
+  /** Data: Pyth's push-oracle receiver. */
+  | "receiver";
 
 export interface VenueContract {
   readonly protocol: ProtocolId;
   readonly network: NetworkKey;
   readonly role: VenueContractRole;
   readonly address: string;
+  /**
+   * Venue label, unique across VENUE_CONTRACTS when set. Solana DEX programs
+   * carry their Jupiter route label ("Raydium CLMM", "Whirlpool"), so a
+   * Jupiter route plan maps back to exactly one named venue.
+   */
+  readonly label?: string;
 }
 
 function everyEvm(protocol: ProtocolId, role: VenueContractRole, address: string): VenueContract[] {
   return EVM_PRODUCTION.map((network) => ({ protocol, network, role, address }));
 }
+
+/* --------------------------------------------------------- DEX deployments */
+
+export type DexDialect = "uniswap-v3" | "slipstream" | "solidly-v2";
+
+export interface DexDeployment {
+  /** `${network}:${protocol}:${slug}`. */
+  readonly id: string;
+  readonly protocol: Extract<ProtocolId, "uniswap-v3" | "aerodrome" | "velodrome">;
+  readonly network: NetworkKey;
+  readonly dialect: DexDialect;
+  /** Pools are accepted only when this factory's getPool(...) returns them. */
+  readonly factory: string;
+  /** The only contract called and the only approval spender. */
+  readonly router: string;
+  /** Concentrated-liquidity dialects; solidly-v2 quotes with router.getAmountsOut. */
+  readonly quoter?: string;
+  /** router WETH9() / weth() must equal it. */
+  readonly wrappedNative: string;
+  /** uniswap-v3 fee tiers. */
+  readonly feeTiers?: readonly number[];
+  /** Slipstream tick spacings. */
+  readonly tickSpacings?: readonly number[];
+  /** solidly-v2: FactoryRegistry.isPoolFactoryApproved(factory) must be true. */
+  readonly factoryRegistry?: string;
+}
+
+const UNISWAP_FEE_TIERS: readonly number[] = Object.freeze([100, 500, 3000, 10000]);
+const SLIPSTREAM_TICK_SPACINGS: readonly number[] = Object.freeze([1, 50, 100, 200, 2000]);
+const WRAPPED_NATIVE: Readonly<Partial<Record<NetworkKey, string>>> = Object.freeze({
+  ethereum: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  arbitrum: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+  optimism: "0x4200000000000000000000000000000000000006",
+  polygon: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+  base: "0x4200000000000000000000000000000000000006",
+});
+
+function uniswapV3(network: NetworkKey, factory: string, router: string, quoter: string): DexDeployment {
+  return {
+    id: `${network}:uniswap-v3:v3`, protocol: "uniswap-v3", network, dialect: "uniswap-v3", factory, router, quoter,
+    wrappedNative: WRAPPED_NATIVE[network] as string, feeTiers: UNISWAP_FEE_TIERS,
+  };
+}
+
+function slipstream(protocol: "aerodrome" | "velodrome", network: NetworkKey, slug: string, factory: string, router: string, quoter: string): DexDeployment {
+  return {
+    id: `${network}:${protocol}:${slug}`, protocol, network, dialect: "slipstream", factory, router, quoter,
+    wrappedNative: WRAPPED_NATIVE[network] as string, tickSpacings: SLIPSTREAM_TICK_SPACINGS,
+  };
+}
+
+const UNISWAP_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
+const UNISWAP_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+const UNISWAP_QUOTER = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+
+/**
+ * Pinned swap deployments: Uniswap V3 on the five EVM production networks
+ * and the Slipstream (concentrated) deployments of Aerodrome (Base) and
+ * Velodrome (OP Mainnet). Classic (solidly-v2) pools are not listed: the
+ * dialect exists for a later round, nothing routes to them today.
+ */
+export const DEX_DEPLOYMENTS: readonly DexDeployment[] = Object.freeze([
+  uniswapV3("ethereum", UNISWAP_FACTORY, UNISWAP_ROUTER, UNISWAP_QUOTER),
+  uniswapV3("arbitrum", UNISWAP_FACTORY, UNISWAP_ROUTER, UNISWAP_QUOTER),
+  uniswapV3("optimism", UNISWAP_FACTORY, UNISWAP_ROUTER, UNISWAP_QUOTER),
+  uniswapV3("polygon", UNISWAP_FACTORY, UNISWAP_ROUTER, UNISWAP_QUOTER),
+  uniswapV3("base", "0x33128a8fC17869897dcE68Ed026d694621f6FDfD", "0x2626664c2603336E57B271c5C0b26F421741e481", "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a"),
+  slipstream("aerodrome", "base", "cl-initial", "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5", "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0"),
+  slipstream("aerodrome", "base", "cl-gauge-caps", "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a", "0xcbBb8035cAc7D4B3Ca7aBb74cF7BdF900215Ce0D", "0x3d4C22254F86f64B7eC90ab8F7aeC1FBFD271c6C"),
+  slipstream("aerodrome", "base", "cl-gauges-v3", "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef", "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F", "0x514c8B5f54112481E28028F1166Bd78501089259"),
+  slipstream("velodrome", "optimism", "cl-initial", "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", "0x0792a633F0c19c351081CF4B211F68F79bCc9676", "0x89D8218ed5fF1e46d8dcd33fb0bbeE3be1621466"),
+  slipstream("velodrome", "optimism", "cl-gauges-v2", "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879", "0xbA3aEe516399388C779463183d00bB579f5041Ca", "0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB"),
+] satisfies readonly DexDeployment[]);
+
+export function dexDeploymentsFor(network: NetworkKey, protocol?: DexDeployment["protocol"]): DexDeployment[] {
+  return DEX_DEPLOYMENTS.filter((deployment) => deployment.network === network && (!protocol || deployment.protocol === protocol));
+}
+
+/** VENUE_CONTRACTS rows of the deployments: factory, router, quoter and factory registry, each address once per (protocol, network, role). */
+export function dexContracts(deployments: readonly DexDeployment[]): VenueContract[] {
+  const rows: VenueContract[] = [];
+  const add = (deployment: DexDeployment, role: VenueContractRole, address: string | undefined): void => {
+    if (!address) return;
+    const duplicate = rows.some((row) => row.protocol === deployment.protocol && row.network === deployment.network &&
+      row.role === role && row.address.toLowerCase() === address.toLowerCase());
+    if (!duplicate) rows.push({ protocol: deployment.protocol, network: deployment.network, role, address });
+  };
+  for (const deployment of deployments) {
+    add(deployment, "pool-factory", deployment.factory);
+    add(deployment, "swap-router", deployment.router);
+    add(deployment, "quoter", deployment.quoter);
+    add(deployment, "factory-registry", deployment.factoryRegistry);
+  }
+  return rows;
+}
+
+const ACROSS_SPOKE_POOLS: Readonly<Partial<Record<NetworkKey, string>>> = Object.freeze({
+  ethereum: "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+  base: "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+  arbitrum: "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
+  optimism: "0x6f26Bf09B1C792e3228e5467807a900A503c0281",
+  polygon: "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
+});
 
 export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // Relay (GET /chains protocol.v2.depository and contracts.*; bytecode present on all five EVM networks)
@@ -756,7 +1220,57 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "basenames", network: "base", role: "resolver", address: "0x426fA03fB86E510d0Dd9F70335Cf102a98b10875" },
   { protocol: "sns", network: "solana", role: "name-program", address: "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX" },
   { protocol: "sns", network: "solana", role: "tld-parent", address: "58PwtjSDuFHuUkYjH9BYnnQKHfwo9reZhC2zMJv9JPkx" },
+  // ---- round 6 (read back 2026-10-14)
+  // DEX deployments (Uniswap V3, Aerodrome and Velodrome Slipstream)
+  ...dexContracts(DEX_DEPLOYMENTS),
+  // SparkLend (Aave V3 fork)
+  { protocol: "sparklend", network: "ethereum", role: "addresses-provider", address: "0x02C3eA4e34C0cBd694D2adFa2c690EECbC1793eE" },
+  // Fluid (same LendingFactory and Liquidity on every network)
+  ...(["ethereum", "base", "arbitrum", "polygon"] as const).flatMap((network): VenueContract[] => [
+    { protocol: "fluid", network, role: "lending-factory", address: FLUID_LENDING_FACTORY },
+    { protocol: "fluid", network, role: "liquidity", address: FLUID_LIQUIDITY },
+  ]),
+  // Yearn V3 registries (current, legacy) and the vault original every endorsed vault clones
+  ...YEARN_REGISTRIES.map((address): VenueContract => ({ protocol: "yearn-v3", network: "ethereum", role: "registry", address })),
+  { protocol: "yearn-v3", network: "ethereum", role: "vault-original", address: YEARN_VAULT_ORIGINAL },
+  // EVM liquid staking (Ethereum)
+  { protocol: "lido", network: "ethereum", role: "deposit-target", address: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0" },
+  { protocol: "lido", network: "ethereum", role: "lst-token", address: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84" },
+  { protocol: "lido", network: "ethereum", role: "locator", address: "0xC1d0b3DE6792Bf6b4b37EccdcC24e45978Cfd2Eb" },
+  { protocol: "rocket-pool", network: "ethereum", role: "storage", address: "0x1d8f8f00cfa6758d7bE78336684788Fb0ee0Fa46" },
+  { protocol: "rocket-pool", network: "ethereum", role: "deposit-target", address: "0xCE15294273CFb9D9b628F4D61636623decDF4fdC" },
+  { protocol: "rocket-pool", network: "ethereum", role: "lst-token", address: "0xae78736Cd615f374D3085123A210448E74Fc6393" },
+  { protocol: "etherfi", network: "ethereum", role: "deposit-target", address: "0xcfC6d9Bd7411962Bfe7145451A7EF71A24b6A7A2" },
+  { protocol: "etherfi", network: "ethereum", role: "liquidity-pool", address: "0x308861A430be4cce5502d0A12724771Fc6DaF216" },
+  { protocol: "etherfi", network: "ethereum", role: "lst-token", address: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee" },
+  { protocol: "etherfi", network: "ethereum", role: "underlying-token", address: "0x35fA164735182de50811E8e2E824cFb9B6118ac2" },
+  // Solana DEX programs, keyed by their Jupiter route label (swaps run through the Jupiter program)
+  { protocol: "raydium", network: "solana", role: "program", address: "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", label: "Raydium" },
+  { protocol: "raydium", network: "solana", role: "program", address: "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK", label: "Raydium CLMM" },
+  { protocol: "raydium", network: "solana", role: "program", address: "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", label: "Raydium CP" },
+  { protocol: "orca", network: "solana", role: "program", address: "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc", label: "Whirlpool" },
+  { protocol: "meteora", network: "solana", role: "program", address: "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo", label: "Meteora DLMM" },
+  { protocol: "meteora", network: "solana", role: "program", address: "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG", label: "Meteora DAMM v2" },
+  // Across SpokePools. The Solana spoke program (DLv3Ngg…eAru, read back in the evidence file) is not
+  // pinned until Across lists Solana in its networks: every row's network must be one its protocol lists.
+  ...Object.entries(ACROSS_SPOKE_POOLS).map(([network, address]): VenueContract => ({
+    protocol: "across", network: network as NetworkKey, role: "spoke-pool", address: address as string,
+  })),
+  // Circle CCTP V2 (same addresses on the five EVM networks)
+  ...everyEvm("cctp-v2", "token-messenger", "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"),
+  ...everyEvm("cctp-v2", "message-transmitter", "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"),
+  ...everyEvm("cctp-v2", "token-minter", "0xfd78EE919681417d192449715b2594ab58f5D002"),
+  { protocol: "cctp-v2", network: "solana", role: "token-messenger-minter", address: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe" },
+  { protocol: "cctp-v2", network: "solana", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
+  // Pyth (Solana push oracle and its receiver)
+  { protocol: "pyth", network: "solana", role: "program", address: "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT" },
+  { protocol: "pyth", network: "solana", role: "receiver", address: "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ" },
 ] satisfies readonly VenueContract[]);
+
+/** The Solana DEX venue behind a Jupiter route label ("Raydium CLMM" -> raydium), or null. */
+export function venueByLabel(label: string): VenueContract | null {
+  return VENUE_CONTRACTS.find((entry) => entry.label === label) ?? null;
+}
 
 /** Pinned addresses of `protocol` on `network`, optionally for one role. */
 export function venueContracts(protocol: ProtocolId, network: NetworkKey, role?: VenueContractRole): string[] {

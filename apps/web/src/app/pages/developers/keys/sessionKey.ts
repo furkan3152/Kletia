@@ -1,9 +1,12 @@
 /**
- * The developer key a visitor pastes into the portal. It lives only in React
- * state for this page: never in localStorage, sessionStorage, cookies, the
- * URL or a snippet, and it is gone when the tab reloads or leaves the page.
+ * The developer key a visitor loads into the portal, read from the in-memory
+ * store (sessionKeyStore.ts): it survives client-side navigation for the
+ * tab's session, never touches localStorage, sessionStorage, cookies, the
+ * URL or a snippet, and is gone on reload or after Forget key.
  */
-import { createContext, useContext } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+
+import { clearSessionKey, getSessionKey, setSessionKey, subscribeSessionKey } from "./sessionKeyStore";
 
 export interface SessionKeyState {
   /** The raw key, or "" when none is loaded. */
@@ -12,14 +15,12 @@ export interface SessionKeyState {
   readonly clear: () => void;
 }
 
-export const SessionKeyContext = createContext<SessionKeyState>({
-  key: "",
-  setKey: () => undefined,
-  clear: () => undefined,
-});
+const noKeyOnTheServer = () => "";
 
+/** The key in memory, re-rendering on every change (any page, any mount). */
 export function useSessionKey(): SessionKeyState {
-  return useContext(SessionKeyContext);
+  const key = useSyncExternalStore(subscribeSessionKey, getSessionKey, noKeyOnTheServer);
+  return useMemo<SessionKeyState>(() => ({ key, setKey: setSessionKey, clear: clearSessionKey }), [key]);
 }
 
 /** Developer key shape: `kl_dev_` + 32 base62 characters. */

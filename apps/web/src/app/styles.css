@@ -550,6 +550,11 @@ html.kletia-site[data-kl-portal] {
   scroll-padding-top: 146px;
 }
 
+/* An open Sheet (site/ui/Sheet.tsx) is modal: the page behind it does not scroll. */
+html:has(dialog[data-kl-sheet][open]) {
+  overflow: hidden;
+}
+
 /* =========================================================================
    EMBED MODE
    /embed runs inside third-party iframes: document scrolling, its own theme

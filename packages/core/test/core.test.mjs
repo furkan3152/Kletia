@@ -169,3 +169,100 @@ test("round-5 event types and registry flags", async () => {
   assert.equal(getAsset(arcUsdc.id), arcUsdc);
   assert.equal(ASSETS.filter((asset) => asset.nativeBalanceView).length, 1);
 });
+
+test("EIP-55 checksum states on core's own keccak", async () => {
+  const { evmChecksumState } = await import("../dist/index.js");
+  // EIP-55 test vectors: mixed case verifies; one case only carries no checksum.
+  assert.equal(evmChecksumState("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"), "valid");
+  assert.equal(evmChecksumState("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"), "valid");
+  assert.equal(evmChecksumState(EVM_ADDRESS), "valid");
+  assert.equal(evmChecksumState("0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"), "uncased");
+  assert.equal(evmChecksumState("0x52908400098527886E0F7030069857D2E4169EE7"), "uncased", "all capitals: nothing to check");
+  assert.equal(evmChecksumState("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD"), "invalid");
+  assert.equal(evmChecksumState("0x52908400098527886E0F7030069857D2E4169Ee7"), "invalid", "one wrong capital");
+  assert.equal(evmChecksumState("0x1234"), "invalid");
+  assert.equal(evmChecksumState(SOL_ADDRESS), "invalid");
+});
+
+test("accounts: a broken mixed-case checksum is refused on the account; lower case passes", () => {
+  const broken = validateIntentRequest({ text: "swap 1 ETH to USDC on base", accounts: ["eip155:8453:0x52908400098527886E0F7030069857D2E4169Ee7"] });
+  assert.equal(broken.ok, false);
+  assert.deepEqual(broken.issues.map((issue) => issue.path), ["accounts[0]"]);
+  assert.match(broken.issues[0].message, /checksum/u);
+  assert.equal(validateIntentRequest({ text: "x", accounts: ["eip155:8453:0x52908400098527886e0f7030069857d2e4169ee7"] }).ok, true);
+});
+
+test("sourceNetwork: a network key or auto, issue path sourceNetwork", () => {
+  const accounts = [`eip155:8453:${EVM_ADDRESS}`];
+  for (const sourceNetwork of ["auto", "base", "solana", "arbitrum-sepolia"]) {
+    const result = validateIntentRequest({ text: "x", accounts, sourceNetwork });
+    assert.equal(result.ok, true, sourceNetwork);
+    assert.equal(result.value.sourceNetwork, sourceNetwork);
+  }
+  assert.equal(validateIntentRequest({ text: "x", accounts }).value.sourceNetwork, undefined);
+  for (const sourceNetwork of ["AUTO", "mars", 8453, null, ""]) {
+    const result = validateIntentRequest({ text: "x", accounts, sourceNetwork });
+    assert.equal(result.ok, false, String(sourceNetwork));
+    assert.deepEqual(result.issues.map((issue) => issue.path), ["sourceNetwork"]);
+  }
+});
+
+test("T14: constraints.gasOnArrival takes EVM networks and $0.05-$5.00 strings on one lane", () => {
+  const accounts = [`eip155:8453:${EVM_ADDRESS}`];
+  const ok = validateIntentRequest({ text: "x", accounts, constraints: { gasOnArrival: { base: "0.05", arbitrum: "5.00", optimism: "1.5" } } });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.value.constraints.gasOnArrival, { base: "0.05", arbitrum: "5.00", optimism: "1.5" });
+  const refused = [
+    [{ base: "0" }, "constraints.gasOnArrival.base"],
+    [{ base: "10" }, "constraints.gasOnArrival.base"],
+    [{ base: "0.04" }, "constraints.gasOnArrival.base"],
+    [{ base: "5.01" }, "constraints.gasOnArrival.base"],
+    [{ base: "1.234" }, "constraints.gasOnArrival.base"],
+    [{ base: 1 }, "constraints.gasOnArrival.base"],
+    [{ solana: "1" }, "constraints.gasOnArrival.solana"],
+    [{ unknown: "1" }, "constraints.gasOnArrival.unknown"],
+    [{}, "constraints.gasOnArrival"],
+    ["1", "constraints.gasOnArrival"],
+    [{ base: "1", "arbitrum-sepolia": "1" }, "constraints.gasOnArrival"],
+  ];
+  for (const [gasOnArrival, path] of refused) {
+    const result = validateIntentRequest({ text: "x", accounts, constraints: { gasOnArrival } });
+    assert.equal(result.ok, false, JSON.stringify(gasOnArrival));
+    assert.ok(result.issues.some((issue) => issue.path === path), `${JSON.stringify(gasOnArrival)}: ${result.issues.map((issue) => issue.path).join(", ")}`);
+  }
+  // Structured actions fix the lane: a testnet top-up for mainnet actions is refused.
+  const lane = validateIntentRequest({
+    actions: [{ kind: "bridge", network: "base", from: "USDC", amount: "1", toNetwork: "arbitrum" }],
+    accounts,
+    constraints: { gasOnArrival: { "arbitrum-sepolia": "1" } },
+  });
+  assert.equal(lane.ok, false);
+  assert.ok(lane.issues.some((issue) => issue.path === "constraints.gasOnArrival"));
+});
+
+test("T13: settled + skipped is partially_completed; all skipped is cancelled; all settled completed", () => {
+  const step = (id, status) => ({ id, status, mode: "wallet", dependsOn: [] });
+  assert.equal(deriveIntentStatus([step("a", "settled"), step("b", "skipped")]), "partially_completed");
+  assert.equal(deriveIntentStatus([step("a", "skipped"), step("b", "skipped")]), "cancelled");
+  assert.equal(deriveIntentStatus([step("a", "settled"), step("b", "settled")]), "completed");
+  assert.equal(deriveIntentStatus([{ ...step("a", "confirmed"), mode: "read" }, step("b", "skipped")]), "partially_completed");
+  assert.equal(deriveIntentStatus([step("a", "settled"), step("b", "failed")]), "partially_completed");
+  assert.equal(deriveIntentStatus([step("a", "failed"), step("b", "pending")]), "failed");
+});
+
+test("round-6 registry assets: EVM liquid staking tokens without a group, USDbC transfer-only", () => {
+  for (const symbol of ["wstETH", "rETH", "weETH"]) {
+    const asset = findAssetBySymbol("ethereum", symbol);
+    assert.ok(asset, symbol);
+    assert.equal(asset.category, "liquid-staking");
+    assert.equal(asset.decimals, 18);
+    assert.equal(asset.group, undefined, `${symbol} is not 1:1 with ETH`);
+    assert.equal(asset.transferOnly, undefined);
+  }
+  const usdbc = findAssetBySymbol("base", "USDbC");
+  assert.equal(usdbc.address, "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA");
+  assert.equal(usdbc.decimals, 6);
+  assert.equal(usdbc.transferOnly, true);
+  assert.equal(usdbc.group, undefined, "USDbC is not USDC");
+  assert.deepEqual(ASSETS.filter((asset) => asset.transferOnly).map((asset) => asset.symbol), ["USDbC"]);
+});

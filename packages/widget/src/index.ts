@@ -9,3 +9,16 @@ export type { PolicyNoticeProps } from "./PolicyNotice.js";
 export { ReceiptStamp } from "./ReceiptStamp.js";
 export type { ReceiptStampProps } from "./ReceiptStamp.js";
 export { ensureWidgetStyles, WIDGET_CSS, WIDGET_STYLE_ID } from "./styles.js";
+export {
+  describeScopeRefusal,
+  KletiaScopeError,
+  normalizeScope,
+  outOfScope,
+  scopedSourceNetwork,
+  scopeActionOf,
+  scopeVms,
+  stepNetworks,
+  WIDGET_ACTIONS,
+} from "./scope.js";
+export type { ScopeOffence, ScopeRefusal, WidgetAction, WidgetScope } from "./scope.js";
+export type { KletiaAppearance } from "@kletia/core";

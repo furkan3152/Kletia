@@ -18,6 +18,8 @@ import {
   CONTRACT_REVIEW_NOTICE,
   CONTRACT_VERB_PATTERN,
   ERROR_CATEGORIES,
+  GAS_ON_ARRIVAL_USD,
+  JOURNEY_VALUE_SOURCES,
   INTENT_SPEC_VERSION,
   KEY_EVENT_TYPES,
   KLETIA_WELL_KNOWN_PATH,
@@ -30,21 +32,24 @@ import {
   SESSION_ID_PATTERN,
 } from "@kletia/core";
 import { REJECTION_CODES } from "../index.js";
-import { ACTION_KINDS } from "./catalog.js";
+import { ACTION_KINDS, PROTOCOL_SURFACES } from "./catalog.js";
 import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
 import { DELIVERY_ERRORS, MAX_DELIVERIES_PER_WEBHOOK, MEMORY_DELIVERIES_PER_WEBHOOK, TEST_DELIVERIES_PER_MINUTE } from "./deliveries.js";
 import { PLATFORM_API_VERSION } from "./health.js";
 import { IDEMPOTENCY_LOCK_MS, IDEMPOTENCY_TTL_MS } from "./idempotency.js";
 import { API_KEY_ID_PATTERN, DEFAULT_ROTATION_GRACE_SECONDS, MAX_ACTIVE_KEYS_PER_PROJECT, MAX_ROTATION_GRACE_SECONDS } from "./keys.js";
-import { CONTRACT_TESTS_PER_MINUTE, CONTRACT_WRITES_PER_HOUR, KEY_ISSUANCE_LIMIT_PER_HOUR, TIER_LIMITS } from "./limits.js";
+import { CONTRACT_TESTS_PER_MINUTE, CONTRACT_WRITES_PER_HOUR, KEY_ISSUANCE_LIMIT_PER_HOUR, PORTFOLIO_ACCOUNT_READS_PER_MINUTE, TIER_LIMITS } from "./limits.js";
 import { HANDOFF_MAX_TEXT } from "./mcp/handoff.js";
+import { EVENT_STREAM_BUFFER_EVENTS, EVENT_STREAM_BUFFER_MS, EVENT_STREAMS_PER_KEY } from "./eventStream.js";
+import { gasOnArrivalSchema, intentStepJourneyFields, JOURNEY_READS_PARAMETER, journeyPaths, journeyQueryParameter, journeySchemas } from "./journeyOpenapi.js";
+import { PORTFOLIO_BATCH_LIMITS } from "../index.js";
 import { PREVIEW_ACK_HEADER_SCHEMA, previewPaths, previewSchemas } from "./previewOpenapi.js";
 import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
 import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openapi.js";
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
-import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES } from "./webhooks.js";
+import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 type JsonObject = { [key: string]: Json };
@@ -772,6 +777,11 @@ function schemas(): JsonObject {
         default: 600,
         description: "Longest settlement estimate a cross-network step may take; slower venue quotes lose the bridge auction.",
       }),
+      gasOnArrival: gasOnArrivalSchema(
+        NETWORK_KEYS.filter((key) => CHAINS[key].vm === "evm"),
+        GAS_ON_ARRIVAL_USD.min,
+        GAS_ON_ARRIVAL_USD.max,
+      ),
     }),
     IntentRequest: {
       ...obj(
@@ -876,6 +886,7 @@ function schemas(): JsonObject {
         actualOutput: ref("AssetAmount"),
         failure: obj({ code: str(), message: str() }, ["code", "message"]),
         call: ref("ContractStepCall"),
+        ...intentStepJourneyFields(),
       },
       ["id", "index", "kind", "title", "network", "chain", "account", "protocol", "mode", "dependsOn", "status", "evidence"],
     ),
@@ -1127,8 +1138,16 @@ function schemas(): JsonObject {
         summary: str(),
         crossChain: bool(),
         executable: bool({ description: "True when the engine has an execution adapter for this protocol." }),
+        execution: str({ enum: ["console", "service"], description: "Registry field: executed only by the Kletia console's tools (`console`) or a separate Kletia service (`service`); absent for the platform." }),
+        surface: str({
+          enum: [...PROTOCOL_SURFACES],
+          description: "Where it executes: `platform` (Platform API v1 plans and executes it), `console` (only the Kletia console's network engines and tools), `service` (a separate Kletia service, such as x402 payments).",
+        }),
+        routedVia: arrayOf(ref("ProtocolId"), {
+          description: "Protocols every transaction of this one also uses (Raydium, Orca and Meteora run through the Jupiter program): `constraints.avoidProtocols` and Rule Book protocol rules apply to them too.",
+        }),
       },
-      ["id", "name", "category", "networks", "capabilities", "website", "summary", "executable"],
+      ["id", "name", "category", "networks", "capabilities", "website", "summary", "executable", "surface", "routedVia"],
     ),
     Asset: obj(
       {
@@ -1229,22 +1248,41 @@ function schemas(): JsonObject {
         decimals: int(),
         amount: ref("BaseUnits"),
         formatted: ref("DecimalAmount"),
-        usd: { type: ["number", "null"] },
+        usd: { type: ["number", "null"], description: "Advisory USD value; null when unpriced (never 0 for unknown)." },
         verified: bool(),
         isNative: bool(),
+        priceSource: str({
+          enum: [...JOURNEY_VALUE_SOURCES],
+          description: "Where `usd` comes from: `usd-par` (USD stablecoins), `jupiter`, `chainlink`, `pyth`; `unpriced` when no price is known, `testnet` for testnet assets (usd null).",
+        }),
+        pricedAt: { type: ["string", "null"], format: "date-time", description: "Time of the price reading; null when unpriced." },
       },
-      ["asset", "symbol", "name", "decimals", "amount", "formatted", "usd", "verified", "isNative"],
+      ["asset", "symbol", "name", "decimals", "amount", "formatted", "usd", "verified", "isNative", "priceSource", "pricedAt"],
     ),
     Portfolio: obj(
       {
         account: ref("AccountId"),
         network: ref("NetworkKey"),
         holdings: arrayOf(ref("PortfolioHolding")),
-        totalUsd: num(),
+        totalUsd: num({ description: "Sum of the priced holdings (positions not included)." }),
         unpricedCount: int({ minimum: 0 }),
         observedAt: str({ format: "date-time" }),
+        positions: arrayOf(ref("VenuePosition"), { description: "With `positions=true`: lending, savings and vault positions of the account on its network." }),
+        positionsUnavailable: arrayOf(obj({ venue: str(), code: str(), message: str() }, ["venue", "code", "message"]), {
+          description: "With `positions=true`: venues whose position could not be read (unknown, never an empty position).",
+        }),
       },
       ["account", "network", "holdings", "totalUsd", "unpricedCount", "observedAt"],
+    ),
+    PortfolioList: obj(
+      {
+        portfolios: arrayOf(ref("Portfolio"), { description: "Successful reads in request order (duplicates removed)." }),
+        failures: arrayOf(obj({ account: ref("AccountId"), code: str(), message: str() }, ["account", "code", "message"]), {
+          description: "Accounts that could not be read; the request still answers 200.",
+        }),
+        observedAt: str({ format: "date-time" }),
+      },
+      ["portfolios", "failures", "observedAt"],
     ),
     Health: obj(
       {
@@ -1586,10 +1624,18 @@ function schemas(): JsonObject {
     ...receiptSchemas(),
     ...policySchemas(),
     ...linkSchemas(),
+    ...journeySchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentCreateResponse: obj(
-      { intent: ref("IntentGraph"), preview: { ...ref("IntentPreview"), description: "With `preview=true`: the plan-stage asset-change preview (stage `plan`)." } },
+      {
+        intent: ref("IntentGraph"),
+        preview: { ...ref("IntentPreview"), description: "With `preview=true` or `journey=true`: the plan-stage asset-change preview (stage `plan`)." },
+        journey: {
+          oneOf: [ref("Journey"), { type: "null" }],
+          description: "With `journey=true`: the journey built on `preview` (`journey.basis.previewDigest` equals `preview.digest`); null when it could not be built.",
+        },
+      },
       ["intent"],
     ),
     IntentListResponse: obj({ intents: arrayOf(ref("IntentGraph")) }, ["intents"]),
@@ -1599,6 +1645,10 @@ function schemas(): JsonObject {
         intent: ref("IntentGraph"),
         preview: { ...ref("IntentPreview"), description: "The whole intent with this step freshly simulated (stage `prepare`)." },
         previewAck: str({ enum: ["matched", "unknown"], description: "Present when `acknowledgedPreview` was sent (also in the response header)." }),
+        journey: {
+          oneOf: [ref("Journey"), { type: "null" }],
+          description: "With `journey=true`: the journey at signing time, built on `preview`; null when it could not be built.",
+        },
       },
       ["payload", "intent"],
     ),
@@ -1767,12 +1817,35 @@ function paths(): JsonObject {
         responses: { "200": ok("QuoteResponse", "Routes."), ...errors("413", "415", "422", "502", "504") },
       },
     },
+    "/v1/portfolio": {
+      get: {
+        operationId: "listPortfolios",
+        tags: ["Portfolio"],
+        summary: "Balances of several CAIP-10 accounts in one request",
+        description: `At most ${PORTFOLIO_BATCH_LIMITS.maxAccounts} accounts (comma separated; duplicates removed, request order kept), read ${PORTFOLIO_BATCH_LIMITS.concurrency} at a time with ${PORTFOLIO_BATCH_LIMITS.perAccountTimeoutMs / 1000} s per account and cached ${PORTFOLIO_BATCH_LIMITS.cacheTtlMs / 1000} s per account. An account that cannot be read is listed in \`failures\` and the request still answers 200. Costs one request of the tier limit plus one unit per account of a per-IP budget of ${PORTFOLIO_ACCOUNT_READS_PER_MINUTE} account reads per minute (429 RATE_LIMITED after).`,
+        parameters: [
+          {
+            name: "accounts",
+            in: "query",
+            required: true,
+            description: "Comma-separated CAIP-10 accounts; an invalid one is 400 INVALID_REQUEST with the issue path `accounts[i]`.",
+            schema: str({ maxLength: 4096, examples: [`eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D,${ACCOUNT_EXAMPLE}`] }),
+          },
+          { name: "positions", in: "query", required: false, description: "Also read venue positions of each account.", schema: str({ enum: ["true", "false", "1", "0"] }) },
+        ],
+        responses: { "200": ok("PortfolioList", "Portfolios and failures."), ...errors() },
+      },
+    },
     "/v1/portfolio/{accountId}": {
       get: {
         operationId: "getPortfolio",
         tags: ["Portfolio"],
         summary: "Balances for one CAIP-10 account",
-        parameters: [{ name: "accountId", in: "path", required: true, schema: ref("AccountId") }],
+        description: "Every holding carries `priceSource` and `pricedAt`; gas assets and listed tokens are priced through the same advisory prices as fee estimates. `positions=true` adds the account's lending, savings and vault positions.",
+        parameters: [
+          { name: "accountId", in: "path", required: true, schema: ref("AccountId") },
+          { name: "positions", in: "query", required: false, description: "Also read venue positions.", schema: str({ enum: ["true", "false", "1", "0"] }) },
+        ],
         responses: { "200": ok("Portfolio", "Portfolio."), ...errors("422", "502", "504") },
       },
     },
@@ -1793,6 +1866,8 @@ function paths(): JsonObject {
             description: "Also return the asset-change preview (stage `plan`), simulated from the transactions the quotes already returned; never a failed create (unsimulated steps are quoted).",
             schema: str({ enum: ["true", "false", "1", "0"] }),
           },
+          journeyQueryParameter("Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`)."),
+          JOURNEY_READS_PARAMETER,
           idempotencyKeyParam,
         ],
         requestBody: jsonBody("IntentRequest"),
@@ -1827,7 +1902,7 @@ function paths(): JsonObject {
         summary: "Build wallet-ready transactions for a ready step",
         description:
           "Every transaction is sent (EVM) or fee-paid (Solana) by the step account. Sign and send them in order, then submit the references. A payload expires at `payload.expiresAt`; prepare again to re-quote. Never retried automatically: an `Idempotency-Key` header is refused with 400 IDEMPOTENCY_NOT_SUPPORTED. The payload is simulated before it is handed out (`payload.preview`, and the whole intent in `preview`); a payload whose simulated effect differs from its step is refused (SIMULATION_FAILED, SIMULATION_ASSET_CHANGE_REFUSED, QUOTE_MOVED, INSUFFICIENT_BALANCE). Send `acknowledgedPreview` (the digest of the preview the user approved): a materially worse payload answers 409 PREVIEW_CHANGED with `error.preview`; an unknown digest is not an error (`Kletia-Preview-Ack: unknown`).",
-        parameters: [intentIdParam, stepIdParam],
+        parameters: [intentIdParam, stepIdParam, journeyQueryParameter("Also return the journey at signing time, built on the prepare-stage preview.")],
         requestBody: { required: false, content: { "application/json": { schema: ref("PrepareStepRequest") } } },
         responses: { "200": ok("PreparedStepResponse", "Payload, updated intent and preview.", PREVIEW_ACK_HEADER_SCHEMA), ...errors("404", "409", "410", "422", "502", "503", "504") },
       },
@@ -1889,6 +1964,35 @@ function paths(): JsonObject {
         },
       },
     },
+    "/v1/events": {
+      get: {
+        operationId: "streamKeyEvents",
+        tags: ["Events"],
+        summary: "Server-Sent Events stream of the key's events (routed like its webhooks)",
+        description: `Every event that would be delivered to the key's webhooks (intent, receipt, contract, link, Rule Book and key events), as \`id\`, \`event\` and \`data\` frames where \`data\` is the webhook envelope \`{ id, type, at, data }\`. \`scope=subtree\` adds the events of the key's descendant agent keys (and project-wide rule book events on project keys), like webhooks created with \`scope: "subtree"\`. Starts with \`retry: ${SSE_RETRY_MS}\`; \`Last-Event-ID\` (or \`?since=\`) replays the matching events after that id from this instance's buffer (${EVENT_STREAM_BUFFER_EVENTS} events, ${EVENT_STREAM_BUFFER_MS / 60_000} minutes; an id no longer buffered replays the whole buffer, so de-duplicate by event id); without it the stream starts with live events. A heartbeat comment every ${SSE_HEARTBEAT_MS / 1000} s re-checks the key (a revoked or expired key's stream ends); a stream lasts at most ${SSE_MAX_DURATION_MS / 60_000} minutes. At most ${EVENT_STREAMS_PER_KEY} open streams per key (429 TOO_MANY_STREAMS).`,
+        security: KEY_REQUIRED,
+        parameters: [
+          { name: "scope", in: "query", required: false, schema: str({ enum: [...WEBHOOK_SCOPES], default: "self" }) },
+          { name: "types", in: "query", required: false, description: "Comma-separated event types (default: every type).", schema: str({ maxLength: 2000, examples: ["intent.status_changed,link.created"] }) },
+          { name: "Last-Event-ID", in: "header", required: false, schema: ref("EventId") },
+          { name: "since", in: "query", required: false, schema: ref("EventId") },
+        ],
+        responses: {
+          "200": {
+            description: "Event stream. Every `data` line is a KletiaEvent (see components.schemas.KletiaEvent).",
+            headers: { "X-Request-Id": REQUEST_ID_HEADER },
+            content: {
+              "text/event-stream": {
+                schema: str(),
+                example: 'retry: 3000\n\nid: evt_0123456789abcdef0123456789abcdef\nevent: link.created\ndata: {"id":"evt_0123456789abcdef0123456789abcdef","type":"link.created","at":"2026-10-14T12:00:00.000Z","data":{"linkId":"lk_0123456789abcdef01234567","ownerKeyId":"key_0123456789abcdef01234567","revision":1}}\n\n',
+              },
+            },
+          },
+          ...errors(),
+        },
+      },
+    },
+    ...journeyPaths(),
     ...previewPaths(),
     ...receiptPaths(),
     ...policyPaths(),
@@ -2253,9 +2357,9 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "System", description: "Health, the error catalog, the status badge and this document." },
       { name: "Registry", description: "Networks, protocols and assets, derived from the engine's live adapters." },
       { name: "Quotes", description: "Advisory route quotes; nothing is stored." },
-      { name: "Portfolio", description: "Balances of one CAIP-10 account." },
+      { name: "Portfolio", description: "Balances and venue positions of CAIP-10 accounts, one or up to 12 per request." },
       { name: "Intents", description: "Plan, prepare, submit, verify and cancel intents." },
-      { name: "Events", description: "Server-Sent Events per intent." },
+      { name: "Events", description: "Server-Sent Events per intent, and the key's own event stream." },
       { name: "Receipts", description: "Signed, privacy-preserving receipts of finished intents, verifiable offline and re-checkable on-chain; shares, keys and the transparency log." },
       { name: "Webhooks", description: "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs." },
       { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
@@ -2382,11 +2486,11 @@ export function buildOpenApiDocument(): JsonObject {
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
         Forbidden: errorResponse("Not allowed (SECRET_KEY_FROM_BROWSER for a kl_dev_ or kl_agt_ key sent with a foreign Origin, KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
         NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, NOT_FOUND)."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
+        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN, POLICY_APPROVAL_EXPIRED, LINK_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },

@@ -45,7 +45,8 @@ await build({
   minify: true,
 });
 
-const budgets = { "dist/index.js": 6_500, "dist/kletia-embed.min.js": 4_096 };
+// The appearance and scope attributes and the script-origin default raised the loader to ~4.8 KB gzip.
+const budgets = { "dist/index.js": 7_000, "dist/kletia-embed.min.js": 5_120 };
 let failed = false;
 for (const [file, limit] of Object.entries(budgets)) {
   const bytes = readFileSync(resolve(root, file));

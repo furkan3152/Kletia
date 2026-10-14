@@ -2,11 +2,12 @@
  * GET /v1/errors, the `docs` link on error envelopes, KLETIA_WEB_ORIGIN, and
  * the status badge (SVG and shields.io endpoint) driven by the health probe,
  * the deployment's build commit in GET /v1/health and the served OpenAPI
- * document's server list.
+ * document's server list; the protocol registry's execution surface and
+ * transport dependencies, and swaps on every production network.
  */
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it } from "node:test";
-import { CHAINS, ERROR_CATALOG, type NetworkKey } from "@kletia/core";
+import { CHAINS, ERROR_CATALOG, NETWORK_KEYS, PROTOCOLS, type NetworkKey } from "@kletia/core";
 import { configurePlatform } from "../../index.js";
 import { resetEngine } from "../../engine/__tests__/helpers.js";
 import { assertError, call, serve, useTestEnvironment, type TestServer } from "./support.js";
@@ -44,6 +45,38 @@ after(async () => {
   configureHealthProbe(null);
   configurePlatform({ adapters: null });
   await server.close();
+});
+
+describe("GET /v1/protocols and GET /v1/networks (protocol surface)", () => {
+  it("adds surface (platform, console, service) and routedVia to every protocol", async () => {
+    const reply = await call<{ protocols: { id: string; surface: string; routedVia: string[]; execution?: string }[] }>(server, "GET", "/protocols");
+    assert.equal(reply.status, 200);
+    assert.equal(reply.body.protocols.length, PROTOCOLS.length);
+    const byId = new Map(reply.body.protocols.map((protocol) => [protocol.id, protocol]));
+    for (const protocol of reply.body.protocols) {
+      assert.ok(["platform", "console", "service"].includes(protocol.surface), `${protocol.id} surface`);
+      assert.equal(protocol.surface, protocol.execution ?? "platform", `${protocol.id} surface follows execution`);
+      assert.ok(Array.isArray(protocol.routedVia), `${protocol.id} routedVia`);
+    }
+    for (const id of ["kletia-router-v2", "basenames", "arc-native", "circle-app-kit"]) assert.equal(byId.get(id)?.surface, "console", id);
+    assert.equal(byId.get("x402")?.surface, "service");
+    assert.equal(byId.get("jupiter")?.surface, "platform");
+    for (const id of ["raydium", "orca", "meteora"]) assert.deepEqual(byId.get(id)?.routedVia, ["jupiter"], id);
+    assert.deepEqual(byId.get("relay")?.routedVia, []);
+  });
+
+  it("lists swap on every production network with the built-in adapters", async () => {
+    configurePlatform({ adapters: null });
+    try {
+      const reply = await call<{ networks: { key: NetworkKey; environment: string; actions: string[] }[] }>(server, "GET", "/networks");
+      assert.equal(reply.status, 200);
+      const production = reply.body.networks.filter((network) => network.environment === "mainnet");
+      assert.deepEqual(production.map((network) => network.key).sort(), NETWORK_KEYS.filter((key) => CHAINS[key].environment === "mainnet").sort());
+      for (const network of production) assert.ok(network.actions.includes("swap"), `${network.key} lists swap`);
+    } finally {
+      resetEngine();
+    }
+  });
 });
 
 describe("GET /v1/venues", () => {

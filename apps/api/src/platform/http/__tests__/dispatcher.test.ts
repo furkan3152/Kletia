@@ -358,3 +358,31 @@ describe("deliveries that cannot be attempted", () => {
     assert.equal(current.stats().scheduledRetries, 0);
   });
 });
+
+describe("shared routing (webhooks and GET /v1/events)", () => {
+  it("routes an agent's intent event to the agent and, through subtree subscriptions only, to its parent", async () => {
+    const { dispatchTargets, subscribeDispatchedEvents } = await import("../dispatcher.js");
+    const parentId = await newOwner();
+    const parent = await apiKeyStore().findById(parentId);
+    assert.ok(parent);
+    const child = await issueAgentKey("routing-agent", parent, new Date(Date.now() + 3_600_000).toISOString(), 100);
+    const intentId = `int_${randomBytes(16).toString("hex")}`;
+    rememberIntentOwner(intentId, child.id);
+    const seen: string[] = [];
+    const unsubscribe = subscribeDispatchedEvents((event) => seen.push(event.id));
+    try {
+      const event = publishIntentEvent("intent.status_changed", { intentId, status: "executing", previous: "planned" });
+      assert.deepEqual(seen, [event.id], "subscribers see every dispatched event");
+      assert.deepEqual(await dispatchTargets(event), [
+        { ownerKeyId: child.id, subtreeOnly: false },
+        { ownerKeyId: parentId, subtreeOnly: true },
+      ]);
+      const anonymousId = `int_${randomBytes(16).toString("hex")}`;
+      rememberIntentOwner(anonymousId, undefined);
+      const anonymous = publishIntentEvent("intent.status_changed", { intentId: anonymousId, status: "executing", previous: "planned" });
+      assert.deepEqual(await dispatchTargets(anonymous), [], "an intent created without a key goes nowhere");
+    } finally {
+      unsubscribe();
+    }
+  });
+});

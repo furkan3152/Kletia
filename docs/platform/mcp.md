@@ -95,12 +95,13 @@ Every tool is annotated `destructiveHint: false`, and every tool except
 | `list_protocols` | `network?`, `executableOnly?` (default true) | Registry protocols and whether Kletia executes them |
 | `list_assets` | `network` | Canonical assets (symbol, address or mint, decimals) |
 | `get_quote` | `network`, `from`, `to`, `amount`, `toNetwork?`, `account?`, `recipient?`, `slippageBps?` | Best route and alternatives (output, guaranteed minimum, fees, time) |
-| `plan_intent` | `text` or `actions` (`contract` / `entry` for custom contract steps), `accounts`, `defaultNetwork?`, `constraints?` | Dry-run plan: summary, steps (custom contract steps with `contract`, `entry` and their `review`), warnings, `externalRecipients`, and `preview` (the [fare breakdown](preview.md): what leaves the user's wallets, what arrives, fees, needs); never stored |
-| `get_intent` | `intentId` | Status, steps, amounts, recipients, the latest on-chain evidence and `receipt` (`{ state, receiptId?, sequence? }`) |
+| `plan_intent` | `text` or `actions` (`contract` / `entry` for custom contract steps), `accounts`, `defaultNetwork?`, `constraints?` | Dry-run plan: summary, steps (custom contract steps with `contract`, `entry` and their `review`), warnings, `externalRecipients`, `preview` (the [fare breakdown](preview.md): what leaves the user's wallets, what arrives, fees, needs) and `journey` (the compact [journey](journey.md), below); never stored |
+| `get_intent` | `intentId` | Status, steps, amounts, recipients, the latest on-chain evidence, `journey` (where the money is now and what follows) and `receipt` (`{ state, receiptId?, sequence? }`) |
+| `get_journey` | `intentId` | The intent's [journey](journey.md), compact: `stage`, `now`, stops (network, holder, custody, state, holdings as "99.9561 USDC (at least 99.4564) ≈ $99.96"), legs (venue, time, refund path), consequences (severity, title, detail, option ids and labels, the question to ask) and `blockers`; never transactions or replan requests, no URL except https tracking links (30 reads per minute per intent) |
 | `preview_intent` | `intentId`, `refreshQuotes?` | The intent's [asset-change preview](preview.md), recomputed now: rows (expected and at worst, with certainty labels), payments to others, approvals, totals, needs and warnings; never transactions (6 per minute per intent) |
 | `get_receipt` | `intentId` (with `sequence?`) or `shareUrl` | A [verifiable receipt](receipts.md): `state` (`issued`, `pending` with `expectedBy`, `not_ready`), receipt id, sequence, status, digest, key id, `verified` (Kletia's own check), disclosed and sealed groups, steps with their on-chain anchors and explorer links, log inclusion, and the command to re-verify on-chain. A share link never returns an intent id |
 | `list_intents` | `limit?` | The key's most recent intents (needs an API key) |
-| `get_portfolio` | `accountId` (CAIP-10) | Balances with USD values where priced |
+| `get_portfolio` | `accountId` (CAIP-10), `positions?` | Balances with USD values and their `priceSource` where priced; with `positions: true` also lending, savings and vault positions (what is held, what it is worth in the underlying, APY, withdrawable now) and the venues that could not be read |
 | `create_signing_link` | `text` (≤ 500 characters) | `https://kletiaai.xyz/studio?q=<text>` and instructions for the user. Refused (`CONTRACT_HANDOFF_UNSUPPORTED`) when the text names a registered contract (an id, or an alias of the key's registrations): Studio is keyless, so those intents go through sessions |
 | `list_contracts` | `network?`, `status?` | The key's contract registrations (and its project's visible ones): status, entries with verbs and aliases, source / domain / program verification, code hashes. Never ABIs or pins beyond hashes (needs an API key) |
 | `get_contract` | `contractId` | The same view of one registration (needs an API key) |
@@ -110,6 +111,18 @@ With a key bound by a rule book, `plan_intent` and `get_intent` add a
 `policy` block (outcome, chain, USD value, the approval link of a held intent,
 and what remains of the key's spend windows); a refused plan returns the
 violated rule ids instead of failing silently.
+
+### The journey for agents
+
+`plan_intent`, `get_intent` and `get_journey` carry the journey in compact
+form. Read its `consequences` before handing off: a `block` is something the
+user must decide before the next signature, for example "Base needs
+0.00000158668 ETH more for network fees" with the options "Add $0.05 of ETH
+with the Relay leg" (recommended) and "I will bring ETH myself". Ask the
+consequence's `question` and, for a top-up, plan again with
+`constraints.gasOnArrival` (for example `{ "base": "0.05" }`). The journey of
+a dry run uses live balance reads of the accounts given; nothing tops up on
+its own.
 
 ### Rule Book tools
 

@@ -1,8 +1,9 @@
 /**
- * The cross-network auction with the real Relay, LI.FI and deBridge DLN
- * adapters against mocked providers: every venue runs its full quote checks
- * and the winner is the highest guaranteed output net of extra costs (DLN's
- * fixed fee), within the time limit.
+ * The cross-network auction with the real Relay, LI.FI, deBridge DLN, Across
+ * and CCTP V2 adapters against mocked providers: every venue runs its full
+ * quote checks and the winner is the highest guaranteed output net of extra
+ * costs (DLN's fixed fee), within the time limit; on a tie, a floor the
+ * venue's contracts enforce (Across, CCTP) beats a provider's claim (Relay).
  */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -10,6 +11,8 @@ import { address } from "@solana/kit";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { encodeFunctionData, parseAbi, type Hex } from "viem";
 import { CHAINS } from "@kletia/core";
+import { acrossAdapter } from "../adapters/across.js";
+import { cctpV2Adapter, resetCctpBurnLimitCache } from "../adapters/cctpV2.js";
 import { resetDlnFixFeeCache, debridgeDlnAdapter } from "../adapters/debridge.js";
 import { lifiAdapter } from "../adapters/lifi.js";
 import { resetLifiClient } from "../adapters/lifiClient.js";
@@ -17,6 +20,7 @@ import { relayAdapter } from "../adapters/relay.js";
 import type { AdapterAction } from "../adapters/types.js";
 import { runVenueAuction } from "../auction.js";
 import {
+  acrossQuoteBody,
   bridgeAction,
   dlnEvmCall,
   dlnOrderBody,
@@ -26,6 +30,7 @@ import {
   DLN_SOLANA_STATE,
   ETH_PROXY_MINT,
   installCrossChainMock,
+  irisFeeTable,
   lifiQuoteBody,
   RELAY_DEPOSITORY,
   RELAY_SOLANA_DEPOSITORY,
@@ -166,5 +171,56 @@ describe("cross-network auction across Relay, LI.FI and deBridge DLN", () => {
     assert.equal(result.winner.protocol, "relay");
     assert.equal(result.losers[0]?.protocol, "debridge-dln");
     assert.equal(result.losers[0]?.excluded, "unpriced");
+  });
+});
+
+describe("cross-network auction with Across and CCTP V2", () => {
+  const BRIDGES = [relayAdapter, acrossAdapter, cctpV2Adapter];
+  /** Recorded Across quote: exactly 99.983067 USDC; the step minimum keeps the 5 bps re-quote cushion. */
+  const ACROSS_MINIMUM = 99_933_075n;
+
+  beforeEach(() => {
+    resetCctpBurnLimitCache();
+    mock.irisFees.set("6/3", irisFeeTable("arbitrum"));
+  });
+
+  it("ranks Across above Relay and CCTP on the recorded quotes (Base -> Arbitrum, 100 USDC)", async () => {
+    const action = bridgeAction("base", "arbitrum", { amount: "100000000" });
+    relayQuotes(action, "99500000");
+    mock.acrossQuote = () => acrossQuoteBody(action);
+    const result = await runVenueAuction(BRIDGES, action, OPTIONS);
+    assert.equal(result.winner.protocol, "across");
+    assert.equal(result.winner.netMinimum, ACROSS_MINIMUM);
+    assert.equal(result.winner.planned.floor, "onchain");
+    // CCTP: 100 USDC minus 13,000 (1.3 bps) minus 77,357 forwarding = 99.909643; Relay guarantees 99.5.
+    assert.deepEqual(result.losers.map((quote) => [quote.protocol, quote.netMinimum]), [["cctp-v2", 99_909_643n], ["relay", 99_500_000n]]);
+    assert.equal(result.failures.length, 0);
+  });
+
+  it("breaks a tie on net, seconds and transactions with Across's on-chain floor over Relay's claimed one", async () => {
+    const action = bridgeAction("base", "arbitrum", { amount: "100000000" });
+    // Same guaranteed output, same 20 s, one transaction each (the SpokePool allowance already covers the amount).
+    relayQuotes(action, ACROSS_MINIMUM.toString());
+    mock.acrossQuote = () => acrossQuoteBody(action, { estimatedFillTimeSec: 5 });
+    mock.allowance = 100_000_000n;
+    const result = await runVenueAuction([relayAdapter, acrossAdapter], action, OPTIONS);
+    const relay = result.losers.find((quote) => quote.protocol === "relay");
+    assert.equal(relay?.netMinimum, result.winner.netMinimum);
+    assert.equal(relay?.planned.estimatedSeconds, result.winner.planned.estimatedSeconds);
+    assert.equal(relay?.planned.transactionCount, result.winner.planned.transactionCount);
+    assert.equal(result.winner.protocol, "across", "candidate order puts Relay first; the on-chain floor decides");
+  });
+
+  it("keeps planning when Across refuses its quote (unpinned SpokePool) and when Iris is down", async () => {
+    const action = bridgeAction("base", "arbitrum", { amount: "100000000" });
+    relayQuotes(action, "99500000");
+    mock.acrossQuote = () => acrossQuoteBody(action, { spokePoolAddress: "0x1111111111111111111111111111111111111111" });
+    mock.irisFees.delete("6/3");
+    const result = await runVenueAuction(BRIDGES, action, OPTIONS);
+    assert.equal(result.winner.protocol, "relay");
+    assert.deepEqual(result.failures.map((failure) => [failure.protocol, failure.error.code]).sort(), [
+      ["across", "PROVIDER_TRANSACTION_INVALID"],
+      ["cctp-v2", "CIRCLE_UNAVAILABLE"],
+    ]);
   });
 });

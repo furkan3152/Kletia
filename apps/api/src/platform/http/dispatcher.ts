@@ -52,6 +52,11 @@
  * Every drop is counted and logged. Every attempt and drop is also written to
  * the per-webhook delivery log (deliveries.ts) through a fire-and-forget
  * recorder, so the log never delays delivery.
+ *
+ * The routing itself (`dispatchTargets`, `subscribeDispatchedEvents`) is
+ * shared with the authenticated event stream (GET /v1/events,
+ * eventStream.ts), so a stream sees exactly the events the key's webhooks
+ * would receive.
  */
 import https from "node:https";
 import { isIP } from "node:net";
@@ -122,7 +127,7 @@ function eventIntentId(event: DispatchedEvent): string | undefined {
 }
 
 /** One webhook owner to deliver to, and whether only its `subtree` webhooks qualify. */
-interface RouteTarget {
+export interface RouteTarget {
   readonly ownerKeyId: string;
   readonly subtreeOnly: boolean;
 }
@@ -157,7 +162,7 @@ async function withAncestors(keyId: string): Promise<RouteTarget[]> {
  * once): an operator key still configured, or a key and every ancestor that
  * exist in one project, unrevoked and unexpired. A store failure throws.
  */
-async function liveOwner(keyId: string): Promise<boolean> {
+export async function liveOwner(keyId: string): Promise<boolean> {
   if (keyId.startsWith("op_")) return [...loadOperatorKeys().values()].some((key) => key.id === keyId);
   const keys = apiKeyStore();
   const key = await keys.findById(keyId);
@@ -170,6 +175,58 @@ async function liveOwner(keyId: string): Promise<boolean> {
     const ancestor = ancestors.get(id);
     return ancestor !== undefined && ancestor.projectId === key.projectId && keyLive(ancestor, now);
   });
+}
+
+/**
+ * Owners whose webhooks (and event streams, eventStream.ts) may receive
+ * `event`, with whether only their `subtree` subscriptions qualify:
+ * contract events go to the owning key; link events to the owning key and
+ * its ancestors; Rule Book and key events to the subject key, its ancestors
+ * and the project's project keys; intent and receipt events to the intent's
+ * key and its ancestors. Undefined while an intent's owner is not known yet
+ * (the HTTP layer records it right after `intent.created`); [] for intents
+ * created without a key.
+ */
+export async function dispatchTargets(event: DispatchedEvent): Promise<RouteTarget[] | undefined> {
+  if (isContractEvent(event)) return [{ ownerKeyId: event.data.ownerKeyId, subtreeOnly: false }];
+  if (isLinkEvent(event)) return withAncestors(event.data.ownerKeyId);
+  if (isPolicyOrKeyEvent(event)) {
+    const subject = event.data.keyId;
+    const projectId = rawProjectId(event.data.projectId);
+    const targets = subject ? await withAncestors(subject) : [];
+    // Project keys that opted into their subtree see every rule book event of the project.
+    const projectKeys = (await apiKeyStore().listByProject(projectId).catch(() => []))
+      .filter((record) => keyKindOf(record) === "project" && !record.revokedAt)
+      .map((record) => ({ ownerKeyId: record.id, subtreeOnly: true }));
+    const seen = new Set<string>();
+    return [...targets, ...projectKeys].filter((target) => {
+      if (seen.has(target.ownerKeyId)) return false;
+      seen.add(target.ownerKeyId);
+      return true;
+    });
+  }
+  const owner = await resolveIntentOwner(event.data.intentId);
+  if (owner === undefined) return undefined;
+  if (owner === null) return [];
+  return withAncestors(owner);
+}
+
+/**
+ * Subscribes to every event the dispatcher routes (intent, receipt,
+ * contract, link, Rule Book and key events). Returns an unsubscribe function.
+ */
+export function subscribeDispatchedEvents(listener: (event: DispatchedEvent) => void): () => void {
+  const unsubscribers = [
+    subscribeIntentEvents(listener),
+    subscribeContractEvents(listener),
+    subscribeReceiptEvents(listener),
+    subscribeLinkEvents(listener),
+    subscribePolicyEvents(listener),
+    subscribeKeyEvents(listener),
+  ];
+  return () => {
+    for (const unsubscribe of unsubscribers) unsubscribe();
+  };
 }
 
 interface Delivery {
@@ -412,28 +469,8 @@ export class WebhookDispatcher {
   }
 
   /** Owners whose webhooks may receive `event`; undefined while an intent's owner is not known yet. */
-  private async targets(event: DispatchedEvent): Promise<RouteTarget[] | undefined> {
-    if (isContractEvent(event)) return [{ ownerKeyId: event.data.ownerKeyId, subtreeOnly: false }];
-    if (isLinkEvent(event)) return withAncestors(event.data.ownerKeyId);
-    if (isPolicyOrKeyEvent(event)) {
-      const subject = event.data.keyId;
-      const projectId = rawProjectId(event.data.projectId);
-      const targets = subject ? await withAncestors(subject) : [];
-      // Project keys that opted into their subtree see every rule book event of the project.
-      const projectKeys = (await apiKeyStore().listByProject(projectId).catch(() => []))
-        .filter((record) => keyKindOf(record) === "project" && !record.revokedAt)
-        .map((record) => ({ ownerKeyId: record.id, subtreeOnly: true }));
-      const seen = new Set<string>();
-      return [...targets, ...projectKeys].filter((target) => {
-        if (seen.has(target.ownerKeyId)) return false;
-        seen.add(target.ownerKeyId);
-        return true;
-      });
-    }
-    const owner = await resolveIntentOwner(event.data.intentId);
-    if (owner === undefined) return undefined;
-    if (owner === null) return [];
-    return withAncestors(owner);
+  private targets(event: DispatchedEvent): Promise<RouteTarget[] | undefined> {
+    return dispatchTargets(event);
   }
 
   private async route(event: DispatchedEvent, ownerAttempt: number): Promise<void> {

@@ -16,11 +16,22 @@ import {
   JUPITER_MINTS,
   normalizeAssetKey,
   priceSourcesFor,
+  PYTH_FEEDS,
+  PYTH_RECEIVER,
   SEQUENCER_GRACE_SECONDS,
   SEQUENCER_UPTIME_FEEDS,
   WSTETH_ETHEREUM,
 } from "../policy/feeds.js";
-import { configurePolicyPricing, notionalUsdMicros, policyPrice, quoteUsdNumber, toUsd18, usd18FromNumber } from "../policy/pricing.js";
+import {
+  configurePolicyPricing,
+  decodePythPriceUpdate,
+  notionalUsdMicros,
+  policyPrice,
+  pythFeedAccount,
+  quoteUsdNumber,
+  toUsd18,
+  usd18FromNumber,
+} from "../policy/pricing.js";
 import { nativeUsdPrice } from "../prices.js";
 import { feed, feedKey, installMarket, jupiter, type FakeMarket } from "./policyHarness.js";
 
@@ -385,3 +396,138 @@ describe("policy pricing", () => {
     });
   });
 });
+
+/**
+ * Pyth push feeds: decoding from the evidence bytes (Solana mainnet,
+ * 2026-10-14) and every reason a reading is ignored.
+ */
+describe("Pyth push feeds", () => {
+  // getAccountInfo of the SOL/USD and USDC/USD shard-0 push feeds (134 bytes each).
+  const SOL_USD = "IvEjY51+9M1gMUcENA3t3zcf1CRyFI8kjp0abRpesqw6zYt/1dayQwHvDYtv2izrpB2hXUCV0do5Kg0vjtDGx7wPTPrIwoC1bV6HQW8CAAAA984pAAAAAAD4////foHPagAAAAB9gc9qAAAAALjQungCAAAAH00yAAAAAAD/BDsbAAAAAAA=";
+  const USDC_USD = "IvEjY51+9M2+k5qDCfVkBxh//zCsVLFpSYvpn22OG/1CRGgM1PfR4gHqoCDGHMR5cSgTRhzhU4lKlqbACyHtDPwnmNH5qenJSmSo9QUAAAAAaI4BAAAAAAD4////WYHPagAAAABYgc9qAAAAAHOt9QUAAAAAkHoBAAAAAABNBDsbAAAAAAA=";
+  const SOL_PUBLISHED = 1_791_983_998;
+  const SOL_PRICE = 10_456_500_062n;
+  const bytes = (base64: string) => Uint8Array.from(Buffer.from(base64, "base64"));
+  const sol = () => ref(asset("solana", "SOL"));
+  let accounts: Map<string, { owner: string; data: Uint8Array }>;
+  let now: number;
+  let jupiterUsd: number | null;
+
+  beforeEach(() => {
+    accounts = new Map([[PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data: bytes(SOL_USD) }],
+      [PYTH_FEEDS.usdcUsd.account, { owner: PYTH_RECEIVER, data: bytes(USDC_USD) }]]);
+    now = (SOL_PUBLISHED + 10) * 1000;
+    jupiterUsd = null;
+    configurePolicyPricing({
+      ethCall: async () => null,
+      jupiterPrices: async (mints) => (jupiterUsd === null ? {} : Object.fromEntries(mints.map((mint) => [mint, { usdPrice: jupiterUsd, liquidity: 10_000_000, blockId: 100 }]))),
+      solanaSlot: async () => 100n,
+      solanaAccount: async (account) => accounts.get(account) ?? null,
+      now: () => now,
+    });
+  });
+
+  afterEach(() => configurePolicyPricing(null));
+
+  it("decodes PriceUpdateV2 from the evidence bytes", () => {
+    const update = decodePythPriceUpdate(bytes(SOL_USD));
+    assert.deepEqual(update, {
+      writeAuthority: PYTH_FEEDS.solUsd.account, verification: "full", feedId: PYTH_FEEDS.solUsd.feedId,
+      price: SOL_PRICE, conf: 2_739_959n, exponent: -8, publishTime: SOL_PUBLISHED,
+    });
+    const usdc = decodePythPriceUpdate(bytes(USDC_USD));
+    assert.equal(usdc?.feedId, PYTH_FEEDS.usdcUsd.feedId);
+    assert.equal(usdc?.price, 99_985_508n);
+    assert.equal(decodePythPriceUpdate(bytes(SOL_USD).subarray(0, 120)), null, "truncated");
+    const wrong = bytes(SOL_USD); wrong[0] ^= 1;
+    assert.equal(decodePythPriceUpdate(wrong), null, "another account type");
+  });
+
+  it("reads every feed from the shard-0 PDA of its feed id under the push oracle", async () => {
+    for (const [name, entry] of Object.entries(PYTH_FEEDS)) assert.equal(await pythFeedAccount(entry.feedId), entry.account, name);
+    for (const symbol of ["SOL", "USDC", "JitoSOL", "mSOL"]) {
+      assert.ok(priceSourcesFor(asset("solana", symbol).id).some((source) => source.kind === "pyth"), symbol);
+    }
+    for (const network of ["ethereum", "base", "arbitrum", "optimism", "polygon"]) {
+      const eth = ASSETS.find((entry) => entry.network === network && entry.group === "ETH");
+      assert.ok(eth && priceSourcesFor(eth.id).includes(PYTH_FEEDS.ethUsd), network);
+    }
+  });
+
+  it("prices SOL from a fresh, Full, owner-checked Pyth reading", async () => {
+    const quote = await policyPrice(sol());
+    assert.ok(quote);
+    assert.deepEqual(quote.readings.map((reading) => [reading.source, reading.id, reading.observedAt]), [["pyth", PYTH_FEEDS.solUsd.account, SOL_PUBLISHED]]);
+    assert.equal(quote.usd18, SOL_PRICE * 10n ** 10n);
+  });
+
+  it("ignores a wrong owner, a wrong feed id, a stale or future reading, a wide confidence and partial verification", async () => {
+    const cases: [string, () => void][] = [
+      ["owner", () => accounts.set(PYTH_FEEDS.solUsd.account, { owner: OTHER_OWNER, data: bytes(SOL_USD) })],
+      ["feed id", () => accounts.set(PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data: bytes(USDC_USD) })],
+      ["stale", () => { now = (SOL_PUBLISHED + 61) * 1000; }],
+      ["future", () => { now = (SOL_PUBLISHED - 61) * 1000; }],
+      ["confidence", () => {
+        const data = bytes(SOL_USD);
+        // conf (u64 at 81) just above 2 % of the price.
+        new DataView(data.buffer).setBigUint64(81, SOL_PRICE * 200n / 10_000n + 1n, true);
+        accounts.set(PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data });
+      }],
+      ["partial", () => {
+        const full = bytes(SOL_USD);
+        // verification_level Partial { num_signatures: 5 } shifts the message by one byte.
+        accounts.set(PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data: Uint8Array.from([...full.subarray(0, 40), 0, 5, ...full.subarray(41, 133)]) });
+      }],
+      ["missing", () => accounts.delete(PYTH_FEEDS.solUsd.account)],
+    ];
+    for (const [name, apply] of cases) {
+      configurePolicyPricing(null);
+      now = (SOL_PUBLISHED + 10) * 1000;
+      accounts.set(PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data: bytes(SOL_USD) });
+      configurePolicyPricing({
+        ethCall: async () => null,
+        jupiterPrices: async () => ({}),
+        solanaSlot: async () => 100n,
+        solanaAccount: async (account) => accounts.get(account) ?? null,
+        now: () => now,
+      });
+      apply();
+      assert.equal(await policyPrice(sol()), null, name);
+    }
+    // At exactly 60 s and 2 % the reading still counts.
+    now = (SOL_PUBLISHED + 60) * 1000;
+    const data = bytes(SOL_USD);
+    new DataView(data.buffer).setBigUint64(81, SOL_PRICE * 200n / 10_000n, true);
+    accounts.set(PYTH_FEEDS.solUsd.account, { owner: PYTH_RECEIVER, data });
+    configurePolicyPricing({ ethCall: async () => null, jupiterPrices: async () => ({}), solanaSlot: async () => 100n,
+      solanaAccount: async (account) => accounts.get(account) ?? null, now: () => now });
+    assert.ok(await policyPrice(sol()), "boundary");
+  });
+
+  it("keeps the maximum of fresh sources with Pyth beside Jupiter", async () => {
+    jupiterUsd = 110;
+    const high = await policyPrice(sol());
+    assert.equal(high?.usd18, 110n * ONE);
+    assert.deepEqual(high?.readings.map((reading) => reading.source).sort(), ["jupiter", "pyth"]);
+    configurePolicyPricing({ ethCall: async () => null, solanaSlot: async () => 100n, now: () => now,
+      jupiterPrices: async (mints) => Object.fromEntries(mints.map((mint) => [mint, { usdPrice: 100, liquidity: 10_000_000, blockId: 100 }])),
+      solanaAccount: async (account) => accounts.get(account) ?? null });
+    assert.equal((await policyPrice(sol()))?.usd18, SOL_PRICE * 10n ** 10n, "Pyth is higher");
+  });
+
+  it("never reads a Pyth account live through a partial transport without solanaAccount", async () => {
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => { calls += 1; throw new Error("offline"); }) as typeof fetch;
+    try {
+      configurePolicyPricing({ ethCall: async () => null, jupiterPrices: async () => ({}), solanaSlot: async () => 100n, now: () => now });
+      assert.equal(await policyPrice(sol()), null);
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+const OTHER_OWNER = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
+

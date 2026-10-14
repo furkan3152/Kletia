@@ -54,7 +54,11 @@ Aggregated rows keep the **weakest** label of what they add up.
   `null` when an asset it needs has no price; the asset is listed in
   `totals.unpriced` (never shown as $0).
 - `needs`: what your wallets must hold: the input balance, gas on arrival
-  (a network where you hold no native asset), rent.
+  (a network where you hold no native asset), rent. Gas the intent itself
+  delivers on that network before the step (a gas top-up with a bridge fill,
+  a gas reserve kept from a bridged gas asset, an earlier leg's gas-asset
+  output to the same account) is credited before comparing with the
+  balance.
 - `arrival`: the expected arrival of the last cross-network leg.
 - `basis`: `simulated` (every step), `partial`, `quoted` or `unavailable`.
 
@@ -160,12 +164,33 @@ the payload itself. Only `quotes=refresh` re-quotes.
   parties: the destination side is the venue's committed minimum, checked on
   arrival by settlement verification.
 - Solana steps waiting for bridged funds are quoted until the funds arrive.
+  Their network fee is still counted: quoted steps (and Solana-origin steps
+  at plan) get an `estimated` `network` fee line, so `networkFeesUsd` and the
+  gas-on-arrival need include them.
 - MEV and state changes between the preview and inclusion: same-network
   output floors and the prepare ratio checks protect you on-chain, not the
   preview.
 - Simulation sends your address and calldata to public RPCs (as every read
   does); operators can point simulation at their own nodes
   (`KLETIA_SIMULATION_RPC_URLS_<NETWORK>`).
+
+## Gas for quoted steps
+
+A step that is not simulated has no fee from a simulation, so the preview
+estimates it (labelled `estimated`), the same way the planner's gas reserve
+and the [journey](journey.md) do:
+
+| VM | Estimate |
+|---|---|
+| EVM | Gas of the step's transactions × the current gas price: the quote's own gas hints × 1.5 when present, else the adapters' gas limits (approve 60,000; Aave supply 260,000; ERC-4626 deposit 700,000; …) or typical values × 1.5 (ERC-20 transfer 65,000; Relay deposit 80,000; LI.FI 250,000; deBridge 300,000). OP-stack networks × 1.2 and Arbitrum + 1,000 gas for the L1 data part. |
+| Solana | 5,000 lamports per signature + the adapter's priority fee (Jupiter 100,000) + rent for every token account the step creates that does not exist yet + the wallet's rent-exempt minimum when its balance is 0. |
+
+The estimates are upper bounds on purpose: too high asks for a few cents of
+gas too much, too low would leave a step that cannot be signed. Example
+(live): a dependent Jupiter swap for an empty Solana wallet needs about
+0.00224368 SOL (5,000 + 100,000 lamports of fees, 1,488,440 for the
+receiving token account and 650,240 for the wallet's minimum), which the
+journey turns into a `block` with a $1 SOL gas leg as the recommended option.
 
 ## Errors
 

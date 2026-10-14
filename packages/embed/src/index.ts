@@ -26,7 +26,10 @@ export const DEFAULT_KLETIA_ORIGIN = "https://kletiaai.xyz";
 export const BRIDGE_PROTOCOL_VERSION = 1;
 
 export const MIN_FRAME_HEIGHT = 320;
+/** Default `max-height`: content taller than this scrolls inside the frame. */
 export const MAX_FRAME_HEIGHT = 1600;
+/** Upper bound of the `max-height` attribute. */
+export const MAX_FRAME_HEIGHT_LIMIT = 4000;
 export const DEFAULT_FRAME_HEIGHT = 600;
 export const MAX_TEXT_LENGTH = 500;
 export const MAX_EXAMPLES = 6;
@@ -54,8 +57,49 @@ export const FRAME_REFERRER_POLICY = "strict-origin-when-cross-origin";
 export const CONNECT_RETRY_DELAYS: readonly number[] = [250, 500, 1000, 2000, 4000, 8000];
 export const CONNECT_GIVE_UP_MS = 4000;
 
+// ---------------------------------------------------------------------------
+// Appearance and scope attributes (validated here and again by the frame)
+// ---------------------------------------------------------------------------
+
+type Check = (value: string) => string | null;
+const HEX = /^#?([0-9a-f]{6})$/iu;
+const NETWORK_KEY = /^[a-z0-9][a-z0-9-]{0,39}$/u;
+const color: Check = (value) => HEX.exec(value)?.[1]?.toUpperCase() ?? null;
+const oneOf = (values: string): Check => (value) => (values.split(" ").includes(value.toLowerCase()) ? value.toLowerCase() : null);
+const integer = (min: number, max: number): Check => (value) => (/^\d{1,4}$/u.test(value) && +value >= min && +value <= max ? String(+value) : null);
+const list = (valid: (item: string) => boolean, max: number): Check => (value) => {
+  const items = [...new Set(value.toLowerCase().split(",").map((item) => item.trim()).filter(valid))].slice(0, max);
+  return items.length > 0 ? items.join(",") : null;
+};
+
+/** Kinds of action an embed can be scoped to. */
+export const EMBED_ACTIONS: readonly string[] = ["swap", "bridge", "transfer", "stake", "deposit", "withdraw"];
+
+/**
+ * Appearance and scope attributes with their checks. Each maps to the frame
+ * parameter of the same name; `source-network` maps to `source`. Values that
+ * fail the check are dropped, never forwarded.
+ */
+export const THEME_ATTRIBUTES: readonly (readonly [string, Check])[] = [
+  ...["accent", "accent-ink", "surface", "ink", "line"].flatMap((name): [string, Check][] => [[name, color], [`${name}-dark`, color]]),
+  ["radius", integer(0, 16)],
+  ["border", integer(1, 3)],
+  ["shadow", oneOf("hard soft none")],
+  ["font", oneOf("inter system serif mono rounded")],
+  ["density", oneOf("comfortable compact")],
+  ["header", oneOf("kletia none")],
+  ["networks", list((item) => NETWORK_KEY.test(item), 9)],
+  ["actions", list((item) => EMBED_ACTIONS.includes(item), 6)],
+];
+
+/** `accent-ink-dark` -> `accentInkDark`: the option name of an attribute. */
+const optionName = (attribute: string): string => attribute.replace(/-(\w)/gu, (_, letter: string) => letter.toUpperCase());
+
 /** Attributes `<kletia-intent>` reads. */
-export const OBSERVED_ATTRIBUTES: readonly string[] = ["theme", "text", "examples", "bg", "height", "origin", "reference", "label", "intent", "session"];
+export const OBSERVED_ATTRIBUTES: readonly string[] = [
+  "theme", "text", "examples", "bg", "height", "max-height", "origin", "reference", "label", "intent", "session", "source-network",
+  ...THEME_ATTRIBUTES.map(([name]) => name),
+];
 
 export type KletiaTheme = "light" | "dark" | "auto";
 
@@ -86,6 +130,37 @@ export interface KletiaEmbedOptions {
    * visitor's wallet. Also sent in the fragment. `intent` wins when both are set.
    */
   readonly session?: string | null;
+  /** Light palette (or the only one): six hex digits, `#` optional. Colours that fail contrast fall back in the frame. */
+  readonly accent?: string | null;
+  readonly accentInk?: string | null;
+  readonly surface?: string | null;
+  readonly ink?: string | null;
+  readonly line?: string | null;
+  /** Dark palette, used when the resolved scheme is dark. */
+  readonly accentDark?: string | null;
+  readonly accentInkDark?: string | null;
+  readonly surfaceDark?: string | null;
+  readonly inkDark?: string | null;
+  readonly lineDark?: string | null;
+  /** Corner radius 0-16 px (default 0). */
+  readonly radius?: number | string | null;
+  /** Border width 1-3 px (default 3). */
+  readonly border?: number | string | null;
+  readonly shadow?: "hard" | "soft" | "none" | string | null;
+  readonly font?: "inter" | "system" | "serif" | "mono" | "rounded" | string | null;
+  readonly density?: "comfortable" | "compact" | string | null;
+  /** `kletia` (default) or `none` (the account count moves to the footer). */
+  readonly header?: "kletia" | "none" | string | null;
+  /**
+   * Network keys this widget works with (at most 9): the wallet bar offers
+   * only their wallets, and a plan touching another network is refused before
+   * Execute (`kletia:error` `EMBED_SCOPE_REFUSED`).
+   */
+  readonly networks?: string | readonly string[] | null;
+  /** Kinds of action offered (swap, bridge, transfer, stake, deposit, withdraw); other plans are refused before Execute. */
+  readonly actions?: string | readonly string[] | null;
+  /** Where the money starts: a key from `networks`, or `auto` (the funded network). */
+  readonly sourceNetwork?: string | null;
 }
 
 export interface KletiaReadyDetail {
@@ -226,13 +301,40 @@ export function embedFragment(options: Pick<KletiaEmbedOptions, "intent" | "sess
 }
 
 /**
- * The Kletia origin that serves `/embed`: any https origin, or http on
- * localhost for development. Empty input means `DEFAULT_KLETIA_ORIGIN`;
- * anything else (paths, queries, credentials, other schemes) is `null`.
+ * The Kletia origin a script URL was served from, when it is one of Kletia's
+ * versioned embed files (`<origin>/sdk/embed/<version>/kletia-embed.min.js`
+ * or `…/index.js`); `null` for any other URL.
  */
-export function normalizeKletiaOrigin(value?: string | null): string | null {
+export function kletiaOriginFromScript(src: unknown): string | null {
+  const match = typeof src === "string" ? /^(https?:\/\/[^/?#]+)\/sdk\/embed\/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\/(?:kletia-embed\.min|index)\.js(?:[?#].*)?$/u.exec(src) : null;
+  return match ? normalizeKletiaOrigin(match[1], DEFAULT_KLETIA_ORIGIN) : null;
+}
+
+function loadedFrom(): string | null {
+  try {
+    const script = typeof document === "undefined" ? null : document.currentScript;
+    return kletiaOriginFromScript(script && "src" in script ? script.src : import.meta.url);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The default `origin`: the Kletia origin this script was loaded from (a page
+ * that loads the script from a self-hosted Kletia needs no `origin`
+ * attribute), else `DEFAULT_KLETIA_ORIGIN`. Read once, when the script runs.
+ */
+export const DEFAULT_ORIGIN: string = loadedFrom() ?? DEFAULT_KLETIA_ORIGIN;
+
+/**
+ * The Kletia origin that serves `/embed`: any https origin, or http on
+ * localhost for development. Empty input means `fallback` (the origin this
+ * script came from, else `DEFAULT_KLETIA_ORIGIN`); anything else (paths,
+ * queries, credentials, other schemes) is `null`.
+ */
+export function normalizeKletiaOrigin(value?: string | null, fallback: string = DEFAULT_ORIGIN): string | null {
   const raw = (value ?? "").trim();
-  if (!raw) return DEFAULT_KLETIA_ORIGIN;
+  if (!raw) return fallback;
   let url: URL;
   try {
     url = new URL(raw);
@@ -256,8 +358,14 @@ export function normalizeHostOrigin(value: unknown): string | null {
   }
 }
 
-export function clampFrameHeight(px: number): number {
-  return Math.min(MAX_FRAME_HEIGHT, Math.max(MIN_FRAME_HEIGHT, Math.round(px)));
+export function clampFrameHeight(px: number, max: number = MAX_FRAME_HEIGHT): number {
+  return Math.min(max, Math.max(MIN_FRAME_HEIGHT, Math.round(px)));
+}
+
+/** `max-height` attribute: 320-4000 pixels (optionally `px`), default 1600; taller content scrolls inside the frame. */
+export function parseMaxHeight(value: string | number | null | undefined): number {
+  const match = /^(\d{1,5})(?:px)?$/u.exec(String(value ?? "").trim().toLowerCase());
+  return match ? Math.min(MAX_FRAME_HEIGHT_LIMIT, Math.max(MIN_FRAME_HEIGHT, Number(match[1]))) : MAX_FRAME_HEIGHT;
 }
 
 /**
@@ -289,6 +397,16 @@ export function buildEmbedUrl(kletiaOrigin: string, options: KletiaEmbedOptions 
   if (typeof options.bg === "string" && options.bg.trim().toLowerCase() === "transparent") query.set("bg", "transparent");
   const reference = normalizeReference(options.reference);
   if (reference) query.set("ref", reference);
+  const optionValues = options as Readonly<Record<string, unknown>>;
+  for (const [name, check] of THEME_ATTRIBUTES) {
+    const raw = optionValues[optionName(name)];
+    const value = raw === undefined || raw === null ? null : check(Array.isArray(raw) ? raw.join(",") : String(raw).trim());
+    if (value) query.set(name, value);
+  }
+  // The starting network: `auto`, or a key that stays inside `networks` when that is set.
+  const source = typeof options.sourceNetwork === "string" ? options.sourceNetwork.trim().toLowerCase() : "";
+  const networks = query.get("networks")?.split(",");
+  if (source === "auto" || (NETWORK_KEY.test(source) && (!networks || networks.includes(source)))) query.set("source", source);
   const host = normalizeHostOrigin(hostOrigin);
   if (host) {
     query.set("bridge", "1");
@@ -304,6 +422,8 @@ export interface KletiaElementConfig {
   readonly options: KletiaEmbedOptions;
   /** Height in pixels until the frame reports its content height. */
   readonly height: number;
+  /** The frame never grows past this height; taller content scrolls inside it. */
+  readonly maxHeight: number;
   /** Accessible name of the frame. */
   readonly label: string;
 }
@@ -321,8 +441,11 @@ export function readElementConfig(getAttribute: (name: string) => string | null)
       reference: getAttribute("reference"),
       intent: getAttribute("intent"),
       session: getAttribute("session"),
+      sourceNetwork: getAttribute("source-network"),
+      ...Object.fromEntries(THEME_ATTRIBUTES.map(([name]) => [optionName(name), getAttribute(name)])),
     },
     height: parseFrameHeight(getAttribute("height")),
+    maxHeight: parseMaxHeight(getAttribute("max-height")),
     label: label || "Kletia intent widget",
   };
 }
@@ -544,7 +667,7 @@ function createElementClass(): CustomElementConstructor {
 
     attributeChangedCallback(name: string, previous: string | null, next: string | null): void {
       if (previous === next || !this.isConnected) return;
-      if (name === "height" || name === "label") {
+      if (name === "height" || name === "max-height" || name === "label") {
         this.#config = readElementConfig((attribute) => this.getAttribute(attribute));
         this.#applyFrame();
         return;
@@ -605,7 +728,7 @@ function createElementClass(): CustomElementConstructor {
       frame.title = config.label;
       // Match the frame document's color scheme, or browsers paint an opaque backdrop behind a transparent frame.
       frame.style.colorScheme = normalizeTheme(config.options.theme) === "dark" ? "dark" : "light";
-      frame.style.height = `${this.#reported === null ? config.height : clampFrameHeight(this.#reported)}px`;
+      frame.style.height = `${clampFrameHeight(this.#reported ?? config.height, config.maxHeight)}px`;
     }
 
     readonly #onLoad = (): void => {
@@ -683,6 +806,8 @@ export interface KletiaFrameOptions extends KletiaEmbedOptions {
   readonly origin?: string | null;
   /** Height in pixels until the frame reports its content height (default 600). */
   readonly height?: number | null;
+  /** The frame never grows past this height (320-4000, default 1600); taller content scrolls inside it. */
+  readonly maxHeight?: number | null;
   /** Accessible name of the frame (default "Kletia intent widget"). */
   readonly label?: string | null;
 }
@@ -731,7 +856,11 @@ function applyAttributes(element: Element, options: KletiaFrameOptions): void {
   set("intent", options.intent);
   set("session", options.session);
   set("height", options.height);
+  set("max-height", options.maxHeight);
   set("label", options.label);
+  set("source-network", options.sourceNetwork);
+  const values = options as Readonly<Record<string, string | number | readonly string[] | null | undefined>>;
+  for (const [name] of THEME_ATTRIBUTES) set(name, values[optionName(name)]);
 }
 
 /**

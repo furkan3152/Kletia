@@ -1,11 +1,14 @@
 /**
  * Fixtures for the cross-network venue tests (crosschain*.test.ts): a fetch
  * double layered over the shared RPC mock that answers LI.FI, deBridge DLN,
- * Jupiter prices and the EVM / Solana reads the venues make (allowances,
- * balances, DLN's fixed fee, token and state accounts, blockhashes), plus
- * builders for real calldata, events and Solana transactions.
+ * Across, Circle Iris, Jupiter prices and the EVM / Solana reads the venues
+ * make (allowances, balances, DLN's fixed fee, CCTP's burn limit, token and
+ * state accounts, blockhashes), plus builders for real calldata, events and
+ * Solana transactions. Across and Iris bodies start from the recorded
+ * responses in fixtures/bridges/.
  */
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   AccountRole,
   address,
@@ -43,6 +46,8 @@ import {
 import { quoteBindingFor } from "../binding.js";
 import { LIFI_DIAMOND_ABI, accountBytes, accountBytes32 } from "../adapters/lifi.js";
 import { DLN_SOURCE_ABI } from "../adapters/debridge.js";
+import { SPOKE_POOL_ABI } from "../adapters/across.js";
+import { CCTP_FORWARD_HOOK, MESSAGE_TRANSMITTER_V2_ABI, TOKEN_MESSENGER_V2_ABI } from "../adapters/cctpV2.js";
 import type { AdapterAction } from "../adapters/types.js";
 import type { ResolvedAsset } from "../assets.js";
 import { EVM_ADDRESS, randomEvmHash, SOL_ADDRESS } from "./helpers.js";
@@ -150,6 +155,14 @@ export interface CrossChainMock {
   dlnFixFee: bigint;
   /** Solana `getAccountInfo` answers by address (null = account missing). */
   readonly solanaAccounts: Map<string, unknown>;
+  /** Across `/suggested-fees` factory (request query); `/deposit/status` bodies by `${originChainId}:${depositId}`. */
+  acrossQuote: ((query: URLSearchParams) => unknown) | null;
+  readonly acrossStatus: Map<string, unknown>;
+  /** Circle Iris fee tables by `${source}/${destination}` domain, messages by burn transaction hash. */
+  readonly irisFees: Map<string, unknown>;
+  readonly irisMessages: Map<string, unknown>;
+  /** TokenMinterV2.burnLimitsPerMessage(USDC) on every EVM network. */
+  cctpBurnLimit: bigint;
   /** Every provider URL requested, in order. */
   readonly calls: URL[];
   restore(): void;
@@ -167,6 +180,7 @@ const MULTICALL3_ABI = parseAbi([
   "function aggregate3(Call3[] calls) payable returns (Result[] returnData)",
 ]);
 const FIX_FEE_SELECTOR = toFunctionSelector("function globalFixedNativeFee()");
+const BURN_LIMIT_SELECTOR = toFunctionSelector("function burnLimitsPerMessage(address)");
 
 export function installCrossChainMock(): CrossChainMock {
   const rpc = installRpcMock();
@@ -184,11 +198,17 @@ export function installCrossChainMock(): CrossChainMock {
     balance: 10n ** 30n,
     dlnFixFee: DLN_EVM_FIX_FEE,
     solanaAccounts: new Map(),
+    acrossQuote: null,
+    acrossStatus: new Map(),
+    irisFees: new Map(),
+    irisMessages: new Map(),
+    cctpBurnLimit: CCTP_BURN_LIMIT,
     calls: [],
     restore: () => rpc.restore(),
   };
   const directCall = (to: string | undefined, data: Hex): string | null => {
     if (data.startsWith(FIX_FEE_SELECTOR) && to?.toLowerCase() === DLN_SOURCE.toLowerCase()) return word(mock.dlnFixFee);
+    if (data.startsWith(BURN_LIMIT_SELECTOR) && to?.toLowerCase() === CCTP_TOKEN_MINTER.toLowerCase()) return word(mock.cctpBurnLimit);
     try {
       const decoded = decodeFunctionData({ abi: erc20Abi, data });
       if (decoded.functionName === "allowance") return word(mock.allowance);
@@ -237,6 +257,28 @@ export function installCrossChainMock(): CrossChainMock {
       const order = /^\/api\/Orders\/(0x[0-9a-fA-F]{64})$/u.exec(url.pathname);
       const record = order ? mock.dlnOrders.get((order[1] as string).toLowerCase()) : undefined;
       return record ? json(record) : json({ message: "not found" }, 404);
+    }
+    if (url.hostname === "app.across.to") {
+      mock.calls.push(url);
+      if (url.pathname === "/api/suggested-fees" && mock.acrossQuote) return json(mock.acrossQuote(url.searchParams));
+      if (url.pathname === "/api/deposit/status") {
+        const status = mock.acrossStatus.get(`${url.searchParams.get("originChainId")}:${url.searchParams.get("depositId")}`);
+        return status ? json(status) : json({ error: "DepositNotFoundException", message: "Deposit not found given the provided constraints" }, 404);
+      }
+      return json({ message: "unmocked" }, 500);
+    }
+    if (url.hostname === "iris-api.circle.com") {
+      mock.calls.push(url);
+      const fees = /^\/v2\/burn\/USDC\/fees\/(\d+)\/(\d+)$/u.exec(url.pathname);
+      if (fees && url.searchParams.get("forward") === "true") {
+        const table = mock.irisFees.get(`${fees[1]}/${fees[2]}`);
+        return table ? json(table) : json({ message: "unmocked" }, 500);
+      }
+      if (/^\/v2\/messages\/\d+$/u.test(url.pathname)) {
+        const messages = mock.irisMessages.get((url.searchParams.get("transactionHash") ?? "").toLowerCase());
+        return messages ? json(messages) : json({ error: "Message hash not found" }, 404);
+      }
+      return json({ message: "unmocked" }, 500);
     }
     if (url.pathname.endsWith("/price/v3")) {
       mock.calls.push(url);
@@ -651,7 +693,7 @@ export const seconds = (ms: number) => Math.floor(ms / 1000);
 /** A submitted EVM bridge step prepared with `transactions` (binding + quote evidence for each tracking id). */
 export function evmBridgeStep(
   action: AdapterAction,
-  protocol: "lifi" | "debridge-dln",
+  protocol: "lifi" | "debridge-dln" | "across" | "cctp-v2",
   transactions: readonly TransactionRequest[],
   options: { trackingIds?: readonly string[]; minimum?: string; references?: readonly string[] } = {},
 ): IntentStep {
@@ -706,4 +748,133 @@ export function landPrepared(
     });
     return hash;
   });
+}
+
+/* ---------------------------------------------------------------- bridges */
+
+export const ACROSS_SPOKE_BASE = "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64";
+export const ACROSS_SPOKE_ARBITRUM = "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A";
+export const CCTP_TOKEN_MESSENGER = "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d";
+export const CCTP_MESSAGE_TRANSMITTER = "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64";
+export const CCTP_TOKEN_MINTER = "0xfd78EE919681417d192449715b2594ab58f5D002";
+/** burnLimitsPerMessage(USDC) read back on the five EVM networks (10,000,000 USDC). */
+export const CCTP_BURN_LIMIT = 10_000_000_000_000n;
+
+/** A recorded provider body from fixtures/bridges/ (the `body` of the recording). */
+export function bridgeFixture<T = Record<string, unknown>>(name: string): T {
+  const recording = JSON.parse(readFileSync(new URL(`./fixtures/bridges/${name}`, import.meta.url), "utf8")) as { body: T };
+  return recording.body;
+}
+
+/**
+ * The recorded Base -> Arbitrum `/suggested-fees` body re-aimed at `action`:
+ * tokens, chains and the quote clock moved to now (the recording's two-hour
+ * fill window kept), any field overridable.
+ */
+export function acrossQuoteBody(action: AdapterAction, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const recorded = bridgeFixture("across-suggested-fees-base-arbitrum.json");
+  const now = Math.floor(Date.now() / 1000);
+  const window = Number(recorded.fillDeadline) - Number(recorded.timestamp);
+  return {
+    ...recorded,
+    timestamp: String(now - 12),
+    fillDeadline: String(now - 12 + window),
+    inputToken: { address: action.input.address, symbol: "USDC", decimals: 6, chainId: CHAINS[action.network].settlement.acrossChainId },
+    outputToken: { address: action.output.address, symbol: "USDC", decimals: 6, chainId: CHAINS[action.destinationNetwork].settlement.acrossChainId },
+    ...overrides,
+  };
+}
+
+/** The pinned SpokePool's FundsDeposited log for an encoded deposit call (fields overridable). */
+export function fundsDepositedLog(spokePool: string, data: Hex, depositId: bigint, overrides: Partial<Record<string, unknown>> = {}) {
+  const body = data.slice(10).length % 64 === 10 ? (data.slice(0, -10) as Hex) : data;
+  const decoded = decodeFunctionData({ abi: SPOKE_POOL_ABI, data: body });
+  if (decoded.functionName !== "deposit") throw new Error("not a deposit");
+  const [depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, exclusivity, message] = decoded.args;
+  const args = {
+    inputToken, outputToken, inputAmount, outputAmount, destinationChainId, depositId, quoteTimestamp, fillDeadline,
+    exclusivityDeadline: quoteTimestamp + exclusivity, depositor, recipient, exclusiveRelayer, message, ...overrides,
+  };
+  const event = SPOKE_POOL_ABI.find((item) => item.type === "event" && item.name === "FundsDeposited");
+  if (!event || event.type !== "event") throw new Error("FundsDeposited");
+  const inputs = event.inputs as readonly { readonly name: string; readonly type: string; readonly indexed?: boolean }[];
+  const indexed = inputs.filter((input) => input.indexed === true);
+  const plain = inputs.filter((input) => input.indexed !== true);
+  return {
+    address: spokePool,
+    topics: encodeEventTopics({
+      abi: SPOKE_POOL_ABI,
+      eventName: "FundsDeposited",
+      args: Object.fromEntries(indexed.map((input) => [input.name, args[input.name as keyof typeof args]])) as never,
+    }) as string[],
+    data: encodeAbiParameters(plain as never, plain.map((input) => args[input.name as keyof typeof args]) as never),
+  };
+}
+
+/** Iris's fee table for a route, from the recordings (Base -> Arbitrum or Base -> Solana). */
+export function irisFeeTable(destination: "arbitrum" | "solana"): unknown {
+  return bridgeFixture(destination === "solana" ? "iris-fees-base-solana.json" : "iris-fees-base-arbitrum.json");
+}
+
+const pad32 = (hex: string) => hex.replace(/^0x/u, "").toLowerCase().padStart(64, "0");
+const u32 = (value: number) => value.toString(16).padStart(8, "0");
+
+export interface CctpMessageOptions {
+  readonly sourceDomain: number;
+  readonly destinationDomain: number;
+  readonly amount: bigint;
+  readonly mintRecipient: Hex;
+  readonly messageSender: string;
+  readonly maxFee: bigint;
+  readonly feeExecuted?: bigint;
+  /** Attested messages carry Circle's nonce; MessageSent carries zero. */
+  readonly nonce?: Hex;
+  readonly burnToken: string;
+  readonly hookData?: Hex;
+}
+
+/** A CCTP V2 message (header + BurnMessageV2) as MessageSent emits it or Iris returns it attested. */
+export function cctpMessage(options: CctpMessageOptions): Hex {
+  const header = [
+    u32(1), u32(options.sourceDomain), u32(options.destinationDomain), pad32(options.nonce ?? "0x0"),
+    pad32(CCTP_TOKEN_MESSENGER), pad32(CCTP_TOKEN_MESSENGER), pad32("0x0"), u32(1000), u32(options.nonce ? 1000 : 0),
+  ].join("");
+  const body = [
+    u32(1), pad32(options.burnToken), pad32(options.mintRecipient), pad32(options.amount.toString(16)), pad32(options.messageSender),
+    pad32(options.maxFee.toString(16)), pad32((options.feeExecuted ?? 0n).toString(16)), pad32(options.nonce ? "0x18fbfe0" : "0x0"),
+    (options.hookData ?? CCTP_FORWARD_HOOK).slice(2),
+  ].join("");
+  return `0x${header}${body}`;
+}
+
+/** The pinned TokenMessenger's DepositForBurn log for an encoded burn call (fields overridable). */
+export function depositForBurnLog(data: Hex, depositor: string, overrides: Partial<Record<string, unknown>> = {}) {
+  const decoded = decodeFunctionData({ abi: TOKEN_MESSENGER_V2_ABI, data });
+  if (decoded.functionName !== "depositForBurnWithHook") throw new Error("not a burn");
+  const [amount, destinationDomain, mintRecipient, burnToken, destinationCaller, maxFee, minFinalityThreshold, hookData] = decoded.args;
+  const args = {
+    burnToken, amount, depositor, mintRecipient, destinationDomain, destinationTokenMessenger: `0x${pad32(CCTP_TOKEN_MESSENGER)}`,
+    destinationCaller, maxFee, minFinalityThreshold, hookData, ...overrides,
+  };
+  const event = TOKEN_MESSENGER_V2_ABI.find((item) => item.type === "event" && item.name === "DepositForBurn");
+  if (!event || event.type !== "event") throw new Error("DepositForBurn");
+  const plain = (event.inputs as readonly { readonly name: string; readonly type: string; readonly indexed?: boolean }[]).filter((input) => input.indexed !== true);
+  return {
+    address: CCTP_TOKEN_MESSENGER,
+    topics: encodeEventTopics({
+      abi: TOKEN_MESSENGER_V2_ABI,
+      eventName: "DepositForBurn",
+      args: { burnToken: args.burnToken, depositor: args.depositor, minFinalityThreshold: args.minFinalityThreshold } as never,
+    }) as string[],
+    data: encodeAbiParameters(plain as never, plain.map((input) => args[input.name as keyof typeof args]) as never),
+  };
+}
+
+/** The pinned MessageTransmitter's MessageSent log. */
+export function messageSentLog(message: Hex, transmitter: string = CCTP_MESSAGE_TRANSMITTER) {
+  return {
+    address: transmitter,
+    topics: encodeEventTopics({ abi: MESSAGE_TRANSMITTER_V2_ABI, eventName: "MessageSent" }) as string[],
+    data: encodeAbiParameters([{ type: "bytes" }], [message]),
+  };
 }

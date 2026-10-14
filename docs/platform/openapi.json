@@ -49,7 +49,7 @@
     },
     {
       "name": "Portfolio",
-      "description": "Balances of one CAIP-10 account."
+      "description": "Balances and venue positions of CAIP-10 accounts, one or up to 12 per request."
     },
     {
       "name": "Intents",
@@ -57,7 +57,7 @@
     },
     {
       "name": "Events",
-      "description": "Server-Sent Events per intent."
+      "description": "Server-Sent Events per intent, and the key's own event stream."
     },
     {
       "name": "Receipts",
@@ -446,6 +446,84 @@
         }
       }
     },
+    "/v1/portfolio": {
+      "get": {
+        "operationId": "listPortfolios",
+        "tags": [
+          "Portfolio"
+        ],
+        "summary": "Balances of several CAIP-10 accounts in one request",
+        "description": "At most 12 accounts (comma separated; duplicates removed, request order kept), read 4 at a time with 8 s per account and cached 15 s per account. An account that cannot be read is listed in `failures` and the request still answers 200. Costs one request of the tier limit plus one unit per account of a per-IP budget of 60 account reads per minute (429 RATE_LIMITED after).",
+        "parameters": [
+          {
+            "name": "accounts",
+            "in": "query",
+            "required": true,
+            "description": "Comma-separated CAIP-10 accounts; an invalid one is 400 INVALID_REQUEST with the issue path `accounts[i]`.",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096,
+              "examples": [
+                "eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D,solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+              ]
+            }
+          },
+          {
+            "name": "positions",
+            "in": "query",
+            "required": false,
+            "description": "Also read venue positions of each account.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolios and failures.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/portfolio/{accountId}": {
       "get": {
         "operationId": "getPortfolio",
@@ -453,6 +531,7 @@
           "Portfolio"
         ],
         "summary": "Balances for one CAIP-10 account",
+        "description": "Every holding carries `priceSource` and `pricedAt`; gas assets and listed tokens are priced through the same advisory prices as fee estimates. `positions=true` adds the account's lending, savings and vault positions.",
         "parameters": [
           {
             "name": "accountId",
@@ -460,6 +539,21 @@
             "required": true,
             "schema": {
               "$ref": "#/components/schemas/AccountId"
+            }
+          },
+          {
+            "name": "positions",
+            "in": "query",
+            "required": false,
+            "description": "Also read venue positions.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
             }
           }
         ],
@@ -547,6 +641,34 @@
                 "false",
                 "1",
                 "0"
+              ]
+            }
+          },
+          {
+            "name": "journey",
+            "in": "query",
+            "required": false,
+            "description": "Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
+          },
+          {
+            "name": "journeyReads",
+            "in": "query",
+            "required": false,
+            "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "live",
+                "none"
               ]
             }
           },
@@ -784,6 +906,21 @@
           },
           {
             "$ref": "#/components/parameters/StepId"
+          },
+          {
+            "name": "journey",
+            "in": "query",
+            "required": false,
+            "description": "Also return the journey at signing time, built on the prepare-stage preview.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -1131,6 +1268,253 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "streamKeyEvents",
+        "tags": [
+          "Events"
+        ],
+        "summary": "Server-Sent Events stream of the key's events (routed like its webhooks)",
+        "description": "Every event that would be delivered to the key's webhooks (intent, receipt, contract, link, Rule Book and key events), as `id`, `event` and `data` frames where `data` is the webhook envelope `{ id, type, at, data }`. `scope=subtree` adds the events of the key's descendant agent keys (and project-wide rule book events on project keys), like webhooks created with `scope: \"subtree\"`. Starts with `retry: 3000`; `Last-Event-ID` (or `?since=`) replays the matching events after that id from this instance's buffer (500 events, 10 minutes; an id no longer buffered replays the whole buffer, so de-duplicate by event id); without it the stream starts with live events. A heartbeat comment every 15 s re-checks the key (a revoked or expired key's stream ends); a stream lasts at most 30 minutes. At most 2 open streams per key (429 TOO_MANY_STREAMS).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "self",
+                "subtree"
+              ],
+              "default": "self"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated event types (default: every type).",
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "examples": [
+                "intent.status_changed,link.created"
+              ]
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event stream. Every `data` line is a KletiaEvent (see components.schemas.KletiaEvent).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "retry: 3000\n\nid: evt_0123456789abcdef0123456789abcdef\nevent: link.created\ndata: {\"id\":\"evt_0123456789abcdef0123456789abcdef\",\"type\":\"link.created\",\"at\":\"2026-10-14T12:00:00.000Z\",\"data\":{\"linkId\":\"lk_0123456789abcdef01234567\",\"ownerKeyId\":\"key_0123456789abcdef01234567\",\"revision\":1}}\n\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/journey": {
+      "get": {
+        "operationId": "getIntentJourney",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Where the money is after every step, and what follows",
+        "description": "The journey of a stored intent on its latest preview (recomputed when older than 60 s and the intent is not finished): stops with holdings, legs with refund paths, and consequences by severity with options. Results are cached for 15 s. At most 30 reads per intent per minute on top of the tier limit; `refresh=true` bypasses the cache at most once per 10 s per intent. Fetch it with the plan and when a step changes (intent events), not on a timer.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "description": "Read the facts again instead of serving the 15 s cache.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
+          },
+          {
+            "name": "reads",
+            "in": "query",
+            "required": false,
+            "description": "`none` skips every account read.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "live",
+                "none"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Journey.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/intents/{id}/stop": {
+      "post": {
+        "operationId": "stopIntent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "End an intent at its current stop",
+        "description": "Every step not started (or failed) is skipped; the money stays where the journey says (stopping never moves money). Nothing started: the intent is `cancelled`; otherwise `partially_completed` once a step settled. Idempotent. Refused with 409 INTENT_IN_FLIGHT (retryable, `Retry-After`) while a step is submitted, settling or under review, or holds a prepared payload that can still be signed (until it expires). Honours `Idempotency-Key` (with an API key).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stopped intent and its journey.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Idempotent-Replayed": {
+                "$ref": "#/components/headers/Idempotent-Replayed"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentStopResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -7653,7 +8037,7 @@
           "MCP"
         ],
         "summary": "Model Context Protocol server (Streamable HTTP)",
-        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
+        "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8344,7 +8728,7 @@
         }
       },
       "Conflict": {
-        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...).",
+        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8404,7 +8788,7 @@
         }
       },
       "Unprocessable": {
-        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
+        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8943,6 +9327,27 @@
             "maximum": 86400,
             "default": 600,
             "description": "Longest settlement estimate a cross-network step may take; slower venue quotes lose the bridge auction."
+          },
+          "gasOnArrival": {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 7,
+            "propertyNames": {
+              "enum": [
+                "base",
+                "arbitrum",
+                "ethereum",
+                "optimism",
+                "polygon",
+                "arc",
+                "arbitrum-sepolia"
+              ]
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2})?$"
+            },
+            "description": "Opt-in gas to deliver with the first cross-network leg arriving on each named EVM network, in USD (\"0.05\" to \"5.00\"), e.g. { \"base\": \"0.50\" }. Only venues that deliver gas with the fill can serve that leg (Relay today); otherwise 422 GAS_TOPUP_UNAVAILABLE."
           }
         }
       },
@@ -9305,6 +9710,17 @@
           },
           "call": {
             "$ref": "#/components/schemas/ContractStepCall"
+          },
+          "funding": {
+            "$ref": "#/components/schemas/StepFunding"
+          },
+          "gasTopup": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "Gas delivered with a cross-network fill (`constraints.gasOnArrival`, Relay); never bound on-chain, the step settles on its main output."
+          },
+          "observedCredit": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "Set on a failed leg when the destination credited less than the floor: that amount is in the recipient's wallet."
           }
         },
         "required": [
@@ -10260,6 +10676,30 @@
           "executable": {
             "type": "boolean",
             "description": "True when the engine has an execution adapter for this protocol."
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "console",
+              "service"
+            ],
+            "description": "Registry field: executed only by the Kletia console's tools (`console`) or a separate Kletia service (`service`); absent for the platform."
+          },
+          "surface": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "console",
+              "service"
+            ],
+            "description": "Where it executes: `platform` (Platform API v1 plans and executes it), `console` (only the Kletia console's network engines and tools), `service` (a separate Kletia service, such as x402 payments)."
+          },
+          "routedVia": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProtocolId"
+            },
+            "description": "Protocols every transaction of this one also uses (Raydium, Orca and Meteora run through the Jupiter program): `constraints.avoidProtocols` and Rule Book protocol rules apply to them too."
           }
         },
         "required": [
@@ -10270,7 +10710,9 @@
           "capabilities",
           "website",
           "summary",
-          "executable"
+          "executable",
+          "surface",
+          "routedVia"
         ]
       },
       "Asset": {
@@ -10627,13 +11069,35 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "description": "Advisory USD value; null when unpriced (never 0 for unknown)."
           },
           "verified": {
             "type": "boolean"
           },
           "isNative": {
             "type": "boolean"
+          },
+          "priceSource": {
+            "type": "string",
+            "enum": [
+              "usd-par",
+              "jupiter",
+              "chainlink",
+              "pyth",
+              "venue-rate",
+              "testnet",
+              "unpriced"
+            ],
+            "description": "Where `usd` comes from: `usd-par` (USD stablecoins), `jupiter`, `chainlink`, `pyth`; `unpriced` when no price is known, `testnet` for testnet assets (usd null)."
+          },
+          "pricedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Time of the price reading; null when unpriced."
           }
         },
         "required": [
@@ -10645,7 +11109,9 @@
           "formatted",
           "usd",
           "verified",
-          "isNative"
+          "isNative",
+          "priceSource",
+          "pricedAt"
         ]
       },
       "Portfolio": {
@@ -10664,7 +11130,8 @@
             }
           },
           "totalUsd": {
-            "type": "number"
+            "type": "number",
+            "description": "Sum of the priced holdings (positions not included)."
           },
           "unpricedCount": {
             "type": "integer",
@@ -10673,6 +11140,36 @@
           "observedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenuePosition"
+            },
+            "description": "With `positions=true`: lending, savings and vault positions of the account on its network."
+          },
+          "positionsUnavailable": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "venue": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "venue",
+                "code",
+                "message"
+              ]
+            },
+            "description": "With `positions=true`: venues whose position could not be read (unknown, never an empty position)."
           }
         },
         "required": [
@@ -10681,6 +11178,50 @@
           "holdings",
           "totalUsd",
           "unpricedCount",
+          "observedAt"
+        ]
+      },
+      "PortfolioList": {
+        "type": "object",
+        "properties": {
+          "portfolios": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Portfolio"
+            },
+            "description": "Successful reads in request order (duplicates removed)."
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "account": {
+                  "$ref": "#/components/schemas/AccountId"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "account",
+                "code",
+                "message"
+              ]
+            },
+            "description": "Accounts that could not be read; the request still answers 200."
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "portfolios",
+          "failures",
           "observedAt"
         ]
       },
@@ -20514,6 +21055,1132 @@
           "label"
         ]
       },
+      "StepFunding": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Step whose output this step spends (the `funds` edge)."
+          },
+          "portionBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Share of that output in basis points (10000 = all of it)."
+          },
+          "gasReserve": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "Gas-asset units kept back from what arrives for network fees there (the input is the gas asset and the account held too little)."
+          }
+        },
+        "required": [
+          "from",
+          "portionBps"
+        ]
+      },
+      "VenuePosition": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "type": "string",
+            "description": "Registry venue id (e.g. base:aave-v3:usdc)."
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolId"
+          },
+          "name": {
+            "type": "string",
+            "examples": [
+              "Aave V3 USDC"
+            ]
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "The position token held (aToken, vault shares, mToken, jlToken)."
+          },
+          "underlying": {
+            "$ref": "#/components/schemas/AssetAmount",
+            "description": "What it is worth in the underlying at `rate`."
+          },
+          "rate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+$",
+            "description": "Underlying per whole receipt, 18-decimal fixed point; null for 1:1 receipts."
+          },
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "apy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Supply APY as a fraction; null when unread."
+          },
+          "withdrawableNow": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetAmount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "venue",
+          "network",
+          "protocol",
+          "name",
+          "receipt",
+          "underlying",
+          "rate",
+          "usd",
+          "apy",
+          "withdrawableNow",
+          "observedAt"
+        ]
+      },
+      "AmountView": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/BaseUnits"
+          },
+          "formatted": {
+            "type": "string",
+            "description": "Display text without sign."
+          }
+        },
+        "required": [
+          "amount",
+          "formatted"
+        ]
+      },
+      "AssetIdentity": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native",
+              "issuer",
+              "wrapped",
+              "bridged",
+              "custodial",
+              "liquid-staking",
+              "receipt",
+              "listed",
+              "unlisted"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "examples": [
+              "Circle-issued USDC (CCTP domain 6)"
+            ]
+          },
+          "underlying": {
+            "$ref": "#/components/schemas/PreviewAssetRef",
+            "description": "Receipts and liquid-staking tokens: what they are a claim on."
+          }
+        },
+        "required": [
+          "kind",
+          "label"
+        ]
+      },
+      "JourneyValue": {
+        "type": "object",
+        "properties": {
+          "expectedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "atLeastUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "USD per whole token; null: unpriced (never shown as $0)."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "usd-par",
+              "jupiter",
+              "chainlink",
+              "pyth",
+              "venue-rate",
+              "testnet",
+              "unpriced"
+            ]
+          },
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "basis": {
+            "type": "string",
+            "description": "How a receipt or share was converted, e.g. \"1 steakUSDC = 1.0474 USDC (convertToAssets, 13:51 UTC)\"."
+          }
+        },
+        "required": [
+          "expectedUsd",
+          "atLeastUsd",
+          "price",
+          "source",
+          "at"
+        ]
+      },
+      "JourneyHolding": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/PreviewAssetRef"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/AssetIdentity"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/AmountView"
+          },
+          "atLeast": {
+            "$ref": "#/components/schemas/AmountView",
+            "description": "Bound in the user's disfavour (the smallest credit)."
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "simulated",
+              "simulated-assumed-funds",
+              "venue-minimum",
+              "quoted",
+              "estimated"
+            ],
+            "description": "`observed` (seen on-chain) plus the preview's certainty labels, strongest first."
+          },
+          "value": {
+            "$ref": "#/components/schemas/JourneyValue"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "spent-next",
+              "kept",
+              "gas",
+              "position",
+              "paid",
+              "refund"
+            ]
+          },
+          "next": {
+            "type": "object",
+            "properties": {
+              "legId": {
+                "type": "string"
+              },
+              "portionBps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "legId",
+              "portionBps"
+            ],
+            "description": "`spent-next`: the leg that spends it and its share."
+          }
+        },
+        "required": [
+          "asset",
+          "identity",
+          "expected",
+          "atLeast",
+          "certainty",
+          "value",
+          "role"
+        ]
+      },
+      "JourneyStop": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`start:<stepId>`, `transit:<stepId>` or `out:<stepId>`; stable across polls."
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "start",
+              "transit",
+              "arrival",
+              "end"
+            ]
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "holder": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AccountId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "own": {
+                "type": "boolean"
+              },
+              "label": {
+                "type": "string",
+                "examples": [
+                  "Your wallet",
+                  "Relay (in transit)"
+                ]
+              }
+            },
+            "required": [
+              "account",
+              "own",
+              "label"
+            ]
+          },
+          "custody": {
+            "type": "string",
+            "enum": [
+              "wallet",
+              "venue",
+              "provider",
+              "refund-due",
+              "third-party",
+              "unknown"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "current",
+              "passed",
+              "skipped",
+              "failed"
+            ]
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JourneyHolding"
+            }
+          },
+          "eta": {
+            "type": "object",
+            "properties": {
+              "afterFirstSignatureSeconds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "remainingSeconds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "certainty": {
+                "type": "string",
+                "enum": [
+                  "quoted",
+                  "estimated",
+                  "observed"
+                ]
+              }
+            },
+            "required": [
+              "afterFirstSignatureSeconds",
+              "certainty"
+            ]
+          },
+          "reachedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "reference": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "reference"
+            ]
+          },
+          "venue": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "protocol": {
+                "$ref": "#/components/schemas/ProtocolId"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "protocol"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "index",
+          "kind",
+          "network",
+          "holder",
+          "custody",
+          "state",
+          "holdings"
+        ]
+      },
+      "JourneyRefund": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "after-deadline",
+              "after-cancel",
+              "none"
+            ]
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "to": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PreviewAssetRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upTo": {
+            "$ref": "#/components/schemas/AmountView"
+          },
+          "label": {
+            "type": "string",
+            "examples": [
+              "If Relay cannot fill, it refunds up to 100 USDC to your Solana wallet, minus the refund's gas."
+            ]
+          },
+          "needs": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "account": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AccountId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "asset": {
+                "$ref": "#/components/schemas/PreviewAssetRef"
+              },
+              "why": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "network",
+              "account",
+              "asset",
+              "why"
+            ]
+          },
+          "typicalDelay": {
+            "type": "string",
+            "enum": [
+              "minutes",
+              "hours",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "network",
+          "to",
+          "asset",
+          "label",
+          "typicalDelay"
+        ]
+      },
+      "JourneyLeg": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The step id."
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "from": {
+            "type": "string"
+          },
+          "via": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IntentActionKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "destinationNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "venue": {
+            "type": "object",
+            "properties": {
+              "protocol": {
+                "$ref": "#/components/schemas/ProtocolId"
+              },
+              "name": {
+                "type": "string"
+              },
+              "venueId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "protocol",
+              "name"
+            ]
+          },
+          "signer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signatures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/StepStatus"
+          },
+          "failure": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "refund": {
+            "$ref": "#/components/schemas/JourneyRefund"
+          },
+          "gasTopup": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "$ref": "#/components/schemas/PreviewAssetRef"
+              },
+              "amount": {
+                "$ref": "#/components/schemas/AmountView"
+              },
+              "usd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "asset",
+              "amount",
+              "usd"
+            ]
+          },
+          "tracking": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "label"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "index",
+          "from",
+          "to",
+          "kind",
+          "title",
+          "network",
+          "destinationNetwork",
+          "venue",
+          "signer",
+          "signatures",
+          "seconds",
+          "status"
+        ]
+      },
+      "JourneyActionReplan": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "replan"
+          },
+          "request": {
+            "$ref": "#/components/schemas/IntentRequest"
+          }
+        },
+        "required": [
+          "type",
+          "request"
+        ],
+        "description": "Plan this request as a new intent: show its fare and journey, then the user signs."
+      },
+      "JourneyActionPlanNew": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "plan-new"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ],
+        "description": "A separate new intent, as a sentence."
+      },
+      "JourneyActionRetry": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "retry"
+          },
+          "legId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "legId"
+        ],
+        "description": "Prepare the failed leg again."
+      },
+      "JourneyActionStop": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "stop"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "description": "POST /v1/intents/{id}/stop."
+      },
+      "JourneyActionAcknowledge": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "acknowledge"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "description": "The user takes care of it (remembered client-side)."
+      },
+      "JourneyActionLink": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "link"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          }
+        },
+        "required": [
+          "type",
+          "url"
+        ],
+        "description": "A provider status page or an explorer."
+      },
+      "JourneyOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "One of gas-topup, gas-leg, bring-gas, retry, replan-same-venue, replan-any-venue, end-here, bring-back, track, ok, or `deposit:<venue id>`.",
+            "pattern": "^(?:gas-topup|gas-leg|bring-gas|retry|replan-same-venue|replan-any-venue|end-here|bring-back|track|ok|deposit:[a-z0-9:.-]+)$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string",
+            "description": "What happens, with costs."
+          },
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "recommended": {
+            "type": "boolean"
+          },
+          "action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JourneyActionReplan"
+              },
+              {
+                "$ref": "#/components/schemas/JourneyActionPlanNew"
+              },
+              {
+                "$ref": "#/components/schemas/JourneyActionRetry"
+              },
+              {
+                "$ref": "#/components/schemas/JourneyActionStop"
+              },
+              {
+                "$ref": "#/components/schemas/JourneyActionAcknowledge"
+              },
+              {
+                "$ref": "#/components/schemas/JourneyActionLink"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "replan": "#/components/schemas/JourneyActionReplan",
+                "plan-new": "#/components/schemas/JourneyActionPlanNew",
+                "retry": "#/components/schemas/JourneyActionRetry",
+                "stop": "#/components/schemas/JourneyActionStop",
+                "acknowledge": "#/components/schemas/JourneyActionAcknowledge",
+                "link": "#/components/schemas/JourneyActionLink"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "effect",
+          "costUsd",
+          "recommended",
+          "action"
+        ]
+      },
+      "JourneyConsequence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`<kind>:<stopId>[:<qualifier>]`; stable across polls, so answers are remembered by id."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "gas-to-continue",
+              "gas-to-leave",
+              "asset-identity",
+              "price-exposure",
+              "venue-capacity",
+              "rule-book",
+              "if-stopped",
+              "refund-path",
+              "allowance-left",
+              "time-window",
+              "idle-funds",
+              "exit-path"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "block",
+              "act",
+              "warn",
+              "info"
+            ],
+            "description": "`block`: a later leg cannot be signed or will be refused (answer it before the next signature); `act`: an action now avoids a likely problem; `warn`: a risk worth knowing; `info`: facts about the route."
+          },
+          "stopId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "legIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "simulated",
+              "simulated-assumed-funds",
+              "venue-minimum",
+              "quoted",
+              "estimated"
+            ],
+            "description": "`observed` (seen on-chain) plus the preview's certainty labels, strongest first."
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Numbers used (need, have, headroom, …): base units or decimal USD strings."
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the facts come from, e.g. \"Base RPC read at 13:51:04 UTC\"."
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JourneyOption"
+            }
+          },
+          "prompt": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "defaultOptionId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "question",
+              "defaultOptionId"
+            ],
+            "description": "On `block`, and on `act` with a recommended option: the one question to ask."
+          },
+          "collapsed": {
+            "type": "boolean",
+            "description": "Folded under \"More about this route\" by default."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "stopId",
+          "legIds",
+          "title",
+          "detail",
+          "certainty",
+          "facts",
+          "source",
+          "options",
+          "collapsed"
+        ]
+      },
+      "Journey": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "string",
+            "const": "kletia.journey/v1"
+          },
+          "intentId": {
+            "$ref": "#/components/schemas/IntentId"
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "live",
+              "final"
+            ],
+            "description": "`plan` while nothing was submitted, `final` once the intent is terminal, else `live`."
+          },
+          "basis": {
+            "type": "object",
+            "properties": {
+              "intentUpdatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "previewDigest": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PreviewDigest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reads": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "cached",
+                  "none"
+                ]
+              },
+              "factsAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "intentUpdatedAt",
+              "previewDigest",
+              "reads",
+              "factsAt"
+            ]
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JourneyStop"
+            }
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JourneyLeg"
+            }
+          },
+          "now": {
+            "type": "object",
+            "properties": {
+              "stopIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "legId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waitingFor": {
+                "type": "string",
+                "enum": [
+                  "signature",
+                  "settlement",
+                  "decision",
+                  "nothing"
+                ]
+              }
+            },
+            "required": [
+              "stopIds",
+              "legId",
+              "waitingFor"
+            ],
+            "description": "Where the money is now and what the journey waits for."
+          },
+          "consequences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JourneyConsequence"
+            }
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of `block` consequences the user must answer before the next signature."
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "description": "`sha256:` over stops, amounts and consequence ids and severities (no USD, no times)."
+          }
+        },
+        "required": [
+          "spec",
+          "intentId",
+          "computedAt",
+          "stage",
+          "basis",
+          "stops",
+          "legs",
+          "now",
+          "consequences",
+          "blockers",
+          "digest"
+        ],
+        "description": "Where the money is after every step, and what follows (kletia.journey/v1). See docs/platform/journey.md."
+      },
+      "JourneyResponse": {
+        "type": "object",
+        "properties": {
+          "journey": {
+            "$ref": "#/components/schemas/Journey"
+          }
+        },
+        "required": [
+          "journey"
+        ]
+      },
+      "IntentStopResponse": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/IntentGraph"
+          },
+          "journey": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Journey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The journey after the stop; null when it could not be built."
+          }
+        },
+        "required": [
+          "intent",
+          "journey"
+        ]
+      },
       "IntentResponse": {
         "type": "object",
         "properties": {
@@ -20533,7 +22200,18 @@
           },
           "preview": {
             "$ref": "#/components/schemas/IntentPreview",
-            "description": "With `preview=true`: the plan-stage asset-change preview (stage `plan`)."
+            "description": "With `preview=true` or `journey=true`: the plan-stage asset-change preview (stage `plan`)."
+          },
+          "journey": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Journey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `journey=true`: the journey built on `preview` (`journey.basis.previewDigest` equals `preview.digest`); null when it could not be built."
           }
         },
         "required": [
@@ -20574,6 +22252,17 @@
               "unknown"
             ],
             "description": "Present when `acknowledgedPreview` was sent (also in the response header)."
+          },
+          "journey": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Journey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `journey=true`: the journey at signing time, built on `preview`; null when it could not be built."
           }
         },
         "required": [

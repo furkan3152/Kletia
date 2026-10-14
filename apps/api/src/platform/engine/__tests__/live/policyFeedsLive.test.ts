@@ -4,8 +4,9 @@
  * fresh round; the L2 sequencer uptime feeds report up past their grace
  * period; the liquid staking prices derive from their feeds; Jupiter prices
  * every registry Solana mint with its liquidity floor; the Pyth push feeds
- * liquidity floor; every mainnet registry asset with a venue route gets a
- * conservative price.
+ * (shard-0 PDAs, receiver-owned, Full, feed id, fresh, tight confidence)
+ * count; every mainnet registry asset with a venue route gets a conservative
+ * price.
  *
  *   KLETIA_LIVE=1 node --import tsx --test src/platform/engine/__tests__/live/policyFeedsLive.test.ts
  *
@@ -16,8 +17,20 @@ import { describe, it } from "node:test";
 import { decodeFunctionResult, encodeFunctionData, parseAbi } from "viem";
 import { ASSETS, CHAINS } from "@kletia/core";
 import { rawEthCall } from "../../chains/evm.js";
-import { CHAINLINK_FEEDS, CHAINLINK_GRACE_SECONDS, DERIVED_FEEDS, JUPITER_MINTS, SEQUENCER_GRACE_SECONDS, SEQUENCER_UPTIME_FEEDS, WSTETH_ETHEREUM } from "../../policy/feeds.js";
-import { configurePolicyPricing, policyPrice, quoteUsdNumber, readPriceSource } from "../../policy/pricing.js";
+import { readSolanaAccounts } from "../../chains/solana.js";
+import {
+  CHAINLINK_FEEDS,
+  CHAINLINK_GRACE_SECONDS,
+  DERIVED_FEEDS,
+  JUPITER_MINTS,
+  PYTH_FEEDS,
+  PYTH_MAX_AGE_SECONDS,
+  PYTH_RECEIVER,
+  SEQUENCER_GRACE_SECONDS,
+  SEQUENCER_UPTIME_FEEDS,
+  WSTETH_ETHEREUM,
+} from "../../policy/feeds.js";
+import { configurePolicyPricing, decodePythPriceUpdate, policyPrice, pythFeedAccount, quoteUsdNumber, readPriceSource } from "../../policy/pricing.js";
 
 const LIVE = process.env.KLETIA_LIVE === "1";
 const ABI = parseAbi([
@@ -101,6 +114,27 @@ describe("policy price feeds (live)", { skip: !LIVE }, () => {
       const reading = await readPriceSource({ kind: "jupiter", mint });
       rows.push(`${name.padEnd(8)} ${mint} ${reading ? (Number(reading.usd18 / 10n ** 12n) / 1e6).toPrecision(8) : "unpriced"}`);
       assert.ok(reading, `${name} (${mint}) is priced with liquidity and a recent slot`);
+    }
+    console.log(rows.join("\n"));
+  });
+
+  it("reads every Pyth push feed: shard-0 PDA, receiver owner, Full verification, feed id, fresh, and counted by the oracle", async () => {
+    configurePolicyPricing(null);
+    const rows: string[] = [];
+    for (const [name, feed] of Object.entries(PYTH_FEEDS)) {
+      assert.equal(await pythFeedAccount(feed.feedId), feed.account, `${name} account is the PDA of its feed id`);
+      const [state] = await readSolanaAccounts("solana", [feed.account]);
+      assert.ok(state, `${name} exists`);
+      assert.equal(state.owner, PYTH_RECEIVER, `${name} is owned by the receiver`);
+      const update = decodePythPriceUpdate(state.data);
+      assert.ok(update, `${name} decodes`);
+      const age = Math.floor(Date.now() / 1000) - update.publishTime;
+      rows.push(`${feed.description.padEnd(12)} ${feed.account} ${update.verification} price=${(Number(update.price) * 10 ** update.exponent).toPrecision(8)} conf=${(Number(update.conf) / Number(update.price) * 100).toFixed(3)}% age=${age}s`);
+      assert.equal(update.verification, "full", name);
+      assert.equal(update.feedId, feed.feedId, name);
+      assert.ok(age <= PYTH_MAX_AGE_SECONDS, `${name} is fresh (${age}s)`);
+      const reading = await readPriceSource(feed);
+      assert.equal(reading?.source, "pyth", `${name} is a fresh oracle reading`);
     }
     console.log(rows.join("\n"));
   });

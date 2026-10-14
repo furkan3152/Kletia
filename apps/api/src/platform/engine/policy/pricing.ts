@@ -14,17 +14,25 @@
  * - Jupiter Price v3: `usdPrice > 0`, `liquidity ≥ 100,000` and
  *   `currentSlot - blockId ≤ 900`. Without a readable current slot Jupiter
  *   readings are not fresh (freshness cannot be shown).
+ * - Pyth push feeds (Solana): the account must be the shard-0 PDA of the feed
+ *   id under the push oracle and owned by the receiver, the update
+ *   `PriceUpdateV2` with Full verification and the expected feed id,
+ *   `price > 0`, `publish_time` within 60 s of now and `conf / price ≤ 2 %`;
+ *   anything else ignores the source.
  * - The price is the **maximum** of fresh sources (a wrong price can only
  *   tighten), USD stablecoins are floored at $1.00, testnet assets are $0,
  *   and sources that disagree by more than 25 % add a warning.
  * - Every source read has a 2 s deadline; readings are cached 30 s
  *   (failures 5 s). Amounts are converted to integer micro-dollars, rounded up.
  */
+import { createHash } from "node:crypto";
 import { CHAINS, parseAssetId, type AssetId, type AssetRef, type NetworkKey } from "@kletia/core";
+import { address, getAddressDecoder, getProgramDerivedAddress } from "@solana/kit";
 import { decodeFunctionResult, encodeFunctionData, parseAbi, type Hex } from "viem";
 import { JUPITER_API_KEY, JUPITER_API_URL, solanaRpc } from "../../../networks/solana/index.js";
 import { assetFromRef, isUsdStablecoin } from "../assets.js";
 import { rawEthCall, type EvmNetworkKey } from "../chains/evm.js";
+import { readSolanaAccounts } from "../chains/solana.js";
 import { fetchProviderJson } from "../http.js";
 import { isRecord } from "../util.js";
 import {
@@ -33,12 +41,17 @@ import {
   JUPITER_MIN_LIQUIDITY_USD,
   listedAsset,
   priceSourcesFor,
+  PYTH_MAX_AGE_SECONDS,
+  PYTH_MAX_CONFIDENCE_BPS,
+  PYTH_PUSH_ORACLE,
+  PYTH_RECEIVER,
   SEQUENCER_GRACE_SECONDS,
   SEQUENCER_UPTIME_FEEDS,
   type ChainlinkFeed,
   type DerivedFeed,
   type JupiterFeed,
   type PriceSource,
+  type PythFeed,
   type SequencerFeed,
 } from "./feeds.js";
 
@@ -53,12 +66,12 @@ const SLOT_TTL_MS = 10_000;
 const DISAGREEMENT_RATIO_BPS = 12_500n;
 
 export interface PriceReading {
-  readonly source: "chainlink" | "jupiter" | "derived";
-  /** Proxy address, mint or derived feed id. */
+  readonly source: "chainlink" | "jupiter" | "derived" | "pyth";
+  /** Proxy address, mint, derived feed id or Pyth push-feed account. */
   readonly id: string;
   /** USD per whole token × 10^18. */
   readonly usd18: bigint;
-  /** Unix seconds of the reading (Chainlink `updatedAt`; derived: the oldest factor's; Jupiter: read time). */
+  /** Unix seconds of the reading (Chainlink `updatedAt`; derived: the oldest factor's; Jupiter: read time; Pyth: `publish_time`). */
   readonly observedAt: number;
 }
 
@@ -84,6 +97,8 @@ export interface PolicyPricingTransport {
   jupiterPrices(mints: readonly string[]): Promise<unknown>;
   /** Current Solana mainnet slot. */
   solanaSlot(): Promise<bigint>;
+  /** A Solana mainnet account (owner and data), null when it does not exist. */
+  solanaAccount(address: string): Promise<{ readonly owner: string; readonly data: Uint8Array } | null>;
   /** Unix ms. */
   now(): number;
 }
@@ -97,7 +112,13 @@ const defaultTransport: PolicyPricingTransport = {
       ...(JUPITER_API_KEY ? { headers: { "x-api-key": JUPITER_API_KEY } } : {}),
     }),
   solanaSlot: async () => BigInt(await solanaRpc("solana").getSlot({ commitment: "confirmed" }).send({ abortSignal: AbortSignal.timeout(SOURCE_TIMEOUT_MS) })),
+  solanaAccount: async (account) => (await readSolanaAccounts("solana", [account]))[0] ?? null,
   now: () => Date.now(),
+};
+
+/** Partial seams without `solanaAccount` read no Pyth account (those sources stay unavailable, never live). */
+const noSolanaAccount: PolicyPricingTransport["solanaAccount"] = async () => {
+  throw new Error("Solana accounts are not configured");
 };
 
 let transport: PolicyPricingTransport = defaultTransport;
@@ -116,7 +137,7 @@ let slotInflight: Promise<bigint | null> | null = null;
 
 /** Replaces read seams (partial); null restores the live transport. Clears every cache. */
 export function configurePolicyPricing(next: Partial<PolicyPricingTransport> | null): void {
-  transport = next ? { ...defaultTransport, ...next } : defaultTransport;
+  transport = next ? { ...defaultTransport, solanaAccount: noSolanaAccount, ...next } : defaultTransport;
   resetPolicyPricing();
 }
 
@@ -263,6 +284,72 @@ async function readJupiter(feed: JupiterFeed): Promise<PriceReading | null> {
   return { source: "jupiter", id: feed.mint, usd18, observedAt: Math.floor(transport.now() / 1000) };
 }
 
+/** Anchor discriminator of the receiver's `PriceUpdateV2` account. */
+const PRICE_UPDATE_DISCRIMINATOR = createHash("sha256").update("account:PriceUpdateV2").digest("hex").slice(0, 16);
+const addressDecoder = getAddressDecoder();
+
+export interface PythPriceUpdate {
+  readonly writeAuthority: string;
+  /** Full: every Wormhole guardian signature was verified; Partial carries the number checked. */
+  readonly verification: "full" | "partial";
+  /** Lower-case hex. */
+  readonly feedId: string;
+  readonly price: bigint;
+  readonly conf: bigint;
+  readonly exponent: number;
+  /** Unix seconds. */
+  readonly publishTime: number;
+}
+
+/**
+ * Decodes a Pyth receiver `PriceUpdateV2` account: discriminator (8),
+ * write_authority (32), verification_level (enum: 0 Partial { u8 }, 1 Full),
+ * then the price message: feed_id (32), price i64, conf u64, exponent i32,
+ * publish_time i64, prev_publish_time i64, ema_price i64, ema_conf u64, and
+ * posted_slot u64. Null when the bytes are not such an account.
+ */
+export function decodePythPriceUpdate(data: Uint8Array): PythPriceUpdate | null {
+  if (data.length < 133 || Buffer.from(data.subarray(0, 8)).toString("hex") !== PRICE_UPDATE_DISCRIMINATOR) return null;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const level = data[40];
+  if (level !== 0 && level !== 1) return null;
+  let offset = level === 0 ? 42 : 41;
+  if (data.length < offset + 92) return null;
+  const feedId = Buffer.from(data.subarray(offset, offset + 32)).toString("hex");
+  offset += 32;
+  const price = view.getBigInt64(offset, true);
+  const conf = view.getBigUint64(offset + 8, true);
+  const exponent = view.getInt32(offset + 16, true);
+  const publishTime = Number(view.getBigInt64(offset + 20, true));
+  const writeAuthority = String(addressDecoder.decode(data.subarray(8, 40)));
+  return { writeAuthority, verification: level === 1 ? "full" : "partial", feedId, price, conf, exponent, publishTime };
+}
+
+const pythAccounts = new Map<string, Promise<string>>();
+
+/** The shard-0 push-feed account of a feed id: PDA([0u16 LE, feed_id], push oracle). */
+export function pythFeedAccount(feedId: string): Promise<string> {
+  let pending = pythAccounts.get(feedId);
+  if (!pending) {
+    pending = getProgramDerivedAddress({ programAddress: address(PYTH_PUSH_ORACLE), seeds: [new Uint8Array(2), Buffer.from(feedId, "hex")] }).then(([pda]) => String(pda));
+    pythAccounts.set(feedId, pending);
+  }
+  return pending;
+}
+
+async function readPyth(feed: PythFeed): Promise<PriceReading | null> {
+  if (!/^[0-9a-f]{64}$/u.test(feed.feedId) || (await pythFeedAccount(feed.feedId)) !== feed.account) return null;
+  const state = await withDeadline(transport.solanaAccount(feed.account));
+  if (!state || state.owner !== PYTH_RECEIVER) return null;
+  const update = decodePythPriceUpdate(state.data);
+  if (!update || update.verification !== "full" || update.feedId !== feed.feedId) return null;
+  if (update.price <= 0n || update.exponent > 0 || update.exponent < -PRICE_SCALE) return null;
+  if (update.conf * 10_000n > update.price * BigInt(PYTH_MAX_CONFIDENCE_BPS)) return null;
+  const nowSeconds = Math.floor(transport.now() / 1000);
+  if (Math.abs(nowSeconds - update.publishTime) > PYTH_MAX_AGE_SECONDS) return null;
+  return { source: "pyth", id: feed.account, usd18: toUsd18(update.price, -update.exponent), observedAt: update.publishTime };
+}
+
 /**
  * Product of fresh factor readings (each at 18 decimals) and the optional
  * on-chain rate; null when any factor is stale or the rate is out of bounds.
@@ -287,6 +374,7 @@ async function readDerived(feed: DerivedFeed): Promise<PriceReading | null> {
 
 function sourceKey(source: PriceSource): string {
   if (source.kind === "chainlink") return `cl:${source.network}:${source.address.toLowerCase()}`;
+  if (source.kind === "pyth") return `pyth:${source.account}`;
   return source.kind === "derived" ? source.id : `jup:${source.mint}`;
 }
 
@@ -298,7 +386,10 @@ export async function readPriceSource(source: PriceSource): Promise<PriceReading
   if (cached && cached.expiresAt > now) return cached.value;
   const pending = inflight.get(key);
   if (pending) return pending;
-  const request = (source.kind === "chainlink" ? readChainlink(source) : source.kind === "derived" ? readDerived(source) : readJupiter(source))
+  const request = (source.kind === "chainlink" ? readChainlink(source)
+    : source.kind === "derived" ? readDerived(source)
+      : source.kind === "pyth" ? readPyth(source)
+        : readJupiter(source))
     .catch(() => null)
     .then((value) => {
       readings.set(key, { value, expiresAt: transport.now() + (value === null ? FAILURE_TTL_MS : CACHE_TTL_MS) });

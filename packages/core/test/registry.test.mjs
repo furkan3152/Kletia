@@ -295,6 +295,25 @@ test("venue contracts: unique labels keyed by Jupiter label; Solana DEX programs
   assert.deepEqual(venueContracts("pyth", "solana", "receiver"), ["rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"]);
 });
 
+test("Solana DEX labels: every label's program is the one Jupiter's program-id-to-label maps to it", () => {
+  // GET https://lite-api.jup.ag/swap/v1/program-id-to-label (protocols evidence jupiter-dex-labels.json, 2026-10-14).
+  const jupiter = {
+    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8": "Raydium",
+    CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK: "Raydium CLMM",
+    CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C: "Raydium CP",
+    whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc: "Whirlpool",
+    LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo: "Meteora DLMM",
+    cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG: "Meteora DAMM v2",
+  };
+  const labelled = VENUE_CONTRACTS.filter((entry) => entry.label !== undefined);
+  assert.equal(labelled.length, Object.keys(jupiter).length);
+  for (const entry of labelled) {
+    assert.equal(jupiter[entry.address], entry.label, entry.address);
+    assert.deepEqual([entry.network, entry.role], ["solana", "program"], entry.label);
+    assert.deepEqual(getProtocol(entry.protocol).routedVia, ["jupiter"], entry.label);
+  }
+});
+
 test("yield venues: new kinds after Morpho; sUSDC is Ethereum's default USDC savings venue", () => {
   const order = YIELD_VENUES.map((venue) => venue.protocol);
   const lastMorpho = order.lastIndexOf("morpho");

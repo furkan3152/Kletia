@@ -138,19 +138,22 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 |---|---|---|---|
 | GET | `/v1/health` | public | API and per-network RPC health |
 | GET | `/v1/networks` | public | Chain registry plus per-network capabilities |
-| GET | `/v1/protocols` | public | Protocol registry |
+| GET | `/v1/protocols` | public | Protocol registry, with each protocol's execution `surface` and `routedVia` ([protocols](#protocols)) |
 | GET | `/v1/assets?network=` | public | Canonical asset registry |
 | GET | `/v1/venues?network=&protocol=` | public | EVM lending venues with supply APY, size and exit liquidity (advisory, cached 60 s) |
 | POST | `/v1/quotes` | public | Best routes for one asset movement (same- or cross-network) |
-| GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account |
-| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md)) |
+| GET | `/v1/portfolio?accounts=` | public | Balances of up to 12 CAIP-10 accounts in one request (`?positions=true`; [portfolios](#portfolios)) |
+| GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account, priced with `priceSource` (`?positions=true` adds venue positions) |
+| POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md), `?journey=true` for the [journey](journey.md)) |
 | GET | `/v1/intents` | key | List intents created with the caller's key |
 | GET | `/v1/intents/{id}` | public | Read an intent |
-| POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`) |
+| POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`; `?journey=true` adds the journey at signing time) |
 | POST | `/v1/intents/{id}/steps/{stepId}/submit` | public | Submit transaction hashes / signatures for verification |
 | POST | `/v1/intents/{id}/refresh` | public | Re-read settlement state now |
 | POST | `/v1/intents/{id}/cancel` | public | Cancel an intent with no submitted steps |
 | GET | `/v1/intents/{id}/events` | public | Server-Sent Events stream of intent events |
+| GET | `/v1/intents/{id}/journey` | public | Where the money is after every step and what follows ([journey.md](journey.md)); 30 per minute per intent |
+| POST | `/v1/intents/{id}/stop` | public | End the intent at its current stop (skips what has not started; `409 INTENT_IN_FLIGHT` while a step is moving) |
 | POST | `/v1/intents/{id}/preview` | public | Recompute the [asset-change preview](preview.md) (`?quotes=refresh` re-quotes ready steps); 6 per minute per intent |
 | GET | `/v1/intents/{id}/preview` | public | The last preview computed for the intent (30 minutes) |
 | GET | `/v1/intents/{id}/receipt` | public | The intent's latest [receipt](receipts.md) with every disclosure (`?sequence=`); `202` with `Retry-After` while finality is pending |
@@ -172,6 +175,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | DELETE | `/v1/webhooks/{id}` | key | Delete a webhook and its delivery log |
 | POST | `/v1/webhooks/{id}/test` | key | Send a signed `webhook.test` event now |
 | GET | `/v1/webhooks/{id}/deliveries` | key | Delivery log (`?limit=1..100`) |
+| GET | `/v1/events` | key | Server-Sent Events stream of the key's events, routed like its webhooks (`?scope=self` or `subtree`, `?types=`) |
 | POST | `/v1/keys` | public | Issue a developer key (with a developer key: a sibling in the same project) |
 | GET | `/v1/keys` | key | List the keys of the caller's project |
 | POST | `/v1/keys/{id}/rotate` | key | New secret for a key, same id, with a grace window |
@@ -351,6 +355,98 @@ key may use; text plans with the key's aliases too ("deposit 100 USDC into
 acme vault"). Such steps carry `step.call` (the registration snapshot and its
 `review`). See [Custom contracts](#custom-contracts).
 
+#### The journey: `?journey=true`
+
+`POST /v1/intents?journey=true` (dry runs too) answers `{ intent, preview,
+journey }`: the journey implies the plan-stage preview and is built on it
+(`journey.basis.previewDigest` equals `preview.digest`). It says where the
+money is after every step, who holds it, how much arrives at least, the
+refund path of each bridge, and consequences by severity (`block`, `act`,
+`warn`, `info`) with options such as adding gas on arrival. A `block` must be
+answered before the next signature. `journeyReads=none` skips account reads
+(demo or placeholder accounts). A journey that cannot be built is `null`,
+never a failed create. Full reference: [journey.md](journey.md).
+
+| Route | Change |
+|---|---|
+| `POST /v1/intents?journey=true` | `{ intent, preview, journey }`; `journeyReads=live` (default) or `none` |
+| `POST …/steps/{stepId}/prepare?journey=true` | adds `journey`, built on the prepare-stage preview |
+| `GET /v1/intents/{id}/journey` | `{ journey }`; 30 per intent per minute (on top of the tier), `refresh=true` once per 10 s per intent, `reads=none`; 404 `INTENT_NOT_FOUND` |
+| `POST /v1/intents/{id}/stop` | `{ intent, journey }`; `409 INTENT_IN_FLIGHT` (retryable, `Retry-After`); idempotent, honours `Idempotency-Key` |
+
+There is no `?journey` flag on `GET /v1/intents/{id}` or `POST …/preview`:
+fetch the journey with the plan and when a step changes (events or
+webhooks), not on a timer.
+
+`IntentStep` carries three optional journey fields: `funding` (`{ from,
+portionBps, gasReserve? }`: which step's output it spends, the share, and gas
+kept back for fees), `gasTopup` (gas delivered with a cross-network fill
+when the request asked for it) and `observedCredit` (on a failed leg, what
+the destination credited below the floor: that amount is in the recipient's
+wallet). `IntentConstraints.gasOnArrival` (`{ "base": "0.50" }`, USD "0.05"
+to "5.00" per EVM network) opts into gas delivered with the first leg
+arriving there; a route no venue can serve that way is `422
+GAS_TOPUP_UNAVAILABLE`.
+
+#### Ending an intent: `POST /v1/intents/{id}/stop`
+
+Stopping skips every step not started (and failed ones); the money stays
+where the journey says and nothing moves. Nothing started: `cancelled` (as
+with `POST …/cancel`). A step settled: `partially_completed`, the skipped
+steps carry a note, and the receipt is issued as usual. While a step is
+`submitted`, `confirmed`, `settling` or `indeterminate`, or holds a prepared
+payload that can still be signed, the stop answers `409 INTENT_IN_FLIGHT`
+with `Retry-After` (the payload's remaining seconds, else 30). Repeating a
+stop returns the same intent.
+
+### Portfolios
+
+`GET /v1/portfolio/{accountId}` reads one CAIP-10 account: the gas asset and
+every canonical asset of its network (EVM balances in one Multicall3 read
+where deployed). Every holding carries `priceSource` (`usd-par` for USD
+stablecoins, `jupiter`, `chainlink` or `pyth`; `unpriced` when no price is
+known, `testnet` for testnet assets) and `pricedAt`; gas assets are priced
+with the same advisory prices as fee estimates, and an unknown price is
+`usd: null`, never 0. `?positions=true` adds `positions` (lending, savings
+and vault positions valued in the underlying: Aave and SparkLend aTokens,
+Compound V3, ERC-4626 shares, Moonwell, Jupiter Lend) and
+`positionsUnavailable` (venues that could not be read).
+
+`GET /v1/portfolio?accounts=<a>,<b>,…` reads up to 12 accounts in one
+request:
+
+```
+GET /v1/portfolio?accounts=eip155:8453:0xd8dA…6045,solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzD…AWWM
+200 { "portfolios": [Portfolio, …], "failures": [{ "account", "code", "message" }], "observedAt": "…" }
+```
+
+- Request order is kept and duplicates are removed (EVM addresses ignoring
+  case); a missing list, more than 12 accounts or an invalid id is `400
+  INVALID_REQUEST` (issue path `accounts[i]`).
+- Accounts are read 4 at a time with 8 s each; an account that cannot be read
+  is a `failures` entry and the request still answers 200. Each account is
+  cached for 15 s.
+- A request costs one request of the tier limit plus one unit per account of
+  a per-IP budget of 60 account reads per minute (`429 RATE_LIMITED` with
+  `Retry-After` after that).
+
+A live request for the six production accounts of one public address
+(Ethereum, Base, Arbitrum One, OP Mainnet, Polygon PoS, Solana) answered six
+portfolios in 1.5 s with every gas asset priced.
+
+### Protocols
+
+`GET /v1/protocols` lists the registry with `executable` (an execution
+adapter is live), `surface` and `routedVia`:
+
+| Field | Values |
+|---|---|
+| `surface` | `platform`: Platform API v1 plans and executes it (and the SDK, widget, embed and CLI); `console`: only the Kletia console's network engines and tools (Kletia Intent Router V2, Basenames, Arc native, Circle App Kit); `service`: a separate Kletia service (x402 payments). |
+| `routedVia` | Protocols every transaction also uses: Raydium, Orca and Meteora run through the Jupiter program (`["jupiter"]`); `[]` otherwise. `constraints.avoidProtocols` and Rule Book protocol rules apply to these dependencies too. |
+
+`GET /v1/networks` lists, per network, the actions the engine can execute;
+with the built-in adapters every production network lists `swap`.
+
 ### `POST /v1/quotes`
 
 ```json
@@ -490,6 +586,27 @@ the project-wide Rule Book events. Agent keys need `permissions.webhooks` to
 create, delete or test webhooks.
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
+
+#### The key's event stream: `GET /v1/events`
+
+`GET /v1/events` (API key) streams every event the key's webhooks would
+receive, routed by the same rules: intent and receipt events of the key's
+intents, its contract registration and link events, and its Rule Book and
+key events. Each frame is `id`, `event` (the type) and `data`: the webhook
+envelope `{ id, type, at, data }`.
+
+| Parameter | Meaning |
+|---|---|
+| `scope` | `self` (default): the key's own events. `subtree`: also the events of its descendant agent keys, and on a project key the project-wide Rule Book events (like a `scope: "subtree"` webhook). |
+| `types` | Comma-separated event types, e.g. `intent.status_changed,link.created` (default: every type). |
+| `Last-Event-ID` / `since` | Replays the matching events after that id from the API process's buffer (500 events, 10 minutes); an id no longer buffered replays the whole buffer. Without it the stream starts with live events. |
+
+At most 2 streams per key (`429 TOO_MANY_STREAMS`, on top of the per-client
+SSE limit); a stream lasts at most 30 minutes. Every heartbeat re-checks the
+key and its ancestors: a revoked or expired key's stream ends. The buffer is
+per process, like the intent streams: reconcile with the current state after
+a reconnect. It suits local development (no public HTTPS endpoint needed)
+and servers that prefer a stream to webhooks.
 
 SSE buffers and live subscriptions belong to one API process. A restart, or a
 reconnection that reaches another replica, can leave a gap: `Last-Event-ID` is

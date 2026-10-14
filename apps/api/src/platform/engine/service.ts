@@ -17,6 +17,7 @@ import {
   parseAssetId,
   type IntentGraph,
   type IntentPreview,
+  type Journey,
   type IntentStatus,
   type IntentStep,
   type StepEvidence,
@@ -46,6 +47,8 @@ import {
   type RegisteredContract,
 } from "./contracts/directory.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
+import { JOURNEY_PLAN_DEADLINE_MS } from "./journey/facts.js";
+import { journeyFor } from "./journey/index.js";
 import { resolveRecipientName } from "./names.js";
 import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl, type PlanInterpretation } from "./planner.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
@@ -236,6 +239,13 @@ export interface CreateIntentOptions {
    * applied departure), passed to the planner unchanged.
    */
   readonly interpretation?: PlanInterpretation;
+  /**
+   * Also build the journey on the plan-stage preview, which it implies:
+   * `journey.basis.previewDigest` is that preview's digest.
+   */
+  readonly journey?: boolean;
+  /** Account reads of that journey: `none` skips them (demo accounts, indicative plans). Default `live`. */
+  readonly journeyReads?: "live" | "none";
 }
 
 export interface CreatedIntent {
@@ -244,6 +254,22 @@ export interface CreatedIntent {
   readonly replayed: boolean;
   /** The plan-stage asset-change preview, when requested. */
   readonly preview?: IntentPreview;
+  /** The journey on that preview, when requested; null when it could not be built (never a failed create). */
+  readonly journey?: Journey | null;
+}
+
+/**
+ * The journey of an intent on the preview the caller holds (create,
+ * prepare). Informational: a failure is logged and gives null, never a
+ * failed create or prepare (GET …/journey computes it again).
+ */
+async function journeyOn(intent: IntentGraph, preview: IntentPreview | null, reads: "live" | "none" = "live"): Promise<Journey | null> {
+  try {
+    return await journeyFor(intent, { preview, reads, deadlineMs: JOURNEY_PLAN_DEADLINE_MS });
+  } catch (error) {
+    console.warn("[platform] journey failed:", toPlatformError(error).message);
+    return null;
+  }
 }
 
 /** Plan-stage preview of a created intent; RPC trouble yields `unavailable` steps, never a failed create. */
@@ -329,9 +355,11 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
     const created = options.ownerKeyId && clientReference && !options.dryRun
       ? await withIntentLock(`client:${options.ownerKeyId}:${clientReference}`, create)
       : await create();
-    if (!options.preview) return created;
+    if (!options.preview && !options.journey) return created;
     const preview = await planPreview(created.intent, options.previewStage);
-    return preview ? { ...created, preview } : created;
+    const withPreview = preview ? { ...created, preview } : created;
+    if (!options.journey) return withPreview;
+    return { ...withPreview, journey: await journeyOn(created.intent, preview ?? null, options.journeyReads) };
   } catch (error) {
     throw toPlatformError(error);
   }
@@ -398,11 +426,15 @@ export interface PreparedStepResult {
    * instance): not an error, the client should show the fresh preview.
    */
   readonly previewAck?: "matched" | "unknown";
+  /** The journey at signing time (built on `preview`), when requested; null when it could not be built. */
+  readonly journey?: Journey | null;
 }
 
 export interface PrepareStepOptions {
   /** Digest (`sha256:…`) of the preview the user saw; a materially worse payload is refused (PREVIEW_CHANGED). */
   readonly acknowledgedPreview?: string;
+  /** Also build the journey on the prepare-stage preview. */
+  readonly journey?: boolean;
 }
 
 function assertExecutable(graph: IntentGraph, now: number): void {
@@ -693,6 +725,13 @@ async function preparedPreview(
 }
 
 export async function prepareStep(intentId: string, stepId: string, options: PrepareStepOptions = {}): Promise<PreparedStepResult> {
+  const prepared = await prepareStepLocked(intentId, stepId, options);
+  if (!options.journey) return prepared;
+  // Outside the intent lock: the journey only reads.
+  return { ...prepared, journey: await journeyOn(prepared.intent, prepared.preview ?? null) };
+}
+
+async function prepareStepLocked(intentId: string, stepId: string, options: PrepareStepOptions): Promise<PreparedStepResult> {
   try {
     return await withIntentLock(intentId, async () => {
       const graph = await loadIntent(intentId);

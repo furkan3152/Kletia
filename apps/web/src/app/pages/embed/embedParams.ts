@@ -7,6 +7,10 @@
  * - `text=<default intent>` (max 500 characters)
  * - `examples=<comma separated>` (max 6, 120 characters each)
  * - `bg=transparent` (no page background, for hosts that draw their own)
+ * - appearance tokens (`accent`, `surface`, `radius`, …), read with
+ *   `appearanceFromParams` of `@kletia/core` by the page
+ * - `networks`, `actions` and `source` (the widget's scope), read with
+ *   `readEmbedScope` against the network registry the page passes in
  *
  * The host bridge parameters (`bridge`, `origin`, `ref`) are read by
  * `readBridgeParams` in `embedBridge.ts`, outside the entry bundle.
@@ -186,3 +190,96 @@ export function watchSystemTheme(onChange: () => void): () => void {
   media.addEventListener("change", onChange);
   return () => media.removeEventListener("change", onChange);
 }
+
+// ---------------------------------------------------------------------------
+// Scope: networks, actions and the starting network
+// ---------------------------------------------------------------------------
+
+export type EmbedVm = "evm" | "svm";
+
+/** What the scope parser needs of a network (`CHAINS` of `@kletia/core`, passed in to keep this module dependency-free). */
+export interface EmbedChainInfo {
+  readonly environment: string;
+  readonly vm: EmbedVm;
+}
+
+export const EMBED_ACTIONS: readonly string[] = ["swap", "bridge", "transfer", "stake", "deposit", "withdraw"];
+export const EMBED_MAX_NETWORKS = 9;
+
+export interface EmbedScope {
+  /** Network keys of one capital lane, or `null` (any network). */
+  readonly networks: readonly string[] | null;
+  /** Kinds of action, or `null` (any kind). */
+  readonly actions: readonly string[] | null;
+  /** `auto` or a network key inside `networks`, or `null`. */
+  readonly source: string | null;
+}
+
+/**
+ * Reads `networks`, `actions` and `source`. Networks must be registry keys
+ * of one capital lane (the first valid key's; mainnet and testnet never mix);
+ * `source` must be `auto` or a registry key of that lane and, when
+ * `networks` is set, one of them. Anything else is dropped.
+ */
+export function readEmbedScope(search: string, chains: Readonly<Record<string, EmbedChainInfo>>): EmbedScope {
+  let query: URLSearchParams;
+  try {
+    query = new URLSearchParams(search);
+  } catch {
+    query = new URLSearchParams();
+  }
+  const known = (key: string) => Object.prototype.hasOwnProperty.call(chains, key);
+  const networks: string[] = [];
+  for (const raw of (query.get("networks") ?? "").split(",")) {
+    const key = raw.trim().toLowerCase();
+    if (!known(key) || networks.includes(key)) continue;
+    if (networks.length > 0 && chains[key]?.environment !== chains[networks[0] as string]?.environment) continue;
+    networks.push(key);
+    if (networks.length >= EMBED_MAX_NETWORKS) break;
+  }
+  const actions: string[] = [];
+  for (const raw of (query.get("actions") ?? "").split(",")) {
+    const action = raw.trim().toLowerCase();
+    if (EMBED_ACTIONS.includes(action) && !actions.includes(action)) actions.push(action);
+  }
+  const rawSource = (query.get("source") ?? "").trim().toLowerCase();
+  const source =
+    rawSource === "auto"
+      ? "auto"
+      : known(rawSource) && (networks.length === 0 || networks.includes(rawSource))
+        ? rawSource
+        : null;
+  return { networks: networks.length > 0 ? networks : null, actions: actions.length > 0 ? actions : null, source };
+}
+
+/**
+ * The wallets the frame offers: the virtual machines of the scope's
+ * networks, of a session's actions (`network`, `toNetwork`) and of an
+ * integrator intent's steps. With none of them known (text mode without
+ * `networks`), both.
+ */
+export function embedWalletVms(
+  sources: { readonly networks?: readonly string[] | null; readonly session?: readonly string[] | null; readonly intent?: readonly string[] | null },
+  chains: Readonly<Record<string, EmbedChainInfo>>,
+): ReadonlySet<EmbedVm> {
+  const keys = [...(sources.networks ?? []), ...(sources.session ?? []), ...(sources.intent ?? [])];
+  const vms = new Set<EmbedVm>();
+  for (const key of keys) {
+    const vm = Object.prototype.hasOwnProperty.call(chains, key) ? chains[key]?.vm : undefined;
+    if (vm) vms.add(vm);
+  }
+  return vms.size > 0 ? vms : new Set<EmbedVm>(["evm", "svm"]);
+}
+
+/** True when `/embed` is shown inside a frame; opened directly, the page explains what it is. */
+export function isFramed(): boolean {
+  try {
+    return window.parent !== window;
+  } catch {
+    return true;
+  }
+}
+
+/** Connect buttons of the wallet bar (the static bar before the runtime loads uses the same box). */
+export const EMBED_PILL_CLASS =
+  "flex min-h-11 min-w-0 items-center gap-2 border-[3px] border-[#1A1A1A] px-2.5 py-2 text-[11px] font-black uppercase tracking-wider shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 active:translate-y-0.5 active:shadow-none motion-reduce:transition-none dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:px-3 sm:text-xs";

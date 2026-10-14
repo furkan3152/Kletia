@@ -37,7 +37,24 @@ Frontend Static Site:
 - SPA rewrite: `/*` → `/index.html`
 - Node: `22.23.1`
 
-`npm ci` runs the root `postinstall`, which builds `@kletia/core`, `@kletia/sdk`, `@kletia/widget` and `@kletia/cli` before the applications.
+`npm ci` runs the root `postinstall` (`tooling/postinstall-packages.mjs`), which builds the `@kletia/*` packages before the applications. A package whose build tools the install did not bring in is skipped with a message rather than failing the install; compile errors still fail.
+
+## Services created in the dashboard
+
+The hosted services were created in the dashboard before the repository became a workspace, with a root directory per app. They deploy as they are:
+
+| Service | Root directory | Build | Start / publish |
+|---|---|---|---|
+| API (Web Service) | `apps/api` | `npm ci --legacy-peer-deps && npm run build` | `npm start` |
+| Site (Static Site) | `apps/web` | `npm ci --include=dev --legacy-peer-deps && npm run build` | publish `dist` |
+
+`npm ci` inside a workspace folder installs only that app's dependency tree, so the API install skips the widget and the CLI (it imports neither). The site build writes one HTML entry per fixed route (`developers.html`, `studio.html`, `app.html`, …) with the route's title and description, so those paths load without a rewrite rule.
+
+Three things only the dashboard can set on these services (a Blueprint sets them from `render.yaml`):
+
+1. **Static site → Redirects/Rewrites**, in this order (the `routes` of `kletia-frontend`): `/go/:id/card.png` → `https://api.kletiaai.xyz/v1/links/:id/card.png`, `/go/:id` → `https://api.kletiaai.xyz/v1/links/:id/page`, `/*` → `/index.html`, all three as Rewrite. Without them receipt pages (`/r/<id>`), link pages (`/go/<id>`) and other deep links answer 404.
+2. **Static site → Headers**: the `headers` of `kletia-frontend` in `render.yaml` (framing, `X-Robots-Tag`, CORS for `actions.json` and the receipt key mirror). The app refuses to render outside `/embed` inside a cross-origin frame even without them.
+3. **API → Environment**: `NODE_ENV=production`, `KLETIA_WEB_ORIGIN=https://kletiaai.xyz`, `WORKFLOW_SIGNING_SECRET` (32+ random characters), and for durable keys, intents and webhooks a PostgreSQL `KLETIA_DATABASE_URL` with `KLETIA_PLATFORM_SECRET` (32+ characters). Without a database the API keeps everything in memory, and a free instance that sleeps loses it. The free plan also sleeps after 15 idle minutes, so the first request after that waits about a minute; integrators need an always-on instance.
 
 ## Public pages and files on the static site
 

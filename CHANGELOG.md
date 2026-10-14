@@ -4,6 +4,12 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- Hosted deploys: an install inside one app's folder (how the dashboard-created Render services build) no longer fails on packages that app does not use; the root `postinstall` skips a package whose build tools are not installed. The API had not deployed since the workspace move.
+- The site build writes an HTML entry with its own title and description for every fixed route, so `/developers`, `/studio`, `/app` and the other pages load on hosts without a rewrite rule; `404.html` carries the same shell. The production server serves these entries too.
+- `GET /health` names the service `kletia-api`.
+
 Round 4 and 5: bring your own contract, and the features that make Kletia
 more than a router. Nothing here signs or holds funds, and none of it has had an
 external audit.

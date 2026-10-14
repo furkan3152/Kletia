@@ -38,7 +38,7 @@
     "test:api": "npm test -w @kletia/api",
     "test:web": "node --test apps/web/src/app/pages/embed/__tests__/*.test.mjs",
     "start:api": "npm run start -w @kletia/api",
-    "postinstall": "npm run build:packages",
+    "postinstall": "node tooling/postinstall-packages.mjs",
     "check:packages": "node tooling/verify-packages.mjs",
     "generate:openapi": "node tooling/export-openapi.mjs && node tooling/generate-collections.mjs",
     "check:openapi": "node tooling/export-openapi.mjs --check && node tooling/generate-collections.mjs --check",

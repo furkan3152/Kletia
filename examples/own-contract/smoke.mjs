@@ -7,6 +7,8 @@
  *   definition (rebasing output) and refuses an invalid one before registering.
  * - session-server.mjs creates one session per page view for the
  *   registration and embeds it.
+ * - flow.mjs stores the registration as a project flow (If-Match), allows
+ *   the page origin and issues a publishable key for the snippet.
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -14,6 +16,7 @@ import { createServer } from "node:http";
 import { KletiaClient } from "@kletia/sdk";
 import { registerAndTest } from "./register.mjs";
 import { createSessionApp } from "./session-server.mjs";
+import { publishFlow } from "./flow.mjs";
 
 const KEY = "kl_dev_smoke_0123456789abcdefghijkl";
 const CT = "ct_5f1c2a9b7e3d4c6a8b0e1f23";
@@ -44,6 +47,15 @@ const stub = await listen((req, res) => {
       return send(200, { test: { contract: CT, revision: 1, entry: "supply", transactions: [{ description: "Approve" }, { description: "Supply" }], review: { simulation: { status: "ok" }, notices: ["Not audited by Kletia."] }, warnings: [] } });
     }
     if (route === "POST /v1/sessions") return send(201, { session: { id: `cs_${"a".repeat(32)}`, status: "active", warnings: [] } });
+    const project = (version, settings) => ({ id: "prj_key_smoke", version, hash: `sha256:${String(version).repeat(64).slice(0, 64)}`, settings, domain: { host: null, verified: false, checkedAt: null, file: "{}" }, logo: null, updatedAt: "2026-10-14T00:00:00.000Z", updatedBy: "key_smoke" });
+    if (route === "GET /v1/projects/current") return send(200, { project: project(1, { schema: "kletia.project/v1", allowedOrigins: ["https://old.example"] }) });
+    if (route === "PATCH /v1/projects/current") {
+      const flows = (JSON.parse(body).flows ?? []).map((flow) => ({ ...flow, ownerKeyId: "key_smoke" }));
+      return send(200, { project: project(2, { schema: "kletia.project/v1", ...JSON.parse(body), flows }) });
+    }
+    if (route === "POST /v1/projects/current/publishable-keys") {
+      return send(201, { key: { id: "key_pub", key: `kl_pub_${"A".repeat(32)}`, label: "website", kind: "publishable", parentId: "key_smoke", createdAt: "2026-10-14T00:00:00.000Z" } });
+    }
     return send(404, { error: { code: "NOT_FOUND", message: "The stub does not serve this route." } });
   });
 });
@@ -86,6 +98,16 @@ try {
   } finally {
     page.server.close();
   }
+  // The phase-2 path: the registration as a project flow, run in the browser with a publishable key.
+  seen.length = 0;
+  const flowLines = [];
+  const published = await publishFlow(kletia, { contractId: CT, pageOrigin: "https://shop.example" }, (line) => flowLines.push(line));
+  assert.deepEqual(seen.map((entry) => entry.route), ["GET /v1/projects/current", "PATCH /v1/projects/current", "POST /v1/projects/current/publishable-keys"]);
+  assert.equal(seen[1].headers["if-match"], `"sha256:${"1".repeat(64)}"`, "the change is based on the hash read first");
+  assert.deepEqual(seen[1].body.allowedOrigins, ["https://old.example", "https://shop.example"]);
+  assert.deepEqual(seen[1].body.flows[0].actions, [{ kind: "call", network: "arbitrum-sepolia", contract: CT, entry: "supply", amount: "10" }]);
+  assert.equal(published.snippet, `<kletia-intent key="kl_pub_${"A".repeat(32)}" flow="supply"></kletia-intent>`);
+  assert.ok(flowLines.some((line) => line.includes("saved by key_smoke")));
   console.log("own-contract smoke: ok");
 } finally {
   stub.server.close();

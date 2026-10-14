@@ -374,7 +374,7 @@ test("the intent session keeps the plan preview and opens stored intents with th
     fetch: async (url, init) => {
       const { pathname, search } = new URL(url);
       calls.push(`${init.method} ${pathname}${search}`);
-      if (init.method === "POST" && pathname === "/v1/intents") return jsonResponse(201, { intent, preview: digested });
+      if (init.method === "POST" && pathname === "/v1/intents") return jsonResponse(201, { status: "planned", turn: "message", intent, preview: digested, assumptions: [], sentence: "swap 1 SOL to USDC on solana", thread: { spec: "kletia.thread/v1", id: "th_aaaaaaaaaaaaaaaaaaaaaaaa", rev: 1, status: "ready", policy: "2026-10.1", steps: [], open: [], corrections: [], turns: [], undo: [] } });
       if (init.method === "GET" && pathname === `/v1/intents/${intent.id}`) return jsonResponse(200, { intent });
       if (init.method === "GET" && pathname === `/v1/intents/${intent.id}/preview`) return jsonResponse(404, { error: { code: "PREVIEW_NOT_FOUND", message: "none" } });
       if (init.method === "POST" && pathname === `/v1/intents/${intent.id}/preview`) return jsonResponse(200, { preview: digested });
@@ -386,6 +386,7 @@ test("the intent session keeps the plan preview and opens stored intents with th
   await session.plan("swap 1 SOL to USDC");
   assert.equal(session.getState().preview.digest, digested.digest);
   assert.ok(calls[0].includes("preview=true"));
+  assert.ok(calls[0].includes("clarify=true"), "text always plans through a clarify turn");
   await session.open(intent.id);
   assert.equal(session.getState().intent.id, intent.id);
   assert.equal(session.getState().preview.digest, digested.digest);

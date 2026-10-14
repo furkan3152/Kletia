@@ -176,24 +176,24 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
         ) : null}
         <Button type="submit" loading={run.status === "loading"} className="self-start">
           <Printer className="h-4 w-4" aria-hidden="true" />
-          Print and inspect
+          Simulate
         </Button>
         <p className={cx("text-xs", TEXT_MUTED)}>30 evaluations per minute per key. Logged with stage evaluate; nothing is stored, reserved or held.</p>
       </form>
 
       <div aria-live="polite" className="min-w-0">
-        {run.status === "error" && run.error ? <ApiErrorPanel error={run.error} title="The desk could not inspect this request" /> : null}
+        {run.status === "error" && run.error ? <ApiErrorPanel error={run.error} title="Could not simulate this request" /> : null}
         {!evaluation ? (
           run.status === "loading" ? null : (
             <div className="flex min-h-48 items-center justify-center border-[3px] border-dashed border-[#1A1A1A]/30 p-6 text-center text-sm dark:border-white/15">
-              <p className={TEXT_MUTED}>Print a request to see what the rule books say, clause by clause.</p>
+              <p className={TEXT_MUTED}>Simulate a request to see what the rule books say, rule by rule.</p>
             </div>
           )
         ) : (
           <article aria-label="Inspection result" className="flex min-w-0 flex-col gap-5">
             <div className="kl-rb-cover grid min-w-0 gap-4 py-5 pl-9 pr-5 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,11rem)] sm:items-center">
               <div className="min-w-0">
-                <p className={LABEL}>Inspected for {names.get(evaluation.keyId) ?? evaluation.keyId}</p>
+                <p className={LABEL}>Simulated for {names.get(evaluation.keyId) ?? evaluation.keyId}</p>
                 <p className="mt-2 font-display text-xl font-bold leading-snug">{OUTCOME_TEXT[outcome!]}</p>
                 {result?.intent ? (
                   <ol className="mt-3 flex flex-col gap-1.5">
@@ -203,7 +203,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
                         <li key={step.id} className="flex min-w-0 items-center gap-2 text-sm">
                           {line ? <LineBullet line={line} /> : null}
                           <span className="min-w-0 break-words">{step.title}</span>
-                          <span className="font-code text-[11px]">· {step.protocol}</span>
+                          <span className="font-code text-[12px]">· {step.protocol}</span>
                         </li>
                       );
                     })}
@@ -259,7 +259,7 @@ export function InspectionDesk({ apiKey, keys, keyId, draft, names }: Inspection
                           <span className="sr-only">{STATUS_WORD[row.status]}: </span>
                           {info.title}
                         </p>
-                        <p className={cx("break-words font-code text-[11px]", TEXT_MUTED)}>
+                        <p className={cx("break-words font-code text-[12px]", TEXT_MUTED)}>
                           Art. {info.article} · {row.rule} · {scopeName(row)}
                           {row.observed ? ` · observed ${row.observed}` : ""}
                           {row.limit ? ` · limit ${row.limit}` : ""}

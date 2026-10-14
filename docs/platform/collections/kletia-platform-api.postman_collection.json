@@ -118,6 +118,18 @@
       "value": "",
       "type": "string",
       "description": "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string",
+      "description": "A project id (prj_…) from GET /v1/projects/current or the publishable profile."
+    },
+    {
+      "key": "file",
+      "value": "",
+      "type": "string",
+      "description": "A logo file name (<sha256>.png or <sha256>.webp) from the project's logo.url."
     }
   ],
   "item": [
@@ -479,7 +491,7 @@
       "item": [
         {
           "id": "457dea50-3049-5977-b9cc-d34a87b5fa92",
-          "name": "List intents created with the caller's key",
+          "name": "List intents created with the caller's key (or a key below it)",
           "request": {
             "method": "GET",
             "header": [],
@@ -496,10 +508,15 @@
                 {
                   "key": "limit",
                   "value": "5"
+                },
+                {
+                  "key": "owner",
+                  "value": "",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Requires an API key (set `apiKey`).\n\n`GET /v1/intents` · operationId `listIntents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "`owner=key_…`: the intents of an agent or publishable key in the caller's subtree (project keys: any such key of the project; agent keys: their descendants); 404 KEY_NOT_FOUND otherwise.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/intents` · operationId `listIntents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -2495,7 +2512,7 @@
     {
       "id": "1a71a765-a6a8-57e5-809c-293c2deb3f39",
       "name": "Sessions",
-      "description": "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet.",
+      "description": "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow).",
       "item": [
         {
           "id": "047e8991-5cba-5bd3-9e4d-d89c654151f3",
@@ -2532,7 +2549,7 @@
                 "sessions"
               ]
             },
-            "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds `warnings: [{ code: \"CONTRACT_PENDING\", contract, activatesAt }]`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (`details.minimumExpiresInSeconds`). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/sessions` · operationId `createSession` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds `warnings: [{ code: \"CONTRACT_PENDING\", contract, activatesAt }]`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (`details.minimumExpiresInSeconds`). Every session intent counts in the owner key's own Rule Book spend windows. With a publishable key, send only `{ flow, hostOrigin }`: a single-use 600 s session from the project's stored flow, owned by the publishable key, whose call / action steps use the registrations of the key that saved the flow (404 FLOW_UNKNOWN; 403 PUBLISHABLE_ORIGIN_FORBIDDEN when hostOrigin is not an allowed origin). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/sessions` · operationId `createSession` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -2602,6 +2619,237 @@
               ]
             },
             "description": "Re-checks expiry (410 SESSION_EXPIRED), the use count (409 SESSION_USED; one atomic use) and that `hostOrigin` is an allowed origin (403 SESSION_ORIGIN_FORBIDDEN), then plans the template with the visitor's accounts under the session owner's key, with `metadata.sessionId` set. A plan that fails gives the use back. The visitor reviews and signs every step in their own wallet.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/sessions/{id}/intents` · operationId `createSessionIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "3291d958-d12f-50e4-988d-772c43a87f0b",
+      "name": "Projects",
+      "description": "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile.",
+      "item": [
+        {
+          "id": "b64d8174-1e77-5c4a-af62-c54063cc22ba",
+          "name": "The caller's project: settings, version, hash and domain proof",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current"
+              ]
+            },
+            "description": "Any key of the project (agent keys read too). Version 0 and empty settings until the first PATCH.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/projects/current` · operationId `getProject` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "52575167-d0eb-5a9b-b12b-9c1605fa5210",
+          "name": "Merge-patch the project settings (If-Match)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "",
+                "description": "The project's `hash` (quoted, `sha256:` optional) the change is based on. A stale hash answers 409 PROJECT_CONFLICT.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current"
+              ]
+            },
+            "description": "A project key with its current secret. The merged settings are validated (400 PROJECT_SETTINGS_INVALID with issues): at most 20 origins, brand names with the integrator rules, defaults (appearance through validateAppearance) and at most 20 flows, each dry-run like a session template as the caller, who becomes its saver (its contract authority). A new website starts unverified. Never retried automatically.\n\nRequires an API key (set `apiKey`).\n\n`PATCH /v1/projects/current` · operationId `updateProject` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "696c004a-faaf-5879-ab35-0687ab46702b",
+          "name": "Check the domain proof now",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current/domain/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current",
+                "domain",
+                "verify"
+              ]
+            },
+            "description": "Fetches https://<brand.website>/.well-known/kletia.json (16 KB at most, no redirects, public hosts only) and checks that `projects` lists this project. Re-checked daily; a project whose file stops listing it loses its verified brand.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/projects/current/domain/verify` · operationId `verifyProjectDomain` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8791f649-64bb-5fd8-9a18-07b505b0ae9e",
+          "name": "Issue a publishable key (kl_pub_, browsers)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"website\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current/publishable-keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current",
+                "publishable-keys"
+              ]
+            },
+            "description": "A project key with its current secret. At most 5 active per project (409 KEY_LIMIT_REACHED). The key gets a rule book derived from the project defaults (kinds, networks, lane, storeIntents; the stored flows' kinds, networks and registrations), editable with PUT /v1/keys/{id}/policy. It may call the public tier, plan and store intents it owns (never call or action steps), start sessions from stored flows and read GET /v1/publishable/profile; anything else is 403 PUBLISHABLE_KEY_FORBIDDEN. Every request must come from an allowed origin (403 PUBLISHABLE_ORIGIN_FORBIDDEN) and counts 120 per minute per key plus the public per-IP limit.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/projects/current/publishable-keys` · operationId `createPublishableKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "bd26bdfe-7d50-53ae-879b-a25544514ecd",
+          "name": "Upload the brand logo (PNG or WebP)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current/logo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current",
+                "logo"
+              ]
+            },
+            "description": "Raw bytes with Content-Type image/png or image/webp, at most 64 KB, 32-512 px per side, width 1 to 4 times the height. Only the PNG IHDR / WebP VP8, VP8L or VP8X header is read; SVG, GIF, APNG and animated WebP are refused (422 PROJECT_LOGO_INVALID). Shown only in the frame header next to the verified name.\n\nRequires an API key (set `apiKey`).\n\n`PUT /v1/projects/current/logo` · operationId `setProjectLogo` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "47ba1104-a3bf-555c-881c-913122776244",
+          "name": "A project's logo (public, immutable)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/:projectId/logo/:file",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                ":projectId",
+                "logo",
+                ":file"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}"
+                },
+                {
+                  "key": "file",
+                  "value": "{{file}}"
+                }
+              ]
+            },
+            "description": "`file` is `<sha256>.png` or `<sha256>.webp`. Fixed Content-Type, `Cache-Control: public, max-age=31536000, immutable`, `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: cross-origin`. 404 while the domain is not verified.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/projects/{projectId}/logo/{file}` · operationId `getProjectLogo` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "c73f9e4e-8c7e-5987-83cc-3977979c7b6c",
+          "name": "What a publishable key reveals about its project",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/publishable/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "publishable",
+                "profile"
+              ]
+            },
+            "description": "Brand (with `verified`), allowed origins, lane, defaults and the stored flows' ids, labels and networks. Never keys, flow contents or who saved them. Call it with the publishable key from an allowed origin.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/publishable/profile` · operationId `getPublishableProfile` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "8b916562-d933-5f26-b164-7caefc2674b7",
+          "name": "Remove the brand logo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/projects/current/logo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "projects",
+                "current",
+                "logo"
+              ]
+            },
+            "description": "Requires an API key (set `apiKey`).\n\n`DELETE /v1/projects/current/logo` · operationId `deleteProjectLogo` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

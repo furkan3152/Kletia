@@ -10,7 +10,8 @@
  * - Every message goes over that port: nothing is ever posted to `"*"` or to
  *   `window.parent`. The host cannot send commands back.
  * - Messages carry the minimum: heights, statuses, step ids, network keys and
- *   error codes. An intent id (a read capability for the intent) is only sent
+ *   error codes, and for a clarifying question its count and reason codes.
+ *   An intent id (a read capability for the intent) is only sent
  *   for stored intents, after the visitor has been shown that the host site
  *   receives progress updates. Never addresses, amounts or transaction hashes.
  *
@@ -175,6 +176,11 @@ export interface EmbedBridge {
   trackIntent(intent: BridgeIntent): void;
   intentUpdated(intent: BridgeIntent): void;
   intentCompleted(intent: BridgeIntent): void;
+  /**
+   * The widget asks the visitor before it can plan (clarify C4b): the host
+   * learns how many questions and why (reason codes), never the values.
+   */
+  question(report: unknown): void;
   error(error: unknown): void;
 }
 
@@ -197,6 +203,31 @@ export function describeBridgeError(error: unknown): { code: string; message: st
       ? "The visitor declined the wallet request."
       : "The widget could not finish the request. GET /v1/errors describes the code.";
   return { code, message };
+}
+
+/**
+ * A question report for the host: the number of questions and their reason
+ * codes (deduplicated, at most 8), from whatever the widget reports (one
+ * question, a list, or `{ questions }`). Everything else (texts, options,
+ * amounts, addresses) is dropped. `null` when nothing is asked.
+ */
+export function questionReport(report: unknown): { count: number; reasons: string[] } | null {
+  const items: unknown[] = Array.isArray(report)
+    ? report
+    : typeof report === "object" && report !== null && Array.isArray((report as { questions?: unknown }).questions)
+      ? (report as { questions: unknown[] }).questions
+      : report === null || report === undefined
+        ? []
+        : [report];
+  const reasons: string[] = [];
+  let count = 0;
+  for (const item of items.slice(0, 20)) {
+    if (typeof item !== "object" || item === null) continue;
+    count += 1;
+    const reason = (item as { reason?: unknown }).reason;
+    if (typeof reason === "string" && ERROR_CODE.test(reason) && !reasons.includes(reason) && reasons.length < 8) reasons.push(reason);
+  }
+  return count > 0 ? { count, reasons } : null;
 }
 
 export function createEmbedBridge(env: EmbedBridgeEnv): EmbedBridge {
@@ -312,6 +343,11 @@ export function createEmbedBridge(env: EmbedBridgeEnv): EmbedBridge {
       if (!tracked || tracked.id !== intent.id || !canShareIds()) return;
       sendStepChanges(intent);
       post({ type: "intent.completed", intentId: intent.id, status: intent.status });
+    },
+    question(report) {
+      if (!readySent) return;
+      const summary = questionReport(report);
+      if (summary) post({ type: "question", ...summary });
     },
     error(error) {
       if (!readySent) return;

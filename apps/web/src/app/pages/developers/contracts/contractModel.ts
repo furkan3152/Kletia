@@ -140,6 +140,66 @@ export function newEntryDraft(fn: AbiFunctionItem, abi: readonly ContractAbiItem
   };
 }
 
+/** The ERC-4626 deposit function the inspection hint prefills. */
+export const ERC4626_DEPOSIT = "deposit(uint256,address)";
+
+/** `GET /v1/contracts/inspect` `hints.erc4626`: the vault's underlying and its registry symbol here (null when not listed). */
+export interface Erc4626Hint {
+  readonly asset: string;
+  readonly registrySymbol: string | null;
+}
+
+/**
+ * An ERC-4626 vault's deposit entry, filled from the inspection's hint (the
+ * same shape `kletia contracts init` writes): the underlying as input with an
+ * exact approval to the vault, the shares (`$self`) as output, the standard
+ * Deposit event as proof and a phrase. Only what the hint proves is filled;
+ * the input stays empty (a decision) when the underlying is not a Kletia
+ * registry asset on this network, and limits are never guessed. Any other
+ * entry is returned unchanged, so a non-vault function keeps its guesses.
+ */
+export function applyErc4626Hint(entry: EvmEntryDraft, hint: Erc4626Hint | null | undefined, abi: readonly ContractAbiItem[], name = ""): EvmEntryDraft {
+  if (!hint || entry.signature !== ERC4626_DEPOSIT) return entry;
+  const deposit = abi.find(
+    (item): item is AbiEventItem =>
+      item.type === "event" &&
+      item.name === "Deposit" &&
+      item.anonymous !== true &&
+      item.inputs.some((input) => input.name === "owner") &&
+      item.inputs.some((input) => input.name === "assets"),
+  );
+  const symbol = hint.registrySymbol;
+  const brand = name.trim();
+  const vault = `${brand ? `${brand} ` : ""}${symbol ?? ""} vault`.replace(/\s+/gu, " ").trim();
+  const alias = brand ? `${brand} vault`.toLowerCase().replace(/[^a-z0-9 ]+/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 40) : "";
+  const events: readonly EventDraft[] = deposit
+    ? [
+        {
+          event: abiItemSignature(deposit),
+          emitter: "$self",
+          where: Object.fromEntries(
+            deposit.inputs.filter((input) => input.name).map((input) => [input.name!, input.name === "owner" ? "$account" : input.name === "assets" ? "$amount" : ""]),
+          ),
+          output: deposit.inputs.some((input) => input.name === "shares") ? "shares" : "",
+        },
+      ]
+    : entry.events;
+  return {
+    ...entry,
+    id: "deposit",
+    label: `Deposit into ${symbol || brand ? vault : "the vault"}`.slice(0, 80),
+    inputToken: symbol ?? "",
+    approval: "$self",
+    valueBind: "",
+    valueMax: "",
+    outputToken: "$self",
+    toleranceBps: "10",
+    events,
+    verbs: "deposit",
+    aliases: alias || entry.aliases,
+  };
+}
+
 function buildParams(params: readonly ParamDraft[], at: string, issues: BuildIssue[]): ActionParam[] | undefined {
   if (params.length === 0) return undefined;
   return params.map((param, index) => {

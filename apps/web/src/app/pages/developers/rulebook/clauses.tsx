@@ -47,7 +47,7 @@ export function ClauseRow({ code, field, label, meaning, issues = [], warnings =
         <label id={`${id}-label`} htmlFor={id} className="block font-display text-[15px] font-bold leading-snug">
           {label}
         </label>
-        <p className="mt-0.5 break-words font-code text-[11px] font-bold text-[#0047E0] [font-variant-ligatures:none] dark:text-[#7EA6FF]">
+        <p className="mt-0.5 break-words font-code text-[12px] font-bold text-[#0047E0] [font-variant-ligatures:none] dark:text-[#7EA6FF]">
           {code} {field}
         </p>
       </div>
@@ -59,11 +59,11 @@ export function ClauseRow({ code, field, label, meaning, issues = [], warnings =
         {issues.length + warnings.length > 0 || change ? (
           <div id={noteId} className="flex flex-col gap-1">
             {change === "tightened" ? (
-              <p className="inline-flex items-center gap-2 self-start border-2 border-[#0B7A4B] px-2 py-0.5 font-code text-[10.5px] font-black uppercase tracking-[0.1em] text-[#0B7A4B] dark:border-[#4ADE80] dark:text-[#4ADE80]">
+              <p className="inline-flex items-center gap-2 self-start border-2 border-[#0B7A4B] px-2 py-0.5 font-code text-[12px] font-black uppercase tracking-[0.1em] text-[#0B7A4B] dark:border-[#4ADE80] dark:text-[#4ADE80]">
                 Tightens: in force on save
               </p>
             ) : change === "loosened" ? (
-              <p className="inline-flex items-center gap-2 self-start border-2 border-dashed border-[#A84B00] px-2 py-0.5 font-code text-[10.5px] font-black uppercase tracking-[0.1em] text-[#A84B00] dark:border-[#FBBF24] dark:text-[#FBBF24]">
+              <p className="inline-flex items-center gap-2 self-start border-2 border-dashed border-[#A84B00] px-2 py-0.5 font-code text-[12px] font-black uppercase tracking-[0.1em] text-[#A84B00] dark:border-[#FBBF24] dark:text-[#FBBF24]">
                 Loosens: in force {delayText ?? "after the delay"}
               </p>
             ) : null}

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme checkout · Kletia embed example</title>
+    <style>
+      :root { color-scheme: light; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      body { margin: 0; background: #f6efe3; color: #1a1a1a; }
+      main { max-width: 1040px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 24px; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); }
+      @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+      h1 { font-size: 24px; margin: 0 0 8px; }
+      .notice { border: 2px solid #b45309; background: #fff3b0; padding: 12px; font-weight: 600; }
+      ol { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; padding-left: 20px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Acme checkout</h1>
+        <p>Pay with any token on any of Kletia's networks. Your wallet signs every step.</p>
+        <!--KLETIA_SCRIPT-->
+        <kletia-intent
+          text="swap 1 SOL to USDC"
+          examples="swap 1 SOL to USDC,bridge 25 USDC from base to solana"
+          networks="base,solana"
+          actions="swap,bridge"
+          accent="0F766E"
+          surface="FFFDF8"
+          radius="8"
+          border="2"
+          shadow="soft"
+          font="system"
+          reference="order-42"
+          height="720"
+        ></kletia-intent>
+      </section>
+      <section aria-labelledby="events-title">
+        <h2 id="events-title">Events</h2>
+        <p>What the widget reports to this page. Notifications only: a real shop verifies <code>GET /v1/intents/{id}</code> on its server before it ships anything.</p>
+        <ol id="events" aria-live="polite"></ol>
+      </section>
+    </main>
+    <script type="module">
+      const log = document.getElementById("events");
+      const widget = document.querySelector("kletia-intent");
+      const names = ["ready", "resize", "intent-planned", "intent-created", "step-updated", "completed", "question", "error"];
+      for (const name of names) {
+        widget.addEventListener(`kletia:${name}`, (event) => {
+          if (name === "resize") return;
+          const item = document.createElement("li");
+          item.textContent = `${new Date().toISOString().slice(11, 19)} kletia:${name} ${JSON.stringify(event.detail)}`;
+          log.prepend(item);
+        });
+      }
+    </script>
+  </body>
+</html>

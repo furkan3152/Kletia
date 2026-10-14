@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
+// @ts-expect-error The emitter is a plain Node script without type declarations.
+import { embedDevFile } from "./scripts/emit-embed-script.mjs";
+
 const webRoot = dirname(fileURLToPath(import.meta.url));
 const ROUTE_TABLE = resolve(webRoot, "src/app/routes/routeTable.ts");
 /** Where the route graph goes: a build cache, never published with dist (scripts/check-route-chunks.mjs reads it). */
@@ -90,8 +93,38 @@ function routeGraph(): Plugin {
   };
 }
 
+/**
+ * Development only: serves `/sdk/embed/<version>/{kletia-embed.min.js,index.js}`
+ * and `/sdk/embed/manifest.json` from packages/embed/dist with the headers
+ * the production server sends, so the builder and partner pages pin the same
+ * integrity locally (the build copies the same files, scripts/emit-embed-script.mjs).
+ */
+function embedScript(): Plugin {
+  return {
+    name: "kletia-embed-script",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = (request.url ?? "").split("?")[0] ?? "";
+        const file = (embedDevFile as (path: string) => { status: number; body: Buffer; contentType: string } | null)(pathname);
+        if (!file) {
+          next();
+          return;
+        }
+        response.statusCode = file.status;
+        response.setHeader("Content-Type", file.contentType);
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.setHeader("Cache-Control", "no-cache");
+        response.end(file.body);
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), routeGraph()],
+  plugins: [react(), routeGraph(), embedScript()],
   resolve: {
     // Workspace packages (@kletia/widget) must share the app's React instance.
     dedupe: ["react", "react-dom"],

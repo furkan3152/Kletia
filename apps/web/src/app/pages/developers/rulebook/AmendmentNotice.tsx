@@ -36,7 +36,7 @@ export function AmendmentNotice({ pending, now, onCancel, busy = false }: Amendm
       {pending.loosened.length > 0 ? (
         <ul className="flex flex-wrap gap-1.5" aria-label="Loosened clauses">
           {pending.loosened.map((path) => (
-            <li key={path} className="border-2 border-dashed border-[#A84B00] bg-white/60 px-2 py-0.5 font-code text-[11px] font-bold text-[#7A3500]">
+            <li key={path} className="border-2 border-dashed border-[#A84B00] bg-white/60 px-2 py-0.5 font-code text-[12px] font-bold text-[#7A3500]">
               {path}
             </li>
           ))}

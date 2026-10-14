@@ -6,7 +6,7 @@ JavaScript. The element renders Kletia's hosted `/embed` page in a sandboxed
 iframe, sizes the frame to its content and tells your page what the visitor
 did through DOM events (`kletia:ready`, `kletia:intent-planned`,
 `kletia:intent-created`, `kletia:step-updated`, `kletia:completed`,
-`kletia:error`, `kletia:resize`).
+`kletia:question`, `kletia:error`, `kletia:resize`).
 
 The visitor plans and signs inside the frame with their own wallet. Your page
 never sees calldata, signatures, addresses or amounts, and it cannot sign or
@@ -17,12 +17,19 @@ For React apps that want the widget in their own DOM, use
 
 ## Quick start
 
-With a script tag (one self-contained file; pin the version and add the
-Subresource Integrity hash):
+The fastest path is the [Embed builder](https://kletiaai.xyz/developers/embed):
+pick what the widget offers and how it looks, check it in the live preview,
+and copy the HTML, npm, React or iframe code (the HTML pins this
+deployment's integrity hash for you). [examples/html-embed](../../examples/html-embed/README.md)
+is the same page as a runnable example.
+
+With a script tag, served by the Kletia origin itself (one self-contained
+file at an immutable, versioned path; pin it with its Subresource Integrity
+hash):
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@kletia/embed@0.1.0/dist/kletia-embed.min.js"
+  src="https://kletiaai.xyz/sdk/embed/0.1.0/kletia-embed.min.js"
   integrity="sha384-…"
   crossorigin="anonymous"
 ></script>
@@ -41,15 +48,37 @@ Subresource Integrity hash):
 </script>
 ```
 
-Compute the hash from the published file:
+Every Kletia web deployment serves the built embed files and a manifest:
+
+| Path | What | Headers |
+|---|---|---|
+| `/sdk/embed/<version>/kletia-embed.min.js` | the classic script (global `KletiaEmbed`) | `Cache-Control: public, max-age=31536000, immutable`, `Access-Control-Allow-Origin: *`, `Cross-Origin-Resource-Policy: cross-origin`, `Content-Type: text/javascript` |
+| `/sdk/embed/<version>/index.js` | the ESM build | the same |
+| `/sdk/embed/manifest.json` | `{ "schema": "kletia.embed-manifest/v1", "version", "files": { "kletia-embed.min.js": { "path", "integrity", "bytes" }, "index.js": { … } } }` | `Cache-Control: no-cache`, `Access-Control-Allow-Origin: *` |
+
+The version is `@kletia/embed`'s own (`packages/embed/package.json`, also
+`KletiaEmbed.EMBED_VERSION`), and `integrity` is the SHA-384 of the exact
+bytes served, written by the web build (`apps/web/scripts/emit-embed-script.mjs`).
+Read the hash for the tag from the manifest:
 
 ```bash
-curl -s https://cdn.jsdelivr.net/npm/@kletia/embed@0.1.0/dist/kletia-embed.min.js \
+curl -s https://kletiaai.xyz/sdk/embed/manifest.json
+```
+
+or compute it from the file you pin:
+
+```bash
+curl -s https://kletiaai.xyz/sdk/embed/0.1.0/kletia-embed.min.js \
   | openssl dgst -sha384 -binary | openssl base64 -A
 ```
 
-`https://unpkg.com/@kletia/embed@0.1.0/dist/kletia-embed.min.js` serves the
-same file. The script defines `<kletia-intent>` and exposes
+A browser refuses a script whose bytes do not match `integrity`, and
+`crossorigin="anonymous"` is required for the check across origins. Loaded
+from a Kletia origin, the script also makes that origin the element's default
+`origin`, so a page using a self-hosted or local Kletia needs no `origin`
+attribute. Once the npm package is published, the same file is also on npm
+CDNs (`https://cdn.jsdelivr.net/npm/@kletia/embed@<version>/dist/kletia-embed.min.js`);
+from there the default origin is `https://kletiaai.xyz`. The script defines `<kletia-intent>` and exposes
 `window.KletiaEmbed` (`mountKletiaIntent`, `defineKletiaIntent`,
 `buildEmbedUrl`, `EMBED_VERSION`).
 
@@ -96,6 +125,8 @@ dependencies and run in any browser with custom elements and `MessageChannel`.
 | `label` | text | `Kletia intent widget` | Accessible name of the frame. |
 | `intent` | `int_` + 32 hex | none | Opens an intent your backend created with its API key, instead of planning from text. See [Intents and sessions your backend creates](#intents-and-sessions-your-backend-creates). |
 | `session` | `cs_` + 32 hex | none | Runs a session your backend created: the frame plans your fixed actions for the visitor's wallet. `intent` wins when both are set. |
+| `key` | `kl_pub_` + 32 letters and digits | none | Your project's publishable key: no backend needed. See [Publishable keys and stored flows](#publishable-keys-and-stored-flows). A secret key (`kl_dev_…`, `kl_agt_…`) or any other shape is ignored with a console warning, never forwarded. |
+| `flow` | `^[a-z][a-z0-9-]{0,31}$` | none | A stored flow of the project, run with `key`. `intent` and `session` win over `key`. |
 | `accent`, `accent-ink`, `surface`, `ink`, `line` | six hex digits, `#` optional | stock colours | The light palette (or the only one). See [Appearance](#appearance). |
 | `accent-dark`, `accent-ink-dark`, `surface-dark`, `ink-dark`, `line-dark` | six hex digits | stock dark colours | Used when the resolved scheme is dark. Without them, dark mode keeps the stock dark colours and borrows only your `accent`. |
 | `radius` | 0–16 | `0` | Corner radius in pixels (stamps stay square). |
@@ -271,6 +302,49 @@ one-way (frame to host), and the only inputs are the attributes above.
   addresses) and gets a link to the receipt page. Nothing about it is sent to
   your page.
 
+## Publishable keys and stored flows
+
+A static site can run the widget for its own project without a backend
+([projects.md](projects.md)): the project lists its allowed origins, its
+verified brand, widget defaults and stored flows, and issues browser-safe
+publishable keys (`kl_pub_…`). A publishable key can do only what the public
+tier and the project's stored flows allow, only from the origins the project
+allowed, under its own rate limit and Rule Book.
+
+```html
+<!-- Text mode: intents planned here are owned by the key (your webhooks fire). -->
+<kletia-intent key="kl_pub_…"></kletia-intent>
+
+<!-- A stored flow, for example a deposit into your registered contract. -->
+<kletia-intent key="kl_pub_…" flow="deposit"></kletia-intent>
+```
+
+The key and the flow travel in the URL fragment (`/embed#key=kl_pub_…&flow=deposit`),
+shape-checked by the element and again by the frame. Then the frame:
+
+1. requires the bridge: opened on its own (a new tab, a raw iframe, a host
+   that never connects), it loads nothing;
+2. reads `GET /v1/publishable/profile` with the key, sending the host origin
+   the bridge proved in `Kletia-Host-Origin`;
+3. refuses when that origin is not one of the project's `allowedOrigins`
+   ("This widget is not set up for evil.example. Nothing was planned.",
+   `kletia:error` `PUBLISHABLE_ORIGIN_FORBIDDEN`), and refuses a flow the
+   project does not have (`FLOW_UNKNOWN`);
+4. applies the project's `defaults` (networks, actions, starting network,
+   examples and appearance) under the element's own attributes, which win;
+5. shows the project's name, verified domain and logo above the widget only
+   when the profile says the domain is verified. No attribute or URL
+   parameter can set a name or a logo;
+6. shows a TESTNET ribbon when the project runs on the testnet lane;
+7. runs text mode with the key, or mints the flow's single-use session
+   (`POST /v1/sessions` with `{ flow, hostOrigin }`, 10 minutes) and runs it
+   like any session: the same review, gates and wallet prompts.
+
+The API checks the origin rules again on every request: a forged
+`Kletia-Host-Origin` from a script outside a browser buys nothing a stranger
+could not do with the public tier and your fixed flows, with their own funds
+and wallet.
+
 ## Events
 
 Every event is a `CustomEvent` dispatched on the element, with
@@ -285,6 +359,7 @@ Every event is a `CustomEvent` dispatched on the element, with
 | `kletia:intent-created` | `{ intentId, status, reference? }` | The visitor planned an intent with a connected wallet (or a session created one); Kletia stored it. For a session, `reference` is the session's `clientReference`. |
 | `kletia:step-updated` | `{ intentId, stepId, stepIndex, network, status }` | A step of a stored intent changed status (`awaiting_signature`, `submitted`, `settled`, …). |
 | `kletia:completed` | `{ intentId, status }` | Execution finished; `status` is the final intent status (`completed`, `partially_completed`, `failed`, …). |
+| `kletia:question` | `{ count, reasons }` | The widget asks the visitor before it can plan (clarifying questions, always on): how many questions and their reason codes (`AMOUNT_MISSING`, `NETWORK_AMBIGUOUS`, …; see [clarify.md](clarify.md)). Never the visitor's text, options or values. Use it to log or to make room; `kletia:resize` already follows the height. |
 | `kletia:error` | `{ code, message }` | Something failed. `message` is fixed text; the visitor's own error text never leaves the frame. |
 
 Error codes in `kletia:error`:
@@ -299,6 +374,9 @@ Error codes in `kletia:error`:
   [Troubleshooting](#troubleshooting).
 - `EMBED_SCOPE_REFUSED`: a plan uses a network or a kind of action outside
   `networks` / `actions`; Execute stays disabled.
+- `PUBLISHABLE_ORIGIN_FORBIDDEN`: the publishable key's project does not
+  allow your page's origin; nothing was planned.
+- `FLOW_UNKNOWN`: the `flow` is not one of the project's stored flows.
 - `CONTRACT_PENDING`: the session's contract registration is still in its
   activation delay. The frame says when the checkout opens ("This checkout
   opens at 14:11 (in 9 min).") and keeps planning disabled until then.

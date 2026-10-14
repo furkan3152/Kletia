@@ -36,7 +36,7 @@ export function WizardSteps({ steps, current, reached, flagged = [], onGo }: Wiz
                 onClick={() => onGo(step.n)}
                 aria-current={here ? "step" : undefined}
                 className={cx(
-                  "inline-flex min-h-10 items-center gap-2 border-[3px] px-2.5 text-[11px] font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed",
+                  "inline-flex min-h-10 items-center gap-2 border-[3px] px-2.5 text-[12px] font-black uppercase tracking-[0.1em] disabled:cursor-not-allowed",
                   here
                     ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#FFD60A]"
                     : done
@@ -45,7 +45,7 @@ export function WizardSteps({ steps, current, reached, flagged = [], onGo }: Wiz
                   FOCUS_RING,
                 )}
               >
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-current font-code text-[10px]">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-current font-code text-[12px]">
                   {done && !issue ? <Check className="h-3 w-3" aria-hidden="true" /> : step.n}
                 </span>
                 {step.label}

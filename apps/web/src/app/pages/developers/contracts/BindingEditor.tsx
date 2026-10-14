@@ -41,9 +41,9 @@ function ArgRow({
     <div className={cx("grid min-w-0 gap-3 p-3 md:grid-cols-[minmax(0,11rem)_minmax(0,12rem)_minmax(0,1fr)] md:items-start", INK_BORDER_THIN)}>
       <div className="min-w-0">
         <p className="break-words font-code text-[13px] font-bold">{param.name || `argument ${index + 1}`}</p>
-        <p className={cx("font-code text-[11px]", TEXT_MUTED)}>{param.type}</p>
+        <p className={cx("font-code text-[12px]", TEXT_MUTED)}>{param.type}</p>
         {beneficiary ? (
-          <p className="mt-1 flex items-start gap-1 text-[11px] font-bold">
+          <p className="mt-1 flex items-start gap-1 text-[12px] font-bold">
             <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
             Beneficiary: always the user or the step recipient.
           </p>
@@ -60,7 +60,7 @@ function ArgRow({
           options={modes}
         />
       ) : (
-        <p className={cx(LABEL, "!text-[10px] md:pt-8", TEXT_MUTED)}>{modes[0]?.label ?? "Not bindable"}</p>
+        <p className={cx(LABEL, "md:pt-8", TEXT_MUTED)}>{modes[0]?.label ?? "Not bindable"}</p>
       )}
       <div className="min-w-0">
         {mode === "source" ? (

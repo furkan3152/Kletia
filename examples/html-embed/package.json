@@ -1,0 +1,16 @@
+{
+  "name": "kletia-example-html-embed",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The Kletia widget on a plain HTML page: the embed script from the Kletia origin with its SRI hash, appearance attributes and an events log, served by a zero-dependency Node server.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node smoke.mjs",
+    "build": "node smoke.mjs"
+  },
+  "license": "MIT"
+}

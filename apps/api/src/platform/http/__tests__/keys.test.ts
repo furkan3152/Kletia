@@ -283,6 +283,27 @@ function keyContract(name: string, make: () => import("../auth.js").ApiKeyStore)
       // Revoked keys free a slot in the project.
       await store.insert(record(id(), rootId), hash(), 2);
     });
+
+    it("inserts publishable keys under a project key, at most `maxActive` live ones, revoked with their parent", async () => {
+      const store = make();
+      const rootId = id();
+      await store.insert(record(rootId, rootId), hash());
+      const publishable = (keyId: string): import("../auth.js").ApiKeyRecord => ({ ...record(keyId, rootId), kind: "publishable", parentId: rootId, lineage: [rootId], expiresAt: null });
+      const first = id();
+      const firstHash = hash();
+      await store.insertPublishable(publishable(first), firstHash, 2, Date.now());
+      await store.insertPublishable(publishable(id()), hash(), 2, Date.now());
+      await assert.rejects(store.insertPublishable(publishable(id()), hash(), 2, Date.now()), (error: { code?: string }) => error.code === "KEY_LIMIT_REACHED");
+      const match = await store.findByHash(firstHash, Date.now());
+      assert.equal(match?.record.kind, "publishable");
+      assert.deepEqual(match?.record.lineage, [rootId]);
+      assert.equal(match?.active, true);
+      // Project keys and agents are counted apart: the project key cap is untouched.
+      await store.insert(record(id(), rootId), hash(), 2);
+      const revoked = await store.revokeSubtree(rootId, rootId, new Date().toISOString());
+      assert.ok(revoked.cascade.includes(first), "revoking the parent revokes its publishable keys");
+      assert.equal((await store.findByHash(firstHash, Date.now()))?.active, false);
+    });
   });
 }
 

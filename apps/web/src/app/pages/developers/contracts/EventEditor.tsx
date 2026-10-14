@@ -64,7 +64,7 @@ export function EventEditor({ entry, events, labels, index, issues, onChange }: 
             </div>
             {item ? (
               <fieldset className="flex min-w-0 flex-col gap-2">
-                <legend className={cx(LABEL, "mb-1 !text-[10px]")}>Fields that must match</legend>
+                <legend className={cx(LABEL, "mb-1")}>Fields that must match</legend>
                 {item.inputs.map((input) => {
                   const name = input.name ?? "";
                   if (!name) return null;

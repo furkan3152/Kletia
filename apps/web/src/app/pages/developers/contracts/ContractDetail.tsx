@@ -6,10 +6,10 @@ import { useState, type ReactNode } from "react";
 import { sdkSignal } from "../../../../shared/platform/kletiaClient";
 import { useApiAction, useApiResource } from "../../../../shared/platform/useApiResource";
 import { ApiErrorPanel } from "../../../site/ui/ApiErrorPanel";
-import { Badge } from "../../../site/ui/Badge";
 import { Button } from "../../../site/ui/Button";
 import { CodeBlock } from "../../../site/ui/CodeBlock";
 import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
+import { StatusPill } from "../../../site/ui/StatusPill";
 import { cx, FOCUS_RING, INK_BORDER_THIN, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
 import { keyedClient } from "../keys/keyClient";
 import { formatWhen, hostOf, httpsUrl, shortAddress, shortId } from "../portal/portalFormat";
@@ -104,42 +104,168 @@ function RecentCalls({ contract, apiKey }: { readonly contract: ContractView; re
         <li key={`${intent.id}-${step.id}`} className="flex min-w-0 flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <span className="min-w-0">
             <span className="block break-words font-semibold">{step.title}</span>
-            <span className={cx("block font-code text-[11px]", TEXT_MUTED)}>
+            <span className={cx("block font-code text-[12px]", TEXT_MUTED)}>
               {shortId(intent.id)} · entry {step.call?.entry} · revision {step.call?.revision} · {formatWhen(intent.createdAt)}
             </span>
           </span>
-          <Badge tone={step.status === "settled" || step.status === "confirmed" ? "green" : step.status === "failed" || step.status === "indeterminate" ? "red" : "neutral"}>{step.status.replace(/_/gu, " ")}</Badge>
+          <StatusPill tone={step.status === "settled" || step.status === "confirmed" ? "success" : step.status === "failed" || step.status === "indeterminate" ? "danger" : "neutral"}>
+            {step.status.replace(/_/gu, " ")}
+          </StatusPill>
         </li>
       ))}
     </ul>
   );
 }
 
-export interface ContractDetailProps {
+/** The entries of a registration: id, label, function or href, phrases and limits. */
+export function ContractEntries({ contract }: { readonly contract: ContractView }) {
+  return (
+    <ul className="grid gap-3 lg:grid-cols-2">
+      {contract.actions.map((action) => (
+        <li key={action.id} className={cx("flex min-w-0 flex-col gap-1.5 p-3 text-sm", INK_BORDER_THIN)}>
+          <p className="flex min-w-0 flex-wrap items-center gap-2">
+            <code className="font-code text-[12px] font-bold">{action.id}</code>
+            <span className="min-w-0 break-words font-semibold">{action.label}</span>
+          </p>
+          <p className={cx("break-all font-code text-[12px]", TEXT_MUTED)}>
+            {"function" in action ? `${action.function} · ${action.selector}` : "href" in action ? action.href : null}
+          </p>
+          {action.phrases ? (
+            <p className="text-[13px]">
+              Phrases: {action.phrases.verbs.join(", ")} {action.phrases.aliases.length > 0 ? `· ${action.phrases.aliases.map((alias) => `"${alias}"`).join(", ")}` : ""}
+            </p>
+          ) : null}
+          {action.limits?.maxAmount || action.limits?.minAmount ? (
+            <p className="text-[13px]">
+              Limits: {action.limits.minAmount ? `min ${action.limits.minAmount}` : ""}
+              {action.limits.minAmount && action.limits.maxAmount ? ", " : ""}
+              {action.limits.maxAmount ? `max ${action.limits.maxAmount}` : ""}
+            </p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Pinned code identity and source verification. */
+export function ContractPinsAndVerification({ contract }: { readonly contract: ContractView }) {
+  const sourceUrl = contract.verification.source?.url ? httpsUrl(contract.verification.source.url) : null;
+  return (
+    <div className="grid min-w-0 gap-6 xl:grid-cols-2">
+      <section aria-labelledby="contract-pins" className="min-w-0">
+        <h3 id="contract-pins" className={cx(LABEL, "mb-2")}>
+          Pinned code identity
+        </h3>
+        <Pins contract={contract} />
+        <p className={cx("mt-3 text-[13px]", TEXT_MUTED)}>
+          Re-read at every prepare and every 10 minutes; a change suspends the registration. Definition hash{" "}
+          <code className="break-all font-code">{contract.definitionHash}</code>.
+        </p>
+      </section>
+      <section aria-labelledby="contract-verification" className="flex min-w-0 flex-col gap-3">
+        <h3 id="contract-verification" className={LABEL}>
+          Verification
+        </h3>
+        <ul className="flex flex-col gap-1.5 text-sm">
+          {contract.vm === "evm" ? (
+            <li>
+              Source: <strong>{contract.verification.source?.status?.replace("_", " ") ?? "unknown"}</strong>{" "}
+              {sourceUrl ? <ExternalLink href={sourceUrl}>Sourcify</ExternalLink> : null}
+              {contract.verification.implementationSource ? (
+                <span> · implementation {contract.verification.implementationSource.status.replace("_", " ")}</span>
+              ) : null}
+            </li>
+          ) : (
+            (contract.verification.programs ?? []).map((program) => (
+              <li key={program.program} className="break-all">
+                {shortAddress(program.program)}: OtterSec {program.verified === true ? "verified" : program.verified === false ? "not verified" : "unknown"}
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+/** The registration's revisions, the serving and the pending one marked. */
+export function ContractRevisions({ contract }: { readonly contract: ContractWithRevisions }) {
+  const revisions = contract.revisions ?? [];
+  if (revisions.length === 0) return <p className={cx("text-sm", TEXT_MUTED)}>Revision {contract.revision} is the only one.</p>;
+  return (
+    <ol className="flex flex-col gap-1.5 font-code text-[13px]">
+      {revisions.map((revision) => (
+        <li key={revision.revision} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-bold">r{revision.revision}</span>
+          <span className="min-w-0 break-all">{revision.definitionHash.slice(0, 16)}…</span>
+          <span className={TEXT_MUTED}>{formatWhen(revision.createdAt)}</span>
+          {revision.revision === contract.activeRevision ? <StatusPill tone="success">Serving</StatusPill> : null}
+          {revision.revision === contract.pendingRevision ? <StatusPill tone="info">Pending</StatusPill> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The integrator's domain: verified, or the `.well-known` file to publish and Reverify. */
+export function ContractDomain({ contract }: { readonly contract: ContractView }) {
+  const website = httpsUrl(contract.integrator.website);
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <p className="text-sm">
+        Domain: <strong>{contract.integrator.domainVerified ? "verified" : "not verified"}</strong>
+        {website ? (
+          <>
+            {" "}
+            for <ExternalLink href={website}>{hostOf(website) ?? website}</ExternalLink>
+          </>
+        ) : null}
+      </p>
+      {!contract.integrator.domainVerified && website ? (
+        <>
+          <p className={cx("max-w-3xl text-sm", TEXT_MUTED)}>
+            Publish this file at <code className="break-all font-code">{`${website.replace(/\/+$/u, "")}${WELL_KNOWN_PATH}`}</code> (HTTPS, no redirects, at most 16 KB), then
+            press Reverify. Unverified integrators keep working with a $1,000 per-step cap and a warning in every review.
+          </p>
+          <CodeBlock code={wellKnownSnippet([contract.id])} language="json" label="Domain verification file" filename="kletia.json" />
+        </>
+      ) : !website ? (
+        <p className={cx("text-sm", TEXT_MUTED)}>The registration names no website, so there is no domain to verify.</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Recent call steps of this registration, from the key's latest intents. */
+export function ContractRecentCalls({ contract, apiKey }: { readonly contract: ContractView; readonly apiKey: string }) {
+  return <RecentCalls contract={contract} apiKey={apiKey} />;
+}
+
+/** The test form: what your users would see, simulated, nothing signed. */
+export function ContractTest({ contract, apiKey }: { readonly contract: ContractView; readonly apiKey: string }) {
+  return <ContractTestForm contract={contract} apiKey={apiKey} />;
+}
+
+export interface ContractActionsProps {
   readonly contract: ContractView;
   readonly apiKey: string;
   /** The registration changed (reverify) or is gone (delete). */
   readonly onChanged: (message: string, removed?: boolean) => void;
+  /** Developer keys reverify and delete; agent keys only read. */
+  readonly canWrite: boolean;
 }
 
-/** One registration: entries, pins, verification, revisions, recent calls, test, reverify and delete. */
-export function ContractDetail({ contract: summary, apiKey, onChanged }: ContractDetailProps) {
-  const detail = useApiResource<ContractWithRevisions>(`contract:${summary.id}:${summary.updatedAt}`, (_client, signal) =>
-    keyedClient(apiKey).contracts.get(summary.id, { signal: sdkSignal(signal) }),
-  );
-  const contract: ContractWithRevisions = detail.data ?? summary;
+/** Reverify and delete (with a confirmation), and their failures. */
+export function ContractActions({ contract, apiKey, onChanged, canWrite }: ContractActionsProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const reverify = useApiAction((_client, signal, id: string) => keyedClient(apiKey).contracts.reverify(id, { signal: sdkSignal(signal) }));
   const remove = useApiAction((_client, signal, id: string) => keyedClient(apiKey).contracts.delete(id, { signal: sdkSignal(signal) }).then(() => id));
-  const website = httpsUrl(contract.integrator.website);
-  const sourceUrl = contract.verification.source?.url ? httpsUrl(contract.verification.source.url) : null;
+  if (!canWrite) return null;
 
   const doReverify = async () => {
     const view = await reverify.run(contract.id);
-    if (view) {
-      onChanged(view.revision > contract.revision ? `Reverified: the code changed, revision ${view.revision} was created.` : "Reverified: pins and verification refreshed.");
-      detail.reload();
-    }
+    if (view) onChanged(view.revision > contract.revision ? `Reverified: the code changed, revision ${view.revision} was created.` : "Reverified: pins and verification refreshed.");
   };
   const doDelete = async () => {
     const id = await remove.run(contract.id);
@@ -148,149 +274,37 @@ export function ContractDetail({ contract: summary, apiKey, onChanged }: Contrac
   const failure = reverify.status === "error" ? reverify.error : remove.status === "error" ? remove.error : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-6 border-t-2 border-dashed border-[#1A1A1A]/25 pt-5 dark:border-white/15">
-      <section aria-label="Entries" className="min-w-0">
-        <p className={cx(LABEL, "mb-2")}>Entries</p>
-        <ul className="grid gap-3 lg:grid-cols-2">
-          {contract.actions.map((action) => (
-            <li key={action.id} className={cx("flex min-w-0 flex-col gap-1.5 p-3 text-sm", INK_BORDER_THIN)}>
-              <p className="flex min-w-0 flex-wrap items-center gap-2">
-                <code className="font-code text-[12px] font-bold">{action.id}</code>
-                <span className="min-w-0 break-words font-semibold">{action.label}</span>
-              </p>
-              <p className={cx("break-all font-code text-[11px]", TEXT_MUTED)}>
-                {"function" in action ? `${action.function} · ${action.selector}` : "href" in action ? action.href : null}
-              </p>
-              {action.phrases ? (
-                <p className="text-xs">
-                  Phrases: {action.phrases.verbs.join(", ")} {action.phrases.aliases.length > 0 ? `· ${action.phrases.aliases.map((alias) => `"${alias}"`).join(", ")}` : ""}
-                </p>
-              ) : null}
-              {action.limits?.maxAmount || action.limits?.minAmount ? (
-                <p className="text-xs">
-                  Limits: {action.limits.minAmount ? `min ${action.limits.minAmount}` : ""}
-                  {action.limits.minAmount && action.limits.maxAmount ? ", " : ""}
-                  {action.limits.maxAmount ? `max ${action.limits.maxAmount}` : ""}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
-        <section aria-label="Code identity" className="min-w-0">
-          <p className={cx(LABEL, "mb-2")}>Pinned code identity</p>
-          <Pins contract={contract} />
-          <p className={cx("mt-3 text-xs", TEXT_MUTED)}>
-            Re-read at every prepare and every 10 minutes; a change suspends the registration. Definition hash{" "}
-            <code className="break-all font-code">{contract.definitionHash}</code>.
-          </p>
-        </section>
-        <section aria-label="Verification and revisions" className="flex min-w-0 flex-col gap-3">
-          <p className={LABEL}>Verification</p>
-          <ul className="flex flex-col gap-1.5 text-sm">
-            {contract.vm === "evm" ? (
-              <li>
-                Source: <strong>{contract.verification.source?.status?.replace("_", " ") ?? "unknown"}</strong>{" "}
-                {sourceUrl ? <ExternalLink href={sourceUrl}>Sourcify</ExternalLink> : null}
-                {contract.verification.implementationSource ? (
-                  <span> · implementation {contract.verification.implementationSource.status.replace("_", " ")}</span>
-                ) : null}
-              </li>
-            ) : (
-              (contract.verification.programs ?? []).map((program) => (
-                <li key={program.program} className="break-all">
-                  {shortAddress(program.program)}: OtterSec {program.verified === true ? "verified" : program.verified === false ? "not verified" : "unknown"}
-                </li>
-              ))
-            )}
-            <li>
-              Domain: <strong>{contract.integrator.domainVerified ? "verified" : "not verified"}</strong>
-              {website ? (
-                <>
-                  {" "}
-                  for <ExternalLink href={website}>{hostOf(website) ?? website}</ExternalLink>
-                </>
-              ) : null}
-            </li>
-          </ul>
-          {contract.revisions && contract.revisions.length > 0 ? (
-            <>
-              <p className={cx(LABEL, "mt-2")}>Revisions</p>
-              <ol className="flex flex-col gap-1 font-code text-[12px]">
-                {contract.revisions.map((revision) => (
-                  <li key={revision.revision} className="flex min-w-0 flex-wrap gap-x-3">
-                    <span className="font-bold">r{revision.revision}</span>
-                    <span className="min-w-0 break-all">{revision.definitionHash.slice(0, 16)}…</span>
-                    <span className={TEXT_MUTED}>{formatWhen(revision.createdAt)}</span>
-                    {revision.revision === contract.activeRevision ? <Badge tone="green">serving</Badge> : null}
-                    {revision.revision === contract.pendingRevision ? <Badge tone="yellow">pending</Badge> : null}
-                  </li>
-                ))}
-              </ol>
-            </>
-          ) : null}
-        </section>
-      </div>
-
-      {!contract.integrator.domainVerified && website ? (
-        <section aria-label="Verify your domain" className="min-w-0">
-          <p className={cx(LABEL, "mb-2")}>Verify your domain</p>
-          <p className={cx("mb-3 max-w-3xl text-sm", TEXT_MUTED)}>
-            Publish this file at <code className="break-all font-code">{`${website.replace(/\/+$/u, "")}${WELL_KNOWN_PATH}`}</code> (HTTPS, no redirects, at most 16 KB), then
-            press Reverify. Unverified integrators keep working with a $1,000 per-step cap and a warning in every review.
-          </p>
-          <CodeBlock code={wellKnownSnippet([contract.id])} language="json" label="Domain verification file" filename="kletia.json" />
-        </section>
-      ) : null}
-
-      <section aria-label="Recent calls" className="min-w-0">
-        <p className={cx(LABEL, "mb-2")}>Recent call steps</p>
-        <RecentCalls contract={contract} apiKey={apiKey} />
-      </section>
-
-      <section aria-label="Test an entry" className={cx("min-w-0 p-4 sm:p-5", INK_BORDER_THIN)}>
-        <h4 className="mb-4 font-display text-xl font-bold">Test an entry</h4>
-        <ContractTestForm contract={contract} apiKey={apiKey} />
-      </section>
-
-      <section aria-label="Maintenance" className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" loading={reverify.status === "loading"} onClick={() => void doReverify()}>
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            Reverify
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" loading={reverify.status === "loading"} onClick={() => void doReverify()}>
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Reverify
+        </Button>
+        {!confirmDelete ? (
+          <Button variant="ghost" onClick={() => setConfirmDelete(true)}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Delete
           </Button>
-          {!confirmDelete ? (
-            <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Delete
-            </Button>
-          ) : null}
-        </div>
-        <p className={cx("text-xs", TEXT_MUTED)}>
-          Reverify after an intended upgrade or once your domain file is up: it re-pins the code, checks the source and the domain again, and
-          creates a new revision when the code changed{contract.vm === "evm" ? " (pending for the activation delay on mainnet)" : ""}.
-        </p>
-        {confirmDelete ? (
-          <div className="kl-rise flex flex-col gap-3 border-[3px] border-[#B91C1C] bg-[#FFE4E4] p-3 text-[#1A1A1A] dark:border-[#7F1D1D] dark:bg-[#2A1215] dark:text-[#FEE2E2]">
-            <p className="flex items-start gap-2 text-sm font-bold">
-              <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              Delete {contract.integrator.name} ({shortId(contract.id)})? Intents planned on it stop preparing; submitted steps keep verifying.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="ink" loading={remove.status === "loading"} onClick={() => void doDelete()}>
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Delete registration
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(false)}>
-                Keep it
-              </Button>
-            </div>
-          </div>
         ) : null}
-        <div aria-live="polite">{failure ? <ApiErrorPanel error={failure} title="The action failed" /> : null}</div>
-      </section>
+      </div>
+      {confirmDelete ? (
+        <div className="flex flex-col gap-3 border-[3px] border-danger bg-danger-bg p-3 text-fg">
+          <p className="flex items-start gap-2 text-sm font-bold">
+            <ShieldX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            Delete {contract.integrator.name} ({shortId(contract.id)})? Intents planned on it stop preparing; submitted steps keep verifying.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="ink" loading={remove.status === "loading"} onClick={() => void doDelete()}>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Delete registration
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <div aria-live="polite">{failure ? <ApiErrorPanel error={failure} title="The action failed" /> : null}</div>
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function AbiFunctionPicker({ functions, selected, onToggle, max }: AbiFun
                         <code className="min-w-0 break-all font-code text-[12.5px] font-bold">{entry.signature}</code>
                         {entry.stateMutability === "payable" ? <Badge tone="yellow">payable</Badge> : null}
                       </span>
-                      <span className={cx("mt-0.5 block font-code text-[11px]", TEXT_MUTED)}>selector {entry.selector}</span>
+                      <span className={cx("mt-0.5 block font-code text-[12px]", TEXT_MUTED)}>selector {entry.selector}</span>
                       {entry.notes.map((note) => (
                         <span key={note} className="mt-0.5 block text-xs">
                           {note}

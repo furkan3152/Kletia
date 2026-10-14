@@ -48,6 +48,7 @@ import { PREVIEW_ACK_HEADER_SCHEMA, previewPaths, previewSchemas } from "./previ
 import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
 import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openapi.js";
 import { linkPaths, linkSchemas } from "./links/openapi.js";
+import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1449,8 +1450,8 @@ function schemas(): JsonObject {
         id: str({ pattern: API_KEY_ID_PATTERN.source }),
         name: str(),
         tier: str({ enum: ["developer"] }),
-        kind: str({ enum: ["project", "agent"], description: "`agent`: a kl_agt_ key issued under another key (POST /v1/keys/{id}/children)." }),
-        parentId: { type: ["string", "null"], description: "Parent of an agent key." },
+        kind: str({ enum: ["project", "agent", "publishable"], description: "`agent`: a kl_agt_ key issued under another key (POST /v1/keys/{id}/children); `publishable`: a kl_pub_ browser key under a project key (POST /v1/projects/current/publishable-keys)." }),
+        parentId: { type: ["string", "null"], description: "Parent of an agent or publishable key." },
         depth: int({ minimum: 0, description: "Levels below the project key (0 for project keys)." }),
         expiresAt: { type: ["string", "null"], format: "date-time", description: "When the key stops authenticating (always set on agent keys)." },
         policyVersion: { type: ["integer", "null"], description: "Active rule book version (null: none; an agent key without one is an observer)." },
@@ -1553,7 +1554,7 @@ function schemas(): JsonObject {
                 {
                   keyId: str(),
                   name: str(),
-                  kind: str({ enum: ["project", "agent"] }),
+                  kind: str({ enum: ["project", "agent", "publishable"] }),
                   parentId: { type: ["string", "null"] },
                   revokedAt: { type: ["string", "null"], format: "date-time" },
                   requests: int({ minimum: 0 }),
@@ -1626,6 +1627,7 @@ function schemas(): JsonObject {
     ...receiptSchemas(),
     ...policySchemas(),
     ...linkSchemas(),
+    ...projectSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -1905,10 +1907,14 @@ function paths(): JsonObject {
       get: {
         operationId: "listIntents",
         tags: ["Intents"],
-        summary: "List intents created with the caller's key",
+        summary: "List intents created with the caller's key (or a key below it)",
+        description: "`owner=key_…`: the intents of an agent or publishable key in the caller's subtree (project keys: any such key of the project; agent keys: their descendants); 404 KEY_NOT_FOUND otherwise.",
         security: KEY_REQUIRED,
-        parameters: [{ name: "limit", in: "query", required: false, schema: int({ minimum: 1, maximum: 100, default: 20 }) }],
-        responses: { "200": ok("IntentListResponse", "Most recent first."), ...errors() },
+        parameters: [
+          { name: "limit", in: "query", required: false, schema: int({ minimum: 1, maximum: 100, default: 20 }) },
+          { name: "owner", in: "query", required: false, schema: str({ pattern: API_KEY_ID_PATTERN.source }) },
+        ],
+        responses: { "200": ok("IntentListResponse", "Most recent first."), ...errors("404") },
       },
     },
     "/v1/intents/{id}": {
@@ -2023,6 +2029,7 @@ function paths(): JsonObject {
     ...receiptPaths(),
     ...policyPaths(),
     ...linkPaths(),
+    ...projectPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2244,11 +2251,11 @@ function paths(): JsonObject {
         operationId: "createSession",
         tags: ["Sessions"],
         summary: "Create a session the embed turns into an intent for a visitor",
-        description: `A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's \`embedUrl\` carries the id in the URL fragment. At most ${CONTRACT_LIMITS.activeSessionsPerKey} active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds \`warnings: [{ code: "CONTRACT_PENDING", contract, activatesAt }]\`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (\`details.minimumExpiresInSeconds\`).${IDEMPOTENCY_NOTE}`,
+        description: `A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's \`embedUrl\` carries the id in the URL fragment. At most ${CONTRACT_LIMITS.activeSessionsPerKey} active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds \`warnings: [{ code: "CONTRACT_PENDING", contract, activatesAt }]\`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (\`details.minimumExpiresInSeconds\`). Every session intent counts in the owner key's own Rule Book spend windows. With a publishable key, send only \`{ flow, hostOrigin }\`: a single-use 600 s session from the project's stored flow, owned by the publishable key, whose call / action steps use the registrations of the key that saved the flow (404 FLOW_UNKNOWN; 403 PUBLISHABLE_ORIGIN_FORBIDDEN when hostOrigin is not an allowed origin).${IDEMPOTENCY_NOTE}`,
         security: KEY_REQUIRED,
         parameters: [idempotencyKeyParam],
-        requestBody: jsonBody("SessionCreateRequest"),
-        responses: { "201": ok("SessionResponse", "The session.", REPLAYED_HEADER), ...errors("409", "413", "415", "422", "502", "504") },
+        requestBody: { required: true, content: { "application/json": { schema: { oneOf: [ref("SessionCreateRequest"), ref("FlowSessionRequest")] } } } },
+        responses: { "201": ok("SessionResponse", "The session.", REPLAYED_HEADER), ...errors("403", "404", "409", "413", "415", "422", "502", "504") },
       },
     },
     "/v1/sessions/{id}": {
@@ -2391,7 +2398,8 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
       { name: "Usage", description: "Per-key request counts and rate-limit state." },
       { name: "Contracts", description: "Register your own EVM contracts and Solana Actions so your key's intents can call them: pinned, simulated, verified, never audited by Kletia." },
-      { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet." },
+      { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow)." },
+      { name: "Projects", description: "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile." },
       { name: "Rule Book", description: "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals." },
       { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
@@ -2486,7 +2494,7 @@ export function buildOpenApiDocument(): JsonObject {
     },
     components: {
       securitySchemes: {
-        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "kl_dev_<32 base62>", description: "Developer or operator API key." },
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "kl_dev_<32 base62>", description: "Developer, agent or operator API key; or a publishable key (kl_pub_, browsers: only the operations the Projects tag lists, from the project's allowed origins)." },
         apiKeyHeader: { type: "apiKey", in: "header", name: "X-Kletia-Key", description: "Alternative to the Authorization header." },
       },
       parameters: {

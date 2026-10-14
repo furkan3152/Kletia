@@ -3,12 +3,16 @@ import {
   CHAINS,
   formatAmount,
   isSessionId,
+  openBlockers,
   parseAccountId,
   type AccountId,
   type ContractReview as ContractReviewData,
   type IntentGraph,
   type IntentPreview,
   type IntentStep,
+  type IntentTurnRequest,
+  type Journey,
+  type JourneyConsequence,
   type KletiaAppearance,
   type NetworkKey,
   type PreviewIssue,
@@ -26,20 +30,32 @@ import {
   executeIntent,
   isIntentTerminal,
   type IntentSigners,
+  type IntentTurnResult,
   type KletiaClientOptions,
   type PreviewGateContext,
 } from "@kletia/sdk";
+import { AssumptionChips } from "./AssumptionChips.js";
+import { ClarifyCard, type ClarifyCardAnswer } from "./ClarifyCard.js";
 import { ContractReview } from "./ContractReview.js";
 import { FareBreakdown } from "./FareBreakdown.js";
+import { JourneyRoute } from "./JourneyRoute.js";
 import { PolicyNotice } from "./PolicyNotice.js";
 import { ReceiptStamp } from "./ReceiptStamp.js";
 import {
   blockingIssuesFor,
+  clarifyEventOf,
+  clarifyView,
   cleanText,
+  consequenceFactsKey,
   contractReviewModel,
   fareModel,
+  httpsUrl,
   isContractStep,
   isHttpsUrl,
+  JOURNEY_HANDLE_IT_OPTION,
+  validJourneyAnswers,
+  type ClarifyEvent,
+  type JourneyAnswerMemory,
   policyHold,
   policyOutcome,
   shortAddress,
@@ -70,6 +86,14 @@ export interface KletiaIntentWidgetProps {
   /** An existing client, or options to create one (keep `clientOptions` stable, e.g. with useMemo). */
   readonly client?: KletiaClient;
   readonly clientOptions?: KletiaClientOptions;
+  /**
+   * Your project's publishable key (`kl_pub_…`, safe in browser code): the
+   * widget's client sends it as `Authorization: Bearer kl_pub_…`, so intents
+   * are owned by your project and your allowed origins and rule book apply.
+   * Ignored when `client` is given (that client's key is used). Never pass a
+   * secret key here; the SDK refuses anything that is not a publishable key.
+   */
+  readonly publishableKey?: string;
   /** CAIP-10 accounts the user controls. Required to plan. */
   readonly accounts: readonly AccountId[];
   /** Wallet signers. When omitted, the widget plans and reviews but does not execute. */
@@ -132,7 +156,28 @@ export interface KletiaIntentWidgetProps {
   readonly onUpdate?: (intent: IntentGraph) => void;
   readonly onComplete?: (intent: IntentGraph) => void;
   readonly onError?: (error: unknown) => void;
+  /**
+   * Kletia asked a clarifying question: how many, why (reason codes), of
+   * what kind and whether only the person can answer (`purpose`). Never the
+   * values, the options or the sentence.
+   */
+  readonly onClarify?: (event: ClarifyEvent) => void;
   readonly className?: string;
+}
+
+/**
+ * The widget's client: `client` when given, else one built from
+ * `clientOptions` with the publishable key (sent as `Authorization: Bearer
+ * kl_pub_…`). With a key and an explicit `hostOrigin` (the hosted frame's
+ * proven host), requests also carry `Kletia-Host-Origin`, which the API
+ * checks against the project's allowed origins.
+ */
+export function createWidgetClient(options: Pick<KletiaIntentWidgetProps, "client" | "clientOptions" | "publishableKey" | "hostOrigin">): KletiaClient {
+  if (options.client) return options.client;
+  const { clientOptions, publishableKey, hostOrigin } = options;
+  if (!publishableKey) return new KletiaClient(clientOptions);
+  const headers = typeof hostOrigin === "string" && hostOrigin ? { ...clientOptions?.headers, "kletia-host-origin": hostOrigin } : clientOptions?.headers;
+  return new KletiaClient({ ...clientOptions, publishableKey, ...(headers ? { headers } : {}) });
 }
 
 const STATUS_TONE: Partial<Record<StepStatus, "ok" | "bad" | "live">> = {
@@ -333,7 +378,9 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     onUpdate,
     onComplete,
     onError,
+    onClarify,
     className,
+    publishableKey,
   } = props;
   // Notifications only: their identity must not reload the intent or session.
   const notify = useRef({ onError, onIntentOpened, onSessionLoaded: props.onSessionLoaded });
@@ -341,8 +388,8 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     notify.current = { onError, onIntentOpened, onSessionLoaded: props.onSessionLoaded };
   });
   const client = useMemo(
-    () => props.client ?? new KletiaClient(props.clientOptions),
-    [props.client, props.clientOptions],
+    () => createWidgetClient({ client: props.client, clientOptions: props.clientOptions, publishableKey, hostOrigin }),
+    [props.client, props.clientOptions, publishableKey, hostOrigin],
   );
   const resolvedTheme = useResolvedTheme(props.theme ?? appearance?.colorScheme ?? "auto");
   const resolvedAppearance = useMemo(() => resolveAppearance(appearance, resolvedTheme), [appearance, resolvedTheme]);
@@ -384,6 +431,26 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const gateRef = useRef<HTMLDivElement | null>(null);
   /** Digests of fares the user approved (pressing Execute approves the fare on screen). */
   const approvedDigests = useRef(new Set<string>());
+  /** The text task's last clarify turn (its questions, assumptions and thread). */
+  const [turn, setTurn] = useState<IntentTurnResult | null>(null);
+  /** The answer a clarify turn or a journey prompt is sending (pressed, others disabled). */
+  const [pendingAnswer, setPendingAnswer] = useState<string | null>(null);
+  /** "Not now": the open question waits, folded. */
+  const [questionHidden, setQuestionHidden] = useState(false);
+  /** Where the money is after each step: read with the plan and on step changes, never polled. */
+  const [journey, setJourney] = useState<Journey | null>(null);
+  /** Answers to journey prompts for this intent, with the facts they answered. */
+  const [journeyMemory, setJourneyMemory] = useState<Readonly<Record<string, JourneyAnswerMemory>>>({});
+  /** One polite announcement at a time (a question appeared, Kletia assumed, a blocker appeared). */
+  const [announcement, setAnnouncement] = useState("");
+  /** Bumped by every turn and plan: a response for an older one is ignored. */
+  const turnEpoch = useRef(0);
+  const promptRef = useRef<HTMLDivElement | null>(null);
+  const executeRef = useRef<HTMLButtonElement | null>(null);
+  /** The user answered from a card: focus follows to the next prompt or Execute. */
+  const [focusAfterTurn, setFocusAfterTurn] = useState(false);
+  /** Remembered answers that still fit this journey (asked again when their facts changed). */
+  const journeyAnswers = useMemo(() => validJourneyAnswers(journey, journeyMemory), [journey, journeyMemory]);
 
   const closeGate = useCallback((approved: boolean) => {
     const resolve = gateResolve.current;
@@ -397,6 +464,8 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     ensureWidgetStyles();
     return () => {
       abortRef.current?.abort();
+      // A turn answered after unmount is never applied.
+      turnEpoch.current += 1;
       // A pending review never turns into a signature once the widget is gone.
       const resolve = gateResolve.current;
       gateResolve.current = null;
@@ -455,10 +524,14 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           // instead of the steps being pushed down when the fare arrives (layout shift).
           const loadedFare = await loadFare(loaded, controller.signal);
           if (controller.signal.aborted) return;
+          const loadedJourney = await client.intents.journey(loaded.id, { signal: controller.signal }).catch(() => null);
+          if (controller.signal.aborted) return;
           setIntent(loaded);
           setOwned(true);
           setHold(policyHold(loaded, { fallbackOrigin: linkOrigin }));
           setFare(loadedFare);
+          setJourney(loadedJourney && loadedJourney.intentId === loaded.id ? loadedJourney : null);
+          setJourneyMemory({});
           notify.current.onIntentOpened?.(loaded);
         } else if (sessionId) {
           if (!isSessionId(sessionId)) throw new KletiaApiError({ code: "SESSION_NOT_FOUND", message: "This link does not name a Kletia session.", status: 0 });
@@ -488,44 +561,165 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     if (refusedFor && latestRefusal.current) notify.current.onError?.(new KletiaScopeError(latestRefusal.current));
   }, [refusedFor]);
 
-  const adopt = (created: IntentGraph, createdFare: IntentPreview | null) => {
+  const adopt = (created: IntentGraph, createdFare: IntentPreview | null, createdJourney: Journey | null = null) => {
     setIntent(created);
     setFare(createdFare);
+    setJourney(createdJourney && createdJourney.intentId === created.id ? createdJourney : null);
+    setJourneyMemory({});
     setHold(policyHold(created, { fallbackOrigin: linkOrigin }));
     setAcks({});
     approvedDigests.current.clear();
     onIntentCreated?.(created);
   };
 
-  const plan = async () => {
-    if (!text.trim() || accounts.length === 0) return;
-    setPhase("planning");
+  /** Clears the previous plan before a new sentence or a structured re-plan. */
+  const clearPlan = () => {
     setError(null);
     setIntent(null);
     setFare(null);
+    setJourney(null);
+    setJourneyMemory({});
     setHold(null);
     setStopped(null);
     setUnreported({});
+  };
+
+  /** The request context of every turn and plan: accounts, departure, slippage, metadata. */
+  const context = () => ({
+    accounts,
+    ...(source ? { sourceNetwork: source } : {}),
+    ...(maxSlippageBps ? { constraints: { maxSlippageBps } } : {}),
+    ...(metadata ? { metadata } : {}),
+  });
+
+  /**
+   * One clarify turn (text mode always plans this way, clarify 8): a new
+   * sentence (`fresh`), an answer or an assumption change. A response that
+   * arrives after a newer turn, a reset or a new sentence is ignored; a
+   * refusal keeps the card and the thread as they were.
+   */
+  const runTurn = async (input: Pick<IntentTurnRequest, "text" | "answer" | "assumption">, pendingKey: string, fresh: boolean) => {
+    if (accounts.length === 0) return;
+    const thread = fresh ? null : turn?.thread ?? null;
+    if (!fresh && !thread) return;
+    turnEpoch.current += 1;
+    const mine = turnEpoch.current;
+    setPhase("planning");
+    setPendingAnswer(pendingKey);
+    if (fresh) {
+      clearPlan();
+      setTurn(null);
+      setQuestionHidden(false);
+    } else {
+      setError(null);
+    }
     try {
-      const request = {
-        text: text.trim(),
-        accounts,
-        ...(source ? { sourceNetwork: source } : {}),
-        ...(maxSlippageBps ? { constraints: { maxSlippageBps } } : {}),
-        ...(metadata ? { metadata } : {}),
-      };
-      if (wantPreview) {
-        const created = await client.intents.create(request, { preview: true });
-        adopt(created.intent, created.preview);
+      const memory = thread ? ("spec" in thread ? { thread } : { threadId: thread.id }) : {};
+      const response = await client.intents.turn({ ...context(), ...memory, ...input }, { journey: true, ...(wantPreview ? { preview: true } : {}) });
+      if (mine !== turnEpoch.current) return;
+      if (response.status === "needs_input") {
+        clearPlan();
+        setTurn(response);
+        setQuestionHidden(false);
+        setAnnouncement(clarifyView(response).announcement);
+        const event = clarifyEventOf(response);
+        if (event) onClarify?.(event);
+      } else if (response.status === "planned") {
+        setTurn(response);
+        setStopped(null);
+        setUnreported({});
+        adopt(response.intent, wantPreview ? response.preview ?? null : null, response.journey ?? null);
+        setAnnouncement(clarifyView(response).announcement);
       } else {
-        adopt(await client.intents.create(request), null);
+        clearPlan();
+        setTurn(null);
       }
+      if (!fresh) setFocusAfterTurn(true);
     } catch (caught) {
+      if (mine !== turnEpoch.current) return;
       setError(caught);
       onError?.(caught);
     } finally {
-      setPhase("idle");
+      if (mine === turnEpoch.current) {
+        setPendingAnswer(null);
+        setPhase("idle");
+      }
     }
+  };
+
+  const plan = async () => {
+    if (!text.trim() || accounts.length === 0) return;
+    await runTurn({ text: text.trim() }, "message", true);
+  };
+
+  const openQuestions = turn?.status === "needs_input" ? turn.questions : [];
+  const answerQuestion = (answer: ClarifyCardAnswer) => {
+    const questionId = answer.questionId ?? openQuestions[0]?.id;
+    // Only questions still open on this thread are answered (never after a reset or a new sentence).
+    if (!questionId || pendingAnswer !== null || !openQuestions.some((question) => question.id === questionId)) return;
+    if ("optionId" in answer) void runTurn({ answer: { question: questionId, option: answer.optionId } }, answer.optionId, false);
+    else if (answer.text.trim()) void runTurn({ answer: { question: questionId, text: answer.text.trim().slice(0, 1000) } }, "text", false);
+  };
+
+  const chooseAssumption = (assumptionId: string, optionId: string) => {
+    if (turn?.status !== "planned" || pendingAnswer !== null || phase === "executing") return;
+    const assumption = turn.assumptions.find((entry) => entry.id === assumptionId);
+    if (!assumption || !assumption.alternatives.some((option) => option.id === optionId)) return;
+    void runTurn({ assumption: { id: assumptionId, option: optionId } }, `assumption:${optionId}`, false);
+  };
+
+  /** A structured plan (a journey option that re-plans, e.g. with a gas top-up), with its fare and journey. */
+  const planRequest = async (request: JourneyConsequence["options"][number]["action"] & { readonly type: "replan" }) => {
+    turnEpoch.current += 1;
+    const mine = turnEpoch.current;
+    setPhase("planning");
+    clearPlan();
+    setTurn(null);
+    try {
+      const created = await client.intents.create({ ...request.request, ...(metadata && !request.request.metadata ? { metadata } : {}) }, { journey: true });
+      if (mine !== turnEpoch.current) return;
+      adopt(created.intent, wantPreview ? created.preview : null, created.journey);
+      setFocusAfterTurn(true);
+    } catch (caught) {
+      if (mine !== turnEpoch.current) return;
+      setError(caught);
+      onError?.(caught);
+    } finally {
+      if (mine === turnEpoch.current) setPhase("idle");
+    }
+  };
+
+  /** The user answered a journey prompt: remember it (with its facts) and do what the option says. */
+  const answerJourney = (consequenceId: string, optionId: string) => {
+    const consequence = journey?.consequences.find((entry) => entry.id === consequenceId);
+    if (!consequence || !intent || busy) return;
+    const option = consequence.options.find((entry) => entry.id === optionId) ?? null;
+    if (!option && optionId !== JOURNEY_HANDLE_IT_OPTION) return;
+    setJourneyMemory((current) => ({ ...current, [consequenceId]: { option: optionId, facts: consequenceFactsKey(consequence) } }));
+    setFocusAfterTurn(true);
+    const action = option?.action;
+    if (!action) return;
+    if (action.type === "replan") void planRequest(action);
+    else if (action.type === "plan-new") setText(cleanText(action.text, 1000));
+    else if (action.type === "link") {
+      const url = httpsUrl(action.url);
+      if (url && typeof window !== "undefined") window.open(url.href, "_blank", "noopener,noreferrer");
+    } else if (action.type === "stop") {
+      const current = intent;
+      setPhase("planning");
+      void client.intents
+        .stop(current.id)
+        .then((stoppedIntent) => {
+          setIntent(stoppedIntent.intent);
+          if (stoppedIntent.journey && stoppedIntent.journey.intentId === current.id) setJourney(stoppedIntent.journey);
+        })
+        .catch((caught: unknown) => {
+          setError(caught);
+          onError?.(caught);
+        })
+        .finally(() => setPhase("idle"));
+    }
+    // acknowledge and retry: remembered; Execute continues.
   };
 
   const sessionOriginAllowed = !session || (origin !== null && session.allowedOrigins.includes(origin));
@@ -547,7 +741,8 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
       const amount = session.amount && sessionAmount.trim() ? { amount: sessionAmount.trim() } : {};
       const { intent: created } = await client.sessions.createIntent(sessionId, { accounts, hostOrigin: origin, ...amount });
       setOwned(true);
-      adopt(created, await loadFare(created));
+      const createdFare = await loadFare(created);
+      adopt(created, createdFare, await client.intents.journey(created.id).catch(() => null));
     } catch (caught) {
       setError(caught);
       onError?.(caught);
@@ -558,6 +753,12 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
 
   const execute = async () => {
     if (!intent || !signers) return;
+    // Fail closed: an open journey blocker is answered before anything is prepared.
+    if (journey && journey.intentId === intent.id && openBlockers(journey, journeyAnswers).length > 0) {
+      promptRef.current?.focus();
+      return;
+    }
+    const tracked = journey && journey.intentId === intent.id ? journeyAnswers : null;
     const controller = new AbortController();
     abortRef.current = controller;
     setPhase("executing");
@@ -634,9 +835,30 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         onApprovalRequired: (_approval, policyError) => {
           setHold(policyOutcome(policyError, { fallbackOrigin: linkOrigin }));
         },
+        // With a journey, the SDK reads it on step changes (never polling) and stops before the
+        // wallet prompt of a leg whose blocker is unanswered.
+        ...(tracked
+          ? {
+              journeyAnswers: tracked,
+              onJourney: (next: Journey) => {
+                if (next.intentId === intent.id) setJourney(next);
+              },
+              onJourneyBlocked: (blockers: readonly JourneyConsequence[], step: IntentStep) => {
+                const first = blockers[0];
+                setStopped(`Kletia has a question before ${titleOf(step)}${first ? `: ${cleanText(first.title, 160)}` : ""}. Nothing was signed for it.`);
+                setAnnouncement(`Kletia has a question before ${titleOf(step)}.`);
+              },
+            }
+          : {}),
       });
       setUnreported({});
       setIntent(final);
+      if (tracked) {
+        // Where the money is now, after the last step change.
+        void client.intents.journey(final.id).then((next) => {
+          if (next.intentId === final.id) setJourney(next);
+        }).catch(() => undefined);
+      }
       if (isIntentTerminal(final)) onComplete?.(final);
     } catch (caught) {
       // Keep only what this failure left unreported; the next Execute resubmits it.
@@ -649,6 +871,11 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
       setError(cause instanceof KletiaPolicyError ? cause : caught);
       onError?.(caught);
       void client.intents.get(intent.id).then(setIntent).catch(() => undefined);
+      if (tracked) {
+        void client.intents.journey(intent.id).then((next) => {
+          if (next.intentId === intent.id) setJourney(next);
+        }).catch(() => undefined);
+      }
     } finally {
       const resolve = gateResolve.current;
       gateResolve.current = null;
@@ -673,9 +900,24 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const sessionMode = Boolean(sessionId) && !intent;
   const textMode = !intentId && !sessionId;
   const refusal = finished ? null : scopeRefusal;
-  const canExecute = Boolean(intent && signers) && !busy && !finished && !missingAck && !unbound && fareBlocking.length === 0 && !refusal;
+  const shownJourney = journey && intent && journey.intentId === intent.id ? journey : null;
+  const journeyBlockers = shownJourney && !finished ? openBlockers(shownJourney, journeyAnswers) : [];
+  const readyButBlocked = Boolean(intent && signers) && !busy && !finished && !missingAck && !unbound && fareBlocking.length === 0 && !refusal;
+  const canExecute = readyButBlocked && journeyBlockers.length === 0;
+  const questionOpen = textMode && turn?.status === "needs_input" && openQuestions.length > 0;
+  const card = questionOpen && turn ? clarifyView(turn).card : null;
   const laneLabel = signers ? `${accounts.length} account${accounts.length === 1 ? "" : "s"}` : "Preview";
   const header = resolvedAppearance.header;
+
+  // After an answer, focus moves to the next prompt (the clarify card focuses itself) or to Execute.
+  useEffect(() => {
+    if (!focusAfterTurn || busy) return;
+    setFocusAfterTurn(false);
+    if (questionOpen) return;
+    const prompt = promptRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]');
+    if (prompt) prompt.focus();
+    else if (executeRef.current && !executeRef.current.disabled) executeRef.current.focus();
+  }, [focusAfterTurn, busy, questionOpen]);
 
   return (
     <section
@@ -718,7 +960,32 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               </button>
             ))}
           </div>
-          {/* Reserved: the kw-clarify slot (clarifying questions) renders here, below the prompt and chips, above Plan and Execute. */}
+          {/* The kw-clarify slot: one question card, or Kletia's assumptions once planned. */}
+          {questionOpen || (turn?.status === "planned" && intent && !finished && turn.intent.id === intent.id && turn.assumptions.length > 0) ? (
+            <div className="kw-clarify">
+              {card && !questionHidden ? (
+                <ClarifyCard
+                  question={card}
+                  pending={pendingAnswer}
+                  disabled={busy && pendingAnswer === null}
+                  autoFocus
+                  onAnswer={answerQuestion}
+                  onDismiss={() => setQuestionHidden(true)}
+                />
+              ) : null}
+              {card && questionHidden ? (
+                <p className="kw-hint kw-clarify-wait">
+                  {openQuestions.length === 1 ? "1 question is waiting." : `${openQuestions.length} questions are waiting.`}{" "}
+                  <button type="button" className="kw-linkbtn" onClick={() => setQuestionHidden(false)}>
+                    Show
+                  </button>
+                </p>
+              ) : null}
+              {!questionOpen && turn?.status === "planned" ? (
+                <AssumptionChips assumptions={turn.assumptions} onChange={chooseAssumption} disabled={busy} />
+              ) : null}
+            </div>
+          ) : null}
         </>
       ) : null}
 
@@ -777,7 +1044,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
             disabled={busy || !text.trim() || accounts.length === 0}
             onClick={() => void plan()}
           >
-            {phase === "planning" ? "Planning…" : "Plan"}
+            {phase === "planning" && pendingAnswer === "message" ? "Planning…" : "Plan"}
           </button>
         ) : null}
         {sessionMode && session ? (
@@ -793,10 +1060,21 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         ) : null}
         {!sessionMode ? (
           <button
+            ref={executeRef}
             type="button"
             className="kw-btn kw-primary"
-            disabled={!canExecute}
-            onClick={() => void execute()}
+            // Blocked only by a journey question: still focusable, pressing it moves focus to the question.
+            disabled={!canExecute && !(readyButBlocked && journeyBlockers.length > 0)}
+            aria-disabled={readyButBlocked && journeyBlockers.length > 0 ? true : undefined}
+            aria-describedby={readyButBlocked && journeyBlockers.length > 0 ? `${textId}-blocked` : undefined}
+            onClick={() => {
+              if (journeyBlockers.length > 0) {
+                const radio = promptRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]');
+                (radio ?? promptRef.current)?.focus();
+                return;
+              }
+              void execute();
+            }}
             title={signers ? undefined : "Connect wallets to execute"}
           >
             {phase === "executing" ? "Executing…" : resubmit ? "Resubmit" : "Execute"}
@@ -807,6 +1085,15 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
       {intent && !finished && !busy && !gate && signers && missingAck ? (
         <p className="kw-muted kw-hint">Read the custom contract below and tick its acknowledgement to enable Execute.</p>
       ) : null}
+      {questionOpen && !intent ? <p className="kw-muted kw-hint">Answer the question above to plan.</p> : null}
+      {readyButBlocked && journeyBlockers.length > 0 ? (
+        <p className="kw-hint kw-jr-gate" id={`${textId}-blocked`}>
+          {journeyBlockers.length === 1 ? "Answer 1 question in the itinerary to enable Execute." : `Answer ${journeyBlockers.length} questions in the itinerary to enable Execute.`}
+        </p>
+      ) : null}
+      <p className="kw-sr" role="status" aria-live="polite">
+        {announcement}
+      </p>
 
       {gate ? (
         <div
@@ -905,7 +1192,17 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               </div>
             </div>
             {fare && !finished && !gate ? <FareBreakdown preview={fare} intent={intent} /> : null}
-            {/* Reserved: the kw-journey slot ("where your money is after each step") renders here, after the fare and before the steps. Never hideable by appearance. */}
+            {/* The kw-journey slot: after the fare, before the steps. Never hideable by appearance. */}
+            {shownJourney ? (
+              <JourneyRoute
+                journey={shownJourney}
+                answered={journeyAnswers}
+                onAnswer={answerJourney}
+                holdPrompt={questionOpen || Boolean(gate)}
+                busy={busy}
+                promptRef={promptRef}
+              />
+            ) : null}
             <ol className="kw-steps">
               {intent.steps.map((step) => (
                 <StepRow key={step.id} step={step} />

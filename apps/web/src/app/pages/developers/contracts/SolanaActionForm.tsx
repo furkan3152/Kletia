@@ -184,7 +184,7 @@ export function SolanaActionForm({ apiKey, onRegistered, onCancel }: SolanaActio
                   </p>
                   {entry.denied ? <p className="font-bold">{entry.denied}</p> : null}
                   {entry.pin ? (
-                    <p className={cx("break-all font-code text-[11px]", TEXT_MUTED)}>
+                    <p className={cx("break-all font-code text-[12px]", TEXT_MUTED)}>
                       {entry.pin.upgradeAuthority ? `upgradeable by ${entry.pin.upgradeAuthority}` : "immutable"}
                       {entry.pin.lastDeploySlot ? ` · last deployed at slot ${entry.pin.lastDeploySlot}` : ""}
                     </p>

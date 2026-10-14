@@ -206,13 +206,13 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
           <p className="mt-1 text-sm font-semibold">
             {head && head.status !== "none" ? `Edition ${head.version}${active?.label ? ` · ${active.label}` : ""}` : "No rule book yet: nothing is restricted beyond the levels above."}
           </p>
-          {head && head.status !== "none" && head.hash ? <p className="mt-1 break-all font-code text-[11px]">{head.hash}</p> : null}
+          {head && head.status !== "none" && head.hash ? <p className="mt-1 break-all font-code text-[12px]">{head.hash}</p> : null}
           {head && head.status !== "none" && "createdAt" in head ? <p className="mt-1 text-xs">In force since {formatWhen(head.createdAt)}</p> : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button size="sm" variant={view === "articles" ? "ink" : "secondary"} onClick={() => setView("articles")} aria-pressed={view === "articles"}>
             <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-            Articles
+            Rules
           </Button>
           <Button
             size="sm"
@@ -257,7 +257,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
       {view === "articles" ? (
         <div className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className={cx(LABEL, TEXT_MUTED)}>13 articles · each tab says what it holds now</p>
+            <p className={cx(LABEL, TEXT_MUTED)}>13 rules, each showing what it allows now</p>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setOpenArticles(new Set(ARTICLES.map((article) => article.n)))}>
                 Open all
@@ -271,7 +271,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
             resetKey={documentKey(draft)}
             fallback={() => (
               <div role="alert" className="flex flex-col items-start gap-3 border-l-[6px] border-[#B91C1C] bg-[#FFF1F1] px-4 py-3 text-sm text-[#1A1A1A] dark:bg-[#2A1215] dark:text-[#FECACA]">
-                <p>This draft has a shape the articles cannot show. Fix it in the JSON view (the issues are listed below), or discard the draft.</p>
+                <p>This draft has a shape the rules view cannot show. Fix it in the JSON view (the issues are listed below), or discard the draft.</p>
                 <Button size="sm" variant="secondary" onClick={() => openJson()}>
                   <Braces className="h-3.5 w-3.5" aria-hidden="true" />
                   Open the JSON view
@@ -350,7 +350,7 @@ export function RuleBookEditor({ scope, apiKey, canWrite, contracts, projectKeys
           {!validation.ok ? (
             <p className="text-sm font-bold text-[#B91C1C] dark:text-[#FCA5A5]">
               {validation.issues.length} {validation.issues.length === 1 ? "issue" : "issues"} to fix
-              {issueArticles.length > 0 ? ` in article ${issueArticles.join(", ")}` : ""}
+              {issueArticles.length > 0 ? ` in rule ${issueArticles.join(", ")}` : ""}
               {validation.issues.some((issue) => articleOf(issue.path) === 0) ? `: ${validation.issues.filter((issue) => articleOf(issue.path) === 0).map((issue) => issue.message).join(" ")}` : "."}
             </p>
           ) : null}

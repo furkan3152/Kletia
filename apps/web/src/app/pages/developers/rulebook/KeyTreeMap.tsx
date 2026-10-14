@@ -56,19 +56,19 @@ function Station({ keyItem, state, selected, onSelect }: { readonly keyItem: Api
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="min-w-0 break-words font-display text-[15px] font-bold leading-tight">{keyItem.name}</span>
-          <span className="font-code text-[10px] font-black uppercase tracking-[0.1em]">{agent ? "agent" : "project key"}</span>
+          <span className="font-code text-[12px] font-black uppercase tracking-[0.1em]">{agent ? "agent" : "project key"}</span>
         </span>
-        <span className="mt-0.5 block font-code text-[11px] font-semibold">
+        <span className="mt-0.5 block font-code text-[12px] font-semibold">
           {edition ? `Rule book, edition ${edition}` : agent ? "Observer (no rule book)" : "No rule book"} · {modeWord(mode)}
         </span>
-        <span className={cx("block text-[11px]", selected ? "text-[#1A1A1A]" : TEXT_MUTED)}>
+        <span className={cx("block text-[12px]", selected ? "text-[#1A1A1A]" : TEXT_MUTED)}>
           {keyItem.expiresAt ? `Expires ${formatWhen(keyItem.expiresAt)}` : "No expiry"}
           {keyItem.current ? " · in memory" : ""}
         </span>
         {state?.pending ? (
           <span
             className={cx(
-              "mt-1 inline-block border-2 border-dashed border-[#A84B00] px-1.5 font-code text-[10px] font-black uppercase tracking-[0.08em]",
+              "mt-1 inline-block border-2 border-dashed border-[#A84B00] px-1.5 font-code text-[12px] font-black uppercase tracking-[0.08em]",
               selected ? "text-[#7A3500]" : "text-[#7A3500] dark:border-[#FBBF24] dark:text-[#FBBF24]",
             )}
           >
@@ -102,7 +102,7 @@ function Branch({ nodes, states, selected, onSelect }: { readonly nodes: readonl
 export function KeyTreeMap({ nodes, states, project, selected, onSelect }: KeyTreeMapProps) {
   return (
     <nav aria-label="Keys and their rule books" className="kl-rb-tree min-w-0">
-      <p className={cx(LABEL, "mb-2")}>Branch line</p>
+      <p className={cx(LABEL, "mb-2")}>Keys</p>
       <button
         type="button"
         onClick={() => onSelect("project")}
@@ -116,10 +116,10 @@ export function KeyTreeMap({ nodes, states, project, selected, onSelect }: KeyTr
         <Lamp mode={project?.mode ?? null} />
         <span className="min-w-0">
           <span className="block font-display text-[15px] font-bold">The project</span>
-          <span className="block font-code text-[11px] font-semibold">
+          <span className="block font-code text-[12px] font-semibold">
             {project?.version ? `Rule book, edition ${project.version}` : "No project rule book"} · bounds every key
           </span>
-          {project?.pending ? <span className="mt-1 inline-block font-code text-[10px] font-black uppercase tracking-[0.08em]">Pending amendment</span> : null}
+          {project?.pending ? <span className="mt-1 inline-block font-code text-[12px] font-black uppercase tracking-[0.08em]">Pending amendment</span> : null}
         </span>
       </button>
       <ul className="kl-rb-tree__line mt-2 flex flex-col gap-3 pb-1 pt-1">

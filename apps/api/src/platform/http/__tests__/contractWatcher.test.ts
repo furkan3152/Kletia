@@ -139,6 +139,7 @@ describe("contract watcher", () => {
     codeHashes.set(upgraded, HASH_B);
     now = START + 900_000;
     const report = await runContractWatch();
+    assert.equal(typeof report.projectDomainsChecked, "number", "the pass also re-checks project domains (integrator 4.8)");
     assert.equal(report.activated, 1);
     assert.equal(report.suspended, 1);
     assert.equal(report.errors, 0);

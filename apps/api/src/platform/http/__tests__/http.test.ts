@@ -544,6 +544,7 @@ describe("GET /v1/openapi.json", () => {
         "PATCH /v1/contracts/{id}",
         "POST /v1/contracts/{id}/reverify",
         "POST /v1/sessions",
+        "POST /v1/projects/current/publishable-keys",
       ].sort(),
     );
     assert.deepEqual(refused, ["POST /v1/intents/{id}/steps/{stepId}/prepare"]);

@@ -16,6 +16,9 @@ export {
   intentSessionReducer,
 } from "./intentSession.js";
 export type {
+  ClarifyAnswerInput,
+  ClarifyPending,
+  ClarifyState,
   IntentPhase,
   IntentSession,
   IntentSessionAction,

@@ -12,9 +12,14 @@ signature.
 
 ## Script tag
 
+Every Kletia web deployment serves this package's built files at immutable,
+versioned paths with a manifest of their SHA-384 hashes
+(`/sdk/embed/manifest.json`). Pin the version and the hash; the
+[Embed builder](https://kletiaai.xyz/developers/embed) writes the tag for you.
+
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@kletia/embed@0.1.0/dist/kletia-embed.min.js"
+  src="https://kletiaai.xyz/sdk/embed/0.1.0/kletia-embed.min.js"
   integrity="sha384-…"
   crossorigin="anonymous"
 ></script>
@@ -28,7 +33,9 @@ signature.
 </script>
 ```
 
-The script defines the element and exposes `window.KletiaEmbed`.
+The script defines the element and exposes `window.KletiaEmbed`. Once
+published, the same file is on npm CDNs too
+(`https://cdn.jsdelivr.net/npm/@kletia/embed@<version>/dist/kletia-embed.min.js`).
 
 ## npm
 
@@ -48,9 +55,11 @@ const widget = mountKletiaIntent("#slot", {
 
 ## Attributes
 
-`intent` (`int_…`, an intent your backend created with its key) or `session`
-(`cs_…`, a session your backend created), sent in the URL fragment so they
-never reach access logs or referrers; `theme` (`light` | `dark` | `auto`), `text` (≤ 500 characters), `examples`
+`intent` (`int_…`, an intent your backend created with its key), `session`
+(`cs_…`, a session your backend created), or `key` (your project's
+publishable key, `kl_pub_…`) with an optional `flow` (a stored flow id), all
+sent in the URL fragment so they never reach access logs or referrers (a
+secret key in `key` is ignored with a console warning, never forwarded); `theme` (`light` | `dark` | `auto`), `text` (≤ 500 characters), `examples`
 (comma-separated, ≤ 6), `bg` (`transparent`), `height` (pixels until the
 frame reports its content height, default 600; the frame then follows its
 content), `origin` (default
@@ -92,7 +101,16 @@ questions are always on; there is no attribute to turn them off.
 <kletia-intent intent="int_3f9a…"></kletia-intent>
 <!-- Or a session (POST /v1/sessions); this page's origin must be in allowedOrigins. -->
 <kletia-intent session="cs_9c1e…"></kletia-intent>
+<!-- Or no backend at all: your project's publishable key and a stored flow. -->
+<kletia-intent key="kl_pub_…" flow="deposit"></kletia-intent>
 ```
+
+With a publishable key the frame needs the bridge, checks your page's origin
+against the project's allowed origins (and refuses with
+`PUBLISHABLE_ORIGIN_FORBIDDEN` otherwise), applies the project's defaults
+under your attributes, and shows your project's name and logo only when its
+domain is verified. In `mountKletiaIntent` the options are `publishableKey`
+and `flow`.
 
 Before anything is signed the frame shows the fare breakdown (asset-change
 preview with certainty labels and fees in USD), the review of every custom
@@ -105,9 +123,11 @@ receipt is issued, a share action. Details in
 
 `kletia:ready`, `kletia:resize`, `kletia:intent-planned` (a preview, no id),
 `kletia:intent-created` (a stored intent and its id), `kletia:step-updated`,
-`kletia:completed` and `kletia:error`. Each is a
-composed, bubbling `CustomEvent`; `detail` holds ids, statuses, heights and
-error codes only.
+`kletia:completed`, `kletia:question` (the widget asks before it can plan:
+`{ count, reasons }`, reason codes only) and `kletia:error`
+(`onQuestion` in `mountKletiaIntent`). Each is a composed, bubbling
+`CustomEvent`; `detail` holds ids, statuses, heights, reason and error codes
+only.
 
 **Events are not proof of payment.** Before fulfilling anything, read the
 intent on your server with `GET /v1/intents/:id` and check its status, steps

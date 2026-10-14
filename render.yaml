@@ -277,6 +277,30 @@ services:
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
+      # The embed script from this origin (integrator 4.1): exact versioned
+      # files, loaded by any site with integrity and crossorigin="anonymous".
+      - path: /sdk/embed/*/*.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /sdk/embed/*/*.js
+        name: Content-Type
+        value: text/javascript; charset=utf-8
+      - path: /sdk/embed/*/*.js
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /sdk/embed/*/*.js
+        name: Cross-Origin-Resource-Policy
+        value: cross-origin
+      # The manifest names the current version and its SHA-384 integrity.
+      - path: /sdk/embed/manifest.json
+        name: Cache-Control
+        value: no-cache
+      - path: /sdk/embed/manifest.json
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /sdk/embed/manifest.json
+        name: Cross-Origin-Resource-Policy
+        value: cross-origin
       - path: /index.html
         name: Cache-Control
         value: no-cache

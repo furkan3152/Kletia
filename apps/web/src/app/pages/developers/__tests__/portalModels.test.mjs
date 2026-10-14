@@ -8,7 +8,9 @@ import test from "node:test";
 import { POLICY_TEMPLATES, validateContractDefinition, validateLinkDefinition, validatePolicy } from "@kletia/core";
 
 import { buildArg, classifyFunctions, guessArg, parseAbiText, sourceOptions } from "../contracts/abi.ts";
-import { buildEvmDefinition, contractStatus, evmStepOf, newEntryDraft, suspensionText, wellKnownSnippet } from "../contracts/contractModel.ts";
+import { applyErc4626Hint, buildEvmDefinition, contractStatus, ERC4626_DEPOSIT, evmStepOf, newEntryDraft, suspensionText, wellKnownSnippet } from "../contracts/contractModel.ts";
+import { contractCountLine, contractRowModel, contractTabOf, registerVmOf } from "../contracts/contractRows.ts";
+import { linkFilterOf, linkRowModel } from "../links/linkRows.ts";
 import { acceptOnResume, blinkActionUrl, buildLinkDefinition, cardUrl, templateDraft } from "../links/linkTemplates.ts";
 import { formatUsd, httpsUrl, shortId, timeUntil, usageRatio } from "../portal/portalFormat.ts";
 import {
@@ -180,4 +182,130 @@ test("formatting: https only, dollars, ratios, ids, countdowns", () => {
   assert.equal(usageRatio("5", null), null);
   assert.equal(shortId("ct_5f1c2a9b7e3d4c6a8b0e1f23"), "ct_5f1c…1f23");
   assert.deepEqual(timeUntil("2026-10-10T10:01:30Z", Date.parse("2026-10-10T10:00:00Z")), { text: "in 1 min 30 s", past: false, seconds: 90 });
+});
+
+const CONTRACT = {
+  id: `ct_${"5f".repeat(12)}`,
+  vm: "evm",
+  network: "base",
+  address: VAULT,
+  integrator: { name: "Acme Yield", website: "https://acme.example", domainVerified: false },
+  status: "active",
+  revision: 1,
+  activeRevision: 1,
+  pendingRevision: null,
+  activatesAt: null,
+  verification: { source: { status: "exact_match" }, implementationSource: null },
+  actions: [{ id: "deposit", label: "Deposit into Acme Prime USDC" }, { id: "withdraw", label: "Withdraw" }],
+  suspendedReason: null,
+};
+
+test("contract rows: the first entry is the title, tones follow the status table, pending counts down next to UTC", () => {
+  const now = Date.parse("2026-10-14T14:40:17Z");
+  const active = contractRowModel(CONTRACT, now);
+  assert.equal(active.title, "Deposit into Acme Prime USDC", "two registrations of one integrator no longer read the same");
+  assert.equal(active.integrator, "Acme Yield");
+  assert.equal(active.target, "0xbeeF…8183");
+  assert.equal(active.entries, "deposit, withdraw");
+  assert.deepEqual([active.status.tone, active.status.label], ["success", "Active"]);
+  assert.equal(active.detail, null);
+  assert.deepEqual([active.source.tone, active.source.label], ["success", "Source verified"]);
+  assert.deepEqual([active.domain.tone, active.domain.label], ["warning", "Domain not verified"], "unverified is a warning, never danger");
+
+  const pending = contractRowModel({ ...CONTRACT, status: "pending", activeRevision: null, activatesAt: "2026-10-14T14:42:00Z" }, now);
+  assert.deepEqual([pending.status.tone, pending.status.label], ["info", "Pending"]);
+  assert.equal(pending.detail, "activates 14:42 UTC, in 1 min 43 s");
+  assert.match(contractRowModel({ ...CONTRACT, pendingRevision: 2, activatesAt: "2026-10-14T15:40:17Z" }, now).detail, /^revision 2 activates 15:40 UTC, in 1 hour$/u);
+  const suspended = contractRowModel({ ...CONTRACT, status: "suspended", suspendedReason: "pins_changed" }, now);
+  assert.equal(suspended.status.tone, "danger");
+  assert.match(suspended.detail, /deployed code changed/u);
+  const unknownSource = contractRowModel({ ...CONTRACT, verification: { source: null } }, now);
+  assert.equal(unknownSource.source.tone, "warning");
+  const svm = contractRowModel({ ...CONTRACT, vm: "svm", network: "solana", address: undefined, origin: "https://actions.acme.example", verification: { programs: [{ program: "P", verified: true }] }, actions: [] }, now);
+  assert.equal(svm.target, "actions.acme.example");
+  assert.equal(svm.title, "Acme Yield", "no entries: the integrator name");
+  assert.equal(svm.source.label, "Programs verified");
+});
+
+test("the contracts count line is absent on error and before the first read", () => {
+  assert.equal(contractCountLine({ status: "success", data: [CONTRACT, CONTRACT] }), "2 of 25 registrations");
+  assert.equal(contractCountLine({ status: "loading", data: [CONTRACT] }), "1 of 25 registrations", "a reload keeps the last count");
+  assert.equal(contractCountLine({ status: "error", data: [CONTRACT] }), null, "never above an error");
+  assert.equal(contractCountLine({ status: "error", data: undefined }), null);
+  assert.equal(contractCountLine({ status: "loading", data: undefined }), null);
+  assert.equal(contractTabOf(new URLSearchParams("tab=pins")), "pins");
+  assert.equal(contractTabOf(new URLSearchParams("tab=nope")), "overview");
+  assert.equal(registerVmOf(new URLSearchParams("vm=svm")), "svm");
+  assert.equal(registerVmOf(new URLSearchParams("vm=other")), "evm");
+});
+
+test("the wizard prefills an ERC-4626 deposit from the inspection hint, and nothing else", () => {
+  const parsed = parseAbiText(HUMAN_ABI);
+  const fn = parsed.items.find((item) => item.type === "function" && item.name === "deposit");
+  const plain = newEntryDraft(fn, parsed.items, guessArg);
+  assert.equal(plain.signature, ERC4626_DEPOSIT);
+  const filled = applyErc4626Hint(plain, { asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", registrySymbol: "USDC" }, parsed.items, "Acme");
+  assert.equal(filled.inputToken, "USDC");
+  assert.equal(filled.approval, "$self");
+  assert.equal(filled.outputToken, "$self");
+  assert.equal(filled.label, "Deposit into Acme USDC vault");
+  assert.equal(filled.verbs, "deposit");
+  assert.equal(filled.aliases, "acme vault");
+  assert.deepEqual(filled.events, [{ event: "Deposit(address,address,uint256,uint256)", emitter: "$self", where: { sender: "", owner: "$account", assets: "$amount", shares: "" }, output: "shares" }]);
+  assert.equal(filled.maxAmount, "", "limits stay a decision");
+  // Not a registry asset here: the input stays empty for the developer to decide.
+  assert.equal(applyErc4626Hint(plain, { asset: "0x1111111111111111111111111111111111111111", registrySymbol: null }, parsed.items).inputToken, "");
+  // No hint, or another function: unchanged.
+  assert.equal(applyErc4626Hint(plain, undefined, parsed.items), plain);
+  const view = parsed.items.find((item) => item.type === "function" && item.name === "totalAssets");
+  const other = newEntryDraft(view, parsed.items, guessArg);
+  assert.equal(applyErc4626Hint(other, { asset: VAULT, registrySymbol: "USDC" }, parsed.items), other);
+
+  // The prefilled entry builds a definition the API's own checks accept.
+  const built = buildEvmDefinition(
+    { network: "base", address: VAULT, name: "Acme", website: "https://acme.example", visibility: "private", abi: parsed.items, addresses: [], entries: [{ ...filled, maxAmount: "25000" }] },
+    buildArg,
+  );
+  assert.deepEqual(built.issues, []);
+  const checked = validateContractDefinition(built.definition);
+  assert.equal(checked.ok, true, JSON.stringify(checked.ok ? null : checked.issues));
+});
+
+const LINK = {
+  id: `lk_${"a1".repeat(12)}`,
+  status: "active",
+  title: "Deposit USDC into Acme Vault",
+  publisher: { name: "Acme Yield", domainVerified: false },
+  funding: { networks: ["base", "arbitrum"] },
+  destination: { network: "base" },
+  activatesAt: null,
+  expiresAt: "2026-11-14T00:00:00Z",
+  uses: { max: null, left: null },
+  pausedReason: null,
+  suspendedReason: null,
+  stats: { pageView: 1234, intent: 7, volumeUsd: "250" },
+};
+
+test("link rows: unverified is a warning, withdrawn is neutral, counters show a dash when unread", () => {
+  const now = Date.parse("2026-10-14T13:53:00Z");
+  const row = linkRowModel(LINK, now);
+  assert.deepEqual([row.status.tone, row.status.label], ["success", "Active"]);
+  assert.deepEqual([row.publisherStatus.tone, row.publisherStatus.label], ["warning", "Unverified"]);
+  assert.deepEqual(row.from, ["base", "arbitrum"]);
+  assert.equal(row.to, "base");
+  assert.equal(row.views, "1,234");
+  assert.equal(row.intents, "7");
+  assert.equal(row.completed, "0", "a counter missing from a read report is zero");
+  assert.equal(row.volume, "$250");
+  const withdrawn = linkRowModel({ ...LINK, status: "deleted", stats: undefined }, now);
+  assert.deepEqual([withdrawn.status.tone, withdrawn.status.label], ["neutral", "Withdrawn"]);
+  assert.deepEqual([withdrawn.views, withdrawn.intents, withdrawn.volume], ["–", "–", "–"], "never a zero the page did not read");
+  assert.equal(linkRowModel({ ...LINK, publisher: { name: "A", domainVerified: true } }, now).publisherStatus.tone, "success");
+  const pending = linkRowModel({ ...LINK, status: "pending", activatesAt: "2026-10-14T14:05:00Z" }, now);
+  assert.equal(pending.status.tone, "info");
+  assert.equal(pending.detail, "activates 14:05 UTC, in 12 min");
+  const paused = linkRowModel({ ...LINK, status: "paused", pausedReason: "contract_changed" }, now);
+  assert.deepEqual([paused.status.tone, paused.detail], ["warning", "a pinned contract has a newer revision"]);
+  assert.equal(linkFilterOf(new URLSearchParams("status=paused")), "paused");
+  assert.equal(linkFilterOf(new URLSearchParams("status=<x>")), "");
 });

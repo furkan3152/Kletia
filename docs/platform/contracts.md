@@ -598,6 +598,23 @@ Authorization: Bearer kl_dev_…
 A leaked session id lets someone else run the same fixed actions with their
 own funds and wallet, nothing more. A revoked key's sessions stop working.
 
+### Flows: sessions without a server
+
+A project can store sessions as **flows** (`flows` in the project settings,
+[projects.md](projects.md#flows)), so a static page starts them with a
+publishable key: `POST /v1/sessions` with `{ "flow": "deposit", "hostOrigin":
+"https://acme.example" }` and `Authorization: Bearer kl_pub_…`. The session is
+single use, lives 600 s and is owned by the publishable key; its call and
+action steps use the registrations of the key that **saved** the flow (its
+contract authority), checked when the flow is saved (a dry run), when the
+session is created, at plan and at every prepare. If the saver can no longer
+use the registration (revoked key, deleted or private registration), the
+flow stops working (`CONTRACT_UNKNOWN`, `CONTRACT_NOT_USABLE`). The daily
+custom-contract notional (`KLETIA_CONTRACT_KEY_DAILY_MAX_USD`) is counted
+against the publishable key, never the saver. A publishable key's own intents
+can never call a registration (`CONTRACT_UNKNOWN`): only stored flows reach
+your contracts from a browser. examples/own-contract `flow.mjs` sets it up.
+
 ### Pending registrations and sessions
 
 A session may use a registration that is still `pending` (the mainnet

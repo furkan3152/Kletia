@@ -18,11 +18,19 @@ import { useNow } from "../portal/useNow";
 import { AgentKeyForm } from "./AgentKeyForm";
 import { DecisionBoard } from "./DecisionBoard";
 import { InspectionDesk } from "./InspectionDesk";
+import { KeyPicker } from "./KeyPicker";
 import { KeyTreeMap, type StationState } from "./KeyTreeMap";
 import { buildKeyTree } from "./policyModel";
+import { RULE_BOOK_VIEW_LABELS, selectedRuleBookKey, type RuleBookQuery, type RuleBookView } from "./ruleBookQuery";
 import { RuleBookEditor, type BookScope } from "./RuleBookEditor";
 
-type Tab = "book" | "desk" | "board" | "agents";
+export interface RuleBookPanelProps {
+  /** The key and tab the page's address asks for (`?key=&view=`, already validated). */
+  readonly initialKey?: string | null;
+  readonly initialView?: RuleBookView;
+  /** The reader picked another key or tab: the page writes it back to the address. */
+  readonly onQueryChange?: (query: RuleBookQuery) => void;
+}
 
 function stationOf(read: PolicyReadResponse | null | undefined): StationState {
   const head = read?.policy ?? null;
@@ -31,16 +39,17 @@ function stationOf(read: PolicyReadResponse | null | undefined): StationState {
 }
 
 /**
- * The Rule Book in the developer portal (policy design §12.4): the key tree
- * as a branch line, each key's rule book as a booklet of 13 articles, the
- * inspection desk (the simulator), the decision board and agent keys. The
- * key stays in this tab's memory only.
+ * The Rule Book in the developer portal (policy design §12.4, portal design
+ * 4.4.5): the key tree (a picker on narrow screens), each key's rule book as
+ * a booklet of 13 rules, the simulator, the decision log and agent keys,
+ * under plain tab labels (P-09). The key and the tab follow the page's
+ * address. The API key stays in this tab's memory only.
  */
-export default function RuleBookPanel() {
+export default function RuleBookPanel({ initialKey = null, initialView = "rules", onQueryChange }: RuleBookPanelProps) {
   const { key } = useSessionKey();
   const kind = portalKeyKind(key);
-  const [tab, setTab] = useState<Tab>("book");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [tab, setTab] = useState<RuleBookView>(initialView);
+  const [selected, setSelected] = useState<string | null>(initialKey);
   const [draft, setDraft] = useState<PolicyDocument | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -66,8 +75,7 @@ export default function RuleBookPanel() {
   const project = useApiResource<PolicyReadResponse>(tag ? `rb-project:${tag}` : null, (_client, signal) => keyedClient(key).policies.project.get({ signal: sdkSignal(signal) }));
 
   const tree = useMemo(() => buildKeyTree(liveKeys), [liveKeys]);
-  const current = liveKeys.find((item) => item.current);
-  const selectedId = selected && (selected === "project" || liveKeys.some((item) => item.id === selected)) ? selected : current?.id ?? liveKeys[0]?.id ?? "project";
+  const selectedId = selectedRuleBookKey(selected, liveKeys);
   const selectedKey = liveKeys.find((item) => item.id === selectedId) ?? null;
   const scope: BookScope = selectedKey ? { kind: "key", key: selectedKey } : { kind: "project" };
   const names = useMemo(() => {
@@ -89,6 +97,15 @@ export default function RuleBookPanel() {
     setGeneration((value) => value + 1);
   };
   const canWrite = kind === "developer";
+  const selectKey = (id: string) => {
+    setSelected(id);
+    setDraft(null);
+    onQueryChange?.({ key: id, view: tab });
+  };
+  const selectTab = (next: RuleBookView) => {
+    setTab(next);
+    onQueryChange?.({ key: selected, view: next });
+  };
   const projectKeys = liveKeys.filter((item) => item.kind !== "agent").map((item) => ({ id: item.id, name: item.name }));
   const deskKeys = liveKeys.map((item) => ({ id: item.id, name: `${item.name}${item.kind === "agent" ? " (agent)" : ""}` }));
 
@@ -118,31 +135,30 @@ export default function RuleBookPanel() {
         {notice ? <p className="border-l-[6px] border-[#0B7A4B] bg-[#E9FFF5] px-3 py-2 text-sm text-[#1A1A1A] dark:bg-[#0E2A20] dark:text-[#D1FAE5]">{notice}</p> : null}
       </div>
       <div className="grid min-w-0 gap-6 xl:grid-cols-[17rem_minmax(0,1fr)] xl:items-start">
-        <div className="min-w-0 xl:sticky xl:top-28">
+        {/* Below 1280 px the tree would stack above the book: one "Editing" picker instead (P-20). */}
+        <KeyPicker nodes={tree} selected={selectedId} onSelect={selectKey} className="max-w-md xl:hidden" />
+        <div className="hidden min-w-0 xl:sticky xl:top-28 xl:block">
           <KeyTreeMap
             nodes={tree}
             states={heads.data ?? new Map()}
             project={project.data ? stationOf(project.data) : null}
             selected={selectedId}
-            onSelect={(id) => {
-              setSelected(id);
-              setDraft(null);
-            }}
+            onSelect={selectKey}
           />
         </div>
         <PortalTabs
           label="Rule Book"
           active={tab}
-          onChange={setTab}
+          onChange={selectTab}
           tabs={[
-            { id: "book", label: "Rule book" },
-            { id: "desk", label: "Inspection desk" },
-            { id: "board", label: "Decision board" },
-            { id: "agents", label: "Agent keys", note: String(liveKeys.filter((item) => item.kind === "agent").length) },
+            { id: "rules", label: RULE_BOOK_VIEW_LABELS.rules, note: "13" },
+            { id: "simulate", label: RULE_BOOK_VIEW_LABELS.simulate },
+            { id: "decisions", label: RULE_BOOK_VIEW_LABELS.decisions },
+            { id: "agents", label: RULE_BOOK_VIEW_LABELS.agents, note: String(liveKeys.filter((item) => item.kind === "agent").length) },
           ]}
         >
-          {/* The editor stays mounted while another tab is open, so an unsaved draft survives (and the desk can use it). */}
-          <div hidden={tab !== "book"}>
+          {/* The editor stays mounted while another tab is open, so an unsaved draft survives (and the simulator can use it). */}
+          <div hidden={tab !== "rules"}>
             <RuleBookEditor
               key={selectedId}
               scope={scope}
@@ -155,9 +171,9 @@ export default function RuleBookPanel() {
               onSaved={refreshAll}
             />
           </div>
-          {tab === "book" ? null : tab === "desk" ? (
+          {tab === "rules" ? null : tab === "simulate" ? (
             <InspectionDesk apiKey={key} keys={deskKeys} keyId={selectedKey?.id ?? null} draft={selectedKey ? draft : null} names={names} />
-          ) : tab === "board" ? (
+          ) : tab === "decisions" ? (
             <DecisionBoard apiKey={key} keys={deskKeys} names={names} />
           ) : (
             <AgentKeyForm apiKey={key} keys={liveKeys} tree={tree} contracts={contracts.data ?? null} selected={selectedId} onChanged={refreshAll} />

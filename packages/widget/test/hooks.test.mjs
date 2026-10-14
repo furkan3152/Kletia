@@ -35,6 +35,10 @@ const intent = (id, status = "planned", stepStatus = "ready", updatedAt = "2026-
   steps: [{ id: "s1", index: 0, kind: "swap", title: "Swap", network: "solana", chain: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", account: ACCOUNT, protocol: "jupiter", mode: "wallet", dependsOn: [], status: stepStatus, evidence: [] }],
 });
 
+/** A planned clarify turn (text always plans through `POST /v1/intents?clarify=true`). */
+const THREAD = { spec: "kletia.thread/v1", id: "th_aaaaaaaaaaaaaaaaaaaaaaaa", rev: 1, status: "ready", policy: "2026-10.1", steps: [], open: [], corrections: [], turns: [], undo: [] };
+const planned = (graph, extra = {}) => ({ status: "planned", turn: "message", intent: graph, assumptions: [], sentence: "swap 1 SOL to USDC on solana", thread: THREAD, ...extra });
+
 const preparedPayload = () => ({
   vm: "svm",
   transactions: [{ vm: "svm", network: "solana", feePayer: SOL, transaction: "AQID", encoding: "base64", description: "swap" }],
@@ -91,7 +95,7 @@ test("intentSessionReducer moves through planning, execution and failures", () =
 /* -------------------------------------------------------------- session */
 
 test("plan sends the configured accounts, slippage and metadata, and refuses without accounts", async () => {
-  const { client, calls } = mockClient({ "POST /v1/intents": () => jsonResponse(201, { intent: intent("int_plan") }) });
+  const { client, calls } = mockClient({ "POST /v1/intents": () => jsonResponse(201, planned(intent("int_plan"))) });
   const session = createIntentSession(client);
   session.attach();
   assert.equal(await session.plan("swap 1 SOL to USDC"), null);
@@ -100,8 +104,8 @@ test("plan sends the configured accounts, slippage and metadata, and refuses wit
   assert.equal(calls.length, 0);
 
   session.configure({ accounts: [ACCOUNT], maxSlippageBps: 30, metadata: { orderId: "A-1" } });
-  const planned = await session.plan("  swap 1 SOL to USDC ");
-  assert.equal(planned.id, "int_plan");
+  const plannedIntent = await session.plan("  swap 1 SOL to USDC ");
+  assert.equal(plannedIntent.id, "int_plan");
   assert.equal(session.getState().phase, "planned");
   assert.deepEqual(calls[0].body, { text: "swap 1 SOL to USDC", accounts: [ACCOUNT], constraints: { maxSlippageBps: 30 }, metadata: { orderId: "A-1" } });
 });
@@ -114,9 +118,9 @@ test("a superseded plan's late response is ignored and its request aborted", asy
       count += 1;
       if (count === 1) {
         await first.promise;
-        return jsonResponse(201, { intent: intent("int_old") });
+        return jsonResponse(201, planned(intent("int_old")));
       }
-      return jsonResponse(201, { intent: intent("int_new") });
+      return jsonResponse(201, planned(intent("int_new")));
     },
   });
   const session = createIntentSession(client, { accounts: [ACCOUNT] });
@@ -133,7 +137,7 @@ test("a superseded plan's late response is ignored and its request aborted", asy
 test("execute signs with the leased signer and finishes; without signers it reports an error", async () => {
   let stepStatus = "ready";
   const { client } = mockClient({
-    "POST /v1/intents": () => jsonResponse(201, { intent: intent("int_exec") }),
+    "POST /v1/intents": () => jsonResponse(201, planned(intent("int_exec"))),
     "POST /v1/intents/int_exec/steps/s1/prepare": () => {
       stepStatus = "awaiting_signature";
       return jsonResponse(200, { intent: intent("int_exec", "executing", stepStatus, "2026-10-09T00:00:01.000Z"), payload: preparedPayload() });
@@ -163,7 +167,7 @@ test("unmounting during prepare never opens a wallet prompt and ignores late res
   const prepare = deferred();
   const reached = deferred();
   const { client } = mockClient({
-    "POST /v1/intents": () => jsonResponse(201, { intent: intent("int_unmount") }),
+    "POST /v1/intents": () => jsonResponse(201, planned(intent("int_unmount"))),
     "POST /v1/intents/int_unmount/steps/s1/prepare": async () => {
       reached.resolve();
       await prepare.promise;
@@ -190,7 +194,7 @@ test("unmounting during prepare never opens a wallet prompt and ignores late res
 test("broadcast references Kletia did not record are kept and resubmitted, never signed twice", async () => {
   let submits = 0;
   const { client } = mockClient({
-    "POST /v1/intents": () => jsonResponse(201, { intent: intent("int_refs") }),
+    "POST /v1/intents": () => jsonResponse(201, planned(intent("int_refs"))),
     "GET /v1/intents/int_refs": () => jsonResponse(200, { intent: intent("int_refs", "executing", "awaiting_signature", "2026-10-09T00:00:01.000Z") }),
     "POST /v1/intents/int_refs/steps/s1/prepare": () =>
       jsonResponse(200, { intent: intent("int_refs", "executing", "awaiting_signature", "2026-10-09T00:00:01.000Z"), payload: preparedPayload() }),
@@ -221,7 +225,7 @@ test("broadcast references Kletia did not record are kept and resubmitted, never
 
 test("cancel cancels a planned intent on Kletia", async () => {
   const { client, calls } = mockClient({
-    "POST /v1/intents": () => jsonResponse(201, { intent: intent("int_cancel") }),
+    "POST /v1/intents": () => jsonResponse(201, planned(intent("int_cancel"))),
     "POST /v1/intents/int_cancel/cancel": () => jsonResponse(200, { intent: intent("int_cancel", "cancelled", "skipped", "2026-10-09T00:00:01.000Z") }),
   });
   const session = createIntentSession(client, { accounts: [ACCOUNT] });

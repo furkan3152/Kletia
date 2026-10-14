@@ -28,6 +28,7 @@ import {
   contractTarget,
   deniedTargetReason,
   domainFileListsContract,
+  domainFileListsProject,
   eventTopic,
   forbiddenFunctionReason,
   functionSelector,
@@ -808,6 +809,11 @@ test("web origins, domain files and binding review sources", () => {
   assert.ok(domainFileListsContract({ contracts: ["ct_5f1c2a9b7e3d4c6a8b0e1f23"] }, "ct_5f1c2a9b7e3d4c6a8b0e1f23"));
   assert.ok(!domainFileListsContract({ contracts: "ct_5f1c2a9b7e3d4c6a8b0e1f23" }, "ct_5f1c2a9b7e3d4c6a8b0e1f23"));
   assert.ok(!domainFileListsContract(null, "ct_5f1c2a9b7e3d4c6a8b0e1f23"));
+  // Projects prove their website with "projects" (integrator 4.8); contract lists never count for them.
+  assert.ok(domainFileListsProject({ projects: ["prj_key_0123"] }, "prj_key_0123"));
+  assert.ok(!domainFileListsProject({ contracts: ["prj_key_0123"] }, "prj_key_0123"));
+  assert.ok(!domainFileListsProject({ projects: "prj_key_0123" }, "prj_key_0123"));
+  assert.ok(!domainFileListsProject({ projects: ["prj_key_9999"] }, "prj_key_0123"));
   assert.equal(bindingReviewSource("$amount"), "amount");
   assert.equal(bindingReviewSource("$previous.output.asset"), "previousOutput");
   assert.equal(bindingReviewSource("$param.lockDays"), "param");

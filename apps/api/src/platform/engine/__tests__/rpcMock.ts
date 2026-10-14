@@ -78,6 +78,9 @@ export interface RpcMock {
 
 const hex = (value: bigint | number) => `0x${value.toString(16)}`;
 
+/** A read the fixtures deliberately leave unavailable (answered with an RPC error, not recorded as unmocked). */
+class Unavailable extends Error {}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -170,7 +173,7 @@ function evmResult(mock: RpcMock, method: string, params: unknown[]): unknown {
       };
     }
     case "eth_gasPrice":
-      if (mock.gasPrice === null) throw new Error("gas price unavailable");
+      if (mock.gasPrice === null) throw new Unavailable("gas price unavailable");
       return hex(mock.gasPrice);
     case "eth_getBalance": {
       const balance = mock.evmBalances.get(`${key}@${BigInt(String(params[1]))}`);
@@ -248,7 +251,7 @@ function solanaResult(mock: RpcMock, method: string, params: unknown[]): unknown
       return { context: { slot: 100 }, value: { err: mock.simulationError, logs: [], accounts: null, unitsConsumed: 1000, returnData: null } };
     case "getMinimumBalanceForRentExemption": {
       const lamports = mock.solanaRent.get(Number(params[0]));
-      if (lamports === undefined) throw new Error("rent unavailable");
+      if (lamports === undefined) throw new Unavailable("rent unavailable");
       return lamports;
     }
     case "getBalance": {
@@ -335,7 +338,7 @@ export function installRpcMock(): RpcMock {
           : solanaResult(mock, request.method, request.params ?? []);
         return { jsonrpc: "2.0", id: request.id, result };
       } catch (error) {
-        mock.unknown.push(`${request.method}: ${(error as Error).message}`);
+        if (!(error instanceof Unavailable)) mock.unknown.push(`${request.method}: ${(error as Error).message}`);
         return { jsonrpc: "2.0", id: request.id, error: { code: -32000, message: (error as Error).message } };
       }
     };

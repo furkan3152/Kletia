@@ -193,7 +193,8 @@ const DEFAULT_READERS: HoldingsReaders = {
     if (mint === null) {
       const result = await solanaCall(network, "getBalance", [owner, { commitment: "confirmed" }], FACTS_DEADLINE_MS);
       const value = (result as { value?: unknown } | null)?.value;
-      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error("malformed getBalance result");
+      // Above 2^53 lamports (about 9M SOL) JSON already rounded the number; the rounding is a few lamports at most.
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new Error("malformed getBalance result");
       return BigInt(value);
     }
     return (await solanaTokenAmounts(network, owner, mint)).reduce((total, amount) => total + amount, 0n);

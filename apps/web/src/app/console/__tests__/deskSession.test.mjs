@@ -194,6 +194,8 @@ test("one task signs at a time; the lock is released when its task leaves execut
   const first = store.getState().addTask({ sentence: "swap 1 SOL to USDC", departure: "auto" });
   const second = store.getState().addTask({ sentence: "bridge 25 USDC from base to solana", departure: "auto" });
   assert.equal(store.getState().acquireSigning(first.id), true);
+  store.getState().patchTask(first.id, { title: "Swap 1 SOL to USDC", intentId: "int_live_1" });
+  assert.equal(store.getState().signingTaskId, first.id, "the lock survives updates before execution starts");
   assert.equal(store.getState().acquireSigning(first.id), true, "re-acquiring by the holder is fine");
   assert.equal(store.getState().acquireSigning(second.id), false, "a second task cannot sign while the first does");
   assert.equal(store.getState().acquireSigning("unknown"), false);
@@ -206,8 +208,14 @@ test("one task signs at a time; the lock is released when its task leaves execut
   assert.equal(store.getState().acquireSigning(second.id), true);
   store.getState().releaseSigning(first.id);
   assert.equal(store.getState().signingTaskId, second.id, "only the holder releases");
-  store.getState().releaseSigning(second.id);
-  assert.equal(store.getState().signingTaskId, null);
+  store.getState().patchTask(second.id, { status: "failed" });
+  assert.equal(store.getState().signingTaskId, null, "a task that fails before executing releases the lock too");
+  const third = store.getState().addTask({ sentence: "stake 1.5 SOL with marinade", departure: "auto" });
+  store.getState().acquireSigning(third.id);
+  store.getState().patchTask(third.id, { status: "executing" });
+  store.getState().patchTask(third.id, { status: "paused" });
+  assert.equal(store.getState().signingTaskId, null, "a paused execution gives the lock back; resuming acquires it again");
+  store.getState().releaseSigning(third.id);
 });
 
 test("clearing finished tasks also forgets their resume records; the composer answers only an open question", () => {

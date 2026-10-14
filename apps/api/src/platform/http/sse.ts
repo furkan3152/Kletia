@@ -11,7 +11,7 @@
  * consumers holding more than 1 MB of unsent data are disconnected.
  */
 import type { Request, Response } from "express";
-import { getIntent, readIntentEvents, subscribeIntentEvents, subscribeReceiptEvents, type IntentEvent, type ReceiptEvent } from "../index.js";
+import { getIntent, readIntentEvents, subscribeIntentEvents, subscribeReceiptEvents } from "../index.js";
 import { EVENT_ID_PATTERN, HttpError, intentIdParam, invalidRequest, queryParam, sendError } from "./context.js";
 import { acquireStreamSlot } from "./limits.js";
 import { mergeStreamEvents } from "./receipts/events.js";
@@ -26,11 +26,13 @@ export interface StreamOptions {
   readonly maxDurationMs?: number;
 }
 
-function frame(event: IntentEvent | ReceiptEvent): string {
+/** One SSE frame: `id`, `event` (the type) and `data` (the event envelope as JSON). Shared with GET /v1/events. */
+export function frame(event: { readonly id: string; readonly type: string }): string {
   return `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
 }
 
-function resumeAfter(req: Request): string | undefined {
+/** The event id to resume after (`Last-Event-ID`, else `?since=`); 400 INVALID_REQUEST when malformed. Shared with GET /v1/events. */
+export function resumeAfter(req: Request): string | undefined {
   const header = req.get("last-event-id")?.trim();
   const since = header || queryParam(req, "since", 64);
   if (!since) return undefined;

@@ -16,6 +16,10 @@
  * Custom contracts, per API key on top of the tier limit: registrations,
  * PATCH and reverify share 20 per hour; `test` and `inspect` (and the MCP
  * `test_contract_action` tool) share 20 per minute.
+ *
+ * GET /v1/portfolio?accounts= costs one tier unit per request plus one unit
+ * per (deduplicated) account of a per-IP budget of 60 account reads per
+ * minute (console design 4.2), so a batch cannot multiply RPC reads.
  */
 import type { Request, RequestHandler } from "express";
 import { CONTRACT_LIMITS } from "@kletia/core";
@@ -211,6 +215,60 @@ export class KeyWindowLimiter {
 export const contractWriteLimiter = new KeyWindowLimiter(CONTRACT_WRITES_PER_HOUR, 60 * 60_000, "contract registrations, updates and reverifications per hour");
 /** `test` and `inspect` (HTTP and MCP): 20 per minute per key. */
 export const contractTestLimiter = new KeyWindowLimiter(CONTRACT_TESTS_PER_MINUTE, 60_000, "contract tests and inspections per minute");
+
+/* ------------------------------------------------- weighted budgets */
+
+export const PORTFOLIO_ACCOUNT_READS_PER_MINUTE = 60;
+
+/**
+ * A fixed-window budget where one request spends `weight` units (process
+ * local). `take` throws 429 RATE_LIMITED with Retry-After when the window
+ * cannot pay for the whole request; nothing is spent then.
+ */
+export class WeightedWindowLimiter {
+  private readonly windows = new Map<string, Window>();
+
+  constructor(
+    readonly limit: number,
+    readonly windowMs: number,
+    private readonly what: string,
+    private readonly maxKeys = 20_000,
+  ) {}
+
+  take(key: string, weight: number, now = Date.now()): void {
+    const units = Math.max(1, Math.ceil(weight));
+    let window = this.windows.get(key);
+    if (!window || now - window.startedAt >= this.windowMs) {
+      window = { count: 0, startedAt: now };
+      this.windows.delete(key);
+      this.windows.set(key, window);
+      while (this.windows.size > this.maxKeys) {
+        const oldest = this.windows.keys().next().value;
+        if (oldest === undefined) break;
+        this.windows.delete(oldest);
+      }
+    }
+    if (window.count + units > this.limit) {
+      const seconds = Math.max(1, Math.ceil((window.startedAt + this.windowMs - now) / 1000));
+      throw new HttpError(429, "RATE_LIMITED", `At most ${this.limit} ${this.what}; this request needs ${units} and ${Math.max(0, this.limit - window.count)} remain. Retry in ${seconds}s.`, {
+        headers: { "Retry-After": String(seconds) },
+      });
+    }
+    window.count += units;
+  }
+
+  reset(): void {
+    this.windows.clear();
+  }
+}
+
+/** GET /v1/portfolio?accounts=: 60 account reads per minute per client IP, on top of the tier limit. */
+export const portfolioReadBudget = new WeightedWindowLimiter(PORTFOLIO_ACCOUNT_READS_PER_MINUTE, 60_000, "portfolio account reads per minute from one address");
+
+/** Spends one batch request's account reads from the caller's address budget. */
+export function takePortfolioReads(req: Request, accounts: number): void {
+  portfolioReadBudget.take(`ip:${clientIp(req)}`, accounts);
+}
 
 /* ------------------------------------------------------- stream slots */
 

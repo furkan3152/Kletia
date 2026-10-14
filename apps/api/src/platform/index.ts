@@ -17,8 +17,10 @@ export {
   refreshIntent,
   refreshIntentPreview,
   startSettlementPoller,
+  stopIntent,
   submitStep,
   MAX_STEP_TRANSACTIONS,
+  STOP_RETRY_AFTER_SECONDS,
   PAYLOAD_TTL_SECONDS,
   type CreatedIntent,
   type CreateIntentOptions,
@@ -50,7 +52,7 @@ export {
 export type { PlannedStepPreview, PlannedVenueFee } from "./engine/adapters/types.js";
 
 /* Journey (engine side, journey design 11.3; the HTTP layer serves the routes). */
-export { journeyFor, resetJourneyCaches, type JourneyOptions } from "./engine/journey/index.js";
+export { journeyFor, resetJourneyCaches, JOURNEY_CACHE_TTL_MS, type JourneyOptions } from "./engine/journey/index.js";
 export { readVenuePositions, type VenuePositionsResult } from "./engine/journey/positions.js";
 export { configureJourneyVenueReader, readJourneyFacts, type VenueReader } from "./engine/journey/facts.js";
 
@@ -165,7 +167,22 @@ export {
   type NameResolution,
   type NameResolver,
 } from "./engine/names.js";
-export { readAccountPortfolio, type AccountPortfolio, type PortfolioHolding } from "./engine/portfolio.js";
+export {
+  configurePortfolioReaders,
+  parsePortfolioAccounts,
+  PORTFOLIO_BATCH_LIMITS,
+  readAccountPortfolio,
+  readAccountPortfolios,
+  resetPortfolioCache,
+  type AccountPortfolio,
+  type AccountPortfolios,
+  type PortfolioFailure,
+  type PortfolioHolding,
+  type PortfolioOptions,
+  type PortfolioReaders,
+  type PositionUnavailable,
+  type RawHolding,
+} from "./engine/portfolio.js";
 
 export {
   buildEvent,

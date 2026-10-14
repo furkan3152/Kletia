@@ -23,9 +23,11 @@ import {
   installNameResolvers,
   listIntents,
   listLendingMetrics,
+  parsePortfolioAccounts,
   prepareStep,
   quoteRoutes,
   readAccountPortfolio,
+  readAccountPortfolios,
   refreshIntent,
   startSettlementPoller,
   submitStep,
@@ -72,10 +74,12 @@ import { startContractWatcher } from "./contractWatcher.js";
 import { deliveryStore, listDeliveries, sendTestDelivery, startDeliveryPruner } from "./deliveries.js";
 import { startWebhookDispatcher, webhookDeliveryTransport, WEBHOOK_USER_AGENT, type WebhookTransport } from "./dispatcher.js";
 import { errorCatalogView } from "./errorsRoute.js";
+import { startEventStreamBuffer, streamKeyEvents } from "./eventStream.js";
 import { readPlatformHealth } from "./health.js";
 import { idempotencyUnsupported, idempotent, startIdempotencyPruner } from "./idempotency.js";
+import { journeyReadsQuery, readJourney, stopWithJourney } from "./journey.js";
 import { issueKey, keyIdParam, listProjectKeys, parseRotateRequest, revokeKey, rotateKey } from "./keys.js";
-import { contractTestLimiter, contractWriteLimiter, createKeyIssuanceLimiter, createTierLimiter } from "./limits.js";
+import { contractTestLimiter, contractWriteLimiter, createKeyIssuanceLimiter, createTierLimiter, takePortfolioReads } from "./limits.js";
 import { mcpOriginGuard } from "./mcp/origin.js";
 import { serveMcp } from "./mcp/server.js";
 import { servedOpenApiJson } from "./openapi.js";
@@ -119,6 +123,7 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/assets", auth: "public" },
   { method: "get", path: "/venues", auth: "public" },
   { method: "post", path: "/quotes", auth: "public" },
+  { method: "get", path: "/portfolio", auth: "public" },
   { method: "get", path: "/portfolio/:accountId", auth: "public" },
   { method: "post", path: "/intents", auth: "public" },
   { method: "get", path: "/intents", auth: "key" },
@@ -128,6 +133,9 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/intents/:id/refresh", auth: "public" },
   { method: "post", path: "/intents/:id/cancel", auth: "public" },
   { method: "get", path: "/intents/:id/events", auth: "public" },
+  // Journey (journey design 7.1): the itinerary of a stored intent, and ending it at its current stop.
+  { method: "get", path: "/intents/:id/journey", auth: "public" },
+  { method: "post", path: "/intents/:id/stop", auth: "public" },
   { method: "post", path: "/intents/:id/preview", auth: "public" },
   { method: "get", path: "/intents/:id/preview", auth: "public" },
   { method: "get", path: "/intents/:id/receipt", auth: "public" },
@@ -150,6 +158,8 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "delete", path: "/webhooks/:id", auth: "key" },
   { method: "post", path: "/webhooks/:id/test", auth: "key" },
   { method: "get", path: "/webhooks/:id/deliveries", auth: "key" },
+  // The key's events as Server-Sent Events, routed like its webhooks (integrator design 4.6).
+  { method: "get", path: "/events", auth: "key" },
   { method: "post", path: "/keys", auth: "public" },
   { method: "get", path: "/keys", auth: "key" },
   { method: "post", path: "/keys/:id/rotate", auth: "key" },
@@ -555,6 +565,17 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         sendJson(res, 200, await quoteRoutes(req.body));
       }),
     ],
+    "get /portfolio": [
+      handle(async (req, res) => {
+        // ?accounts=a,b,…: at most 12 CAIP-10 accounts, request order kept, duplicates removed.
+        const raw = queryParam(req, "accounts", 4_096);
+        const accounts = parsePortfolioAccounts(raw === undefined || raw === "" ? [] : raw.split(","));
+        const positions = booleanQuery(req, "positions");
+        // One tier unit (the tier limiter) plus one unit per account of the per-IP read budget.
+        takePortfolioReads(req, accounts.length);
+        sendJson(res, 200, await readAccountPortfolios(accounts, { positions }));
+      }),
+    ],
     "get /portfolio/:accountId": [
       handle(async (req, res) => {
         const account = parseAccountId(pathParam(req, "accountId"));
@@ -563,7 +584,8 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
             { path: "accountId", message: "Invalid CAIP-10 account id." },
           ]);
         }
-        sendJson(res, 200, await readAccountPortfolio(account.id));
+        const positions = booleanQuery(req, "positions");
+        sendJson(res, 200, await readAccountPortfolio(account.id, { positions }));
       }),
     ],
     "post /intents": [
@@ -572,13 +594,17 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const dryRun = booleanQuery(req, "dryRun");
         // ?preview=true: also the plan-stage asset-change preview (never stored in the intent).
         const withPreview = booleanQuery(req, "preview");
+        // ?journey=true: also the journey, built on that preview (which it implies); journeyReads=none skips account reads.
+        const withJourney = booleanQuery(req, "journey");
+        const journeyReads = journeyReadsQuery(req, "journeyReads");
         const owner = authOf(req).keyId;
-        const { intent, replayed, preview } = await createIntentDetailed(req.body, {
+        const { intent, replayed, preview, journey } = await createIntentDetailed(req.body, {
           ...(owner ? { ownerKeyId: owner } : {}),
           dryRun,
           ...(withPreview ? { preview: true } : {}),
+          ...(withJourney ? { journey: true, ...(journeyReads ? { journeyReads } : {}) } : {}),
         });
-        const body = { intent, ...(preview ? { preview } : {}) };
+        const body = { intent, ...(preview ? { preview } : {}), ...(withJourney ? { journey: journey ?? null } : {}) };
         if (dryRun) {
           sendJson(res, 200, body);
           return;
@@ -608,19 +634,27 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const stepId = stepIdParam(req);
         // Optional { acknowledgedPreview }: a materially worse payload is refused with 409 PREVIEW_CHANGED.
         const options = parsePrepareBody(req.body);
+        // ?journey=true: the journey at signing time, on the prepare-stage preview.
+        const withJourney = booleanQuery(req, "journey");
         // Link intents: status rules and, at the first prepare, the atomic use reservation.
         const hold = await beforeLinkPrepare(id);
         let prepared: Awaited<ReturnType<typeof prepareStep>>;
         try {
-          prepared = await prepareStep(id, stepId, options);
+          prepared = await prepareStep(id, stepId, { ...options, ...(withJourney ? { journey: true } : {}) });
         } catch (error) {
           await hold?.failed();
           throw error;
         }
         hold?.succeeded();
-        const { intent, payload, preview, previewAck } = prepared;
+        const { intent, payload, preview, previewAck, journey } = prepared;
         if (previewAck) res.setHeader(PREVIEW_ACK_HEADER, previewAck);
-        sendJson(res, 200, { payload, intent, ...(preview ? { preview } : {}), ...(previewAck ? { previewAck } : {}) });
+        sendJson(res, 200, {
+          payload,
+          intent,
+          ...(preview ? { preview } : {}),
+          ...(previewAck ? { previewAck } : {}),
+          ...(withJourney ? { journey: journey ?? null } : {}),
+        });
       }),
     ],
     "post /intents/:id/steps/:stepId/submit": [
@@ -649,6 +683,21 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     "get /intents/:id/events": [
       handle(async (req, res) => {
         await streamIntentEvents(req, res, options.stream);
+      }),
+    ],
+    "get /intents/:id/journey": [
+      handle(async (req, res) => {
+        const id = intentIdParam(req);
+        const refresh = booleanQuery(req, "refresh");
+        const reads = journeyReadsQuery(req, "reads");
+        sendJson(res, 200, { journey: await readJourney(id, { refresh, ...(reads ? { reads } : {}) }) });
+      }),
+    ],
+    "post /intents/:id/stop": [
+      idempotent({ route: "POST /intents/:id/stop" }),
+      handle(async (req, res) => {
+        // Stopping never moves money; 409 INTENT_IN_FLIGHT (Retry-After) while a step is moving or signable.
+        sendJson(res, 200, await stopWithJourney(intentIdParam(req)));
       }),
     ],
     "post /intents/:id/preview": [
@@ -702,6 +751,12 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         sendJson(res, 200, { delivery });
       }),
     ],
+    "get /events": [
+      requireApiKey,
+      handle(async (req, res) => {
+        await streamKeyEvents(req, res, options.stream);
+      }),
+    ],
     "get /webhooks/:id/deliveries": [
       requireApiKey,
       handle(async (req, res) => {
@@ -725,6 +780,8 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   // Previews persist in Postgres when a database is configured; receipt events are buffered for SSE replay.
   installPreviewStore();
   startReceiptEventBuffer();
+  // Recent routed events for GET /v1/events resumption (Last-Event-ID).
+  startEventStreamBuffer();
   // Boot-time configuration: operator key hashes and the webhook sealing key.
   loadOperatorKeys();
   platformSecretStatus();

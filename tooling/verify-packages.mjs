@@ -15,7 +15,8 @@ const packages = ["core", "sdk", "widget", "embed", "cli"];
 // Subpath exports consumers rely on; removing one is a breaking change.
 const requiredSubpaths = { sdk: ["./server"], widget: ["./hooks"] };
 // Gzip budgets for files loaded from a CDN with Subresource Integrity.
-const gzipBudgets = { embed: { "dist/index.js": 6_500, "dist/kletia-embed.min.js": 4_096 } };
+// Raised in round 6 (widget-foundation) for the appearance and scope attributes; keep in sync with packages/embed/scripts/build.mjs.
+const gzipBudgets = { embed: { "dist/index.js": 7_000, "dist/kletia-embed.min.js": 5_120 } };
 const requiredBins = { cli: { kletia: "./dist/bin.js" } };
 const workspaceApps = ["apps/api", "apps/web"];
 

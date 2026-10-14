@@ -57,6 +57,46 @@ manage your webhooks. Use the keyless public tier (omit `clientOptions`) or a
 - **Receipts.** A finished intent shows its receipt stamp and **Share
   receipt…**: receipts are private until the user picks what a link shows.
 
+## Appearance and scope
+
+```tsx
+<KletiaIntentWidget
+  accounts={accounts}
+  defaultText="bridge 25 USDC from base to solana"
+  appearance={{
+    light: { accent: "#6D28D9", surface: "#FFFFFF", ink: "#1E1B4B" },
+    dark: { accent: "#A78BFA", surface: "#17132B", ink: "#EDE9FE" },
+    radius: 10,
+    border: 2,
+    shadow: "soft",
+    font: "system",
+    density: "compact",
+  }}
+  networks={["base", "solana"]}
+  actions={["swap", "bridge"]}
+  sourceNetwork="auto"
+/>
+```
+
+- **`appearance`** takes the [appearance tokens](../../docs/platform/theming.md)
+  (`kletia.appearance/v1`). Colours that miss their contrast floor fall back
+  to readable ones; the fare, contract reviews, policy holds, stamps, refusals
+  and the footer never change. Without `appearance` the widget looks exactly
+  as before. You can also override the public `--kw-*` variables from an
+  ancestor (`.checkout .kw-root { --kw-accent: #0f766e; }`); see
+  [the escape hatch](../../docs/platform/theming.md#the-react-escape-hatch).
+- **`networks` / `actions`** scope the widget. A plan that touches another
+  network (a bridge destination or a recipient's network included) or uses
+  another kind of action is shown with **Not available here**, the offending
+  steps listed, and **Execute** stays disabled; `onError` receives a
+  `KletiaScopeError` (`code: "EMBED_SCOPE_REFUSED"`). `outOfScope(intent,
+  { networks, actions })` gives you the same answer for your own checks.
+- **`sourceNetwork`** (a network key or `"auto"`) is sent as the request's
+  `sourceNetwork`; a key outside `networks` is dropped.
+- **`header: "none"`** hides the header and moves the lane label ("Preview"
+  until `signers` are passed, then the account count) to the footer.
+- Clarifying questions are always on: there is no prop to turn them off.
+
 ## Intents and sessions your backend creates
 
 ```tsx
@@ -153,7 +193,11 @@ frameworks.
 | `accounts` | `AccountId[]` | CAIP-10 accounts the user controls (required to plan) |
 | `client` / `clientOptions` | `KletiaClient` / options | API origin (`baseUrl`). Never put a `kl_dev_` key in browser code; proxy through your server to attribute intents to your key |
 | `signers` | `{ evm?, solana? }` | Enables execution |
-| `theme` | `"light" \| "dark" \| "auto"` | Default `auto` |
+| `theme` | `"light" \| "dark" \| "auto"` | Default: `appearance.colorScheme`, else `auto` |
+| `appearance` | `KletiaAppearance` | Appearance tokens (see [theming](../../docs/platform/theming.md)) |
+| `networks` | `NetworkKey[]` | Networks the widget works with; other plans are refused before Execute |
+| `actions` | `("swap" \| "bridge" \| "transfer" \| "stake" \| "deposit" \| "withdraw")[]` | Kinds of action offered; other plans are refused before Execute |
+| `sourceNetwork` | `NetworkKey \| "auto"` | Where the money starts (sent as `sourceNetwork`) |
 | `examples` | `string[]` | Example chips |
 | `maxSlippageBps` | `number` | Per-swap slippage ceiling |
 | `metadata` | `Record<string, string>` | Echoed in events and webhooks |
@@ -161,7 +205,7 @@ frameworks.
 | `sessionId` / `hostOrigin` | `cs_…` / origin | Run a session your backend created; `hostOrigin` (default `location.origin`) must be in its `allowedOrigins` |
 | `preview` | `boolean` | Ask for the fare breakdown with every plan (default `true`) |
 | `linkOrigin` | origin | Rebuild non-https approval and receipt links on this origin (the Kletia web app only) |
-| `onIntentCreated` / `onIntentOpened` / `onUpdate` / `onComplete` / `onError` | callbacks | Lifecycle hooks (`onIntentOpened`: an `intentId` was loaded) |
+| `onIntentCreated` / `onIntentOpened` / `onSessionLoaded` / `onUpdate` / `onComplete` / `onError` | callbacks | Lifecycle hooks (`onIntentOpened`: an `intentId` was loaded; `onSessionLoaded`: a `sessionId` was loaded) |
 
 ## Display helpers
 

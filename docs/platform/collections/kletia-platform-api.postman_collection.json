@@ -394,8 +394,41 @@
     {
       "id": "abab6fee-e83d-51b1-a0ee-bea44fd6fa0b",
       "name": "Portfolio",
-      "description": "Balances of one CAIP-10 account.",
+      "description": "Balances and venue positions of CAIP-10 accounts, one or up to 12 per request.",
       "item": [
+        {
+          "id": "167e9fca-a3af-54ca-8370-75d8e39bc73d",
+          "name": "Balances of several CAIP-10 accounts in one request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/portfolio?accounts=eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D,solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "portfolio"
+              ],
+              "query": [
+                {
+                  "key": "accounts",
+                  "value": "eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D,solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+                  "description": "Comma-separated CAIP-10 accounts; an invalid one is 400 INVALID_REQUEST with the issue path `accounts[i]`."
+                },
+                {
+                  "key": "positions",
+                  "value": "true",
+                  "description": "Also read venue positions of each account.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "At most 12 accounts (comma separated; duplicates removed, request order kept), read 4 at a time with 8 s per account and cached 15 s per account. An account that cannot be read is listed in `failures` and the request still answers 200. Costs one request of the tier limit plus one unit per account of a per-IP budget of 60 account reads per minute (429 RATE_LIMITED after).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/portfolio` · operationId `listPortfolios` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
         {
           "id": "fefcc0be-ef9d-58c7-aa03-272522d673ed",
           "name": "Balances for one CAIP-10 account",
@@ -412,6 +445,14 @@
                 "portfolio",
                 ":accountId"
               ],
+              "query": [
+                {
+                  "key": "positions",
+                  "value": "true",
+                  "description": "Also read venue positions.",
+                  "disabled": true
+                }
+              ],
               "variable": [
                 {
                   "key": "accountId",
@@ -419,7 +460,7 @@
                 }
               ]
             },
-            "description": "Works without a key (public tier); a key raises the rate limit.\n\n`GET /v1/portfolio/{accountId}` · operationId `getPortfolio` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Every holding carries `priceSource` and `pricedAt`; gas assets and listed tokens are priced through the same advisory prices as fee estimates. `positions=true` adds the account's lending, savings and vault positions.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/portfolio/{accountId}` · operationId `getPortfolio` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }
@@ -501,6 +542,18 @@
                   "value": "true",
                   "description": "Also return the asset-change preview (stage `plan`), simulated from the transactions the quotes already returned; never a failed create (unsimulated steps are quoted).",
                   "disabled": true
+                },
+                {
+                  "key": "journey",
+                  "value": "true",
+                  "description": "Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`).",
+                  "disabled": true
+                },
+                {
+                  "key": "journeyReads",
+                  "value": "live",
+                  "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
+                  "disabled": true
                 }
               ]
             },
@@ -553,6 +606,18 @@
                   "value": "true",
                   "description": "Also return the asset-change preview (stage `plan`), simulated from the transactions the quotes already returned; never a failed create (unsimulated steps are quoted).",
                   "disabled": true
+                },
+                {
+                  "key": "journey",
+                  "value": "true",
+                  "description": "Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`).",
+                  "disabled": true
+                },
+                {
+                  "key": "journeyReads",
+                  "value": "live",
+                  "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
+                  "disabled": true
                 }
               ]
             },
@@ -604,6 +669,18 @@
                   "key": "preview",
                   "value": "true",
                   "description": "Also return the asset-change preview (stage `plan`), simulated from the transactions the quotes already returned; never a failed create (unsimulated steps are quoted).",
+                  "disabled": true
+                },
+                {
+                  "key": "journey",
+                  "value": "true",
+                  "description": "Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`).",
+                  "disabled": true
+                },
+                {
+                  "key": "journeyReads",
+                  "value": "live",
+                  "description": "With `journey=true`: `live` (default) reads the accounts' gas and token balances; `none` reads nothing (demo or placeholder accounts).",
                   "disabled": true
                 }
               ]
@@ -671,6 +748,14 @@
                 "steps",
                 ":stepId",
                 "prepare"
+              ],
+              "query": [
+                {
+                  "key": "journey",
+                  "value": "true",
+                  "description": "Also return the journey at signing time, built on the prepare-stage preview.",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -805,6 +890,83 @@
           "response": []
         },
         {
+          "id": "884d373c-85f7-5210-a32f-6769c60e8d53",
+          "name": "Where the money is after every step, and what follows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/journey",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "journey"
+              ],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "true",
+                  "description": "Read the facts again instead of serving the 15 s cache.",
+                  "disabled": true
+                },
+                {
+                  "key": "reads",
+                  "value": "live",
+                  "description": "`none` skips every account read.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "The journey of a stored intent on its latest preview (recomputed when older than 60 s and the intent is not finished): stops with holdings, legs with refund paths, and consequences by severity with options. Results are cached for 15 s. At most 30 reads per intent per minute on top of the tier limit; `refresh=true` bypasses the cache at most once per 10 s per intent. Fetch it with the plan and when a step changes (intent events), not on a timer.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/intents/{id}/journey` · operationId `getIntentJourney` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "82cbc8f6-41e0-5ed2-8ff0-373ee682b8ab",
+          "name": "End an intent at its current stop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/intents/:id/stop",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "intents",
+                ":id",
+                "stop"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{intentId}}"
+                }
+              ]
+            },
+            "description": "Every step not started (or failed) is skipped; the money stays where the journey says (stopping never moves money). Nothing started: the intent is `cancelled`; otherwise `partially_completed` once a step settled. Idempotent. Refused with 409 INTENT_IN_FLIGHT (retryable, `Retry-After`) while a step is submitted, settling or under review, or holds a prepared payload that can still be signed (until it expires). Honours `Idempotency-Key` (with an API key).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/intents/{id}/stop` · operationId `stopIntent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
           "id": "8a6c98c7-fdc8-5b44-827b-2363b3373169",
           "name": "The last preview computed for an intent",
           "request": {
@@ -872,7 +1034,7 @@
     {
       "id": "f36ea160-7a29-5191-864a-9c8c4c01b21e",
       "name": "Events",
-      "description": "Server-Sent Events per intent.",
+      "description": "Server-Sent Events per intent, and the key's own event stream.",
       "item": [
         {
           "id": "7f1bdeb7-b61f-56d4-b0f6-27bfc6c8cc43",
@@ -916,6 +1078,50 @@
               ]
             },
             "description": "Starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=`; the whole buffer when absent, or when the id is no longer buffered, so de-duplicate by event id), then streams live events. Each frame is `id: <event id>`, `event: <type>`, `data: <KletiaEvent JSON>`. A comment heartbeat is sent every 15 s and the stream ends after 30 minutes.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/intents/{id}/events` · operationId `streamIntentEvents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "6a260dd4-9a42-5bb7-bde5-8d3337677d43",
+          "name": "Server-Sent Events stream of the key's events (routed like its webhooks)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Last-Event-ID",
+                "value": "",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "self",
+                  "disabled": true
+                },
+                {
+                  "key": "types",
+                  "value": "intent.status_changed,link.created",
+                  "description": "Comma-separated event types (default: every type).",
+                  "disabled": true
+                },
+                {
+                  "key": "since",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every event that would be delivered to the key's webhooks (intent, receipt, contract, link, Rule Book and key events), as `id`, `event` and `data` frames where `data` is the webhook envelope `{ id, type, at, data }`. `scope=subtree` adds the events of the key's descendant agent keys (and project-wide rule book events on project keys), like webhooks created with `scope: \"subtree\"`. Starts with `retry: 3000`; `Last-Event-ID` (or `?since=`) replays the matching events after that id from this instance's buffer (500 events, 10 minutes; an id no longer buffered replays the whole buffer, so de-duplicate by event id); without it the stream starts with live events. A heartbeat comment every 15 s re-checks the key (a revoked or expired key's stream ends); a stream lasts at most 30 minutes. At most 2 open streams per key (429 TOO_MANY_STREAMS).\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/events` · operationId `streamKeyEvents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }
@@ -3603,7 +3809,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -3641,7 +3847,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -3679,7 +3885,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

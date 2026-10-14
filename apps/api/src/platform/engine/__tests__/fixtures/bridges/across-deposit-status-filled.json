@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-10-14T20:57:00Z",
+  "request": "GET https://app.across.to/api/deposit/status?originChainId=8453&depositId=6333400",
+  "body": {
+    "sweepTxnRef": null,
+    "actionsTargetRecipient": null,
+    "actionsTargetToken": null,
+    "actionsTargetAmount": null,
+    "actionsTargetTxnRef": null,
+    "actionsTargetBlockTimestamp": null,
+    "status": "filled",
+    "originChainId": 8453,
+    "depositId": "6333400",
+    "depositTxHash": "0x61f9dccf0597c382e80654eba94f4660d84c05e9137bb39e6a551b80587121de",
+    "depositTxnRef": "0x61f9dccf0597c382e80654eba94f4660d84c05e9137bb39e6a551b80587121de",
+    "fillTx": "0x44135409f43c9424bcf33f1ca446995d4b97478fb842425ed65177473e40739d",
+    "fillTxnRef": "0x44135409f43c9424bcf33f1ca446995d4b97478fb842425ed65177473e40739d",
+    "destinationChainId": 1,
+    "depositRefundTxHash": null,
+    "depositRefundTxnRef": null,
+    "actionsSucceeded": null,
+    "actionsTargetChainId": null,
+    "pagination": {
+      "currentIndex": 0,
+      "maxIndex": 0
+    }
+  }
+}

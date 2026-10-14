@@ -8,7 +8,12 @@ import {
   EMBED_VERSION,
   FRAME_REFERRER_POLICY,
   FRAME_SANDBOX,
+  MAX_FRAME_HEIGHT,
+  OBSERVED_ATTRIBUTES,
   buildEmbedUrl,
+  clampFrameHeight,
+  kletiaOriginFromScript,
+  parseMaxHeight,
   connectFrame,
   defineKletiaIntent,
   embedFragment,
@@ -317,4 +322,71 @@ test("close() stops pending attempts", async (t) => {
   await tick(30);
   assert.equal(frame.posts.length, 1);
   assert.equal(connection.connected, false);
+});
+
+test("every appearance and scope attribute maps to its frame parameter", () => {
+  const values = {
+    accent: "#7c3aed", "accent-ink": "FFFFFF", surface: "#fafafa", ink: "#111111", line: "#333333",
+    "accent-dark": "#a78bfa", "accent-ink-dark": "#000000", "surface-dark": "#0b0b0f", "ink-dark": "#eeeeee", "line-dark": "#555555",
+    radius: "8", border: "2", shadow: "Soft", font: "rounded", density: "compact", header: "none",
+    networks: "base, solana,base", actions: "swap,bridge", "source-network": "solana",
+  };
+  for (const name of Object.keys(values)) assert.ok(OBSERVED_ATTRIBUTES.includes(name), name);
+  const url = buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, readElementConfig(attributes(values)).options);
+  assert.deepEqual(query(url), {
+    accent: "7C3AED", "accent-dark": "A78BFA", "accent-ink": "FFFFFF", "accent-ink-dark": "000000", surface: "FAFAFA", "surface-dark": "0B0B0F",
+    ink: "111111", "ink-dark": "EEEEEE", line: "333333", "line-dark": "555555",
+    radius: "8", border: "2", shadow: "soft", font: "rounded", density: "compact", header: "none",
+    networks: "base,solana", actions: "swap,bridge", source: "solana",
+  });
+});
+
+test("invalid appearance and scope values are dropped, never forwarded", () => {
+  const url = buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, {
+    accent: "red;}", surface: "url(https://evil.example/x)", ink: "#12345g", line: "#fff",
+    radius: "17", border: "0", shadow: "glow", font: "papyrus", density: "tiny", header: "brand",
+    networks: "../x, BASE ,x;y", actions: "borrow,call", sourceNetwork: "solana",
+  });
+  assert.deepEqual(query(url), { networks: "base" });
+  // A source outside the listed networks is dropped; auto always passes.
+  assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { networks: ["base"], sourceNetwork: "solana" })).source, undefined);
+  assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { networks: ["base"], sourceNetwork: "auto" })).source, "auto");
+  assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { sourceNetwork: "Arbitrum" })).source, "arbitrum");
+  assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { networks: Array.from({ length: 12 }, (_, i) => `n${i}`) })).networks.split(",").length, 9);
+});
+
+test("there is no clarify switch: clarifying questions are always on", () => {
+  assert.ok(!OBSERVED_ATTRIBUTES.includes("clarify"));
+  assert.equal(query(buildEmbedUrl(DEFAULT_KLETIA_ORIGIN, { clarify: "off" })).clarify, undefined);
+});
+
+test("max-height caps the frame (320-4000, default 1600)", () => {
+  assert.equal(parseMaxHeight(null), MAX_FRAME_HEIGHT);
+  assert.equal(parseMaxHeight("900px"), 900);
+  assert.equal(parseMaxHeight("9000"), 4000);
+  assert.equal(parseMaxHeight("100"), 320);
+  assert.equal(parseMaxHeight("tall"), MAX_FRAME_HEIGHT);
+  assert.equal(readElementConfig(attributes({ "max-height": "700" })).maxHeight, 700);
+  assert.equal(clampFrameHeight(2400, 700), 700);
+  assert.equal(clampFrameHeight(2400), 1600);
+});
+
+test("the default origin is the Kletia origin the script was loaded from", () => {
+  assert.equal(kletiaOriginFromScript("https://kletia.example/sdk/embed/0.2.0/kletia-embed.min.js"), "https://kletia.example");
+  assert.equal(kletiaOriginFromScript("https://kletia.example/sdk/embed/0.2.0/index.js"), "https://kletia.example");
+  assert.equal(kletiaOriginFromScript("http://localhost:5174/sdk/embed/0.2.0-rc.1/kletia-embed.min.js?v=1"), "http://localhost:5174");
+  for (const other of [
+    "https://cdn.jsdelivr.net/npm/@kletia/embed@0.2.0/dist/kletia-embed.min.js",
+    "https://kletia.example/sdk/embed/latest/kletia-embed.min.js",
+    "https://kletia.example/static/sdk/embed/0.2.0/kletia-embed.min.js",
+    "http://evil.example/sdk/embed/0.2.0/kletia-embed.min.js",
+    "file:///tmp/sdk/embed/0.2.0/index.js",
+    undefined,
+  ]) {
+    assert.equal(kletiaOriginFromScript(other), null, String(other));
+  }
+  // Outside a browser (and for scripts loaded from anywhere else) the hosted origin stays the default.
+  assert.equal(normalizeKletiaOrigin(""), DEFAULT_KLETIA_ORIGIN);
+  assert.equal(normalizeKletiaOrigin("", "https://kletia.example"), "https://kletia.example");
+  assert.equal(normalizeKletiaOrigin("https://other.example", "https://kletia.example"), "https://other.example");
 });

@@ -89,18 +89,100 @@ dependencies and run in any browser with custom elements and `MessageChannel`.
 | `text` | up to 500 characters | none | Prefilled intent. The visitor can edit it and always reviews the plan before signing. |
 | `examples` | comma-separated, up to 6 × 120 characters | Kletia's examples | Example chips. |
 | `bg` | `transparent` | opaque | Lets your page background show around the widget. |
-| `height` | pixels (`640`, `640px`) | `600` | Height until the frame reports its content height; from then on the frame follows the content (320–1600 px). Set it close to your widget's height to avoid a jump on load. |
-| `origin` | an https origin, or `http://localhost:<port>` | `https://kletiaai.xyz` | Where `/embed` is served. Set it for a self-hosted Kletia. Anything else (paths, plain http) emits `EMBED_ORIGIN_INVALID` and renders nothing. |
+| `height` | pixels (`640`, `640px`) | `600` | Height until the frame reports its content height; from then on the frame follows the content, between 320 px and `max-height`. Set it close to your widget's height to avoid a jump on load. |
+| `max-height` | pixels, 320–4000 | `1600` | The frame never grows past this height; taller content scrolls inside the frame. |
+| `origin` | an https origin, or `http://localhost:<port>` | the origin the script came from, else `https://kletiaai.xyz` | Where `/embed` is served. A script loaded from a Kletia deployment's versioned path (`<origin>/sdk/embed/<version>/kletia-embed.min.js` or `…/index.js`) defaults to that origin, so a self-hosted Kletia needs no `origin`; from anywhere else (npm, a CDN) the default is `https://kletiaai.xyz`. An explicit `origin` always wins. Anything else (paths, plain http) emits `EMBED_ORIGIN_INVALID` and renders nothing. |
 | `reference` | `^[A-Za-z0-9_.:-]{1,80}$` | none | Your reference, stored on created intents as `metadata.hostRef` and echoed in `kletia:intent-planned` and `kletia:intent-created`. Anyone with the intent id can read it: **never put personal data in it**. |
 | `label` | text | `Kletia intent widget` | Accessible name of the frame. |
 | `intent` | `int_` + 32 hex | none | Opens an intent your backend created with its API key, instead of planning from text. See [Intents and sessions your backend creates](#intents-and-sessions-your-backend-creates). |
 | `session` | `cs_` + 32 hex | none | Runs a session your backend created: the frame plans your fixed actions for the visitor's wallet. `intent` wins when both are set. |
+| `accent`, `accent-ink`, `surface`, `ink`, `line` | six hex digits, `#` optional | stock colours | The light palette (or the only one). See [Appearance](#appearance). |
+| `accent-dark`, `accent-ink-dark`, `surface-dark`, `ink-dark`, `line-dark` | six hex digits | stock dark colours | Used when the resolved scheme is dark. Without them, dark mode keeps the stock dark colours and borrows only your `accent`. |
+| `radius` | 0–16 | `0` | Corner radius in pixels (stamps stay square). |
+| `border` | 1–3 | `3` | Border width; inner elements use one pixel less (at least 1). |
+| `shadow` | `hard`, `soft`, `none` | `hard` | |
+| `font` | `inter`, `system`, `serif`, `mono`, `rounded` | `inter` | Local font stacks only: no remote font is ever loaded. |
+| `density` | `comfortable`, `compact` | `comfortable` | Padding, gaps and text size; buttons keep their 44 px height. |
+| `header` | `kletia`, `none` | `kletia` | `none` hides the header; the "Preview" / account label moves to the footer. |
+| `networks` | comma-separated network keys, up to 9 | all | The networks your page works with. See [Networks, actions and the starting network](#networks-actions-and-the-starting-network). |
+| `actions` | comma-separated: `swap`, `bridge`, `transfer`, `stake`, `deposit`, `withdraw` | all | The kinds of action your page offers. |
+| `source-network` | a key from `networks`, or `auto` | none | Where the money starts. `auto` lets Kletia pick the network that holds the funds. Sent to the frame as `source`. |
 
-Changing `theme`, `text`, `examples`, `bg`, `origin`, `reference`, `intent`
-or `session` reloads the frame (changes in the same task are batched);
-`height` and `label` apply in place. Style the frame from your page with `kletia-intent::part(frame)`;
+Invalid values are dropped by the element and again by the frame, never
+forwarded: a colour must be six hex digits (`red;}`, `url(…)` or `#12345g`
+go nowhere), numbers must be in range and names must be known. There is no
+attribute to turn off clarifying questions: they are always on.
+
+Changing any attribute except `height`, `max-height` and `label` reloads the
+frame (changes in the same task are batched); those three apply in place. Style the frame from your page with `kletia-intent::part(frame)`;
 for a fixed-height box that scrolls inside, override the height there
 (`kletia-intent::part(frame) { height: 560px !important; }`).
+
+## Appearance
+
+The appearance attributes restyle the widget inside the frame with the
+[appearance tokens](theming.md) (`kletia.appearance/v1`):
+
+```html
+<kletia-intent
+  accent="7C3AED" surface="FFFFFF" ink="1E1B4B"
+  accent-dark="A78BFA" surface-dark="17132B" ink-dark="EDE9FE"
+  radius="10" border="2" shadow="soft" font="system" density="compact"
+  bg="transparent"
+></kletia-intent>
+```
+
+- **Contrast is enforced, never relaxed.** Body text must reach 4.5:1 on the
+  surface, borders and the focus ring 3:1; a colour that misses its floor
+  falls back to a readable one (or the stock pair). Text on the accent is
+  picked automatically when you leave `accent-ink` out.
+- **Safety signage never changes**: the host notice, the external-recipient
+  warning, the fare (its ticket stock, certainty labels and "at least"
+  plate), contract reviews, acknowledgement gates, policy holds, receipt
+  stamps and the footer keep their colours and stay visible. See
+  [theming](theming.md#what-never-changes-and-why).
+- **Use `bg="transparent"` with a custom `surface`.** The frame page keeps
+  its own background otherwise, so a coloured widget sits on Kletia's paper
+  inside your page. Transparent lets your page show around the widget.
+
+## Networks, actions and the starting network
+
+`networks`, `actions` and `source-network` scope the widget to what your page
+offers:
+
+```html
+<kletia-intent networks="base,solana" actions="swap,bridge" source-network="auto"></kletia-intent>
+```
+
+- **Networks** must be keys of one capital lane (mainnet networks, or the
+  testnets `arbitrum-sepolia`, `arc`, `solana-devnet`); unknown keys and keys
+  of the other lane are dropped.
+- **Plans outside the scope are refused before Execute.** The frame plans as
+  usual, then lists what does not fit ("This site works with Base and Solana.
+  This plan also uses Ethereum (step 1).") under **Not available here**, keeps
+  Execute disabled and emits `kletia:error` with `EMBED_SCOPE_REFUSED`. A
+  bridge's destination and a transfer's recipient network count. Unstaking
+  counts as staking; kinds outside the six (borrowing, custom contract calls)
+  never fit an `actions` scope.
+- **The wallet bar offers only the wallets the frame needs**: the virtual
+  machines of `networks`, of a session's actions and of an integrator
+  intent's steps. A widget scoped to `base` shows no Solana button; a session
+  that only touches Arbitrum Sepolia offers an EVM wallet only. Text mode
+  without `networks` offers both.
+- **`source-network`** is passed to the planner as `sourceNetwork`: a network
+  key (dropped when it is not in `networks`) or `auto`. Before a wallet is
+  connected the frame plans previews for demo accounts, where `auto` behaves
+  as if it were absent.
+
+The scope is a boundary of the experience on your page: the visitor still
+reviews and signs every step in their own wallet.
+
+Wallet code loads only when it is needed: the frame shows its connect buttons
+right away, starts downloading the wallet runtime when the visitor hovers or
+focuses one, and opens that wallet's picker on the click. A visit that only
+plans previews downloads no wallet code; a visitor who connected a wallet in
+this frame before gets the runtime at once, so the wallet reconnects by
+itself.
 
 ## Intents and sessions your backend creates
 
@@ -215,6 +297,11 @@ Error codes in `kletia:error`:
 - `BRIDGE_UNAVAILABLE`: the frame never answered the connection, or your page
   has no http(s) origin (for example a `file://` page). See
   [Troubleshooting](#troubleshooting).
+- `EMBED_SCOPE_REFUSED`: a plan uses a network or a kind of action outside
+  `networks` / `actions`; Execute stays disabled.
+- `CONTRACT_PENDING`: the session's contract registration is still in its
+  activation delay. The frame says when the checkout opens ("This checkout
+  opens at 14:11 (in 9 min).") and keeps planning disabled until then.
 
 Events never carry addresses, amounts, recipients or transaction hashes.
 
@@ -339,7 +426,9 @@ frame.addEventListener("load", () => {
 
 This minimal version sends one connect per load, which the frame keeps until
 its bridge is ready. The element also retries, validates every field and
-clamps the height to 320–1600 px. Prefer the element.
+clamps the height to 320 px–`max-height`. Prefer the element. The appearance
+and scope attributes are frame parameters of the same name (`source` for
+`source-network`); the frame validates them again.
 
 ## Troubleshooting
 

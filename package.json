@@ -33,7 +33,7 @@
     "compile:base": "npm --prefix contracts/base run compile",
     "compile:arc": "npm --prefix contracts/arc run compile",
     "test:contracts": "npm --prefix contracts/base test && npm --prefix contracts/arc test",
-    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run check:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:openapi && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run test:web && npm run test:tooling && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc && npm run test:contracts",
+    "verify": "npm run check:structure && npm run check:docs && npm run check:privacy-egress && npm run test:packages && npm run check:packages && npm run typecheck:api && npm run test:api && npm run build:api && npm run check:openapi && npm run check:intent-schema-planner && npm run check:intent-network-matrix && npm run check:intent-user-journey && npm run check:intent-privacy-trace && npm run test:web && npm run test:tooling && npm run typecheck:web && npm run lint:web && npm run build:web && npm run compile:base && npm run compile:arc && npm run test:contracts && npm run check:examples -- --if-enabled",
     "build:packages": "npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget && npm run build -w @kletia/embed && npm run build -w @kletia/cli",
     "test:packages": "npm test -w @kletia/core && npm test -w @kletia/sdk && npm test -w @kletia/widget && npm test -w @kletia/embed && npm test -w @kletia/cli",
     "test:api": "npm test -w @kletia/api",
@@ -43,6 +43,7 @@
     "postinstall": "node tooling/postinstall-packages.mjs",
     "check:packages": "node tooling/verify-packages.mjs",
     "generate:openapi": "node tooling/export-openapi.mjs && node tooling/generate-collections.mjs",
+    "check:examples": "node tooling/check-examples.mjs",
     "check:openapi": "node tooling/export-openapi.mjs --check && node tooling/generate-collections.mjs --check",
     "lint:openapi": "npx --yes @redocly/cli@2.54.2 lint docs/platform/openapi.json",
     "bump:packages": "node tooling/bump-packages.mjs"

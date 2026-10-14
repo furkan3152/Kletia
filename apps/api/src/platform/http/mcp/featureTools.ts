@@ -7,6 +7,10 @@
  * - `get_receipt`: a receipt by intent id (the owner's capability) or by a
  *   share link (never returns an intent id), checked with the server's own
  *   `verifyReceipt` run; agents should still re-verify for third parties.
+ * - `get_journey`: where the money is after every step and what follows
+ *   (journey design 7.6), compact: stops, legs and consequences with their
+ *   option labels. Never calldata, never a replan request, no URL except
+ *   https tracking links. Shares the per-intent limit of GET …/journey.
  */
 import {
   CHAINS,
@@ -14,11 +18,14 @@ import {
   verifyReceipt,
   type AnchorRole,
   type IntentPreview,
+  type Journey,
+  type JourneyHolding,
   type ReceiptAnchor,
   type ReceiptDisclosure,
 } from "@kletia/core";
 import { INTENT_ID_PATTERN } from "../../index.js";
 import { invalidRequest, isRecord } from "../context.js";
+import { readJourney } from "../journey.js";
 import { recomputePreview } from "../preview.js";
 import { readOwnerReceipt, readShareCiphertext, readSharedReceipt, type ReceiptDocumentView } from "../receipts/handlers.js";
 import { decryptShare, parseShareUrl } from "../receipts/shares.js";
@@ -73,6 +80,66 @@ export function previewSummary(preview: IntentPreview): Record<string, unknown> 
     ...(preview.arrival ? { arrival: preview.arrival } : {}),
     needs: preview.needs.map((need) => ({ network: need.network, asset: need.asset.symbol, amount: need.formatted, reason: need.reason, ...(need.have !== undefined ? { have: need.have } : {}) })),
     warnings: preview.warnings,
+  };
+}
+
+/** "99.96 USDC (at least 99.46) ≈ $99.96": one holding at a stop. */
+function holdingLine(holding: JourneyHolding): string {
+  const symbol = holding.asset.symbol;
+  const atLeast = holding.atLeast.amount !== holding.expected.amount ? ` (at least ${holding.atLeast.formatted})` : "";
+  const value = holding.value.expectedUsd !== null ? ` ≈ ${usd(holding.value.expectedUsd)}` : holding.value.source === "unpriced" ? " (unpriced)" : "";
+  return `${holding.expected.formatted} ${symbol}${atLeast}${value}${holding.role === "spent-next" ? "" : ` [${holding.role}]`}`;
+}
+
+/**
+ * Compact journey for agents (journey design 7.6): stage, where the money
+ * is now, stops, legs and consequences with option ids and labels. Option
+ * actions (replan requests with accounts) are left out; the only URLs are
+ * https tracking links.
+ */
+export function journeySummary(journey: Journey): Record<string, unknown> {
+  return {
+    digest: journey.digest,
+    stage: journey.stage,
+    computedAt: journey.computedAt,
+    previewDigest: journey.basis.previewDigest,
+    reads: journey.basis.reads,
+    now: journey.now,
+    stops: journey.stops.map((stop) => ({
+      id: stop.id,
+      kind: stop.kind,
+      network: stop.network,
+      holder: stop.holder.label,
+      custody: stop.custody,
+      state: stop.state,
+      holdings: stop.holdings.map(holdingLine),
+      ...(stop.eta ? { etaSeconds: stop.eta.afterFirstSignatureSeconds } : {}),
+    })),
+    legs: journey.legs.map((leg) => ({
+      id: leg.id,
+      title: leg.title,
+      kind: leg.kind,
+      venue: leg.venue.name,
+      network: leg.network,
+      to: leg.destinationNetwork,
+      status: leg.status,
+      ...(leg.seconds !== null ? { seconds: leg.seconds } : {}),
+      ...(leg.refund ? { refund: leg.refund.label } : {}),
+      ...(leg.failure ? { failure: leg.failure } : {}),
+      ...(leg.tracking && leg.tracking.url.startsWith("https://") ? { tracking: leg.tracking.url } : {}),
+    })),
+    consequences: journey.consequences.map((consequence) => ({
+      id: consequence.id,
+      severity: consequence.severity,
+      kind: consequence.kind,
+      title: consequence.title,
+      detail: consequence.detail,
+      ...(consequence.options.length > 0
+        ? { options: consequence.options.map((option) => ({ id: option.id, label: option.label, ...(option.recommended ? { recommended: true } : {}), ...(option.costUsd !== null ? { costUsd: option.costUsd } : {}) })) }
+        : {}),
+      ...(consequence.prompt ? { question: consequence.prompt.question } : {}),
+    })),
+    blockers: journey.blockers,
   };
 }
 
@@ -137,6 +204,26 @@ export const PREVIEW_INTENT_TOOL: KletiaTool = {
     const intentId = typeof args.intentId === "string" ? args.intentId : "";
     if (!INTENT_ID_PATTERN.test(intentId)) throw invalidRequest("intentId must be int_ followed by 32 hex characters.", [{ path: "intentId", message: "Invalid intent id." }]);
     return previewSummary(await recomputePreview(intentId, args.refreshQuotes === true));
+  },
+};
+
+export const GET_JOURNEY_TOOL: KletiaTool = {
+  name: "get_journey",
+  description:
+    "Where the money of a stored intent is after every step and what follows: stops (network, who holds it, amounts expected and at least), legs (venue, time, refund path) and consequences by severity (block, act, warn, info) with the options a user can choose. A `block` must be answered by the user before the next signature (for example: no ETH on Base to sign leg 2; add gas on arrival or bring it). Read-only; never returns transactions. At most 30 reads per intent per minute.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      intentId: { type: "string", pattern: INTENT_ID_PATTERN.source, description: "int_ followed by 32 hex characters." },
+    },
+    required: ["intentId"],
+    additionalProperties: false,
+  },
+  annotations: annotations("Read an intent's journey", true),
+  async run(args) {
+    const intentId = typeof args.intentId === "string" ? args.intentId : "";
+    if (!INTENT_ID_PATTERN.test(intentId)) throw invalidRequest("intentId must be int_ followed by 32 hex characters.", [{ path: "intentId", message: "Invalid intent id." }]);
+    return journeySummary(await readJourney(intentId));
   },
 };
 

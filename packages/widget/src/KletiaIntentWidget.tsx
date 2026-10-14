@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   CHAINS,
   formatAmount,
@@ -9,8 +9,12 @@ import {
   type IntentGraph,
   type IntentPreview,
   type IntentStep,
+  type KletiaAppearance,
+  type NetworkKey,
   type PreviewIssue,
+  resolveAppearance,
   type SessionView,
+  type SourceNetwork,
   type StepPreview,
   type StepStatus,
 } from "@kletia/core";
@@ -42,6 +46,14 @@ import {
   type PolicyErrorLike,
   type PolicyOutcomeView,
 } from "./review.js";
+import {
+  describeScopeRefusal,
+  KletiaScopeError,
+  normalizeScope,
+  outOfScope,
+  scopedSourceNetwork,
+  type WidgetAction,
+} from "./scope.js";
 import { ensureWidgetStyles } from "./styles.js";
 
 export const DEFAULT_WIDGET_EXAMPLES: readonly string[] = [
@@ -64,7 +76,27 @@ export interface KletiaIntentWidgetProps {
   readonly signers?: IntentSigners;
   readonly defaultText?: string;
   readonly examples?: readonly string[];
+  /** Colour scheme (default: `appearance.colorScheme`, else `auto`, which follows the visitor's system). */
   readonly theme?: "light" | "dark" | "auto";
+  /**
+   * Appearance tokens (`kletia.appearance/v1`): colours with contrast floors,
+   * radius, border, shadow, font, density and header. Safety surfaces (the
+   * fare, contract reviews, policy holds, stamps, the footer) never change.
+   */
+  readonly appearance?: KletiaAppearance;
+  /**
+   * Networks this widget works with. A plan that touches any other network
+   * (a bridge destination or a recipient included) is refused before Execute.
+   */
+  readonly networks?: readonly NetworkKey[];
+  /** Kinds of action this widget offers (swap, bridge, transfer, stake, deposit, withdraw); other plans are refused before Execute. */
+  readonly actions?: readonly WidgetAction[];
+  /**
+   * Where the money starts: a network key (kept inside `networks`) or
+   * `"auto"` (Kletia picks the funded network). Sent as the request's
+   * `sourceNetwork`; with preview accounts `"auto"` behaves as absent.
+   */
+  readonly sourceNetwork?: SourceNetwork;
   readonly maxSlippageBps?: number;
   /** Opaque metadata attached to created intents (e.g. your order id). */
   readonly metadata?: Readonly<Record<string, string>>;
@@ -95,6 +127,8 @@ export interface KletiaIntentWidgetProps {
   readonly onIntentCreated?: (intent: IntentGraph) => void;
   /** An intent named by `intentId` was loaded (it was created elsewhere, so `onIntentCreated` does not fire). */
   readonly onIntentOpened?: (intent: IntentGraph) => void;
+  /** A session named by `sessionId` was loaded (who is asking and what; the `/embed` frame offers only the wallets it needs). */
+  readonly onSessionLoaded?: (session: SessionView) => void;
   readonly onUpdate?: (intent: IntentGraph) => void;
   readonly onComplete?: (intent: IntentGraph) => void;
   readonly onError?: (error: unknown) => void;
@@ -135,6 +169,9 @@ function describeError(error: unknown): string {
       ? `${sent}: ${error.cause.message} This step will not be signed again; check your wallet's activity and plan a new intent if needed.`
       : `${sent} yet. Resubmit reports ${them} without signing again.`;
   }
+  if (error instanceof KletiaApiError && error.code === "CONTRACT_PENDING" && error.retryAfterSeconds !== null) {
+    return pendingText(new Date(Date.now() + error.retryAfterSeconds * 1000));
+  }
   if (error instanceof KletiaApiError) {
     const issue = error.issues[0];
     const message = issue ? `${error.message} (${issue.path || "request"}: ${issue.message})` : error.message;
@@ -142,6 +179,25 @@ function describeError(error: unknown): string {
     return hints.length > 0 ? `${message} Try: ${hints.map((hint) => `“${hint}”`).join(", ")}.` : message;
   }
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+/**
+ * A checkout whose contract registration is still in its activation delay:
+ * when it opens, in local time and minutes from now.
+ */
+function pendingText(opensAt: Date): string {
+  const minutes = Math.max(1, Math.ceil((opensAt.getTime() - Date.now()) / 60_000));
+  const clock = opensAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `This checkout opens at ${clock} (in ${minutes} min). Kletia waits before a newly registered contract can be used, so its owner is warned first.`;
+}
+
+/** The latest activation time among a session's pending registrations, while it is still ahead. */
+function sessionOpensAt(session: SessionView | null, now: number): Date | null {
+  const times = (session?.warnings ?? [])
+    .filter((warning) => warning.code === "CONTRACT_PENDING")
+    .map((warning) => Date.parse(warning.activatesAt))
+    .filter((time) => Number.isFinite(time) && time > now);
+  return times.length > 0 ? new Date(Math.max(...times)) : null;
 }
 
 /** The host of an origin, for text ("acme.example"); empty when it is not a URL. */
@@ -261,7 +317,10 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     accounts,
     signers,
     examples = DEFAULT_WIDGET_EXAMPLES,
-    theme = "auto",
+    appearance,
+    networks,
+    actions,
+    sourceNetwork,
     maxSlippageBps,
     metadata,
     intentId,
@@ -277,15 +336,28 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     className,
   } = props;
   // Notifications only: their identity must not reload the intent or session.
-  const notify = useRef({ onError, onIntentOpened });
+  const notify = useRef({ onError, onIntentOpened, onSessionLoaded: props.onSessionLoaded });
   useLayoutEffect(() => {
-    notify.current = { onError, onIntentOpened };
+    notify.current = { onError, onIntentOpened, onSessionLoaded: props.onSessionLoaded };
   });
   const client = useMemo(
     () => props.client ?? new KletiaClient(props.clientOptions),
     [props.client, props.clientOptions],
   );
-  const resolvedTheme = useResolvedTheme(theme);
+  const resolvedTheme = useResolvedTheme(props.theme ?? appearance?.colorScheme ?? "auto");
+  const resolvedAppearance = useMemo(() => resolveAppearance(appearance, resolvedTheme), [appearance, resolvedTheme]);
+  const rootStyle = useMemo(
+    () => (Object.keys(resolvedAppearance.vars).length > 0 ? (resolvedAppearance.vars as CSSProperties) : undefined),
+    [resolvedAppearance],
+  );
+  // Keyed by content, so a new array with the same networks does not re-check or re-report a plan.
+  const networksKey = networks?.join(",") ?? "";
+  const actionsKey = actions?.join(",") ?? "";
+  const scope = useMemo(
+    () => normalizeScope({ networks: networksKey ? networksKey.split(",") : [], actions: actionsKey ? actionsKey.split(",") : [] }),
+    [networksKey, actionsKey],
+  );
+  const source = scopedSourceNetwork(sourceNetwork, scope);
   const textId = useId();
   const amountId = useId();
   const [text, setText] = useState(props.defaultText ?? "");
@@ -394,6 +466,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           if (controller.signal.aborted) return;
           setSession(view);
           setSessionAmount(view.amount?.default ?? "");
+          notify.current.onSessionLoaded?.(view);
         }
       } catch (caught) {
         if (controller.signal.aborted) return;
@@ -405,6 +478,15 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     })();
     return () => controller.abort();
   }, [client, intentId, sessionId, loadFare, linkOrigin]);
+
+  // A plan outside the scope is reported once per intent; Execute stays disabled (see `refusal` below).
+  const scopeRefusal = intent ? outOfScope(intent, scope) : null;
+  const refusedFor = scopeRefusal && intent ? intent.id : null;
+  const latestRefusal = useRef(scopeRefusal);
+  latestRefusal.current = scopeRefusal;
+  useEffect(() => {
+    if (refusedFor && latestRefusal.current) notify.current.onError?.(new KletiaScopeError(latestRefusal.current));
+  }, [refusedFor]);
 
   const adopt = (created: IntentGraph, createdFare: IntentPreview | null) => {
     setIntent(created);
@@ -428,6 +510,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
       const request = {
         text: text.trim(),
         accounts,
+        ...(source ? { sourceNetwork: source } : {}),
         ...(maxSlippageBps ? { constraints: { maxSlippageBps } } : {}),
         ...(metadata ? { metadata } : {}),
       };
@@ -446,8 +529,18 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   };
 
   const sessionOriginAllowed = !session || (origin !== null && session.allowedOrigins.includes(origin));
+  // A session whose contract is still pending opens by itself: re-render when it does.
+  const [clock, setClock] = useState(() => Date.now());
+  const opensAt = sessionOpensAt(session, clock);
+  const opensAtTime = opensAt?.getTime() ?? null;
+  useEffect(() => {
+    if (opensAtTime === null) return undefined;
+    notify.current.onError?.(new KletiaApiError({ code: "CONTRACT_PENDING", message: "This checkout's contract is not active yet.", status: 409 }));
+    const timer = setTimeout(() => setClock(Date.now()), Math.min(Math.max(1_000, opensAtTime - Date.now() + 500), 2_147_000_000));
+    return () => clearTimeout(timer);
+  }, [opensAtTime]);
   const planSession = async () => {
-    if (!session || !sessionId || accounts.length === 0 || !signers || !origin || !sessionOriginAllowed) return;
+    if (!session || !sessionId || accounts.length === 0 || !signers || !origin || !sessionOriginAllowed || opensAt) return;
     setPhase("planning");
     setError(null);
     try {
@@ -579,20 +672,28 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const policyError = error instanceof KletiaApiError ? policyOutcome(error as PolicyErrorLike, { fallbackOrigin: linkOrigin }) : null;
   const sessionMode = Boolean(sessionId) && !intent;
   const textMode = !intentId && !sessionId;
-  const canExecute = Boolean(intent && signers) && !busy && !finished && !missingAck && !unbound && fareBlocking.length === 0;
+  const refusal = finished ? null : scopeRefusal;
+  const canExecute = Boolean(intent && signers) && !busy && !finished && !missingAck && !unbound && fareBlocking.length === 0 && !refusal;
+  const laneLabel = signers ? `${accounts.length} account${accounts.length === 1 ? "" : "s"}` : "Preview";
+  const header = resolvedAppearance.header;
 
   return (
     <section
       className={`kw-root${className ? ` ${className}` : ""}`}
       data-theme={resolvedTheme}
+      {...(appearance?.density === "compact" ? { "data-density": "compact" } : {})}
+      {...(appearance?.shadow === "soft" || appearance?.shadow === "none" ? { "data-shadow": appearance.shadow } : {})}
+      style={rootStyle}
       aria-label="Kletia intent"
     >
-      <div className="kw-head">
-        <span className="kw-brand">
-          Klet<b>ia</b> intents
-        </span>
-        <span className="kw-lane">{accounts.length} account{accounts.length === 1 ? "" : "s"}</span>
-      </div>
+      {header !== "none" ? (
+        <div className="kw-head">
+          <span className="kw-brand">
+            Klet<b>ia</b> intents
+          </span>
+          <span className="kw-lane">{laneLabel}</span>
+        </div>
+      ) : null}
 
       {textMode ? (
         <>
@@ -617,6 +718,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               </button>
             ))}
           </div>
+          {/* Reserved: the kw-clarify slot (clarifying questions) renders here, below the prompt and chips, above Plan and Execute. */}
         </>
       ) : null}
 
@@ -651,6 +753,11 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               />
             </>
           ) : null}
+          {opensAt && session.status === "active" ? (
+            <p className="kw-error kw-pending" role="status">
+              {pendingText(opensAt)}
+            </p>
+          ) : null}
           {session.status !== "active" ? (
             <p className="kw-error">{session.status === "expired" ? "This session expired. Ask the site for a new one." : "This session was already used."}</p>
           ) : !sessionOriginAllowed ? (
@@ -677,7 +784,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
           <button
             type="button"
             className="kw-btn"
-            disabled={busy || !signers || accounts.length === 0 || session.status !== "active" || !sessionOriginAllowed}
+            disabled={busy || !signers || accounts.length === 0 || session.status !== "active" || !sessionOriginAllowed || opensAt !== null}
             onClick={() => void planSession()}
             title={signers ? undefined : "Connect a wallet to plan with your accounts"}
           >
@@ -763,6 +870,15 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
             {stopped} Press Execute to see it again.
           </p>
         ) : null}
+        {refusal ? (
+          <div className="kw-error kw-scope" role="alert">
+            <p className="kw-scope-title">Not available here</p>
+            {describeScopeRefusal(refusal, scope).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            <p>Nothing was signed. Execute stays off for this plan.</p>
+          </div>
+        ) : null}
         {unbound ? (
           <div className="kw-error">
             This intent was prepared for <code className="kw-break">{shortAddress(unbound.account)}</code> on {CHAINS[unbound.network]?.name ?? unbound.network}. Connect that wallet to sign it.
@@ -789,6 +905,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
               </div>
             </div>
             {fare && !finished && !gate ? <FareBreakdown preview={fare} intent={intent} /> : null}
+            {/* Reserved: the kw-journey slot ("where your money is after each step") renders here, after the fare and before the steps. Never hideable by appearance. */}
             <ol className="kw-steps">
               {intent.steps.map((step) => (
                 <StepRow key={step.id} step={step} />
@@ -811,7 +928,9 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         ) : null}
       </div>
       <div className="kw-foot">
-        <span>Non-custodial · your wallet signs every step</span>
+        <span>
+          {header === "none" ? `${laneLabel} · ` : ""}Non-custodial · your wallet signs every step
+        </span>
         <a className="kw-link" href="https://kletiaai.xyz" target="_blank" rel="noreferrer noopener">
           Kletia
         </a>

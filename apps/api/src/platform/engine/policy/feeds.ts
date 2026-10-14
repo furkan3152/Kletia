@@ -19,8 +19,14 @@
  *   wstETH = STETH / USD x wstETH.stEthPerToken(), rETH = RETH / ETH x ETH / USD,
  *   weETH = weETH / ETH x ETH / USD (`derived` sources, fresh only when every
  *   factor is fresh).
+ * - Pyth push feeds on Solana are an additional source (protocols design
+ *   3.12): the account is the PDA([shard 0 as u16 LE, feed_id]) of the push
+ *   oracle, owned by the Pyth receiver, `verification_level` Full, its
+ *   `feed_id` the Hermes id, `publish_time` within PYTH_MAX_AGE_SECONDS and
+ *   `conf / price` at most PYTH_MAX_CONFIDENCE_BPS; otherwise the reading is
+ *   ignored. The oracle still takes the maximum of fresh sources.
  */
-import { ASSETS, CHAINS, parseAssetId, WRAPPED_SOL_MINT, type AssetDescriptor, type AssetId } from "@kletia/core";
+import { ASSETS, CHAINS, parseAssetId, venueContracts, WRAPPED_SOL_MINT, type AssetDescriptor, type AssetId } from "@kletia/core";
 import type { EvmNetworkKey } from "../chains/evm.js";
 
 export interface ChainlinkFeed {
@@ -74,7 +80,17 @@ export interface DerivedFeed {
   readonly rate?: RateCall;
 }
 
-export type PriceSource = ChainlinkFeed | JupiterFeed | DerivedFeed;
+/** A Pyth push feed on Solana mainnet (sponsored shard 0). */
+export interface PythFeed {
+  readonly kind: "pyth";
+  /** Hermes price feed id (32 bytes, lower-case hex). */
+  readonly feedId: string;
+  /** PDA([0u16 LE, feed_id], push oracle), read live on 2026-10-14; the reader re-derives it. */
+  readonly account: string;
+  readonly description: string;
+}
+
+export type PriceSource = ChainlinkFeed | JupiterFeed | DerivedFeed | PythFeed;
 
 /** Grace on top of a Chainlink heartbeat before a reading counts as stale. */
 export const CHAINLINK_GRACE_SECONDS = 300;
@@ -84,6 +100,13 @@ export const SEQUENCER_GRACE_SECONDS = 3_600;
 export const JUPITER_MIN_LIQUIDITY_USD = 100_000;
 /** Jupiter's `blockId` may trail the current slot by at most this many slots (about 6 minutes). */
 export const JUPITER_MAX_SLOT_LAG = 900;
+/** Pyth readings older (or further in the future) than this are not fresh. */
+export const PYTH_MAX_AGE_SECONDS = 60;
+/** Pyth readings whose confidence interval exceeds this share of the price (basis points) are not used. */
+export const PYTH_MAX_CONFIDENCE_BPS = 200;
+/** Pyth push oracle (account seeds) and receiver (account owner) from the registry. */
+export const PYTH_PUSH_ORACLE = venueContracts("pyth", "solana", "program")[0] as string;
+export const PYTH_RECEIVER = venueContracts("pyth", "solana", "receiver")[0] as string;
 
 const chainlink = (network: EvmNetworkKey, address: `0x${string}`, description: string, heartbeatSeconds: number): ChainlinkFeed =>
   Object.freeze({ kind: "chainlink", network, address, description, heartbeatSeconds });
@@ -146,6 +169,17 @@ export const DERIVED_FEEDS = Object.freeze({
   weethUsd: derived("derived:weETH", [CHAINLINK_FEEDS.weethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
 });
 
+const pyth = (description: string, feedId: string, account: string): PythFeed => Object.freeze({ kind: "pyth", feedId, account, description });
+
+/** Pyth push feeds (shard 0); feed ids from Hermes, accounts derived and read live on 2026-10-14 (all Full, seconds old). */
+export const PYTH_FEEDS = Object.freeze({
+  solUsd: pyth("SOL/USD", "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"),
+  usdcUsd: pyth("USDC/USD", "eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a", "Dpw1EAVrSB1ibxiDQyTAW6Zip3J4Btk2x4SgApQCeFbX"),
+  jitosolUsd: pyth("JITOSOL/USD", "67be9f519b95cf24338801051f9a808eff0a578ccb388db73b7f6fe1de019ffb", "AxaxyeDT8JnWERSaTKvFXvPKkEdxnamKSqpWbsSjYg1g"),
+  msolUsd: pyth("MSOL/USD", "c2289a6a43d2ce91c6f55caec370f4acc38a2ed477f58813334c6d03749ff2a4", "5CKzb9j4ChgLUt8Gfm5CNGLN6khXKiqMbnGAW4cgXgxK"),
+  ethUsd: pyth("ETH/USD", "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", "42amVS4KgzR9rA28tkVYqVXjq9Qa8dcZQMbH5EYFX6XC"),
+});
+
 /** Jupiter Price v3 ids (Solana mainnet mints). */
 export const JUPITER_MINTS = Object.freeze({
   /** Wormhole-bridged WETH: tracks ETH. */
@@ -165,6 +199,7 @@ export const JUPITER_MINTS = Object.freeze({
 
 const F = CHAINLINK_FEEDS;
 const J = JUPITER_MINTS;
+const P = PYTH_FEEDS;
 
 const ETH_BY_NETWORK: Readonly<Partial<Record<EvmNetworkKey, ChainlinkFeed>>> = {
   ethereum: F.ethUsdEthereum,
@@ -178,7 +213,7 @@ const ETH_BY_NETWORK: Readonly<Partial<Record<EvmNetworkKey, ChainlinkFeed>>> = 
 const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   POL: [F.polUsdPolygon, F.polUsdArbitrum],
   WPOL: [F.polUsdPolygon, F.polUsdArbitrum],
-  USDC: [F.usdcUsdEthereum, F.usdcUsdBase, F.usdcUsdArbitrum, jupiter(J.usdc)],
+  USDC: [F.usdcUsdEthereum, F.usdcUsdBase, F.usdcUsdArbitrum, jupiter(J.usdc), P.usdcUsd],
   USDT: [F.usdtUsdEthereum, jupiter(J.usdt)],
   DAI: [F.daiUsdEthereum],
   PYUSD: [jupiter(J.pyusd)],
@@ -186,9 +221,9 @@ const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   CBBTC: [F.cbbtcUsdBase, F.btcUsdEthereum, jupiter(J.cbbtc)],
   ARB: [F.arbUsdArbitrum],
   AERO: [F.aeroUsdBase],
-  SOL: [jupiter(J.wsol), F.solUsdEthereum, F.solUsdArbitrum],
-  JITOSOL: [jupiter(J.jitosol), F.jitosolUsdBase],
-  MSOL: [jupiter(J.msol)],
+  SOL: [jupiter(J.wsol), F.solUsdEthereum, F.solUsdArbitrum, P.solUsd],
+  JITOSOL: [jupiter(J.jitosol), F.jitosolUsdBase, P.jitosolUsd],
+  MSOL: [jupiter(J.msol), P.msolUsd],
   JUPSOL: [jupiter(J.jupsol)],
   JUP: [jupiter(J.jup)],
   BONK: [jupiter(J.bonk)],
@@ -208,7 +243,7 @@ export function normalizeAssetKey(asset: string): string {
 function sourcesForListed(symbol: string, network: string, group: string | undefined): readonly PriceSource[] {
   if (group === "ETH") {
     const feed = ETH_BY_NETWORK[network as EvmNetworkKey];
-    return feed ? [feed, jupiter(J.weth)] : [jupiter(J.weth)];
+    return feed ? [feed, jupiter(J.weth), P.ethUsd] : [jupiter(J.weth), P.ethUsd];
   }
   return BY_SYMBOL[symbol.toUpperCase()] ?? [];
 }

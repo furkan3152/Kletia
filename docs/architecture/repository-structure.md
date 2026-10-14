@@ -9,7 +9,9 @@ packages/
                                     webhooks, error catalog
   sdk/                              @kletia/sdk: v1 client (retries, idempotency), SSE, EVM/Solana
                                     signers, executeIntent; @kletia/sdk/server webhook handlers
-  widget/                           @kletia/widget: embeddable React intent widget and hooks
+  widget/                           @kletia/widget: embeddable React intent widget and hooks,
+                                    appearance tokens and network/action scope
+  embed/                            @kletia/embed: <kletia-intent> element and mountKletiaIntent()
   cli/                              @kletia/cli: the kletia command line
 apps/
   api/
@@ -51,6 +53,8 @@ contracts/
   base/                             Base Solidity and Mainnet manifests (own lockfile)
   arc/                              Arc Solidity and Testnet manifests (own lockfile)
 docs/                               Architecture, platform API, networks, deployment, runbooks
+examples/                           Runnable integrator examples outside the workspaces (react-vite);
+                                    tooling/check-examples.mjs installs the packed packages into each
 tooling/                            Repository-wide verification gates
 attachments/                        Immutable submission artifacts
 .github/                            CI, issue forms and pull-request policy

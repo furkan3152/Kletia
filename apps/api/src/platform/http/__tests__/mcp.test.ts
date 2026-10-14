@@ -147,6 +147,7 @@ describe("POST /v1/mcp (2026-07-28)", () => {
       "get_approval",
       "get_contract",
       "get_intent",
+      "get_journey",
       "get_link",
       "get_policy",
       "get_portfolio",

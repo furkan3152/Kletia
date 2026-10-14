@@ -27,11 +27,13 @@ import {
   type ContractView,
   type IntentGraph,
   type IntentStep,
+  type Journey,
 } from "@kletia/core";
 import {
   createIntentDetailed,
   getIntent,
   INTENT_ID_PATTERN,
+  journeyFor,
   listIntents,
   quoteRoutes,
   readAccountPortfolio,
@@ -44,7 +46,8 @@ import { createContractDirectory, getContract, keyContext, listContracts, parseC
 import { contractTestLimiter } from "../limits.js";
 import { PlatformError } from "../../errors.js";
 import { errorDocsLink } from "../errorsRoute.js";
-import { GET_RECEIPT_TOOL, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
+import { GET_JOURNEY_TOOL, GET_RECEIPT_TOOL, journeySummary, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
+import { journeyReadLimiter } from "../journey.js";
 import { LINK_TOOLS } from "./linkTools.js";
 import { deniedPlan, POLICY_TOOLS, remainingFor, stampSummary } from "./policyTools.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
@@ -308,6 +311,20 @@ function routeView(route: QuoteRoute): Record<string, unknown> {
   });
 }
 
+/**
+ * The journey next to get_intent: it shares GET …/journey's per-intent
+ * limit, and a refused or failed read leaves it out (the intent is still
+ * returned).
+ */
+async function intentJourney(intent: IntentGraph): Promise<Journey | null> {
+  try {
+    journeyReadLimiter.take(intent.id);
+    return await journeyFor(intent);
+  } catch {
+    return null;
+  }
+}
+
 function stringArg(args: Record<string, unknown>, name: string): string | undefined {
   const value = args[name];
   return typeof value === "string" ? value : undefined;
@@ -415,7 +432,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   {
     name: "plan_intent",
     description:
-      "Plan an intent as a dry run: compile plain English such as \"bridge 25 USDC from base to solana then swap half to JitoSOL\" (or structured actions) into network-bound steps with live quotes. Nothing is stored and nothing can be signed from the result. Review `externalRecipients`, then use create_signing_link so the user signs in Kletia Studio.",
+      "Plan an intent as a dry run: compile plain English such as \"bridge 25 USDC from base to solana then swap half to JitoSOL\" (or structured actions) into network-bound steps with live quotes. Nothing is stored and nothing can be signed from the result. `journey` says where the money is after each step and what follows; tell the user about every `block` consequence and ask its question. Review `externalRecipients`, then use create_signing_link so the user signs in Kletia Studio.",
     inputSchema: {
       type: "object",
       properties: {
@@ -476,7 +493,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
       // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run, and its rule book judges the plan.
       let planned: Awaited<ReturnType<typeof createIntentDetailed>>;
       try {
-        planned = await createIntentDetailed(args, { dryRun: true, preview: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+        planned = await createIntentDetailed(args, { dryRun: true, preview: true, journey: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
       } catch (error) {
         // A refusal of the rule book is an answer, not an error: the agent sees the rule ids it broke.
         const denied = caller.keyId ? deniedPlan(error) : null;
@@ -488,7 +505,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
           next: "The rule book of this key refused the plan. Change the request so it fits every rule listed; splitting amounts or adding accounts does not help.",
         };
       }
-      const { intent, preview } = planned;
+      const { intent, preview, journey } = planned;
       const remaining = intent.policy && caller.keyId ? await remainingFor(caller.keyId).catch(() => []) : [];
       return {
         dryRun: true,
@@ -499,6 +516,8 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
         externalRecipients: externalRecipients(intent),
         // The fare breakdown (stage plan): what leaves the user's wallets, what arrives, fees and needs.
         ...(preview ? { preview: previewSummary(preview) } : {}),
+        // Where the money is after each step, and what the user must decide before signing.
+        ...(journey ? { journey: journeySummary(journey) } : {}),
         expiresAt: intent.expiresAt,
         next: "Nothing was stored. To execute, call create_signing_link with the same text and give the link to the user.",
       };
@@ -506,7 +525,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   },
   {
     name: "get_intent",
-    description: "Read a stored intent by id: status, steps, amounts, recipients, on-chain evidence and whether its verifiable receipt is issued.",
+    description: "Read a stored intent by id: status, steps, amounts, recipients, on-chain evidence, its journey (where the money is now and what follows) and whether its verifiable receipt is issued.",
     inputSchema: {
       type: "object",
       properties: { intentId: { type: "string", pattern: INTENT_ID_PATTERN.source, description: "int_ followed by 32 hex characters." } },
@@ -516,6 +535,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
     annotations: annotations("Read an intent", false),
     async run(args) {
       const intent = await getIntent(stringArg(args, "intentId") ?? "");
+      const journey = await intentJourney(intent);
       return {
         id: intent.id,
         status: intent.status,
@@ -527,6 +547,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
         warnings: intent.warnings,
         externalRecipients: externalRecipients(intent),
         ...(intent.policy ? { policy: stampSummary(intent.policy) } : {}),
+        ...(journey ? { journey: journeySummary(journey) } : {}),
         receipt: await receiptLine(intent.id),
       };
     },
@@ -553,20 +574,43 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   },
   {
     name: "get_portfolio",
-    description: "Read balances (with USD values where priced) for one CAIP-10 account on its network.",
-    inputSchema: { type: "object", properties: { accountId: ACCOUNT }, required: ["accountId"], additionalProperties: false },
+    description:
+      "Read balances (with USD values and their price source where priced) for one CAIP-10 account on its network; with `positions: true` also its lending, savings and vault positions (aTokens, Comet balances, vault shares), valued in the underlying.",
+    inputSchema: {
+      type: "object",
+      properties: { accountId: ACCOUNT, positions: { type: "boolean", description: "Also read venue positions (slower)." } },
+      required: ["accountId"],
+      additionalProperties: false,
+    },
     annotations: annotations("Read a portfolio", true),
     async run(args) {
-      const portfolio = await readAccountPortfolio(stringArg(args, "accountId") ?? "");
+      const portfolio = await readAccountPortfolio(stringArg(args, "accountId") ?? "", { positions: args.positions === true });
       return {
         account: portfolio.account,
         network: portfolio.network,
         totalUsd: portfolio.totalUsd,
         holdings: portfolio.holdings
           .slice(0, MAX_HOLDINGS)
-          .map((holding) => compact({ symbol: holding.symbol, amount: holding.formatted, usd: holding.usd ?? undefined, asset: holding.asset, verified: holding.verified })),
+          .map((holding) => compact({ symbol: holding.symbol, amount: holding.formatted, usd: holding.usd ?? undefined, priceSource: holding.priceSource, asset: holding.asset, verified: holding.verified })),
         omittedHoldings: Math.max(0, portfolio.holdings.length - MAX_HOLDINGS),
         unpricedCount: portfolio.unpricedCount,
+        ...(portfolio.positions
+          ? {
+              positions: portfolio.positions.map((position) =>
+                compact({
+                  venue: position.venue,
+                  name: position.name,
+                  protocol: position.protocol,
+                  holds: `${position.receipt.formatted} ${position.receipt.symbol}`,
+                  worth: `${position.underlying.formatted} ${position.underlying.symbol}`,
+                  usd: position.usd ?? undefined,
+                  apy: position.apy ?? undefined,
+                  withdrawableNow: position.withdrawableNow ? `${position.withdrawableNow.formatted} ${position.withdrawableNow.symbol}` : undefined,
+                }),
+              ),
+              positionsUnavailable: (portfolio.positionsUnavailable ?? []).map((entry) => ({ venue: entry.venue, code: entry.code })),
+            }
+          : {}),
         observedAt: portfolio.observedAt,
       };
     },
@@ -654,6 +698,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
     },
   },
   PREVIEW_INTENT_TOOL,
+  GET_JOURNEY_TOOL,
   GET_RECEIPT_TOOL,
   ...POLICY_TOOLS,
   ...LINK_TOOLS,

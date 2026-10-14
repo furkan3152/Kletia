@@ -58,6 +58,35 @@ content), `origin` (default
 (`^[A-Za-z0-9_.:-]{1,80}$`, stored as `metadata.hostRef`, publicly readable
 with the intent) and `label` (the frame's accessible name).
 
+When the script is loaded from a Kletia deployment's versioned path
+(`<origin>/sdk/embed/<version>/kletia-embed.min.js`), that origin is the
+default `origin`; from npm or a CDN the default stays `https://kletiaai.xyz`.
+`max-height` (320-4000, default 1600) caps the frame; taller content scrolls
+inside it.
+
+Appearance: `accent`, `accent-ink`, `surface`, `ink`, `line` (six hex digits)
+and their `-dark` variants, `radius` (0-16), `border` (1-3), `shadow` (`hard`
+| `soft` | `none`), `font` (`inter` | `system` | `serif` | `mono` |
+`rounded`), `density` (`comfortable` | `compact`) and `header` (`kletia` |
+`none`). Colours that miss their contrast floor fall back to readable ones,
+and the fare, contract reviews, policy holds and the footer never change; see
+[theming](../../docs/platform/theming.md). With a custom `surface`, set
+`bg="transparent"`.
+
+Scope: `networks` (network keys, at most 9), `actions` (`swap`, `bridge`,
+`transfer`, `stake`, `deposit`, `withdraw`) and `source-network` (a key from
+`networks`, or `auto`). The wallet bar offers only the wallets these
+networks need, and a plan outside them is refused before Execute
+(`kletia:error` with `EMBED_SCOPE_REFUSED`).
+
+```html
+<kletia-intent networks="base,solana" actions="swap,bridge" source-network="auto"
+  accent="7C3AED" radius="10" border="2" shadow="soft" bg="transparent"></kletia-intent>
+```
+
+Invalid values are dropped by the element and again by the frame. Clarifying
+questions are always on; there is no attribute to turn them off.
+
 ```html
 <!-- Your backend created the intent (POST /v1/intents with its key). -->
 <kletia-intent intent="int_3f9a…"></kletia-intent>

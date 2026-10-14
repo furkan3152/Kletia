@@ -69,9 +69,26 @@ export interface NetworkCapabilities extends ChainDescriptor {
   readonly customContracts: CustomContractCapability;
 }
 
+/**
+ * Where a protocol executes (protocols design 3.13): `platform` (planned and
+ * executed by Platform API v1 and its clients), `console` (only through the
+ * Kletia console's network engines and tools), `service` (a separate Kletia
+ * service, such as x402 payments). From the registry's `execution` field.
+ */
+export type ProtocolSurface = "platform" | "console" | "service";
+export const PROTOCOL_SURFACES: readonly ProtocolSurface[] = Object.freeze(["platform", "console", "service"]);
+
 export interface ProtocolView extends ProtocolDescriptor {
   /** True when the engine has an execution adapter for this protocol id. */
   readonly executable: boolean;
+  readonly surface: ProtocolSurface;
+  /** Protocols every transaction of this one also uses (e.g. Raydium through the Jupiter program); [] when none. */
+  readonly routedVia: readonly ProtocolId[];
+}
+
+/** The execution surface of a registry entry. */
+export function protocolSurface(protocol: Pick<ProtocolDescriptor, "execution">): ProtocolSurface {
+  return protocol.execution ?? "platform";
 }
 
 function routeAsset(asset: AssetDescriptor): RouteAsset {
@@ -165,7 +182,14 @@ export function protocolRegistry(): readonly ProtocolView[] {
   const adapters = activeProtocolAdapters();
   if (protocols?.adapters === adapters) return protocols.value;
   const executable = new Set<ProtocolId>(adapters.flatMap((adapter) => adapter.protocols));
-  const value = Object.freeze(PROTOCOLS.map((protocol) => ({ ...protocol, executable: executable.has(protocol.id) })));
+  const value = Object.freeze(
+    PROTOCOLS.map((protocol): ProtocolView => ({
+      ...protocol,
+      executable: executable.has(protocol.id),
+      surface: protocolSurface(protocol),
+      routedVia: protocol.routedVia ?? [],
+    })),
+  );
   protocols = { adapters, value };
   return value;
 }

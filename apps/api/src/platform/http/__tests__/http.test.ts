@@ -530,6 +530,7 @@ describe("GET /v1/openapi.json", () => {
         "POST /v1/intents",
         "POST /v1/intents/{id}/cancel",
         "POST /v1/intents/{id}/receipt/shares",
+        "POST /v1/intents/{id}/stop",
         "POST /v1/intents/{id}/steps/{stepId}/submit",
         "POST /v1/keys",
         "POST /v1/keys/{id}/rotate",

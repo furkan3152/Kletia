@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-10-14T20:55:43Z",
+  "request": "GET https://app.across.to/api/suggested-fees?inputToken=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&outputToken=0xaf88d065e77c8cC2239327C5EDb3A432268e5831&originChainId=8453&destinationChainId=42161&amount=100000000",
+  "body": {
+    "estimatedFillTimeSec": 1,
+    "capitalFeePct": "100000000000000",
+    "capitalFeeTotal": "10000",
+    "relayGasFeePct": "69330000000000",
+    "relayGasFeeTotal": "6933",
+    "relayFeePct": "169330000000000",
+    "relayFeeTotal": "16933",
+    "lpFeePct": "0",
+    "timestamp": "1792011239",
+    "isAmountTooLow": false,
+    "quoteBlock": "26193260",
+    "exclusiveRelayer": "0xFD03AbCAdaF3F930fA4E37Eb2f6ea3A44a41b7F0",
+    "exclusivityDeadline": 3,
+    "spokePoolAddress": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
+    "destinationSpokePoolAddress": "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
+    "totalRelayFee": {
+      "pct": "169330000000000",
+      "total": "16933"
+    },
+    "relayerCapitalFee": {
+      "pct": "100000000000000",
+      "total": "10000"
+    },
+    "relayerGasFee": {
+      "pct": "69330000000000",
+      "total": "6933"
+    },
+    "lpFee": {
+      "pct": "0",
+      "total": "0"
+    },
+    "internalizedSwapFee": {
+      "pct": "0",
+      "total": "0"
+    },
+    "limits": {
+      "minDeposit": "500167",
+      "maxDeposit": "611889123624",
+      "maxDepositInstant": "51736593723",
+      "maxDepositShortDelay": "611889123624",
+      "recommendedDepositInstant": "51736593723"
+    },
+    "fillDeadline": "1792018439",
+    "outputAmount": "99983067",
+    "inputToken": {
+      "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "decimals": 6,
+      "chainId": 8453
+    },
+    "outputToken": {
+      "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "decimals": 6,
+      "chainId": 42161
+    },
+    "id": "g65wx-1792011342931-b516e4f5a268"
+  }
+}

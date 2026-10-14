@@ -158,6 +158,12 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       const route = routePlanFailure(planFailure, { text: task.sentence, departure: plan.departure });
       switch (route.kind) {
         case "needs-wallet": {
+          // A dry run already had demo accounts for every namespace: never loop, show the refusal.
+          if (source === "dry") {
+            setFailure(planFailure);
+            patch({ status: "failed" });
+            return;
+          }
           // Show the fare with demo accounts for the namespaces that are not connected.
           const real = plannerFor(plan.departure);
           const demo = previewAccountsForLane(laneOf(plan.departure)).filter(

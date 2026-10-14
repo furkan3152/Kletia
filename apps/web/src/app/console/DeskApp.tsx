@@ -104,6 +104,16 @@ export default function DeskApp() {
     else if (accountStatus === "disconnected") bindWalletHistory();
   }, [accountStatus, address, bindWalletHistory]);
 
+  // "Kletia has a question about <title>": once per question that opens (the slot renders it).
+  const askedRef = useRef(new Set<string>());
+  useEffect(() => {
+    for (const task of tasks) {
+      if (!task.question || askedRef.current.has(task.question.id)) continue;
+      askedRef.current.add(task.question.id);
+      setAnnouncement(copy.tasks.announcements.question(task.title));
+    }
+  }, [tasks]);
+
   const submit = useCallback((text: string) => {
     const store = getDeskStore().getState();
     if (store.answering) {
@@ -245,7 +255,8 @@ export default function DeskApp() {
         {emptyDesk ? (
           <DeskEmptyState departure={departure} actions={status.actions} health={status.health} healthAt={status.healthAt} onPick={(sentence) => composerRef.current?.fill(sentence)} />
         ) : null}
-        <div hidden={view !== "desk"} className="flex flex-1 flex-col">
+        {/* The thread stays mounted under every view (an execution must never unmount). */}
+        <div hidden={view !== "desk"} className={view === "desk" ? "flex flex-1 flex-col" : "hidden"}>
           <TaskThread renderTask={(task, newest) => <TaskCard key={task.id} task={task} newest={newest} />} />
         </div>
         <Composer

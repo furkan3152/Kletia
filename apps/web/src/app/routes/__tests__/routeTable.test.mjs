@@ -133,3 +133,17 @@ test("the desk's views are the console route, pre-rendered, canonical /app and n
   assert.ok(ROUTES.console.description.length >= 50 && ROUTES.console.description.length <= 170);
   assert.ok(/nine/u.test(ROUTES.console.description), "the console says it covers all nine networks");
 });
+
+test("/app renders the desk, entered before the first paint; the classic shell is not routed", () => {
+  const consoleRoute = readFileSync(new URL("../ConsoleRoute.tsx", import.meta.url), "utf8");
+  assert.match(consoleRoute, /import DeskApp from "\.\.\/console\/DeskApp"/u);
+  assert.ok(!/from "\.\.\/App"/u.test(consoleRoute), "ConsoleRoute no longer imports the classic App shell");
+  const main = readFileSync(new URL("../../../main.tsx", import.meta.url), "utf8");
+  assert.match(main, /initialRouteKind === "console"\) \{\s*enterDeskMode\(\);/u, "main.tsx enters desk mode for /app before rendering");
+  const router = readFileSync(new URL("../../router.tsx", import.meta.url), "utf8");
+  const fallback = router.slice(router.indexOf("function ConsoleBootFallback"), router.indexOf("function EmbedBootFallback"));
+  assert.ok(fallback.includes("bg-[#F4F1EA]") && !/bg-\[#0B1120\] font-black/u.test(fallback), "the console's loading plate is paper, not the old dark shell");
+  const html = readFileSync(new URL("../../../../index.html", import.meta.url), "utf8");
+  assert.match(html, /interactive-widget=resizes-content/u, "the sticky composer stays above the phone keyboard");
+  assert.ok(!/\^\\\/app/u.test(html), "the desk gets the site's font preloads");
+});

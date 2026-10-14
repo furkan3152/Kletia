@@ -76,7 +76,16 @@ function Row({
   const line = LINES[option.key];
   const value = valueOf(option);
   return (
-    <label className="kd-board__row" data-disabled={option.disabled || undefined} data-key={option.key}>
+    <label
+      className="kd-board__row"
+      data-disabled={option.disabled || undefined}
+      data-key={option.key}
+      // A pointer click on the row commits; arrow keys only move the pending choice (their clicks, and the
+      // click a label forwards to its radio, have detail 0).
+      onClick={(event) => {
+        if (event.detail > 0 && !option.disabled) onCommit(option.key);
+      }}
+    >
       <input
         type="radio"
         className="kd-board__radio"
@@ -87,10 +96,6 @@ function Row({
         aria-label={departureRowLabel(option)}
         aria-describedby={option.disabledReason ? reasonId : undefined}
         onChange={() => onChange(option.key)}
-        // A pointer click commits; arrow keys only move the pending choice (their synthetic click has detail 0).
-        onClick={(event) => {
-          if (event.detail > 0) onCommit(option.key);
-        }}
         onKeyDown={(event) => commitKey(event, option.key, onCommit)}
       />
       <span className="kd-board__name flex min-w-0 items-start gap-2">
@@ -138,7 +143,13 @@ export function DepartureBoardRows({
       <legend id={legendId} className="kd-board__legend">
         {copy.boardLabel}
       </legend>
-      <label className="kd-board__row" data-key="auto">
+      <label
+        className="kd-board__row"
+        data-key="auto"
+        onClick={(event) => {
+          if (event.detail > 0) onCommit("auto");
+        }}
+      >
         <input
           type="radio"
           className="kd-board__radio"
@@ -147,9 +158,6 @@ export function DepartureBoardRows({
           checked={value === "auto"}
           aria-describedby={autoDescription}
           onChange={() => onChange("auto")}
-          onClick={(event) => {
-            if (event.detail > 0) onCommit("auto");
-          }}
           onKeyDown={(event) => commitKey(event, "auto", onCommit)}
         />
         <span className="kd-board__name flex min-w-0 items-start gap-2">

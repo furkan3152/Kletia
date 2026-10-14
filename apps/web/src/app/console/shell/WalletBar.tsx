@@ -35,7 +35,7 @@ function EvmPill() {
           return (
             <button type="button" onClick={openConnectModal} aria-label={copy.connectEvm} className={PILL} disabled={!ready} data-wallet="evm">
               <span className="sm:hidden">{copy.compactEvm}</span>
-              <span className="hidden sm:inline">{copy.connectEvm}</span>
+              <span className="hidden whitespace-nowrap sm:inline">{DESK_MORE_COPY.wallets.connectEvmShort}</span>
             </button>
           );
         }
@@ -63,7 +63,7 @@ function SolanaPill() {
       <button type="button" onClick={openPicker} aria-haspopup="dialog" aria-label={copy.connectSolana} className={PILL} data-wallet="solana">
         {status === "connecting" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
         <span className="sm:hidden">{copy.compactSolana}</span>
-        <span className="hidden sm:inline">{copy.connectSolana}</span>
+        <span className="hidden whitespace-nowrap sm:inline">{DESK_MORE_COPY.wallets.connectSolanaShort}</span>
       </button>
     );
   }

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { DESK_COPY } from "../content/copy.ts";
 import { STARTER_CAPABILITIES, STARTERS, rephraseStarter, startersFor } from "../content/starters.ts";
 import { LEGACY_FEATURES, TOOLS } from "../tools/catalogue.ts";
+import { DESK_MORE_COPY } from "../shell/deskCopy.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/u;
@@ -45,6 +46,16 @@ test("every desk string and template is plain English, with no emoji and no em d
   assert.ok(Object.isFrozen(DESK_COPY.ticket.lines), "copy is read-only data");
 });
 
+test("the desk's added strings follow the same rules", () => {
+  const all = strings(DESK_MORE_COPY, "DESK_MORE_COPY");
+  assert.ok(all.length >= 8);
+  for (const [path, text] of all) assertPlain(path, text);
+  assert.ok(Object.isFrozen(DESK_MORE_COPY.wallets), "read-only data");
+  // Label in name (WCAG 2.5.3): the short pill text is contained in the accessible name.
+  assert.ok(DESK_COPY.wallets.connectEvm.startsWith(DESK_MORE_COPY.wallets.connectEvmShort));
+  assert.ok(DESK_COPY.wallets.connectSolana.startsWith(DESK_MORE_COPY.wallets.connectSolanaShort));
+});
+
 test("the copy the design prints is there, word for word", () => {
   assert.equal(DESK_COPY.page.title, "Kletia Console");
   assert.equal(DESK_COPY.empty.heading, "Where should the money go?");
@@ -74,9 +85,9 @@ test("starter sentences, capability labels and tool texts follow the same rules"
 });
 
 test("the desk's content and state sources carry no em dash and no emoji, in code or copy", () => {
-  for (const directory of ["../content", "../state", "../tools"]) {
-    for (const file of readdirSync(resolve(here, directory)).filter((name) => /\.tsx?$/u.test(name))) {
-      const source = readFileSync(join(resolve(here, directory), file), "utf8");
+  for (const directory of ["../content", "../state", "../tools", "../shell", "../composer", "../tasks", "../holdings", "../activity", "../hooks", "."]) {
+    for (const file of readdirSync(resolve(here, directory === "." ? ".." : directory)).filter((name) => /\.(tsx?|css)$/u.test(name))) {
+      const source = readFileSync(join(resolve(here, directory === "." ? ".." : directory), file), "utf8");
       assert.ok(!source.includes("—"), `${directory}/${file} has no em dash`);
       assert.ok(!EMOJI.test(source), `${directory}/${file} has no emoji`);
     }

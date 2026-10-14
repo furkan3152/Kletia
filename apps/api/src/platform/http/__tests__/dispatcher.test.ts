@@ -1,9 +1,11 @@
 /**
  * Webhook dispatcher isolation between API keys: per-key queues served
  * round-robin, per-key and per-webhook in-flight caps, per-key queue bounds,
- * the global bound as a backstop, and pausing of failing webhooks. Runs the
- * real dispatcher, webhook store and owner cache with a scripted transport;
- * nothing touches the network.
+ * the global bound as a backstop, and pausing of failing webhooks; fresh
+ * authorization before every attempt (revocation and expiry stop queued
+ * retries) and the bounded deferral of deliveries that cannot be attempted.
+ * Runs the real dispatcher, webhook store and owner cache with a scripted
+ * transport; nothing touches the network.
  *
  *   cd apps/api && node --import tsx --test src/platform/http/__tests__/dispatcher.test.ts
  */
@@ -27,8 +29,9 @@ const {
 } = await import("../dispatcher.js");
 const { rememberIntentOwner } = await import("../owners.js");
 const { createWebhook, webhooksForOwner } = await import("../webhooks.js");
-const { issueDeveloperKey } = await import("../auth.js");
+const { apiKeyStore, isKeyRevoked, issueAgentKey, issueDeveloperKey } = await import("../auth.js");
 const { revokeKey } = await import("../keys.js");
+const { WEBHOOK_MAX_DEFERRALS, webhookDeferralDelayMs } = await import("../webhookQueue.js");
 
 /* ------------------------------------------------------------ helpers */
 
@@ -42,8 +45,9 @@ async function waitFor(condition: () => boolean, timeoutMs = 3_000, message = "c
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 
-function newOwner(): string {
-  return `key_${randomBytes(12).toString("hex")}`;
+/** A real developer key: every attempt re-reads its owner, so made-up ids are never delivered to. */
+async function newOwner(): Promise<string> {
+  return (await issueDeveloperKey("dispatcher-test")).id;
 }
 
 /** Registers `count` webhooks for `owner` and returns their URLs. */
@@ -115,8 +119,8 @@ describe("webhook dispatcher isolation between keys", () => {
   });
 
   it("keeps delivering another key's events while one key's endpoints hang, and drops only that key's backlog", async () => {
-    const attacker = newOwner();
-    const victim = newOwner();
+    const attacker = await newOwner();
+    const victim = await newOwner();
     const attackerHooks = await hooksFor(attacker, 10);
     const [victimHook] = await hooksFor(victim, 1);
     assert.ok(victimHook);
@@ -152,8 +156,8 @@ describe("webhook dispatcher isolation between keys", () => {
   });
 
   it("serves keys round-robin and evicts from the longest queue when the global bound is hit", async () => {
-    const attackers = Array.from({ length: 6 }, () => newOwner());
-    const victim = newOwner();
+    const attackers = await Promise.all(Array.from({ length: 6 }, () => newOwner()));
+    const victim = await newOwner();
     for (const attacker of attackers) await hooksFor(attacker, 2);
     const [victimHook] = await hooksFor(victim, 1);
     assert.ok(victimHook);
@@ -196,7 +200,7 @@ describe("webhook dispatcher isolation between keys", () => {
   });
 
   it("pauses a webhook after consecutive failures while the key's other webhooks keep flowing", async () => {
-    const owner = newOwner();
+    const owner = await newOwner();
     const [failing, healthy] = await hooksFor(owner, 2);
     assert.ok(failing && healthy);
     const recorder = recordingTransport((url) => (url === failing ? 500 : 204));
@@ -252,5 +256,105 @@ describe("webhooks of a revoked key", () => {
     assert.equal(recorder.count(leftover), 0, "the dispatcher skips revoked keys");
     await revokeKey({ tier: "developer", keyId: root.id, projectId: root.id }, leaked.id);
     assert.deepEqual(await webhooksForOwner(leaked.id, { fresh: true }), []);
+  });
+
+  it("stops an already queued retry when revocation cleanup leaves the webhook behind", async () => {
+    const owner = await newOwner();
+    const [sink] = await hooksFor(owner, 1);
+    assert.ok(sink);
+    const record = await apiKeyStore().findById(owner);
+    assert.ok(record);
+    const recorder = recordingTransport(() => 503);
+    const current: Dispatcher = new WebhookDispatcher(recorder.transport);
+    dispatcher = current;
+    current.start();
+    emit(owner);
+    await waitFor(() => current.stats().scheduledRetries === 1, 3_000, "the scheduled retry");
+    // Revoked in the store only: the webhook cleanup deliberately did not run.
+    await apiKeyStore().revoke(owner, record.projectId, new Date().toISOString());
+    assert.equal((await webhooksForOwner(owner, { fresh: true })).length, 1, "cleanup deliberately did not run");
+    await waitFor(() => current.stats().dropped === 1, 3_000, "revoked retry dropped");
+    assert.equal(recorder.count(sink), 1, "only the pre-revocation request left the process");
+  });
+
+  it("stops an agent's queued retry when its ancestor expires", async () => {
+    const parentId = await newOwner();
+    const parent = await apiKeyStore().findById(parentId);
+    assert.ok(parent);
+    const child = await issueAgentKey("dispatcher-agent", parent, new Date(Date.now() + 3_600_000).toISOString(), 100);
+    const [sink] = await hooksFor(child.id, 1);
+    assert.ok(sink);
+    const recorder = recordingTransport(() => 503);
+    const current: Dispatcher = new WebhookDispatcher(recorder.transport);
+    dispatcher = current;
+    current.start();
+    emit(child.id);
+    await waitFor(() => current.stats().scheduledRetries === 1, 3_000, "the scheduled retry");
+    await apiKeyStore().setExpiry(parentId, parent.projectId, new Date(Date.now() - 1_000).toISOString());
+    await waitFor(() => current.stats().dropped === 1, 3_000, "expired ancestor stopped retry");
+    assert.equal(recorder.count(sink), 1);
+  });
+
+  it("keeps telling a live parent's subtree webhook about the intents of an agent that expired", async () => {
+    const parentId = await newOwner();
+    const parent = await apiKeyStore().findById(parentId);
+    assert.ok(parent);
+    const child = await issueAgentKey("expiring-agent", parent, new Date(Date.now() + 3_600_000).toISOString(), 100);
+    const subtree = `https://93.184.215.14/${parentId}/subtree`;
+    await createWebhook(parentId, { url: subtree, events: ["intent.status_changed"], scope: "subtree" });
+    const [own] = await hooksFor(child.id, 1);
+    assert.ok(own);
+    const recorder = recordingTransport(() => 204);
+    const current: Dispatcher = new WebhookDispatcher(recorder.transport);
+    dispatcher = current;
+    current.start();
+    // The agent's intent settles after the agent key expired: its owner still learns the outcome.
+    await apiKeyStore().setExpiry(child.id, parent.projectId, new Date(Date.now() - 1_000).toISOString());
+    emit(child.id);
+    await waitFor(() => recorder.count(subtree) === 1, 3_000, "the parent's subtree delivery");
+    await waitFor(() => current.stats().dropped === 1, 3_000, "the expired agent's own delivery dropped");
+    assert.equal(recorder.count(own), 0, "an expired key's own webhooks receive nothing");
+  });
+});
+
+describe("deliveries that cannot be attempted", () => {
+  let dispatcher: Dispatcher | null = null;
+
+  afterEach(() => {
+    dispatcher?.stop();
+    dispatcher = null;
+  });
+
+  it("back off from 1 s doubling to 60 s and are bounded", () => {
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 50, 119].map((deferrals) => webhookDeferralDelayMs(deferrals)), [
+      1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000, 60_000, 60_000,
+    ]);
+    assert.equal(WEBHOOK_MAX_DEFERRALS, 120);
+  });
+
+  it("wait while key storage fails, never spend an attempt or send unauthorized, and are dropped after the bound", async (context) => {
+    const owner = await newOwner();
+    const [sink] = await hooksFor(owner, 1);
+    assert.ok(sink);
+    const records: import("../deliveries.js").DeliveryRecord[] = [];
+    const recorder = recordingTransport(() => 204);
+    // Real bound, zero back-off base so the test does not wait two hours.
+    const current: Dispatcher = new WebhookDispatcher(recorder.transport, (record) => records.push(record), { deferralBaseMs: 0 });
+    dispatcher = current;
+    current.start();
+    // Routing reads the key once (and caches it); every attempt then reads it fresh, and that read fails.
+    assert.equal(await isKeyRevoked(owner), false);
+    let reads = 0;
+    context.mock.method(apiKeyStore(), "findById", async () => {
+      reads += 1;
+      throw new Error("key store unavailable");
+    });
+    emit(owner);
+    await waitFor(() => records.length > 0, 5_000, "the deferral bound");
+    assert.equal(recorder.count(sink), 0, "nothing is sent without a fresh authorization");
+    assert.deepEqual(records.map((record) => [record.status, record.error, record.attempt]), [["dropped", "deferred_too_long", 1]]);
+    assert.ok(reads >= WEBHOOK_MAX_DEFERRALS, `one fresh read per deferral (${reads})`);
+    assert.equal(current.stats().dropped, 1);
+    assert.equal(current.stats().scheduledRetries, 0);
   });
 });

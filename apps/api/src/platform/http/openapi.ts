@@ -1232,6 +1232,11 @@ function schemas(): JsonObject {
                 obj(
                   {
                     running: bool(),
+                    storage: str({
+                      enum: ["memory", "postgres"],
+                      description:
+                        "Where deliveries wait. With `postgres` (the durable queue), `queued` and `scheduledRetries` are the last snapshot of the shared queue and the other counters describe the answering process.",
+                    }),
                     queued: int(),
                     inFlight: int(),
                     scheduledRetries: int(),
@@ -1240,7 +1245,7 @@ function schemas(): JsonObject {
                     dropped: int(),
                     pausedWebhooks: int({ description: "Webhooks paused after consecutive delivery failures." }),
                   },
-                  ["running", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped", "pausedWebhooks"],
+                  ["running", "storage", "queued", "inFlight", "scheduledRetries", "delivered", "failed", "dropped", "pausedWebhooks"],
                 ),
                 { type: "null" },
               ],
@@ -1362,7 +1367,8 @@ function schemas(): JsonObject {
         durationMs: int({ minimum: 0 }),
         error: str({
           enum: [...DELIVERY_ERRORS],
-          description: "Failure class (error text and payloads are never stored). `redirect`: a 3xx answer, which is never followed; `queue_full`: dropped before sending.",
+          description:
+            "Failure class (error text and payloads are never stored). `redirect`: a 3xx answer, which is never followed. Dropped before sending: `queue_full` (a queue bound was hit), `payload_unreadable` (a queued body no longer opens, for example after the platform secret changed) and `deferred_too_long` (the delivery could not be attempted for about two hours because key, webhook or intent storage kept failing).",
         }),
         nextRetryAt: str({ format: "date-time", description: "When a failed attempt is retried." }),
         test: bool({ description: "A POST /v1/webhooks/{id}/test delivery." }),
@@ -2192,7 +2198,7 @@ export function buildOpenApiDocument(): JsonObject {
           operationId: "receiveIntentEvent",
           summary: "Intent event delivery",
           description:
-            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile. `intent.receipt_issued` is sent once a receipt is issued (after every reference is finalized; ids and digest only); webhooks created before it existed do not receive it unless re-created.",
+            "Sent for intents created with your API key to each matching webhook. Respond 2xx within 5 seconds; redirects are not followed. Failed deliveries are retried up to 3 times (after 1 s, 5 s and 25 s). Each key's deliveries are queued separately (at most 200 waiting; the oldest is dropped beyond that) and a webhook receives one delivery at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling up to 5 minutes while it keeps failing; its deliveries wait meanwhile. With Postgres the queue is durable: retries survive restarts, so an event can arrive more than once (deduplicate by Kletia-Event-Id). `intent.receipt_issued` is sent once a receipt is issued (after every reference is finalized; ids and digest only); webhooks created before it existed do not receive it unless re-created.",
           parameters: [
             { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
             { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },

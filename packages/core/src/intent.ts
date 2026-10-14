@@ -13,6 +13,7 @@ import type { ProtocolId } from "./protocols.js";
 import type { ContractReview, ContractStepCall } from "./contracts.js";
 import type { StepPreview } from "./preview.js";
 import type { PlanRecord } from "./receipts.js";
+import type { AssumptionSource } from "./clarify.js";
 
 export const INTENT_SPEC_VERSION = "kletia.intent/v1" as const;
 
@@ -106,7 +107,18 @@ export interface IntentConstraints {
   readonly avoidProtocols?: readonly ProtocolId[];
   /** Only produce routes inside one capital lane (default: enforced). */
   readonly allowTestnets?: boolean;
+  /**
+   * Gas to deliver with the first cross-network leg arriving on each named
+   * EVM network, in USD (decimal string, "0.05" to "5.00"), e.g.
+   * `{ base: "0.50" }`. Opt-in: only venues that deliver gas with the fill can
+   * serve that leg (Relay today); otherwise planning fails with
+   * GAS_TOPUP_UNAVAILABLE. Validated by `validateIntentRequest`.
+   */
+  readonly gasOnArrival?: Readonly<Partial<Record<NetworkKey, string>>>;
 }
+
+/** Where the money of a request starts: a network key, or "auto" (the funded network). */
+export type SourceNetwork = NetworkKey | "auto";
 
 export interface IntentRequest {
   /** Natural-language outcome. Either `text` or `actions` is required. */
@@ -116,6 +128,15 @@ export interface IntentRequest {
   readonly accounts: readonly AccountId[];
   /** Network to assume when the text does not name one. */
   readonly defaultNetwork?: NetworkKey;
+  /**
+   * Where the funds start. A network key: the first action spends funds that
+   * are there, and when that action runs on another network the planner adds a
+   * bridge from this one first. "auto": the planner picks a network on which
+   * the accounts hold enough of the first action's input. Absent: unchanged
+   * behaviour. A network key also serves as defaultNetwork when that is absent.
+   * With preview (demo) accounts "auto" behaves as absent.
+   */
+  readonly sourceNetwork?: SourceNetwork;
   readonly constraints?: IntentConstraints;
   /** Opaque integrator metadata echoed in events and webhooks. */
   readonly metadata?: Readonly<Record<string, string>>;
@@ -276,6 +297,24 @@ export interface StepSettlement {
   readonly expectedSeconds?: number;
 }
 
+/**
+ * How a step is funded by an earlier step (set by the planner; read by the
+ * preview, the journey and prepare). Mirrors the `funds` edge, plus the share
+ * and the gas kept back.
+ */
+export interface StepFunding {
+  /** Step whose output this step spends (the `funds` edge's `from`). */
+  readonly from: string;
+  /** Share of that output, in basis points (10000 = all of it). */
+  readonly portionBps: number;
+  /**
+   * Gas-asset units kept back from what arrives when the input is the
+   * network's gas asset and the account held too little gas there at planning
+   * (amount flow F6). Prepare spends share × landed − gasReserve.
+   */
+  readonly gasReserve?: AssetAmount;
+}
+
 /** What the wallet was asked to sign for a step (recorded at prepare time). */
 export interface PreparedStepRecord {
   readonly quoteBinding: string;
@@ -327,6 +366,21 @@ export interface IntentStep {
   readonly references?: readonly string[];
   /** Output observed after settlement, when the venue reports it. */
   readonly actualOutput?: AssetAmount;
+  /** Present on steps that spend an earlier step's output. */
+  readonly funding?: StepFunding;
+  /**
+   * Gas delivered with a cross-network fill (Relay `topupGas`): the planned
+   * amount of the destination's gas asset, in base units, and its USD at
+   * planning. Delivered by the venue, never bound on-chain; the step settles on
+   * its main output alone.
+   */
+  readonly gasTopup?: AssetAmount;
+  /**
+   * Credit observed on the destination for a leg that failed its checks
+   * (below the guaranteed floor). The money is in the recipient's wallet; the
+   * step stays failed and no later step spends it.
+   */
+  readonly observedCredit?: AssetAmount;
   /** Machine-readable reason when the step failed. */
   readonly failure?: { readonly code: string; readonly message: string };
   /**
@@ -355,6 +409,42 @@ export interface IntentSummary {
   readonly crossNetwork: boolean;
 }
 
+/** How the network the money starts on was decided (`interpretation.departure`). */
+export interface IntentDeparture {
+  readonly network: NetworkKey;
+  /** text: the sentence named it; request: sourceNetwork; auto: chosen by balance; inferred: no hint was given. */
+  readonly chosen: "text" | "request" | "auto" | "inferred";
+  /** True when the planner added a bridge from `network` in front of the first action. */
+  readonly bridged?: boolean;
+  /** One sentence, at most 160 characters ("Base holds 120.40 USDC; Solana 2.00"). */
+  readonly reason?: string;
+}
+
+/** A default the clarify layer applied and showed as a chip (`interpretation.assumptions`). */
+export interface InterpretationAssumption {
+  /** Slot path, e.g. "actions[0].network". */
+  readonly field: string;
+  /** "On Base", "All your SOL: 2.49". */
+  readonly label: string;
+  readonly source: AssumptionSource;
+  /** Changes where money goes or how much moves. */
+  readonly material: boolean;
+}
+
+export interface IntentInterpretation {
+  readonly source: "structured" | "grammar" | "assistant";
+  readonly normalizedText?: string;
+  readonly confidence: number;
+  /** Planner rewrites applied (e.g. merged bridge + swap into one cross-network swap). */
+  readonly optimizations?: readonly string[];
+  /** Where the money starts, when the request set `sourceNetwork` or clarify applied a departure. */
+  readonly departure?: IntentDeparture;
+  /** Defaults the clarify layer applied (the chips the user saw). */
+  readonly assumptions?: readonly InterpretationAssumption[];
+  /** The clarify thread revision this intent was planned from. */
+  readonly thread?: { readonly id: string; readonly rev: number };
+}
+
 export interface IntentGraph {
   readonly spec: typeof INTENT_SPEC_VERSION;
   readonly id: string;
@@ -363,13 +453,7 @@ export interface IntentGraph {
   readonly expiresAt: string;
   readonly status: IntentStatus;
   readonly request: IntentRequest;
-  readonly interpretation: {
-    readonly source: "structured" | "grammar" | "assistant";
-    readonly normalizedText?: string;
-    readonly confidence: number;
-    /** Planner rewrites applied (e.g. merged bridge + swap into one cross-network swap). */
-    readonly optimizations?: readonly string[];
-  };
+  readonly interpretation: IntentInterpretation;
   readonly steps: readonly IntentStep[];
   readonly edges: readonly IntentEdge[];
   readonly summary: IntentSummary;

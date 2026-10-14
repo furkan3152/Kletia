@@ -3,8 +3,8 @@
  * API, SDK and widget all use this so an integrator gets identical errors
  * before and after a network round trip.
  */
-import { isNetworkKey, type NetworkKey } from "./chains.js";
-import { parseAccountId, type AccountId } from "./caip.js";
+import { CHAINS, isNetworkKey, sameCapitalLane, type NetworkKey } from "./chains.js";
+import { evmChecksumState, parseAccountId, type AccountId } from "./caip.js";
 import { isDecimalAmount } from "./amounts.js";
 import { getProtocol, type ProtocolId } from "./protocols.js";
 import {
@@ -21,6 +21,7 @@ import type {
   IntentActionSpec,
   IntentConstraints,
   IntentRequest,
+  SourceNetwork,
 } from "./intent.js";
 
 export interface ValidationIssue {
@@ -60,9 +61,56 @@ export const MAX_INTENT_ACCOUNTS = 6;
 /** Bounds of `constraints.maxSeconds` (settlement estimate a cross-network step may take). */
 export const MIN_MAX_SECONDS = 10;
 export const MAX_MAX_SECONDS = 86_400;
+/** Bounds of each `constraints.gasOnArrival` value, in USD (journey design 3.3). */
+export const GAS_ON_ARRIVAL_USD = Object.freeze({ min: "0.05", max: "5.00" });
+const GAS_ON_ARRIVAL_PATTERN = /^\d{1,2}(?:\.\d{1,2})?$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** USD cents of a `gasOnArrival` value ("0.5" -> 50), or null when it is not one. */
+function gasOnArrivalCents(value: unknown): number | null {
+  if (typeof value !== "string" || !GAS_ON_ARRIVAL_PATTERN.test(value)) return null;
+  const [whole = "0", fraction = ""] = value.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+}
+
+/** True for a network key or "auto" (`IntentRequest.sourceNetwork`). */
+export function isSourceNetwork(value: unknown): value is SourceNetwork {
+  return value === "auto" || isNetworkKey(value);
+}
+
+function validateGasOnArrival(value: unknown, issues: ValidationIssue[]): Partial<Record<NetworkKey, string>> | undefined {
+  const path = "constraints.gasOnArrival";
+  const evmNetworks = Object.values(CHAINS).filter((chain) => chain.vm === "evm").length;
+  if (!isRecord(value) || Object.keys(value).length === 0 || Object.keys(value).length > evmNetworks) {
+    issues.push({ path, message: `Must map 1-${evmNetworks} EVM network keys to a USD amount, e.g. { "base": "0.50" }.` });
+    return undefined;
+  }
+  const out: Partial<Record<NetworkKey, string>> = {};
+  let failed = false;
+  for (const [key, usd] of Object.entries(value)) {
+    const entryPath = `${path}.${key.slice(0, 40)}`;
+    if (!isNetworkKey(key) || CHAINS[key].vm !== "evm") {
+      issues.push({ path: entryPath, message: "Gas on arrival is delivered on EVM networks only: use an EVM network key." });
+      failed = true;
+      continue;
+    }
+    const cents = gasOnArrivalCents(usd);
+    if (cents === null || cents < 5 || cents > 500) {
+      issues.push({ path: entryPath, message: `Must be a USD amount between "${GAS_ON_ARRIVAL_USD.min}" and "${GAS_ON_ARRIVAL_USD.max}" as a string.` });
+      failed = true;
+      continue;
+    }
+    out[key] = usd as string;
+  }
+  const networks = Object.keys(out) as NetworkKey[];
+  if (networks.some((network) => !sameCapitalLane(network, networks[0] as NetworkKey))) {
+    issues.push({ path, message: "Networks must be on one capital lane (mainnet or testnet)." });
+    failed = true;
+  }
+  return failed ? undefined : out;
 }
 
 function validateConstraints(value: unknown, issues: ValidationIssue[]): IntentConstraints | undefined {
@@ -107,6 +155,10 @@ function validateConstraints(value: unknown, issues: ValidationIssue[]): IntentC
     if (typeof value.allowTestnets !== "boolean") {
       issues.push({ path: "constraints.allowTestnets", message: "Must be a boolean." });
     } else out.allowTestnets = value.allowTestnets;
+  }
+  if (value.gasOnArrival !== undefined) {
+    const gas = validateGasOnArrival(value.gasOnArrival, issues);
+    if (gas) out.gasOnArrival = gas;
   }
   return out as IntentConstraints;
 }
@@ -206,7 +258,10 @@ function validateAccounts(accounts: unknown, issues: ValidationIssue[]): Account
   accounts.forEach((account, index) => {
     const parsed = parseAccountId(account);
     if (!parsed) issues.push({ path: `accounts[${index}]`, message: "Invalid CAIP-10 account id." });
-    else validated.push(parsed.id);
+    else if (parsed.chain.namespace === "eip155" && evmChecksumState(parsed.address) === "invalid") {
+      // A mixed-case address whose EIP-55 checksum fails usually has one mistyped character.
+      issues.push({ path: `accounts[${index}]`, message: "The address's capital letters do not match its EIP-55 checksum. Check the address." });
+    } else validated.push(parsed.id);
   });
   return validated;
 }
@@ -345,6 +400,52 @@ export function validateContractTestRequest(input: unknown): ValidationResult<Co
   };
 }
 
+/** The request context shared by intents and clarify turns (`IntentRequest` without text and actions). */
+export interface IntentRequestContext {
+  readonly accounts?: readonly AccountId[];
+  readonly defaultNetwork?: NetworkKey;
+  readonly sourceNetwork?: SourceNetwork;
+  readonly constraints?: IntentConstraints;
+  readonly metadata?: Readonly<Record<string, string>>;
+  readonly clientReference?: string;
+}
+
+/**
+ * Validates the context fields of a request (accounts, defaultNetwork,
+ * sourceNetwork, constraints, metadata, clientReference) and appends issues.
+ * Shared by `validateIntentRequest` and the clarify turn validator, which
+ * accepts a shorter clientReference and may omit accounts on later turns.
+ */
+export function validateIntentContext(
+  input: Record<string, unknown>,
+  issues: ValidationIssue[],
+  options: { readonly requireAccounts?: boolean; readonly clientReferenceMax?: number } = {},
+): IntentRequestContext {
+  const requireAccounts = options.requireAccounts ?? true;
+  const accounts = requireAccounts || input.accounts !== undefined ? validateAccounts(input.accounts, issues) : undefined;
+  if (input.defaultNetwork !== undefined && !isNetworkKey(input.defaultNetwork)) {
+    issues.push({ path: "defaultNetwork", message: "Unknown network." });
+  }
+  if (input.sourceNetwork !== undefined && !isSourceNetwork(input.sourceNetwork)) {
+    issues.push({ path: "sourceNetwork", message: "Must be a network key or \"auto\"." });
+  }
+  const constraints = validateConstraints(input.constraints, issues);
+  const metadata = validateMetadata(input.metadata, issues);
+  const maxReference = options.clientReferenceMax ?? 80;
+  const reference = input.clientReference;
+  if (reference !== undefined && (typeof reference !== "string" || !/^[\w.:-]+$/u.test(reference) || reference.length > maxReference)) {
+    issues.push({ path: "clientReference", message: `Must match [A-Za-z0-9_.:-]{1,${maxReference}}.` });
+  }
+  return {
+    ...(accounts ? { accounts } : {}),
+    ...(isNetworkKey(input.defaultNetwork) ? { defaultNetwork: input.defaultNetwork } : {}),
+    ...(isSourceNetwork(input.sourceNetwork) ? { sourceNetwork: input.sourceNetwork } : {}),
+    ...(constraints ? { constraints } : {}),
+    ...(metadata ? { metadata } : {}),
+    ...(typeof reference === "string" ? { clientReference: reference } : {}),
+  };
+}
+
 export function validateIntentRequest(input: unknown): ValidationResult<IntentRequest> {
   const issues: ValidationIssue[] = [];
   if (!isRecord(input)) {
@@ -359,24 +460,25 @@ export function validateIntentRequest(input: unknown): ValidationResult<IntentRe
     issues.push({ path: "text", message: `Must be a non-empty string up to ${MAX_INTENT_TEXT_LENGTH} characters.` });
   }
   const validatedActions: IntentActionSpec[] = actions !== undefined ? validateActionList(actions, issues) : [];
-  const validatedAccounts = validateAccounts(input.accounts, issues);
-  if (input.defaultNetwork !== undefined && !isNetworkKey(input.defaultNetwork)) {
-    issues.push({ path: "defaultNetwork", message: "Unknown network." });
+  const context = validateIntentContext(input, issues);
+  // Structured actions fix the capital lane: gas on arrival must be asked on it too.
+  const gas = context.constraints?.gasOnArrival;
+  const actionNetwork = validatedActions.find((action) => isNetworkKey(action.network))?.network;
+  if (gas && actionNetwork && Object.keys(gas).some((network) => !sameCapitalLane(network as NetworkKey, actionNetwork))) {
+    issues.push({ path: "constraints.gasOnArrival", message: "Gas on arrival must name networks on the actions' capital lane." });
   }
-  const constraints = validateConstraints(input.constraints, issues);
-  const metadata = validateMetadata(input.metadata, issues);
-  validateClientReference(input.clientReference, issues);
   if (issues.length > 0) return { ok: false, issues };
   return {
     ok: true,
     value: {
       ...(typeof text === "string" ? { text: text.trim() } : {}),
       ...(validatedActions.length ? { actions: validatedActions } : {}),
-      accounts: validatedAccounts,
-      ...(input.defaultNetwork ? { defaultNetwork: input.defaultNetwork as NetworkKey } : {}),
-      ...(constraints ? { constraints } : {}),
-      ...(metadata ? { metadata } : {}),
-      ...(typeof input.clientReference === "string" ? { clientReference: input.clientReference } : {}),
+      accounts: context.accounts ?? [],
+      ...(context.defaultNetwork ? { defaultNetwork: context.defaultNetwork } : {}),
+      ...(context.sourceNetwork ? { sourceNetwork: context.sourceNetwork } : {}),
+      ...(context.constraints ? { constraints: context.constraints } : {}),
+      ...(context.metadata ? { metadata: context.metadata } : {}),
+      ...(context.clientReference !== undefined ? { clientReference: context.clientReference } : {}),
     },
   };
 }

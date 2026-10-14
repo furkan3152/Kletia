@@ -55,6 +55,12 @@ export function readySteps(steps: readonly IntentStep[]): IntentStep[] {
   );
 }
 
+/**
+ * Intent status from its steps. When every step is done: `completed` if none
+ * was skipped, `partially_completed` if some ran (settled, or a confirmed
+ * read) and the rest were skipped (an intent stopped between legs), and
+ * `cancelled` if every step was skipped.
+ */
 export function deriveIntentStatus(
   steps: readonly IntentStep[],
   expiresAt?: string,
@@ -63,7 +69,11 @@ export function deriveIntentStatus(
   if (steps.length === 0) return "failed";
   const statuses = steps.map((step) => step.status);
   const done = steps.filter(isStepDone).length;
-  if (done === steps.length) return "completed";
+  if (done === steps.length) {
+    const skipped = statuses.filter((status) => status === "skipped").length;
+    if (skipped === 0) return "completed";
+    return skipped === steps.length ? "cancelled" : "partially_completed";
+  }
   if (statuses.includes("indeterminate")) return "indeterminate";
   if (statuses.includes("failed")) return done > 0 ? "partially_completed" : "failed";
   if (statuses.includes("settling")) return "settling";

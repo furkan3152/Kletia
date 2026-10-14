@@ -246,6 +246,8 @@ export interface ReceiptRequest {
   readonly actions?: readonly ReceiptRequestAction[];
   readonly accounts: readonly string[];
   readonly defaultNetwork?: string;
+  /** `sourceNetwork` as requested (a network key or "auto"), projected like defaultNetwork. */
+  readonly sourceNetwork?: string;
   readonly constraints?: {
     readonly maxSlippageBps?: number | string;
     readonly deadline?: number | string;
@@ -254,6 +256,8 @@ export interface ReceiptRequest {
     readonly preferProtocols?: readonly string[];
     readonly avoidProtocols?: readonly string[];
     readonly allowTestnets?: boolean;
+    /** `[network, usd]` pairs sorted by network (a user-keyed map). */
+    readonly gasOnArrival?: readonly (readonly [string, string])[];
   };
   readonly metadata?: readonly (readonly [string, string])[];
   readonly clientReference?: string;
@@ -589,6 +593,14 @@ export function projectRequest(request: IntentRequest): ReceiptRequest {
         ...(constraints.preferProtocols ? { preferProtocols: [...constraints.preferProtocols] } : {}),
         ...(constraints.avoidProtocols ? { avoidProtocols: [...constraints.avoidProtocols] } : {}),
         ...(constraints.allowTestnets !== undefined ? { allowTestnets: constraints.allowTestnets } : {}),
+        ...(constraints.gasOnArrival
+          ? {
+              gasOnArrival: Object.entries(constraints.gasOnArrival)
+                .filter((entry): entry is [string, string] => typeof entry[1] === "string")
+                .map(([network, usd]) => [text(network), text(usd)] as const)
+                .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            }
+          : {}),
       }
     : undefined;
   const metadata = request.metadata
@@ -601,6 +613,7 @@ export function projectRequest(request: IntentRequest): ReceiptRequest {
     ...(actions ? { actions } : {}),
     accounts: request.accounts.map((account) => text(account)),
     ...(request.defaultNetwork !== undefined ? { defaultNetwork: request.defaultNetwork } : {}),
+    ...(request.sourceNetwork !== undefined ? { sourceNetwork: request.sourceNetwork } : {}),
     ...(projectedConstraints ? { constraints: projectedConstraints } : {}),
     ...(metadata ? { metadata } : {}),
     ...(request.clientReference !== undefined ? { clientReference: text(request.clientReference) } : {}),

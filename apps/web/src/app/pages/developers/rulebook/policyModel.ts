@@ -227,7 +227,7 @@ export function ruleInfo(rule: string): { readonly article: number; readonly tit
 export interface TreeKey {
   readonly id: string;
   readonly name: string;
-  readonly kind?: "project" | "agent";
+  readonly kind?: "project" | "agent" | "publishable";
   readonly parentId?: string | null;
   readonly depth?: number;
   readonly expiresAt?: string | null;

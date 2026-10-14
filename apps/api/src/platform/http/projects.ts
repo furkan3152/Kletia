@@ -328,7 +328,8 @@ export interface ProjectChecks {
 }
 
 async function domainListsProject(website: string, projectId: string): Promise<boolean> {
-  const origin = normalizeWebOrigin(website, { allowPort: true });
+  // Default https port only (fail closed for a legacy website that carries a port).
+  const origin = normalizeWebOrigin(website);
   if (!origin) return false;
   try {
     const response = await guardedJsonRequest(`${origin}${PROJECT_DOMAIN_FILE}`, { method: "GET", maxBytes: PROJECT_LIMITS.domainFileBytes, timeoutMs: 5_000 });
@@ -371,9 +372,13 @@ function forgetCachedProject(projectId: string): void {
   settingsCache.delete(projectId);
 }
 
+/**
+ * The domain record's key: `url.host`, so a non-default port stays part of it
+ * (a proof on `acme.example:8443` never counts for `acme.example`).
+ */
 function hostOf(settings: StoredSettings): string | null {
   const website = settings.brand?.website;
-  return website ? new URL(website).hostname : null;
+  return website ? new URL(website).host : null;
 }
 
 function logoView(projectId: string, logo: StoredLogo | null): ProjectLogoView | null {

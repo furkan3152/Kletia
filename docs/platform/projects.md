@@ -38,7 +38,7 @@ settings but never change them (`AGENT_KEY_FORBIDDEN`).
 | Field | Rules |
 |---|---|
 | `brand.name` | 2-40 characters, the same rules as a registration's `integrator.name`; reserved brand names (Kletia, venues, bridges) only with their own website |
-| `brand.website` | An https origin; its domain file proves the brand (below) |
+| `brand.website` | An https origin on the default port (no `:8443`), with no path; its domain file proves the brand (below). The proof counts only for that exact origin, so changing the website starts unverified |
 | `allowedOrigins` | At most 20: https origins (any port), or `http://localhost:<port>` for development |
 | `defaults.lane` | `production` or `testnet`; every default network must be on it |
 | `defaults.networks` | Network keys the widget offers |

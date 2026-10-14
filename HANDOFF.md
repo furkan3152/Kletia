@@ -1,45 +1,157 @@
 # Kletia handoff
 
-State of the repository when the Claude Code session paused (2026-10-10), written so another agent or developer can continue. Branch: `ccr-cc3fa951-22gm0c`.
+For the owner: what exists after round 6, how to run it, what only you can do,
+and what is known to be missing. Branch `ccr-cc3fa951-22gm0c`, 2026-10-14.
 
-## What is done
+## What exists
 
-- **Core, SDK, widget, embed, CLI** packages (`packages/*`) and the **Platform API v1** (`apps/api`): intents, bridge auction (Relay, LI.FI, deBridge), lending venues, names, API keys, idempotency, webhooks, MCP, OpenAPI.
-- **Networks (9):** Ethereum, Base, Arbitrum One, OP Mainnet, Polygon, Solana (production); Arc Testnet, Arbitrum Sepolia, Solana Devnet (testnet). 29 protocols plus two bring-your-own-contract slots.
-- **Bring your own contract** (EVM ABI calls and Solana Actions) with simulation, code-hash pins and the "Not audited by Kletia" notice.
-- **Originality features (backend + SDK + CLI):** intent-level asset preview ("fare breakdown"), verifiable signed receipts, Rule Book policies with agent keys and approvals, intent links.
-- **Web surfaces (this last stretch):** fare breakdown, contract review card with acknowledgement gate, receipt page `/r/<id>`, link page `/go/<id>`, approval page `/approve`, developer portal panels (contracts, Rule Book, links, receipts), Kletia branding instead of "OMNI", consistent counts. Embed and widget support for integrator intents and sessions.
-- **Videos:** promo, teaser, how-to (all English). They are not in git (size); the originals were rendered outside the repo.
-- Docs under `docs/`, OpenAPI and Postman collection generated (`npm run generate:openapi`).
+**Networks (9).** Production: Base, Arbitrum One, Ethereum, OP Mainnet,
+Polygon PoS and Solana. Testnet: Arc Testnet, Arbitrum Sepolia and Solana
+Devnet. Production and testnet money never share one intent.
 
-Last verified before the final review: API tests 883/883 (Postgres), package tests passing, web typecheck/lint/build, safety harnesses and browser QA green.
+**Protocols.** `GET /v1/protocols` lists 42 protocols, 28 of them executable
+through the API, plus two own-contract slots (EVM contract calls and Solana
+Actions). The other 14 are naming (ENS, Basenames, SNS), data (Chainlink,
+Pyth, Allora, Webacy), payments (x402), console-only suites, or Solana liquid
+staking entries reached through Jupiter. The site computes these numbers from
+the same registry (`apps/web/src/app/site/protocolCount.ts`), so they cannot
+drift from the code.
 
-## What is left
+**Round 6 added:**
 
-The final review's five findings (receipt withdrawal race, EAS time leak, receipt-page copied command, approver-key loosening, link activation bypass) are all fixed, each with a regression test. `npm run verify` (including API tests on Postgres, OpenAPI drift check and contract compile) passed on this state.
+- **The desk at `/app`.** One text box for all nine networks, a departure board
+  (Auto plus each network) that sets `sourceNetwork`, tasks with ticket and
+  fare, holdings, activity, and every network's extra tools inline. The old
+  per-network console is deleted.
+- **The journey.** `GET /v1/intents/{id}/journey` (or `?journey=true`) says,
+  for every step, where the money is, who holds it, the least that arrives,
+  refunds and gas on arrival. `POST /v1/intents/{id}/stop` ends an intent
+  between steps. The desk, Studio, the widget and the link page draw it.
+- **Questions.** `POST /v1/intents?clarify=true` asks one or two short
+  questions instead of refusing an incomplete sentence. Threads are held by the
+  client, or by Kletia for API keys (`/v1/threads`). The engine is
+  deterministic: no model in the path.
+- **New venues.** Uniswap V3 on five EVM networks, Aerodrome and Velodrome
+  Slipstream, SparkLend, Spark Savings, Fluid, Yearn V3, Lido, Rocket Pool,
+  ether.fi, Raydium, Orca and Meteora (through Jupiter), and Across and Circle
+  CCTP V2 in the bridge auction.
+- **Projects and publishable keys.** Brand, allowed origins, domain proof
+  (`/.well-known/kletia.json`), defaults, stored flows and a logo. A `kl_pub_`
+  key is safe in a browser: it reaches only the routes a page needs, from the
+  allowed origins.
+- **Embed delivery and the Embed Builder.** The embed script is served from
+  the Kletia origin with Subresource Integrity. The builder at
+  `/developers/embed` writes a snippet that only ever carries `kl_pub_` keys.
+  Appearance tokens theme the widget and the embed.
+- **Portal.** A page per tool under `/developers` (Keys, Project, Embed, API,
+  Events, Errors, Venues, Agents, Recipes, Contracts, Rule Book, Links,
+  Receipts, Webhooks). Also: sandbox keys, the event stream
+  (`GET /v1/events`), the served OpenAPI document and `/changelog`.
 
-Remaining ideas, none blocking:
+Earlier rounds are still in place: the Platform API v1, the SDK, the widget,
+the embed and the CLI; MCP at `/v1/mcp`; bring your own contract; fare
+breakdown; signed receipts; the Rule Book; and intent links. See `CHANGELOG.md`
+for the full list and `docs/README.md` for the guides.
 
-1. Browser QA of the new web pages against a real API was done before the last fixes; rerun the safety harnesses if you change web code.
-2. The commit history contains several `wip:` commits; squash as you prefer.
-3. Operator tasks below (keys, receipt signing key) before any public deployment.
-
-## Known limits and operator tasks
-
-- Production needs `RELAY_API_KEY`, private RPC URLs, `KLETIA_PLATFORM_SECRET` (32+ chars), `X402_TREASURY_ADDRESS` (or the paid routes return 503), and a **receipt signing key generated by the operator**.
-- Fill attribution is a documented trust assumption.
-- Jupiter prices can be stale for thin tokens (`POLICY_PRICE_UNAVAILABLE`, fail closed).
-- Solana v1 transactions are refused in BYOC Solana Actions, the deBridge check, and the SDK policy guard (safe, but unsupported).
-- Nothing in the project signs or sends transactions; keep it that way.
-- Nothing here has had an external security audit.
-
-## Running it
+## How to run it
 
 ```bash
-npm ci
-service postgresql start            # or any Postgres
-cd apps/api && PORT=3001 NODE_ENV=development npx tsx src/index.ts
-cd apps/web && npm run dev
+npm ci                                   # installs and builds the @kletia/* packages
+service postgresql start                 # optional; without a database the API uses memory
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+npm run dev:api                          # http://localhost:3001  (/api and /v1)
+npm run dev:web                          # http://localhost:5174
 ```
 
-Self-hosting with Docker Compose: `docs/deployment/self-hosting.md`.
+To check everything:
+
+```bash
+KLETIA_TEST_DATABASE_URL=postgres://kletia:kletia@127.0.0.1:5432/<db> npm run verify
+npm run check:openapi                    # OpenAPI and collection drift; npm run generate:openapi refreshes them
+VITE_BACKEND_URL=https://api.kletiaai.xyz npm run build:web
+```
+
+Docker Compose (PostgreSQL, API and site) and the GHCR images are described in
+`docs/deployment/self-hosting.md`.
+
+## Operator tasks (only you can do these)
+
+1. **Database on Render.** Create a Render PostgreSQL instance, or reuse
+   `kletia-stellar-event-archive`. On the API service, set:
+   - `KLETIA_DATABASE_URL`: its internal connection string.
+   - `KLETIA_PLATFORM_SECRET`: 32 or more random characters, for example
+     `openssl rand -hex 32`.
+   - `WORKFLOW_SIGNING_SECRET`: 32 or more random characters.
+   - `NODE_ENV=production` and `KLETIA_WEB_ORIGIN=https://kletiaai.xyz`.
+
+   Without a database, keys, intents, projects and webhooks live in memory and
+   are lost when a free instance sleeps.
+2. **Receipt signing key.** Generate an Ed25519 seed yourself and never put it
+   in git. On the API, set:
+   - `KLETIA_RECEIPT_SIGNING_KEY`: the base64url 32-byte seed. It must not equal
+     or derive from the platform secret.
+   - `KLETIA_RECEIPT_KEY_NOT_BEFORE`: the first UTC day the key may sign.
+
+   On the static site, set `KLETIA_RECEIPT_PUBLIC_KEY` (`{"x":"…","notBefore":"…"}`)
+   so the build writes the `/.well-known/kletia-receipt-keys.json` mirror. Keep
+   `KLETIA_RECEIPT_KEYSET` and `KLETIA_RECEIPT_NEXT_KEY` for rotation. Steps:
+   `docs/platform/receipts.md` and `docs/deployment/render.md`.
+3. **Dashboard rewrites and headers** (the dashboard-created services do not
+   read `render.yaml`):
+   - Static site, Redirects/Rewrites, in this order, all as Rewrite:
+     1. `/go/:id/card.png` to `https://api.kletiaai.xyz/v1/links/:id/card.png`
+     2. `/go/:id` to `https://api.kletiaai.xyz/v1/links/:id/page`
+     3. `/*` to `/index.html`
+   - Static site, Headers: copy the `headers` of `kletia-frontend` from
+     `render.yaml` (framing, `X-Robots-Tag`, CORS for `actions.json` and the
+     receipt key mirror).
+4. **npm packages.** Create the `@kletia` npm org and add an automation token
+   as the `NPM_TOKEN` repository secret. Then run
+   `npm run bump:packages -- 0.2.0`, commit the bump, and push the tag
+   `packages-v0.2.0`. `.github/workflows/release-packages.yml` checks the tag
+   against the versions and publishes all five packages with provenance. They
+   are at `0.1.0` and not on npm yet, so the docs pin `0.1.0`.
+5. **Optional provider keys.** Everything read-only works without them:
+   - `RELAY_API_KEY`: higher Relay limits.
+   - `JUPITER_API_KEY`: the paid Jupiter tier.
+   - `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID` and `ACROSS_MAX_RELAY_FEE_BPS`:
+     Across quotes, which are left out of the auction without them.
+   - `LIFI_API_KEY` and `DEBRIDGE_ACCESS_TOKEN`.
+   - Private RPC URLs (`ETHEREUM_RPC_URL`, `BASE_RPC_URL`, …).
+   - `X402_TREASURY_ADDRESS`: without it the paid routes answer 503.
+
+   The hosted API sets `KLETIA_REQUIRE_ALL_FEATURES=true` and refuses to start
+   without its integration keys. Unset it to run with those features reported
+   as needing configuration.
+
+## Known limits
+
+- Nothing here has had an external security audit. Nothing in the project
+  signs or sends transactions, and it should stay that way.
+- The round-6 security review read the Solana DEX layouts, the vault families
+  and the LST adapters only briefly; they did not get a full adversarial pass.
+  Its one reproduced finding is fixed with a regression test (see below).
+- Domain verification is re-checked about once a day. A website that stops
+  listing the project keeps its badge until the next check.
+- The network guides in `docs/networks/` describe the round-3 venues. The
+  round-6 venues are covered by `GET /v1/protocols`, the README and the
+  CHANGELOG, but not yet by per-network pages. `docs/networks/evm-lending-additions.md`
+  is still to be written.
+- Fill attribution is a documented trust assumption. Jupiter prices can be
+  stale for thin tokens (`POLICY_PRICE_UNAVAILABLE`, fail closed). Solana v1
+  transactions are refused in Solana Actions, the deBridge check and the SDK
+  policy guard.
+- The event stream replays from a per-process buffer (500 events, 10 minutes).
+  With several API instances, a reconnect can land on another instance's
+  buffer.
+- The commit history contains `wip:` commits. Squash them if you prefer.
+
+## Security fixes in this release
+
+- A project's `brand.website` now accepts only the default https port. The
+  domain record is keyed by host and port, so a proof served on another port
+  (for example `:8443`) can never verify the host on 443. Regression tests:
+  `packages/core/test/projects.test.mjs` and
+  `apps/api/src/platform/http/__tests__/projects.test.ts` ("never lets a proof
+  on a non-default port verify the host on 443").

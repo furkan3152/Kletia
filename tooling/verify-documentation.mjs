@@ -45,6 +45,38 @@ export function versionPinMismatches(source, versions) {
   return problems;
 }
 
+/** Positioning the docs and the site never use: Kletia is network-neutral. */
+export const BANNED_PHRASES = [/solana-first/iu];
+/** Site copy checked for banned phrases besides the tracked Markdown. */
+const SITE_COPY_ROOT = "apps/web/src";
+
+/** One message per banned phrase in `source`. */
+export function bannedPhraseProblems(source) {
+  return BANNED_PHRASES.filter((pattern) => pattern.test(source)).map((pattern) => `uses banned positioning "${pattern.source}"`);
+}
+
+/** docs/platform pages (Markdown) that docs/README.md does not link. */
+export function unindexedPlatformPages(markdownFiles, indexSource) {
+  return markdownFiles
+    .filter((file) => /^docs\/platform\/[^/]+\.md$/u.test(file))
+    .filter((file) => !indexSource.includes(`(${file.slice("docs/".length)}`));
+}
+
+function siteCopyFiles(root) {
+  const out = [];
+  const walk = (directory) => {
+    if (!existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules" && entry.name !== "__tests__") walk(full);
+      } else if (/\.(?:tsx?|html)$/u.test(entry.name)) out.push(full);
+    }
+  };
+  walk(path.join(root, SITE_COPY_ROOT));
+  return out;
+}
+
 /** The documentation check: required documents, local links and anchors, workstation paths and version pins. */
 function main() {
   const repositoryRoot = process.cwd();
@@ -183,6 +215,18 @@ function main() {
           fail(file, `heading fragment does not exist: ${rawTarget}`);
         }
       }
+    }
+  }
+
+  for (const file of markdownFiles) {
+    for (const problem of bannedPhraseProblems(readSource(file))) fail(file, problem);
+  }
+  for (const file of siteCopyFiles(repositoryRoot)) {
+    for (const problem of bannedPhraseProblems(readFileSync(file, "utf8"))) fail(path.relative(repositoryRoot, file), problem);
+  }
+  if (markdownFiles.includes("docs/README.md")) {
+    for (const page of unindexedPlatformPages(markdownFiles, readSource("docs/README.md"))) {
+      fail("docs/README.md", `does not link ${page}; every docs/platform page belongs in the index`);
     }
   }
 

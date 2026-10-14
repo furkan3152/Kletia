@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Say the outcome — Kletia compiles it into verified, wallet-signed steps across Base, Arbitrum, Ethereum, OP Mainnet, Polygon, Arc and Solana.<br>
+  Say the outcome — Kletia compiles it into verified, wallet-signed steps across nine networks: Base, Arbitrum, Ethereum, OP Mainnet, Polygon and Solana, plus Arc Testnet, Arbitrum Sepolia and Solana Devnet.<br>
   Use it as an app, or put cross-network intents into your own product with one API, SDK, React widget, web component, CLI and MCP server.
 </p>
 
@@ -40,8 +40,8 @@ Kletia turns an outcome into an **intent graph**: a DAG of network-bound steps, 
 
 | For | Kletia gives you |
 |---|---|
-| **Users** | One console for Base, Arbitrum, Arc and Solana: swaps, bridges, staking, lending, transfers, portfolio and activity — with EVM and Solana wallets connected at once. |
-| **Builders** | Platform API v1 (with OpenAPI and a Postman collection), a typed SDK with webhook helpers, a drop-in React widget and hooks, a `<kletia-intent>` web component and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
+| **Users** | One desk at [`/app`](https://kletiaai.xyz/app) for all nine networks: one text box, a departure board to pick where the money starts (or Auto), a journey that shows where the money is after every step, and short questions instead of refusals — with EVM and Solana wallets connected at once. |
+| **Builders** | Platform API v1 (with OpenAPI and a Postman collection), a typed SDK with webhook helpers, a drop-in React widget and hooks, a `<kletia-intent>` web component, the Embed Builder, browser-safe publishable keys and a CLI: plan, quote, execute and track cross-network intents without running bridge, DEX, lending or wallet plumbing. |
 | **Agents** | A read-only MCP server at `/v1/mcp`, deterministic intent compilation, x402 pay-per-call and REST — a safe planning surface for autonomous software that never holds keys and hands signing to the user. |
 
 ## Infrastructure
@@ -56,6 +56,9 @@ always signed in the user's own wallet.
 | [`@kletia/sdk`](packages/sdk/README.md) | Typed TypeScript client with retries and idempotency keys, SSE, `intents.wait`, EIP-1193 and Wallet Standard signers and `executeIntent`; `@kletia/sdk/server` verifies webhooks for fetch runtimes, Next.js, Hono, Express and `node:http`. |
 | [`@kletia/widget`](packages/widget/README.md) | Drop-in React widget with scoped styles, and `@kletia/widget/hooks` (`useKletiaIntent`, `useIntent`, `useQuote`, …) for your own UI. |
 | [`@kletia/embed`](packages/embed/README.md) | The `<kletia-intent>` web component for any page, framework or not: a sandboxed frame that sizes itself and reports progress as DOM events. |
+| [Projects and publishable keys](docs/platform/projects.md) | A static site with no server: store brand, allowed origins, defaults and flows once, prove your domain, and put a `kl_pub_…` key in the page. It reaches only the routes a page needs, from your origins. |
+| [Embed Builder](https://kletiaai.xyz/developers/embed) | Pick a flow, a theme ([tokens](docs/platform/theming.md)) and a publishable key; copy a pinned, integrity-checked snippet. It only ever outputs `kl_pub_` keys. |
+| [Journey](docs/platform/journey.md) and [questions](docs/platform/clarify.md) | `GET /v1/intents/{id}/journey` says where the money is after every step and what follows; `POST /v1/intents/{id}/stop` ends an intent between steps; `?clarify=true` asks instead of refusing, with threads held by you or by Kletia. |
 | [`@kletia/cli`](packages/cli/README.md) | `kletia` on the command line: quote, plan (dry run), watch intents, manage keys and webhooks, forward webhooks to localhost. |
 | [MCP server](docs/platform/mcp.md) | `/v1/mcp`: read-only tools (`get_quote`, `plan_intent`, `get_portfolio`, …) for AI agents, with a Studio hand-off link so the user signs. |
 | [Self-hosting](docs/deployment/self-hosting.md) | Docker Compose with PostgreSQL, and API and web images on GHCR with provenance and an SBOM. |
@@ -187,6 +190,9 @@ the same Compose file; see [self-hosting](docs/deployment/self-hosting.md).
 
 ## What makes it different
 
+- **One desk, nine networks.** The desk at `/app` takes one sentence for any network, starts from the network you pick or from where your balance is (`sourceNetwork`, `"auto"`), and runs every network's extra tools inline.
+- **The journey.** After every step the user sees where the money is, who holds it, the least that arrives, where a refund goes, and whether the next network has gas ([docs](docs/platform/journey.md)).
+- **Questions, not refusals.** An incomplete sentence gets one or two short questions with options from the user's own balances, never a model in the execution path ([docs](docs/platform/clarify.md)).
 - **Bring your own contract.** Register a contract or Solana Action; Kletia simulates every call, pins its code, and shows the user a clear review ([docs](docs/platform/contracts.md)).
 - **Fare breakdown.** Before signing, the user sees every asset change on every network, labelled by how sure Kletia is ([docs](docs/platform/preview.md)).
 - **Verifiable receipts.** Signed, selectively disclosable, checkable offline or against public RPCs ([docs](docs/platform/receipts.md)).
@@ -218,15 +224,21 @@ flowchart LR
 
 | Network | Lane | What runs today |
 |---|---|---|
-| **Base** (`eip155:8453`) | Production | Kletia Intent Router V2 swaps, Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3, Morpho vaults and Moonwell deposit/withdraw; token launch (LaunchFactory V2), Basenames, x402 |
-| **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN); Aave V3, Compound V3 and Morpho vaults; staged Base → Arbitrum workflows |
-| **Ethereum** (`eip155:1`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Morpho vaults; ENS recipients |
-| **OP Mainnet** (`eip155:10`) | Production (intent platform) | Transfers, bridges (Relay, LI.FI, deBridge DLN), Aave V3, Compound V3 and Moonwell |
-| **Polygon PoS** (`eip155:137`) | Production (intent platform) | Transfers (POL and ERC-20), bridges (Relay, LI.FI; deBridge DLN from Polygon only when named, since its POL fee has no price source yet), Aave V3 |
-| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, liquid staking (JitoSOL, mSOL, JupSOL), SOL/SPL/Token-2022 transfers, Jupiter Lend and Kamino deposit/withdraw, bridges to every EVM network above (Relay, deBridge DLN; LI.FI into Solana), SNS recipients |
+| **Base** (`eip155:8453`) | Production | Uniswap V3, Aerodrome Slipstream, Kletia Intent Router V2 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3, Compound V3, Morpho vaults, Moonwell, Spark Savings and Fluid; token launch (LaunchFactory V2), Basenames, x402 |
+| **Arbitrum One** (`eip155:42161`) | Production | Uniswap V3 and Relay swaps; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3, Compound V3, Morpho vaults, Spark Savings and Fluid |
+| **Ethereum** (`eip155:1`) | Production | Uniswap V3 and Relay swaps; transfers; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3, Compound V3, Morpho vaults, SparkLend, Spark Savings, Fluid and Yearn V3; Lido, Rocket Pool and ether.fi staking; ENS recipients |
+| **OP Mainnet** (`eip155:10`) | Production | Uniswap V3, Velodrome Slipstream and Relay swaps; transfers; bridges (Relay, LI.FI, deBridge DLN, Across, Circle CCTP V2); Aave V3, Compound V3, Moonwell and Spark Savings |
+| **Polygon PoS** (`eip155:137`) | Production | Uniswap V3 and Relay swaps; transfers (POL and ERC-20); bridges (Relay, LI.FI, Across, Circle CCTP V2; deBridge DLN from Polygon only when named, since its POL fee has no price source yet); Aave V3 and Fluid |
+| **Solana** (`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`) | Production | Jupiter swaps, with Raydium, Orca and Meteora as named routes through the Jupiter program; liquid staking (JitoSOL, mSOL, JupSOL); SOL/SPL/Token-2022 transfers; Jupiter Lend and Kamino deposit/withdraw; bridges to and from every EVM network above (Relay, deBridge DLN, Circle CCTP V2 from EVM; LI.FI into Solana); SNS recipients |
 | **Arc Testnet** (`eip155:5042002`) | Testnet | Native-USDC swap, lending, staking, Vault V2, batch and memo payments, Circle App Kit |
 | **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Circle Testnet USDC and Aave supply |
 | **Solana Devnet** | Testnet | Transfers and portfolio |
+
+The registry lists **42 protocols, 28 of them executable through the API**,
+plus your own contracts (EVM calls and Solana Actions). The numbers are what
+`GET /v1/protocols` returns: every registry entry that is not an own-contract
+slot, and those whose `executable` flag is set because an active adapter
+serves them. The rest are naming, data, payment or console-only entries.
 
 Production and testnet capital never share one intent. Every venue contract,
 program, vault and market is pinned in the registry
@@ -243,7 +255,7 @@ built, and served at `GET /v1/protocols`. Network guides:
 flowchart TB
     subgraph Surfaces
       Site[Home · Developers · Networks]
-      Console[Console /app]
+      Console[Desk /app]
       Studio[Intent Studio]
       Widget["@kletia/widget"]
       Embed["@kletia/embed<br/>&lt;kletia-intent&gt;"]
@@ -253,7 +265,7 @@ flowchart TB
     subgraph API[Kletia API]
       V1["/v1 Platform API<br/>keys · intents · SSE · webhooks"]
       MCP["/v1/mcp<br/>read-only agent tools"]
-      Engine[Planner + venue auction + adapters<br/>Jupiter · Relay · LI.FI · deBridge · Aave · Compound · Morpho · Moonwell · Jupiter Lend · Kamino · transfers]
+      Engine[Planner + clarify + journey + venue auction + adapters<br/>Uniswap · Aerodrome · Velodrome · Jupiter · Relay · LI.FI · deBridge · Across · CCTP · Aave · Compound · Morpho · Moonwell · Spark · Fluid · Yearn · Lido · Rocket Pool · ether.fi · Jupiter Lend · Kamino · transfers]
       Store[(Intent store<br/>Postgres or memory)]
       AppApi["/api console engines<br/>Base · Arc · Arbitrum · Solana"]
     end
@@ -345,7 +357,7 @@ The app runs at [kletiaai.xyz](https://kletiaai.xyz) and the API at [api.kletiaa
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md): [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [embed web component](docs/platform/embed.md), [OpenAPI document](docs/platform/openapi.json) and [API collections](docs/platform/collections/README.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md), [Vercel](docs/deployment/vercel.md) and [self-hosted](docs/deployment/self-hosting.md) deployment.
+Start with the [documentation index](docs/README.md) or the [quickstart](docs/platform/quickstart.md), and check [status and versioning](docs/platform/status.md) before you rely on the hosted API. Then: [journey](docs/platform/journey.md), [clarifying questions](docs/platform/clarify.md), [projects and publishable keys](docs/platform/projects.md), [theming](docs/platform/theming.md), [client generation](docs/platform/codegen.md), [architecture](docs/architecture/overview.md), [repository structure](docs/architecture/repository-structure.md), [Platform API v1](docs/platform/api-v1.md), [error catalog](docs/platform/errors.md), [MCP server](docs/platform/mcp.md), [embed web component](docs/platform/embed.md), [OpenAPI document](docs/platform/openapi.json) and [API collections](docs/platform/collections/README.md), [cross-chain venues](docs/networks/cross-chain-venues.md), [Solana](docs/networks/solana.md), [Base DeFi registry](docs/networks/base-defi-registry.md), [Arbitrum workflow](docs/networks/arbitrum-workflow.md), [Render](docs/deployment/render.md), [Vercel](docs/deployment/vercel.md) and [self-hosted](docs/deployment/self-hosting.md) deployment.
 
 ## Contributing and license
 

@@ -451,7 +451,11 @@ assert.equal(
 // transaction must match its step, and a stopped run never reaches a wallet.
 const binding = await import("../src/shared/platform/intentBinding");
 assert.equal(binding.isPreviewAccount(binding.PREVIEW_ACCOUNTS.evm), true);
-assert.equal(binding.isPreviewAccount("eip155:42161:0x000000000000000000000000000000000000DEAD"), true);
+// The preview account is preview on every EVM network, in any letter case (core PREVIEW_ACCOUNT_IDS).
+const previewEvmAddress = binding.PREVIEW_ACCOUNTS.evm.slice(binding.PREVIEW_ACCOUNTS.evm.lastIndexOf(":") + 1);
+assert.equal(binding.isPreviewAccount(`eip155:42161:${previewEvmAddress.toLowerCase()}`), true);
+// The retired 0x…dEaD demo account is an ordinary address now (it was the recipient of grammar examples).
+assert.equal(binding.isPreviewAccount("eip155:42161:0x000000000000000000000000000000000000dEaD"), false);
 assert.equal(binding.isPreviewAccount(SOLANA_ACCOUNT), false);
 assert.equal(binding.sameOwner(EVM_ACCOUNT, `eip155:42161:${EVM_RECIPIENT.toUpperCase().replace("0X", "0x")}`), true);
 assert.equal(

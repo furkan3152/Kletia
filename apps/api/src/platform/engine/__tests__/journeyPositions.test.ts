@@ -167,7 +167,9 @@ describe("readVenuePositions (E8)", () => {
     const solana = await readVenuePositions("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM" as AccountId, "solana", { venues: ["solana:kamino:usdc"] });
     assert.deepEqual(solana.unavailable.map((entry) => [entry.venue, entry.code]), [["solana:kamino:usdc", "POSITION_UNAVAILABLE"]]);
     const demo = await readVenuePositions("eip155:8453:0x000000000000000000000000000000000000dEaD" as AccountId, "solana");
-    assert.equal(demo.unavailable[0]?.code, "ACCOUNT_INVALID");
+    // An account on another VM is reported per venue like any unreadable position (the catalog keeps POSITION_UNAVAILABLE as the one code here).
+    assert.equal(demo.unavailable[0]?.code, "POSITION_UNAVAILABLE");
+    assert.match(demo.unavailable[0]?.message ?? "", /not on Solana/u);
   });
 
   it("converts share prices to 18-decimal underlying-per-share rates", () => {

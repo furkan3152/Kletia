@@ -235,6 +235,35 @@ describe("domain verification", () => {
     const moved = await settle(owner.key, { brand: { name: "Acme Store", website: "https://acme.shop" } });
     assert.deepEqual([moved.domain.host, moved.domain.verified, moved.domain.checkedAt], ["acme.shop", false, null]);
   });
+
+  it("never lets a proof on a non-default port verify the host on 443 (review R6-1)", async () => {
+    const owner = await projectKey("domain-port");
+    // A port is refused at the door.
+    const refused = assertError(await patch(owner.key, { brand: { name: "Victim", website: "https://victim.example:8443" } }, (await read(owner.key)).hash), 400, "PROJECT_SETTINGS_INVALID");
+    assert.equal(refused.error.issues?.[0]?.path, "brand.website");
+    // A record saved before the rule (website on :8443) is keyed by host:port and its proof never moves to :443.
+    const saved = await settle(owner.key, { schema: PROJECT_SCHEMA, brand: { name: "Victim", website: "https://victim.example" } });
+    const projectId = saved.id.slice(4);
+    const store = projects.projectStore();
+    const current = await store.get(projectId);
+    assert.ok(current);
+    const legacy = { ...current, version: current.version + 1, settings: { ...current.settings, brand: { name: "Victim", website: "https://victim.example:8443" } }, domain: { host: "victim.example:8443", verified: false, checkedAt: null } };
+    assert.ok(await store.put(legacy, current.version));
+    verifiedProjects.add(saved.id);
+    const before = checkedWebsites.length;
+    const verify = await call<{ project: ProjectView }>(server, "POST", "/projects/current/domain/verify", { key: owner.key, body: {} });
+    assert.equal(verify.status, 200, JSON.stringify(verify.body));
+    assert.deepEqual([verify.body.project.domain.host, verify.body.project.domain.verified], ["victim.example:8443", true], "the port stays part of the domain record");
+    // Switching to the default port starts unverified: nothing was ever proven on :443.
+    const moved = await settle(owner.key, { brand: { name: "Victim", website: "https://victim.example" } });
+    assert.deepEqual([moved.domain.host, moved.domain.verified, moved.domain.checkedAt], ["victim.example", false, null]);
+    assert.ok(checkedWebsites.slice(before).every((website) => website === "https://victim.example:8443"));
+    const pub = await call<{ key: { key: string } }>(server, "POST", "/projects/current/publishable-keys", { key: owner.key, body: { label: "site" } });
+    await settle(owner.key, { allowedOrigins: ["https://shop.example"] });
+    const profile = await call<{ profile: ProjectProfile }>(server, "GET", "/publishable/profile", { key: pub.body.key.key, headers: { origin: "https://shop.example" } });
+    assert.equal(profile.body.profile.brand?.verified, false);
+    verifiedProjects.delete(saved.id);
+  });
 });
 
 describe("logo", () => {

@@ -188,9 +188,10 @@ function validateBrand(value: unknown, issues: ValidationIssue[]): ProjectSettin
   }
   let origin: string | null = null;
   if (website !== undefined) {
-    origin = normalizeWebOrigin(website, { allowPort: true });
+    // The default https port only: a proof served on another port proves nothing about the host's site.
+    origin = normalizeWebOrigin(website);
     if (!origin) {
-      issues.push({ path: "brand.website", message: "Must be an https origin with a public host name and no path (e.g. https://acme.example)." });
+      issues.push({ path: "brand.website", message: "Must be an https origin with a public host name, no port and no path (e.g. https://acme.example)." });
       ok = false;
     }
   }

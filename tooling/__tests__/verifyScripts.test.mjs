@@ -39,7 +39,7 @@ function uncovered(files, globs) {
 
 /** The `npm run …` steps of the verify chain. */
 function verifySteps() {
-  return scripts.verify.split("&&").map((step) => step.trim().replace(/^npm run /u, ""));
+  return scripts.verify.split("&&").map((step) => step.trim().replace(/^npm run /u, "").replace(/\s+--(?:\s.*)?$/u, ""));
 }
 
 test("test:web runs every web test file, in src and in scripts", () => {
@@ -83,4 +83,14 @@ test("test:contracts runs both contract workspaces, which define a hardhat test 
     assert.equal(manifest.scripts.test, "hardhat test --network hardhat", workspace);
     assert.ok(repositoryFiles(`${workspace}/test/*.test.js`).length > 0, `${workspace} has tests`);
   }
+});
+
+test("the docs check bans Solana-first positioning and requires every docs/platform page in the index", async () => {
+  const { bannedPhraseProblems, unindexedPlatformPages } = await import("../verify-documentation.mjs");
+  assert.equal(bannedPhraseProblems("Kletia is Solana-first.").length, 1);
+  assert.equal(bannedPhraseProblems("solana-FIRST").length, 1);
+  assert.deepEqual(bannedPhraseProblems("Kletia runs on nine networks."), []);
+  const files = ["docs/platform/journey.md", "docs/platform/clarify.md", "docs/networks/solana.md"];
+  assert.deepEqual(unindexedPlatformPages(files, "- [Journey](platform/journey.md)"), ["docs/platform/clarify.md"]);
+  assert.deepEqual(unindexedPlatformPages(files, "[J](platform/journey.md) [C](platform/clarify.md#threads)"), []);
 });

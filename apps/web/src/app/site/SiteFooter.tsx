@@ -6,6 +6,7 @@ import { Link } from "../routes/Link";
 import { Icon } from "./art/Icon";
 import { LineRule } from "./art/Ornaments";
 import { KletiaMark } from "./KletiaMark";
+import { MotionToggle } from "./MotionToggle";
 import { protocolCountLabel } from "./protocolCount";
 import {
   CONTRIBUTING_URL,
@@ -49,6 +50,7 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
   {
     title: "Company",
     links: [
+      { label: "Changelog", to: "/changelog" },
       { label: "GitHub", to: GITHUB_URL, external: true },
       { label: "Security policy", to: SECURITY_POLICY_URL, external: true },
       { label: "Contributing", to: CONTRIBUTING_URL, external: true },
@@ -79,8 +81,8 @@ export function SiteFooter() {
               <span className="font-display text-2xl font-bold uppercase tracking-[-0.02em]">Kletia</span>
             </Link>
             <p className="mt-5 text-sm leading-relaxed text-white/75">
-              Intent routing for EVM networks and Solana: a console for people, and an API, SDK and widget for teams
-              who want routes inside their own product.
+              Intent routing across {CHAIN_LIST.length} networks, from one sentence: a console for people, and an API,
+              SDK and widget for teams who want routes inside their own product.
             </p>
             <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#FFD60A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#FFD60A] [--kla-plate:#0052FF]">
               <Icon name="key" size={18} />
@@ -125,6 +127,8 @@ export function SiteFooter() {
           <p className="font-code">
             {PRODUCTION} production networks · {TESTNETS} testnets · {PROTOCOL_COUNT} in @kletia/core
           </p>
+          {/* The footer is always ink: the switch reads night control tokens and a yellow focus ring here. */}
+          <MotionToggle className="shrink-0 text-white [--kl-control:#94A3B8] [--kl-focus:#FFD60A] [--kl-muted:#CBD5E1] [--kl-surface:#0B1220]" />
         </div>
       </div>
       {/* The Kletia line runs out under the page: a signage-yellow rule with station ticks. */}

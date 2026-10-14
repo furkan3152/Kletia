@@ -24,6 +24,15 @@
  * - every custom-contract step's prepared review (a `review` gate).
  * A Rule Book hold (`POLICY_APPROVAL_REQUIRED`) pauses with `policyHold`.
  *
+ * The journey (where the money is after every step, journey design 9.2) is
+ * read with the plan and on step changes only (the SDK spaces the reads;
+ * nothing polls it). Its open blockers stop a run before the wallet until
+ * the user answers them (`answerJourney`); answers are kept per intent and
+ * consequence, with the facts they answered, in memory and the tab's
+ * sessionStorage. Options act through the hook: `replan` plans again,
+ * `stop` ends the intent at its current stop (`stop()`), `retry` resumes,
+ * `plan-new` hands the sentence to the host (`onFollowUp`).
+ *
  * A host that runs several executions (the desk at /app) passes a signing
  * lock (`acquireSigning` / `releaseSigning`): every run, a resume included,
  * takes the lock before anything is prepared and gives it back when the run
@@ -41,19 +50,32 @@ import {
   type PrepareStepOptions,
   type PreviewGateContext,
 } from "@kletia/sdk";
-import type {
-  AccountId,
-  AnyKletiaEvent,
-  ContractReview,
-  IntentGraph,
-  IntentPreview,
-  IntentRequest,
-  IntentStep,
-  PreviewIssue,
-  StepPreview,
-  StepStatus,
+import {
+  openBlockers,
+  type AccountId,
+  type AnyKletiaEvent,
+  type ContractReview,
+  type IntentGraph,
+  type IntentPreview,
+  type IntentRequest,
+  type IntentStep,
+  type Journey,
+  type JourneyConsequence,
+  type PreviewIssue,
+  type StepPreview,
+  type StepStatus,
 } from "@kletia/core";
-import { blockingIssuesFor } from "@kletia/widget/review";
+import {
+  blockingIssuesFor,
+  cleanText,
+  consequenceFactsKey,
+  httpsUrl,
+  JOURNEY_HANDLE_IT_OPTION,
+  validJourneyAnswers,
+  type JourneyAnswerMemory,
+} from "@kletia/widget/review";
+
+import { readSessionStorage, writeSessionStorage } from "../state/safeStorage";
 
 import { syncIntentActivity } from "./intentActivity";
 import {
@@ -135,6 +157,12 @@ export interface UseIntentExecutionOptions {
   readonly releaseSigning?: () => void;
   /** Why a refused run paused (default: another execution is signing). */
   readonly signingLockedReason?: string;
+  /**
+   * A journey option suggested a separate new intent as a sentence
+   * (`plan-new`, e.g. "bring it back to solana"): the host puts it where the
+   * user can review it. Nothing is planned or signed on its own.
+   */
+  readonly onFollowUp?: (text: string) => void;
 }
 
 /** A pause before a wallet prompt that needs the user's decision. */
@@ -238,6 +266,25 @@ export interface IntentExecution extends ConnectedIntentSigners {
   reset: () => void;
   /** Drop the stored resumable record. */
   forgetResumable: () => void;
+  /** Where the money is after every step; null until the API returned one for this intent. */
+  readonly journey: Journey | null;
+  /** Remembered answers that still fit the journey (consequence id → option id). */
+  readonly journeyAnswers: Readonly<Record<string, string>>;
+  /** Blocking consequences without a valid answer: the next signature waits for each. */
+  readonly journeyBlockers: readonly JourneyConsequence[];
+  /** The journey option being carried out (a stop or a re-plan in flight). */
+  readonly journeyPending: string | null;
+  /** Answer a journey prompt and do what the option says (journey design 4.8). */
+  answerJourney: (consequenceId: string, optionId: string) => void;
+  /** End the intent at its current stop (`POST /v1/intents/{id}/stop`). Never moves money. */
+  stop: () => Promise<IntentGraph | null>;
+  /**
+   * Take over an intent planned with the connected accounts elsewhere on the
+   * page (the desk's clarify commit turn), with its fare and journey, for
+   * review. Preview accounts and accounts of wallets that are not connected
+   * are refused exactly as in `plan`.
+   */
+  adopt: (intent: IntentGraph, preview: IntentPreview | null, journey: Journey | null) => IntentGraph | null;
 }
 
 const TERMINAL_INTENT = new Set<IntentGraph["status"]>([
@@ -489,6 +536,36 @@ const wait = (ms: number, signal: AbortSignal) =>
     );
   });
 
+/** sessionStorage key of one intent's journey answers. */
+export function journeyAnswersKey(intentId: string): string {
+  return `kletia-journey-answers:${intentId}`;
+}
+
+const ANSWER_ID = /^[\w:.@-]{1,160}$/u;
+
+/** The answers kept for an intent in this tab; anything malformed is dropped. */
+function readJourneyMemory(intentId: string): Record<string, JourneyAnswerMemory> {
+  const raw = readSessionStorage(journeyAnswersKey(intentId));
+  if (!raw) return {};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+    const out: Record<string, JourneyAnswerMemory> = {};
+    for (const [id, entry] of Object.entries(value as Record<string, unknown>).slice(0, 32)) {
+      const memory = entry as Partial<JourneyAnswerMemory> | null;
+      if (!ANSWER_ID.test(id) || typeof memory?.option !== "string" || !ANSWER_ID.test(memory.option) || typeof memory.facts !== "string" || memory.facts.length > 2_000) continue;
+      out[id] = { option: memory.option, facts: memory.facts };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeJourneyMemory(intentId: string, memory: Readonly<Record<string, JourneyAnswerMemory>>): void {
+  writeSessionStorage(journeyAnswersKey(intentId), JSON.stringify(memory));
+}
+
 /**
  * Execute Kletia intents with the wallets connected in `WalletProviders`.
  * See the module comment for the full contract.
@@ -517,6 +594,9 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const [preview, setPreviewState] = useState<IntentPreview | null>(null);
   const [gate, setGate] = useState<ExecutionGate | null>(null);
   const [policyHold, setPolicyHold] = useState<PolicyHold | null>(null);
+  const [journey, setJourneyState] = useState<Journey | null>(null);
+  const [journeyMemory, setJourneyMemory] = useState<Readonly<Record<string, JourneyAnswerMemory>>>({});
+  const [journeyPending, setJourneyPending] = useState<string | null>(null);
 
   const intentRef = useRef<IntentGraph | null>(null);
   const connectedRef = useRef(connected);
@@ -540,13 +620,34 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   /** Digests of fares the user approved (confirming the review approves the fare on screen). */
   const approvedDigestsRef = useRef(new Set<string>());
   const gateResolveRef = useRef<((approved: boolean) => void) | null>(null);
+  const journeyRef = useRef<Journey | null>(null);
+  const journeyAnswersRef = useRef<Readonly<Record<string, string>>>({});
+  const followUpRef = useRef(options.onFollowUp);
 
   useLayoutEffect(() => {
     connectedRef.current = connected;
     metadataRef.current = options.metadata;
     lockRef.current = { acquire: options.acquireSigning, release: options.releaseSigning, reason: options.signingLockedReason };
     reconfirmStepIdsRef.current = reconfirmStepIds;
+    followUpRef.current = options.onFollowUp;
   });
+
+  /** Remembered answers that still fit this journey (asked again when their facts changed). */
+  const journeyAnswers = useMemo(() => validJourneyAnswers(journey, journeyMemory), [journey, journeyMemory]);
+  useLayoutEffect(() => {
+    journeyAnswersRef.current = journeyAnswers;
+  }, [journeyAnswers]);
+
+  /** The journey of the current intent (one for another intent is never shown). */
+  const setJourney = useCallback((next: Journey | null, intentId: string | null) => {
+    const accepted = next && intentId && next.intentId === intentId && Array.isArray(next.consequences) ? next : null;
+    const previous = journeyRef.current;
+    journeyRef.current = accepted;
+    setJourneyState(accepted);
+    // A new intent starts with the answers this tab kept for it (none for a fresh plan).
+    if (accepted && previous?.intentId !== accepted.intentId) setJourneyMemory(readJourneyMemory(accepted.intentId));
+    if (!accepted && intentId === null) setJourneyMemory({});
+  }, []);
 
   const setPhase = useCallback((stepId: string, phase: LocalStepPhase | null) => {
     const next = { ...phasesRef.current };
@@ -739,13 +840,15 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             accounts,
             ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
           },
-          { preview: true },
+          // The journey is read with the plan (it implies the fare); never polled afterwards.
+          { journey: true },
         );
         const created = planned.intent;
         if (streamRef.current && streamRef.current.intentId !== created.id) stopStream();
         createdIdsRef.current.add(created.id);
         approvedDigestsRef.current.clear();
         setPreview(planned.preview && planned.preview.intentId === created.id ? planned.preview : null);
+        setJourney(planned.journey, created.id);
         commitIntent(created);
         setStatus("review");
         return created;
@@ -755,7 +858,38 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         return null;
       }
     },
-    [clearPhases, commitIntent, getClient, resolveAccounts, resolveGate, setPreview, stopStream],
+    [clearPhases, commitIntent, getClient, resolveAccounts, resolveGate, setJourney, setPreview, stopStream],
+  );
+
+  const adopt = useCallback(
+    (planned: IntentGraph, plannedPreview: IntentPreview | null, plannedJourney: Journey | null): IntentGraph | null => {
+      runRef.current?.controller.abort();
+      runRef.current = null;
+      setError(null);
+      setPauseReason(null);
+      setReconfirmStepIds([]);
+      setPolicyHold(null);
+      resolveGate(false);
+      clearPhases();
+      try {
+        // The same refusal as a plan made here: never preview accounts, only wallets connected in this browser.
+        resolveAccounts(planned.request.accounts);
+        for (const step of planned.steps) if (step.mode === "wallet") resolveAccounts([step.account]);
+      } catch (caught) {
+        setError(caught instanceof LocalPlanError ? caught.detail : toExecutionError(caught));
+        setStatus("failed");
+        return null;
+      }
+      if (streamRef.current && streamRef.current.intentId !== planned.id) stopStream();
+      createdIdsRef.current.add(planned.id);
+      approvedDigestsRef.current.clear();
+      setPreview(plannedPreview && plannedPreview.intentId === planned.id ? plannedPreview : null);
+      setJourney(plannedJourney, planned.id);
+      commitIntent(planned);
+      setStatus(terminalStatus(planned) ?? "review");
+      return planned;
+    },
+    [clearPhases, commitIntent, resolveAccounts, resolveGate, setJourney, setPreview, stopStream],
   );
 
   /** Steps prepared before a reload whose signature outcome is unknown. */
@@ -824,6 +958,17 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         setError(localError("ACCOUNT_MISMATCH", binding.message, binding.stepId));
         setStatus("paused");
         setPauseReason(binding.message);
+        runRef.current = null;
+        return null;
+      }
+
+      // Fail closed: an open journey blocker is answered before anything is prepared.
+      const shownJourney = journeyRef.current && journeyRef.current.intentId === graph.id ? journeyRef.current : null;
+      if (shownJourney && openBlockers(shownJourney, journeyAnswersRef.current).length > 0) {
+        const reason = "Answer the question in the itinerary before the next signature. Nothing was signed.";
+        // Nothing sent yet: back to the review, where the question waits; otherwise paused at the stop.
+        setStatus(graph.steps.some(stepWasSubmitted) ? "paused" : "review");
+        setPauseReason(reason);
         runRef.current = null;
         return null;
       }
@@ -898,6 +1043,20 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       let pausedFor: IntentStep[] = [];
       /** Why this run stopped without an error (the user stopped at a gate, or a Rule Book hold). */
       let stoppedFor: string | null = null;
+      // With a journey for this intent, the SDK reads it on step changes only and stops before
+      // a wallet prompt while a blocker of that step is unanswered (fail closed).
+      const tracked = journeyRef.current && journeyRef.current.intentId === graph.id;
+      const journeyOptions = tracked
+        ? {
+            journeyAnswers: journeyAnswersRef.current,
+            onJourney: (next: Journey) => {
+              if (isCurrent()) setJourney(next, graph.id);
+            },
+            onJourneyBlocked: () => {
+              stoppedFor = "Answer the question in the itinerary before the next signature. Nothing was signed for that step.";
+            },
+          }
+        : {};
       const ask = (next: ExecutionGate): Promise<boolean> =>
         new Promise<boolean>((resolve) => {
           if (controller.signal.aborted || !isCurrent()) {
@@ -933,6 +1092,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
             signal: controller.signal,
             ...(pollIntervalMs ? { pollIntervalMs } : {}),
             onUpdate: (next) => commitIntent(next),
+            ...journeyOptions,
             // The fare gate runs only against an API that returned a fare; without one the
             // SDK still refuses any blocking preview issue on its own.
             ...(gated
@@ -1008,6 +1168,8 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         if (finished) {
           setStatus(finished);
           if (sessionKey) clearIntentSession(sessionKey);
+          // Where the money is now: one read once the intent is over.
+          if (tracked) void client.intents.journey(current.id).then((next) => setJourney(next, current.id)).catch(() => undefined);
           return current;
         }
         setStatus("paused");
@@ -1047,6 +1209,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       pollIntervalMs,
       resolveGate,
       sessionKey,
+      setJourney,
       setPhase,
       setPreview,
       startStream,
@@ -1100,6 +1263,11 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         return null;
       }
       commitIntent(refreshed);
+      // An intent this hook has no journey for (a reload, a link, an approval): read it once.
+      if (journeyRef.current?.intentId !== id) {
+        const loaded = await client.intents.journey(id).catch(() => null);
+        setJourney(loaded, id);
+      }
       const finished = terminalStatus(refreshed);
       if (finished) {
         setStatus(finished);
@@ -1108,7 +1276,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       }
       return execute(refreshed, approved !== null);
     },
-    [commitIntent, execute, getClient, sessionKey, setPreview],
+    [commitIntent, execute, getClient, sessionKey, setJourney, setPreview],
   );
 
   const cancel = useCallback(async () => {
@@ -1159,13 +1327,100 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     intentRef.current = null;
     setIntent(null);
     setPreview(null);
+    setJourney(null, null);
+    setJourneyPending(null);
     setPolicyHold(null);
     approvedDigestsRef.current.clear();
     setStatus("idle");
     setError(null);
     setPauseReason(null);
     setReconfirmStepIds([]);
-  }, [clearPhases, resolveGate, sessionKey, setPreview, stopStream]);
+  }, [clearPhases, resolveGate, sessionKey, setJourney, setPreview, stopStream]);
+
+  const stop = useCallback(async (): Promise<IntentGraph | null> => {
+    const current = intentRef.current;
+    if (!current || TERMINAL_INTENT.has(current.status)) return current;
+    // Never while a wallet is showing a request: rejecting it there is the way to stop now.
+    if (Object.values(phasesRef.current).includes("signing")) {
+      setError(localError("SIGNING_IN_PROGRESS", "Your wallet is showing a request: reject it there first, then end the journey here."));
+      return null;
+    }
+    const client = getClient();
+    if (!client) return null;
+    resolveGate(false);
+    runRef.current?.controller.abort();
+    runRef.current = null;
+    clearPhases();
+    setJourneyPending("stop");
+    try {
+      const stopped = await client.intents.stop(current.id);
+      commitIntent(stopped.intent);
+      setJourney(stopped.journey, stopped.intent.id);
+      setError(null);
+      setPauseReason(null);
+      const finished = terminalStatus(stopped.intent);
+      setStatus(finished ?? "paused");
+      if (finished && sessionKey) clearIntentSession(sessionKey);
+      if (!finished) setPauseReason("The journey ends at its current stop: nothing more will be signed.");
+      return stopped.intent;
+    } catch (caught) {
+      // 409 INTENT_IN_FLIGHT: a step is still moving; the error says when to try again.
+      setError(toExecutionError(caught));
+      setStatus((previous) => (previous === "executing" ? "paused" : previous));
+      return null;
+    } finally {
+      setJourneyPending(null);
+    }
+  }, [clearPhases, commitIntent, getClient, resolveGate, sessionKey, setJourney]);
+
+  const answerJourney = useCallback(
+    (consequenceId: string, optionId: string) => {
+      const current = intentRef.current;
+      const shown = journeyRef.current;
+      const consequence = shown?.consequences.find((entry) => entry.id === consequenceId);
+      if (!current || !shown || shown.intentId !== current.id || !consequence) return;
+      const option = consequence.options.find((entry) => entry.id === optionId) ?? null;
+      // Only an option the consequence offers counts (or "I will handle it" when it offers no acknowledgement).
+      if (!option && optionId !== JOURNEY_HANDLE_IT_OPTION) return;
+      setJourneyMemory((memory) => {
+        const next = { ...memory, [consequenceId]: { option: optionId, facts: consequenceFactsKey(consequence) } };
+        writeJourneyMemory(current.id, next);
+        return next;
+      });
+      const action = option?.action;
+      if (!action) return;
+      switch (action.type) {
+        case "replan":
+          // A new plan with its own fare and journey, reviewed before anything is signed.
+          setJourneyPending(optionId);
+          void plan({ ...action.request, ...(options.metadata && !action.request.metadata ? { metadata: options.metadata } : {}) }).finally(() => setJourneyPending(null));
+          return;
+        case "plan-new":
+          followUpRef.current?.(cleanText(action.text, 1000));
+          return;
+        case "retry":
+          if (!TERMINAL_INTENT.has(current.status)) void resume(current.id);
+          return;
+        case "stop":
+          void stop();
+          return;
+        case "link": {
+          const url = httpsUrl(action.url);
+          if (url && typeof window !== "undefined") window.open(url.href, "_blank", "noopener,noreferrer");
+          return;
+        }
+        default:
+          // acknowledge: remembered; the next signature may go ahead.
+          return;
+      }
+    },
+    [options.metadata, plan, resume, stop],
+  );
+
+  const journeyBlockers = useMemo(
+    () => (journey && intent && journey.intentId === intent.id && !TERMINAL_INTENT.has(intent.status) ? openBlockers(journey, journeyAnswers) : []),
+    [intent, journey, journeyAnswers],
+  );
 
   const accountsForBinding = connected.accounts;
   const bindingProblem = useMemo(
@@ -1200,5 +1455,12 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     cancel,
     reset,
     forgetResumable,
+    journey: journey && intent && journey.intentId === intent.id ? journey : null,
+    journeyAnswers,
+    journeyBlockers,
+    journeyPending,
+    answerJourney,
+    stop,
+    adopt,
   };
 }

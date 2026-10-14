@@ -37,7 +37,9 @@ import {
   ticketNetworks,
 } from "./linkModel";
 import { useLinkQuote, useLinkView } from "./useLinkFlow";
-import type { LinkView } from "@kletia/core";
+import { buildJourney, type LinkView } from "@kletia/core";
+import { indicativeFacts } from "../../site/art/journeyFormat";
+import { JourneyPanel } from "../../site/intent/JourneyPanel";
 
 const loadSignPanel = () => import("./LinkSignPanel");
 const LinkSignPanel = React.lazy(loadSignPanel);
@@ -170,6 +172,17 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
   const [signing, setSigning] = useState(false);
   const quoted = quote.status === "ok" ? quote.response : null;
   const needed = quoted ? namespacesFor(quoted.intent) : [];
+  // The indicative itinerary of the stand-in plan (journey design 9.2): built here, nothing read.
+  const itinerary = useMemo(() => {
+    if (!quoted?.intent || !Array.isArray(quoted.intent.steps) || quoted.intent.steps.length === 0) return null;
+    try {
+      // Timed at the quote, so the itinerary is the same on every render.
+      const at = quoted.intent.updatedAt;
+      return buildJourney(quoted.intent, quoted.preview ?? null, indicativeFacts(at), at);
+    } catch {
+      return null;
+    }
+  }, [quoted]);
   const canContinue = Boolean(choice && quoted && needed.length > 0 && (!needsAcknowledgement || acknowledged));
 
   useEffect(() => {
@@ -187,7 +200,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
       <div className={PAPER} style={{ "--kla-table": "var(--kla-paper)" } as React.CSSProperties}>
         <div className={cx(CONTAINER, "grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-start")}>
           <div className="min-w-0">
-            <PlatformNumber n={1}>Intent link</PlatformNumber>
+            <PlatformNumber code="GO">Intent link</PlatformNumber>
             <h1 className="mt-5 text-balance font-display text-[clamp(2rem,4.6vw,3.3rem)] font-bold leading-[1.04] tracking-[-0.035em] [overflow-wrap:anywhere]">
               {view.title}
             </h1>
@@ -207,14 +220,20 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
                     view.publisher.domain
                   )}
                 </>
-              ) : null}{" "}
-              ·{" "}
+              ) : null}
               {view.publisher.domainVerified ? (
-                <span>{view.publisher.domain} published a file that authorizes this link. That says nothing about its honesty.</span>
-              ) : (
-                <span className="bg-[#FFD60A] px-1 text-[#1A1A1A]">Unverified publisher: nobody confirmed this link comes from that website.</span>
-              )}
+                <>
+                  {" "}
+                  · <span>{view.publisher.domain} published a file that authorizes this link. That says nothing about its honesty.</span>
+                </>
+              ) : null}
             </p>
+            {/* Unverified: one plain line in the warning tone; the ticket keeps its plate (portal design S-24). */}
+            {!view.publisher.domainVerified ? (
+              <p className="mt-2 border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--kl-warning)] [overflow-wrap:anywhere]">
+                {view.publisher.domain ? `Nobody has confirmed this link comes from ${view.publisher.domain}.` : "Nobody has confirmed who published this link."}
+              </p>
+            ) : null}
             {!state.usable ? (
               <div className={cx("mt-6 flex flex-wrap items-center gap-5 bg-[#FFFCF2] p-4 text-[#1A1A1A]", INK_BORDER, HARD_SHADOW)} role="status">
                 <div className="w-[170px] shrink-0">
@@ -311,6 +330,7 @@ function LinkLanding({ view }: { readonly view: LinkView }) {
                     signed.
                   </p>
                   <FareTable preview={indicativeFare(quote.response.preview)} intent={quote.response.intent} />
+                  {itinerary ? <JourneyPanel journey={itinerary} phase="indicative" headingLevel={3} /> : null}
                 </div>
               ) : quote.status === "error" ? (
                 <ApiErrorPanel error={quote.error} title="No fare for this choice" onRetry={retry} />

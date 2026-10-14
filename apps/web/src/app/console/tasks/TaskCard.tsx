@@ -1,12 +1,17 @@
 /**
- * One task in the thread (console design 3.7): an article labelled by its
- * heading, with the open question (slot), then the body for its engine. A
- * finished task that is not the newest collapses to a one-line stub; it is
- * only hidden, never unmounted, because unmounting an execution cancels its
- * run and refuses any open gate.
+ * One task in the thread (console design 3.7 and 3.8): an article labelled
+ * by its heading, with the open question (slot), then the body for its
+ * engine, and the task's own memory folded under it ("This task, 4 turns",
+ * clarify W6) with Edit and Undo. A finished task that is not the newest
+ * collapses to a one-line stub; it is only hidden, never unmounted, because
+ * unmounting an execution cancels its run and refuses any open gate.
+ *
+ * An answer is recorded as the task's next turn; the task's body sends it
+ * with the task's own thread (never another task's) and replaces the
+ * question with whatever Kletia answers.
  */
 import { useId, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PenLine, Undo2 } from "lucide-react";
 import { CHAINS } from "@kletia/core";
 
 import { LineBullet } from "../../site/art/LineBullet";
@@ -14,14 +19,91 @@ import { LINES } from "../../site/art/tokens";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
 import { isFinishedStatus } from "../state/deskSession";
-import { getDeskStore, type TaskRecord } from "../state/deskStore";
+import { getDeskStore, isEditable, useDeskStore, type TaskRecord, type TaskTurn } from "../state/deskStore";
 import { useDeskSlots } from "../hooks/useDeskSlots";
 import { EngineTaskBody } from "./EngineTaskBody";
 import { PlatformTaskBody } from "./PlatformTaskBody";
+import { answerLabel, turnAnswer } from "./questionModel";
+import { registerDeskTaskSlots } from "./registerSlots";
 import { isDeskQuestion } from "./slots";
 import { clockOf, serialOf } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
+
+// The journey and question slots are filled as soon as the desk's task modules load.
+registerDeskTaskSlots();
+
+/** One line of the task's memory: who said it and what (the user's own words stay in this tab's memory). */
+function turnLine(task: TaskRecord, turn: TaskTurn): { readonly who: "you" | "kletia"; readonly text: string } | null {
+  switch (turn.kind) {
+    case "sentence":
+      return task.sentence ? { who: "you", text: task.sentence } : null;
+    case "answer":
+      return { who: "you", text: turn.label };
+    case "edit":
+      return { who: "you", text: turn.text };
+    case "assumption":
+      return { who: "you", text: turn.label };
+    case "kletia":
+      return { who: "kletia", text: turn.label };
+    case "note":
+      return { who: "kletia", text: turn.text };
+    default:
+      return null;
+  }
+}
+
+function TaskMemory({ task }: { readonly task: TaskRecord }) {
+  const editing = useDeskStore((state) => state.editing === task.id);
+  const actions = useDeskActions();
+  const lines = task.turns.map((turn) => turnLine(task, turn)).filter((line): line is NonNullable<typeof line> => line !== null);
+  const editable = isEditable(task) && task.status !== "question";
+  const canUndo = editable && (task.thread?.undo.length ?? 0) > 0;
+  if (lines.length < 2 && !editable) return null;
+  return (
+    <details className="border-2 border-dashed border-control bg-surface-2">
+      <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]">
+        This task, {lines.length} turn{lines.length === 1 ? "" : "s"}
+      </summary>
+      <div className="flex flex-col gap-3 px-3 pb-3">
+        <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+          {lines.map((line, index) => (
+            <li key={index} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 text-sm">
+              <span className="font-code text-xs font-black uppercase tracking-wider text-muted">{line.who === "you" ? "You" : "Kletia"}</span>
+              <span className="min-w-0 break-words">{line.text}</span>
+            </li>
+          ))}
+        </ol>
+        {editable ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              aria-pressed={editing}
+              className="inline-flex min-h-11 items-center gap-1.5 border-2 border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
+              onClick={() => {
+                getDeskStore().getState().edit(editing ? null : task.id);
+                if (!editing) actions.fill("");
+              }}
+            >
+              <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+              {editing ? "Stop editing" : "Edit this task"}
+            </button>
+            {canUndo ? (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center gap-1.5 border-2 border-control bg-surface px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
+                onClick={() => getDeskStore().getState().patchTask(task.id, { turn: { kind: "edit", at: Date.now(), text: "undo" } })}
+              >
+                <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Undo
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </details>
+  );
+}
 
 export interface TaskCardProps {
   readonly task: TaskRecord;
@@ -41,6 +123,10 @@ export function TaskCard({ task, newest }: TaskCardProps) {
     ? copy.route(CHAINS[task.ends.from].shortName, CHAINS[task.ends.to].shortName)
     : "";
   const question = task.question && isDeskQuestion(task.question) ? task.question : null;
+  // Kletia's answers remount the slot, so a refused answer frees its pressed chip.
+  const kletiaTurns = task.turns.filter((turn) => turn.kind === "kletia" || turn.kind === "note").length;
+  // "Not now" folds the card away; the question stays on the task until it is answered.
+  const [setAside, setSetAside] = useState<string | null>(null);
 
   return (
     <article id={`task-${task.id}`} className="kd-task" data-rise="" aria-labelledby={headingId} data-task-status={task.status}>
@@ -66,23 +152,38 @@ export function TaskCard({ task, newest }: TaskCardProps) {
       ) : null}
       {/* Hidden, never unmounted: `hidden` alone would lose to the flex display class. */}
       <div hidden={collapsed} className={collapsed ? "hidden" : "flex min-w-0 flex-col gap-4"}>
-        {question ? (
+        {question && setAside === question.id ? (
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center gap-2 self-start border-2 border-control bg-surface px-3 text-sm font-bold text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]"
+            onClick={() => setSetAside(null)}
+          >
+            {question.questions && question.questions.length > 1 ? "Kletia has 2 questions: show them" : "Kletia has 1 question: show it"}
+          </button>
+        ) : question ? (
           <Question
+            key={`${question.id}:${kletiaTurns}`}
             taskId={task.id}
             question={question}
             holdings={actions.holdings}
-            onAnswer={(answer) =>
+            onAnswer={(answer) => {
+              const structured = turnAnswer(question, answer);
+              if (!structured) return;
               getDeskStore()
                 .getState()
-                .patchTask(task.id, {
-                  question: null,
-                  turn: { kind: "answer", at: Date.now(), label: "optionId" in answer ? answer.optionId : answer.text },
-                })
-            }
-            onDismiss={() => getDeskStore().getState().patchTask(task.id, { question: null })}
+                .patchTask(task.id, { turn: { kind: "answer", at: Date.now(), label: answerLabel(question, answer), answer: structured } });
+            }}
+            onDismiss={() => {
+              // "Not now": the question stays on the task (its "1 question" stamp); the composer stops answering it.
+              const store = getDeskStore().getState();
+              if (store.answering === task.id) store.answer(null);
+              setSetAside(question.id);
+              document.getElementById(`task-${task.id}`)?.querySelector<HTMLElement>("h2[tabindex]")?.focus();
+            }}
           />
         ) : null}
         {task.engine.kind === "network" ? <EngineTaskBody task={task} /> : <PlatformTaskBody task={task} />}
+        {task.engine.kind === "platform" ? <TaskMemory task={task} /> : null}
       </div>
     </article>
   );

@@ -2,44 +2,51 @@
  * Static developer-portal content mirrored from docs/platform/api-v1.md.
  */
 
+/** One row of the authentication table on the Keys page (portal design 4.4.2). */
 export interface AuthTier {
-  readonly name: string;
-  readonly how: string;
+  readonly tier: string;
+  /** The request header, or "none". */
+  readonly header: string;
   readonly limit: string;
-  readonly capabilities: string;
-  readonly accent: string;
+  readonly can: string;
+  /** Whether the credential may sit in browser code. */
+  readonly browser: "yes" | "no";
 }
 
 export const AUTH_TIERS: readonly AuthTier[] = [
   {
-    name: "Public",
-    how: "No key",
+    tier: "Public",
+    header: "none",
     limit: "30 requests/min per IP",
-    capabilities: "Read registries, quotes, create and run intents. Safe from browsers.",
-    accent: "#CBD5E1",
+    can: "Registries, quotes, intents, sessions and receipts.",
+    browser: "yes",
   },
   {
-    name: "Developer",
-    how: "Authorization: Bearer kl_dev_…",
+    tier: "Publishable",
+    header: "Authorization: Bearer kl_pub_…",
+    limit: "120 requests/min per key, and the IP limit",
+    can: "The public tier plus intents owned by the key and sessions from stored flows, from your allowed origins only. Never contracts by itself.",
+    browser: "yes",
+  },
+  {
+    tier: "Developer",
+    header: "Authorization: Bearer kl_dev_…",
     limit: "300 requests/min per key",
-    capabilities: "Adds intent listing, webhooks, usage, Idempotency-Key and key management. Server-side only.",
-    accent: "#FFD60A",
+    can: "Adds intent listing, webhooks, usage, Idempotency-Key, keys, project settings, contracts and links.",
+    browser: "no",
   },
   {
-    name: "Agent",
-    how: "Authorization: Bearer kl_agt_…",
+    tier: "Agent",
+    header: "Authorization: Bearer kl_agt_…",
     limit: "300 requests/min per key",
-    capabilities: "A key issued under another key and bound by a rule book. It always expires, never manages project keys and never approves.",
-    accent: "#6D28D9",
-  },
-  {
-    name: "Operator",
-    how: "Key configured in KLETIA_OPERATOR_API_KEYS",
-    limit: "1200 requests/min per key",
-    capabilities: "Everything above, for first-party and partner backends. Configuration, not self-service.",
-    accent: "#1A1A1A",
+    can: "Bound by a rule book; always expires; never manages project keys or settings and never approves.",
+    browser: "no",
   },
 ];
+
+/** Operator keys are configuration, not a tier anyone issues (the note under the table). */
+export const OPERATOR_TIER_NOTE =
+  "Operator keys (1200 requests/min per key) are deployment configuration in KLETIA_OPERATOR_API_KEYS, for first-party and partner backends, not self-service.";
 
 export const EVENT_TYPES: readonly { type: string; description: string; fields: string }[] = [
   { type: "intent.created", description: "An intent was planned and persisted.", fields: "intentId, summary, metadata?" },

@@ -13,8 +13,14 @@ import { YELLOW, type Line } from "./tokens";
  */
 
 export interface PlatformNumberProps {
-  /** Section number, printed with two digits. */
-  readonly n: number;
+  /** Section number, printed with two digits (sections inside a page). */
+  readonly n?: number;
+  /**
+   * Route code printed on a page's hero plate instead of a number (portal
+   * design S-05): DEV, NET, PRO, STU, RCP, GO, AP, 404, LOG. Numbered plates
+   * are for sections inside a page.
+   */
+  readonly code?: string;
   /** The eyebrow text, read aloud. */
   readonly children: ReactNode;
   /** "ink" on dark (ink or blue) sections: the label turns yellow. */
@@ -22,13 +28,13 @@ export interface PlatformNumberProps {
   readonly className?: string;
 }
 
-/** Section marker: a yellow platform plate with the section number, then the eyebrow text. */
-export function PlatformNumber({ n, children, tone = "paper", className }: PlatformNumberProps) {
+/** Section marker: a yellow platform plate with the section number (or a page's route code), then the eyebrow text. */
+export function PlatformNumber({ n, code, children, tone = "paper", className }: PlatformNumberProps) {
   return (
     <p className={cx("kla-platform-no", `kla-platform-no--${tone}`, className)}>
-      <span className="kla-platform-no__plate" aria-hidden="true">
+      <span className="kla-platform-no__plate" aria-hidden="true" data-code={code ? "" : undefined}>
         <span className="kla-platform-no__k">Platform</span>
-        {String(n).padStart(2, "0")}
+        {code ?? String(n ?? 0).padStart(2, "0")}
       </span>
       <span className="kla-platform-no__label">{children}</span>
     </p>

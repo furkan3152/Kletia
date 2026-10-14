@@ -13,9 +13,11 @@ export interface StudioExamplesProps {
 
 /**
  * Example prompts in four tabs (Lend, Bridge, Pay, Swap). The tab row is one
- * line at every width; on phones the chips are a single snap row, wider
- * screens wrap them. Switching tabs drops the new chips in (no motion under
- * reduced motion; the first render never animates).
+ * line at every width. Below 640 px the chips are a vertical list of four
+ * (full width, wrapped: nothing is cut or hidden behind a faint edge shade,
+ * portal design S-15); from 640 px a single snap row, and wider screens wrap
+ * them. Switching tabs drops the new chips in (no motion under reduced
+ * motion; the first render never animates).
  */
 export function StudioExamples({ text, onPick }: StudioExamplesProps) {
   const baseId = useId();
@@ -101,10 +103,10 @@ export function StudioExamples({ text, onPick }: StudioExamplesProps) {
         })}
       </div>
       <div id={panelId} role="tabpanel" aria-labelledby={tabId(active.id)} className="mt-3 min-w-0">
-        {/* Phones: one snap row with an overflow cue. Wider: wrapped. */}
+        {/* Phones: a vertical list of four. From 640 px: one snap row with an overflow cue. Wider: wrapped. */}
         <div
           key={groupKey}
-          className="kl-scroll-shadow -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2 pt-1 ![--kl-scroll-bg:#FFFFFF] dark:![--kl-scroll-bg:#131E32] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0"
+          className="kl-scroll-shadow flex flex-col gap-2 ![--kl-scroll-bg:#FFFFFF] dark:![--kl-scroll-bg:#131E32] sm:-mx-1 sm:flex-row sm:snap-x sm:snap-mandatory sm:overflow-x-auto sm:px-1 sm:pb-2 sm:pt-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0"
         >
           {active.examples.map((example, index) => {
             const isSelected = text === example;
@@ -118,7 +120,8 @@ export function StudioExamples({ text, onPick }: StudioExamplesProps) {
                 }}
                 style={motion === "group" ? { ["--kl-i" as string]: index } : undefined}
                 className={cx(
-                  "shrink-0 snap-start whitespace-nowrap border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[11px] transition-colors duration-150 dark:border-[#4B5563] md:shrink md:whitespace-normal",
+                  "min-h-11 w-full whitespace-normal break-words border-2 border-[#1A1A1A] px-2 py-1 text-left font-code text-[12px] transition-colors duration-150 dark:border-[#4B5563] sm:min-h-0 sm:w-auto sm:shrink-0 sm:snap-start sm:whitespace-nowrap md:shrink md:whitespace-normal",
+                  index >= 4 && "max-sm:hidden",
                   isSelected
                     ? "bg-[#FFD60A] text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] dark:shadow-[2px_2px_0_#475569]"
                     : "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]",

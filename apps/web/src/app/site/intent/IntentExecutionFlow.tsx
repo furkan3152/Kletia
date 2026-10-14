@@ -7,6 +7,7 @@ import { ApiErrorPanel } from "../ui/ApiErrorPanel";
 import { Button } from "../ui/Button";
 import { cx, INK_BORDER, LABEL } from "../ui/styles";
 import { ExecutionGatePanel } from "./ExecutionGatePanel";
+import { JourneyPanel } from "./JourneyPanel";
 import { IntentGraphView } from "./IntentGraphView";
 import { IntentOutcome, IntentProgress, StepLinks } from "./IntentProgress";
 import { IntentReview } from "./IntentReview";
@@ -89,8 +90,10 @@ export interface IntentExecutionFlowProps {
    * why. The execution hook refuses the run on its own as well.
    */
   readonly signingBlockedReason?: string | null;
-  /** Rendered above the review and the progress (the desk's journey slot). */
+  /** Rendered above the review and the progress. */
   readonly beforeBody?: React.ReactNode;
+  /** A clarify question is open on the same task: the journey's prompt waits (one open card per task). */
+  readonly holdJourneyPrompt?: boolean;
   readonly className?: string;
 }
 
@@ -109,6 +112,7 @@ export function IntentExecutionFlow({
   notifyProgress = false,
   signingBlockedReason = null,
   beforeBody = null,
+  holdJourneyPrompt = false,
   className,
 }: IntentExecutionFlowProps) {
   const locked = Boolean(signingBlockedReason);
@@ -132,6 +136,30 @@ export function IntentExecutionFlow({
     if (active && active !== document.body) return;
     rootRef.current?.querySelector<HTMLElement>("[data-flow-focus]")?.focus({ preventScroll: false });
   }, [status]);
+
+  // The first open blocker (its prompt card, else its notice) takes focus when Confirm is pressed.
+  const blockerRef = useRef<HTMLDivElement>(null);
+  const focusBlocker = () => {
+    const target = blockerRef.current;
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "auto" });
+    (target.querySelector<HTMLElement>("button:not(:disabled)") ?? target).focus({ preventScroll: true });
+  };
+  const journey = intent && execution.journey && execution.journey.intentId === intent.id ? execution.journey : null;
+  const journeyPanel = (phase: "review" | "live" | "after") =>
+    journey ? (
+      <JourneyPanel
+        journey={journey}
+        answered={execution.journeyAnswers}
+        onAnswer={execution.answerJourney}
+        phase={phase}
+        holdPrompt={holdJourneyPrompt || Boolean(execution.gate)}
+        busy={status === "planning" || execution.journeyPending !== null || Object.values(execution.stepPhases).includes("signing")}
+        pending={execution.journeyPending}
+        blockerRef={blockerRef}
+        showOutcome={phase !== "after"}
+      />
+    ) : null;
 
   const announcement = flowAnnouncement(execution);
   const region = (
@@ -166,6 +194,9 @@ export function IntentExecutionFlow({
           blockedReason={status === "review" ? execution.bindingProblem?.message ?? signingBlockedReason : null}
           ownedAccounts={execution.accounts}
           preview={execution.preview}
+          journey={journeyPanel("review")}
+          journeyBlockers={status === "review" ? execution.journeyBlockers.length : 0}
+          onFocusBlocker={focusBlocker}
           onConfirm={() => void execution.start(intent)}
           {...(describeAccount ? { describeAccount } : {})}
           {...(onReplan ? { onReplan } : {})}
@@ -242,9 +273,12 @@ export function IntentExecutionFlow({
 
       {terminal ? (
         <div tabIndex={-1} data-flow-focus="" className="focus:outline-none">
-          <IntentOutcome intent={intent} footer={outcomeFooter} celebrate={watchedIntentId === intent.id} />
+          <IntentOutcome intent={intent} footer={outcomeFooter} celebrate={watchedIntentId === intent.id} journey={journey} />
         </div>
       ) : null}
+
+      {/* The itinerary: live while it runs (where the money is right now), the map after it ends. */}
+      {journeyPanel(terminal ? "after" : "live")}
 
       {/* Receipts commit to the plan record: intents without one (older APIs) never get a receipt. */}
       {terminal && intent.plan ? <ReceiptPanel intentId={intent.id} intentStatus={intent.status} /> : null}

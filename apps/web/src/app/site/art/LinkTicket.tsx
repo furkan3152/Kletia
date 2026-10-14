@@ -10,7 +10,8 @@ import type { Line } from "./tokens";
 /*
  * Link ticket: a shareable intent link printed as a ticket. It names the
  * publisher (with a blind-embossed seal when their domain is verified, a
- * hazard plate when it is not), the sentence the link fills in, and the
+ * hazard plate under the word "Unverified" when it is not), the sentence the
+ * link fills in, and the
  * bounds Kletia enforces on whatever plan comes out of it. The stub shows how
  * long the link is valid and how many uses are left.
  */
@@ -167,7 +168,15 @@ export function LinkTicket({
               <Punches total={uses.max} punched={uses.used} />
             </>
           ) : null}
-          {publisher.verified ? <Seal /> : <span className="kla-linkt__hazard" aria-hidden="true" />}
+          {publisher.verified ? (
+            <Seal />
+          ) : (
+            <>
+              {/* The hazard strip is decoration; the word over it says what it means (portal design S-25). */}
+              <p className="kla-ticket__stub-k kla-linkt__hazard-k">Unverified</p>
+              <span className="kla-linkt__hazard" aria-hidden="true" />
+            </>
+          )}
         </>
       }
     />

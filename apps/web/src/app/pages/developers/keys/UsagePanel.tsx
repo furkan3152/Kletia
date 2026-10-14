@@ -4,11 +4,13 @@ import { useId, useState } from "react";
 
 import { sdkSignal } from "../../../../shared/platform/kletiaClient";
 import { useApiResource } from "../../../../shared/platform/useApiResource";
+import { Link } from "../../../routes/Link";
 import { ApiErrorPanel } from "../../../site/ui/ApiErrorPanel";
 import { Button } from "../../../site/ui/Button";
 import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { formatTimestamp, keyedClient } from "./keyClient";
+import { usageRouteRows } from "./keyRows";
 import { maskKey, useSessionKey } from "./sessionKey";
 
 const WINDOWS: readonly UsageWindow[] = ["24h", "7d"];
@@ -26,7 +28,7 @@ function RequestBars({ series }: { series: UsageReport["series"] }) {
   const max = Math.max(1, ...series.map((point) => point.requests));
   return (
     <figure className="flex min-w-0 flex-col gap-2">
-      <figcaption className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Requests per hour (peak {max})</figcaption>
+      <figcaption className={cx(LABEL, TEXT_MUTED)}>Requests per hour (peak {max})</figcaption>
       <div className="flex h-24 min-w-0 items-end gap-[2px] border-b-2 border-[#1A1A1A]/40 dark:border-white/30" aria-describedby={tableId}>
         {series.map((point) => (
           <div key={point.hour} className="group relative flex h-full min-w-[3px] flex-1 items-end" title={`${hourLabel(point.hour)}: ${point.requests} requests`}>
@@ -37,7 +39,7 @@ function RequestBars({ series }: { series: UsageReport["series"] }) {
           </div>
         ))}
       </div>
-      <p className={cx("flex justify-between font-code text-[10px]", TEXT_MUTED)} aria-hidden="true">
+      <p className={cx("flex justify-between font-code text-xs", TEXT_MUTED)} aria-hidden="true">
         <span>{series[0] ? hourLabel(series[0].hour) : ""}</span>
         <span>{series.length > 0 ? hourLabel(series[series.length - 1]!.hour) : ""}</span>
       </p>
@@ -67,9 +69,53 @@ function RequestBars({ series }: { series: UsageReport["series"] }) {
 function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-l-[6px] border-[#0052FF] pl-3 dark:border-[#7EA6FF]">
-      <dt className={cx(LABEL, "order-2 !text-[10px]", TEXT_MUTED)}>{label}</dt>
+      <dt className={cx(LABEL, "order-2", TEXT_MUTED)}>{label}</dt>
       <dd className="order-1 font-display text-3xl font-bold leading-none tracking-[-0.03em]">{value}</dd>
       {note ? <dd className={cx("order-3 text-xs", TEXT_MUTED)}>{note}</dd> : null}
+    </div>
+  );
+}
+
+/** Usage by route (portal design 4.4.2): requests and the 2xx/4xx/5xx split; a high 4xx share is marked and links to the errors reference. */
+function RouteTable({ routes }: { routes: UsageReport["byRoute"] }) {
+  const rows = usageRouteRows(routes);
+  if (rows.length === 0) return <p className={cx("text-sm", TEXT_MUTED)}>No requests in this window yet.</p>;
+  const cell = "px-3 py-2 text-right font-code";
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <table className="w-full min-w-[300px] border-collapse text-left text-body-s">
+        <caption className={cx(LABEL, "pb-2 text-left", TEXT_MUTED)}>By route</caption>
+        <thead className="bg-surface-2">
+          <tr className="border-b-2 border-[#1A1A1A]/10 dark:border-white/10">
+            <th scope="col" className={cx(LABEL, "px-3 py-2 font-extrabold", TEXT_MUTED)}>
+              Route
+            </th>
+            {["Requests", "2xx", "4xx", "5xx"].map((label) => (
+              <th key={label} scope="col" className={cx(LABEL, "px-3 py-2 text-right font-extrabold", TEXT_MUTED)}>
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10">
+          {rows.map((row) => (
+            <tr key={row.route} className={row.highlight ? "bg-warning-bg" : undefined}>
+              <th scope="row" className="px-3 py-2 font-code font-normal">
+                {row.route}
+                {row.highlight ? (
+                  <Link to="/developers/errors" className={cx("ml-2 whitespace-nowrap font-sans text-xs font-bold text-warning underline decoration-2 underline-offset-2", FOCUS_RING)}>
+                    {Math.round(row.clientShare * 100)}% refused: read the errors
+                  </Link>
+                ) : null}
+              </th>
+              <td className={cx(cell, "font-bold")}>{row.requests}</td>
+              <td className={cell}>{row.ok}</td>
+              <td className={cx(cell, row.highlight && "font-bold text-warning")}>{row.clientErrors}</td>
+              <td className={cell}>{row.serverErrors}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -90,7 +136,7 @@ export function UsagePanel() {
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4" aria-hidden="true" />
           <h3 id="usage-heading" className="font-display text-xl font-bold">
-            Usage of {maskKey(key)}
+            Usage of <span className="font-code">{maskKey(key)}</span>
           </h3>
         </div>
         <div className="flex items-center gap-2">
@@ -136,35 +182,8 @@ export function UsagePanel() {
             <Figure label="Intents created" value={String(report.intents.created)} note={Object.entries(report.intents.byStatus).map(([status, count]) => `${status} ${count}`).join(" · ") || undefined} />
             <Figure label="Tier" value={report.tier} note={`since ${formatTimestamp(report.since)}`} />
           </dl>
-          <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <RequestBars series={report.series} />
-            <div className="min-w-0">
-              <p className={cx(LABEL, "mb-2 !text-[10px]", TEXT_MUTED)}>Busiest routes</p>
-              {report.byRoute.length > 0 ? (
-                <table className="w-full text-left text-xs">
-                  <thead className="sr-only">
-                    <tr>
-                      <th scope="col">Route</th>
-                      <th scope="col">Requests</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...report.byRoute]
-                      .sort((a, b) => b.requests - a.requests)
-                      .slice(0, 6)
-                      .map((route) => (
-                        <tr key={route.route} className="border-b border-[#1A1A1A]/10 dark:border-white/10">
-                          <td className="py-1.5 pr-3 font-code">{route.route}</td>
-                          <td className="py-1.5 text-right font-code font-bold">{route.requests}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p className={cx("text-sm", TEXT_MUTED)}>No requests in this window yet.</p>
-              )}
-            </div>
-          </div>
+          <RequestBars series={report.series} />
+          <RouteTable routes={report.byRoute} />
           <p className={cx("text-xs", TEXT_MUTED)}>
             Counted per hour, route and status class; written every 30 s. The rate-limit window is the answering instance&apos;s.
           </p>

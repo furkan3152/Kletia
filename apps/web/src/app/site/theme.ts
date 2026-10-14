@@ -40,10 +40,25 @@ export function preferredSiteTheme(): SiteTheme {
   return readStoredSiteTheme() ?? systemSiteTheme();
 }
 
+/** Browser chrome colour per theme (portal design S-28): the page's paper, never a fixed brand blue. */
+export const THEME_COLORS: Readonly<Record<SiteTheme, string>> = { light: "#F4F1EA", dark: "#0B1120" };
+
+function setThemeColor(theme: SiteTheme) {
+  try {
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      meta.setAttribute("content", THEME_COLORS[theme]);
+      meta.removeAttribute("media");
+    }
+  } catch {
+    // No document head (tests): nothing to update.
+  }
+}
+
 export function applySiteTheme(theme: SiteTheme) {
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
   root.style.colorScheme = theme;
+  setThemeColor(theme);
 }
 
 /** Switches the document into scrollable site mode and applies the site theme. */

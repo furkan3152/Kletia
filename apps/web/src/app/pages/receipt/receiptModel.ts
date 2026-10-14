@@ -343,10 +343,10 @@ function outcomeStampOf(status: ReceiptIntentStatus, legs: readonly LegModel[]):
     case "completed":
       return { state: "settled", detail: "FINAL", words: "Completed. Every leg settled and was seen on-chain. Final." };
     case "partially_completed":
-      return { state: "held", detail: "PART SETTLED", words: "Partly completed. Some legs settled; a later issue may replace this one." };
+      return { state: "held", detail: "PART SETTLED", words: "Partly completed. Some legs settled; a later receipt may replace this one." };
     case "failed": {
       const code = legs.find((leg) => leg.failureCode)?.failureCode ?? "";
-      return { state: "failed", detail: code.slice(0, 18), words: `Failed${code ? ` (${code})` : ""}. A failed step may still be retried, so a later issue may replace this one.` };
+      return { state: "failed", detail: code.slice(0, 18), words: `Failed${code ? ` (${code})` : ""}. A failed step may still be retried, so a later receipt may replace this one.` };
     }
     case "cancelled":
     default:
@@ -409,8 +409,8 @@ export function receiptModel(document: ReceiptDocument): ReceiptModel {
   };
 }
 
-/** "Issue 2. Replaces issue 1." and whether a newer issue exists. */
+/** "Receipt 2, replaces receipt 1." and whether a newer receipt exists (portal design S-22). */
 export function issueLine(model: Pick<ReceiptModel, "sequence" | "replaces">, supersededBy: string | null): string {
-  const base = model.sequence > 1 ? `Issue ${model.sequence}. Replaces issue ${model.sequence - 1}.` : "Issue 1.";
-  return supersededBy ? `${base} A newer issue replaces this one.` : base;
+  const base = model.sequence > 1 ? `Receipt ${model.sequence}, replaces receipt ${model.sequence - 1}.` : "Receipt 1.";
+  return supersededBy ? `${base} A newer receipt replaces this one.` : base;
 }

@@ -20,7 +20,7 @@ const CAPABILITY_OPTIONS: readonly { readonly value: "all" | ProtocolCapability;
 ];
 
 const CHIP =
-  "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#1A1A1A] px-2 text-[11px] font-black uppercase tracking-[0.08em] transition-[background-color,color,box-shadow,transform] duration-150 ease-kl-standard motion-reduce:transition-none dark:border-[#4B5563]";
+  "inline-flex min-h-9 items-center gap-1.5 border-2 border-[#1A1A1A] px-2 text-xs font-black uppercase tracking-[0.08em] transition-[background-color,color,box-shadow,transform] duration-150 ease-kl-standard motion-reduce:transition-none dark:border-[#4B5563]";
 const CHIP_OFF = "bg-white text-[#1A1A1A] hover:bg-[#FFF7CC] dark:bg-[#131E32] dark:text-[#E2E8F0] dark:hover:bg-[#1A2841]";
 const CHIP_ON =
   "bg-[#1A1A1A] text-white shadow-[2px_2px_0_#0052FF] dark:bg-[#FFD60A] dark:text-[#1A1A1A] dark:shadow-[2px_2px_0_#475569]";
@@ -50,7 +50,8 @@ function isEditable(target: EventTarget | null): boolean {
 export interface ProtocolFiltersProps {
   readonly api: ProtocolFiltersApi;
   readonly networks: readonly NetworkLabel[];
-  readonly categories: readonly string[];
+  /** Directory groups (the station directory's rows): the filter value and its sign word. */
+  readonly categories: readonly { readonly value: string; readonly label: string }[];
   readonly shown: number;
   readonly total: number;
   readonly loading: boolean;
@@ -151,7 +152,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
           />
           <kbd
             aria-hidden="true"
-            className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 border-2 border-[#1A1A1A]/30 px-1.5 font-code text-[11px] leading-5 text-[#45464B] dark:border-white/20 dark:text-[#A9B6C8] sm:block"
+            className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 border-2 border-[#1A1A1A]/30 px-1.5 font-code text-xs leading-5 text-[#45464B] dark:border-white/20 dark:text-[#A9B6C8] sm:block"
           >
             /
           </kbd>
@@ -175,7 +176,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
         <p
           role="status"
           aria-live="polite"
-          className="w-full text-[11px] font-black uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8] lg:order-5 lg:ml-auto lg:w-auto lg:text-[#1A1A1A] dark:lg:text-white"
+          className="w-full text-xs font-black uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8] lg:order-5 lg:ml-auto lg:w-auto lg:text-[#1A1A1A] dark:lg:text-white"
         >
           {/* Short while loading, so it fits the row the loaded count uses and the bar keeps its height. */}
           {loading ? "Loading…" : `${shown} of ${total} protocols`}
@@ -210,7 +211,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
                     onClick={() => change({ cap: option.value })}
                     onKeyDown={(event) => onRadioKey(event, index)}
                     className={cx(
-                      "relative min-h-9 px-3 text-[11px] font-black uppercase tracking-[0.12em] transition-colors duration-150 motion-reduce:transition-none",
+                      "relative min-h-9 px-3 text-xs font-black uppercase tracking-[0.12em] transition-colors duration-150 motion-reduce:transition-none",
                       index > 0 && "border-l-2 border-[#1A1A1A] dark:border-[#4B5563]",
                       checked
                         ? "bg-[#FFD60A] text-[#1A1A1A]"
@@ -269,9 +270,13 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
               className={cx(SELECT, FOCUS_RING)}
             >
               <option value="all">All categories</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {humanizeCategory(category)}
+              {/* A registry category from an older link stays selectable next to the directory groups. */}
+              {filters.category !== "all" && !categories.some((option) => option.value === filters.category) ? (
+                <option value={filters.category}>{humanizeCategory(filters.category)}</option>
+              ) : null}
+              {categories.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -297,7 +302,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
               type="button"
               onClick={() => clear({ animate })}
               className={cx(
-                "inline-flex min-h-9 items-center gap-1.5 self-start text-[11px] font-black uppercase tracking-[0.12em] underline decoration-2 underline-offset-4 lg:order-7 lg:self-auto",
+                "inline-flex min-h-9 items-center gap-1.5 self-start text-xs font-black uppercase tracking-[0.12em] underline decoration-2 underline-offset-4 lg:order-7 lg:self-auto",
                 TEXT_MUTED,
                 FOCUS_RING,
               )}

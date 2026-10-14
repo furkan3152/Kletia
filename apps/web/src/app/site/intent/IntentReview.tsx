@@ -47,6 +47,14 @@ export interface IntentReviewProps {
    * a fare that changes later is shown again before anything is signed.
    */
   readonly preview?: IntentPreview | null;
+  /** The itinerary (JourneyPanel), printed above the fare. */
+  readonly journey?: React.ReactNode;
+  /**
+   * Open journey blockers: Confirm stays disabled until each is answered,
+   * with the reason next to it; pressing it moves focus to the first one.
+   */
+  readonly journeyBlockers?: number;
+  readonly onFocusBlocker?: () => void;
   readonly className?: string;
 }
 
@@ -154,6 +162,9 @@ export function IntentReview({
   blockedReason: blockedByCaller,
   ownedAccounts,
   preview,
+  journey,
+  journeyBlockers = 0,
+  onFocusBlocker,
   className,
 }: IntentReviewProps) {
   const checkboxId = useId();
@@ -191,7 +202,13 @@ export function IntentReview({
   const external = ownedAccounts ? externalRecipients(intent, ownedAccounts) : [];
   // Names (ENS, Basenames, SNS) the API resolved a recipient from, shown next to the full address, never instead of it.
   const recipientNames = new Map(intent.steps.filter((step) => step.recipientName).map((step) => [step.id, step.recipientName as string]));
-  const canConfirm = confirmed && !busy && !blockedReason;
+  const journeyBlocked = journeyBlockers > 0;
+  const blockerReason = journeyBlocked
+    ? journeyBlockers === 1
+      ? "Answer 1 question above before signing."
+      : `Answer ${journeyBlockers} questions above before signing.`
+    : null;
+  const canConfirm = confirmed && !busy && !blockedReason && !journeyBlocked;
 
   // The Confirm button "unlocks": when it becomes enabled it pops out of its
   // pressed position into its shadow (never on mount, never when disabling).
@@ -236,6 +253,8 @@ export function IntentReview({
           <ReviewStep key={step.id} step={step} describeAccount={describeAccount} order={order} />
         ))}
       </ol>
+
+      {journey}
 
       {fare ? <FareTable preview={fare} intent={intent} /> : null}
 
@@ -330,15 +349,29 @@ export function IntentReview({
         </div>
         <div ref={actionsRef} className="flex flex-wrap gap-3">
           <Button
-            onClick={onConfirm}
+            onClick={() => {
+              // A journey blocker keeps the button focusable but never confirms: it takes you to the question.
+              if (journeyBlocked) {
+                onFocusBlocker?.();
+                return;
+              }
+              onConfirm();
+            }}
             disabled={!confirmed || busy || Boolean(blockedReason)}
+            aria-disabled={journeyBlocked || undefined}
+            aria-describedby={journeyBlocked ? `${checkboxId}-blocked` : undefined}
             size="lg"
             data-confirm=""
-            className="disabled:shadow-none"
+            className={cx("disabled:shadow-none", journeyBlocked && "cursor-not-allowed opacity-60 shadow-none")}
           >
             <PenLine className="h-4 w-4" aria-hidden="true" />
             {busy ? "Starting…" : confirmLabel}
           </Button>
+          {blockerReason ? (
+            <p id={`${checkboxId}-blocked`} className="self-center text-sm font-bold text-[#7F1D1D] dark:text-[#FCA5A5]">
+              {blockerReason}
+            </p>
+          ) : null}
           {onReplan ? (
             <Button variant="secondary" size="lg" onClick={onReplan} disabled={busy}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />

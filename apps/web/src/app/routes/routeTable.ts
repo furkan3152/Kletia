@@ -37,6 +37,7 @@ export type RouteId =
   | "receipt"
   | "link"
   | "approve"
+  | "changelog"
   | "notFound";
 
 type PageModule = { default: ComponentType };
@@ -74,8 +75,10 @@ export interface RouteDefinition {
 /** User content and capabilities: never indexed, never followed. */
 const PRIVATE_PAGE_ROBOTS = "noindex,nofollow";
 
+/** Neutral nine-network positioning: no network is presented as the main one (index.html carries the same copy). */
+const SITE_TITLE = "Kletia: intent routing across nine networks";
 const SITE_DESCRIPTION =
-  "Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed.";
+  "Kletia turns one sentence, like “bridge 100 USDC from Ethereum to Base”, into planned, quoted transactions on nine networks that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed.";
 
 const PORTAL_OVERVIEW_TITLE = "Developers: the Kletia API, SDK and widget";
 const PORTAL_OVERVIEW_DESCRIPTION =
@@ -91,7 +94,7 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     id: "home",
     path: "/",
     kind: "site",
-    title: "Kletia: intent routing for EVM networks and Solana",
+    title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     load: () => import("../pages/home/HomePage"),
   },
@@ -121,7 +124,7 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     kind: "site",
     title: "Protocols: venues Kletia can route through",
     description:
-      "Every venue Kletia can plan with on EVM networks and Solana, and whether it executes, quotes or only reads data there. Live from the public API.",
+      "Every venue Kletia can plan with on its nine networks, which ones Platform API v1 executes, and your own contracts listed apart. Counted live from the public API.",
     load: () => import("../pages/protocols/ProtocolsPage"),
   },
   studio: {
@@ -183,6 +186,15 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     robots: PRIVATE_PAGE_ROBOTS,
     load: () => import("../pages/approve/ApprovePage"),
   },
+  changelog: {
+    id: "changelog",
+    path: "/changelog",
+    kind: "site",
+    title: "Changelog: Kletia",
+    description:
+      "Every Kletia release, newest first: what was added, changed, fixed and secured in the API, SDK, widget, console and site, from CHANGELOG.md.",
+    load: () => import("../pages/changelog/ChangelogPage"),
+  },
   notFound: {
     id: "notFound",
     path: "/404",
@@ -202,6 +214,7 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/embed": "embed",
   "/app": "console",
   "/approve": "approve",
+  "/changelog": "changelog",
 });
 
 /** `/r/<receiptId>` (receipt ids: `rcpt_` + 32 hex). */

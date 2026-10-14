@@ -54,8 +54,8 @@ function Missing() {
     <div className={PAPER}>
       <div className={cx(CONTAINER, "grid min-h-[60vh] items-center gap-10 py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]")}>
         <div className="min-w-0">
-          <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#0047E0] dark:text-[#7EA6FF]">Receipt · no service</p>
-          <h1 className="mt-4 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">
+          <PlatformNumber code="RCP">Receipt · no service</PlatformNumber>
+          <h1 className="mt-5 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">
             This receipt is not shared any more.
           </h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>
@@ -146,7 +146,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
     <>
       <div className={PAPER}>
         <div className={cx(CONTAINER, "py-10 sm:py-14")}>
-          <PlatformNumber n={1}>Verifiable receipt</PlatformNumber>
+          <PlatformNumber code="RCP">Verifiable receipt</PlatformNumber>
           <h1 className="mt-5 max-w-4xl text-balance font-display text-[clamp(2rem,4.6vw,3.4rem)] font-bold leading-[1.04] tracking-[-0.035em]">
             {verdict.kind === "verified" ? "Kletia signed this receipt." : "This receipt does not check out."}
           </h1>
@@ -160,7 +160,7 @@ function ReceiptView({ loaded, shareLink, onReload }: ReceiptViewProps) {
           </p>
           {status?.supersededBy ? (
             <p className={cx("mt-5 max-w-2xl bg-[#FFF3B0] p-3 text-sm font-semibold text-[#1A1A1A]", INK_BORDER)}>
-              A newer issue of this receipt exists. Ask the owner for its link: this one may describe an earlier state of the intent.
+              A newer receipt for this intent exists. Ask the owner for its link: this one may describe an earlier state of the intent.
             </p>
           ) : null}
           <div className="mt-8" style={{ "--kla-table": "var(--kla-paper)" } as CSSProperties}>

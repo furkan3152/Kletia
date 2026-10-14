@@ -63,7 +63,7 @@ export default function StudioPage() {
       <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
         <div className={cx(CONTAINER, "flex flex-col gap-6 py-8 sm:py-12 lg:py-10")}>
           <div className="max-w-3xl lg:max-w-none">
-            <PlatformNumber n={1}>Intent Studio</PlatformNumber>
+            <PlatformNumber code="STU">Intent Studio</PlatformNumber>
             <h1 className="mt-5 text-balance font-display text-[clamp(2.3rem,6.2vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em] lg:text-[3.25rem]">
               Write a route and see its legs.
             </h1>

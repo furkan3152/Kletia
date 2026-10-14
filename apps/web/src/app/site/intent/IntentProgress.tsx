@@ -1,6 +1,9 @@
-import type { IntentGraph, IntentStep } from "@kletia/core";
+import type { IntentGraph, IntentStep, Journey } from "@kletia/core";
+import { journeyModel } from "@kletia/widget/review";
 import { CircleAlert, CircleCheck, CircleX, ExternalLink, LoaderCircle, PenLine, Radio } from "lucide-react";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+
+import { whereMoneyIs } from "../art/journeyFormat";
 
 import { stepExplorerLinks } from "../../../shared/platform/intentLinks";
 import type { LocalStepPhase } from "../../../shared/platform/useIntentExecution";
@@ -267,6 +270,7 @@ export function IntentOutcome({
   intent,
   footer,
   celebrate = false,
+  journey = null,
   className,
 }: {
   intent: IntentGraph;
@@ -277,10 +281,19 @@ export function IntentOutcome({
    * that was already complete never celebrates.
    */
   celebrate?: boolean;
+  /**
+   * The journey of this intent: "Where your money is now" replaces
+   * "Received" (which hid arrival stops when a later leg did not run).
+   */
+  journey?: Journey | null;
   className?: string;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const copy = OUTCOME_COPY[intent.status];
+  const money = useMemo(() => {
+    if (!journey || journey.intentId !== intent.id) return [];
+    return whereMoneyIs(journey, journeyModel(journey));
+  }, [intent.id, journey]);
   useCelebrateOnce(intent.id, Boolean(copy) && celebrate && intent.status === "completed", cardRef);
   if (!copy) return null;
   const steps = [...intent.steps].sort((a, b) => a.index - b.index);
@@ -333,10 +346,23 @@ export function IntentOutcome({
             <AnimatedNumber value={settled.length} duration={700} startOnView={false} /> / {steps.length}
           </dd>
         </div>
-        <div className="sm:col-span-2">
-          <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Received</dt>
-          <dd className="font-display text-xl font-bold">{received.join(" + ") || "—"}</dd>
-        </div>
+        {money.length > 0 ? (
+          <div className="sm:col-span-2">
+            <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Where your money is now</dt>
+            {money.map((line) => (
+              <dd key={`${line.stopId}-${line.sentence}`} className="font-display text-xl font-bold">
+                <span className="sr-only">{line.spoken}: </span>
+                {line.sentence}
+                {line.usd ? <span className={cx("ml-2 font-code text-sm font-semibold", TEXT_MUTED)}>≈ {line.usd}</span> : null}
+              </dd>
+            ))}
+          </div>
+        ) : (
+          <div className="sm:col-span-2">
+            <dt className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Received</dt>
+            <dd className="font-display text-xl font-bold">{received.join(" + ") || "—"}</dd>
+          </div>
+        )}
       </dl>
       <ul className="flex flex-col gap-2">
         {steps.map((step) => (

@@ -24,7 +24,8 @@ export type StatusResource =
   | "webhook-delivery"
   | "rule-book-decision"
   | "receipt"
-  | "api";
+  | "api"
+  | "journey-severity";
 
 export interface StatusEntry {
   readonly tone: StatusTone;
@@ -104,6 +105,14 @@ export const STATUS_TONES: Readonly<Record<StatusResource, Readonly<Record<strin
     superseded: entry("info", "half", "Superseded"),
     revoked: entry("neutral", "ring", "Share revoked"),
     invalid: entry("danger", "cross", "Does not verify"),
+  },
+  // Journey notices (journey design 9.2, plan conflict 10): the widget's SEVERITY_SIGNS words, never colour
+  // alone. The signs themselves (octagon, diamond, triangle, circle) are fixed safety signage, not tones.
+  "journey-severity": {
+    block: entry("danger", "cross", "Stop"),
+    act: entry("warning", "warn", "Act"),
+    warn: entry("warning", "warn", "Warning"),
+    info: entry("info", "half", "Info"),
   },
   api: {
     ok: entry("success", "dot", "Operational"),

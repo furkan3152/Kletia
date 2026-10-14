@@ -5,8 +5,12 @@
  */
 import { CHAINS, isNetworkKey, type ProtocolCapability, type ProtocolDescriptor } from "@kletia/core";
 
-/** A protocol as returned by GET /v1/protocols (the live API adds `executable`). */
-export type ProtocolEntry = ProtocolDescriptor & { readonly executable?: boolean };
+/**
+ * A protocol as returned by GET /v1/protocols: the live API adds `executable`
+ * (a live adapter on this deployment) and `surface` (platform, console or
+ * service); the registry view has neither.
+ */
+export type ProtocolEntry = ProtocolDescriptor & { readonly executable?: boolean; readonly surface?: string };
 
 export const CAPABILITIES: readonly ProtocolCapability[] = ["execute", "quote", "discover"];
 

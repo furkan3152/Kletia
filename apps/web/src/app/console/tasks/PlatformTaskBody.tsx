@@ -1,28 +1,47 @@
 /**
- * A platform task (console design 3.6, 3.7 and 5.5): one sentence planned by
- * Platform API v1 on all nine networks, and everything after it.
+ * A platform task (console design 3.6, 3.7 and 5.5; clarify design 5.4 and
+ * 8): one sentence planned by Platform API v1 on all nine networks, through
+ * clarify turns, and everything after it.
  *
- * - No wallet: a dry run with the preview accounts and its fare
- *   (`?dryRun=true&preview=true`), plus the exact connect buttons the plan
- *   needs; once they are connected it plans again with the user's accounts.
- * - Wallets: a persisted plan with the lane-homed accounts (never the
- *   wallet's current chain), then review, signing and progress through
- *   `IntentExecutionFlow`, with this task's own resume key and the desk's
- *   signing lock (one task signs at a time).
+ * - Every turn is a dry run with its fare and itinerary
+ *   (`POST /v1/intents?clarify=true&dryRun=true&preview=true&journey=true`):
+ *   the user's accounts where a wallet is connected, the demo accounts for
+ *   the rest (never read, never signed for). Kletia asks (`needs_input`:
+ *   the question slot), plans (the fare, the itinerary, "Kletia assumed"
+ *   chips), or closes the task (`cancelled`).
+ * - Answers, assumption chips and follow-ups ("make it 2", "undo",
+ *   "cancel", typed with the composer's Editing chip) arrive as the task's
+ *   turns and go out with this task's own thread, never another task's. A
+ *   refused turn leaves the plan and the question as they were.
+ * - "Review and sign" sends the commit turn (the thread, no input, not a
+ *   dry run, the user's accounts only): the stored intent goes to
+ *   `IntentExecutionFlow` (review with the journey and its prompts, signing,
+ *   progress, outcome), with this task's own resume key and the desk's
+ *   signing lock (one task signs at a time). An edit after that cancels the
+ *   stored intent (nothing was signed) and plans again.
  * - SOURCE_REQUIRED: the candidate networks as one-tap chips that plan the
- *   task again from there; SOURCE_UNREACHABLE: its message.
- * - INTENT_UNSUPPORTED: a network engine task (the sentence or departure
- *   names Base, Arbitrum One or Arc), the engine offer, or the "not
- *   supported" panel. Every other refusal is shown as is.
+ *   task again from there; INTENT_UNSUPPORTED: a network engine task, the
+ *   engine offer, or the "not supported" panel; any other refusal as is.
  *
  * Mounted for as long as the task exists: unmounting the execution would
  * cancel its run and refuse any open gate.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Map as MapIcon } from "lucide-react";
-import { CHAINS, type AccountId, type IntentGraph, type IntentPreview, type IntentStep, type NetworkKey } from "@kletia/core";
+import {
+  CHAINS,
+  type AccountId,
+  type ClarifyAssumption,
+  type ClarifyThread,
+  type IntentGraph,
+  type IntentPreview,
+  type IntentStep,
+  type Journey,
+  type NetworkKey,
+} from "@kletia/core";
 
-import { PLATFORM_ORIGIN } from "../../../shared/platform/kletiaClient";
+import { getKletiaClient, PLATFORM_ORIGIN } from "../../../shared/platform/kletiaClient";
+import { postIntentTurn, turnResponseOf, type TurnResponse } from "../../../shared/platform/platformApi";
 import { previewAccountsForLane } from "../../../shared/platform/previewAccounts";
 import { sameOwner } from "../../../shared/platform/intentBinding";
 import { useIntentExecution, type IntentExecutionError } from "../../../shared/platform/useIntentExecution";
@@ -31,7 +50,7 @@ import { IntentExecutionFlow } from "../../site/intent/IntentExecutionFlow";
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
 import { Button, ButtonLink } from "../../site/ui/Button";
 import { DESK_COPY } from "../content/copy";
-import { planPreview, type DeskPlanFailure } from "../hooks/planPreview";
+import { failureFromBody, type DeskPlanFailure } from "../hooks/planPreview";
 import { useDeskSlots } from "../hooks/useDeskSlots";
 import { useSigningLock } from "../hooks/useSigningLock";
 import { useDeskActions } from "../shell/deskContext";
@@ -49,15 +68,19 @@ import { getDeskStore, type TaskPatch, type TaskRecord } from "../state/deskStor
 import { PlanFailurePanel } from "./PlanFailurePanel";
 import { PlanningSkeleton } from "./PlanningSkeleton";
 import { PreviewTaskBody } from "./PreviewTaskBody";
+import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
+import type { DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
 import { TaskTicket } from "./TaskTicket";
 import { missingWallets, routePlanFailure, taskStatusOf } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
-interface DryRun {
+interface DryPlan {
   readonly intent: IntentGraph;
   readonly preview: IntentPreview | null;
+  readonly journey: Journey | null;
+  readonly assumptions: readonly ClarifyAssumption[];
 }
 
 /** How the next plan is asked for: the departure (a source chip may change it), or a defaultNetwork-only retry. */
@@ -65,6 +88,8 @@ interface PlanOptions {
   readonly departure: Departure;
   readonly defaultOnly: NetworkKey | null;
 }
+
+type TurnOutcome = { readonly ok: true; readonly response: TurnResponse } | { readonly ok: false; readonly failure: DeskPlanFailure };
 
 function toDeskFailure(error: IntentExecutionError): DeskPlanFailure {
   return {
@@ -77,6 +102,23 @@ function toDeskFailure(error: IntentExecutionError): DeskPlanFailure {
     requestId: error.platform?.requestId ?? null,
     retryable: error.retryable,
   };
+}
+
+const UNREACHABLE: DeskPlanFailure = {
+  code: "UNREACHABLE",
+  message: "The Kletia API is unreachable from this browser right now.",
+  status: 0,
+  issues: [],
+  hints: [],
+  details: null,
+  requestId: null,
+  retryable: true,
+};
+
+/** A client-held thread blob (the desk never asks Kletia to hold one). */
+function threadOf(response: TurnResponse): ClarifyThread | null {
+  const thread = response.thread as Partial<ClarifyThread> | null;
+  return thread && thread.spec === "kletia.thread/v1" && typeof thread.id === "string" ? (thread as ClarifyThread) : null;
 }
 
 function studioHref(text: string, departure: Departure): string {
@@ -95,19 +137,33 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     acquireSigning: lock.acquire,
     releaseSigning: lock.release,
     signingLockedReason: copy.signingLocked,
+    // A journey option that suggests a new intent fills the composer; nothing is planned on its own.
+    onFollowUp: (text) => actions.fill(text),
   });
   const [options, setOptions] = useState<PlanOptions>({ departure: task.departure, defaultOnly: null });
-  const [dry, setDry] = useState<DryRun | null>(null);
+  const [dry, setDry] = useState<DryPlan | null>(null);
   const [failure, setFailure] = useState<DeskPlanFailure | null>(null);
-  const [dryRunning, setDryRunning] = useState(false);
+  const [turnError, setTurnError] = useState<DeskPlanFailure | null>(null);
+  const [turning, setTurning] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [changing, setChanging] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const aliveRef = useRef(false);
   const startedRef = useRef(false);
   const handledErrorRef = useRef<IntentExecutionError | null>(null);
   const replannedForRef = useRef<string | null>(null);
-  /** Breaks the cycle between the dry run and failure routing (a missing wallet runs a dry run). */
-  const handleFailureRef = useRef<(failure: DeskPlanFailure, plan: PlanOptions, source: "dry" | "plan") => void>(() => undefined);
+  /** This task's own clarify thread (memory only; mirrored on the task record). */
+  const threadRef = useRef<ClarifyThread | null>(task.thread ?? null);
+  /** The open question a typed answer (composer Answering chip) is for. */
+  const questionRef = useRef<DeskQuestion | null>(null);
+  const handledTurnsRef = useRef(task.turns.length);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const optionsRef = useRef(options);
+  const executionRef = useRef(execution);
+  useEffect(() => {
+    optionsRef.current = options;
+    executionRef.current = execution;
+  });
 
   const patch = useCallback((next: TaskPatch) => getDeskStore().getState().patchTask(task.id, next), [task.id]);
   const evmAddress = actions.accounts.evm?.address ?? null;
@@ -117,14 +173,21 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     [evmAddress, solanaAddress],
   );
 
-  const requestFor = useCallback(
-    (accounts: readonly AccountId[], plan: PlanOptions) => ({
-      text: task.sentence,
-      accounts,
-      ...(plan.defaultOnly ? { defaultNetwork: plan.defaultOnly } : departureRequestFields(plan.departure)),
-      metadata: { surface: "console" },
-    }),
-    [task.sentence],
+  /** The request context: the user's accounts, plus demo accounts for the namespaces not connected on a dry run. */
+  const contextFor = useCallback(
+    (plan: PlanOptions, mode: "dry" | "commit"): TurnContext => {
+      const real = plannerFor(plan.departure);
+      const demo = previewAccountsForLane(laneOf(plan.departure)).filter(
+        (preview) => !real.some((account) => account.split(":")[0] === preview.split(":")[0]),
+      );
+      const accounts: AccountId[] = mode === "commit" ? real : [...real, ...demo];
+      return {
+        accounts,
+        ...(plan.defaultOnly ? { defaultNetwork: plan.defaultOnly } : departureRequestFields(plan.departure)),
+        metadata: { surface: "console" },
+      };
+    },
+    [plannerFor],
   );
 
   useEffect(() => {
@@ -134,57 +197,85 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     };
   }, []);
 
-  const dryRun = useCallback(
-    async (accounts: readonly AccountId[], plan: PlanOptions): Promise<void> => {
-      setDryRunning(true);
-      patch({ status: "planning" });
-      const result = await planPreview(PLATFORM_ORIGIN, requestFor(accounts, plan)).catch(() => null);
-      if (!aliveRef.current) return;
-      setDryRunning(false);
-      if (!result) return;
-      if (result.ok) {
-        setDry({ intent: result.intent, preview: result.preview });
-        patch({ status: "preview", title: result.intent.summary.title, ends: journeyEnds(result.intent) });
-        return;
+  /** One clarify turn with this task's thread. Never throws. */
+  const sendTurn = useCallback(
+    async (input: TurnInput, plan: PlanOptions, mode: "dry" | "commit"): Promise<TurnOutcome> => {
+      const request = turnRequest(contextFor(plan, mode), threadRef.current, input, task.sentence);
+      try {
+        const exchange = await postIntentTurn(
+          PLATFORM_ORIGIN,
+          request,
+          mode === "dry" ? { dryRun: true, preview: true, journey: true } : { dryRun: false, preview: true, journey: true },
+        );
+        const response = turnResponseOf(exchange);
+        if (response) return { ok: true, response };
+        if (exchange.ok) {
+          return { ok: false, failure: { ...failureFromBody(502, null, exchange.requestId), code: "INVALID_RESPONSE", message: "The Kletia API returned a turn this page cannot read." } };
+        }
+        return { ok: false, failure: failureFromBody(exchange.status, exchange.body, exchange.requestId) };
+      } catch {
+        return { ok: false, failure: UNREACHABLE };
       }
-      handleFailureRef.current(result.failure, plan, "dry");
     },
-    [patch, requestFor],
+    [contextFor, task.sentence],
   );
 
-  /** Routes a failed plan (console design 3.6). `source` says which call failed. */
+  /** What a turn's response does to the task (both dry runs and the commit turn). */
+  const apply = useCallback(
+    (response: TurnResponse, mode: "dry" | "commit"): void => {
+      const thread = threadOf(response);
+      threadRef.current = thread ?? threadRef.current;
+      const turn = { kind: "kletia" as const, at: Date.now(), label: responseLabel(response) };
+      setTurnError(null);
+      setFailure(null);
+      if (response.status === "needs_input") {
+        const question = deskQuestionFrom(response);
+        questionRef.current = question;
+        setDry(null);
+        if (!question) {
+          setFailure({ ...UNREACHABLE, code: "NEEDS_INPUT", status: 200, retryable: false, message: "Kletia needs more detail than it can ask here. Type the task again with the amount, the asset and the networks." });
+          patch({ status: "failed", question: null, thread: threadRef.current, turn });
+          return;
+        }
+        patch({ status: "question", question, thread: threadRef.current, turn });
+        // Typing answers it (the composer's Answering chip) when the question takes text and this task is in focus.
+        const store = getDeskStore().getState();
+        if (question.allowsText && (store.focusedTaskId === task.id || store.focusedTaskId === null) && store.editing === null) store.answer(task.id);
+        return;
+      }
+      if (response.status === "cancelled") {
+        questionRef.current = null;
+        setDry(null);
+        patch({ status: "cancelled", question: null, thread: threadRef.current, turn });
+        return;
+      }
+      questionRef.current = null;
+      const intent = response.intent;
+      const journey = response.journey && response.journey.intentId === intent.id ? response.journey : null;
+      const preview = response.preview && response.preview.intentId === intent.id ? response.preview : null;
+      if (mode === "commit") {
+        const adopted = executionRef.current.adopt(intent, preview, journey);
+        if (adopted) {
+          setDry(null);
+          patch({ question: null, intentId: intent.id, title: intent.summary.title, ends: journeyEnds(intent), thread: threadRef.current });
+        }
+        return;
+      }
+      setDry({ intent, preview, journey, assumptions: response.assumptions ?? [] });
+      patch({ status: "preview", question: null, title: intent.summary.title, ends: journeyEnds(intent), thread: threadRef.current, turn });
+    },
+    [patch, task.id],
+  );
+
+  /** Routes a failed first turn (console design 3.6). */
   const handleFailure = useCallback(
-    (planFailure: DeskPlanFailure, plan: PlanOptions, source: "dry" | "plan") => {
+    (planFailure: DeskPlanFailure, plan: PlanOptions) => {
       const route = routePlanFailure(planFailure, { text: task.sentence, departure: plan.departure });
       switch (route.kind) {
-        case "needs-wallet": {
-          // A dry run already had demo accounts for every namespace: never loop, show the refusal.
-          if (source === "dry") {
-            setFailure(planFailure);
-            patch({ status: "failed" });
-            return;
-          }
-          // Show the fare with demo accounts for the namespaces that are not connected.
-          const real = plannerFor(plan.departure);
-          const demo = previewAccountsForLane(laneOf(plan.departure)).filter(
-            (preview) => !real.some((account) => account.split(":")[0] === preview.split(":")[0]),
-          );
-          void dryRun([...real, ...demo], plan);
-          return;
-        }
-        case "source": {
+        case "source":
           setFailure(planFailure);
           patch({ status: "question" });
-          // The SDK in this round drops `details`: ask the dry run once for the candidates.
-          if (source === "plan" && !planFailure.details) {
-            void planPreview(PLATFORM_ORIGIN, requestFor(plannerFor(plan.departure), plan))
-              .then((result) => {
-                if (aliveRef.current && !result.ok && result.failure.code === planFailure.code) setFailure(result.failure);
-              })
-              .catch(() => undefined);
-          }
           return;
-        }
         case "unsupported":
           if (route.route.engine === "network") {
             patch({ engine: { kind: "network", network: route.route.network, why: "fallback" }, status: "engine" });
@@ -198,46 +289,139 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           patch({ status: "failed" });
       }
     },
-    [dryRun, patch, plannerFor, requestFor, task.sentence],
+    [patch, task.sentence],
   );
-  useEffect(() => {
-    handleFailureRef.current = handleFailure;
-  }, [handleFailure]);
 
-  /** Plans the task (again): with the user's accounts when a wallet is connected, else a dry run. */
+  /** Runs one step at a time: turns never overlap, so each one carries the thread the last one returned. */
+  const enqueue = useCallback((step: () => Promise<void>) => {
+    queueRef.current = queueRef.current.then(step).catch(() => undefined);
+  }, []);
+
+  /** Plans the task from its sentence (a new thread): first turn, a source chip, "start from" instead. */
   const run = useCallback(
-    async (plan: PlanOptions) => {
+    (plan: PlanOptions) => {
       if (!task.sentence) return;
-      setOptions(plan);
-      setFailure(null);
-      setChanging(false);
-      handledErrorRef.current = null;
-      const accounts = plannerFor(plan.departure);
-      if (accounts.length === 0) {
+      enqueue(async () => {
+        setOptions(plan);
+        optionsRef.current = plan;
+        setFailure(null);
+        setTurnError(null);
+        setChanging(false);
         setDry(null);
-        await dryRun(previewAccountsForLane(laneOf(plan.departure)), plan);
+        handledErrorRef.current = null;
+        threadRef.current = null;
+        setTurning(true);
+        patch({ status: "planning", question: null, thread: null });
+        const outcome = await sendTurn({ kind: "text", text: task.sentence }, plan, "dry");
+        if (!aliveRef.current) return;
+        setTurning(false);
+        if (outcome.ok) apply(outcome.response, "dry");
+        else handleFailure(outcome.failure, plan);
+      });
+    },
+    [apply, enqueue, handleFailure, patch, sendTurn, task.sentence],
+  );
+
+  /** A stored plan that was never signed is cancelled before the task plans again (clarify 5.4). */
+  const dropStoredPlan = useCallback(async (): Promise<boolean> => {
+    const current = executionRef.current;
+    const intent = current.intent;
+    if (!intent) return true;
+    if (current.status !== "review" && current.status !== "idle" && !(current.status === "failed" && !intent.steps.some((step) => (step.references?.length ?? 0) > 0))) {
+      return false;
+    }
+    try {
+      await getKletiaClient().intents.cancel(intent.id);
+    } catch {
+      // It expires on its own after 30 minutes unprepared; nothing was signed for it.
+    }
+    current.reset();
+    return true;
+  }, []);
+
+  /** A follow-up on this task: an answer, an assumption chip, an edit, or a plan again with the same thread. */
+  const followUp = useCallback(
+    (input: TurnInput, restoreQuestion: DeskQuestion | null) => {
+      enqueue(async () => {
+        if (!threadRef.current) {
+          patch({ turn: { kind: "note", at: Date.now(), text: "This task's memory is gone (the page reloaded). Type the task again." } });
+          return;
+        }
+        if (!(await dropStoredPlan())) {
+          patch({ turn: { kind: "note", at: Date.now(), text: "This task is signing: it cannot change now. Type a new task instead." } });
+          return;
+        }
+        setTurning(true);
+        setTurnError(null);
+        const outcome = await sendTurn(input, optionsRef.current, "dry");
+        if (!aliveRef.current) return;
+        setTurning(false);
+        if (outcome.ok) {
+          apply(outcome.response, "dry");
+          return;
+        }
+        // A refused turn changes nothing: the plan and the question stay as they were.
+        setTurnError(outcome.failure);
+        patch({
+          turn: { kind: "note", at: Date.now(), text: outcome.failure.message },
+          ...(restoreQuestion ? { question: restoreQuestion, status: "question" as const } : {}),
+        });
+      });
+    },
+    [apply, dropStoredPlan, enqueue, patch, sendTurn],
+  );
+
+  /** "Review and sign": the commit turn stores the plan with the user's accounts. */
+  const review = useCallback(() => {
+    enqueue(async () => {
+      if (!threadRef.current) return;
+      setCommitting(true);
+      setTurnError(null);
+      const outcome = await sendTurn({ kind: "none" }, optionsRef.current, "commit");
+      if (!aliveRef.current) return;
+      setCommitting(false);
+      if (!outcome.ok) {
+        setTurnError(outcome.failure);
+        patch({ turn: { kind: "note", at: Date.now(), text: outcome.failure.message } });
         return;
       }
-      patch({ status: "planning" });
-      await execution.plan(requestFor(accounts, plan));
-    },
-    [dryRun, execution, patch, plannerFor, requestFor, task.sentence],
-  );
+      apply(outcome.response, outcome.response.status === "planned" ? "commit" : "dry");
+    });
+  }, [apply, enqueue, patch, sendTurn]);
 
   // A new task plans once (StrictMode remounts keep the started flag).
   useEffect(() => {
     if (startedRef.current || task.restored || !task.sentence) return;
     startedRef.current = true;
-    void run(options);
+    run(options);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per task
   }, []);
 
-  // A plan with the user's accounts failed: route it.
+  // Answers, assumption chips and edits arrive as the task's turns (the card, the composer's chips).
+  useEffect(() => {
+    const turns = task.turns;
+    for (let index = handledTurnsRef.current; index < turns.length; index += 1) {
+      const turn = turns[index];
+      if (!turn) continue;
+      if (turn.kind === "answer") {
+        const question = questionRef.current;
+        const answer = turn.answer ?? (question ? { question: answerTarget(question), text: turn.label } : null);
+        if (answer) followUp({ kind: "answer", answer }, question);
+      } else if (turn.kind === "edit") {
+        followUp({ kind: "text", text: turn.text }, null);
+      } else if (turn.kind === "assumption") {
+        followUp({ kind: "assumption", id: turn.id, option: turn.option }, null);
+      }
+    }
+    handledTurnsRef.current = turns.length;
+  }, [followUp, task.turns]);
+
+  // The stored plan failed before it existed (the commit was refused by the hook): route it.
   useEffect(() => {
     const error = execution.error;
     if (execution.status !== "failed" || execution.intent || !error || handledErrorRef.current === error) return;
     handledErrorRef.current = error;
-    handleFailure(toDeskFailure(error), options, "plan");
+    handleFailure(toDeskFailure(error), options);
   }, [execution.error, execution.intent, execution.status, handleFailure, options]);
 
   // The task follows its execution (status, intent, title, where it starts and ends).
@@ -251,15 +435,16 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the intent's identity and title are the dependencies
   }, [execution.status, intentId, intentTitle, patch]);
 
-  // In preview: plan again with the user's accounts once every wallet the plan needs is connected.
+  // A dry plan made with demo accounts: plan the same thread again once every wallet it needs is connected.
   const connectedKey = `${evmAddress ?? ""}|${solanaAddress ?? ""}`;
   useEffect(() => {
-    if (!dry || execution.intent || execution.status === "planning") return;
+    if (!dry || execution.intent || turning) return;
     if (missingWallets(dry.intent, actions.accounts.connected).length > 0) return;
-    if (replannedForRef.current === connectedKey) return;
+    const usedDemo = dry.intent.request.accounts.some((account) => previewAccountsForLane(laneOf(options.departure)).includes(account));
+    if (!usedDemo || replannedForRef.current === connectedKey) return;
     replannedForRef.current = connectedKey;
-    void run(options);
-  }, [actions.accounts.connected, connectedKey, dry, execution.intent, execution.status, options, run]);
+    followUp({ kind: "none" }, null);
+  }, [actions.accounts.connected, connectedKey, dry, execution.intent, followUp, options.departure, turning]);
 
   const shown: IntentGraph | null = execution.intent ?? dry?.intent ?? null;
   const line = useMemo(() => {
@@ -271,14 +456,14 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     return departureLine({ requested: options.departure, intent: shown, holding: holding ? `${holding.formatted} ${holding.symbol}` : null });
   }, [actions.holdings, options.departure, shown]);
 
-  const replannable = execution.status === "idle" || execution.status === "review" || execution.status === "failed";
+  const replannable = !turning && (execution.status === "idle" || execution.status === "review" || execution.status === "failed");
   const lineAction =
     line?.action === "change" && replannable ? (
       <button type="button" className="underline underline-offset-2" onClick={() => setChanging((current) => !current)} aria-expanded={changing}>
         {DESK_COPY.ticket.lines.change}
       </button>
     ) : line?.action === "start-from-requested" && options.departure !== "auto" ? (
-      <button type="button" className="underline underline-offset-2" onClick={() => void run({ departure: options.departure, defaultOnly: options.departure as NetworkKey })}>
+      <button type="button" className="underline underline-offset-2" onClick={() => run({ departure: options.departure, defaultOnly: options.departure as NetworkKey })}>
         {DESK_COPY.ticket.lines.startFromInstead(CHAINS[options.departure as NetworkKey].shortName)}
       </button>
     ) : null;
@@ -308,7 +493,8 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   const terminal = execution.status === "completed" || execution.status === "cancelled";
   const signingBlocked = lock.lockedByOther ? copy.signingLocked : null;
   const resumable = task.restored && execution.status === "idle" ? execution.resumableIntentId : null;
-  const replan = () => void run(options);
+  // Refresh quotes, or retry after a failed plan: the same thread plans again (a stored, unsigned plan is dropped first).
+  const replan = () => (threadRef.current ? followUp({ kind: "none" }, null) : run(options));
 
   const sourceChips = (planFailure: DeskPlanFailure | null) => (
     <SourceChips
@@ -316,33 +502,34 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       details={planFailure?.details ?? null}
       holdings={actions.holdings}
       exclude={options.departure}
-      onChoose={(network) => void run({ departure: network, defaultOnly: null })}
+      onChoose={(network) => run({ departure: network, defaultOnly: null })}
     />
   );
 
   const outcomeFooter = (
-    <div className="flex flex-col gap-4">
-      {execution.intent ? (
-        <Journey taskId={task.id} phase="after" intent={execution.intent} preview={execution.preview} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />
-      ) : null}
-      <div className="flex flex-wrap gap-3">
-        {ends && ends.to !== ends.from ? (
-          <Button size="sm" onClick={() => actions.setDeparture(ends.to)}>
-            {DESK_COPY.departure.continueFrom(CHAINS[ends.to].shortName)}
-          </Button>
-        ) : null}
-        <Button size="sm" variant="secondary" onClick={() => actions.fill("")}>
-          {copy.planAnother}
+    <div className="flex flex-wrap gap-3">
+      {ends && ends.to !== ends.from ? (
+        <Button size="sm" onClick={() => actions.setDeparture(ends.to)}>
+          {DESK_COPY.departure.continueFrom(CHAINS[ends.to].shortName)}
         </Button>
-        {task.sentence ? (
-          <ButtonLink to={studioHref(task.sentence, options.departure)} size="sm" variant="ghost">
-            {copy.openInStudio}
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </ButtonLink>
-        ) : null}
-      </div>
+      ) : null}
+      <Button size="sm" variant="secondary" onClick={() => actions.fill("")}>
+        {copy.planAnother}
+      </Button>
+      {task.sentence ? (
+        <ButtonLink to={studioHref(task.sentence, options.departure)} size="sm" variant="ghost">
+          {copy.openInStudio}
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </ButtonLink>
+      ) : null}
     </div>
   );
+
+  const turnErrorPanel = turnError ? (
+    <p role="alert" className="border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
+      {turnError.message}
+    </p>
+  ) : null;
 
   let body: React.ReactNode;
   if (resumable) {
@@ -364,6 +551,16 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         </div>
       </div>
     );
+  } else if (task.restored && !task.sentence && task.status === "question") {
+    // An open question does not survive a reload (its thread lived in memory only).
+    body = (
+      <div className="flex flex-col items-start gap-3 border-2 border-dashed border-control bg-surface-2 p-4">
+        <p className="text-sm font-semibold">{copy.questionCleared}</p>
+        <Button size="sm" variant="secondary" onClick={() => actions.fill("")}>
+          Type it again
+        </Button>
+      </div>
+    );
   } else if (failure) {
     body = (
       <PlanFailurePanel
@@ -379,6 +576,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     body = (
       <>
         {changing ? sourceChips(null) : null}
+        {turnErrorPanel}
         <IntentExecutionFlow
           execution={execution}
           describeAccount={describeAccount}
@@ -387,53 +585,52 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           showGraph={false}
           notifyProgress
           signingBlockedReason={terminal ? null : signingBlocked}
-          beforeBody={
-            execution.intent && !terminal ? (
-              <Journey
-                taskId={task.id}
-                phase={execution.status === "review" || execution.status === "planning" ? "review" : "live"}
-                intent={execution.intent}
-                preview={execution.preview}
-                holdings={actions.holdings}
-                lane={lane}
-                onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})}
-              />
-            ) : null
-          }
+          holdJourneyPrompt={Boolean(task.question)}
           outcomeFooter={outcomeFooter}
         />
-        {execution.intent ? (
-          <details className="border-2 border-control bg-surface" onToggle={(event) => setMapOpen(event.currentTarget.open)}>
-            <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-xs font-black uppercase tracking-wider">
-              <MapIcon className="h-4 w-4" aria-hidden="true" />
-              {copy.routeMap}
-            </summary>
-            {mapOpen ? (
-              <div className="overflow-x-auto p-3">
-                <IntentGraphView intent={execution.intent} phases={execution.stepPhases} />
-              </div>
-            ) : null}
-          </details>
-        ) : null}
+        <details className="border-2 border-control bg-surface" onToggle={(event) => setMapOpen(event.currentTarget.open)}>
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-xs font-black uppercase tracking-wider">
+            <MapIcon className="h-4 w-4" aria-hidden="true" />
+            {copy.routeMap}
+          </summary>
+          {mapOpen ? (
+            <div className="overflow-x-auto p-3">
+              <IntentGraphView intent={execution.intent} phases={execution.stepPhases} />
+            </div>
+          ) : null}
+        </details>
       </>
     );
   } else if (dry) {
+    const missing = missingWallets(dry.intent, actions.accounts.connected);
     body = (
       <>
         {changing ? sourceChips(null) : null}
+        {turnErrorPanel}
         <PreviewTaskBody
           intent={dry.intent}
           preview={dry.preview}
-          missing={missingWallets(dry.intent, actions.accounts.connected)}
-          replanning={execution.status === "planning"}
-          journey={<Journey taskId={task.id} phase="review" intent={dry.intent} preview={dry.preview} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />}
+          missing={missing}
+          replanning={turning}
+          assumptions={dry.assumptions}
+          onAssumption={(id, option) => {
+            const alternative = dry.assumptions.find((assumption) => assumption.id === id)?.alternatives.find((entry) => entry.id === option);
+            patch({ turn: { kind: "assumption", at: Date.now(), id, option, label: alternative?.label ?? option } });
+          }}
+          {...(missing.length === 0 ? { onReview: review } : {})}
+          reviewing={committing}
+          reviewBlocked={signingBlocked}
+          journey={<Journey taskId={task.id} phase="review" intent={dry.intent} preview={dry.preview} journey={dry.journey} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />}
         />
       </>
     );
-  } else if (dryRunning || execution.status === "planning" || task.status === "planning") {
-    body = <PlanningSkeleton label={dryRunning || plannerFor(options.departure).length === 0 ? copy.planningPreview : copy.planning} />;
+  } else if (task.question) {
+    // The question slot above carries the card; a refused answer explains itself here.
+    body = turnErrorPanel ?? (turning ? <PlanningSkeleton label={copy.planning} /> : null);
+  } else if (turning || task.status === "planning") {
+    body = <PlanningSkeleton label={plannerFor(options.departure).length === 0 ? copy.planningPreview : copy.planning} />;
   } else {
-    body = <p className="text-sm font-semibold text-muted">{task.restored ? copy.sentenceForgotten : copy.planning}</p>;
+    body = turnErrorPanel ?? <p className="text-sm font-semibold text-muted">{task.restored ? copy.sentenceForgotten : copy.planning}</p>;
   }
 
   return (

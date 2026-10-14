@@ -369,7 +369,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         onHint={(hint) => actions.fill(hint)}
       />
     );
-  } else if (execution.intent || (execution.status !== "idle" && execution.status !== "planning")) {
+  } else if (execution.intent) {
     body = (
       <>
         {changing ? sourceChips(null) : null}

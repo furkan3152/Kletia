@@ -4,6 +4,7 @@
  * desk at its ticket; "New task" focuses the composer; "Clear finished"
  * removes finished tasks (a signing task never goes).
  */
+import { useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
 import { LineBullet } from "../../site/art/LineBullet";
@@ -22,7 +23,9 @@ export interface TaskListProps {
 }
 
 export function TaskList({ onOpenTask, onNewTask, headingLevel = 2 }: TaskListProps) {
-  const tasks = useDeskStore(tasksNewestFirst);
+  const all = useDeskStore((state) => state.tasks);
+  // A selector must return a stable value: sort the stored list, not a fresh one per read.
+  const tasks = useMemo(() => tasksNewestFirst({ tasks: all }), [all]);
   const focusedTaskId = useDeskStore((state) => state.focusedTaskId);
   const anyFinished = tasks.some((task) => isFinishedStatus(task.status));
   const Heading = headingLevel === 2 ? "h2" : "h3";

@@ -9,7 +9,7 @@ import { describe, it } from "node:test";
 import { RESERVED_CONTRACT_PHRASES, reservedContractPhrase } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import type { ContractPhrase } from "../contracts/directory.js";
-import { compileIntentText, GRAMMAR_EXAMPLES, GRAMMAR_VENUE_WORDS, isGrammarVenueWord, type GrammarContext } from "../grammar.js";
+import { compileIntentText, GRAMMAR_EXAMPLES, GRAMMAR_VENUE_WORDS, isGrammarVenueWord, matchContractPhrase, type GrammarContext } from "../grammar.js";
 
 const ACCOUNTS: GrammarContext["accounts"] = ["eip155:8453:0x4f183e308f24c81c05303821AD025812fBFd807D", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"];
 
@@ -77,6 +77,31 @@ describe("grammar: contract aliases", () => {
   it("splits clauses on the key's own verbs", () => {
     const result = compile("bridge 100 USDC from base to arbitrum and deposit it into acme vault, claim rewards from acme rewards on base");
     assert.deepEqual(result.actions.map((action) => action.kind), ["bridge", "call", "call"]);
+  });
+});
+
+describe("grammar: matchContractPhrase (gaps for the clarify layer)", () => {
+  it("returns the action, an amount gap, a network gap or null instead of throwing for what a question can fix", () => {
+    assert.deepEqual(matchContractPhrase("deposit 100 USDC into acme vault on base", PHRASES), {
+      action: { kind: "call", network: "base", contract: "ct_000000000000000000000001", entry: "deposit", from: "USDC", amount: "100" },
+      explicit: true,
+    });
+    const amount = matchContractPhrase("deposit into acme vault on base", PHRASES);
+    assert.ok(amount && "gap" in amount && amount.gap === "amount");
+    const network = matchContractPhrase("deposit 100 USDC into acme vault", PHRASES);
+    assert.ok(network && "gap" in network && network.gap === "network");
+    assert.deepEqual(network.gap === "network" ? network.networks : [], ["base", "arbitrum"]);
+    assert.deepEqual(matchContractPhrase("deposit 100 USDC into acme vault", PHRASES, { previousDestination: "arbitrum", index: 1 }), {
+      action: { kind: "call", network: "arbitrum", contract: "ct_000000000000000000000002", entry: "deposit", from: "USDC", amount: "100" },
+      explicit: false,
+    });
+    assert.equal(matchContractPhrase("deposit 100 USDC into aave on base", PHRASES), null);
+    assert.equal(matchContractPhrase("deposit 100 USDC into acme vault", []), null);
+  });
+
+  it("still refuses what no answer fixes (a verb the alias does not take, an amount on a non-spending entry)", () => {
+    assert.throws(() => matchContractPhrase("stake 5 USDC into acme vault on base", PHRASES), clauseError(/accepts "deposit", "supply"/u));
+    assert.throws(() => matchContractPhrase("claim 5 USDC from acme rewards", PHRASES), clauseError(/spends nothing/u));
   });
 });
 

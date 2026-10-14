@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { findAssetBySymbol, type IntentStep } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { configureVenueQuoteTimeout, netMinimumOutput } from "../auction.js";
+import { compareQuotes, configureVenueQuoteTimeout, netMinimumOutput, type VenueQuote } from "../auction.js";
 import { planIntent } from "../planner.js";
 import { quoteRoutes } from "../quotes.js";
 import { createIntent, prepareStep } from "../service.js";
@@ -166,6 +166,33 @@ describe("venue auction (planner)", () => {
     assert.equal(graph.steps[0]?.account, `eip155:1:${EVM_ADDRESS}`);
     assert.equal(graph.steps[0]?.settlement?.destinationNetwork, "base");
     assert.equal(graph.steps[0]?.protocol, "relay");
+  });
+});
+
+describe("auction ranking: on-chain floors break ties", () => {
+  function quote(id: "relay" | "lifi", floor: "onchain" | "claimed" | undefined, minimum = "1000", seconds = 30, transactions = 1): VenueQuote {
+    const adapter = { id, protocols: [id], label: id } as unknown as VenueQuote["adapter"];
+    return {
+      adapter,
+      protocol: id,
+      netMinimum: BigInt(minimum),
+      slow: false,
+      planned: { minimumOutput: { amount: minimum }, estimatedSeconds: seconds, transactionCount: transactions, ...(floor ? { floor } : {}) } as VenueQuote["planned"],
+    };
+  }
+
+  it("prefers an on-chain floor over a claimed one only when output, time and transactions tie", () => {
+    const claimed = quote("relay", "claimed");
+    const onchain = quote("lifi", "onchain");
+    const order = [claimed.adapter, onchain.adapter];
+    assert.deepEqual([claimed, onchain].sort((a, b) => compareQuotes(a, b, [], order)).map((entry) => entry.protocol), ["lifi", "relay"]);
+    const unstated = quote("relay", undefined);
+    assert.deepEqual([unstated, onchain].sort((a, b) => compareQuotes(a, b, [], order)).map((entry) => entry.protocol), ["lifi", "relay"], "an unstated floor counts as claimed");
+    const richer = quote("relay", "claimed", "1001");
+    assert.deepEqual([onchain, richer].sort((a, b) => compareQuotes(a, b, [], order)).map((entry) => entry.protocol), ["relay", "lifi"], "output first");
+    const faster = quote("relay", "claimed", "1000", 10);
+    assert.deepEqual([onchain, faster].sort((a, b) => compareQuotes(a, b, [], order)).map((entry) => entry.protocol), ["relay", "lifi"], "then seconds");
+    assert.deepEqual([claimed, onchain].sort((a, b) => compareQuotes(a, b, ["relay"], order)).map((entry) => entry.protocol), ["relay", "lifi"], "a preferred venue still wins");
   });
 });
 

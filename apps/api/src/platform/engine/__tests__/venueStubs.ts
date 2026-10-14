@@ -250,3 +250,106 @@ export function nativeCost(network: NetworkKey, units: string, usd?: number): As
     ...(usd !== undefined ? { usd } : {}),
   };
 }
+
+/* -------------------------------------------------- same-network venues */
+
+export interface SwapScript {
+  /** Guaranteed output as bps of the stub price table's output. */
+  minimumBps: number;
+  floor?: "onchain" | "claimed";
+  seconds?: number;
+  /** Plan throws this code. */
+  fail?: string;
+}
+
+export const swapScripts: Record<string, SwapScript> = {};
+/** Every action the same-network swap and stake stubs planned, in order. */
+export const swapCalls: AdapterAction[] = [];
+
+/** USD cents per whole token for the swap and stake stubs. */
+const SWAP_PRICES: Readonly<Record<string, bigint>> = { ETH: 300_000n, WETH: 300_000n, USDC: 100n, WSTETH: 360_000n, RETH: 340_000n, WEETH: 320_000n, SOL: 15_000n };
+
+function swapOutput(action: AdapterAction, bps: number): string {
+  const inPrice = SWAP_PRICES[action.input.symbol.toUpperCase()] ?? 100n;
+  const outPrice = SWAP_PRICES[action.output.symbol.toUpperCase()] ?? 100n;
+  const units = (BigInt(action.amount) * inPrice * 10n ** BigInt(action.output.decimals)) / (outPrice * 10n ** BigInt(action.input.decimals));
+  return (units * BigInt(bps) / 10_000n).toString();
+}
+
+/**
+ * A same-network venue stub (`swap` on the given networks, or `stake` of ETH
+ * on Ethereum) with a scripted minimum, floor and failure; `explicitOnly`
+ * mirrors the named Solana DEX venues.
+ */
+export function stubSameNetwork(
+  protocol: ProtocolId,
+  options: {
+    readonly kind?: "swap" | "stake";
+    readonly networks: readonly NetworkKey[];
+    readonly explicitOnly?: boolean;
+    readonly label?: string;
+    /** Output symbols served (default: any). */
+    readonly outputs?: readonly string[];
+  },
+): ProtocolAdapter {
+  const kind = options.kind ?? "swap";
+  const plan = (action: AdapterAction): PlannedStep => {
+    swapCalls.push(action);
+    const script = swapScripts[protocol] ?? { minimumBps: 9_900 };
+    if (script.fail) throw new PlatformError(script.fail, `${protocol} refused the route.`, 422);
+    const minimum = swapOutput(action, script.minimumBps);
+    const expected = swapOutput(action, Math.min(10_000, script.minimumBps + 50));
+    return {
+      protocol,
+      title: `${protocol} ${kind} ${action.input.symbol}->${action.output.symbol}`,
+      mode: "wallet",
+      input: assetAmount(action.input, action.amount),
+      expectedOutput: assetAmount(action.output, expected),
+      minimumOutput: assetAmount(action.output, minimum),
+      estimatedSeconds: script.seconds ?? 15,
+      settlement: { kind: "same-network" },
+      warnings: [],
+      transactionCount: 1,
+      slippageBps: action.slippageBps,
+      ...(script.floor ? { floor: script.floor } : {}),
+    };
+  };
+  return {
+    id: protocol,
+    protocols: [protocol],
+    label: options.label ?? `Stub ${protocol}`,
+    ...(options.explicitOnly ? { explicitOnly: true } : {}),
+    supports: (route) => route.kind === kind && route.network === route.destinationNetwork && options.networks.includes(route.network) &&
+      route.input.id !== route.output.id && (kind !== "stake" || route.input.isNative) &&
+      (!options.outputs || options.outputs.includes(route.output.symbol)),
+    plan: async (action) => plan(action),
+    prepare: async ({ action }): Promise<PreparedPayload> => {
+      const planned = plan(action);
+      const transaction: TransactionRequest = {
+        vm: "evm",
+        network: action.network,
+        chainId: CHAINS[action.network].evmChainId as number,
+        from: action.account.address,
+        to: "0x000000000000000000000000000000000000bEEF",
+        data: "0xabcdef",
+        value: action.input.isNative ? action.amount : "0",
+        description: `${protocol} ${kind}`,
+      };
+      return {
+        transactions: [transaction],
+        records: [{ vm: "evm", network: action.network, to: transaction.to, description: transaction.description }],
+        input: planned.input,
+        expectedOutput: planned.expectedOutput,
+        minimumOutput: planned.minimumOutput,
+        warnings: [],
+      };
+    },
+    verify: async () => ({ status: "confirmed", evidence: [] }),
+  };
+}
+
+/** Clears the swap scripts and recorded calls. */
+export function resetSwapStubs(): void {
+  for (const key of Object.keys(swapScripts)) delete swapScripts[key];
+  swapCalls.length = 0;
+}

@@ -100,16 +100,50 @@ function normalizeStatus(status: number): PlatformErrorStatus {
   return 400;
 }
 
+/** Upstream log lines per minute; beyond it lines are dropped until the minute ends (an outage must not flood the log). */
+const UPSTREAM_LOG_PER_MINUTE = 30;
+let upstreamLogWindow = { startedAt: 0, lines: 0 };
+
+/**
+ * One provider error message reduced to something safe to log: URLs (which
+ * can carry keyed RPC endpoints), long hex payloads (calldata, signatures),
+ * long base58 strings and anything that looks like a key are removed, and
+ * the result is one line of at most 160 characters.
+ */
+export function sanitizeUpstreamMessage(raw: string): string {
+  return raw
+    .replace(/[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/giu, "<url>")
+    .replace(/0x[0-9a-f]{40,}/giu, "<hex>")
+    .replace(/\b[1-9A-HJ-NP-Za-km-z]{43,}\b/gu, "<base58>")
+    .replace(/\b(?:api[_-]?key|apikey|token|secret|key)\s*[=:]\s*\S+/giu, "<redacted>")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+/** Logs one sanitized line for an upstream error mapped to RPC_UNAVAILABLE or PROVIDER_UNAVAILABLE. */
+function logUpstream(family: "evm" | "solana", error: unknown): void {
+  const now = Date.now();
+  if (now - upstreamLogWindow.startedAt >= 60_000) upstreamLogWindow = { startedAt: now, lines: 0 };
+  if (upstreamLogWindow.lines >= UPSTREAM_LOG_PER_MINUTE) return;
+  upstreamLogWindow.lines += 1;
+  const record = error as { readonly shortMessage?: unknown; readonly message?: unknown };
+  const message = typeof record.shortMessage === "string" && record.shortMessage ? record.shortMessage : typeof record.message === "string" ? record.message : String(error);
+  console.warn(`[platform] upstream ${family} error: ${sanitizeUpstreamMessage(message)}`);
+}
+
 /**
  * Maps any thrown value to a PlatformError. Client-side (4xx) provider
  * messages are user-facing and preserved; anything server-side is replaced
- * with a generic message so RPC URLs, keys and stacks never leak.
+ * with a generic message so RPC URLs, keys and stacks never leak. Mapped
+ * upstream failures log one sanitized line, so operators can see the cause.
  */
 export function toPlatformError(error: unknown): PlatformError {
   if (error instanceof PlatformError) return error;
   if (error instanceof SolanaProviderError) {
     const status = normalizeStatus(error.status);
     if (status >= 500) {
+      logUpstream("solana", error);
       return new PlatformError(
         CODE_PATTERN.test(error.code) ? error.code : "PROVIDER_UNAVAILABLE",
         "A Solana provider is temporarily unavailable. Try again shortly.",
@@ -119,9 +153,11 @@ export function toPlatformError(error: unknown): PlatformError {
     return new PlatformError(error.code, error.message.slice(0, 300), status);
   }
   if (error instanceof ViemBaseError) {
+    logUpstream("evm", error);
     return new PlatformError("RPC_UNAVAILABLE", "An EVM network read failed. Try again shortly.", 502);
   }
   if (isSolanaError(error)) {
+    logUpstream("solana", error);
     return new PlatformError("RPC_UNAVAILABLE", "A Solana network read failed. Try again shortly.", 502);
   }
   if (error instanceof Error && error.name === "TimeoutError") {

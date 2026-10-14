@@ -127,6 +127,12 @@ const readWorkflowResume = (value: unknown): WorkflowResumeSnapshot | null => {
   };
 };
 
+/** A desk task id (uuid) or a restored workflow's `wf:<id>`; anything else is dropped on the way in or out. */
+const THREAD_ID = /^(?:wf:)?[A-Za-z0-9_.:-]{8,128}$/u;
+
+const isThreadId = (value: unknown): value is string =>
+  typeof value === "string" && THREAD_ID.test(value);
+
 const toSafePersistedMessage = (
   message: ChatMessage,
   network: NetworkMode,
@@ -143,6 +149,7 @@ const toSafePersistedMessage = (
     normalizeWalletHistoryOwner(message.walletAddress) ??
     undefined,
   requestId: message.requestId,
+  ...(isThreadId(message.threadId) ? { threadId: message.threadId } : {}),
 });
 
 const readPersistedMessages = (
@@ -173,6 +180,7 @@ const readPersistedMessages = (
           widgetType: message.widgetType,
           walletAddress: message.walletAddress,
           requestId: message.requestId,
+          threadId: message.threadId,
         },
         network,
         historyOwner,

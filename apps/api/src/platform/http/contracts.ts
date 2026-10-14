@@ -47,11 +47,13 @@ import {
   contractSecurityFields,
   contractTarget,
   deniedTargetReason,
+  findAssetByAddress,
   functionSelector,
   isSecurityRelevantChange,
   parseAccountId,
   reservedIntegratorName,
   resolveChain,
+  toChecksumAddress,
   validateContractDefinition,
   isEvmAddress,
   isSolanaAddress,
@@ -63,6 +65,7 @@ import {
   type ContractEventData,
   type ContractEventType,
   type ContractInspection,
+  type ContractInspectionHints,
   type ContractPins,
   type ContractStatus,
   type ContractTestRequest,
@@ -92,6 +95,7 @@ import {
   type SolanaNetworkKey,
 } from "../index.js";
 import { isSolanaNetworkKey } from "../../networks/solana/index.js";
+import { rawEthCall } from "../engine/chains/evm.js";
 import { createActionTransport } from "./actionTransport.js";
 import { apiKeyStore, keyLive, loadOperatorKeys } from "./auth.js";
 import {
@@ -1493,6 +1497,43 @@ function evmFunctions(abi: readonly ContractAbiItem[] | null): AbiFunctionClassi
   return out;
 }
 
+/** `asset()` of ERC-4626. */
+const ASSET_SELECTOR = "0x38d52e0f";
+const ERC4626_DEPOSIT_EVENT = "Deposit(address,address,uint256,uint256)";
+
+type AssetReader = (network: EvmNetworkKey, vault: string) => Promise<string | null>;
+
+/** One `eth_call` of `asset()` at the latest block; null when it reverts or returns something other than a clean address word. */
+const liveAssetReader: AssetReader = async (network, vault) => {
+  const word = await rawEthCall(network, vault, ASSET_SELECTOR);
+  if (!word || !/^0x0{24}[0-9a-fA-F]{40}$/u.test(word) || /^0x0{64}$/u.test(word)) return null;
+  return toChecksumAddress(`0x${word.slice(26)}`);
+};
+let assetReader: AssetReader = liveAssetReader;
+
+/** Replaces the `asset()` read of the ERC-4626 inspect hint (tests); `null` restores the live read. */
+export function configureInspectAssetReader(custom: AssetReader | null): void {
+  assetReader = custom ?? liveAssetReader;
+}
+
+/** Whether a verified ABI is an ERC-4626 vault: `asset()`, `deposit(uint256,address)` and the standard `Deposit` event. */
+function looksLikeErc4626(abi: readonly ContractAbiItem[] | null): boolean {
+  if (!abi) return false;
+  const items = abi.filter((item): item is ContractAbiItem & { name: string; inputs: { type: string }[] } =>
+    isRecord(item) && typeof item.name === "string" && Array.isArray(item.inputs));
+  const signature = (item: { name: string; inputs: { type: string }[] }) => `${item.name}(${item.inputs.map((input) => input.type).join(",")})`;
+  const has = (type: string, wanted: string) => items.some((item) => item.type === type && signature(item) === wanted);
+  return has("function", "asset()") && has("function", "deposit(uint256,address)") && has("event", ERC4626_DEPOSIT_EVENT);
+}
+
+/** Inspect hints; a failed `asset()` read leaves the hint out (it only prefills a wizard). */
+async function inspectionHints(network: EvmNetworkKey, address: string, abi: readonly ContractAbiItem[] | null, deployed: boolean): Promise<ContractInspectionHints | null> {
+  if (!deployed || !looksLikeErc4626(abi)) return null;
+  const asset = await assetReader(network, address).catch(() => null);
+  if (!asset) return null;
+  return { erc4626: { asset, registrySymbol: findAssetByAddress(network, asset)?.symbol ?? null } };
+}
+
 /** GET /v1/contracts/inspect: what registration would pin and allow (wizard helper; nothing is stored). */
 export async function inspectContract(query: { network?: string; address?: string; programs?: string }): Promise<ContractInspection> {
   assertContractsEnabled();
@@ -1510,6 +1551,7 @@ export async function inspectContract(query: { network?: string; address?: strin
     const source = await checks.sourcify(network, address, true);
     const implementation = deployed && inspection.pins.proxy ? await checks.sourcify(network, inspection.pins.proxy.implementation, true) : null;
     const abi = implementation?.abi ?? source.abi;
+    const hints = await inspectionHints(evmNetwork(network), address, abi, deployed);
     return {
       vm: "evm",
       network,
@@ -1522,6 +1564,7 @@ export async function inspectContract(query: { network?: string; address?: strin
       verification: { source: source.verification, implementationSource: implementation?.verification ?? null },
       abi,
       functions: evmFunctions(abi),
+      ...(hints ? { hints } : {}),
     };
   }
   const programs = (query.programs ?? "").split(",").map((entry) => entry.trim()).filter(Boolean);

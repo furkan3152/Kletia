@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { applySlippage, validateIntentGraph, type IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { actionForStep, planIntent } from "../planner.js";
+import { actionForStep, LENDING_PROTOCOLS, planIntent } from "../planner.js";
 import { decodeStepRef } from "../stepRef.js";
 import { portionOf } from "../util.js";
 import {
@@ -198,6 +198,31 @@ describe("planner", () => {
     assert.equal(error.code, "INVALID_REQUEST");
     assert.equal(error.status, 400);
     assert.equal(error.issues?.[0]?.path, "accounts[0]");
+  });
+
+  it("appends the newer lending protocols after the existing defaults", () => {
+    assert.deepEqual(LENDING_PROTOCOLS.slice(0, 6), ["aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino"]);
+    assert.deepEqual(LENDING_PROTOCOLS.slice(6), ["spark-savings", "fluid", "sparklend", "yearn-v3"]);
+  });
+
+  it("refuses an unverified Solana token without printing its mint (TOKEN_UNVERIFIED)", async () => {
+    const LOOKALIKE = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/tokens/v2/search")) {
+        return new Response(JSON.stringify([{ id: LOOKALIKE, symbol: "FAKEUSD", name: "Fake USD", decimals: 6, isVerified: false }]), { headers: { "content-type": "application/json" } });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }) as typeof fetch;
+    try {
+      const error = await planError({ text: "swap 1 SOL to FAKEUSD", accounts: ACCOUNTS });
+      assert.equal(error.code, "TOKEN_UNVERIFIED");
+      assert.ok(!error.message.includes(LOOKALIKE), error.message);
+      assert.match(error.message, /Paste the mint address of the token you mean/u);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 
   it("rebuilds a funded step's action from the parent's observed output", async () => {

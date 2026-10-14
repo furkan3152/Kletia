@@ -23,6 +23,12 @@
  *   is never signed through.
  * - every custom-contract step's prepared review (a `review` gate).
  * A Rule Book hold (`POLICY_APPROVAL_REQUIRED`) pauses with `policyHold`.
+ *
+ * A host that runs several executions (the desk at /app) passes a signing
+ * lock (`acquireSigning` / `releaseSigning`): every run, a resume included,
+ * takes the lock before anything is prepared and gives it back when the run
+ * ends, so two wallet prompts can never race. A refused lock pauses with
+ * nothing prepared. Each host instance resumes only its own `sessionKey`.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -97,6 +103,14 @@ export interface IntentExecutionError {
   readonly retryable: boolean;
   /** Present when the API returned the error. */
   readonly platform: PlatformError | null;
+  /** The API's guidance, e.g. supported example phrases on INTENT_UNSUPPORTED. */
+  readonly hints?: readonly string[];
+  /**
+   * The API's structured context (`error.details`), e.g. the candidate
+   * networks of SOURCE_REQUIRED; null or absent when the API (or the SDK in
+   * use) did not provide one.
+   */
+  readonly details?: Readonly<Record<string, unknown>> | null;
 }
 
 /** An intent request whose accounts default to the connected wallets. */
@@ -111,6 +125,16 @@ export interface UseIntentExecutionOptions {
   readonly metadata?: Readonly<Record<string, string>>;
   /** Settlement poll interval passed to `executeIntent` (default 4000 ms). */
   readonly pollIntervalMs?: number;
+  /**
+   * A signing lock shared with other executions on the page. Called before a
+   * run prepares anything; `false` refuses the run (it pauses with
+   * `signingLockedReason`). Absent: no lock.
+   */
+  readonly acquireSigning?: () => boolean;
+  /** Gives the lock back when the run that took it ends (finished, paused, failed, cancelled or unmounted). */
+  readonly releaseSigning?: () => void;
+  /** Why a refused run paused (default: another execution is signing). */
+  readonly signingLockedReason?: string;
 }
 
 /** A pause before a wallet prompt that needs the user's decision. */
@@ -331,10 +355,20 @@ function toExecutionError(error: unknown): IntentExecutionError {
       stepId: null,
       retryable: platform.retryable || platform.status === 409,
       platform,
+      hints: error.hints,
+      details: apiErrorDetails(error),
     };
   }
   const message = error instanceof Error && error.message ? error.message : "Execution failed.";
   return { code: "CLIENT_ERROR", message: walletMessage(message), stepId: null, retryable: true, platform: null };
+}
+
+/** `error.details` of an API error, when the SDK in use keeps it (newer SDKs do). */
+function apiErrorDetails(error: KletiaApiError): Readonly<Record<string, unknown>> | null {
+  const details = (error as { details?: unknown }).details;
+  return typeof details === "object" && details !== null && !Array.isArray(details)
+    ? (details as Readonly<Record<string, unknown>>)
+    : null;
 }
 
 function localError(code: string, message: string, stepId: string | null = null): IntentExecutionError {
@@ -355,6 +389,7 @@ function requestFromGraph(graph: IntentGraph): IntentRequestInput {
     ...(request.text ? { text: request.text } : {}),
     ...(request.actions ? { actions: request.actions } : {}),
     ...(request.defaultNetwork ? { defaultNetwork: request.defaultNetwork } : {}),
+    ...(request.sourceNetwork ? { sourceNetwork: request.sourceNetwork } : {}),
     ...(request.constraints ? { constraints: request.constraints } : {}),
     ...(request.metadata ? { metadata: request.metadata } : {}),
   };
@@ -462,6 +497,11 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const sessionKey = options.sessionKey === undefined ? STUDIO_INTENT_SESSION_KEY : options.sessionKey;
   const pollIntervalMs = options.pollIntervalMs;
   const connected = useIntentSigners();
+  const lockRef = useRef({
+    acquire: options.acquireSigning,
+    release: options.releaseSigning,
+    reason: options.signingLockedReason,
+  });
 
   const [intent, setIntent] = useState<IntentGraph | null>(null);
   const [status, setStatus] = useState<IntentExecutionStatus>("idle");
@@ -504,6 +544,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   useLayoutEffect(() => {
     connectedRef.current = connected;
     metadataRef.current = options.metadata;
+    lockRef.current = { acquire: options.acquireSigning, release: options.releaseSigning, reason: options.signingLockedReason };
     reconfirmStepIdsRef.current = reconfirmStepIds;
   });
 
@@ -787,6 +828,21 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
         return null;
       }
 
+      // One execution signs at a time: nothing is prepared without the lock.
+      const lock = lockRef.current;
+      if (lock.acquire && !lock.acquire()) {
+        const reason = lock.reason ?? "Another intent is signing. Finish or stop it first.";
+        setError(localError("SIGNING_LOCKED", reason));
+        setStatus("paused");
+        setPauseReason(reason);
+        runRef.current = null;
+        return null;
+      }
+      // The lock goes back when this run ends, unless a newer run of this hook took over.
+      const releaseLock = () => {
+        if (tokenRef.current === token) lock.release?.();
+      };
+
       setStatus("executing");
       if (sessionKey) updateIntentSession(sessionKey, graph.id, (session) => session);
       startStream(client, graph.id);
@@ -979,6 +1035,8 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           // The last known version stays on screen.
         }
         return null;
+      } finally {
+        releaseLock();
       }
     },
     [

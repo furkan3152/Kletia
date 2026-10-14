@@ -1,0 +1,507 @@
+/*
+ * The desk at /app: document scrolling with a sticky header, sticky rails
+ * and a composer docked to the bottom of the main column; the departure
+ * board (a popover on wide screens, a bottom sheet on phones and tablets).
+ * Colours come from the site's semantic tokens (--kl-*); the board is a
+ * printed object and stays ink in both themes. Every animation has a
+ * reduced-motion fallback.
+ */
+
+[data-kl-desk] {
+  /* Header (56 px) plus the view nav (44 px) under 1024 px. */
+  --kd-header: 56px;
+  --kd-nav: 0px;
+  scroll-padding-top: calc(var(--kd-header) + var(--kd-nav) + 16px);
+  scroll-padding-bottom: 160px;
+}
+
+@media (max-width: 1023.98px) {
+  [data-kl-desk] {
+    --kd-nav: 44px;
+  }
+}
+
+.kd-shell {
+  min-height: 100dvh;
+  background: var(--kl-paper);
+  color: var(--kl-text);
+  overflow-x: clip;
+}
+
+.kd-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--kd-header);
+  border-bottom: 3px solid var(--kl-line);
+  background: var(--kl-paper);
+}
+
+.kd-viewnav {
+  position: sticky;
+  top: var(--kd-header);
+  z-index: 39;
+  height: var(--kd-nav);
+  border-bottom: 2px solid var(--kl-line);
+  background: var(--kl-paper);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kd-viewnav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .kd-viewnav {
+    display: none;
+  }
+}
+
+/* --- Grid ---------------------------------------------------------------- */
+
+.kd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+  max-width: 1440px;
+}
+
+.kd-rail-left,
+.kd-rail-right {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .kd-grid {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    padding: 24px 24px 0;
+  }
+  .kd-rail-right {
+    display: block;
+  }
+}
+
+@media (min-width: 1280px) {
+  .kd-grid {
+    grid-template-columns: 264px minmax(0, 760px) 320px;
+    justify-content: center;
+  }
+  .kd-rail-left {
+    display: block;
+  }
+}
+
+.kd-rail {
+  position: sticky;
+  top: calc(var(--kd-header) + 24px);
+  max-height: calc(100dvh - var(--kd-header) - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 24px;
+  scrollbar-width: thin;
+}
+
+.kd-main {
+  display: flex;
+  min-width: 0;
+  min-height: calc(100dvh - var(--kd-header) - var(--kd-nav) - 24px);
+  flex-direction: column;
+}
+
+.kd-thread {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 32px;
+  padding-bottom: 32px;
+}
+
+/* --- Composer ------------------------------------------------------------- */
+
+.kd-composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  margin: 0 -16px;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--kl-paper) 85%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .kd-composer {
+    margin: 0;
+    padding: 12px 0 max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+.kd-composer__box {
+  position: relative;
+  border: 3px solid var(--kl-control);
+  background: var(--kl-surface);
+  box-shadow: 4px 4px 0 #1a1a1a;
+}
+
+.dark .kd-composer__box {
+  box-shadow: 4px 4px 0 #475569;
+}
+
+.kd-composer__box[data-yard] {
+  border-style: dashed;
+}
+
+.kd-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  max-height: 40vh;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--kl-text);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.kd-composer textarea::placeholder {
+  color: var(--kl-placeholder);
+}
+
+.kd-composer textarea:focus {
+  outline: none;
+}
+
+.kd-composer__box:focus-within {
+  outline: 4px solid var(--kl-focus);
+  outline-offset: 2px;
+}
+
+/* --- Departure chip ------------------------------------------------------- */
+
+.kd-chip-from {
+  display: inline-flex;
+  min-height: 44px;
+  max-width: 100%;
+  align-items: stretch;
+  border: 3px solid var(--kl-control);
+  background: var(--kl-surface);
+  color: var(--kl-text);
+  box-shadow: 2px 2px 0 #1a1a1a;
+}
+
+.dark .kd-chip-from {
+  box-shadow: 2px 2px 0 #475569;
+}
+
+.kd-chip-from[data-yard] {
+  border-style: dashed;
+}
+
+.kd-chip-from__tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  background: #ffd60a;
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.kd-bullet-auto {
+  display: inline-flex;
+  min-width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 2px solid #1a1a1a;
+  background: #ffd60a;
+  color: #1a1a1a;
+  font-family: "JetBrains Mono Variable", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* --- Departure board ------------------------------------------------------ */
+
+.kd-board {
+  border: 3px solid #1a1a1a;
+  background: #1a1a1a;
+  color: #f4f1ea;
+  font-family: "JetBrains Mono Variable", ui-monospace, monospace;
+}
+
+.dark .kd-board {
+  border-color: #4b5563;
+}
+
+.kd-board__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.kd-board__legend {
+  padding: 12px 16px 6px;
+  color: #ffd60a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.kd-board__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-top: 1px solid #3a3a3a;
+  cursor: pointer;
+}
+
+.kd-board__row:hover {
+  background: #262626;
+}
+
+.kd-board__row[data-disabled] {
+  cursor: not-allowed;
+  color: #b8b4aa;
+}
+
+.kd-board__row:has(input:checked) {
+  background: #2b2a24;
+  box-shadow: inset 4px 0 0 #ffd60a;
+}
+
+.kd-board__row:has(input:focus-visible) {
+  outline: 4px solid #ffd60a;
+  outline-offset: -4px;
+}
+
+.kd-board__radio {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #ffd60a;
+}
+
+.kd-board__radio:focus-visible {
+  outline: none;
+}
+
+.kd-board__name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.kd-board__sub {
+  display: block;
+  margin-top: 2px;
+  color: #d6d2c8;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.kd-board__reason {
+  color: #fca5a5;
+}
+
+.kd-board__flap {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #4a4a4a;
+  background: #0f0f0f;
+  color: #f4f1ea;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.kd-board__flap[data-status="running"] {
+  color: #5cf2b4;
+}
+
+.kd-board__flap[data-status="delayed"] {
+  color: #ffd60a;
+}
+
+.kd-board__flap[data-status="no-service"],
+.kd-board__flap[data-status="not-offered"] {
+  color: #fca5a5;
+}
+
+.kd-board__usd {
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.kd-board__foot {
+  padding: 10px 16px 12px;
+  border-top: 1px solid #3a3a3a;
+  color: #d6d2c8;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.kd-board__toggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 0;
+  border-top: 1px dashed #6b6b6b;
+  background: transparent;
+  color: #ffd60a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.kd-board__toggle:focus-visible {
+  outline: 4px solid #ffd60a;
+  outline-offset: -4px;
+}
+
+/* The popover (768 px and up) opens upward from the chip; on phones the board is a modal bottom sheet. */
+.kd-picker {
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+
+.kd-picker[data-mode="popover"] {
+  position: absolute;
+  inset: auto auto calc(100% + 10px) 0;
+  z-index: 50;
+  width: min(560px, calc(100vw - 32px));
+}
+
+.kd-picker[data-mode="popover"] .kd-board {
+  max-height: min(70dvh, 640px);
+  overflow-y: auto;
+  box-shadow: 6px 6px 0 #1a1a1a;
+}
+
+.kd-picker[data-mode="sheet"] {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-height: 85dvh;
+}
+
+.kd-picker[data-mode="sheet"] .kd-board {
+  display: flex;
+  max-height: 85dvh;
+  flex-direction: column;
+  border-width: 3px 0 0;
+}
+
+.kd-picker[data-mode="sheet"] .kd-board__scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.kd-picker::backdrop {
+  background: rgb(11 17 32 / 55%);
+}
+
+.kd-picker[data-mode="sheet"][open] {
+  animation: kd-sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes kd-sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* --- Tasks ---------------------------------------------------------------- */
+
+.kd-task {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  scroll-margin-top: calc(var(--kd-header) + var(--kd-nav) + 16px);
+}
+
+.kd-task[data-rise] {
+  animation: kd-rise 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes kd-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.kd-task .kla-ticket-wrap {
+  max-width: 100%;
+}
+
+.kd-yard-ribbon {
+  border: 2px dashed currentColor;
+}
+
+/* The old engines' cards inside a desk task: the desk's type and no fixed widths. */
+.kd-engine {
+  min-width: 0;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+.kd-engine * {
+  max-width: 100%;
+}
+
+/* Phones: the task list popover and any long code wrap instead of scrolling the page. */
+.kd-shell pre,
+.kd-shell code {
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kd-task[data-rise],
+  .kd-picker[data-mode="sheet"][open] {
+    animation: none;
+  }
+}
+
+html[data-kl-hidden] .kd-task[data-rise] {
+  animation: none;
+}

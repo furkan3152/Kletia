@@ -1,0 +1,51 @@
+name: Public smoke
+
+# Read-only smoke check of the hosted deployment (tooling/check-public-deployment.mjs):
+# API health with build.commit, the served OpenAPI document, /developers, /embed
+# with frame-ancestors *, and the embed script manifest's integrity. It fails
+# loudly until the hosted services run this repository's code (see
+# docs/platform/status.md). Nothing is created, signed or sent. Runs hourly and
+# on demand; `npm run verify` never calls these hosts.
+#
+# Actions are pinned to the same full commit SHAs as ci.yml.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      api_origin:
+        description: API origin to check
+        required: false
+        default: https://api.kletiaai.xyz
+      web_origin:
+        description: Web origin to check
+        required: false
+        default: https://kletiaai.xyz
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Check the public deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.1
+
+      - name: Probe the hosted API and site
+        env:
+          API_ORIGIN: ${{ inputs.api_origin || 'https://api.kletiaai.xyz' }}
+          WEB_ORIGIN: ${{ inputs.web_origin || 'https://kletiaai.xyz' }}
+        # The checker has no dependencies, so no install step is needed.
+        run: node tooling/check-public-deployment.mjs "$API_ORIGIN" "$WEB_ORIGIN" --timeout 90000

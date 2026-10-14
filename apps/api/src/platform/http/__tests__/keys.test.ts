@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import { configurePlatform } from "../../index.js";
-import { ACCOUNTS, resetEngine } from "../../engine/__tests__/helpers.js";
+import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS, resetEngine } from "../../engine/__tests__/helpers.js";
 import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestServer } from "./support.js";
 
 useTestEnvironment();
@@ -87,7 +87,7 @@ describe("API key projects", () => {
     const serialized = JSON.stringify(keys);
     assert.ok(!serialized.includes(root.key) && !serialized.includes(sibling.key), "secrets are never listed");
     assert.deepEqual(Object.keys(self ?? {}).sort(), [
-      "createdAt", "current", "depth", "descendants", "expiresAt", "id", "kind", "last4", "lastUsedAt", "name", "parentId", "policyVersion",
+      "createdAt", "current", "depth", "descendants", "expiresAt", "id", "kind", "lane", "last4", "lastUsedAt", "name", "parentId", "policyVersion",
       "previousExpiresAt", "revokedAt", "rotatedAt", "tier",
     ]);
     assert.equal((self as unknown as { kind?: string }).kind, "project");
@@ -305,3 +305,70 @@ if (databaseUrl) {
     it("is exercised when KLETIA_TEST_DATABASE_URL is set", { skip: "KLETIA_TEST_DATABASE_URL not set" }, () => undefined);
   });
 }
+
+describe("sandbox keys", () => {
+  const SEPOLIA_ACCOUNT = `eip155:421614:${EVM_ADDRESS}`;
+
+  it("issues a key kept on the testnet lane by its rule book: arbitrum-sepolia plans, base is refused", async () => {
+    const reply = await call<{ key: IssuedKey & { lane: string } }>(server, "POST", "/keys", { body: { name: "sandbox", sandbox: true } });
+    assert.equal(reply.status, 201, JSON.stringify(reply.body));
+    const sandbox = reply.body.key;
+    assert.equal(sandbox.lane, "testnet");
+    assert.match(sandbox.key, /^kl_dev_/u);
+    const testnet = await call<{ intent: { id: string; status: string } }>(server, "POST", "/intents", {
+      key: sandbox.key,
+      body: { text: `send 5 USDC to ${OTHER_EVM_ADDRESS} on arbitrum sepolia`, accounts: [SEPOLIA_ACCOUNT] },
+    });
+    assert.equal(testnet.status, 201, JSON.stringify(testnet.body));
+    const refused = assertError(
+      await call(server, "POST", "/intents", { key: sandbox.key, body: { text: `send 5 USDC to ${OTHER_EVM_ADDRESS} on base`, accounts: ACCOUNTS } }),
+      403,
+      "POLICY_VIOLATION",
+    );
+    assert.match(JSON.stringify(refused), /networks\.lanes/u);
+    // The rule book is an ordinary key-level rule book.
+    const policy = await call<{ policy: { status: string; document: { label: string; networks: { lanes: string[] } } } }>(server, "GET", `/keys/${sandbox.id}/policy`, { key: sandbox.key });
+    assert.equal(policy.status, 200, JSON.stringify(policy.body));
+    assert.equal(policy.body.policy.status, "active");
+    assert.deepEqual(policy.body.policy.document.networks.lanes, ["testnet"]);
+    assert.equal(policy.body.policy.document.label, "Sandbox");
+  });
+
+  it("lists each key's lane, also for a sandbox sibling", async () => {
+    const root = await issue(server, "lanes-root");
+    const sibling = await call<{ key: IssuedKey & { lane: string } }>(server, "POST", "/keys", { key: root.key, body: { name: "lanes-sandbox", sandbox: true } });
+    assert.equal(sibling.status, 201, JSON.stringify(sibling.body));
+    assert.equal(sibling.body.key.lane, "testnet");
+    const live = await call<{ key: IssuedKey & { lane: string } }>(server, "POST", "/keys", { key: root.key, body: { name: "lanes-live", sandbox: false } });
+    assert.equal(live.body.key.lane, "any");
+    const keys = (await list(server, root.key)) as unknown as { id: string; lane: string }[];
+    assert.deepEqual(Object.fromEntries(keys.map((key) => [key.id, key.lane])), { [root.id]: "any", [sibling.body.key.id]: "testnet", [live.body.key.id]: "any" });
+    // A production-only key rule book reads as production.
+    const put = await call(server, "PUT", `/keys/${live.body.key.id}/policy`, {
+      key: root.key,
+      headers: { "if-match": "none" },
+      body: { schema: "kletia.policy/v1", networks: { lanes: ["production"] } },
+    });
+    assert.equal(put.status, 200, JSON.stringify(put.body));
+    const after = (await list(server, root.key)) as unknown as { id: string; lane: string }[];
+    assert.equal(after.find((key) => key.id === live.body.key.id)?.lane, "production");
+  });
+
+  it("validates sandbox", async () => {
+    const refused = assertError(await call(server, "POST", "/keys", { body: { name: "typed", sandbox: "yes" } }), 400, "INVALID_REQUEST");
+    assert.equal(refused.error.issues?.[0]?.path, "sandbox");
+  });
+});
+
+describe("key issuance budget", () => {
+  it("does not count issuances refused with 4xx against the 5 per hour", async () => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      assertError(await call(server, "POST", "/keys", { body: {} }), 400, "INVALID_REQUEST");
+    }
+    for (let index = 0; index < 5; index += 1) await issue(server, `budget-${index}`);
+    const limited = assertError(await call(server, "POST", "/keys", { body: { name: "sixth" } }), 429, "RATE_LIMITED");
+    assert.match(limited.error.message, /5 API keys/u);
+    // A refused request after the budget is spent stays refused (429 is not given back either).
+    assertError(await call(server, "POST", "/keys", { body: { name: "seventh" } }), 429, "RATE_LIMITED");
+  });
+});

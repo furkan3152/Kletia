@@ -8,6 +8,10 @@
  * configured endpoint can simulate (`eth_simulateV1` / `simulateTransaction`),
  * which custom contract steps need before they can be prepared. That probe is
  * cached for 60 s and bounded to 4 s.
+ *
+ * Deployment identity: `build.commit` names the commit this process runs
+ * (RENDER_GIT_COMMIT on Render, otherwise KLETIA_BUILD_COMMIT), so a stale
+ * deployment is visible from the outside.
  */
 import { CHAINS, NETWORK_KEYS, type NetworkKey } from "@kletia/core";
 import type { PublicClient } from "viem";
@@ -49,10 +53,17 @@ export interface NetworkHealth {
   readonly detail?: string;
 }
 
+/** Which commit this deployment runs: from Render's RENDER_GIT_COMMIT, KLETIA_BUILD_COMMIT, or unknown (null). */
+export interface BuildInfo {
+  readonly commit: string | null;
+  readonly source: "render" | "env" | null;
+}
+
 export interface PlatformHealth {
   readonly status: "ok" | "degraded" | "down";
   readonly api: "v1";
   readonly version: string;
+  readonly build: BuildInfo;
   readonly time: string;
   readonly uptimeSeconds: number;
   readonly networks: readonly NetworkHealth[];
@@ -76,6 +87,23 @@ export interface PlatformHealth {
   readonly receipts: ReceiptHealth;
   /** Asset-change previews: where acknowledged digests are kept. */
   readonly preview: { readonly store: "memory" | "postgres" | "custom" };
+}
+
+/** A git commit id (7 to 64 hex characters); anything else is ignored rather than echoed. */
+const COMMIT_PATTERN = /^[0-9a-f]{7,64}$/u;
+
+function commitFrom(raw: string | undefined): string | null {
+  const value = raw?.trim().toLowerCase();
+  return value && COMMIT_PATTERN.test(value) ? value : null;
+}
+
+/** The deployment's commit. Render's own variable wins over the generic one; values that are not commit ids read as unknown. */
+export function readBuildInfo(env: NodeJS.ProcessEnv = process.env): BuildInfo {
+  const render = commitFrom(env.RENDER_GIT_COMMIT);
+  if (render) return { commit: render, source: "render" };
+  const configured = commitFrom(env.KLETIA_BUILD_COMMIT);
+  if (configured) return { commit: configured, source: "env" };
+  return { commit: null, source: null };
 }
 
 function evmClientFor(network: NetworkKey): PublicClient | null {
@@ -218,6 +246,7 @@ export async function readPlatformHealth(): Promise<PlatformHealth> {
     status: networks.length > 0 && healthy === networks.length ? "ok" : healthy === 0 ? "down" : "degraded",
     api: "v1",
     version: PLATFORM_API_VERSION,
+    build: readBuildInfo(),
     time: new Date().toISOString(),
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     networks,

@@ -192,13 +192,13 @@ function SiteBootFallback() {
   );
 }
 
+/** The desk's loading plate: the site's paper and theme (the entry entered desk mode before the first paint), never a dark flash. */
 function ConsoleBootFallback() {
   return (
-    <div
-      className="flex h-full items-center justify-center bg-[#0B1120] font-black uppercase tracking-widest text-white"
-      role="status"
-    >
-      Loading Kletia
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#F4F1EA] dark:bg-[#0B1120]" role="status">
+      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
+        Loading Kletia
+      </span>
     </div>
   );
 }

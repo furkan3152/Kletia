@@ -303,7 +303,18 @@ export interface EvmActionOutput {
   readonly token: string;
   /** 0-100, default 10. */
   readonly toleranceBps?: number;
+  /**
+   * The output token's balance is index-scaled (Aave aTokens and similar
+   * rebasing tokens): simulation and landing accept a Transfer-log amount
+   * that differs from the balance delta (or the declared event) by at most
+   * `REBASING_TOLERANCE_UNITS` base units either way and count the smaller
+   * amount. Part of `definitionHash`. Absent (or false): exact equality, as before.
+   */
+  readonly rebasing?: boolean;
 }
+
+/** Base units a rebasing output's Transfer-log amount may differ from its balance delta by (`output.rebasing`). */
+export const REBASING_TOLERANCE_UNITS = 2n;
 
 /** Success proof for an EVM action. */
 export interface EventBinding {
@@ -675,6 +686,8 @@ export interface ContractStepCall {
   readonly pins?: EvmContractPins;
   readonly recipientMode?: "account" | "any";
   readonly toleranceBps?: number;
+  /** The entry declares `output.rebasing` (set by the call adapter when it plans the step; absent: strict output checks). */
+  readonly rebasingOutput?: boolean;
   // SVM
   readonly origin?: string;
   /** Template with params resolved, `{amount}` / `{amountBaseUnits}` kept. */
@@ -758,6 +771,18 @@ export interface EvmContractInspectionView {
   /** ABI from Sourcify when verified. */
   readonly abi: readonly ContractAbiItem[] | null;
   readonly functions: readonly AbiFunctionClassification[];
+  /** Registration hints derived from the verified ABI (absent when none applies). */
+  readonly hints?: ContractInspectionHints;
+}
+
+/** Hints `GET /v1/contracts/inspect` derives for `kletia contracts init` and the portal wizard. */
+export interface ContractInspectionHints {
+  /**
+   * The ABI has `asset()`, `deposit(uint256,address)` and the ERC-4626
+   * `Deposit` event: the vault's underlying token, read with one `eth_call`,
+   * and its registry symbol when Kletia lists it on this network (null otherwise).
+   */
+  readonly erc4626?: { readonly asset: string; readonly registrySymbol: string | null };
 }
 
 /** `GET /v1/contracts/inspect?network=solana&programs=a,b`. */
@@ -827,6 +852,19 @@ export interface SessionView {
   readonly used: number;
   /** `https://kletiaai.xyz/embed#session=cs_…` (creation response). */
   readonly embedUrl?: string;
+  /** Conditions the integrator should know about, such as a registration that is not active yet. */
+  readonly warnings?: readonly SessionWarning[];
+}
+
+/**
+ * A session warning: `CONTRACT_PENDING` names a registration of the template
+ * that activates at `activatesAt` (mainnet delay); intents of the session are
+ * refused until then.
+ */
+export interface SessionWarning {
+  readonly code: "CONTRACT_PENDING";
+  readonly contract: string;
+  readonly activatesAt: string;
 }
 
 /** `POST /v1/sessions/{id}/intents` (public, the session id is the capability). */
@@ -2214,16 +2252,19 @@ function parseEvmDefinition(input: Record<string, unknown>, network: NetworkKey,
       // output
       let parsedOutput: EvmActionOutput | undefined;
       if (raw.output !== undefined) {
-        if (!isRecord(raw.output)) issues.invalid(`${at}.output`, "Must be { token, toleranceBps }.");
+        if (!isRecord(raw.output)) issues.invalid(`${at}.output`, "Must be { token, toleranceBps, rebasing? }.");
         else {
-          checkKeys(raw.output, ["token", "toleranceBps"], `${at}.output`, issues);
+          checkKeys(raw.output, ["token", "toleranceBps", "rebasing"], `${at}.output`, issues);
           const token = raw.output.token;
           const toleranceBps = parseTolerance(raw.output.toleranceBps, `${at}.output.toleranceBps`, issues);
-          if (knownLabel(token)) parsedOutput = { token, toleranceBps };
+          if (raw.output.rebasing !== undefined && typeof raw.output.rebasing !== "boolean") issues.invalid(`${at}.output.rebasing`, "Must be true or false.");
+          // Only `true` is stored, so definitions without the flag keep their definitionHash.
+          const rebasing = raw.output.rebasing === true ? { rebasing: true as const } : {};
+          if (knownLabel(token)) parsedOutput = { token, toleranceBps, ...rebasing };
           else if (typeof token === "string" && isEvmAddress(token) && isChecksumAddressValid(token) && BigInt(token) > 0xffffn) {
             if (inputAsset?.address && inputAsset.address.toLowerCase() === token.toLowerCase()) {
               issues.invalid(`${at}.output.token`, "The output must differ from the input token (deltas would cancel out).");
-            } else parsedOutput = { token: toChecksumAddress(token), toleranceBps };
+            } else parsedOutput = { token: toChecksumAddress(token), toleranceBps, ...rebasing };
           } else {
             issues.invalid(`${at}.output.token`, "Must be $self, a label from addresses, or an ERC-20 address (native outputs cannot be proven from logs).");
           }

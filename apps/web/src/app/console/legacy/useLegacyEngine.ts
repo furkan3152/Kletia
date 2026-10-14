@@ -15,7 +15,10 @@
  *   classic shell; execution keeps refusing a route on another chain;
  * - the open conversation is attached to a sentence only in Answering mode
  *   (`answering`), or always for the classic shell;
- * - composer, tab and drawer updates go to the host through callbacks.
+ * - composer, tab and drawer updates go to the host through callbacks;
+ * - every message carries the desk task's `threadId` (the sentence's
+ *   `threadId` option; a consent, a token selection or a workflow step keeps
+ *   the thread of the message it continues).
  *
  * Every response boundary, signing guard and executor check is unchanged.
  * Terminal log lines keep their leading tone marks (shield, check, cross):
@@ -142,10 +145,14 @@ export type SubmitIntentOptions = {
    * sentence. Only the classic shell attaches it to every sentence.
    */
   answering?: boolean;
+  /** The desk task the sentence belongs to: every message it produces carries it. */
+  threadId?: string;
 };
 
 export type PendingPrivacyDecision = {
   readonly prompt: string;
+  /** The desk task the consent belongs to. */
+  readonly threadId?: string;
   readonly network: NetworkMode;
   readonly chainId: number;
   readonly walletAddress: string;
@@ -328,6 +335,7 @@ export function useLegacyEngine({
     const userText = rawUserText.trim();
     if (!userText) return;
     setPendingPrivacyDecision(null);
+    const thread = options.threadId ? { threadId: options.threadId } : {};
     const semanticPlanner =
       options.semanticPlanner ??
       options.conversation?.semanticPlanner ??
@@ -349,6 +357,7 @@ export function useLegacyEngine({
     if (containsSensitivePromptMaterial(userText)) {
       onInputConsumed?.();
       addMessage({
+        ...thread,
         id: createRequestId(),
         role: "kletia",
         text: "Private key, seed phrase, or API credentials cannot be sent here. Message not saved for security.",
@@ -370,6 +379,7 @@ export function useLegacyEngine({
       onInputConsumed?.();
       const handoffRequestId = createRequestId();
       addMessage({
+        ...thread,
         id: `${handoffRequestId}:user`,
         role: "user",
         text: persistentDisplayText,
@@ -379,6 +389,7 @@ export function useLegacyEngine({
         requestId: handoffRequestId,
       });
       addMessage({
+        ...thread,
         id: `${handoffRequestId}:kletia`,
         role: "kletia",
         text: CROSS_NETWORK_HANDOFF_MESSAGE,
@@ -393,6 +404,7 @@ export function useLegacyEngine({
     }
     if (!address) {
       addMessage({
+        ...thread,
         id: createRequestId(),
         role: "kletia",
         text: "Please connect your wallet from the top right first.",
@@ -406,6 +418,7 @@ export function useLegacyEngine({
     // guard (executeRoute and the executor refuse a route on another chain).
     if (classic && !walletMatchesNetwork) {
       addMessage({
+        ...thread,
         id: createRequestId(),
         role: "kletia",
         text: `Wallet is not connected to the ${network.name} network. Intent and transaction creation halted for security.`,
@@ -447,6 +460,7 @@ export function useLegacyEngine({
       clarificationSubmissionRef.current = null;
       if (options.clarificationSelection) {
         addMessage({
+          ...thread,
           id: createRequestId(),
           role: "kletia",
           text: "Token selection context expired or network/wallet changed. Please resend the intent.",
@@ -506,6 +520,7 @@ export function useLegacyEngine({
     activeRequestRef.current = request;
 
     addMessage({
+      ...thread,
       id: userMsgId,
       role: "user",
       text: persistentDisplayText,
@@ -515,6 +530,7 @@ export function useLegacyEngine({
       requestId,
     });
     addMessage({
+      ...thread,
       id: kletiaMsgId,
       role: "kletia",
       text: `${network.name} intent engine is running...`,
@@ -601,6 +617,7 @@ export function useLegacyEngine({
         });
         setPendingPrivacyDecision({
           prompt: userText,
+          ...thread,
           network: networkMode,
           chainId: network.chainId,
           walletAddress: address,
@@ -1176,8 +1193,10 @@ export function useLegacyEngine({
       pending.decision.expiresAt > currentEpochMs();
 
     setPendingPrivacyDecision(null);
+    const thread = pending.threadId ? { threadId: pending.threadId } : {};
     if (!stillBoundToActiveContext) {
       addMessage({
+        ...thread,
         id: createRequestId(),
         role: "kletia",
         text: "This disclosure decision expired or the wallet/network context changed. Review and resend the intent before Kletia shares it with an AI provider.",
@@ -1190,6 +1209,7 @@ export function useLegacyEngine({
 
     if (option.id === "allow_ai_for_this_intent") {
       void submitIntent(pending.prompt, {
+        ...thread,
         displayText: "Allow AI semantic parsing for this intent only.",
         semanticPlanner: "ai_assisted",
         semanticPlannerConsentToken: pending.decision.decisionToken,
@@ -1207,6 +1227,7 @@ export function useLegacyEngine({
       };
       setSemanticAiSession(session);
       void submitIntent(pending.prompt, {
+        ...thread,
         displayText: "Smart intent interpretation enabled for this browser session.",
         semanticPlanner: "ai_assisted",
         semanticPlannerConsentToken: session.token,
@@ -1253,6 +1274,7 @@ export function useLegacyEngine({
       clarificationStatus: "submitting",
     });
     void submitIntent("Apply verified token selection.", {
+      ...(message.threadId ? { threadId: message.threadId } : {}),
       displayText: `Select ${option.label} (${option.symbol})`,
       conversation: { ...conversation },
       clarificationSelection: { optionId: option.id },
@@ -1519,6 +1541,7 @@ export function useLegacyEngine({
     }
     const nextMessageId = `${updatedPlan.workflowId}:${nextStep.id}`;
     addMessage({
+      ...(message.threadId ? { threadId: message.threadId } : {}),
       id: nextMessageId,
       role: "kletia",
       text: body.message || `Workflow step ${nextStep.order} is ready on ${nextStep.network}.`,

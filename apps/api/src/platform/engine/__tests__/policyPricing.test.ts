@@ -6,14 +6,37 @@
  */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { getAddress } from "viem";
+import { encodeFunctionResult, getAddress, parseAbi, type Hex } from "viem";
 import { ASSETS, CHAINS, getAsset, isSolanaAddress, type AssetDescriptor } from "@kletia/core";
-import { ASSET_PRICE_SOURCES, CHAINLINK_FEEDS, CHAINLINK_GRACE_SECONDS, JUPITER_MINTS, normalizeAssetKey, priceSourcesFor } from "../policy/feeds.js";
+import {
+  ASSET_PRICE_SOURCES,
+  CHAINLINK_FEEDS,
+  CHAINLINK_GRACE_SECONDS,
+  DERIVED_FEEDS,
+  JUPITER_MINTS,
+  normalizeAssetKey,
+  priceSourcesFor,
+  SEQUENCER_GRACE_SECONDS,
+  SEQUENCER_UPTIME_FEEDS,
+  WSTETH_ETHEREUM,
+} from "../policy/feeds.js";
 import { configurePolicyPricing, notionalUsdMicros, policyPrice, quoteUsdNumber, toUsd18, usd18FromNumber } from "../policy/pricing.js";
 import { nativeUsdPrice } from "../prices.js";
 import { feed, feedKey, installMarket, jupiter, type FakeMarket } from "./policyHarness.js";
 
 const ONE = 10n ** 18n;
+
+/** An L2 sequencer uptime feed answer: 0 = up, 1 = down, status changed `sinceSeconds` ago. */
+function sequencerStatus(market: FakeMarket, status: 0n | 1n, sinceSeconds: number) {
+  return { decimals: 0, answer: status, updatedAt: Math.floor(market.now / 1000) - sinceSeconds };
+}
+
+/** The scripted market with every L2 sequencer up for two hours (readings on Arbitrum, OP and Base count). */
+function install(): FakeMarket {
+  const next = installMarket();
+  for (const entry of Object.values(SEQUENCER_UPTIME_FEEDS)) next.chainlink.set(feedKey(entry), sequencerStatus(next, 0n, 7_200));
+  return next;
+}
 
 function asset(network: string, symbol: string): AssetDescriptor {
   const found = ASSETS.find((entry) => entry.network === network && entry.symbol === symbol);
@@ -29,7 +52,7 @@ describe("policy pricing", () => {
   let market: FakeMarket;
 
   beforeEach(() => {
-    market = installMarket();
+    market = install();
   });
 
   afterEach(() => configurePolicyPricing(null));
@@ -53,15 +76,15 @@ describe("policy pricing", () => {
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdArbitrum), feed(2_500, { now: market.now, ageSeconds: heartbeat + CHAINLINK_GRACE_SECONDS - 5 }));
     assert.ok(await policyPrice(ref(asset("arbitrum", "ETH"))), "inside the grace");
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdArbitrum), feed(2_500, { now: market.now, ageSeconds: heartbeat + CHAINLINK_GRACE_SECONDS + 5 }));
     assert.equal(await policyPrice(ref(asset("arbitrum", "ETH"))), null, "stale by heartbeat: unpriced");
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.arbUsdArbitrum), { decimals: 8, answer: 0n, updatedAt: Math.floor(market.now / 1000) });
     assert.equal(await policyPrice(ref(asset("arbitrum", "ARB"))), null, "zero answer");
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.arbUsdArbitrum), { decimals: 8, answer: -5n, updatedAt: Math.floor(market.now / 1000) });
     assert.equal(await policyPrice(ref(asset("arbitrum", "ARB"))), null, "negative answer");
   });
@@ -83,7 +106,7 @@ describe("policy pricing", () => {
     assert.equal(sol.readings.length, 3);
     assert.deepEqual(sol.warnings, []);
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.wifUsdArbitrum), feed(0.2, { now: market.now }));
     market.jupiter.set(JUPITER_MINTS.wif, jupiter(market, 0.3));
     const wif = await policyPrice(ref(asset("solana", "WIF")));
@@ -99,7 +122,7 @@ describe("policy pricing", () => {
     assert.equal(usdc.usd18, ONE);
     assert.equal(usdc.floored, true);
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.usdcUsdArbitrum), feed(1.002, { now: market.now }));
     const high = await policyPrice(ref(asset("optimism", "USDC")));
     assert.ok(high);
@@ -107,7 +130,7 @@ describe("policy pricing", () => {
     assert.equal(high.floored, false);
     // EURC is a stablecoin but not a USD one: no floor.
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.eurUsdEthereum), feed(1.12, { now: market.now }));
     const eurc = await policyPrice(ref(asset("base", "EURC")));
     assert.ok(eurc);
@@ -135,17 +158,17 @@ describe("policy pricing", () => {
     market.jupiter.set(JUPITER_MINTS.jup, jupiter(market, 0.3616, { liquidity: 99_999 }));
     assert.equal(await policyPrice(jup), null, "thin liquidity");
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.jupiter.set(JUPITER_MINTS.jup, jupiter(market, 0.3616, { blockId: Number(market.slot) - 901 }));
     assert.equal(await policyPrice(jup), null, "older than 900 slots");
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.jupiter.set(JUPITER_MINTS.jup, jupiter(market, 0.3616, { blockId: Number(market.slot) - 900 }));
     const fresh = await policyPrice(jup);
     assert.ok(fresh, "exactly 900 slots behind is fresh");
     assert.equal(fresh.usd18, 3_616n * 10n ** 14n);
     configurePolicyPricing(null);
-    market = installMarket();
+    market = install();
     market.slot = null;
     market.jupiter.set(JUPITER_MINTS.jup, jupiter(market, 0.3616, { blockId: 1 }));
     assert.equal(await policyPrice(jup), null, "without the current slot freshness cannot be shown");
@@ -172,13 +195,13 @@ describe("policy pricing", () => {
     const aero = ref(asset("base", "AERO"));
     await policyPrice(aero);
     const first = market.calls.ethCall;
-    assert.equal(first, 2, "decimals + latestRoundData");
+    assert.equal(first, 3, "the Base sequencer, decimals + latestRoundData");
     await policyPrice(aero);
     assert.equal(market.calls.ethCall, first, "cached");
     market.now += 31_000;
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.aeroUsdBase), feed(0.81, { now: market.now }));
     await policyPrice(aero);
-    assert.equal(market.calls.ethCall, first + 1, "re-read after 30 s; decimals stay cached");
+    assert.equal(market.calls.ethCall, first + 2, "sequencer and round re-read after 30 s; decimals stay cached");
     market.chainlink.set(feedKey(CHAINLINK_FEEDS.arbUsdArbitrum), "throw");
     const arb = ref(asset("arbitrum", "ARB"));
     assert.equal(await policyPrice(arb), null);
@@ -217,14 +240,127 @@ describe("policy pricing", () => {
     assert.equal(await nativeUsdPrice("polygon"), 0.098972);
   });
 
+  describe("L2 sequencer gating", () => {
+    it("ignores Arbitrum, OP and Base readings while the sequencer is down", async () => {
+      for (const [network, entry] of [["base", CHAINLINK_FEEDS.ethUsdBase], ["arbitrum", CHAINLINK_FEEDS.ethUsdArbitrum], ["optimism", CHAINLINK_FEEDS.ethUsdOptimism]] as const) {
+        configurePolicyPricing(null);
+        market = install();
+        market.chainlink.set(feedKey(SEQUENCER_UPTIME_FEEDS[network]!), sequencerStatus(market, 1n, 7_200));
+        market.chainlink.set(feedKey(entry), feed(2_500, { now: market.now }));
+        assert.equal(await policyPrice(ref(asset(network, "ETH"))), null, `${network}: sequencer down`);
+      }
+    });
+
+    it(`ignores them within ${SEQUENCER_GRACE_SECONDS} s of a restart and uses them after`, async () => {
+      market.chainlink.set(feedKey(SEQUENCER_UPTIME_FEEDS.base!), sequencerStatus(market, 0n, SEQUENCER_GRACE_SECONDS - 60));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdBase), feed(2_500, { now: market.now }));
+      assert.equal(await policyPrice(ref(asset("base", "ETH"))), null, "restarted 59 minutes ago");
+      configurePolicyPricing(null);
+      market = install();
+      market.chainlink.set(feedKey(SEQUENCER_UPTIME_FEEDS.base!), sequencerStatus(market, 0n, SEQUENCER_GRACE_SECONDS + 60));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdBase), feed(2_500, { now: market.now }));
+      const eth = await policyPrice(ref(asset("base", "ETH")));
+      assert.ok(eth, "up for 61 minutes");
+      assert.equal(eth.usd18, 2_500n * ONE);
+    });
+
+    it("fails closed when the uptime feed cannot be read, and never gates Ethereum or Polygon", async () => {
+      for (const failure of ["revert", "throw"] as const) {
+        configurePolicyPricing(null);
+        market = install();
+        market.chainlink.set(feedKey(SEQUENCER_UPTIME_FEEDS.arbitrum!), failure);
+        market.chainlink.set(feedKey(CHAINLINK_FEEDS.arbUsdArbitrum), feed(0.4, { now: market.now }));
+        assert.equal(await policyPrice(ref(asset("arbitrum", "ARB"))), null, `uptime feed ${failure}`);
+      }
+      configurePolicyPricing(null);
+      market = installMarket();
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdEthereum), feed(2_500, { now: market.now }));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.polUsdPolygon), feed(0.1, { now: market.now }));
+      assert.ok(await policyPrice(ref(asset("ethereum", "ETH"))), "Ethereum has no sequencer");
+      assert.ok(await policyPrice(ref(asset("polygon", "POL"))), "Polygon PoS has no sequencer feed");
+    });
+
+    it("keeps the maximum of fresh sources: a gated L2 reading drops out, the others still count", async () => {
+      market.chainlink.set(feedKey(SEQUENCER_UPTIME_FEEDS.arbitrum!), sequencerStatus(market, 1n, 60));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.solUsdEthereum), feed(110, { now: market.now }));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.solUsdArbitrum), feed(150, { now: market.now }));
+      market.jupiter.set(JUPITER_MINTS.wsol, jupiter(market, 111));
+      const sol = await policyPrice(ref(asset("solana", "SOL")));
+      assert.ok(sol);
+      assert.equal(sol.readings.length, 2, "the Arbitrum reading is ignored while its sequencer is down");
+      assert.equal(sol.usd18, 111n * ONE);
+    });
+  });
+
+  describe("liquid staking prices", () => {
+    const RATE_ABI = parseAbi(["function stEthPerToken() view returns (uint256)"]);
+    const FEED_ABI = parseAbi([
+      "function decimals() view returns (uint8)",
+      "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+    ]);
+
+    /** The scripted Chainlink market plus wstETH.stEthPerToken() (null: reverts). */
+    function withRate(rate: bigint | null): void {
+      const current = market;
+      configurePolicyPricing({
+        ethCall: async (network, to, data) => {
+          if (network === "ethereum" && to.toLowerCase() === WSTETH_ETHEREUM.toLowerCase()) {
+            return rate === null ? null : (encodeFunctionResult({ abi: RATE_ABI, functionName: "stEthPerToken", result: rate }) as Hex);
+          }
+          const entry = current.chainlink.get(`${network}:${to.toLowerCase()}`);
+          if (entry === undefined || entry === "revert") return null;
+          if (entry === "throw") throw new Error("rpc down");
+          if (data.startsWith("0x313ce567")) return encodeFunctionResult({ abi: FEED_ABI, functionName: "decimals", result: entry.decimals }) as Hex;
+          return encodeFunctionResult({ abi: FEED_ABI, functionName: "latestRoundData", result: [1n, entry.answer, BigInt(entry.updatedAt), BigInt(entry.updatedAt), 1n] }) as Hex;
+        },
+        now: () => current.now,
+      });
+    }
+
+    it("prices wstETH as STETH / USD times stEthPerToken()", async () => {
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.stethUsdEthereum), feed(2_427.0683, { now: market.now }));
+      withRate(1_246_316_517_415_262_462n);
+      const wsteth = await policyPrice(ref(asset("ethereum", "wstETH")));
+      assert.ok(wsteth);
+      assert.equal(wsteth.readings[0]?.source, "derived");
+      assert.equal(wsteth.readings[0]?.id, DERIVED_FEEDS.wstethUsd.id);
+      // 2427.0683 x 1.246316517415262462, rounded up.
+      assert.equal(wsteth.usd18, (2_427_068_300n * 10n ** 12n * 1_246_316_517_415_262_462n + ONE - 1n) / ONE);
+      assert.ok(Math.abs(quoteUsdNumber(wsteth) - 3_024.896) < 0.01);
+    });
+
+    it("prices rETH and weETH as their ETH ratio times ETH / USD (18-decimal ratios read on-chain)", async () => {
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdEthereum), feed(2_500, { now: market.now }));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.rethEthEthereum), { decimals: 18, answer: 1_170_928_265_256_063_700n, updatedAt: Math.floor(market.now / 1000) - 80_000 });
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.weethEthEthereum), { decimals: 18, answer: 1_105_571_912_979_631_600n, updatedAt: Math.floor(market.now / 1000) - 50_000 });
+      const reth = await policyPrice(ref(asset("ethereum", "rETH")));
+      const weeth = await policyPrice(ref(asset("ethereum", "weETH")));
+      assert.ok(reth && weeth);
+      assert.equal(reth.usd18, 2_927_320_663_140_159_250_000n);
+      assert.equal(weeth.usd18, 2_763_929_782_449_079_000_000n);
+      assert.equal(reth.readings[0]?.observedAt, Math.floor(market.now / 1000) - 80_000, "the oldest factor dates the reading");
+    });
+
+    it("fails closed when a factor is stale or the exchange rate is unreadable or out of bounds", async () => {
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.ethUsdEthereum), feed(2_500, { now: market.now, ageSeconds: 3_600 + CHAINLINK_GRACE_SECONDS + 1 }));
+      market.chainlink.set(feedKey(CHAINLINK_FEEDS.rethEthEthereum), { decimals: 18, answer: 1_170_000_000_000_000_000n, updatedAt: Math.floor(market.now / 1000) });
+      assert.equal(await policyPrice(ref(asset("ethereum", "rETH"))), null, "stale ETH / USD");
+      for (const rate of [null, 0n, 999_999_999_999_999_999n, 2n * ONE + 1n]) {
+        configurePolicyPricing(null);
+        market = install();
+        market.chainlink.set(feedKey(CHAINLINK_FEEDS.stethUsdEthereum), feed(2_427, { now: market.now }));
+        withRate(rate);
+        assert.equal(await policyPrice(ref(asset("ethereum", "wstETH"))), null, `stEthPerToken ${rate}`);
+      }
+    });
+  });
+
   describe("feed table", () => {
     it("has a source for every mainnet registry asset and none for testnets", () => {
-      // Round-6 registry additions priced later: the evm-swaps-and-feeds package adds the LST-derived
-      // prices (and drops this list); transfer-only assets (USDbC) have no venue route to price them.
-      const pendingPrice = new Set(["ethereum:wstETH", "ethereum:rETH", "ethereum:weETH"]);
+      // Transfer-only assets (USDbC) have no venue route and no price source of their own.
       for (const descriptor of ASSETS) {
         const sources = priceSourcesFor(descriptor.id);
-        if (descriptor.transferOnly || pendingPrice.has(`${descriptor.network}:${descriptor.symbol}`)) continue;
+        if (descriptor.transferOnly) continue;
         if (CHAINS[descriptor.network].environment === "testnet") {
           assert.equal(ASSET_PRICE_SOURCES.has(normalizeAssetKey(descriptor.id)), false, `${descriptor.symbol} on ${descriptor.network}`);
         } else {

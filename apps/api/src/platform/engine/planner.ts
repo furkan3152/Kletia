@@ -2,13 +2,15 @@
  * Intent planner: IntentRequest -> IntentGraph.
  *
  * 1. Validate the request; compile text with the deterministic grammar or
- *    accept structured actions.
+ *    accept structured actions; apply the departure (`sourceNetwork`,
+ *    departure.ts) unless the clarify layer already applied one.
  * 2. Normalise actions (kinds, networks, amounts, capital lane).
  * 3. Resolve assets, accounts, recipients (names through the resolver hook)
  *    and, for deposit / withdraw, the registry venue; bind each step to an
  *    adapter (respecting prefer/avoid constraints) and quote it. Cross-network
  *    steps run a venue auction (auction.ts); other steps take the first
  *    adapter that quotes.
+ *    Same-network swaps with several candidate venues run the auction too.
  * 4. Chain dependent amounts from the previous step's guaranteed minimum.
  * 5. Merge "bridge then swap everything on the destination" into a single
  *    cross-network swap when a venue quotes it.
@@ -20,6 +22,7 @@ import {
   counterpartAsset,
   CUSTOM_CONTRACT_WARNING,
   deriveIntentStatus,
+  evmChecksumState,
   findAssetBySymbol,
   findYieldVenue,
   fromBaseUnits,
@@ -45,7 +48,9 @@ import {
   type IntentActionKind,
   type IntentActionSpec,
   type IntentEdge,
+  type IntentDeparture,
   type IntentGraph,
+  type IntentInterpretation,
   type IntentRequest,
   type IntentStep,
   type IntentSummary,
@@ -60,15 +65,17 @@ import {
 import { PlatformError, toPlatformError, unsupported } from "../errors.js";
 import { accountForNetwork, ownAccountOn, parseAccounts, recipientForNetwork, sameAddress } from "./accounts.js";
 import { recordedVenueId } from "./adapters/lending/common.js";
-import { activeProtocolAdapters, adapterForProtocol, candidateAdapters } from "./adapters/registry.js";
+import { activeProtocolAdapters, adapterForProtocol, avoidedDependency, candidateAdapters, effectiveProtocol } from "./adapters/registry.js";
 import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, PlannedStepPreview, ProtocolAdapter } from "./adapters/types.js";
 import { assertContractAmount } from "./contracts/caps.js";
 import { contractDirectory, contractsEnabled, withActivationRetry, type ContractPhrase } from "./contracts/directory.js";
 import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
-import { assetFromRef, resolveAsset, sameAsset, type ResolvedAsset } from "./assets.js";
+import { assetFromRef, resolveAsset, resolvedFromDescriptor, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
-import { compileIntentText, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS } from "./grammar.js";
+import { pickFundedSource, resolveDeparture, type DepartureBalanceReader } from "./departure.js";
+import { compileIntentText, EVM_STAKING_NETWORK, EVM_STAKING_TOKENS, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, MissingSourceError, type GrammarResult } from "./grammar.js";
 import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution } from "./names.js";
+import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef } from "./stepRef.js";
 import { newIntentId, portionOf, roundUsd } from "./util.js";
 
@@ -79,13 +86,24 @@ const SUPPORTED_KINDS: readonly IntentActionKind[] = ["swap", "transfer", "bridg
 /** Kinds bound to an integrator contract registration (`contract` + `entry`). */
 const CONTRACT_KINDS: readonly IntentActionKind[] = ["call", "action"];
 /** Lending protocols in the order a deposit / withdraw without a named protocol tries them. */
-export const LENDING_PROTOCOLS: readonly ProtocolId[] = ["aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino"];
+export const LENDING_PROTOCOLS: readonly ProtocolId[] = [
+  "aave-v3", "compound-v3", "morpho", "moonwell", "jupiter-lend", "kamino",
+  // appended, so unnamed deposits keep their defaults
+  "spark-savings", "fluid", "sparklend", "yearn-v3",
+];
+/** Solana liquid staking: protocol id -> LIQUID_STAKING_TOKENS key (routes run through Jupiter). */
 const STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, string>>> = {
   jito: "jito",
   marinade: "marinade",
   sanctum: "jupiter",
   jupiter: "jito",
 };
+/** EVM liquid staking on Ethereum: protocol id -> the token it mints and the provider label. */
+const EVM_STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, { readonly symbol: string; readonly provider: string }>>> = Object.fromEntries(
+  Object.values(EVM_STAKING_TOKENS).map((entry) => [entry.protocol, { symbol: entry.symbol, provider: entry.provider }]),
+);
+/** Networks liquid staking may plan on (the adapters decide what is live). */
+const STAKE_NETWORKS: readonly NetworkKey[] = ["solana", EVM_STAKING_NETWORK];
 
 /**
  * - `exact`: a decimal amount of the input.
@@ -134,7 +152,19 @@ export interface PlanOptions {
    * `constraints.deadline`.
    */
   readonly ttlMs?: number;
+  /**
+   * Interpretation extras from the clarify layer (assumptions, thread,
+   * departure), merged into `graph.interpretation`. When it carries a
+   * `departure`, clarify already applied it: the request's `sourceNetwork`
+   * is then ignored, so a departure is never applied twice.
+   */
+  readonly interpretation?: PlanInterpretation;
+  /** Balance reader of the departure step (tests); default: holdings.ts. */
+  readonly readBalance?: DepartureBalanceReader;
 }
+
+/** What the clarify layer adds to `graph.interpretation`. */
+export type PlanInterpretation = Partial<Pick<IntentInterpretation, "departure" | "assumptions" | "thread">>;
 
 /** Longest lifetime an intent can be given (a held intent waiting for approval). */
 export const MAX_INTENT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -251,7 +281,36 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     let protocol = spec.protocol;
     let provider = typeof spec.params?.provider === "string" ? spec.params.provider.slice(0, 32) : undefined;
     let to = spec.to;
-    if (kind === "stake") {
+    if (kind === "stake" && CHAINS[spec.network].vm === "evm") {
+      // EVM liquid staking: the protocol comes from the request or from the token it mints (default Lido).
+      const byTarget = to
+        ? (Object.entries(EVM_STAKE_PROTOCOLS).find(([, entry]) => entry?.symbol.toUpperCase() === to?.toUpperCase())?.[0] as ProtocolId | undefined)
+        : undefined;
+      if (protocol && !EVM_STAKE_PROTOCOLS[protocol]) {
+        throw unsupported(
+          `Liquid staking on ${CHAINS[spec.network].name} runs through Lido, Rocket Pool or ether.fi, not ${getProtocol(protocol)?.name ?? protocol}.`,
+          GRAMMAR_EXAMPLES,
+          issue(`${path}.protocol`, "Unsupported."),
+        );
+      }
+      if (to && !byTarget) {
+        throw unsupported(`Liquid staking on ${CHAINS[spec.network].name} mints wstETH (Lido), rETH (Rocket Pool) or weETH (ether.fi), not ${to}.`, GRAMMAR_EXAMPLES, issue(`${path}.to`, "Unsupported."));
+      }
+      protocol = protocol ?? byTarget ?? "lido";
+      const target = EVM_STAKE_PROTOCOLS[protocol] as { symbol: string; provider: string };
+      if (to && byTarget !== protocol) {
+        throw unsupported(`${getProtocol(protocol)?.name ?? protocol} mints ${target.symbol}, not ${to}.`, GRAMMAR_EXAMPLES, issue(`${path}.to`, "Mismatch."));
+      }
+      to = target.symbol;
+      provider = provider ?? target.provider;
+    } else if (kind === "stake") {
+      if (protocol && EVM_STAKE_PROTOCOLS[protocol]) {
+        throw unsupported(
+          `${getProtocol(protocol)?.name ?? protocol} stakes ETH on Ethereum; SOL stakes with Jito, Marinade or Jupiter.`,
+          GRAMMAR_EXAMPLES,
+          issue(`${path}.protocol`, "Unsupported on this network."),
+        );
+      }
       const key = protocol ? STAKE_PROTOCOLS[protocol] : undefined;
       if (protocol && !key) {
         throw unsupported(`Liquid staking runs through Jupiter routes, not ${protocol}.`, GRAMMAR_EXAMPLES, issue(`${path}.protocol`, "Unsupported."));
@@ -335,13 +394,71 @@ function lendingNames(): string {
   return LENDING_PROTOCOLS.map((id) => getProtocol(id)?.name ?? id).join(", ");
 }
 
+/** "a", "a and b", "a, b and c". */
+function joinList(items: readonly string[], last = "and"): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} ${last} ${items[items.length - 1]}`;
+}
+
+/** A registry asset of `network` as a resolved asset, without lookups (null when not listed). */
+function listedAsset(network: NetworkKey, symbol: string): ResolvedAsset | null {
+  const descriptor = (symbol === CHAINS[network].nativeAsset.symbol ? getAsset(nativeAssetId(network)) : null) ?? findAssetBySymbol(network, symbol);
+  return descriptor ? resolvedFromDescriptor(descriptor) : null;
+}
+
+/** Names of the active adapters' protocols that serve a probe route (both directions). */
+function liveVenuesFor(kind: "swap" | "stake", network: NetworkKey, input: ResolvedAsset, output: ResolvedAsset): string[] {
+  const routes: AdapterRoute[] = [
+    { kind, network, destinationNetwork: network, input, output },
+    ...(kind === "swap" ? [{ kind, network, destinationNetwork: network, input: output, output: input }] : []),
+  ];
+  const names = activeProtocolAdapters().flatMap((adapter) =>
+    routes.filter((route) => adapter.supports(route)).map((route) => getProtocol(effectiveProtocol(adapter, route))?.name ?? adapter.label));
+  return [...new Set(names)];
+}
+
+/** "Swaps run on Base or Arbitrum One (Relay) and Solana (Jupiter)", from the live adapters on the route's capital lane. */
+function liveSwapText(lane: NetworkKey): string {
+  const groups = new Map<string, string[]>();
+  for (const network of Object.keys(CHAINS) as NetworkKey[]) {
+    if (!sameCapitalLane(network, lane)) continue;
+    const native = listedAsset(network, CHAINS[network].nativeAsset.symbol);
+    const usdc = listedAsset(network, "USDC");
+    if (!native || !usdc || sameAsset(native, usdc)) continue;
+    const venues = liveVenuesFor("swap", network, native, usdc);
+    if (venues.length === 0) continue;
+    const key = joinList(venues);
+    groups.set(key, [...(groups.get(key) ?? []), CHAINS[network].name]);
+  }
+  if (groups.size === 0) return "No swap venue is enabled on this deployment";
+  return `Swaps run on ${joinList([...groups.entries()].map(([venues, networks]) => `${joinList(networks, "or")} (${venues})`))}`;
+}
+
+/** "Liquid staking runs on Solana (SOL → JitoSOL, mSOL or JupSOL)", from the live adapters. */
+function liveStakeText(): string {
+  const parts: string[] = [];
+  const solana = listedAsset("solana", "SOL");
+  const solTargets = ["JitoSOL", "mSOL", "JupSOL"].filter((symbol) => {
+    const output = listedAsset("solana", symbol);
+    return solana && output && liveVenuesFor("stake", "solana", solana, output).length > 0;
+  });
+  if (solTargets.length > 0) parts.push(`Solana mainnet (SOL → ${joinList(solTargets, "or")})`);
+  const eth = listedAsset(EVM_STAKING_NETWORK, "ETH");
+  const ethTargets = Object.values(EVM_STAKE_PROTOCOLS).map((entry) => entry?.symbol as string).filter((symbol) => {
+    const output = listedAsset(EVM_STAKING_NETWORK, symbol);
+    return eth && output && liveVenuesFor("stake", EVM_STAKING_NETWORK, eth, output).length > 0;
+  });
+  if (ethTargets.length > 0) parts.push(`${CHAINS[EVM_STAKING_NETWORK].name} (ETH → ${joinList([...new Set(ethTargets)], "or")})`);
+  return parts.length > 0 ? `Liquid staking runs on ${joinList(parts)}` : "No liquid staking venue is enabled on this deployment";
+}
+
 function unsupportedRoute(route: AdapterRoute): PlatformError {
   const network = CHAINS[route.network].name;
   const live = liveVenueNames(route.kind);
   const routes = "GET /v1/networks lists the live routes.";
   const messages: Record<string, string> = {
-    swap: `Swaps run on Solana (Jupiter) and on Base or Arbitrum (Relay); ${route.input.symbol} → ${route.output.symbol} on ${network} is not available.`,
-    stake: "Liquid staking runs on Solana mainnet (SOL → JitoSOL, mSOL or JupSOL).",
+    swap: `${liveSwapText(route.network)}; ${route.input.symbol} → ${route.output.symbol} on ${network} is not available for the requested protocol and constraints.`,
+    stake: `${liveStakeText()}.`,
     bridge: live
       ? `Bridges run through ${live}; ${route.input.symbol} from ${network} to ${CHAINS[route.destinationNetwork].name} is not available. ${routes}`
       : "No bridge venue is enabled on this deployment.",
@@ -427,7 +544,19 @@ interface ResolvedRecipient {
 
 /** Parses an address / CAIP-10 recipient, or resolves a name through the resolver hook. */
 async function recipientOn(raw: string, network: NetworkKey): Promise<ResolvedRecipient> {
-  if (!looksLikeName(raw)) return { recipient: recipientForNetwork(raw, network) };
+  if (!looksLikeName(raw)) {
+    const recipient = recipientForNetwork(raw, network);
+    // A mixed-case EVM address whose capitals do not match EIP-55 is usually a mistyped character: never pay it.
+    if (recipient.chain.namespace === "eip155" && evmChecksumState(recipient.address) === "invalid") {
+      throw new PlatformError(
+        "RECIPIENT_CHECKSUM_INVALID",
+        `Check the address ${recipient.address.slice(0, 10)}…${recipient.address.slice(-6)}: its capital letters do not match its EIP-55 checksum, which usually means a mistyped character.`,
+        422,
+        issue("recipient", "EIP-55 checksum mismatch."),
+      );
+    }
+    return { recipient };
+  }
   const name = await resolveRecipientName(raw, network);
   return { recipient: recipientForNetwork(name.address, network), name };
 }
@@ -575,15 +704,18 @@ interface CandidateSelection {
 }
 
 /**
- * Cross-network steps run the venue auction; every other step takes the
- * first candidate (in preference order) that quotes.
+ * Cross-network steps and same-network swaps with several candidate venues
+ * run the venue auction; every other step takes the first candidate (in
+ * preference order) that quotes.
  */
 async function planWithCandidates(
   candidates: readonly ProtocolAdapter[],
   action: AdapterAction,
   request: IntentRequest,
 ): Promise<CandidateSelection> {
-  if (action.kind === "bridge" && action.network !== action.destinationNetwork) {
+  const crossNetwork = action.kind === "bridge" && action.network !== action.destinationNetwork;
+  const swapAuction = action.kind === "swap" && action.network === action.destinationNetwork && candidates.length > 1;
+  if (crossNetwork || swapAuction) {
     const maxSeconds = request.constraints?.maxSeconds;
     const auction = await runVenueAuction(candidates, action, {
       maxSeconds: maxSeconds ?? DEFAULT_MAX_SECONDS,
@@ -627,9 +759,12 @@ function canMerge(bridge: NormalizedAction, next: NormalizedAction | undefined, 
   if (next.kind !== "swap" && next.kind !== "stake") return false;
   if (next.network !== bridge.destinationNetwork || next.amount.type !== "previous" || next.amount.portionBps !== 10_000) return false;
   if (next.recipient || !next.to) return false;
+  // A named destination venue stays a separate, wallet-reviewed step: a bridge auction cannot promise that its
+  // destination swap uses that venue.
+  if (next.kind === "swap" && next.protocol && !getProtocol(next.protocol)?.crossChain) return false;
   const prefer = request.constraints?.preferProtocols ?? [];
-  // Preferring Jupiter (and no cross-network venue) means "swap on the destination", not one merged route.
-  if (prefer.includes("jupiter") && !prefer.some((id) => getProtocol(id)?.crossChain)) return false;
+  // A preferred local swap venue (and no cross-network venue) means "swap on the destination", not one merged route.
+  if (prefer.some((id) => getProtocol(id)?.kinds?.includes("swap") && !getProtocol(id)?.crossChain) && !prefer.some((id) => getProtocol(id)?.crossChain)) return false;
   if (next.from && bridge.to && next.from.toUpperCase() !== bridge.to.toUpperCase()) return false;
   if (next.from && !bridge.to && bridge.from && next.from.toUpperCase() !== bridge.from.toUpperCase()) return false;
   return true;
@@ -643,11 +778,8 @@ async function draftStep(
   ownerKeyId?: string,
 ): Promise<StepDraft> {
   if (CONTRACT_KINDS.includes(action.kind)) return draftContractStep(action, previous, accounts, request, ownerKeyId);
-  if (action.kind === "stake" && action.network !== "solana") {
-    throw unsupported(
-      `Liquid staking runs on Solana mainnet (SOL → JitoSOL, mSOL or JupSOL), not ${CHAINS[action.network].name}.`,
-      GRAMMAR_EXAMPLES,
-    );
+  if (action.kind === "stake" && !STAKE_NETWORKS.includes(action.network)) {
+    throw unsupported(`${liveStakeText()}, not ${CHAINS[action.network].name}.`, GRAMMAR_EXAMPLES);
   }
   const account = accountForNetwork(accounts, action.network);
   const input = await resolveInput(action, previous);
@@ -662,6 +794,17 @@ async function draftStep(
   const output = await resolveOutput(action, input);
   if ((action.kind === "swap" || action.kind === "stake" || action.kind === "bridge") && sameAsset(input, output)) {
     throw new PlatformError("SWAP_SAME_ASSET", `Step ${action.index + 1} would swap ${input.symbol} into itself.`, 422);
+  }
+  const transferOnly = [input, output].find((asset) => asset.transferOnly);
+  if (transferOnly && action.kind !== "transfer") {
+    // Listed for balances and transfers only (USDbC is Base's legacy bridged USDC, a different token from USDC).
+    const usdc = findAssetBySymbol(transferOnly.network, "USDC") ? " Use USDC instead." : "";
+    throw new PlatformError(
+      "ROUTE_UNSUPPORTED",
+      `${transferOnly.symbol} can only be sent, not ${action.kind === "swap" ? "swapped" : action.kind === "bridge" ? "bridged" : `used in a ${action.kind}`}: no venue route takes it.${usdc}`,
+      422,
+      issue(`actions[${action.index}].${transferOnly === input ? "from" : "to"}`, "Transfer-only asset."),
+    );
   }
   const { recipient, name } = await resolveRecipient(action, account, accounts);
   const closePosition = action.amount.type === "position";
@@ -685,6 +828,21 @@ async function draftStep(
   const lending = action.kind === "deposit" || action.kind === "withdraw";
   const choice = lending ? resolveVenue(action, input, route, request) : null;
   const requested = choice ? choice.venue.protocol : action.protocol === "jupiter" && action.kind === "stake" ? undefined : action.protocol;
+  if (requested && !choice) {
+    // A named venue is never replaced: an avoided venue, or one routed through an avoided protocol, refuses the step.
+    const name = getProtocol(requested)?.name ?? requested;
+    if ((request.constraints?.avoidProtocols ?? []).includes(requested)) {
+      throw unsupported(`${name} is named here but constraints.avoidProtocols excludes it.`, GRAMMAR_EXAMPLES, issue(`actions[${action.index}].protocol`, "Avoided."));
+    }
+    const dependency = avoidedDependency(requested, request.constraints);
+    if (dependency) {
+      throw unsupported(
+        `${name} ${action.kind === "swap" ? "swaps run" : "routes run"} through the ${getProtocol(dependency)?.name ?? dependency} program, which constraints.avoidProtocols excludes.`,
+        GRAMMAR_EXAMPLES,
+        issue(`actions[${action.index}].protocol`, "Routed through an avoided protocol."),
+      );
+    }
+  }
   const candidates = candidateAdapters(route, request.constraints, requested);
   if (candidates.length === 0) throw noCandidates(route, requested);
   const destinationAccount = route.destinationNetwork !== route.network ? ownAccountOn(accounts, route.destinationNetwork) : undefined;
@@ -1114,6 +1272,8 @@ export interface PlannedIntent {
  * (`graph.plan`), dry runs included.
  */
 export async function planIntentWithPreviews(input: unknown, options: PlanOptions = {}): Promise<PlannedIntent> {
+  // Also here for callers that plan without creating (POST /v1/policy/evaluate): secrets are never planned.
+  screenIntentRequest(input);
   const validated = validateIntentRequest(input);
   if (!validated.ok) {
     throw new PlatformError("INVALID_REQUEST", "The intent request is invalid.", 400, validated.issues);
@@ -1126,24 +1286,55 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
   }
   const accounts = parseAccounts(request.accounts);
 
+  // A departure the clarify layer applied is kept as is; sourceNetwork is then ignored (never applied twice).
+  const suppliedDeparture = options.interpretation?.departure;
+  const sourceNetwork = suppliedDeparture ? undefined : request.sourceNetwork;
+  const fixedSource = sourceNetwork !== undefined && sourceNetwork !== "auto" ? sourceNetwork : undefined;
+  const readBalance = options.readBalance;
+  let departure: IntentDeparture | undefined = suppliedDeparture;
+  const plannerWarnings: string[] = [];
+
   let source: "structured" | "grammar";
   let specs: readonly IntentActionSpec[];
+  let explicitNetwork: readonly boolean[];
   let normalizedText: string | undefined;
   let confidence = 1;
   if (request.actions && request.actions.length > 0) {
     source = "structured";
     specs = request.actions;
+    // Structured actions name their networks: they win over a departure like a sentence that names one.
+    explicitNetwork = specs.map(() => true);
   } else {
     const contracts = await contractPhrases(options.ownerKeyId);
-    const compiled = compileIntentText(request.text ?? "", {
-      ...(request.defaultNetwork ? { defaultNetwork: request.defaultNetwork } : {}),
+    const compile = (defaultNetwork: NetworkKey | undefined): GrammarResult => compileIntentText(request.text ?? "", {
+      ...(defaultNetwork ? { defaultNetwork } : {}),
       accounts: request.accounts,
       ...(contracts.length > 0 ? { contracts } : {}),
     });
+    // A fixed departure also serves as defaultNetwork when the request has none.
+    const defaultNetwork = request.defaultNetwork ?? fixedSource;
+    let compiled: GrammarResult;
+    try {
+      compiled = compile(defaultNetwork);
+    } catch (error) {
+      // auto: a bridge whose sentence names no source starts on the best-funded network.
+      if (sourceNetwork !== "auto" || !(error instanceof MissingSourceError)) throw error;
+      const picked = await pickFundedSource(error.missing, request.accounts, request, readBalance);
+      compiled = compile(picked.network);
+      departure = picked.departure;
+    }
     source = "grammar";
     specs = compiled.actions;
+    explicitNetwork = compiled.explicitNetwork;
     normalizedText = compiled.normalizedText;
     confidence = compiled.confidence;
+    plannerWarnings.push(...compiled.warnings);
+  }
+  if (sourceNetwork !== undefined && departure === undefined) {
+    const resolved = await resolveDeparture(specs, explicitNetwork, request, request.accounts, readBalance);
+    specs = resolved.actions;
+    departure = resolved.departure;
+    plannerWarnings.push(...resolved.warnings);
   }
   const actions = normalizeActions(specs, request);
 
@@ -1189,7 +1380,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     })),
   );
 
-  const warnings: string[] = [];
+  const warnings: string[] = [...new Set(plannerWarnings)];
   const signatures = drafts.reduce((total, draft) => total + draft.planned.transactionCount, 0);
   if (steps.some((step) => step.settlement?.kind === "cross-network")) {
     warnings.push("Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.");
@@ -1234,6 +1425,9 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
       ...(normalizedText ? { normalizedText } : {}),
       confidence,
       ...(optimizations.length > 0 ? { optimizations } : {}),
+      ...(departure ? { departure } : {}),
+      ...(options.interpretation?.assumptions ? { assumptions: options.interpretation.assumptions } : {}),
+      ...(options.interpretation?.thread ? { thread: options.interpretation.thread } : {}),
     },
     steps,
     edges,

@@ -246,6 +246,47 @@ function blockTag(blockNumber?: bigint): string {
   return blockNumber === undefined ? "latest" : `0x${blockNumber.toString(16)}`;
 }
 
+/**
+ * Errors of a load-balanced RPC whose answering node has not seen the pinned
+ * block yet (block propagation lag), as opposed to a real failure.
+ */
+const BLOCK_LAG_PATTERN = /unsupported block number|header not found|unknown block|block not found/iu;
+/** Waits before the retries of a read at a pinned block (two retries, then the error stands). */
+export const BLOCK_LAG_RETRY_DELAYS_MS: readonly number[] = Object.freeze([250, 750]);
+let blockLagDelays: readonly number[] = BLOCK_LAG_RETRY_DELAYS_MS;
+
+/** Replaces the retry delays (tests); `null` restores the defaults. */
+export function configureBlockLagRetry(delays: readonly number[] | null): void {
+  blockLagDelays = delays ?? BLOCK_LAG_RETRY_DELAYS_MS;
+}
+
+function isBlockLag(error: unknown): boolean {
+  if (error instanceof PlatformError) return false;
+  if (error instanceof BaseError) {
+    return Boolean(error.walk((cause) => BLOCK_LAG_PATTERN.test(`${(cause as BaseError).shortMessage ?? ""} ${(cause as BaseError).details ?? ""} ${(cause as Error).message ?? ""}`)));
+  }
+  return error instanceof Error && BLOCK_LAG_PATTERN.test(error.message);
+}
+
+/**
+ * Runs one read. At a pinned block (`blockNumber` set), an error saying the
+ * node does not know that block yet is retried at the same block after 250 ms
+ * and 750 ms; any other error, or the third lag error, is thrown as is (the
+ * caller maps it to RPC_UNAVAILABLE). Reads at `latest` are never retried.
+ */
+async function atPinnedBlock<T>(blockNumber: bigint | undefined, read: () => Promise<T>): Promise<T> {
+  if (blockNumber === undefined) return read();
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      const delay = blockLagDelays[attempt];
+      if (delay === undefined || !isBlockLag(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 /** Latest block number (pins are read at one block so they are mutually consistent). */
 export async function readLatestBlockNumber(network: EvmNetworkKey): Promise<bigint> {
   const value = await withTimeout(evmClient(network).request({ method: "eth_blockNumber" }));
@@ -254,10 +295,10 @@ export async function readLatestBlockNumber(network: EvmNetworkKey): Promise<big
 
 /** Runtime code of `address` at `blockNumber` (latest by default); "0x" when none. */
 export async function readCode(network: EvmNetworkKey, address: string, blockNumber?: bigint): Promise<Hex> {
-  const code = await withTimeout(evmClient(network).request({
+  const code = await atPinnedBlock(blockNumber, () => withTimeout(evmClient(network).request({
     method: "eth_getCode",
     params: [getAddress(address), blockTag(blockNumber) as `0x${string}`],
-  }));
+  })));
   if (typeof code !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$/u.test(code)) {
     throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read returned malformed code.", 502);
   }
@@ -285,10 +326,10 @@ export async function readCodeHash(network: EvmNetworkKey, address: string, bloc
 
 /** One 32-byte storage word of `address` (lower-case 0x hex). */
 export async function readStorageSlot(network: EvmNetworkKey, address: string, slot: string, blockNumber?: bigint): Promise<string> {
-  const word = await withTimeout(evmClient(network).request({
+  const word = await atPinnedBlock(blockNumber, () => withTimeout(evmClient(network).request({
     method: "eth_getStorageAt",
     params: [getAddress(address), slot as Hex, blockTag(blockNumber) as `0x${string}`],
-  }));
+  })));
   if (typeof word !== "string" || !/^0x[0-9a-fA-F]{1,64}$/u.test(word)) {
     throw new PlatformError("RPC_UNAVAILABLE", "An EVM network read returned a malformed storage word.", 502);
   }
@@ -301,10 +342,10 @@ export async function readStorageSlot(network: EvmNetworkKey, address: string, s
  */
 export async function rawEthCall(network: EvmNetworkKey, to: string, data: Hex, blockNumber?: bigint): Promise<Hex | null> {
   try {
-    const result = await withTimeout(evmClient(network).request({
+    const result = await atPinnedBlock(blockNumber, () => withTimeout(evmClient(network).request({
       method: "eth_call",
       params: [{ to: getAddress(to), data }, blockTag(blockNumber) as `0x${string}`],
-    }));
+    })));
     return typeof result === "string" ? (result as Hex) : null;
   } catch (error) {
     if (error instanceof PlatformError) throw error;

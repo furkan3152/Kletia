@@ -2180,6 +2180,12 @@ export type ChatMessage = {
   chainId?: number;
   walletAddress?: string;
   requestId?: string;
+  /**
+   * The desk task this message belongs to (its task id), or `wf:<workflowId>`
+   * for a restored cross-chain workflow. Persisted: it names a task, not what
+   * was said. Messages of the old console have none.
+   */
+  threadId?: string;
   clarification?: EntityClarification;
   conversationId?: string;
   conversationExpiresAt?: number;

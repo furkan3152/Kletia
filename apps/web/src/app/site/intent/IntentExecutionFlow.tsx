@@ -83,6 +83,14 @@ export interface IntentExecutionFlowProps {
   readonly outcomeFooter?: React.ReactNode;
   /** Silent "Step N settled" toasts while the progress panel is scrolled out of view. */
   readonly notifyProgress?: boolean;
+  /**
+   * Set while another execution on the page holds the signing lock (the
+   * desk): confirming, resuming and retrying are disabled and this explains
+   * why. The execution hook refuses the run on its own as well.
+   */
+  readonly signingBlockedReason?: string | null;
+  /** Rendered above the review and the progress (the desk's journey slot). */
+  readonly beforeBody?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -99,8 +107,11 @@ export function IntentExecutionFlow({
   showGraph = true,
   outcomeFooter,
   notifyProgress = false,
+  signingBlockedReason = null,
+  beforeBody = null,
   className,
 }: IntentExecutionFlowProps) {
+  const locked = Boolean(signingBlockedReason);
   const { intent, status, error } = execution;
   const rootRef = useRef<HTMLDivElement>(null);
   const previousStatusRef = useRef(status);
@@ -148,10 +159,11 @@ export function IntentExecutionFlow({
     return (
       <div ref={rootRef} className={cx("flex flex-col gap-6", className)}>
         {region}
+        {beforeBody}
         <IntentReview
           intent={intent}
           busy={status === "planning"}
-          blockedReason={status === "review" ? execution.bindingProblem?.message ?? null : null}
+          blockedReason={status === "review" ? execution.bindingProblem?.message ?? signingBlockedReason : null}
           ownedAccounts={execution.accounts}
           preview={execution.preview}
           onConfirm={() => void execution.start(intent)}
@@ -173,6 +185,7 @@ export function IntentExecutionFlow({
   return (
     <div ref={rootRef} className={cx("flex flex-col gap-6", className)}>
       {region}
+      {beforeBody}
       {execution.gate && status === "executing" ? (
         <ExecutionGatePanel key={gateKey(execution.gate)} gate={execution.gate} intent={intent} onResolve={execution.resolveGate} />
       ) : null}
@@ -188,10 +201,12 @@ export function IntentExecutionFlow({
             Paused
           </p>
           <p className="text-sm font-semibold">{execution.pauseReason ?? "Execution is paused."}</p>
+          {locked ? <p className="text-sm font-bold">{signingBlockedReason}</p> : null}
           <div className="flex flex-wrap gap-2">
             {execution.reconfirmStepIds.length > 0 ? (
               <Button
                 size="sm"
+                disabled={locked}
                 onClick={() => void execution.resume(intent.id, { confirmResign: true })}
                 className="max-w-full !whitespace-normal text-left"
               >
@@ -199,7 +214,7 @@ export function IntentExecutionFlow({
                 I checked my wallet, sign again
               </Button>
             ) : (
-              <Button size="sm" onClick={() => void execution.resume(intent.id)}>
+              <Button size="sm" disabled={locked} onClick={() => void execution.resume(intent.id)}>
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 {hold ? "Check approval and continue" : "Resume"}
               </Button>
@@ -219,8 +234,9 @@ export function IntentExecutionFlow({
           <ExecutionErrorPanel
             error={error}
             title={error.stepId ? "A step did not go through" : "Execution stopped"}
-            {...(!terminal ? { onRetry: () => void execution.resume(intent.id), retryLabel: "Retry from here" } : {})}
+            {...(!terminal && !locked ? { onRetry: () => void execution.resume(intent.id), retryLabel: "Retry from here" } : {})}
           />
+          {!terminal && locked ? <p className="mt-2 text-sm font-bold">{signingBlockedReason}</p> : null}
         </div>
       ) : null}
 

@@ -81,6 +81,11 @@ const PORTAL_OVERVIEW_TITLE = "Developers: the Kletia API, SDK and widget";
 const PORTAL_OVERVIEW_DESCRIPTION =
   "Get a key, plan your first intent as a dry run, and find the API explorer, recipes, webhooks, contracts, links and receipts of the Kletia developer portal.";
 
+/** The desk at /app: one title and description for every view. */
+const CONSOLE_TITLE = "Kletia Console";
+const CONSOLE_DESCRIPTION =
+  "Plan and sign intents on all nine Kletia networks from one sentence, with your own EVM and Solana wallets signing every step.";
+
 export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze({
   home: {
     id: "home",
@@ -141,9 +146,9 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
     id: "console",
     path: "/app",
     kind: "console",
-    title: "Kletia Console",
-    description:
-      "Connect an EVM or Solana wallet and run cross-chain intents with every value-moving step signed in your own wallet.",
+    title: CONSOLE_TITLE,
+    description: CONSOLE_DESCRIPTION,
+    metaFor: (pathname) => consoleMetaFor(pathname),
     load: () => import("./ConsoleRoute"),
   },
   receipt: {
@@ -492,6 +497,23 @@ export function portalMetaFor(pathname: string): RouteMeta {
   return { title, description: page.description, robots: match.robots };
 }
 
+/**
+ * Views of the desk at /app (tasks, holdings, activity, tools): the same
+ * console route with their own HTML entry, so a static host without a
+ * rewrite rule serves them. Their canonical URL stays /app.
+ */
+export const CONSOLE_VIEW_PATHS: readonly string[] = Object.freeze(["/app/tasks", "/app/holdings", "/app/activity", "/app/tools"]);
+
+/** Every /app path is the desk: one title, canonical /app, and only /app itself is indexed. */
+export function consoleMetaFor(pathname: string): RouteMeta {
+  return {
+    title: CONSOLE_TITLE,
+    description: CONSOLE_DESCRIPTION,
+    robots: pathname === "/app" ? "index,follow" : "noindex,follow",
+    canonical: "/app",
+  };
+}
+
 export interface PrerenderPath {
   readonly path: string;
   readonly title: string;
@@ -506,6 +528,7 @@ export interface PrerenderPath {
  * each recipe, the `new` pages and the builder's alias.
  */
 export const PRERENDER_PATHS: readonly PrerenderPath[] = [
+  ...CONSOLE_VIEW_PATHS.map((path) => ({ path, title: CONSOLE_TITLE, description: CONSOLE_DESCRIPTION, robots: consoleMetaFor(path).robots })),
   ...PORTAL_ROUTES.filter((page) => page.indexed).map((page) => ({ path: page.path, title: page.title, description: page.description })),
   ...PORTAL_RECIPES.map((recipe) => ({
     path: `${PORTAL_PREFIX}/recipes/${recipe.id}`,

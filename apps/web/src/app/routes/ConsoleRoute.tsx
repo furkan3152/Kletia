@@ -1,11 +1,11 @@
-import App from "../App";
+import DeskApp from "../console/DeskApp";
 import { WalletProviders } from "../providers";
 
-/** The intent console: wallet providers plus the network workspaces. */
+/** The desk at /app (and its views): wallet providers plus the one composer for all nine networks. */
 export default function ConsoleRoute() {
   return (
     <WalletProviders>
-      <App />
+      <DeskApp />
     </WalletProviders>
   );
 }

@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { encodeFunctionData, erc20Abi, getAddress, type Hex } from "viem";
+import { outputMatches } from "../adapters/contractCall.js";
 import { assetChangeRows, creditsTo, EVENT_TOPICS, flowRefusal, userFlows, type FlowLog } from "../contracts/assetChanges.js";
 import { balanceOverride, discoverBalanceSlot } from "../contracts/balanceSlots.js";
 import { parseSimulatedBlock, readUint, revertReason, simulateEvmCalls } from "../contracts/simulateEvm.js";
@@ -203,5 +204,23 @@ describe("balance-slot discovery", () => {
     const before = [harness.world.simulateCount, harness.world.accessListCount];
     assert.equal(await balanceOverride("base", odd, USER, 1n), null);
     assert.deepEqual([harness.world.simulateCount, harness.world.accessListCount], before, "a miss is cached");
+  });
+});
+
+describe("output check of rebasing tokens (outputMatches)", () => {
+  it("is exact without the flag", () => {
+    assert.equal(outputMatches(1_000n, 1_000n, false), true);
+    assert.equal(outputMatches(1_001n, 1_000n, false), false);
+    assert.equal(outputMatches(999n, 1_000n, false), false);
+  });
+
+  it("accepts 1-2 base units either way with the flag, never 3", () => {
+    assert.equal(outputMatches(1_000n, 1_000n, true), true);
+    assert.equal(outputMatches(1_001n, 1_000n, true), true);
+    assert.equal(outputMatches(1_002n, 1_000n, true), true);
+    assert.equal(outputMatches(999n, 1_000n, true), true, "live Aave: 25000000 logged, 25000001 moved");
+    assert.equal(outputMatches(998n, 1_000n, true), true);
+    assert.equal(outputMatches(1_003n, 1_000n, true), false);
+    assert.equal(outputMatches(997n, 1_000n, true), false);
   });
 });

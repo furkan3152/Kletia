@@ -24,6 +24,7 @@ import type {
   ContractView,
   EvmContractPins,
   NetworkKey,
+  SessionView,
   SolanaProgramPin,
 } from "@kletia/core";
 import { resetEngine } from "../../engine/__tests__/helpers.js";
@@ -327,6 +328,42 @@ describe("POST /v1/contracts", () => {
     now = START;
   });
 
+  it("warns sessions about a pending registration and refuses one that would expire before activation", async () => {
+    const owner = await issueKey("pending-sessions");
+    const view = await register(owner.key, evmDefinition());
+    assert.equal(view.status, "pending");
+    const activatesAt = new Date(START + 900_000).toISOString();
+    const body = (extra: Record<string, unknown> = {}) => ({
+      actions: [{ kind: "call", network: "base", contract: view.id, entry: "deposit", amount: "100" }],
+      allowedOrigins: ["https://acme.example"],
+      ...extra,
+    });
+    now = START + 15_000;
+    try {
+      // The default TTL (900 s) now ends 15 s after activation: created, with the warning.
+      const created = await call<{ session: SessionView }>(server, "POST", "/sessions", { key: owner.key, body: body() });
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      assert.deepEqual(created.body.session.warnings, [{ code: "CONTRACT_PENDING", contract: view.id, activatesAt }]);
+      const read = await call<{ session: SessionView }>(server, "GET", `/sessions/${created.body.session.id}`);
+      assert.deepEqual(read.body.session.warnings, [{ code: "CONTRACT_PENDING", contract: view.id, activatesAt }], "GET repeats it while pending");
+      // A session that ends before activation could never be used.
+      const refused = assertError(await call(server, "POST", "/sessions", { key: owner.key, body: body({ expiresInSeconds: 600 }) }), 422, "SESSION_EXPIRES_BEFORE_ACTIVATION");
+      assert.equal(refused.error.issues?.[0]?.path, "expiresInSeconds");
+      const details = refused.error.details as { contract: string; activatesAt: string; minimumExpiresInSeconds: number } | undefined;
+      assert.equal(details?.contract, view.id);
+      assert.equal(details?.activatesAt, activatesAt);
+      assert.ok((details?.minimumExpiresInSeconds ?? 0) > 885);
+      const enough = await call<{ session: SessionView }>(server, "POST", "/sessions", { key: owner.key, body: body({ expiresInSeconds: details?.minimumExpiresInSeconds }) });
+      assert.equal(enough.status, 201, JSON.stringify(enough.body));
+      // After activation the warning is gone.
+      now = START + 900_000;
+      const later = await call<{ session: SessionView }>(server, "GET", `/sessions/${created.body.session.id}`);
+      assert.equal(later.body.session.warnings, undefined);
+    } finally {
+      now = START;
+    }
+  });
+
   it("activates testnet registrations at once", async () => {
     const owner = await issueKey("testnet");
     const view = await register(owner.key, evmDefinition({ network: "arbitrum-sepolia" }));
@@ -529,6 +566,68 @@ describe("reading and scoping registrations", () => {
     assert.match(solana.body.inspection.programs[1]?.denied ?? "", /built-in/u);
     assertError(await call(server, "GET", "/contracts/inspect?network=base&address=nope", { key: owner.key }), 400, "INVALID_REQUEST");
     assertError(await call(server, "GET", "/contracts/inspect?address=0x", { key: owner.key }), 400, "INVALID_REQUEST");
+  });
+});
+
+describe("GET /v1/contracts/inspect ERC-4626 hints", () => {
+  const ASSET_FN = { type: "function", name: "asset", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "address" }] };
+  const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  const reads: string[] = [];
+
+  function withAbi(abi: unknown[]): void {
+    configureContractEngine({
+      checks: {
+        sourcify: async () => ({ verification: { status: "exact_match", provider: "sourcify", checkedAt: new Date(now).toISOString() }, proxy: null, abi: abi as never }),
+      },
+    });
+  }
+
+  after(() => {
+    contracts.configureInspectAssetReader(null);
+    installStubs();
+  });
+
+  it("reads asset() once for a vault ABI and names the registry symbol", async () => {
+    const owner = await issueKey("inspect-4626");
+    const vault = randomAddress();
+    contracts.configureInspectAssetReader(async (network, address) => {
+      reads.push(`${network}:${address}`);
+      return USDC_BASE;
+    });
+    withAbi([...ABI, ASSET_FN]);
+    const reply = await call<{ inspection: { hints?: { erc4626?: { asset: string; registrySymbol: string | null } } } }>(server, "GET", `/contracts/inspect?network=base&address=${vault}`, { key: owner.key });
+    assert.equal(reply.status, 200, JSON.stringify(reply.body));
+    assert.deepEqual(reply.body.inspection.hints, { erc4626: { asset: USDC_BASE, registrySymbol: "USDC" } });
+    assert.deepEqual(reads, [`base:${vault}`]);
+    // An underlying token the registry does not list.
+    const unknownToken = "0x1111111111111111111111111111111111111111";
+    contracts.configureInspectAssetReader(async () => unknownToken);
+    const other = await call<{ inspection: { hints?: { erc4626?: { asset: string; registrySymbol: string | null } } } }>(server, "GET", `/contracts/inspect?network=base&address=${vault}`, { key: owner.key });
+    assert.deepEqual(other.body.inspection.hints, { erc4626: { asset: unknownToken, registrySymbol: null } });
+  });
+
+  it("gives no hint without the ERC-4626 shape or when asset() cannot be read", async () => {
+    const owner = await issueKey("inspect-plain");
+    let called = 0;
+    contracts.configureInspectAssetReader(async () => {
+      called += 1;
+      return null;
+    });
+    withAbi(ABI);
+    const plain = await call<{ inspection: Record<string, unknown> }>(server, "GET", `/contracts/inspect?network=base&address=${randomAddress()}`, { key: owner.key });
+    assert.equal(plain.status, 200);
+    assert.equal("hints" in plain.body.inspection, false);
+    assert.equal(called, 0, "no read without asset() in the ABI");
+    withAbi([...ABI, ASSET_FN]);
+    const unreadable = await call<{ inspection: Record<string, unknown> }>(server, "GET", `/contracts/inspect?network=base&address=${randomAddress()}`, { key: owner.key });
+    assert.equal("hints" in unreadable.body.inspection, false);
+    assert.equal(called, 1);
+    contracts.configureInspectAssetReader(async () => {
+      throw new Error("rpc down");
+    });
+    const failing = await call<{ inspection: Record<string, unknown> }>(server, "GET", `/contracts/inspect?network=base&address=${randomAddress()}`, { key: owner.key });
+    assert.equal(failing.status, 200, "a failed read leaves the hint out");
+    assert.equal("hints" in failing.body.inspection, false);
   });
 });
 

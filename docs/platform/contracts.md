@@ -43,6 +43,28 @@ Two ways to put a registered contract in front of a user:
 
 Either way the user reviews every step and signs in their own wallet.
 
+## Testnet first
+
+Start on a testnet: testnet registrations activate at once (no 15-minute
+delay), and a [sandbox key](api-v1.md#sandbox-keys) keeps every intent of the
+key on the testnet lane, so nothing you try can touch mainnet funds.
+
+1. `POST /v1/keys` with `{ "name": "acme-dev", "sandbox": true }` (no key
+   needed; the key is shown once).
+2. `GET /v1/contracts/inspect?network=arbitrum-sepolia&address=0x…`: what
+   registration would pin, the verified ABI and, for an ERC-4626 vault, the
+   underlying token ([below](#erc-4626-vaults)).
+3. `POST /v1/contracts` with `"network": "arbitrum-sepolia"`: `status: "active"`
+   at once. Testnet entries need no `limits.maxAmount` and no `website`.
+4. `POST /v1/contracts/{id}/test` with a funded account: the review users will
+   see, simulated against real state, nothing signed.
+5. Plan with the key (`"deposit 25 USDC into acme pool on arbitrum sepolia"`
+   once the entry has phrases), or create a [session](#sessions) for the embed.
+
+Then register the same definition on the mainnet network: it is `pending`
+for the activation delay, and its sessions say so
+([pending registrations and sessions](#pending-registrations-and-sessions)).
+
 ## Registering an EVM contract
 
 ```http
@@ -118,7 +140,7 @@ Per action (entry):
 | `input` | The token the call spends: a registry symbol on the network, a CAIP-19 id, or `native`. Registry assets only. ERC-20 inputs must bind `$amount` to an argument |
 | `input.approval` | ERC-20 only: `{ "spender": "$self" \| "<label>" }`. Always an **exact** `approve(spender, amount)`, only when the current allowance is below the amount (USDT-style tokens get a reset `approve(0)` first) |
 | `value` | `{ "bind": "$amount" \| "<wei>", "max": "<wei>" }`: required for `payable`; `$amount` only with `input.token: "native"`; refused above `max` |
-| `output` | `{ "token": "$self" \| "<label>" \| "0x…", "toleranceBps": 0-100 }` (default 10). ERC-20 outputs only. Enables `amount: "max"` after the step and output verification |
+| `output` | `{ "token": "$self" \| "<label>" \| "0x…", "toleranceBps": 0-100, "rebasing"?: true }` (default 10). ERC-20 outputs only. Enables `amount: "max"` after the step and output verification. `rebasing`: see [Rebasing outputs](#rebasing-outputs) |
 | `events` | 1-3 [event bindings](#event-bindings): the proof of success |
 | `params` | At most 6 user parameters `{ name, type: uint \| int \| bool \| enum, min?, max?, enum?, default?, required? }` (never addresses or bytes); every declared parameter must be bound |
 | `recipient` | `account` (default: `$recipient` is the acting account) or `any` (third-party recipients allowed and flagged in the review) |
@@ -127,6 +149,30 @@ Per action (entry):
 
 Only `label` and `phrases` can change without a new revision; everything else
 is security-relevant and part of `definitionHash`.
+
+### Rebasing outputs
+
+Some tokens keep balances as a scaled index (Aave aTokens and similar
+interest-bearing tokens). Their `Transfer` events and the balance change of
+one call can disagree by a base unit or two, in either direction, so a strict
+output check refuses such a step at random (`422
+SIMULATION_ASSET_CHANGE_REFUSED` "Transfer events report 25000000 but the
+balance moved 24999999", or "… moved 25000001"). Declare the output as
+rebasing:
+
+```json
+"output": { "token": "0x…aToken", "toleranceBps": 10, "rebasing": true }
+```
+
+With the flag, simulation (plan and prepare) accepts a `Transfer` amount that
+differs from the balance change by at most 2 base units, either way; at
+landing the declared event and the transfers may differ by at most 2 base
+units. In both cases the **smaller** amount counts as the output. The guaranteed
+minimum is checked against that amount as before, 3 base units or more are
+refused, and without the flag amounts must match exactly. The flag is part of
+`definitionHash` (adding or removing it is a new revision, pending on
+mainnet), and the review shows "Rebasing token: balance changes may differ by
+2 base units."
 
 ### Argument bindings
 
@@ -381,6 +427,42 @@ reason reads `operator: …` and the integrator cannot lift it.
   pins and proxy, Sourcify status, the verified ABI and every function marked
   allowed or forbidden. `?network=solana&programs=<id>,<id>` shows program
   pins, deny-list reasons and OtterSec status (`200 { "inspection": … }`).
+  For an ERC-4626 vault it adds `hints.erc4626` (below).
+
+### ERC-4626 vaults
+
+When the verified ABI has `asset()`, `deposit(uint256,address)` and the
+standard `Deposit(address,address,uint256,uint256)` event, the inspection
+reads `asset()` once and returns
+
+```json
+"hints": { "erc4626": { "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "registrySymbol": "USDC" } }
+```
+
+(`registrySymbol` is null when Kletia does not list the token on that
+network; such a vault cannot be registered with a spending entry, because
+inputs must be registry assets). The deposit entry of a vault is always the
+same shape; `kletia contracts init` writes the function and arguments from the
+ABI and leaves the rest as TODOs, which for a vault are:
+
+```json
+{
+  "id": "deposit",
+  "label": "Deposit into Acme USDC vault",
+  "function": "deposit(uint256,address)",
+  "args": ["$amount", "$account"],
+  "input": { "token": "USDC", "approval": { "spender": "$self" } },
+  "output": { "token": "$self", "toleranceBps": 10 },
+  "events": [{ "event": "Deposit", "emitter": "$self", "where": { "owner": "$account", "assets": "$amount" }, "output": "shares" }],
+  "phrases": { "verbs": ["deposit"], "aliases": ["acme vault"] },
+  "limits": { "maxAmount": "25000" }
+}
+```
+
+`input.token` is the hint's `registrySymbol`; the approval is exact and goes
+to the vault itself (`$self`); the shares are the output (`$self`, the vault
+is its own share token); and `limits.maxAmount` is a decision only you can
+make (required on mainnet).
 
 ## Using a registration in intents
 
@@ -499,8 +581,8 @@ Authorization: Bearer kl_dev_…
 - `GET /v1/sessions/{id}` (public: the id is the capability) returns the
   integrator identity (from the first registration the template uses, else
   the first allowed origin's host), allowed origins, action labels, amount
-  bounds, `status` (`active`, `expired`, `used`), `maxIntents` and `used`.
-  Never the key or the project.
+  bounds, `status` (`active`, `expired`, `used`), `maxIntents`, `used` and,
+  while a registration is pending, `warnings`. Never the key or the project.
 - `POST /v1/sessions/{id}/intents` (public) with
   `{ "accounts": [...], "amount"?: "…", "hostOrigin": "https://acme.example" }`
   re-checks expiry (`410 SESSION_EXPIRED`), the use count with one atomic
@@ -515,6 +597,24 @@ Authorization: Bearer kl_dev_…
 
 A leaked session id lets someone else run the same fixed actions with their
 own funds and wallet, nothing more. A revoked key's sessions stop working.
+
+### Pending registrations and sessions
+
+A session may use a registration that is still `pending` (the mainnet
+activation delay), but its intents are refused with `409 CONTRACT_PENDING`
+until `activatesAt`. The creation response, and `GET /v1/sessions/{id}` while
+it lasts, say so:
+
+```json
+"warnings": [{ "code": "CONTRACT_PENDING", "contract": "ct_5f1c2a9b7e3d4c6a8b0e1f23", "activatesAt": "2026-10-14T09:30:00.000Z" }]
+```
+
+A session that would expire at or before a registration activates could never
+be used, so it is refused: `422 SESSION_EXPIRES_BEFORE_ACTIVATION` with
+`details: { contract, activatesAt, expiresAt, minimumExpiresInSeconds }`.
+Raise `expiresInSeconds` to at least `minimumExpiresInSeconds` (at most 3600),
+or create the session after activation. Testnet registrations activate at
+once and never cause either.
 
 ## Webhooks
 

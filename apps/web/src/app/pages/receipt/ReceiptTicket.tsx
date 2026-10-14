@@ -60,7 +60,7 @@ const STATUS_SENTENCE: Readonly<Record<ReceiptModel["status"], string>> = {
 
 function statusLine(model: ReceiptModel): string {
   const took = model.duration ? `, ${model.duration} after the first transaction` : "";
-  const final = model.terminal ? " Final." : " Not final: a retried step would get a new issue.";
+  const final = model.terminal ? " Final." : " Not final: a retried step would get a new receipt.";
   return `${STATUS_SENTENCE[model.status]} on ${formatDay(model.finishedOn)}${took}.${final}`;
 }
 
@@ -231,9 +231,9 @@ function PassengerCoupon({ model, verdict, share, rechecked, animate }: Pick<Rec
   const seenLegs = model.legs.filter((leg) => leg.mark === "seen").length;
   return (
     <section className="kl-rcpt__coupon kl-rcpt__passenger" aria-labelledby="kl-rcpt-passenger">
-      <p className="kl-rcpt__pk">Passenger coupon</p>
+      <p className="kl-rcpt__pk">Private details</p>
       <h2 id="kl-rcpt-passenger" className="kl-rcpt__ptitle">
-        Shown by the owner
+        What the owner shared
       </h2>
       {open ? (
         <p className="kl-rcpt__pcount">
@@ -312,9 +312,9 @@ export function ReceiptTicket({ model, verdict, share, supersededBy, rechecked, 
   return (
     <div className="kl-rcpt">
       <div className="kl-rcpt__ticket" data-void={(voided && !verdict.signatureValid) || undefined}>
-        <article className="kl-rcpt__coupon kl-rcpt__control" aria-label={`Receipt ${receiptSerial(model.receiptId)}, issue ${model.sequence}`}>
+        <article className="kl-rcpt__coupon kl-rcpt__control" aria-label={`Kletia receipt ${receiptSerial(model.receiptId)}, number ${model.sequence}`}>
           <TicketHead icon="verify" title="Kletia receipt" serial={`${receiptSerial(model.receiptId)} · ${model.sequence}`} />
-          <p className="kla-ticket__eyebrow kl-rcpt__k">Control coupon · signed by Kletia</p>
+          <p className="kla-ticket__eyebrow kl-rcpt__k">Signed by Kletia</p>
           <p className="kl-rcpt__issue">{issueLine(model, supersededBy)}</p>
           <p className="kl-rcpt__status">{statusLine(model)}</p>
           <p className="kl-rcpt__route">

@@ -9,14 +9,15 @@
  *   lock is released when its task leaves `executing` or is removed;
  * - a signing task is never removed (unmounting its execution would cancel
  *   the run and refuse any open gate);
- * - the sentence, the question and the turns stay in memory; the tab's index
- *   (`deskSession.ts`) keeps redacted titles only;
- * - the composer answers a task only while that task has an open question.
+ * - the sentence, the question, the turns and the clarify thread stay in
+ *   memory; the tab's index (`deskSession.ts`) keeps redacted titles only;
+ * - the composer answers a task only while that task has an open question,
+ *   and edits one only while it is armed for that task (`edit`).
  *
  * `createDeskStore` builds a vanilla store (node --test drives it); the app
  * uses the lazily created singleton through `useDeskStore`.
  */
-import type { NetworkKey } from "@kletia/core";
+import type { ClarifyQuestion, ClarifyThread, NetworkKey } from "@kletia/core";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -78,12 +79,28 @@ export interface DeskQuestion {
   }[];
   /** Free-text answers through the composer's Answering chip. */
   readonly allowsText: boolean;
+  /** clarify: up to two independent questions shown in one card; the first mirrors the fields above. */
+  readonly questions?: readonly ClarifyQuestion[];
+}
+
+/** A structured answer to one of the open clarify questions (the id is the question's). */
+export interface TaskAnswer {
+  readonly question: string;
+  readonly option?: string;
+  readonly text?: string;
 }
 
 export type TaskTurn =
   /** The sentence itself is `TaskRecord.sentence`. */
   | { readonly kind: "sentence"; readonly at: number }
-  | { readonly kind: "answer"; readonly at: number; readonly label: string }
+  /** The user answered: `label` as shown (a chip's label or the typed text), `answer` when a chip of a known question was chosen. */
+  | { readonly kind: "answer"; readonly at: number; readonly label: string; readonly answer?: TaskAnswer }
+  /** A follow-up typed with the Editing chip ("make it 2", "undo", "cancel"); memory only. */
+  | { readonly kind: "edit"; readonly at: number; readonly text: string }
+  /** Another value for one of Kletia's assumptions (an "assumed" chip). */
+  | { readonly kind: "assumption"; readonly at: number; readonly id: string; readonly option: string; readonly label: string }
+  /** What Kletia answered: the question it asked, or the sentence it planned. */
+  | { readonly kind: "kletia"; readonly at: number; readonly label: string }
   | { readonly kind: "note"; readonly at: number; readonly text: string };
 
 export interface TaskRecord {
@@ -109,6 +126,12 @@ export interface TaskRecord {
   readonly restored?: boolean;
   /** Picked up once from a Studio or Solana Ask resume record. */
   readonly origin?: TaskOrigin;
+  /**
+   * The task's clarify thread (client-held), sent back with every turn.
+   * Memory only: never persisted, never shared with another task, gone
+   * after a reload (open questions are then cleared).
+   */
+  readonly thread?: ClarifyThread | null;
 }
 
 export interface NewTask {
@@ -119,7 +142,7 @@ export interface NewTask {
   readonly status?: TaskStatus;
 }
 
-export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane">> & {
+export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane" | "thread">> & {
   /** Appended to the task's turns. */
   readonly turn?: TaskTurn;
 };
@@ -136,6 +159,8 @@ export interface DeskState {
   readonly enginePin: LegacyNetwork | null;
   /** The task whose open question the composer answers. */
   readonly answering: string | null;
+  /** The task the composer's next message edits (its Edit button armed the Editing chip). */
+  readonly editing: string | null;
   readonly view: DeskView;
   readonly toolId: string | null;
   setDeparture(departure: Departure): void;
@@ -150,6 +175,8 @@ export interface DeskState {
   releaseSigning(id: string): void;
   pinEngine(network: LegacyNetwork | null): void;
   answer(id: string | null): void;
+  /** Arms (or clears) the composer's Editing chip for a planned task. */
+  edit(id: string | null): void;
   setView(view: DeskView): void;
   openTool(toolId: string | null): void;
 }
@@ -196,6 +223,7 @@ export function restoreTask(entry: TaskIndexEntry): TaskRecord | null {
     question: null,
     turns: [],
     ends: entry.ends,
+    thread: null,
     restored: true,
     ...(entry.origin ? { origin: entry.origin } : {}),
   };
@@ -223,6 +251,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
     signingTaskId: null,
     enginePin: null,
     answering: null,
+    editing: null,
     view: "desk",
     toolId: null,
 
@@ -248,10 +277,11 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         question: null,
         turns: [{ kind: "sentence", at: now() }],
         ends: null,
+        thread: null,
       };
       const { kept, dropped } = capTasks([...get().tasks, task]);
       forget(dropped.map((entry) => entry.id));
-      set({ tasks: kept, focusedTaskId: task.id, answering: null, enginePin: null });
+      set({ tasks: kept, focusedTaskId: task.id, answering: null, editing: null, enginePin: null });
       return task;
     },
 
@@ -272,10 +302,13 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         state.signingTaskId === id &&
         ((current.status === "executing" && next.status !== "executing") || isFinishedStatus(next.status));
       const answeringClosed = state.answering === id && (next.question === null || isFinishedStatus(next.status));
+      // A task that started signing (or finished) can no longer be edited.
+      const editingClosed = state.editing === id && !isEditable(next);
       set({
         tasks: state.tasks.map((task) => (task.id === id ? next : task)),
         ...(leavesExecution ? { signingTaskId: null } : {}),
         ...(answeringClosed ? { answering: null } : {}),
+        ...(editingClosed ? { editing: null } : {}),
       });
     },
 
@@ -289,6 +322,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         tasks: state.tasks.filter((entry) => entry.id !== id),
         focusedTaskId: state.focusedTaskId === id ? null : state.focusedTaskId,
         answering: state.answering === id ? null : state.answering,
+        editing: state.editing === id ? null : state.editing,
       });
       return true;
     },
@@ -303,6 +337,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         tasks: state.tasks.filter((task) => !ids.has(task.id)),
         focusedTaskId: state.focusedTaskId && ids.has(state.focusedTaskId) ? null : state.focusedTaskId,
         answering: state.answering && ids.has(state.answering) ? null : state.answering,
+        editing: state.editing && ids.has(state.editing) ? null : state.editing,
       });
     },
 
@@ -335,7 +370,17 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
       }
       const task = get().tasks.find((entry) => entry.id === id);
       if (!task || task.question === null || isFinishedStatus(task.status)) return;
-      set({ answering: id, focusedTaskId: id });
+      set({ answering: id, editing: null, focusedTaskId: id });
+    },
+
+    edit(id) {
+      if (id === null) {
+        set({ editing: null });
+        return;
+      }
+      const task = get().tasks.find((entry) => entry.id === id);
+      if (!task || !isEditable(task)) return;
+      set({ editing: id, answering: null, focusedTaskId: id });
     },
 
     setView(view) {
@@ -353,6 +398,14 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
     if (state.tasks !== previous.tasks) writeTaskIndex(state.tasks, storage);
   });
   return store;
+}
+
+/**
+ * A task the composer may edit: a platform task with a plan or a question
+ * and a sentence in memory, before anything is signed.
+ */
+export function isEditable(task: Pick<TaskRecord, "engine" | "status" | "sentence">): boolean {
+  return task.engine.kind === "platform" && task.sentence.length > 0 && (task.status === "preview" || task.status === "review" || task.status === "question");
 }
 
 let deskStoreInstance: StoreApi<DeskState> | null = null;

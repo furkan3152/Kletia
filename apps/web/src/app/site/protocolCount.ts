@@ -4,15 +4,31 @@
  * The registry also lists two "custom" entries (EVM contract calls and Solana
  * Actions): they are the doors for bring-your-own-contract, not protocols.
  * Counts therefore include only entries whose category is not "custom", and
- * your own contracts are named separately ("29 protocols + your own
+ * your own contracts are named separately ("42 protocols + your own
  * contracts"). Pure, dependency-free and safe for the entry bundle.
+ *
+ * "Executable through the API" is computed from GET /v1/protocols, never
+ * typed: a real protocol whose `executable` is true (the deployment has a
+ * live adapter for it) and whose `surface` is "platform" (planned and run by
+ * Platform API v1, not only by the console or a separate service). The
+ * registry compiled into @kletia/core cannot know which adapters a
+ * deployment runs, so without a live answer that count is unknown (null),
+ * never guessed.
  */
 
 /** The registry category of bring-your-own-contract entries. */
 export const OWN_CONTRACT_CATEGORY = "custom";
 
+export type ProtocolSurfaceName = "platform" | "console" | "service";
+
 interface Categorized {
   readonly category?: unknown;
+}
+
+interface Countable extends Categorized {
+  readonly executable?: unknown;
+  readonly surface?: unknown;
+  readonly execution?: unknown;
 }
 
 /** True for the bring-your-own-contract entries (`custom-call`, `solana-actions`). */
@@ -25,21 +41,48 @@ export function realProtocols<T extends Categorized>(entries: readonly T[]): T[]
   return entries.filter((entry) => !isOwnContractEntry(entry));
 }
 
+/**
+ * Where an entry executes: the live API's `surface`, else the registry's
+ * `execution` ("console" or "service"), else "platform". An unknown value
+ * from a newer API is never read as "platform".
+ */
+export function surfaceOf(entry: Countable): ProtocolSurfaceName | "unknown" {
+  const value = entry.surface ?? entry.execution ?? "platform";
+  return value === "platform" || value === "console" || value === "service" ? value : "unknown";
+}
+
+/** A real protocol this deployment executes through Platform API v1 (live data only). */
+export function isExecutableThroughApi(entry: Countable): boolean {
+  return !isOwnContractEntry(entry) && entry.executable === true && surfaceOf(entry) === "platform";
+}
+
 export interface ProtocolCount {
   /** Real protocols (category is not "custom"). */
   readonly protocols: number;
   /** Whether the list offers bring-your-own-contract entries. */
   readonly ownContracts: boolean;
+  /**
+   * Real protocols executable through the API, or null when the list carries
+   * no live `executable` flags (the registry view).
+   */
+  readonly executable: number | null;
 }
 
-export function countProtocols(entries: readonly Categorized[]): ProtocolCount {
+export function countProtocols(entries: readonly Countable[]): ProtocolCount {
   let protocols = 0;
   let ownContracts = false;
+  let executable = 0;
+  let live = false;
   for (const entry of entries) {
-    if (isOwnContractEntry(entry)) ownContracts = true;
-    else protocols += 1;
+    if (isOwnContractEntry(entry)) {
+      ownContracts = true;
+      continue;
+    }
+    protocols += 1;
+    if (typeof entry.executable === "boolean") live = true;
+    if (isExecutableThroughApi(entry)) executable += 1;
   }
-  return { protocols, ownContracts };
+  return { protocols, ownContracts, executable: live ? executable : null };
 }
 
 /** "29 protocols" / "1 protocol". */
@@ -51,4 +94,17 @@ export function protocolNoun(count: number): string {
 export function protocolCountLabel(entries: readonly Categorized[]): string {
   const { protocols, ownContracts } = countProtocols(entries);
   return ownContracts ? `${protocolNoun(protocols)} + your own contracts` : protocolNoun(protocols);
+}
+
+/**
+ * The Protocols page header: "42 protocols, 28 executable through the API,
+ * + your own contracts". Without live flags the middle part is left out
+ * ("42 protocols + your own contracts"), never estimated.
+ */
+export function protocolHeadline(entries: readonly Countable[]): string {
+  const { protocols, ownContracts, executable } = countProtocols(entries);
+  const parts = [protocolNoun(protocols)];
+  if (executable !== null) parts.push(`${executable} executable through the API`);
+  if (!ownContracts) return parts.join(", ");
+  return executable !== null ? `${parts.join(", ")}, + your own contracts` : `${parts[0]} + your own contracts`;
 }

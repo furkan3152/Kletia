@@ -35,6 +35,13 @@ export interface SectionProps {
    * scrolls into view. Default false. Children are not wrapped: use `<Reveal>`.
    */
   readonly reveal?: boolean;
+  /**
+   * Below-the-fold sections only: skip layout and paint until the
+   * section nears the viewport (`content-visibility: auto`), reserving
+   * this height (a CSS length such as "900px") so the scrollbar and
+   * anchors stay put.
+   */
+  readonly deferPaint?: string;
   readonly className?: string;
   readonly containerClassName?: string;
   readonly children?: React.ReactNode;
@@ -60,6 +67,7 @@ export function Section({
   tone = "plain",
   bordered = false,
   reveal = false,
+  deferPaint,
   className,
   containerClassName,
   children,
@@ -71,6 +79,7 @@ export function Section({
     <section
       id={id}
       aria-labelledby={title ? headingId : undefined}
+      style={deferPaint ? { contentVisibility: "auto", containIntrinsicSize: `auto ${deferPaint}` } : undefined}
       className={cx(
         "relative scroll-mt-24 py-16 sm:py-20 lg:py-24",
         TONES[tone],

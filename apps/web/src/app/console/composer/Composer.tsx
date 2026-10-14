@@ -7,19 +7,35 @@
  * field focuses the box.
  *
  * Context chips above the text: the departure (always), the engine pin set
- * a tool, and "Answering" while a task's open question is being answered.
+ * by a tool, "Answering" while a task's open question is being answered,
+ * and "Editing" when the focused task is planned and the text reads as a
+ * follow-up (`classifyMessage`: an edit, an append or a control such as
+ * "make it 2", "undo", "cancel"), or when the task's Edit button armed it.
+ * Enter then sends the text to that task as its next turn; a complete
+ * sentence is a new task; the chip's × makes it a new task.
  */
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
-import { CHAINS } from "@kletia/core";
+import { CHAINS, classifyMessage } from "@kletia/core";
 
 import { DESK_COPY } from "../content/copy";
 import type { NetworkActions } from "../content/starters";
 import { COMPOSER_LIMIT, composerVerdict, laneOf, type Departure, type DeskView, type LegacyNetwork } from "../state/deskModel";
+import { getDeskStore, useDeskStore } from "../state/deskStore";
+import { editsTask } from "../tasks/questionModel";
 import { DepartureChip } from "./DepartureChip";
 import { StarterMenu } from "./StarterMenu";
 
-const copy = DESK_COPY.composer;
+const copy = {
+  ...DESK_COPY.composer,
+  editing: (title: string) => `Editing: ${title}`,
+  editingLabel: (title: string) => `Editing: ${title}. Remove to make this a new task`,
+  editingHint: "Enter changes this task · × makes it a new task",
+  answeringHint: "Enter answers the question · × makes it a new task",
+  editSent: (title: string) => `Sent to the task ${title}.`,
+  sendEdit: "Change this task",
+  sendEditShort: "Change",
+};
 
 export interface ComposerHandle {
   /** Puts a sentence in the box (nothing is sent) and focuses it. */
@@ -77,9 +93,22 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** The task whose Editing chip the user removed (until the focus moves to another task). */
+  const [declined, setDeclined] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const errorId = useId();
   const labelId = useId();
+  const hintId = useId();
+
+  // The task a follow-up would edit: the armed one, else the focused one.
+  const armedId = useDeskStore((state) => state.editing);
+  const editTarget = useDeskStore((state) => state.tasks.find((task) => task.id === (state.editing ?? state.focusedTaskId)) ?? null);
+  const editing =
+    editTarget !== null &&
+    answeringTitle === null &&
+    enginePin === null &&
+    declined !== editTarget.id &&
+    editsTask(text, editTarget, armedId === editTarget.id);
 
   useImperativeHandle(ref, () => ({
     fill(next: string) {
@@ -151,6 +180,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       case "sentence":
         setText("");
         setError(null);
+        // A complete sentence while answering is a new task, never an answer (classifyMessage).
+        if (answeringTitle && classifyMessage(verdict.text, { hasOpenQuestion: true, hasTask: true }) === "sentence") {
+          getDeskStore().getState().answer(null);
+        }
+        if (editing && editTarget) {
+          // The follow-up goes to that task as its next turn, with that task's own thread.
+          const store = getDeskStore().getState();
+          store.patchTask(editTarget.id, { turn: { kind: "edit", at: Date.now(), text: verdict.text } });
+          store.edit(null);
+          setNotice(copy.editSent(editTarget.title));
+          return;
+        }
         onSubmit(verdict.text);
         return;
     }
@@ -190,6 +231,21 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </button>
             ) : null}
+            {editing && editTarget ? (
+              <button
+                type="button"
+                className={`${REMOVE_CHIP} max-w-full`}
+                aria-label={copy.editingLabel(editTarget.title)}
+                onClick={() => {
+                  setDeclined(editTarget.id);
+                  getDeskStore().getState().edit(null);
+                  textareaRef.current?.focus();
+                }}
+              >
+                <span className="truncate">{copy.editing(editTarget.title)}</span>
+                <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
           <div className="mt-2 flex items-end gap-2">
             <label id={labelId} className="sr-only" htmlFor="desk-composer-input">
@@ -204,13 +260,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               placeholder={placeholderFor(departure)}
               aria-labelledby={labelId}
               aria-invalid={error ? true : undefined}
-              aria-describedby={error ? errorId : undefined}
+              aria-describedby={[error ? errorId : null, editing || answeringTitle ? hintId : null].filter(Boolean).join(" ") || undefined}
               autoComplete="off"
               spellCheck={false}
               enterKeyHint="send"
               onChange={(event) => {
                 setText(event.target.value);
                 if (error) setError(null);
+                if (!event.target.value) setDeclined(null);
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.shiftKey) return;
@@ -222,13 +279,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             />
             <button
               type="submit"
-              aria-label={answeringTitle ? copy.sendAnswer : copy.sendLabel}
+              aria-label={answeringTitle ? copy.sendAnswer : editing ? copy.sendEdit : copy.sendLabel}
               className="inline-flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 border-[3px] border-[#1A1A1A] bg-[#0052FF] px-3 text-xs font-black uppercase tracking-wider text-white shadow-[2px_2px_0_#1A1A1A] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] active:translate-y-0.5 active:shadow-none dark:border-[#64748B] motion-reduce:hover:translate-y-0"
             >
               <ArrowUp className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{answeringTitle ? copy.sendAnswer : copy.send}</span>
+              <span className="hidden sm:inline">{answeringTitle ? copy.sendAnswer : editing ? copy.sendEditShort : copy.send}</span>
             </button>
           </div>
+          {editing || answeringTitle ? (
+            <p id={hintId} className="mt-2 text-xs font-semibold text-muted">
+              {editing ? copy.editingHint : copy.answeringHint}
+            </p>
+          ) : null}
           {error ? (
             <p id={errorId} role="alert" className="mt-2 border-l-4 border-[var(--kl-danger)] bg-[var(--kl-danger-bg)] px-3 py-2 text-sm font-bold text-[var(--kl-danger)]">
               {error}

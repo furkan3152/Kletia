@@ -4,7 +4,7 @@ import { Link } from "../../routes/Link";
 import { Icon } from "../../site/art/Icon";
 import { RouteMapCard } from "../../site/art/MapCard";
 import { Ticket } from "../../site/art/Ticket";
-import { countWord, PRODUCTION } from "../../site/registryCopy";
+import { countWord, listNames, PRODUCTION, YARD } from "../../site/registryCopy";
 import { ButtonLink } from "../../site/ui/Button";
 import { CONTAINER, cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 import { studioHref } from "../protocols/protocolExamples";
@@ -34,7 +34,9 @@ export interface HeroSectionProps {
  * also in the copy on the left.
  */
 export function HeroSection({ protocols }: HeroSectionProps) {
-  const production = PRODUCTION.length;
+  // Neutral nine-network positioning: every network is named in registry order, none is "the" network.
+  const networks = PRODUCTION.length + YARD.length;
+  const productionNames = listNames(PRODUCTION.map((line) => line.name));
   return (
     <section
       aria-labelledby="hero-heading"
@@ -47,10 +49,10 @@ export function HeroSection({ protocols }: HeroSectionProps) {
         )}
       >
         <div className="min-w-0 xl:pt-6">
-          <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#1A1A1A] bg-[#FBFAF7] px-3 py-1.5 font-code text-[11px] font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4B5563] dark:bg-[#131E32]">
+          <p className="inline-flex max-w-full items-center gap-2.5 border-[3px] border-[#1A1A1A] bg-[#FBFAF7] px-3 py-1.5 font-code text-xs font-bold uppercase leading-snug tracking-[0.12em] shadow-hard-sm dark:border-[#4B5563] dark:bg-[#131E32]">
             <Icon name="route" size={18} />
             <span className="[text-wrap:balance]">
-              Intent routing API · {production} networks · {protocols}
+              Intent routing API · {networks} networks · {protocols}
             </span>
           </p>
 
@@ -58,22 +60,24 @@ export function HeroSection({ protocols }: HeroSectionProps) {
             id="hero-heading"
             className="mt-7 text-balance font-display text-[clamp(2.5rem,7.6vw,4.4rem)] font-bold leading-[0.98] tracking-[-0.045em] xl:text-[clamp(2.6rem,4.6vw,4.4rem)]"
           >
-            Route money across {countWord(production)} networks from a single sentence.
+            Route money across {countWord(networks)} networks from a single sentence.
           </h1>
 
           <p className={cx("mt-7 max-w-xl text-lg leading-relaxed sm:text-[1.2rem]", TEXT_MUTED)}>
-            Send Kletia <q className="font-semibold text-[#1A1A1A] dark:text-white">bridge 50 USDC from Base to Solana, then swap half to JitoSOL</q>.
-            It plans two legs, quotes each one and returns unsigned transactions. Your users sign them in their own wallets,
-            and Kletia marks a leg done only after it reads it on-chain.
+            One grammar on {productionNames}, plus {countWord(YARD.length)} test networks. Send Kletia{" "}
+            <q className="font-semibold text-[#1A1A1A] dark:text-white">{HERO_INTENT}</q>: it plans the legs, quotes each one and
+            returns unsigned transactions. Your users sign them in their own wallets, and Kletia marks a leg done only after it
+            reads it on-chain.
           </p>
 
-          <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+          {/* Both calls to action fit one row from 640 px: short labels, no wrap. */}
+          <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:flex-nowrap">
             <ButtonLink to="/developers#start-key" size="lg" className="w-full [--kla-plate:#FFD60A] sm:w-auto">
               <Icon name="key" size={20} />
               Get an API key
             </ButtonLink>
             <ButtonLink to={studioHref(HERO_INTENT)} variant="secondary" size="lg" className="w-full sm:w-auto">
-              Try a route in Studio
+              Try it in Studio
             </ButtonLink>
           </div>
           <p className={cx("mt-4 text-sm", TEXT_MUTED)}>
@@ -91,8 +95,8 @@ export function HeroSection({ protocols }: HeroSectionProps) {
 
           {/* The small print on the back of a ticket, not a row of badges. */}
           <div className="mt-9 max-w-xl border-t-2 border-dashed border-[#1A1A1A]/30 pt-4 dark:border-white/20">
-            <p id="hero-conditions" className="font-code text-[10.5px] font-bold uppercase tracking-[0.16em] text-[#45464B] dark:text-[#A9B6C8]">
-              Conditions of carriage
+            <p id="hero-conditions" className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8]">
+              How a route is carried
             </p>
             <ul
               aria-labelledby="hero-conditions"
@@ -127,7 +131,7 @@ export function HeroSection({ protocols }: HeroSectionProps) {
               animateStamp
             />
           </div>
-          <figcaption className={cx("mt-6 max-w-2xl font-code text-[11.5px] font-medium leading-relaxed", TEXT_MUTED)}>
+          <figcaption className={cx("mt-6 max-w-2xl font-code text-xs font-medium leading-relaxed", TEXT_MUTED)}>
             Map 01, not to scale. A line means Kletia can plan on that network. A station is a venue it can call. The testnets
             are parked in their own yard.
           </figcaption>

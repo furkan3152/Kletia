@@ -6,31 +6,144 @@
     <link rel="apple-touch-icon" href="/kletia-logo.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
-    <title>Kletia: intent routing for EVM networks and Solana</title>
+    <title>Kletia: intent routing across nine networks</title>
     <meta
       name="description"
-      content="Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
+      content="Kletia turns one sentence, like “bridge 100 USDC from Ethereum to Base”, into planned, quoted transactions on nine networks that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
     />
-    <meta name="theme-color" content="#0052FF" />
+    <!-- Browser chrome in the page's paper per theme (applySiteTheme keeps it in step with the site's own theme switch). -->
+    <meta name="theme-color" content="#F4F1EA" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B1120" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="index,follow" />
     <link rel="canonical" href="https://kletiaai.xyz/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Kletia" />
-    <meta property="og:title" content="Kletia: intent routing for EVM networks and Solana" />
+    <meta property="og:title" content="Kletia: intent routing across nine networks" />
     <meta
       property="og:description"
-      content="Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
+      content="Kletia turns one sentence, like “bridge 100 USDC from Ethereum to Base”, into planned, quoted transactions on nine networks that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
     />
     <meta property="og:url" content="https://kletiaai.xyz/" />
     <meta property="og:image" content="https://kletiaai.xyz/kletia-logo.png" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Kletia: intent routing for EVM networks and Solana" />
+    <meta name="twitter:title" content="Kletia: intent routing across nine networks" />
     <meta
       name="twitter:description"
-      content="Kletia turns a sentence like “bridge 50 USDC from Base to Solana” into planned, quoted transactions that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
+      content="Kletia turns one sentence, like “bridge 100 USDC from Ethereum to Base”, into planned, quoted transactions on nine networks that your users sign in their own wallets. REST API, TypeScript SDK, React widget and iframe embed. MIT licensed."
     />
     <meta name="base:app_id" content="6a31a6981f144514c3aaa376" />
+    <!--
+      Static frame: before any script runs, the first paint is the page's
+      paper and the site header's frame in the visitor's theme, not a loading
+      plate. This script only marks <html> (theme, the site's motion setting,
+      which frame to show); the entry and the router take over from there, and
+      SiteBootFallback (router.tsx) prints the same frame while the shell
+      loads. No React is pre-rendered.
+    -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var path = location.pathname;
+        var embed = /^\/embed(?:\/|$)/.test(path);
+        var desk = path === "/app" || path.indexOf("/app/") === 0;
+        root.setAttribute("data-kl-boot", embed ? "none" : desk ? "paper" : "site");
+        if (embed) return;
+        var theme = null;
+        try {
+          theme = localStorage.getItem("kletia-site-theme");
+          if (localStorage.getItem("kletia-site-motion") === "off") root.setAttribute("data-motion", "off");
+        } catch (error) {
+          theme = null;
+        }
+        if (theme !== "light" && theme !== "dark") {
+          try {
+            theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          } catch (error) {
+            theme = "light";
+          }
+        }
+        if (theme === "dark") root.classList.add("dark");
+        root.classList.add("kletia-site");
+        root.style.colorScheme = theme;
+      })();
+    </script>
+    <style>
+      html[data-kl-boot="site"],
+      html[data-kl-boot="paper"] {
+        background-color: #f4f1ea;
+      }
+      html.dark[data-kl-boot="site"],
+      html.dark[data-kl-boot="paper"] {
+        background-color: #0b1120;
+      }
+      .kl-boot {
+        min-height: 100vh;
+        background-color: #f4f1ea;
+      }
+      .dark .kl-boot {
+        background-color: #0b1120;
+      }
+      html[data-kl-boot="none"] .kl-boot {
+        display: none;
+      }
+      .kl-boot__bar {
+        box-sizing: border-box;
+        height: 75px;
+        border-bottom: 3px solid #1a1a1a;
+        background-color: #f4f1ea;
+      }
+      .dark .kl-boot__bar {
+        border-bottom-color: #4b5563;
+        background-color: #0b1120;
+      }
+      html[data-kl-boot="paper"] .kl-boot__bar {
+        display: none;
+      }
+      .kl-boot__in {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        max-width: 80rem;
+        height: 72px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      .kl-boot__mark {
+        box-sizing: border-box;
+        width: 44px;
+        height: 44px;
+        border: 3px solid #1a1a1a;
+        background-color: #ffffff;
+        box-shadow: 3px 3px 0 #1a1a1a;
+      }
+      .dark .kl-boot__mark {
+        border-color: #4b5563;
+        background-color: #0b1220;
+        box-shadow: 3px 3px 0 #475569;
+      }
+      .kl-boot__word {
+        width: 92px;
+        height: 18px;
+        background-color: #1a1a1a;
+        opacity: 0.12;
+      }
+      .dark .kl-boot__word {
+        background-color: #f1f5f9;
+      }
+      @media (min-width: 640px) {
+        .kl-boot__in {
+          padding: 0 24px;
+        }
+      }
+      @media (min-width: 1024px) {
+        .kl-boot__in {
+          padding: 0 32px;
+        }
+      }
+    </style>
     <!--
       Latin web fonts, fetched while the entry script loads so text first
       paints in its final font (no swap, no layout shift). The site and the
@@ -65,7 +178,7 @@
         "applicationCategory": "FinanceApplication",
         "applicationSubCategory": "Cross-network intent routing",
         "operatingSystem": "Web",
-        "description": "Intent routing for EVM networks and Solana: a console for people, and an API, SDK and widget for teams who want routes inside their own product.",
+        "description": "Intent routing across nine networks from one sentence: a console for people, and an API, SDK and widget for teams who want routes inside their own product.",
         "license": "https://opensource.org/licenses/MIT",
         "isAccessibleForFree": true,
         "image": "https://kletiaai.xyz/kletia-logo.png",
@@ -76,7 +189,7 @@
   </head>
   <body>
     <noscript>Kletia needs JavaScript to plan and sign intents. Source: https://github.com/furkan3152/Kletia</noscript>
-    <div id="root"></div>
+    <div id="root"><div class="kl-boot" aria-hidden="true"><div class="kl-boot__bar"><div class="kl-boot__in"><span class="kl-boot__mark"></span><span class="kl-boot__word"></span></div></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

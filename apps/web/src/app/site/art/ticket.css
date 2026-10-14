@@ -63,8 +63,8 @@
   gap: 6px 12px;
   padding-bottom: 10px;
   border-bottom: 2px solid #1a1a1a;
-  font: 800 10.5px/1.2 var(--kla-font-mono);
-  letter-spacing: 0.14em;
+  font: 800 12px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .kla-ticket__brand {
@@ -91,8 +91,9 @@
 .kla-ticket__stub-k,
 .kla-ticket__fields dt,
 .kla-linkt__bounds dt {
-  font: 700 9.5px/1.2 var(--kla-font-mono);
-  letter-spacing: 0.16em;
+  /* Readable labels keep the 12 px floor. */
+  font: 700 12px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--kla-stock-muted);
 }
@@ -153,10 +154,10 @@
   padding: 2px 5px;
   background: #1a1a1a;
   color: #fffcf2;
-  font: 700 10.5px/1 var(--kla-font-mono);
+  font: 700 12px/1 var(--kla-font-mono);
 }
 .kla-ticket__leg-via {
-  font: 500 11px/1 var(--kla-font-mono);
+  font: 500 12px/1 var(--kla-font-mono);
   color: var(--kla-stock-muted);
   white-space: nowrap;
 }
@@ -301,7 +302,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;
-  font: 500 11.5px/1.4 var(--kla-font-mono);
+  font: 500 12px/1.4 var(--kla-font-mono);
   color: var(--kla-stock-muted);
 }
 .kla-receipt__tx {
@@ -344,8 +345,8 @@ a.kla-receipt__tx {
   align-self: center;
   padding: 3px 7px;
   border: 2px solid #1a1a1a;
-  font: 800 9.5px/1 var(--kla-font-mono);
-  letter-spacing: 0.12em;
+  font: 800 12px/1 var(--kla-font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .kla-linkt__badge--ok {
@@ -591,8 +592,8 @@ a.kla-receipt__tx {
 }
 .kla-stub__serial {
   margin-bottom: 14px;
-  font: 600 10px/1 var(--kla-font-mono);
-  letter-spacing: 0.08em;
+  font: 600 12px/1 var(--kla-font-mono);
+  letter-spacing: 0.06em;
   color: var(--kla-stock-muted);
 }
 .kla-stub__stamp {

@@ -19,11 +19,13 @@
  *   Perforation, CropMarks, HalftoneEdge          ./Ornaments
  *   PlatformSign, SpecSheet, EndOfLine            ./PlatformSign, ./SpecSheet, ./EndOfLine
  *   LineStrip (the in-car strip map)              ./LineStrip
+ *   JourneyMap, CertaintyGlyph (the itinerary)    ./JourneyMap
  */
 
 export type { BoardRow, DepartureBoardProps } from "./DepartureBoard";
 export type { EndOfLineProps } from "./EndOfLine";
 export type { IconProps } from "./Icon";
+export type { JourneyMapProps } from "./JourneyMap";
 export type { LineBulletProps } from "./LineBullet";
 export type { LineStripProps, StripStop } from "./LineStrip";
 export type { LinkBound, LinkPublisher, LinkTicketProps } from "./LinkTicket";
@@ -48,6 +50,28 @@ export {
   type BoardStatus,
 } from "./boardFormat";
 export { contrastRatio, readableOn, relativeLuminance } from "./color";
+export {
+  countdownText,
+  CUSTODY_STAMPS,
+  custodyStamp,
+  etaText,
+  horizontalFrom,
+  indicativeFacts,
+  isOverdue,
+  JOURNEY_HORIZONTAL_MIN_PX,
+  JOURNEY_MAX_HORIZONTAL_STOPS,
+  JOURNEY_STATION_MIN_PX,
+  journeyAnnouncement,
+  journeyLayout,
+  legDrawing,
+  legLeaving,
+  placeOf,
+  whereMoneyIs,
+  type JourneyLayout,
+  type JourneyOrientation,
+  type LegDrawing,
+  type MoneyLine,
+} from "./journeyFormat";
 export { categoryIcon, categoryWord, ICON_NAMES, isIconName, type IconName } from "./icons";
 export { STAMP_LABELS, STAMP_SENTENCES, STAMP_STATES, type StampState } from "./stampText";
 export { countOf, legNumber, shortHash } from "./ticketFormat";

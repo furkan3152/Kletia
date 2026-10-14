@@ -33,6 +33,15 @@ if (typeof document !== "undefined") {
 const loadSiteLayout = () => import("./site/SiteLayout");
 const SiteLayout = React.lazy(loadSiteLayout);
 const loadToaster = () => import("./site/ui/Toaster");
+/** The motion system's stylesheet (site/motion/motion.css), out of the entry CSS. Shared by every route that needs it. */
+let motionStyles: Promise<unknown> | null = null;
+function loadMotionStyles(): Promise<unknown> {
+  motionStyles ??= import("./site/motion/motion.css").catch((error: unknown) => {
+    motionStyles = null;
+    throw error;
+  });
+  return motionStyles;
+}
 const Toaster = React.lazy(loadToaster);
 
 /*
@@ -49,7 +58,10 @@ function loadRoute(id: RouteId): Promise<void> {
   if (resolved.has(id)) return Promise.resolve();
   const existing = inflight.get(id);
   if (existing) return existing;
-  const promise = ROUTES[id].load().then(
+  // Site and console pages use the motion system's classes, so its stylesheet arrives with them (before the
+  // page renders); /embed never needs it.
+  const page = ROUTES[id].kind === "embed" ? ROUTES[id].load() : Promise.all([ROUTES[id].load(), loadMotionStyles()]).then(([module]) => module);
+  const promise = page.then(
     (module) => {
       inflight.delete(id);
       if (typeof module.default !== "function" && typeof module.default !== "object") {
@@ -130,6 +142,8 @@ function applyDocumentMeta(route: RouteDefinition, pathname: string) {
 
 /** How long a link to an anchor waits for a lazily loaded page to render its target. */
 const HASH_WAIT_MS = 6_000;
+/** How long an anchor reached on load is held in place while content above it arrives. */
+const HASH_SETTLE_MS = 2_500;
 
 /**
  * Scrolls to `#hash` and focuses it, retrying while lazily loaded pages mount
@@ -160,11 +174,27 @@ function scrollToHash(hash: string, smooth: boolean): () => void {
     if (done) return;
     const target = id ? document.getElementById(id) : null;
     if (target) {
-      stop();
-      target.scrollIntoView({
-        behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto",
-        block: "start",
-      });
+      const instant = !smooth || prefersReducedMotion();
+      target.scrollIntoView({ behavior: instant ? "auto" : "smooth", block: "start" });
+      if (instant) {
+        // Content above the target may still arrive (a page loading its lower sections after the first paint):
+        // keep the target at the top for a moment, until the visitor scrolls, clicks or types.
+        const settleUntil = performance.now() + HASH_SETTLE_MS;
+        let expected = target.getBoundingClientRect().top;
+        const settle = () => {
+          if (done) return;
+          const top = target.getBoundingClientRect().top;
+          if (Math.abs(top - expected) > 4) {
+            target.scrollIntoView({ behavior: "auto", block: "start" });
+            expected = target.getBoundingClientRect().top;
+          }
+          if (performance.now() < settleUntil && target.isConnected) handle = window.requestAnimationFrame(settle);
+          else stop();
+        };
+        handle = window.requestAnimationFrame(settle);
+      } else {
+        stop();
+      }
       const interactive = /^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/u.test(target.tagName);
       if (!target.hasAttribute("tabindex") && !interactive) target.setAttribute("tabindex", "-1");
       if (!interactive && target.getAttribute("tabindex") === "-1") {
@@ -182,12 +212,21 @@ function scrollToHash(hash: string, smooth: boolean): () => void {
   return stop;
 }
 
+/**
+ * The site's boot frame: the same paper and header frame index.html paints
+ * before any script runs (its inline styles, `.kl-boot`), so the first paint,
+ * this fallback and the real header line up with no flash and no shift.
+ */
 function SiteBootFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F4F1EA] dark:bg-[#0B1120]" role="status">
-      <span className="border-[3px] border-[#1A1A1A] bg-[#FFD60A] px-4 py-2 text-xs font-black uppercase tracking-[0.3em] text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:shadow-[4px_4px_0_#475569]">
-        Loading Kletia
-      </span>
+    <div className="kl-boot" role="status">
+      <span className="sr-only">Loading Kletia</span>
+      <div className="kl-boot__bar" aria-hidden="true">
+        <div className="kl-boot__in">
+          <span className="kl-boot__mark" />
+          <span className="kl-boot__word" />
+        </div>
+      </div>
     </div>
   );
 }

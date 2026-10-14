@@ -9,7 +9,7 @@ import { verifyReceipt } from "@kletia/core";
 
 import { BROWSER_REFUSED_RPCS, browserSources, plannedRows, RESULT_FLAPS, summarize } from "../recheck.ts";
 import { parseReceiptFragment, receiptIdFromPath, receiptPageUrl, receiptSerial, REVERIFY_COMMAND, reverifyCommandFor } from "../receiptLink.ts";
-import { httpsOnly, offlineVerdict, receiptModel } from "../receiptModel.ts";
+import { httpsOnly, issueLine, offlineVerdict, receiptModel } from "../receiptModel.ts";
 
 const vectors = JSON.parse(readFileSync(new URL("../../../../../../../packages/sdk/test/fixtures/receipt-v1-vectors.json", import.meta.url), "utf8"));
 const KEY = { ...vectors.key.publicJwk, kid: vectors.key.kid, alg: "Ed25519", use: "sig", status: "active", notBefore: "2026-01-01" };
@@ -140,4 +140,14 @@ test("browserSources: nodes that refuse web pages are not asked from the browser
   assert.equal(BROWSER_REFUSED_RPCS.has("https://api.mainnet-beta.solana.com"), true);
   // A network whose only nodes refuse browsers keeps them (the board then says "no data").
   assert.deepEqual(browserSources({ solana: ["https://api.mainnet-beta.solana.com"] }).solana, ["https://api.mainnet-beta.solana.com"]);
+});
+
+test("the receipt says which receipt it is in plain words", () => {
+  assert.equal(issueLine({ sequence: 1, replaces: null }, null), "Receipt 1.");
+  assert.equal(issueLine({ sequence: 2, replaces: "x" }, null), "Receipt 2, replaces receipt 1.");
+  assert.equal(issueLine({ sequence: 2, replaces: "x" }, "rcpt_newer"), "Receipt 2, replaces receipt 1. A newer receipt replaces this one.");
+  const ticket = readFileSync(new URL("../ReceiptTicket.tsx", import.meta.url), "utf8");
+  for (const puzzling of ["Passenger coupon", "Control coupon", "Shown by the owner"]) assert.ok(!ticket.includes(`>${puzzling}`) && !ticket.includes(`${puzzling}<`), puzzling);
+  assert.ok(ticket.includes("What the owner shared"));
+  assert.ok(ticket.includes("Signed by Kletia"));
 });

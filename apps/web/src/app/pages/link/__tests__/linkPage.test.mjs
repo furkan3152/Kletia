@@ -3,6 +3,7 @@
 // sends. Run with
 //   node --test apps/web/src/app/pages/link/__tests__/*.test.mjs
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -140,4 +141,36 @@ test("indicativeFare: the stand-in account's balances never reach the page; rout
   assert.deepEqual(shown.steps[0].issues.map((issue) => issue.code), ["PREVIEW_INVARIANT"]);
   assert.equal(preview.needs.length, 1, "the quote itself is not changed");
   assert.equal(indicativeFare({ ...preview, basis: "partial" }).basis, "partial");
+});
+
+// The indicative itinerary of the stand-in plan reads nothing and claims no balance; the
+// unverified publisher is said once in plain words, the ticket keeps its
+// plate with the word over its hazard strip, and the hero carries the GO plate.
+test("the indicative itinerary reads nothing, asks nothing and claims no balance", async () => {
+  const { buildJourney } = await import("@kletia/core");
+  const { journeyModel } = await import("@kletia/widget/review");
+  const { indicativeFacts } = await import("../../../site/art/journeyFormat.ts");
+  const fixture = new URL("../../../../../../../packages/core/test/fixtures/journey/p2-empty.json", import.meta.url);
+  const { graph, preview } = JSON.parse(readFileSync(fixture, "utf8"));
+  const journey = buildJourney(graph, preview, indicativeFacts(graph.updatedAt), graph.updatedAt);
+  assert.equal(journey.basis.reads, "none");
+  assert.equal(journey.stage, "plan");
+  assert.deepEqual(journey.blockers, [], "nothing blocks a plan nobody's balances were read for");
+  assert.ok(journey.consequences.every((consequence) => consequence.severity !== "block"));
+  assert.ok(journey.consequences.some((consequence) => consequence.id === "gas-to-continue:reads-none"), "it says gas is checked once wallets connect");
+  const model = journeyModel(journey);
+  assert.equal(model.outcome, null, "no claim about where the money is before departure");
+  assert.ok(model.stops.length >= 2);
+  assert.deepEqual(buildJourney(graph, preview, indicativeFacts(graph.updatedAt), graph.updatedAt), journey, "the same quote prints the same itinerary");
+});
+
+test("the hazard strip, the ticket plate and the hero plate: an unverified publisher is said once, in plain words", () => {
+  const page = readFileSync(new URL("../LinkPage.tsx", import.meta.url), "utf8");
+  const ticket = readFileSync(new URL("../../../site/art/LinkTicket.tsx", import.meta.url), "utf8");
+  assert.match(page, /Nobody has confirmed this link comes from \$\{view\.publisher\.domain\}\./u);
+  assert.ok(!page.includes("Unverified publisher: nobody confirmed"), "the highlighter sentence is gone");
+  assert.ok(!/bg-\[#FFD60A\] px-1/u.test(page), "no highlighter on the publisher line");
+  assert.match(page, /<PlatformNumber code="GO">Intent link<\/PlatformNumber>/u);
+  assert.match(page, /<JourneyPanel journey=\{itinerary\} phase="indicative"/u, "the indicative itinerary sits with the fare");
+  assert.match(ticket, />Unverified<\/p>\s*<span className="kla-linkt__hazard" aria-hidden="true" \/>/u, "the hazard strip keeps aria-hidden and gains its word");
 });

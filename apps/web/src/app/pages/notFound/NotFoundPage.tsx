@@ -1,5 +1,6 @@
 import { useRoute } from "../../routes/useRoute";
 import { EndOfLine } from "../../site/art/EndOfLine";
+import { PlatformNumber } from "../../site/art/Ornaments";
 import { ButtonLink } from "../../site/ui/Button";
 import { CONTAINER, cx, TEXT_MUTED } from "../../site/ui/styles";
 
@@ -15,8 +16,8 @@ export default function NotFoundPage() {
         )}
       >
         <div className="min-w-0">
-          <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#0047E0] dark:text-[#7EA6FF]">404 · no service</p>
-          <h1 className="mt-4 text-balance font-display text-[clamp(2.6rem,6.4vw,4.6rem)] font-bold leading-[0.98] tracking-[-0.045em]">
+          <PlatformNumber code="404">No service</PlatformNumber>
+          <h1 className="mt-5 text-balance font-display text-[clamp(2.6rem,6.4vw,4.6rem)] font-bold leading-[0.98] tracking-[-0.045em]">
             This line ends here.
           </h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>

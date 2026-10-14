@@ -19,8 +19,6 @@ const SCANNED = ["site/ui", "pages/developers"];
  * over its count, fails. Release removes this list.
  */
 const PENDING = {
-  "pages/developers/keys/KeyManager.tsx": [1, "portal-keys-and-project"],
-  "pages/developers/keys/UsagePanel.tsx": [3, "portal-keys-and-project"],
   "pages/developers/components/MethodBadge.tsx": [1, "release"],
   "site/ui/ApiErrorPanel.tsx": [2, "release"],
   "site/ui/CopyButton.tsx": [1, "release"],

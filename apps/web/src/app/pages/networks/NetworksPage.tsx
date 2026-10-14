@@ -10,6 +10,8 @@ import { Link } from "../../routes/Link";
 import { formatBoardClock, lineFor } from "../../site/art";
 import { DepartureBoard } from "../../site/art/DepartureBoard";
 import { LineBullet } from "../../site/art/LineBullet";
+import { PlatformNumber } from "../../site/art/Ornaments";
+import { formatUtcTime } from "../../site/format/utcTime";
 import { Reveal } from "../../site/motion/Reveal";
 import { useInView } from "../../site/motion/useInView";
 import { usePageVisible } from "../../site/motion/usePageVisible";
@@ -18,9 +20,11 @@ import { countWordTitle, PRODUCTION } from "../../site/registryCopy";
 import { Badge } from "../../site/ui/Badge";
 import { Section } from "../../site/ui/Section";
 import { StatusDot, type HealthState } from "../../site/ui/StatusDot";
+import { Switch } from "../../site/ui/Switch";
 import { CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { actionsOf, networkLabel, type ProtocolEntry } from "../protocols/protocolStats";
 import { boardData } from "./boardRows";
+import { statusHeadline, type StatusTone } from "./statusHeadline";
 import { formatMs, formatUptime, healthChanges } from "./useHealthHistory";
 import { VenuesByNetwork } from "./VenuesByNetwork";
 
@@ -152,26 +156,20 @@ function HealthPanel({ health }: HealthPanelProps) {
             {live
               ? `GET /v1/health answered in ${health.latencyMs ?? "?"} ms${live.version ? `, version ${live.version}` : ""}${
                   uptime ? `, up ${uptime}` : ""
-                }${health.updatedAt ? `, checked ${new Date(health.updatedAt).toLocaleTimeString()}` : ""}.`
+                }${health.updatedAt ? `, checked ${formatUtcTime(health.updatedAt) ?? "just now"}` : ""}.`
               : health.error
                 ? `${describePlatformError(health.error)} The board shows the registry, not live RPC readings.`
                 : "Contacting the API…"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
-          <button
-            type="button"
-            aria-pressed={auto}
-            onClick={() => setAuto((value) => !value)}
-            title="Re-check every 30 seconds while this panel is visible"
-            className={cx(
-              "inline-flex min-h-9 items-center gap-1.5 border-2 border-dashed border-[#1A1A1A] px-2.5 text-[11px] font-black uppercase tracking-[0.12em] dark:border-[#4B5563]",
-              auto ? "bg-[#E6FFF4] text-[#0B5E3A] dark:bg-[#0E2A22] dark:text-[#5CF2B4]" : "bg-transparent",
-              FOCUS_RING,
-            )}
-          >
-            Auto-refresh: {auto ? "on" : "off"}
-          </button>
+          <Switch
+            checked={auto}
+            onChange={setAuto}
+            label="Auto-refresh"
+            description={`Every ${REFRESH_SECONDS} seconds while visible`}
+            className="mr-2"
+          />
           <button
             type="button"
             onClick={recheck}
@@ -321,6 +319,24 @@ function CapabilityMatrix({ networks, live, loading }: { networks: NetworkCapabi
   );
 }
 
+const LAMP: Readonly<Record<StatusTone, string>> = {
+  ok: "bg-[#16A34A]",
+  slow: "bg-[#FFD60A]",
+  down: "bg-[#DC2626]",
+  unknown: "bg-transparent",
+  checking: "bg-transparent border-dashed",
+};
+
+/** The station lamp beside the headline: its colour repeats the words, it never replaces them. */
+function HeadlineLamp({ tone }: { readonly tone: StatusTone }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cx("mt-[0.22em] inline-block h-[0.55em] w-[0.55em] shrink-0 rounded-full border-[3px] border-[#1A1A1A] dark:border-[#F1F5F9]", LAMP[tone])}
+    />
+  );
+}
+
 /** Networks & status: live health, capability matrix and venues per network, with a registry fallback. */
 export default function NetworksPage() {
   const health = useApiResource("health", fetchHealth);
@@ -337,25 +353,27 @@ export default function NetworksPage() {
     () => (liveProtocols ? (protocolsResource.data as readonly ProtocolEntry[]) : registryProtocols()),
     [liveProtocols, protocolsResource.data],
   );
+  const headline = statusHeadline({ status: health.status, report: health.data ?? null });
 
   return (
     <>
-      {/* The departures board is the hero: the page is the station hall. */}
+      {/* The departures board is the hero: the page is the station hall, and its H1 is the live status. */}
       <header className="kla-grain border-b-[3px] border-[#1A1A1A] dark:border-[#4B5563]">
         <div className={cx(CONTAINER, "py-14 sm:py-20")}>
           <div className="grid gap-x-16 gap-y-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end">
             <div className="min-w-0">
-              <p className={cx(LABEL, "font-code text-[#0047E0] dark:text-[#7EA6FF]")}>Networks and status</p>
-              <h1 className="mt-6 text-balance font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]">
-                {countWordTitle(PRODUCTION.length)} production networks and a test yard.
+              <PlatformNumber code="NET">Networks and status</PlatformNumber>
+              <h1
+                className="mt-6 flex items-start gap-4 text-balance font-display text-[clamp(2.5rem,6vw,4.25rem)] font-bold leading-[1] tracking-[-0.045em]"
+                data-tone={headline.tone}
+              >
+                <HeadlineLamp tone={headline.tone} />
+                <span>{headline.text}.</span>
               </h1>
             </div>
             <p className={cx("max-w-2xl text-lg leading-relaxed lg:pb-1", TEXT_MUTED)}>
-              Status comes from <code className="font-code text-[0.9em]">GET /v1/health</code> at{" "}
-              <code className="break-words font-code text-[0.9em]">{PLATFORM_ORIGIN}</code> and is re-read from your browser every{" "}
-              {REFRESH_SECONDS} seconds. The lamp and the flaps turn yellow when an RPC is slow and red when it stops answering. If
-              the API cannot be reached, the board falls back to the registry compiled into{" "}
-              <code className="font-code text-[0.9em]">@kletia/core</code> and says so.
+              {countWordTitle(PRODUCTION.length)} production networks and a test yard. The board below reads{" "}
+              <code className="font-code text-[0.9em]">GET /v1/health</code> from your browser.
             </p>
           </div>
           <section id="health" aria-labelledby="health-heading" className="mt-12 scroll-mt-24">
@@ -363,6 +381,13 @@ export default function NetworksPage() {
               RPC status per network
             </h2>
             <HealthPanel health={health} />
+            <p className={cx("mt-5 max-w-3xl text-sm leading-relaxed", TEXT_MUTED)}>
+              Status comes from <code className="font-code text-[0.9em]">GET /v1/health</code> at{" "}
+              <code className="break-words font-code text-[0.9em]">{PLATFORM_ORIGIN}</code> and is re-read every {REFRESH_SECONDS}{" "}
+              seconds while auto-refresh is on. The lamp and the flaps turn yellow when an RPC is slow and red when it stops
+              answering. If the API cannot be reached, the board falls back to the registry compiled into{" "}
+              <code className="font-code text-[0.9em]">@kletia/core</code> and says so.
+            </p>
           </section>
         </div>
       </header>
@@ -378,7 +403,7 @@ export default function NetworksPage() {
         intro="Intent kinds per network. Production and test networks are separate capital, and a plan never mixes them."
       >
         {networksResource.status === "error" && networksResource.error ? (
-          <p className={cx("mb-4 text-sm", TEXT_MUTED)} role="status">
+          <p className={cx("mb-4 text-sm", TEXT_MUTED)}>
             {describePlatformError(networksResource.error)} Showing the registry view.
           </p>
         ) : null}
@@ -387,6 +412,7 @@ export default function NetworksPage() {
 
       <Section
         id="protocols"
+        deferPaint="1400px"
         reveal
         platform={2}
         eyebrow="Venues"
@@ -403,7 +429,7 @@ export default function NetworksPage() {
         }
       >
         {protocolsResource.status === "error" && protocolsResource.error && !liveProtocols ? (
-          <p className={cx("mb-4 text-sm", TEXT_MUTED)} role="status">
+          <p className={cx("mb-4 text-sm", TEXT_MUTED)}>
             {describePlatformError(protocolsResource.error)} Showing the registry view.
           </p>
         ) : null}

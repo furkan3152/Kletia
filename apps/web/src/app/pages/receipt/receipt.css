@@ -153,7 +153,7 @@
   vertical-align: 1px;
 }
 .kl-rcpt__via {
-  font: 500 11px/1 var(--kla-font-mono);
+  font: 500 12px/1 var(--kla-font-mono);
   color: var(--kla-stock-muted);
   white-space: nowrap;
 }
@@ -223,8 +223,8 @@
 
 /* Passenger coupon content. */
 .kl-rcpt__pk {
-  font: 800 10px/1.2 var(--kla-font-mono);
-  letter-spacing: 0.18em;
+  font: 800 12px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .kl-rcpt__ptitle {
@@ -243,8 +243,8 @@
   border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
 }
 .kl-rcpt__group-k {
-  font: 700 9.5px/1.2 var(--kla-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 12px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--kla-stock-muted);
 }
@@ -456,8 +456,8 @@
   border-color: #4b5563;
 }
 .kl-rcpt-blueprint dt {
-  font: 700 9.5px/1.2 var(--kla-font-mono);
-  letter-spacing: 0.16em;
+  font: 700 12px/1.2 var(--kla-font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #b9cdf6;
 }
@@ -485,7 +485,7 @@
   padding: 2px 5px;
   background: #ffd60a;
   color: #1a1a1a;
-  font: 800 10.5px/1 var(--kla-font-mono);
+  font: 800 12px/1 var(--kla-font-mono);
 }
 .kl-recheck__net {
   white-space: nowrap;

@@ -46,8 +46,8 @@ function NoService({ title, body }: { readonly title: string; readonly body: str
     <div className={PAPER}>
       <div className={cx(CONTAINER, "grid min-h-[60vh] items-center gap-10 py-16 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]")}>
         <div className="min-w-0">
-          <p className="font-code text-[11px] font-bold uppercase tracking-[0.16em] text-[#0047E0] dark:text-[#7EA6FF]">Approval gate · no service</p>
-          <h1 className="mt-4 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">{title}</h1>
+          <PlatformNumber code="AP">Approval gate · no service</PlatformNumber>
+          <h1 className="mt-5 text-balance font-display text-[clamp(2.2rem,5.6vw,3.8rem)] font-bold leading-[1.02] tracking-[-0.04em]">{title}</h1>
           <p className={cx("mt-6 max-w-xl text-lg leading-relaxed", TEXT_MUTED)}>{body}</p>
           <nav aria-label="Open platforms" className="mt-8 flex flex-wrap gap-3">
             <ButtonLink to="/" size="lg">
@@ -82,6 +82,25 @@ function GateStamp({ state }: { readonly state: ApprovalStateView }) {
     default:
       return <Stamp state="held" detail="AWAITING APPROVAL" animate className="kla-ticket__stamp" />;
   }
+}
+
+/** A key name the approval view may carry (newer APIs); printed as text, never markup, and only when it is a short string. */
+function approvalKeyName(view: PolicyApprovalView): string | null {
+  const name = (view as PolicyApprovalView & { readonly keyName?: unknown }).keyName;
+  if (typeof name !== "string") return null;
+  const trimmed = name.trim();
+  return trimmed.length > 0 && trimmed.length <= 80 ? trimmed : null;
+}
+
+/** "Requested by": the key's name with its id as secondary text, else "A key of this project" and the id. */
+function RequestedBy({ view }: { readonly view: PolicyApprovalView }) {
+  const name = approvalKeyName(view);
+  return (
+    <span className="kl-gate__requester">
+      <strong className="[overflow-wrap:anywhere]">{name ?? "A key of this project"}</strong>
+      <span className="kl-gate__mono">{view.keyId}</span>
+    </span>
+  );
 }
 
 /** The intent held at the gate, printed as a ticket: legs, full recipients, value, ceiling, why, digest. */
@@ -150,7 +169,7 @@ function GateTicket({ view, state }: { readonly view: PolicyApprovalView; readon
           </div>
           <TicketFields
             fields={[
-              { label: "Requested by", value: <span className="kl-gate__mono">{view.keyId}</span> },
+              { label: "Requested by", value: <RequestedBy view={view} /> },
               { label: "Asked", value: formatStamp(view.createdAt) },
               { label: state.status === "pending" ? "Expires" : "Expiry", value: formatStamp(view.expiresAt) },
             ]}
@@ -311,7 +330,7 @@ function Gate({ id }: { readonly id: string }) {
       <div className={PAPER}>
         <div className={cx(CONTAINER, "grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start")}>
           <div className="min-w-0">
-            <PlatformNumber n={1}>Approval gate</PlatformNumber>
+            <PlatformNumber code="AP">Approval gate</PlatformNumber>
             <h1 ref={headingRef} tabIndex={-1} className="mt-5 scroll-mt-24 text-balance font-display text-[clamp(2rem,4.4vw,3.2rem)] font-bold leading-[1.05] tracking-[-0.035em] focus:outline-none">
               {heading}
             </h1>

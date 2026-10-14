@@ -15,7 +15,7 @@
  *
  * Pure (type-only imports): node --test loads it.
  */
-import type { ClarifyQuestion, IntentGraph, IntentPreview, NetworkKey } from "@kletia/core";
+import type { ClarifyQuestion, IntentGraph, IntentPreview, Journey, NetworkKey } from "@kletia/core";
 import type { ComponentType } from "react";
 
 import type { DeskQuestion as StoredQuestion } from "../state/deskStore.ts";
@@ -30,6 +30,12 @@ export interface JourneySlotProps {
   readonly intent: IntentGraph;
   /** The fare in force; null when the API returned none. */
   readonly preview: IntentPreview | null;
+  /**
+   * The journey on that fare; null or absent when the API returned none (the
+   * slot then renders nothing). The desk passes it for dry-run plans; once an
+   * intent is stored, `IntentExecutionFlow` renders its journey itself.
+   */
+  readonly journey?: Journey | null;
   /** The same snapshot the Holdings panel shows (null in the widget). */
   readonly holdings: HoldingsSnapshot | null;
   readonly lane: "production" | "testnet";
@@ -51,7 +57,10 @@ export interface DeskQuestion extends Omit<StoredQuestion, "kind"> {
   readonly questions?: readonly ClarifyQuestion[];
 }
 
-export type QuestionAnswer = { readonly optionId: string } | { readonly text: string };
+/** An answer from the card: a chosen option or typed text, for one of its questions (the first when absent). */
+export type QuestionAnswer =
+  | { readonly optionId: string; readonly questionId?: string; readonly label?: string }
+  | { readonly text: string; readonly questionId?: string };
 
 export interface QuestionSlotProps {
   readonly taskId: string;

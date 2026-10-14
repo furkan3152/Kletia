@@ -1,3 +1,4 @@
+import { getProtocol } from "@kletia/core";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { CSSProperties } from "react";
 
@@ -5,6 +6,7 @@ import { Link } from "../../routes/Link";
 import { lineFor } from "../../site/art";
 import { PlatformSign } from "../../site/art/PlatformSign";
 import { cx } from "../../site/ui/styles";
+import { protocolBadge, routedViaLabel, type ProtocolBadgeKind } from "./protocolBadge";
 import { protocolExample, studioHref } from "./protocolExamples";
 import { capabilitiesOf, networkLabel, networksOf, safeWebsite, type ProtocolEntry } from "./protocolStats";
 
@@ -20,9 +22,22 @@ export interface ProtocolCardProps {
   readonly transitionName?: string;
   /** Rise in on first render with this stagger index (null = no entrance). */
   readonly introIndex?: number | null;
+  /** Names of the listed protocols by id (for "via Jupiter"); the registry is the fallback. */
+  readonly nameOf?: (id: string) => string | undefined;
 }
 
-const CHIP = "border-2 px-2 py-1 font-code text-[10px] font-extrabold uppercase leading-none tracking-[0.14em]";
+const CHIP = "border-2 px-2 py-1 font-code text-xs font-extrabold uppercase leading-none tracking-[0.08em]";
+
+/** Badge inks: the execution state, readable at 4.5:1 on the sign's paper in both themes. */
+const BADGE_TONE: Readonly<Record<ProtocolBadgeKind, string>> = {
+  executable: "border-[#0B7A4B] text-[#0B5E3A] dark:border-[#5CF2B4] dark:text-[#5CF2B4]",
+  named: "border-[#0B7A4B] text-[#0B5E3A] dark:border-[#5CF2B4] dark:text-[#5CF2B4]",
+  data: "border-current",
+  read: "border-current",
+  console: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  service: "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A]",
+  listed: "border-dashed border-current",
+};
 
 /**
  * Directory entry for one venue, printed as a platform sign: category
@@ -30,13 +45,15 @@ const CHIP = "border-2 px-2 py-1 font-code text-[10px] font-extrabold uppercase 
  * intent that opens in Studio. Every fact comes from the protocol entry (live
  * /v1/protocols, else the registry).
  */
-export function ProtocolCard({ protocol, platform, transitionName, introIndex = null }: ProtocolCardProps) {
+export function ProtocolCard({ protocol, platform, transitionName, introIndex = null, nameOf }: ProtocolCardProps) {
   const capabilities = capabilitiesOf(protocol);
   const example = capabilities.includes("execute") ? protocolExample(protocol.id) : null;
   const discoverOnly = capabilities.length > 0 && capabilities.every((capability) => capability === "discover");
   const website = safeWebsite(protocol.website);
   // Networks the live API reports that this bundle's registry does not know yet: named in text, never dropped.
   const unknownNetworks = networksOf(protocol).filter((key) => !lineFor(key)).map((key) => networkLabel(key).name);
+  const badge = protocolBadge(protocol);
+  const via = routedViaLabel(protocol, (id) => nameOf?.(id) ?? getProtocol(id)?.name);
 
   const style: CSSProperties = {
     ...(transitionName ? ({ "--kl-vt-name": transitionName } as CSSProperties) : null),
@@ -58,16 +75,22 @@ export function ProtocolCard({ protocol, platform, transitionName, introIndex = 
         protocol={{ ...protocol, networks: networksOf(protocol) as ProtocolEntry["networks"], capabilities }}
         cta={
           <div className="flex flex-col gap-3">
-            {protocol.crossChain || protocol.executable === true || unknownNetworks.length ? (
+            {badge || via || protocol.crossChain || unknownNetworks.length ? (
               <ul className="flex flex-wrap gap-1.5" aria-label="More about this venue">
+                {badge ? (
+                  <li className={cx(CHIP, BADGE_TONE[badge.kind])} title={badge.help}>
+                    {badge.label}
+                    <span className="sr-only">: {badge.help}</span>
+                  </li>
+                ) : null}
+                {via ? (
+                  <li className={cx(CHIP, "border-dashed border-current normal-case tracking-normal")} title="Its transactions run through this protocol too; Rule Books and avoidProtocols apply to both.">
+                    {via}
+                  </li>
+                ) : null}
                 {protocol.crossChain ? (
                   <li className={cx(CHIP, "border-current")} title="Moves value between networks.">
                     Cross-network
-                  </li>
-                ) : null}
-                {protocol.executable === true ? (
-                  <li className={cx(CHIP, "border-[#0B7A4B] text-[#0B7A4B] dark:border-[#5CF2B4] dark:text-[#5CF2B4]")} title="This API deployment has an execution adapter for this venue.">
-                    Adapter live
                   </li>
                 ) : null}
                 {unknownNetworks.length ? (
@@ -92,7 +115,7 @@ export function ProtocolCard({ protocol, platform, transitionName, introIndex = 
                     <ArrowRight className="ml-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />
                   </Link>
                 ) : (
-                  <span className="font-code text-[11px] font-bold uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8]">
+                  <span className="font-code text-xs font-bold uppercase tracking-[0.12em] text-[#45464B] dark:text-[#A9B6C8]">
                     {discoverOnly ? "Read-only data" : "Quotes and routes only"}
                   </span>
                 )

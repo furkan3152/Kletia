@@ -10,6 +10,7 @@ import { POLICY_TEMPLATES, validateContractDefinition, validateLinkDefinition, v
 import { buildArg, classifyFunctions, guessArg, parseAbiText, sourceOptions } from "../contracts/abi.ts";
 import { applyErc4626Hint, buildEvmDefinition, contractStatus, ERC4626_DEPOSIT, evmStepOf, newEntryDraft, suspensionText, wellKnownSnippet } from "../contracts/contractModel.ts";
 import { contractCountLine, contractRowModel, contractTabOf, registerVmOf } from "../contracts/contractRows.ts";
+import { keyRowModel, keyStateOf, orderKeyTree, usageRouteRows } from "../keys/keyRows.ts";
 import { linkFilterOf, linkRowModel } from "../links/linkRows.ts";
 import { acceptOnResume, blinkActionUrl, buildLinkDefinition, cardUrl, templateDraft } from "../links/linkTemplates.ts";
 import { formatUsd, httpsUrl, shortId, timeUntil, usageRatio } from "../portal/portalFormat.ts";
@@ -308,4 +309,87 @@ test("link rows: unverified is a warning, withdrawn is neutral, counters show a 
   assert.deepEqual([paused.status.tone, paused.detail], ["warning", "a pinned contract has a newer revision"]);
   assert.equal(linkFilterOf(new URLSearchParams("status=paused")), "paused");
   assert.equal(linkFilterOf(new URLSearchParams("status=<x>")), "");
+});
+
+test("key rows: kind and depth, status tones (rotating, expiring within 24 h, revoked, expired), lane and masked secret", () => {
+  const now = Date.parse("2026-10-14T14:00:00.000Z");
+  const base = {
+    id: "key_dev",
+    name: "acme-portal",
+    last4: "xmr0",
+    createdAt: "2026-10-14T13:50:00.000Z",
+    lastUsedAt: "2026-10-14T14:07:00.000Z",
+    previousExpiresAt: null,
+    revokedAt: null,
+    current: true,
+    kind: "project",
+    depth: 0,
+    lane: "production",
+  };
+  const dev = keyRowModel(base, now);
+  assert.equal(dev.kind, "developer");
+  assert.equal(dev.kindLabel, "Developer");
+  assert.equal(dev.depth, 0);
+  assert.equal(dev.status.tone, "success");
+  assert.equal(dev.status.label, "Active");
+  assert.equal(dev.lane, "Live");
+  assert.equal(dev.secret, "••••xmr0");
+  assert.equal(dev.created, "14 Oct 2026, 13:50 UTC");
+  assert.equal(dev.ended, false);
+
+  const helper = keyRowModel({ ...base, id: "key_helper", kind: "agent", depth: 2, current: false, lastUsedAt: null, expiresAt: "2026-10-15T02:00:00.000Z", lane: "testnet" }, now);
+  assert.equal(helper.kindLabel, "Agent · 2");
+  assert.equal(helper.state, "expiring");
+  assert.equal(helper.status.tone, "warning");
+  assert.equal(helper.statusDetail, "expires 15 Oct 2026, 02:00 UTC");
+  assert.equal(helper.lane, "Sandbox");
+  assert.equal(helper.lastUsed, "–");
+
+  const rotating = keyRowModel({ ...base, previousExpiresAt: "2026-10-15T14:00:00.000Z" }, now);
+  assert.equal(rotating.status.tone, "info");
+  assert.equal(rotating.statusDetail, "old secret until 15 Oct 2026, 14:00 UTC");
+  assert.equal(keyStateOf({ ...base, previousExpiresAt: "2026-10-14T13:00:00.000Z" }, now), "active", "a closed grace window is active again");
+
+  const revoked = keyRowModel({ ...base, revokedAt: "2026-10-14T13:55:00.000Z" }, now);
+  assert.equal(revoked.status.tone, "neutral");
+  assert.equal(revoked.status.label, "Revoked");
+  assert.equal(revoked.ended, true);
+  assert.equal(keyRowModel({ ...base, kind: "agent", depth: 1, expiresAt: "2026-10-14T13:00:00.000Z" }, now).status.label, "Expired");
+
+  const publishable = keyRowModel({ ...base, kind: "publishable", depth: 1, last4: null, lane: undefined }, now);
+  assert.equal(publishable.kindLabel, "Publishable");
+  assert.equal(publishable.secret, "••••????");
+  assert.equal(publishable.lane, "–", "no lane from an older API reads as a dash, never a guess");
+  assert.equal(keyRowModel({ ...base, lane: "any" }, now).lane, "Live");
+});
+
+test("keys list in tree order, agents under their parent, orphans first, nothing dropped", () => {
+  const rows = [
+    { id: "a1", parentId: "d1" },
+    { id: "d1", parentId: null },
+    { id: "a2", parentId: "a1" },
+    { id: "d2", parentId: null },
+    { id: "p1", parentId: "d2" },
+    { id: "x", parentId: "gone" },
+  ];
+  assert.deepEqual(orderKeyTree(rows).map((row) => row.id), ["d1", "a1", "a2", "d2", "p1", "x"]);
+  assert.deepEqual(orderKeyTree([{ id: "c1", parentId: "c2" }, { id: "c2", parentId: "c1" }]).map((row) => row.id).sort(), ["c1", "c2"]);
+});
+
+test("usage by route: busiest first with 2xx/4xx/5xx, and a high 4xx share is highlighted", () => {
+  const input = [
+    { route: "GET /keys/:id/policy", requests: 42, byStatusClass: { "2xx": 42 } },
+    { route: "POST /intents", requests: 10, byStatusClass: { "2xx": 4, "4xx": 6 } },
+    { route: "GET /health", requests: 10, byStatusClass: { "2xx": 9, "4xx": 1 } },
+    { route: "GET /usage", requests: 3, byStatusClass: { "2xx": 2, "5xx": 1 } },
+  ];
+  const rows = usageRouteRows(input);
+  assert.deepEqual(rows.map((row) => row.route), ["GET /keys/:id/policy", "GET /health", "POST /intents", "GET /usage"]);
+  const intents = rows.find((row) => row.route === "POST /intents");
+  assert.equal(intents.ok, 4);
+  assert.equal(intents.clientErrors, 6);
+  assert.equal(intents.highlight, true);
+  assert.equal(rows.find((row) => row.route === "GET /health").highlight, false, "one 4xx in ten is not highlighted");
+  assert.equal(rows.find((row) => row.route === "GET /usage").serverErrors, 1);
+  assert.equal(usageRouteRows(input, 2).length, 2);
 });

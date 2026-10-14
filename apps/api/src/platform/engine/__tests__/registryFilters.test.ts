@@ -62,17 +62,18 @@ describe("adapter registry order", () => {
     const positions = order.map((id) => FINAL_ORDER.indexOf(id));
     assert.ok(positions.every((position) => position >= 0), `unknown adapter in ${order.join(", ")}`);
     assert.deepEqual([...positions].sort((a, b) => a - b), positions, "ADAPTERS follows the final order");
-    // Round-6 venues still placeholders do not execute (Uniswap V3, Aerodrome and Velodrome landed in phase 2).
-    for (const pending of ["raydium", "orca", "meteora", "across", "cctp-v2", "sparklend", "spark-savings", "fluid", "yearn-v3", "lido", "rocket-pool", "etherfi"] as const) {
+    // Round-6 venues still placeholders do not execute (Uniswap V3, Aerodrome and Velodrome landed in phase 2;
+    // SparkLend, Spark Savings, Fluid, Yearn V3, Lido, Rocket Pool and ether.fi in phase 3).
+    for (const pending of ["raydium", "orca", "meteora", "across", "cctp-v2"] as const) {
       assert.ok(!EXECUTABLE_PROTOCOLS.includes(pending), pending);
     }
   });
 
-  it("GET /v1/protocols reports 16 executable real protocols", () => {
+  it("GET /v1/protocols reports 23 executable real protocols", () => {
     const executable = protocolRegistry().filter((entry) => entry.executable && entry.category !== "custom").map((entry) => entry.id);
     assert.deepEqual(executable.sort(), [
-      "aave-v3", "aerodrome", "compound-v3", "debridge-dln", "erc20-transfer", "jupiter", "jupiter-lend", "kamino", "lifi", "moonwell", "morpho",
-      "relay", "spl-token", "system-transfer", "uniswap-v3", "velodrome",
+      "aave-v3", "aerodrome", "compound-v3", "debridge-dln", "erc20-transfer", "etherfi", "fluid", "jupiter", "jupiter-lend", "kamino", "lido", "lifi",
+      "moonwell", "morpho", "relay", "rocket-pool", "spark-savings", "sparklend", "spl-token", "system-transfer", "uniswap-v3", "velodrome", "yearn-v3",
     ]);
     assert.equal(PROTOCOLS.length, 44);
   });

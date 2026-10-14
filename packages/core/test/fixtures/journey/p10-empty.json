@@ -1,0 +1,594 @@
+{
+ "source": "journey-scratch/probes/plan-empty.json #3 (live, 2026-10-14)",
+ "text": "bridge 25 USDC from base to arbitrum then send it to 0x000000000000000000000000000000000000dEaD",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_6d1edad90cfd4f57bbb9094ddce4b44e",
+  "createdAt": "2026-10-14T13:36:13.760Z",
+  "updatedAt": "2026-10-14T13:36:13.760Z",
+  "expiresAt": "2026-10-14T14:06:13.760Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 25 USDC from base to arbitrum then send it to 0x000000000000000000000000000000000000dEaD",
+   "accounts": [
+    "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 25 USDC from base to arbitrum, then send it to 0x000000000000000000000000000000000000dEaD",
+   "confidence": 0.95
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 25 USDC from Base to Arbitrum One via LI.FI",
+    "network": "base",
+    "chain": "eip155:8453",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "protocol": "lifi",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "25000000",
+     "formatted": "25",
+     "usd": 24.98
+    },
+    "expectedOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24927689",
+     "formatted": "24.927689",
+     "usd": 24.89
+    },
+    "minimumOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24915225",
+     "formatted": "24.915225",
+     "usd": 24.92
+    },
+    "recipient": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "arbitrum",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.0753,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:13.760Z",
+      "reference": "0xbfe45cf2f6b5d94b69bcf07f522436ad23b0214555e654014cba429ea5bf948d",
+      "detail": "Quoted by LI.FI. Selected over 2 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:13.760Z",
+      "detail": "Also quoted: Relay: 24.848348 USDC guaranteed, ~20 s, 2 transaction(s); not selected."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:13.760Z",
+      "detail": "Also quoted: deBridge DLN: 24.656892 USDC guaranteed (net 22.177204 after 0.001 ETH), ~20 s, 2 transaction(s); not selected."
+     }
+    ],
+    "warnings": [
+     "Route: LI.FI via Across (LI.FI charges 0.25%)."
+    ]
+   },
+   {
+    "id": "s2",
+    "index": 1,
+    "kind": "transfer",
+    "title": "Send 24.915225 USDC to 0x00\u2026dEaD on Arbitrum One",
+    "network": "arbitrum",
+    "chain": "eip155:42161",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "protocol": "erc20-transfer",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24915225",
+     "formatted": "24.915225",
+     "usd": 24.92
+    },
+    "expectedOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24915225",
+     "formatted": "24.915225",
+     "usd": 24.92
+    },
+    "minimumOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24915225",
+     "formatted": "24.915225",
+     "usd": 24.92
+    },
+    "recipient": "eip155:42161:0x000000000000000000000000000000000000dEaD",
+    "dependsOn": [
+     "s1"
+    ],
+    "settlement": {
+     "kind": "same-network"
+    },
+    "feesUsd": 0.0032,
+    "estimatedSeconds": 10,
+    "status": "pending",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "arbitrum",
+      "observedAt": "2026-10-14T13:36:13.760Z",
+      "detail": "Quoted by EVM transfer."
+     }
+    ]
+   }
+  ],
+  "edges": [
+   {
+    "from": "s1",
+    "to": "s2",
+    "kind": "funds"
+   }
+  ],
+  "summary": {
+   "title": "Bridge 25 USDC from Base to Arbitrum One via LI.FI \u2192 Send 24.915225 USDC to 0x00\u2026dEaD on Arbitrum One",
+   "networks": [
+    "base",
+    "arbitrum"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "25000000",
+     "formatted": "25",
+     "usd": 24.98
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "12464",
+     "formatted": "0.012464",
+     "usd": 0.01
+    },
+    {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24915225",
+     "formatted": "24.915225",
+     "usd": 24.92
+    }
+   ],
+   "totalFeesUsd": 0.0785,
+   "estimatedSeconds": 30,
+   "signaturesRequired": 3,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.",
+   "Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known)."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_6d1edad90cfd4f57bbb9094ddce4b44e",
+  "computedAt": "2026-10-14T13:36:14.493Z",
+  "stage": "plan",
+  "basis": "partial",
+  "rows": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "-25000000",
+     "formatted": "-25",
+     "usd": -25
+    },
+    "worst": {
+     "amount": "-25000000",
+     "formatted": "-25",
+     "usd": -25
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:42161/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-850601100000",
+     "formatted": "-0.000000850601",
+     "usd": -0.002107
+    },
+    "worst": {
+     "amount": "-850601100000",
+     "formatted": "-0.000000850601",
+     "usd": -0.002107
+    },
+    "certainty": "simulated-assumed-funds",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "worst": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "certainty": "venue-minimum",
+    "steps": [
+     "s1",
+     "s2"
+    ],
+    "role": "transit"
+   }
+  ],
+  "payments": [
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "recipient": "eip155:42161:0x000000000000000000000000000000000000dEaD",
+    "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "symbol": "USDC",
+    "decimals": 6,
+    "expected": {
+     "amount": "24927689",
+     "formatted": "+24.9276",
+     "usd": 24.927689
+    },
+    "worst": {
+     "amount": "24915225",
+     "formatted": "+24.9152",
+     "usd": 24.915225
+    },
+    "certainty": "simulated-assumed-funds"
+   }
+  ],
+  "fees": [
+   {
+    "kind": "venue",
+    "label": "LI.FI fees",
+    "usd": 0.0722,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "base"
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "network",
+    "label": "Arbitrum One network fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "801901100000",
+    "formatted": "0.000000801901",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 0.001987
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "l1-data",
+    "label": "Arbitrum One L1 data fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "48700000000",
+    "formatted": "0.0000000487",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 0.000121
+   }
+  ],
+  "approvals": [],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "bridge",
+    "status": "failed",
+    "at": "2026-10-14T13:36:14.493Z",
+    "deltas": [
+     {
+      "network": "base",
+      "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-25000000",
+       "formatted": "-25"
+      },
+      "worst": {
+       "amount": "-25000000",
+       "formatted": "-25"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "24927689",
+       "formatted": "+24.9276"
+      },
+      "worst": {
+       "amount": "24915225",
+       "formatted": "+24.9152"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "kind": "venue",
+      "label": "LI.FI fees",
+      "usd": 0.0722,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "base"
+     }
+    ],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "INSUFFICIENT_BALANCE",
+      "severity": "warn",
+      "message": "Step 1: The account holds 0 base units of the input; 25000000 is needed."
+     },
+     {
+      "code": "SIMULATION_FAILED",
+      "severity": "warn",
+      "message": "Step 1: The transaction would fail on-chain (execution reverted)."
+     }
+    ]
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "transfer",
+    "status": "simulated-assumed-funds",
+    "at": "2026-10-14T13:36:15.102Z",
+    "block": "514755375",
+    "endpoint": "arbitrum-one-rpc.publicnode.com",
+    "overrides": [
+     {
+      "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "amount": "24915225"
+     }
+    ],
+    "deltas": [
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-850601100000",
+       "formatted": "-0.000000850601"
+      },
+      "worst": {
+       "amount": "-850601100000",
+       "formatted": "-0.000000850601"
+      },
+      "certainty": "simulated-assumed-funds",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-24927689",
+       "formatted": "-24.9276"
+      },
+      "worst": {
+       "amount": "-24915225",
+       "formatted": "-24.9152"
+      },
+      "certainty": "simulated-assumed-funds",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "recipient": "eip155:42161:0x000000000000000000000000000000000000dEaD",
+      "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "decimals": 6,
+      "expected": {
+       "amount": "24927689",
+       "formatted": "+24.9276"
+      },
+      "worst": {
+       "amount": "24915225",
+       "formatted": "+24.9152"
+      },
+      "certainty": "simulated-assumed-funds"
+     }
+    ],
+    "fees": [
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "kind": "network",
+      "label": "Arbitrum One network fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "801901100000",
+      "formatted": "0.000000801901",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     },
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "kind": "l1-data",
+      "label": "Arbitrum One L1 data fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "48700000000",
+      "formatted": "0.0000000487",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     }
+    ],
+    "approvals": [],
+    "gas": {
+     "used": "40055",
+     "price": "20020000",
+     "l1Fee": "48700000000"
+    },
+    "issues": []
+   }
+  ],
+  "totals": {
+   "youPayUsd": 25,
+   "youGetUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "paidToOthersUsd": {
+    "expected": 24.93,
+    "worst": 24.92
+   },
+   "networkFeesUsd": 0,
+   "venueFeesUsd": 0.07,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": 0.07,
+    "worst": 0.09
+   },
+   "priceDifferenceUsd": 0,
+   "unpriced": []
+  },
+  "arrival": {
+   "network": "arbitrum",
+   "seconds": 20
+  },
+  "needs": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "amount": "25000000",
+    "formatted": "25",
+    "reason": "input-balance",
+    "have": "0"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "850601100000",
+    "formatted": "0.000000850601",
+    "reason": "gas-on-arrival",
+    "have": "0"
+   }
+  ],
+  "warnings": [
+   "Step 2 was simulated with 24.9152 USDC that LI.FI delivers to you on Arbitrum One; it will be simulated again before you sign it.",
+   "PREVIEW_GAS_ON_ARRIVAL: you need about 0.000000850601 ETH on Arbitrum One to sign step 2."
+  ],
+  "digest": "sha256:8f8e3fbf7d472674bfb6ae4cec1fe4ed562fa0d5ad2465ef9e51e238c29cf067"
+ }
+}

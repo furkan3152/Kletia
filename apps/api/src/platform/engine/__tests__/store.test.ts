@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { after, describe, it } from "node:test";
 import type { IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { planIntent } from "../planner.js";
+import { configureGasReserveReader, planIntent } from "../planner.js";
 import { isActiveGraph, MemoryIntentStore, PostgresIntentStore, type IntentStore } from "../store.js";
 import { nextTimestamp } from "../util.js";
-import { ACCOUNTS, resetEngine } from "./helpers.js";
+import { ACCOUNTS, FUNDED_GAS_FACTS, OTHER_EVM_ADDRESS, resetEngine } from "./helpers.js";
 
 async function graph(): Promise<IntentGraph> {
   resetEngine();
@@ -40,6 +40,44 @@ function contract(name: string, make: () => Promise<IntentStore>): void {
       const read = await store.get(intent.id);
       assert.deepEqual(read, intent);
       assert.equal(await store.get("int_00000000000000000000000000000000"), null);
+    });
+
+    it("keeps the amount-flow fields (funding, gas reserve, gas top-up, observed credit) and a stopped intent out of the active list", async () => {
+      const store = await make();
+      resetEngine();
+      configureGasReserveReader(async () => ({ ...FUNDED_GAS_FACTS, balance: 0n }));
+      const planned = await planIntent({
+        text: `bridge 25 USDC from base to arbitrum as ETH then send it to ${OTHER_EVM_ADDRESS}`,
+        accounts: ACCOUNTS,
+        constraints: { gasOnArrival: { arbitrum: "0.50" } },
+      });
+      const [s1, s2] = planned.steps;
+      assert.ok(s1?.gasTopup === undefined && s2?.funding?.gasReserve, "a native output takes no top-up; the send keeps a reserve");
+      const topped = await planIntent({ text: "bridge 25 USDC from base to arbitrum", accounts: ACCOUNTS, constraints: { gasOnArrival: { arbitrum: "0.50" } } });
+      const failed: IntentGraph = {
+        ...topped,
+        status: "failed",
+        steps: topped.steps.map((entry) => ({
+          ...entry,
+          status: "failed" as const,
+          failure: { code: "SETTLEMENT_MISMATCH", message: "below the floor" },
+          observedCredit: { ...(entry.minimumOutput as NonNullable<typeof entry.minimumOutput>), amount: "1000000", formatted: "1" },
+        })),
+      };
+      for (const intent of [planned, failed]) {
+        await store.create(intent, { ownerKeyId: owner("flow") });
+        assert.deepEqual(await store.get(intent.id), intent);
+      }
+      const stopped: IntentGraph = {
+        ...planned,
+        status: "partially_completed",
+        steps: planned.steps.map((entry, index) => ({ ...entry, status: index === 0 ? "settled" as const : "skipped" as const })),
+        updatedAt: nextTimestamp(planned.updatedAt),
+      };
+      await store.update(planned.id, stopped, planned.updatedAt);
+      assert.deepEqual(await store.get(planned.id), stopped);
+      assert.equal(isActiveGraph(stopped), false);
+      assert.equal((await store.listActive(500)).some((entry) => entry.id === planned.id), false, "the poller ignores a stopped intent");
     });
 
     it("refuses a second intent with the same clientReference for one key", async () => {

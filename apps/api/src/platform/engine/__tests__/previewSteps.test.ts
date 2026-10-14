@@ -15,7 +15,8 @@ import { configurePlatform } from "../service.js";
 import { buildEvmJobs, type StepTransactions } from "../preview/jobs.js";
 import { previewIntent, previewPreparedStep, rememberPlannedPreviews } from "../preview/index.js";
 import type { SimulatedJob } from "../preview/simulate.js";
-import { evmStepPreview, type StepBuildContext } from "../preview/steps.js";
+import { evmStepPreview, fundedModel, quotedStepPreview, type StepBuildContext } from "../preview/steps.js";
+import { configureHoldingsReaders } from "../holdings.js";
 import { ACCOUNTS, JUPITER_PROGRAM, SOL_ADDRESS, STUB_ADAPTERS, unsignedSolanaTransaction } from "./helpers.js";
 import { ACCOUNT_BASE, FRIEND, fund, installPreviewChain, resetPreviewEngine, USDC, USER, type PreviewChain } from "./previewHarness.js";
 
@@ -302,5 +303,73 @@ describe("Solana step previews", () => {
     assert.equal(preview.steps[1]?.status, "quoted");
     assert.equal(chain.world.solanaRequests.length, 0);
     assert.equal(CHAINS.solana.vm, "svm");
+  });
+
+  it("a quoted Solana step after a bridge carries an estimated fee and raises the gas need (fee, priority, rent read live)", async () => {
+    configurePlatform({ adapters: STUB_ADAPTERS });
+    configureHoldingsReaders({
+      gasPrice: async () => 1_000_000n,
+      solanaRent: async (_network, bytes) => (bytes === 0 ? 650_240n : 1_488_440n),
+      solanaTokenAccountExists: async () => false,
+    });
+    try {
+      const { graph } = await planIntentWithPreviews({
+        actions: [
+          { kind: "bridge", network: "base", toNetwork: "solana", from: "USDC", to: "USDC", amount: "100" },
+          { kind: "swap", network: "solana", from: "USDC", to: "JitoSOL", amount: "max" },
+        ],
+        accounts: ACCOUNTS,
+        constraints: { preferProtocols: ["jupiter"] },
+      });
+      const preview = await previewIntent(graph, { stage: "plan" });
+      const swap = preview.steps.find((entry) => entry.stepId === "s2");
+      assert.equal(swap?.status, "quoted");
+      assert.deepEqual(swap?.fees.filter((fee) => fee.certainty === "estimated").map((fee) => [fee.kind, fee.paid, fee.amount]), [
+        ["network", "on-top", "105000"],
+        ["rent", "refundable", (1_488_440 + 650_240).toString()],
+      ]);
+      assert.ok(swap?.issues.some((entry) => /its network fee is estimated/u.test(entry.message)));
+      const need = preview.needs.find((entry) => entry.reason === "gas-on-arrival" && entry.network === "solana");
+      assert.equal(need?.amount, (5_000 + 100_000 + 1_488_440 + 650_240).toString());
+      assert.equal(need?.have, "0");
+      // Counted in the fare's network fees.
+      assert.ok(preview.fees.some((fee) => fee.stepId === "s2" && fee.kind === "network" && fee.certainty === "estimated"));
+    } finally {
+      configureHoldingsReaders(null);
+    }
+  });
+});
+
+describe("funded steps through core flow.ts", () => {
+  it("spends share × credit − gas reserve and shows the reserve as kept for network fees", async () => {
+    configurePlatform({ adapters: STUB_ADAPTERS });
+    const { graph } = await planIntentWithPreviews({
+      actions: [
+        { kind: "bridge", network: "base", toNetwork: "solana", from: "USDC", to: "USDC", amount: "100" },
+        { kind: "swap", network: "solana", from: "USDC", to: "SOL", amount: "max" },
+      ],
+      accounts: ACCOUNTS,
+      constraints: { preferProtocols: ["jupiter"] },
+    });
+    const parent = graph.steps[0] as IntentStep;
+    const child = graph.steps[1] as IntentStep;
+    const credit = BigInt(parent.minimumOutput?.amount ?? "0");
+    // The same child spending the gas asset with a reserve (synthetic: input re-labelled SOL).
+    const sol = { asset: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501" as const, symbol: "SOL", decimals: 9 };
+    const nativeParent: IntentStep = { ...parent, expectedOutput: { ...sol, amount: credit.toString(), formatted: "x" }, minimumOutput: { ...sol, amount: credit.toString(), formatted: "x" } };
+    const nativeChild: IntentStep = {
+      ...child,
+      input: { ...sol, amount: (credit - 5_000_000n).toString(), formatted: "x" },
+      funding: { from: parent.id, portionBps: 10_000, gasReserve: { ...sol, amount: "5000000", formatted: "0.005" } },
+    };
+    const funded: IntentGraph = { ...graph, steps: [nativeParent, nativeChild] };
+    const context: StepBuildContext = { graph: funded, step: nativeChild, stage: "plan", now: Date.now(), source: null, built: new Map(), nativeBalances: new Map() };
+    const model = fundedModel(context);
+    assert.equal(model?.reserve, 5_000_000n);
+    assert.equal(model?.expected, credit - 5_000_000n);
+    const built = quotedStepPreview(context, "quoted", []);
+    const input = built.preview.deltas.find((row) => row.symbol === "SOL" && BigInt(row.expected.amount) < 0n);
+    assert.equal(input?.expected.amount, (-(credit - 5_000_000n)).toString());
+    assert.equal(input?.keptForFees, "5000000");
   });
 });

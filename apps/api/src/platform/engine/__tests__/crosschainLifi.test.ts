@@ -338,6 +338,16 @@ describe("LI.FI verification and settlement", () => {
     assert.equal(await poll(), "SETTLEMENT_MISMATCH");
     mock.lifiStatus.set(deposit as string, status({}, { amount: (floor - 1n).toString() }));
     assert.equal(await poll(), "SETTLEMENT_MISMATCH");
+    // A fill below the floor fails the leg with what the destination shows credited (observedCredit).
+    const landed = mock.rpc.evm.get(fill)!;
+    mock.rpc.evm.set(fill, { ...landed, logs: [transferLog(usdcBase, EVM_ADDRESS, floor - 5n)] });
+    for (const reported of [floor, floor - 5n]) {
+      mock.lifiStatus.set(deposit as string, status({}, { amount: reported.toString() }));
+      const short = await lifiAdapter.poll?.(step, Date.now());
+      assert.equal(short?.status === "failed" ? short.failure.code : short?.status, "SETTLEMENT_MISMATCH");
+      assert.equal(short?.status === "failed" ? short.credited?.amount : null, (floor - 5n).toString());
+    }
+    mock.rpc.evm.set(fill, landed);
     mock.lifiStatus.set(deposit as string, status());
     const settled = await lifiAdapter.poll?.(step, Date.now());
     assert.equal(settled?.status, "settled");

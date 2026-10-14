@@ -9,14 +9,16 @@ import { PlatformError, toPlatformError } from "../../../errors.js";
 import { aaveMetrics } from "../aaveV3.js";
 import type { EvmLendingVenue, LendingMetrics } from "./common.js";
 import { compoundMetrics } from "./compoundV3.js";
-import { morphoMetrics } from "./erc4626.js";
 import { moonwellMetrics } from "./moonwell.js";
+import { vaultFamilyMetrics } from "./vaultFamilies.js";
 
 const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { readonly value: Promise<LendingMetrics>; readonly expiresAt: number }>();
 
+const EVM_LENDING_KINDS: readonly string[] = ["aave-reserve", "comet", "erc4626", "ctoken", "spark-vault", "fluid-ftoken", "yearn-vault"];
+
 export function isEvmLendingVenue(venue: { readonly kind: string; readonly network: NetworkKey }): venue is EvmLendingVenue {
-  return ["aave-reserve", "comet", "erc4626", "ctoken"].includes(venue.kind) && CHAINS[venue.network].vm === "evm";
+  return EVM_LENDING_KINDS.includes(venue.kind) && CHAINS[venue.network].vm === "evm";
 }
 
 function read(venue: EvmLendingVenue): Promise<LendingMetrics> {
@@ -25,10 +27,13 @@ function read(venue: EvmLendingVenue): Promise<LendingMetrics> {
       return aaveMetrics(venue);
     case "comet":
       return compoundMetrics(venue);
-    case "erc4626":
-      return morphoMetrics(venue);
     case "ctoken":
       return moonwellMetrics(venue);
+    case "erc4626":
+    case "spark-vault":
+    case "fluid-ftoken":
+    case "yearn-vault":
+      return vaultFamilyMetrics(venue);
   }
 }
 
@@ -52,13 +57,22 @@ export interface LendingMetricsListing {
   readonly unavailable: readonly { readonly venue: string; readonly code: string; readonly message: string }[];
 }
 
-/** Metrics of every EVM lending venue, optionally filtered by network and protocol. */
-export async function listLendingMetrics(filter: { readonly network?: NetworkKey; readonly protocol?: ProtocolId } = {}): Promise<LendingMetricsListing> {
-  const venues = YIELD_VENUES.filter((venue): venue is EvmLendingVenue =>
+/**
+ * The executable EVM lending venues in registry order (each protocol block
+ * in YIELD_VENUES order, so venues added later list after the existing ones),
+ * optionally filtered by network and protocol.
+ */
+export function evmLendingVenues(filter: { readonly network?: NetworkKey; readonly protocol?: ProtocolId } = {}): EvmLendingVenue[] {
+  return YIELD_VENUES.filter((venue): venue is EvmLendingVenue =>
     isEvmLendingVenue(venue) &&
     venue.actions.length > 0 &&
     (!filter.network || venue.network === filter.network) &&
     (!filter.protocol || venue.protocol === filter.protocol));
+}
+
+/** Metrics of every EVM lending venue, optionally filtered by network and protocol. */
+export async function listLendingMetrics(filter: { readonly network?: NetworkKey; readonly protocol?: ProtocolId } = {}): Promise<LendingMetricsListing> {
+  const venues = evmLendingVenues(filter);
   const results = await Promise.allSettled(venues.map((venue) => readLendingMetrics(venue.id)));
   const listing: LendingMetrics[] = [];
   const unavailable: { venue: string; code: string; message: string }[] = [];

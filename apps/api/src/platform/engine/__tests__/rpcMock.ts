@@ -64,6 +64,14 @@ export interface RpcMock {
   relayQuote: ((body: Record<string, unknown>) => unknown) | null;
   /** `simulateTransaction` error (null simulates successfully). */
   simulationError: unknown;
+  /** `eth_gasPrice` answer (wei); null makes the read fail. */
+  gasPrice: bigint | null;
+  /** Solana `getMinimumBalanceForRentExemption` answers by data size (unknown sizes fail the read). */
+  readonly solanaRent: Map<number, number>;
+  /** Solana `getBalance` lamports by address (unknown addresses fail the read). */
+  readonly solanaLamports: Map<string, number>;
+  /** Solana `getTokenAccountsByOwner` token amounts by `${owner}:${mint}` (unknown pairs answer no accounts). */
+  readonly solanaTokenAccounts: Map<string, readonly string[]>;
   readonly unknown: string[];
   restore(): void;
 }
@@ -161,6 +169,9 @@ function evmResult(mock: RpcMock, method: string, params: unknown[]): unknown {
         totalDifficulty: "0x0",
       };
     }
+    case "eth_gasPrice":
+      if (mock.gasPrice === null) throw new Error("gas price unavailable");
+      return hex(mock.gasPrice);
     case "eth_getBalance": {
       const balance = mock.evmBalances.get(`${key}@${BigInt(String(params[1]))}`);
       if (balance === undefined) throw new Error("balance unavailable");
@@ -235,6 +246,28 @@ function solanaResult(mock: RpcMock, method: string, params: unknown[]): unknown
     }
     case "simulateTransaction":
       return { context: { slot: 100 }, value: { err: mock.simulationError, logs: [], accounts: null, unitsConsumed: 1000, returnData: null } };
+    case "getMinimumBalanceForRentExemption": {
+      const lamports = mock.solanaRent.get(Number(params[0]));
+      if (lamports === undefined) throw new Error("rent unavailable");
+      return lamports;
+    }
+    case "getBalance": {
+      const lamports = mock.solanaLamports.get(String(params[0]));
+      if (lamports === undefined) throw new Error("balance unavailable");
+      return { context: { slot: 100 }, value: lamports };
+    }
+    case "getTokenAccountsByOwner": {
+      const owner = String(params[0]);
+      const mint = String((params[1] as { mint?: unknown } | undefined)?.mint ?? "");
+      const amounts = mock.solanaTokenAccounts.get(`${owner}:${mint}`) ?? [];
+      return {
+        context: { slot: 100 },
+        value: amounts.map((amount, index) => ({
+          pubkey: `${index + 1}`.padStart(32, "1"),
+          account: { data: { parsed: { info: { mint, owner, tokenAmount: { amount } } }, program: "spl-token" }, executable: false, lamports: 2_039_280, owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
+        })),
+      };
+    }
     default:
       throw new Error(`unmocked Solana method ${method}`);
   }
@@ -250,6 +283,10 @@ export function installRpcMock(): RpcMock {
     relayStatus: new Map(),
     relayQuote: null,
     simulationError: null,
+    gasPrice: null,
+    solanaRent: new Map(),
+    solanaLamports: new Map(),
+    solanaTokenAccounts: new Map(),
     unknown: [],
     restore: () => {
       globalThis.fetch = original;

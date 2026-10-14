@@ -11,7 +11,12 @@
  *    steps run a venue auction (auction.ts); other steps take the first
  *    adapter that quotes.
  *    Same-network swaps with several candidate venues run the auction too.
- * 4. Chain dependent amounts from the previous step's guaranteed minimum.
+ * 4. Chain dependent amounts from the previous step's guaranteed minimum
+ *    (amount flow F1), recorded as `step.funding`; a funded step that spends
+ *    the network's gas asset keeps a gas reserve when the account holds too
+ *    little gas there (F6). Legs arriving on a network named in
+ *    `constraints.gasOnArrival` are served only by venues that deliver gas
+ *    with the fill (Relay today).
  * 5. Merge "bridge then swap everything on the destination" into a single
  *    cross-network swap when a venue quotes it.
  * 6. Assemble steps, edges, summary and warnings; enforce fee limits; validate.
@@ -42,7 +47,13 @@ import {
   YIELD_VENUES,
   yieldVenuesFor,
   buildPlanRecord,
+  fundedFlow,
+  gasReserveUnits,
+  fundingParent,
+  parentCreditFromGraph,
   planRecordDigest,
+  reserveTooLarge,
+  type AccountId,
   type AssetAmount,
   type EvmContractAction,
   type IntentActionKind,
@@ -70,9 +81,11 @@ import type { AdapterAction, AdapterRoute, ContractPlannedStep, PlannedStep, Pla
 import { assertContractAmount } from "./contracts/caps.js";
 import { contractDirectory, contractsEnabled, withActivationRetry, type ContractPhrase } from "./contracts/directory.js";
 import { contractOutputAsset, evmSnapshot, solanaSnapshot } from "./contracts/snapshot.js";
-import { assetFromRef, resolveAsset, resolvedFromDescriptor, sameAsset, type ResolvedAsset } from "./assets.js";
+import { assetAmount, assetFromRef, resolveAsset, resolvedFromDescriptor, sameAsset, type ResolvedAsset } from "./assets.js";
 import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, type AuctionResult } from "./auction.js";
 import { pickFundedSource, resolveDeparture, type DepartureBalanceReader } from "./departure.js";
+import { knownAmount, readFacts } from "./holdings.js";
+import { estimateStepFee, gasPriceFrom, rentFrom, SOLANA_WALLET_RENT_FALLBACK } from "./journey/fees.js";
 import { compileIntentText, EVM_STAKING_NETWORK, EVM_STAKING_TOKENS, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, MissingSourceError, type GrammarResult } from "./grammar.js";
 import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution } from "./names.js";
 import { screenIntentRequest } from "./secretScreen.js";
@@ -752,6 +765,10 @@ interface StepDraft {
   readonly funded: boolean;
   readonly portionBps?: number;
   readonly merged?: string;
+  /** F6: gas-asset units kept back from what arrives (recorded as `funding.gasReserve`). */
+  readonly gasReserve?: AssetAmount;
+  /** Gas on arrival this leg delivers (USD asked; the venue's amount is `planned.gasTopup`). */
+  readonly gasTopupUsd?: string;
 }
 
 function canMerge(bridge: NormalizedAction, next: NormalizedAction | undefined, request: IntentRequest): next is NormalizedAction {
@@ -770,12 +787,125 @@ function canMerge(bridge: NormalizedAction, next: NormalizedAction | undefined, 
   return true;
 }
 
+/* --------------------------------------------------- gas reserve (F6) */
+
+/** What the F6 gas reserve reads for one network: the account's gas balance and fee facts (null: unknown). */
+export interface GasReserveFacts {
+  readonly balance: bigint | null;
+  readonly gasPriceWei: bigint | null;
+  readonly walletRentLamports: bigint | null;
+  readonly tokenAccountRentLamports: bigint | null;
+}
+
+export type GasReserveReader = (network: NetworkKey, account: ParsedAccountId, accounts: readonly AccountId[]) => Promise<GasReserveFacts>;
+
+/** Deadline of the reserve's reads; a late or failed read counts as zero gas (fail closed: the reserve is kept). */
+const GAS_RESERVE_DEADLINE_MS = 2_500;
+
+/**
+ * Wei per gas used when `eth_gasPrice` cannot be read: upper bounds of
+ * recent prices (an estimate that is too high keeps a few cents more; one
+ * that is too low leaves the user without gas).
+ */
+const FALLBACK_GAS_PRICE_WEI: Readonly<Partial<Record<NetworkKey, bigint>>> = Object.freeze({
+  ethereum: 20_000_000_000n,
+  base: 100_000_000n,
+  optimism: 100_000_000n,
+  arbitrum: 500_000_000n,
+  polygon: 800_000_000_000n,
+  arc: 300_000_000_000n,
+  "arbitrum-sepolia": 500_000_000n,
+});
+const FALLBACK_GAS_PRICE_DEFAULT_WEI = 20_000_000_000n;
+
+/** The default reader: holdings.readFacts (cached there), within GAS_RESERVE_DEADLINE_MS. */
+const defaultGasReserveReader: GasReserveReader = async (network, account, accounts) => {
+  const evm = CHAINS[network].vm === "evm";
+  const facts = await readFacts(accounts, [
+    { kind: "balance", network, asset: CHAINS[network].nativeAsset.symbol, owner: account.address },
+    evm ? { kind: "gasPrice", network } : { kind: "solanaRent", network },
+  ], { deadlineMs: GAS_RESERVE_DEADLINE_MS, balances: 1 });
+  const rent = rentFrom(facts, network);
+  return {
+    balance: knownAmount(facts.balances[0]),
+    gasPriceWei: evm ? gasPriceFrom(facts, network) : null,
+    walletRentLamports: rent.wallet,
+    tokenAccountRentLamports: rent.tokenAccount,
+  };
+};
+
+let gasReserveReader: GasReserveReader = defaultGasReserveReader;
+
+/** Replaces the F6 reserve's reads (tests); `null` restores the holdings reader. */
+export function configureGasReserveReader(reader: GasReserveReader | null): void {
+  gasReserveReader = reader ?? defaultGasReserveReader;
+}
+
+/**
+ * F6 gas reserve of a funded step whose input is the network's gas asset:
+ * zero when the account already holds enough gas there for this step and
+ * the later steps on the same network (fees from journey/fees.ts, the
+ * costliest candidate venue counted), else gasReserveUnits(fees, Solana
+ * wallet rent when the wallet is empty). An unreadable balance counts as zero.
+ */
+async function plannedGasReserve(
+  action: NormalizedAction,
+  input: ResolvedAsset,
+  protocols: readonly ProtocolId[],
+  later: readonly NormalizedAction[],
+  account: ParsedAccountId,
+  request: IntentRequest,
+): Promise<bigint> {
+  const network = action.network;
+  const svm = CHAINS[network].vm === "svm";
+  const facts = await gasReserveReader(network, account, request.accounts).catch((): GasReserveFacts => ({
+    balance: null, gasPriceWei: null, walletRentLamports: null, tokenAccountRentLamports: null,
+  }));
+  const gasPriceWei = facts.gasPriceWei ?? FALLBACK_GAS_PRICE_WEI[network] ?? FALLBACK_GAS_PRICE_DEFAULT_WEI;
+  const fee = (kind: IntentActionKind, protocol: ProtocolId, spends: { readonly asset: string } | undefined): bigint => {
+    const estimate = estimateStepFee({ kind, network, protocol, ...(spends ? { input: spends } : {}) }, {
+      gasPriceWei,
+      tokenAccountRentLamports: facts.tokenAccountRentLamports,
+      // A swap, stake or deposit may create the output's token account (unknown counts as missing).
+      ...(svm && kind !== "transfer" ? { tokenAccounts: [null] } : {}),
+    });
+    return estimate.amount === null ? 0n : BigInt(estimate.amount);
+  };
+  const own = (protocols.length > 0 ? protocols : [action.protocol ?? "relay"]).map((protocol) => fee(action.kind, protocol, { asset: input.id }));
+  let fees = own.reduce((max, value) => (value > max ? value : max), 0n);
+  for (const next of later) {
+    if (next.network !== network) continue;
+    const protocol: ProtocolId = next.protocol ?? (CONTRACT_KINDS.includes(next.kind) ? "custom-call" : UNKNOWN_PROTOCOL);
+    fees += fee(next.kind, protocol, undefined);
+  }
+  if (facts.balance !== null && facts.balance >= fees) return 0n;
+  const emptyWallet = facts.balance === null || facts.balance === 0n;
+  const rent = svm && emptyWallet ? facts.walletRentLamports ?? SOLANA_WALLET_RENT_FALLBACK : 0n;
+  return gasReserveUnits(fees, rent);
+}
+
+/** A later step whose venue is not chosen yet: fees.ts then counts the kind's costliest typical transactions. */
+const UNKNOWN_PROTOCOL = "" as ProtocolId;
+
+/** How a draft is planned beyond the action itself (later actions, reserves already kept, gas on arrival). */
+interface DraftContext {
+  /** Actions after this one (the F6 reserve covers the later steps on the same network). */
+  readonly later: readonly NormalizedAction[];
+  /** `${network}|${account}` pairs whose gas reserve an earlier step already keeps. */
+  readonly reserved: ReadonlySet<string>;
+  /** USD of destination gas this leg should deliver (constraints.gasOnArrival), when it is eligible. */
+  readonly gasTopupUsd?: string;
+}
+
+const NO_DRAFT_CONTEXT: DraftContext = { later: [], reserved: new Set() };
+
 async function draftStep(
   action: NormalizedAction,
   previous: PreviousStep | null,
   accounts: readonly ParsedAccountId[],
   request: IntentRequest,
   ownerKeyId?: string,
+  context: DraftContext = NO_DRAFT_CONTEXT,
 ): Promise<StepDraft> {
   if (CONTRACT_KINDS.includes(action.kind)) return draftContractStep(action, previous, accounts, request, ownerKeyId);
   if (action.kind === "stake" && !STAKE_NETWORKS.includes(action.network)) {
@@ -808,7 +938,7 @@ async function draftStep(
   }
   const { recipient, name } = await resolveRecipient(action, account, accounts);
   const closePosition = action.amount.type === "position";
-  const amount = action.amount.type === "exact"
+  let amount = action.amount.type === "exact"
     ? baseUnits(action.amount.value, input, action.index)
     : action.amount.type === "position"
       ? "0"
@@ -843,8 +973,35 @@ async function draftStep(
       );
     }
   }
-  const candidates = candidateAdapters(route, request.constraints, requested);
+  let candidates = candidateAdapters(route, request.constraints, requested);
   if (candidates.length === 0) throw noCandidates(route, requested);
+  // Gas on arrival: an eligible leg (own recipient, output not the destination's gas asset) is served only by
+  // venues that deliver gas with the fill.
+  const gasTopupUsd = context.gasTopupUsd !== undefined && gasTopupEligible(route, recipient, accounts) ? context.gasTopupUsd : undefined;
+  if (gasTopupUsd !== undefined) {
+    candidates = candidates.filter((adapter) => adapter.supportsGasTopup?.(route) === true);
+    if (candidates.length === 0) throw gasTopupUnavailable(route.destinationNetwork, request);
+  }
+  // F6: a funded step spending the network's gas asset keeps what its fees need when the account has no gas there.
+  let gasReserve: AssetAmount | undefined;
+  const reserveKey = `${action.network}|${account.id.toLowerCase()}`;
+  if (action.amount.type === "previous" && input.isNative && !context.reserved.has(reserveKey)) {
+    const protocols = [...new Set(candidates.map((adapter) => effectiveProtocol(adapter, route)))];
+    const reserve = await plannedGasReserve(action, input, protocols, context.later, account, request);
+    if (reserve > 0n) {
+      const share = BigInt(amount);
+      if (reserveTooLarge(reserve, share)) {
+        throw new PlatformError(
+          "AMOUNT_TOO_SMALL",
+          `What arrives for step ${action.index + 1} (${fromBaseUnits(share, input.decimals)} ${input.symbol}) would mostly pay network fees on ${CHAINS[action.network].name}: ${fromBaseUnits(reserve, input.decimals)} ${input.symbol} must stay for gas. Send more, or bring gas to ${CHAINS[action.network].name} first.`,
+          422,
+          issue(`actions[${action.index}].amount`, "Below the gas reserve."),
+        );
+      }
+      amount = (share - reserve).toString();
+      gasReserve = assetAmount(input, reserve.toString());
+    }
+  }
   const destinationAccount = route.destinationNetwork !== route.network ? ownAccountOn(accounts, route.destinationNetwork) : undefined;
   const adapterAction: AdapterAction = {
     ...route,
@@ -856,8 +1013,12 @@ async function draftStep(
     ...(choice ? { venue: choice.venue.id } : {}),
     ...(closePosition ? { closePosition: true } : {}),
     ...(destinationAccount ? { destinationAccount } : {}),
+    ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}),
   };
   const { adapter, planned, auction } = await planWithCandidates(candidates, adapterAction, request);
+  if (gasTopupUsd !== undefined && !planned.gasTopup) {
+    throw new PlatformError("PROVIDER_TRANSACTION_INVALID", `${adapter.label} planned the leg without the gas top-up it was asked for.`, 502);
+  }
   if (closePosition && !(BigInt(planned.input.amount) > 0n)) {
     throw new PlatformError("POSITION_EMPTY", `There is no ${input.symbol} position to withdraw at ${choice?.venue.name ?? "this venue"}.`, 422);
   }
@@ -874,11 +1035,45 @@ async function draftStep(
     ...(name ? { name } : {}),
     ...(choice ? { venue: choice.venue } : {}),
     ...(auction ? { auction } : {}),
-    notes: [...(choice?.warnings ?? []), ...(auction?.warnings ?? [])],
+    notes: [
+      ...(choice?.warnings ?? []),
+      ...(auction?.warnings ?? []),
+      ...(gasReserve ? [reserveWarning(gasReserve, action.network)] : []),
+      ...(gasTopupUsd !== undefined && planned.gasTopup ? [topupWarning(planned.gasTopup, route.destinationNetwork, adapter)] : []),
+    ],
     output: sameAsset(plannedOutput, output) ? output : assetFromRef(plannedOutput),
     funded: action.amount.type === "previous",
     ...(action.amount.type === "previous" ? { portionBps: action.amount.portionBps } : {}),
+    ...(gasReserve ? { gasReserve } : {}),
+    ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}),
   };
+}
+
+/** Committed warning line of a gas reserve (in the step and the plan record). */
+function reserveWarning(reserve: AssetAmount, network: NetworkKey): string {
+  return `Keeps ${reserve.formatted} ${reserve.symbol} of what arrives for network fees on ${CHAINS[network].name}.`;
+}
+
+/** Committed warning line of a gas top-up. */
+function topupWarning(topup: AssetAmount, network: NetworkKey, adapter: ProtocolAdapter): string {
+  const usd = topup.usd !== undefined ? ` (about $${topup.usd.toFixed(2)})` : "";
+  return `Includes a gas top-up of ${topup.formatted} ${topup.symbol}${usd} on ${CHAINS[network].name}, delivered with the ${getProtocol(adapter.id)?.name ?? adapter.label} fill.`;
+}
+
+/** A cross-network leg can carry gas on arrival when it pays the user's own account and does not deliver the gas asset itself. */
+function gasTopupEligible(route: AdapterRoute, recipient: ParsedAccountId, accounts: readonly ParsedAccountId[]): boolean {
+  return route.kind === "bridge" && route.network !== route.destinationNetwork && !route.output.isNative &&
+    accounts.some((own) => sameAddress(own, recipient));
+}
+
+function gasTopupUnavailable(network: NetworkKey, request: IntentRequest): PlatformError {
+  const avoided = (request.constraints?.avoidProtocols ?? []).includes("relay") ? " (constraints.avoidProtocols excludes Relay)" : "";
+  return new PlatformError(
+    "GAS_TOPUP_UNAVAILABLE",
+    `No venue can deliver gas on ${CHAINS[network].name} with this leg${avoided}. Relay serves EVM destinations when the output is not the gas asset; remove constraints.gasOnArrival.${network}, or bring gas yourself.`,
+    422,
+    issue(`constraints.gasOnArrival.${network}`, "No venue delivers gas with this leg."),
+  );
 }
 
 /** The network's native asset as a placeholder input of non-spending call / action steps. */
@@ -1109,6 +1304,18 @@ function quoteEvidence(draft: StepDraft, now: string): StepEvidence[] {
   return [selected, ...losers, ...failures, ...resolution];
 }
 
+/** `funding` of a step that spends the previous step's output (share and F6 reserve); none otherwise. */
+function stepFunding(draft: StepDraft, previous: PreviousStep | null): Pick<IntentStep, "funding"> {
+  if (!draft.funded || !previous) return {};
+  return {
+    funding: {
+      from: previous.step.id,
+      portionBps: draft.portionBps ?? 10_000,
+      ...(draft.gasReserve ? { gasReserve: draft.gasReserve } : {}),
+    },
+  };
+}
+
 function buildStep(draft: StepDraft, index: number, previous: PreviousStep | null, now: string): IntentStep {
   const { action } = draft;
   const contract = "kind" in draft.planned && draft.planned.kind === "call";
@@ -1135,6 +1342,8 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
     ...(recipient && draft.name ? { recipientName: draft.name.name } : {}),
     ...(draft.venue ? { venue: draft.venue.id } : {}),
     dependsOn: previous ? [previous.step.id] : [],
+    ...stepFunding(draft, previous),
+    ...(draft.gasTopupUsd !== undefined && planned.gasTopup ? { gasTopup: planned.gasTopup } : {}),
     settlement: planned.settlement,
     ...(planned.feesUsd !== undefined ? { feesUsd: roundUsd(planned.feesUsd) } : {}),
     ...(planned.extraCosts && planned.extraCosts.length > 0 ? { extraCosts: planned.extraCosts } : {}),
@@ -1151,6 +1360,8 @@ function buildStep(draft: StepDraft, index: number, previous: PreviousStep | nul
       plannedInput: planned.input.amount,
       plannedMinimum: planned.minimumOutput.amount,
       ...(action.amount.type === "position" ? { closePosition: true as const } : {}),
+      // Prepare asks the same top-up again.
+      ...(draft.gasTopupUsd !== undefined && planned.gasTopup ? { gasTopupUsd: draft.gasTopupUsd } : {}),
     }),
     ...(warnings.length > 0 ? { warnings: warnings.slice(0, 12) } : {}),
   };
@@ -1182,6 +1393,7 @@ function buildContractStep(
     ...(planned.minimumOutput ? { minimumOutput: planned.minimumOutput } : {}),
     ...(recipient ? { recipient } : {}),
     dependsOn: previous ? [previous.step.id] : [],
+    ...stepFunding(draft, previous),
     settlement: planned.settlement,
     ...(planned.feesUsd !== undefined ? { feesUsd: roundUsd(planned.feesUsd) } : {}),
     estimatedSeconds: planned.estimatedSeconds,
@@ -1203,8 +1415,35 @@ function scaleUsd(amount: AssetAmount, units: bigint): number | undefined {
   return Math.round((amount.usd * Number(units)) / Number(amount.amount) * 100) / 100;
 }
 
-export function summarize(steps: readonly IntentStep[], edges: readonly IntentEdge[], signatures: number, title: string): IntentSummary {
+/**
+ * What a funded child takes from its parent's output in the summary: its
+ * share of what the parent produces (observed, else expected) minus its gas
+ * reserve (which stays with the user), capped for a third-party recipient:
+ * the same rule prepare applies (core flow.ts). The planned input (a share
+ * of the guaranteed minimum) is not used: it would list the gap between
+ * expected and minimum as money "received" at the stop.
+ */
+function consumedByChild(child: IntentStep, produced: AssetAmount, flowGraph: IntentGraph): bigint {
+  const ref = decodeStepRef(child.quoteRef);
+  const units = BigInt(produced.amount);
+  const flow = fundedFlow(flowGraph, child, { expected: units, worst: units, certainty: "quoted" }, {
+    ...(ref?.slippageBps !== undefined ? { slippageBps: ref.slippageBps } : {}),
+    ...(ref?.plannedInput !== undefined ? { plannedInput: BigInt(ref.plannedInput) } : {}),
+    ...(ref?.portionBps !== undefined ? { portionBps: ref.portionBps } : {}),
+  });
+  return flow.spends.expected;
+}
+
+export function summarize(
+  steps: readonly IntentStep[],
+  edges: readonly IntentEdge[],
+  signatures: number,
+  title: string,
+  request: Pick<IntentRequest, "accounts" | "constraints">,
+): IntentSummary {
   const funded = new Set(edges.filter((edge) => edge.kind === "funds").map((edge) => edge.to));
+  // fundedFlow reads only the graph's request (own accounts, slippage); the summary has no full graph yet.
+  const flowGraph = { request, steps, edges } as unknown as IntentGraph;
   const networks: NetworkKey[] = [];
   for (const step of steps) {
     for (const network of [step.network, step.settlement?.destinationNetwork]) {
@@ -1219,9 +1458,9 @@ export function summarize(steps: readonly IntentStep[], edges: readonly IntentEd
     if (!produced) continue;
     const consumed = edges
       .filter((edge) => edge.kind === "funds" && edge.from === step.id)
-      .map((edge) => steps.find((candidate) => candidate.id === edge.to)?.input)
-      .filter((input): input is AssetAmount => input !== undefined && sameAsset(input, produced))
-      .reduce((total, input) => total + BigInt(input.amount), 0n);
+      .map((edge) => steps.find((candidate) => candidate.id === edge.to))
+      .filter((child): child is IntentStep => child?.input !== undefined && sameAsset(child.input, produced))
+      .reduce((total, child) => total + consumedByChild(child, produced, flowGraph), 0n);
     const remaining = BigInt(produced.amount) - consumed;
     if (remaining <= 0n) continue;
     const usd = scaleUsd(produced, remaining);
@@ -1342,10 +1581,16 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
   const optimizations: string[] = [];
   let previous: PreviousStep | null = null;
   const steps: IntentStep[] = [];
+  // Gas on arrival: networks still waiting for the first eligible leg that arrives there.
+  const topups = new Map(Object.entries(request.constraints?.gasOnArrival ?? {}) as [NetworkKey, string][]);
+  const arrivals = new Map<NetworkKey, "native" | "third-party">();
+  const reserved = new Set<string>();
   for (let index = 0; index < actions.length; index += 1) {
     const action = actions[index] as NormalizedAction;
     const next = actions[index + 1];
     let draft: StepDraft | null = null;
+    const gasTopupUsd = action.kind === "bridge" ? topups.get(action.destinationNetwork) : undefined;
+    const context = (later: readonly NormalizedAction[]): DraftContext => ({ later, reserved, ...(gasTopupUsd !== undefined ? { gasTopupUsd } : {}) });
     if (canMerge(action, next, request)) {
       const merged: NormalizedAction = {
         ...action,
@@ -1353,7 +1598,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
         ...(next.provider ? { provider: next.provider } : {}),
       };
       try {
-        const candidate = await draftStep(merged, previous, accounts, request, options.ownerKeyId);
+        const candidate = await draftStep(merged, previous, accounts, request, options.ownerKeyId, context(actions.slice(index + 2)));
         const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
         draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output?.symbol ?? next.to}; saves a signature and a settlement wait.` };
         index += 1;
@@ -1364,8 +1609,13 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
         draft = null;
       }
     }
-    draft ??= await draftStep(action, previous, accounts, request, options.ownerKeyId);
+    draft ??= await draftStep(action, previous, accounts, request, options.ownerKeyId, context(actions.slice(index + 1)));
     if (draft.merged) optimizations.push(draft.merged);
+    if (draft.gasReserve) reserved.add(`${draft.action.network}|${draft.account.id.toLowerCase()}`);
+    if (gasTopupUsd !== undefined) {
+      if (draft.gasTopupUsd !== undefined) topups.delete(action.destinationNetwork);
+      else if (!arrivals.has(action.destinationNetwork)) arrivals.set(action.destinationNetwork, draft.output?.isNative ? "native" : "third-party");
+    }
     const step = buildStep(draft, steps.length, previous, now);
     steps.push(step);
     drafts.push(draft);
@@ -1380,6 +1630,28 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     })),
   );
 
+  // A named network no eligible leg arrives on: refused, except a leg that delivers the gas asset itself.
+  for (const network of topups.keys()) {
+    const arrival = arrivals.get(network);
+    if (arrival === "native") {
+      plannerWarnings.push(`No gas top-up on ${CHAINS[network].name}: the leg arriving there delivers ${CHAINS[network].nativeAsset.symbol} itself.`);
+      continue;
+    }
+    throw new PlatformError(
+      "INVALID_REQUEST",
+      arrival === "third-party"
+        ? `The leg arriving on ${CHAINS[network].name} pays another account; gas on arrival is delivered to your own account only.`
+        : `No leg of this intent arrives on ${CHAINS[network].name}.`,
+      400,
+      issue(`constraints.gasOnArrival.${network}`, arrival === "third-party" ? "The leg pays another account." : "No leg arrives on this network."),
+    );
+  }
+  // Reserves and top-ups are committed in the plan record (its warnings).
+  for (const draft of drafts) {
+    for (const note of draft.notes) {
+      if (note.startsWith("Keeps ") || note.startsWith("Includes a gas top-up")) plannerWarnings.push(note);
+    }
+  }
   const warnings: string[] = [...new Set(plannerWarnings)];
   const signatures = drafts.reduce((total, draft) => total + draft.planned.transactionCount, 0);
   if (steps.some((step) => step.settlement?.kind === "cross-network")) {
@@ -1431,7 +1703,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     },
     steps,
     edges,
-    summary: summarize(steps, edges, signatures, title.slice(0, 200)),
+    summary: summarize(steps, edges, signatures, title.slice(0, 200), request),
     warnings,
     ...(request.metadata ? { metadata: request.metadata } : {}),
   };
@@ -1474,7 +1746,8 @@ export function withIntentTtl(graph: IntentGraph, ttlMs: number, nowMs: number =
 /**
  * Rebuilds the adapter action for a step at prepare time. A step funded by a
  * previous step spends its share of that step's observed output when known,
- * otherwise of its guaranteed minimum.
+ * otherwise of its guaranteed minimum, minus its planned gas reserve (F3, F6;
+ * core flow.ts). A leg planned with gas on arrival asks the same top-up again.
  */
 export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterAction {
   if (CONTRACT_KINDS.includes(step.kind)) return contractActionForStep(graph, step);
@@ -1494,26 +1767,9 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
   if (venueId && (!venue || venue.network !== step.network || venue.protocol !== step.protocol)) {
     throw new PlatformError("STEP_INVALID", "The step's venue is not in the registry for its network and protocol.", 500);
   }
-  let amount = step.input.amount;
-  const fundingEdge = graph.edges.find((edge) => edge.to === step.id && edge.kind === "funds");
-  if (fundingEdge) {
-    const parent = graph.steps.find((candidate) => candidate.id === fundingEdge.from);
-    const source = parent?.actualOutput && sameAsset(parent.actualOutput, step.input)
-      ? parent.actualOutput
-      : parent?.minimumOutput && sameAsset(parent.minimumOutput, step.input)
-        ? parent.minimumOutput
-        : null;
-    if (source) amount = portionOf(source.amount, ref?.portionBps ?? 10_000);
-    if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", "The funding step produced too little to continue.", 422);
-  }
   const slippageBps = ref?.slippageBps ?? graph.request.constraints?.maxSlippageBps ?? DEFAULT_SLIPPAGE_BPS;
+  const amount = fundedAmount(graph, step, step.input, ref, slippageBps).amount;
   const accounts = parseAccounts(graph.request.accounts);
-  if (fundingEdge && !accounts.some((own) => sameAddress(own, recipient))) {
-    // A funded step paying someone else never pays more than the plan showed plus slippage: a larger
-    // funding output (a "withdraw all" position that grew, positive slippage) stays with the user.
-    const cap = (BigInt(ref?.plannedInput ?? step.input.amount) * BigInt(10_000 + slippageBps)) / 10_000n;
-    if (BigInt(amount) > cap) amount = cap.toString();
-  }
   // Same derivation as at plan time, from the intent's own accounts.
   const destinationAccount = destinationNetwork !== step.network ? ownAccountOn(accounts, destinationNetwork) : undefined;
   return {
@@ -1530,21 +1786,44 @@ export function actionForStep(graph: IntentGraph, step: IntentStep): AdapterActi
     ...(venue ? { venue: venue.id } : {}),
     ...(ref?.closePosition && step.kind === "withdraw" ? { closePosition: true } : {}),
     ...(destinationAccount ? { destinationAccount } : {}),
+    ...(ref?.gasTopupUsd !== undefined && step.gasTopup ? { gasTopupUsd: ref.gasTopupUsd } : {}),
   };
 }
 
-/** The amount a step executes now: its share of the funding step's observed output (else guaranteed minimum). */
-function fundedAmount(graph: IntentGraph, step: IntentStep, input: AssetAmount, portionBps: number | undefined): { amount: string; funded: boolean } {
-  const fundingEdge = graph.edges.find((edge) => edge.to === step.id && edge.kind === "funds");
-  if (!fundingEdge) return { amount: input.amount, funded: false };
-  const parent = graph.steps.find((candidate) => candidate.id === fundingEdge.from);
-  const source = parent?.actualOutput && sameAsset(parent.actualOutput, input)
-    ? parent.actualOutput
-    : parent?.minimumOutput && sameAsset(parent.minimumOutput, input)
-      ? parent.minimumOutput
-      : null;
-  const amount = source ? portionOf(source.amount, portionBps ?? 10_000) : input.amount;
-  if (amount === "0") throw new PlatformError("AMOUNT_TOO_SMALL", "The funding step produced too little to continue.", 422);
+/**
+ * The amount a step executes now (core flow.ts): its share of the funding
+ * step's observed output (else guaranteed minimum), minus its gas reserve,
+ * and for a third-party recipient never more than the planned input plus
+ * slippage (a larger funding output, e.g. a "withdraw all" position that
+ * grew or positive slippage, stays with the user).
+ */
+function fundedAmount(
+  graph: IntentGraph,
+  step: IntentStep,
+  input: AssetAmount,
+  ref: ReturnType<typeof decodeStepRef>,
+  slippageBps: number,
+): { amount: string; funded: boolean } {
+  if (!fundingParent(graph, step)) return { amount: input.amount, funded: false };
+  const credit = parentCreditFromGraph(graph, { ...step, input });
+  let amount = input.amount;
+  if (credit) {
+    const flow = fundedFlow(graph, { ...step, input }, credit, {
+      slippageBps,
+      plannedInput: BigInt(ref?.plannedInput ?? input.amount),
+      ...(ref?.portionBps !== undefined ? { portionBps: ref.portionBps } : {}),
+    });
+    amount = flow.spends.worst.toString();
+  }
+  if (amount === "0") {
+    throw new PlatformError(
+      "AMOUNT_TOO_SMALL",
+      step.funding?.gasReserve
+        ? `The funding step delivered too little to continue after keeping ${step.funding.gasReserve.formatted} ${step.funding.gasReserve.symbol} for network fees.`
+        : "The funding step produced too little to continue.",
+      422,
+    );
+  }
   return { amount, funded: true };
 }
 
@@ -1565,13 +1844,7 @@ function contractActionForStep(graph: IntentGraph, step: IntentStep): AdapterAct
   let amount = "0";
   let funded = false;
   if (step.input) {
-    ({ amount, funded } = fundedAmount(graph, step, step.input, ref?.portionBps));
-    const accounts = parseAccounts(graph.request.accounts);
-    const slippageBps = ref?.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
-    if (funded && !accounts.some((own) => sameAddress(own, recipient))) {
-      const cap = (BigInt(ref?.plannedInput ?? step.input.amount) * BigInt(10_000 + slippageBps)) / 10_000n;
-      if (BigInt(amount) > cap) amount = cap.toString();
-    }
+    ({ amount, funded } = fundedAmount(graph, step, step.input, ref, ref?.slippageBps ?? DEFAULT_SLIPPAGE_BPS));
   }
   const parent = graph.steps.find((candidate) => candidate.id === step.dependsOn[0]);
   // `$previous.*` reads the previous step's output when it lands on this step's network.

@@ -29,8 +29,15 @@ import {
   parseAccountId,
   parseAssetId,
   PREVIEW_WARNING_CODES,
+  fundedFlow,
+  fundingParent,
+  parentCreditFromGraph,
   sameAddressAccount,
+  scaleFloor,
+  scaleOutput,
   WRAPPED_SOL_MINT,
+  type FundedFlow,
+  type ParentCredit,
   type AccountId,
   type AssetAmount,
   type AssetDeltaRow,
@@ -54,6 +61,7 @@ import { NATIVE_TRANSFER_EMITTER, TRANSFER_TOPIC } from "../contracts/simulation
 import { decodeTokenAccount, tokenDeltasOf } from "../contracts/solanaActions.js";
 import { lowestPreparedFloor } from "../adapters/verification.js";
 import { decodeStepRef } from "../stepRef.js";
+import type { FeeEstimate } from "../journey/fees.js";
 import { parseAccounts, ownAccountOn } from "../accounts.js";
 import {
   evmViolations,
@@ -77,6 +85,12 @@ export interface StepBuildContext {
   readonly built: ReadonlyMap<string, StepPreview>;
   /** Native balances read for input and gas checks, by `${network}:${address}` (EVM lower-case). */
   readonly nativeBalances: ReadonlyMap<string, bigint>;
+  /**
+   * Estimated network fee (and Solana rent) of unsigned wallet steps that are
+   * not simulated, by step id (journey/fees.ts): emitted as fee
+   * lines with certainty `estimated`.
+   */
+  readonly estimatedFees?: ReadonlyMap<string, { readonly network: FeeEstimate; readonly rent: bigint | null }>;
 }
 
 export interface BuiltStep {
@@ -213,50 +227,45 @@ interface FundedModel {
   readonly worst: bigint;
   /** The amount the transactions encode (what the simulation spent). */
   readonly encoded: bigint;
+  /** Gas-asset units kept back for network fees (amount flow F6); already outside `expected` / `worst`. */
+  readonly reserve: bigint;
+  /** The core funded flow these numbers come from. */
+  readonly flow: FundedFlow;
 }
 
 /**
  * The funding parent's credit to this step's account in the step's input
  * asset (the parent's step preview row, else the parent's amounts), and the
- * step's share of it.
+ * step's share of it, through core `flow.ts` (one amount model
+ * for preview, journey and planner): share × credit − gas reserve, capped
+ * for third-party recipients.
  */
 export function fundedModel(context: StepBuildContext): FundedModel | null {
   const { graph, step } = context;
   if (!step.input) return null;
-  const edge = graph.edges.find((candidate) => candidate.to === step.id && candidate.kind === "funds");
-  if (!edge) return null;
-  const parent = graph.steps.find((candidate) => candidate.id === edge.from);
+  const parent = fundingParent(graph, step);
   if (!parent) return null;
-  const portion = BigInt(decodeStepRef(step.quoteRef)?.portionBps ?? 10_000);
   const parentPreview = context.built.get(parent.id);
   const row = parentPreview?.deltas.find((delta) =>
     delta.network === step.network && sameAddressAccount(delta.account, step.account) && sameAssetId(delta.asset, step.input?.asset ?? "") && BigInt(delta.worst.amount) > 0n);
-  let credit: { expected: bigint; worst: bigint } | null = row ? { expected: BigInt(row.expected.amount), worst: BigInt(row.worst.amount) } : null;
-  if (!credit) {
-    const actual = parent.actualOutput && sameAssetId(parent.actualOutput.asset, step.input.asset) ? BigInt(parent.actualOutput.amount) : null;
-    const expected = parent.expectedOutput && sameAssetId(parent.expectedOutput.asset, step.input.asset) ? BigInt(parent.expectedOutput.amount) : null;
-    const minimum = parent.minimumOutput && sameAssetId(parent.minimumOutput.asset, step.input.asset) ? BigInt(parent.minimumOutput.amount) : null;
-    if (actual !== null) credit = { expected: actual, worst: actual };
-    else if (expected !== null && minimum !== null) credit = { expected, worst: minimum };
-  }
+  const credit: ParentCredit | null = row
+    ? { expected: BigInt(row.expected.amount), worst: BigInt(row.worst.amount), certainty: row.certainty }
+    : parentCreditFromGraph(graph, step);
   if (!credit) return null;
-  let expected = (credit.expected * portion) / 10_000n;
-  let worst = (credit.worst * portion) / 10_000n;
-  const recipient = step.recipient ?? step.account;
-  if (!isOwn(graph, recipient)) {
-    const ref = decodeStepRef(step.quoteRef);
-    const slippage = BigInt(ref?.slippageBps ?? graph.request.constraints?.maxSlippageBps ?? 50);
-    const cap = (BigInt(ref?.plannedInput ?? step.input.amount) * (10_000n + slippage)) / 10_000n;
-    if (expected > cap) expected = cap;
-    if (worst > cap) worst = cap;
-  }
-  return { expected, worst, encoded: BigInt(step.input.amount) };
+  const ref = decodeStepRef(step.quoteRef);
+  const flow = fundedFlow(graph, step, credit, {
+    ...(ref?.slippageBps !== undefined ? { slippageBps: ref.slippageBps } : {}),
+    ...(ref?.plannedInput ? { plannedInput: BigInt(ref.plannedInput) } : {}),
+    // Older stored intents carry the share only in the step ref.
+    ...(!step.funding && ref?.portionBps !== undefined ? { portionBps: ref.portionBps } : {}),
+  });
+  return { expected: flow.spends.expected, worst: flow.spends.worst, encoded: flow.encoded, reserve: flow.reserve, flow };
 }
 
 /** Scales an output by the expected funded input over the encoded input (linear, `estimated`). */
 function scaled(output: bigint, model: FundedModel | null): { value: bigint; estimated: boolean } {
-  if (!model || model.encoded === 0n || model.expected === model.encoded) return { value: output, estimated: false };
-  return { value: (output * model.expected) / model.encoded, estimated: true };
+  const result = scaleOutput(output, model?.flow ?? null);
+  return { value: result.expected, estimated: result.estimated };
 }
 
 /**
@@ -264,8 +273,12 @@ function scaled(output: bigint, model: FundedModel | null): { value: bigint; est
  * transactions encode (a fresher, lower bridge floor): scaled down, never up.
  */
 function scaledWorst(minimum: bigint, model: FundedModel | null): bigint {
-  if (!model || model.encoded === 0n || model.worst >= model.encoded) return minimum;
-  return (minimum * model.worst) / model.encoded;
+  return scaleFloor(minimum, model?.flow ?? null);
+}
+
+/** The input row of a funded step whose input is the gas asset: what stays as the planned reserve. */
+function withReserve(row: AssetDeltaRow, model: FundedModel | null, inputNative: boolean): AssetDeltaRow {
+  return model && inputNative && model.reserve > 0n ? { ...row, keptForFees: model.reserve.toString() } : row;
 }
 
 /* -------------------------------------------------------- destination leg */
@@ -295,6 +308,23 @@ function destinationLeg(context: StepBuildContext, model: FundedModel | null): {
   return { rows: [], payments: [payment(step, destination, recipient, ref(output), expected, worst, certainty)] };
 }
 
+/**
+ * Fee lines of an unsigned wallet step that is not simulated:
+ * the estimated network fee, and on Solana the rent of the token accounts it
+ * creates plus the wallet's rent-exempt minimum when it holds no SOL.
+ */
+function estimatedFeeLines(context: StepBuildContext): FeeLine[] {
+  const { step } = context;
+  const estimate = context.estimatedFees?.get(step.id);
+  if (!estimate || step.mode !== "wallet" || step.actualOutput || estimate.network.amount === null) return [];
+  const native = nativeRef(step.network);
+  const lines = [feeLine(step, step.network, "network", `${CHAINS[step.network].name} network fee (estimated)`, native, BigInt(estimate.network.amount), "on-top", "estimated")];
+  if (estimate.rent !== null && estimate.rent > 0n) {
+    lines.push(feeLine(step, step.network, "rent", "Account rent (estimated, refundable)", native, estimate.rent, "refundable", "estimated"));
+  }
+  return lines;
+}
+
 /* ---------------------------------------------------------- quoted steps */
 
 /**
@@ -316,7 +346,8 @@ export function quotedStepPreview(
   if (step.input && step.kind !== "withdraw" && step.mode === "wallet") {
     const expected = model ? model.expected : BigInt(step.input.amount);
     const worst = model ? model.worst : BigInt(step.input.amount);
-    rows.push(deltaRow(step.network, step.account, ref(step.input), -expected, -worst, certainty, step.id));
+    const inputNative = parseAssetId(step.input.asset)?.isNative === true;
+    rows.push(withReserve(deltaRow(step.network, step.account, ref(step.input), -expected, -worst, certainty, step.id), model, inputNative));
   }
   const cross = step.settlement?.kind === "cross-network";
   if (cross) {
@@ -339,9 +370,16 @@ export function quotedStepPreview(
   for (const cost of step.extraCosts ?? []) {
     rows.push(deltaRow(step.network, step.account, ref(cost), -BigInt(cost.amount), -BigInt(cost.amount), certainty, step.id));
   }
+  const estimated = estimatedFeeLines(context);
   const quotedIssues = [...issues];
   if (status === "quoted" && !step.actualOutput && !quotedIssues.some((entry) => entry.code === PREVIEW_WARNING_CODES.stepQuoted)) {
-    quotedIssues.push(issue(PREVIEW_WARNING_CODES.stepQuoted, "warn", `Step ${stepNumber(graph, step)} is shown as quoted (not simulated); its network fee is not included.`));
+    quotedIssues.push(issue(
+      PREVIEW_WARNING_CODES.stepQuoted,
+      "warn",
+      estimated.length > 0
+        ? `Step ${stepNumber(graph, step)} is shown as quoted (not simulated); its network fee is estimated.`
+        : `Step ${stepNumber(graph, step)} is shown as quoted (not simulated); its network fee is not included.`,
+    ));
   }
   return {
     preview: {
@@ -353,7 +391,7 @@ export function quotedStepPreview(
       ...(context.source?.quoteBinding ? { quoteBinding: context.source.quoteBinding } : {}),
       deltas: rows,
       payments,
-      fees: [...venueFeeLines(context), ...extraCostLines(context, certainty)],
+      fees: [...estimated, ...venueFeeLines(context), ...extraCostLines(context, certainty)],
       approvals: [],
       issues: quotedIssues,
     },
@@ -541,7 +579,7 @@ export async function evmStepPreview(context: StepBuildContext, job: Extract<Sim
     const minimum = scaledWorst(BigInt(step.minimumOutput.amount), model);
     if (flows.nativeIn > minimum) nativeWorst -= flows.nativeIn - minimum;
   }
-  if (nativeExpected !== 0n || nativeWorst !== 0n) rows.push(deltaRow(network, step.account, nativeAsset, nativeExpected, nativeWorst, certainty, step.id));
+  if (nativeExpected !== 0n || nativeWorst !== 0n) rows.push(withReserve(deltaRow(network, step.account, nativeAsset, nativeExpected, nativeWorst, certainty, step.id), model, inputNative && step.kind !== "withdraw"));
   for (const [token, delta] of net) {
     const asset = await erc20Ref(network, token, known);
     let expected = delta;
@@ -771,7 +809,7 @@ export function solanaStepPreview(context: StepBuildContext, simulations: readon
     solExpected += model.encoded - model.expected;
     solWorst += model.encoded - model.worst;
   }
-  if (solExpected !== 0n || solWorst !== 0n) rows.push(deltaRow(network, step.account, nativeAsset, solExpected, solWorst, certainty, step.id));
+  if (solExpected !== 0n || solWorst !== 0n) rows.push(withReserve(deltaRow(network, step.account, nativeAsset, solExpected, solWorst, certainty, step.id), model, inputNative && step.kind !== "withdraw"));
   const known = knownRefs(step);
   for (const [mint, delta] of tokenDeltas) {
     if (delta === 0n) continue;

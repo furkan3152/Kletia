@@ -401,6 +401,11 @@ describe("deBridge DLN settlement to Solana", () => {
     // An unrelated USDC credit to the recipient, a day before the step was prepared.
     fill(seconds(PREPARED_AT) - 86_400, "30000000");
     assert.equal(code(await debridgeDlnAdapter.poll?.(step, Date.now())), "settling");
+    // A fresh credit below the order's take amount fails the leg with the credit observed (it does not settle forever).
+    fill(seconds(PREPARED_AT) + 60, "20000000");
+    const short = await debridgeDlnAdapter.poll?.(step, Date.now());
+    assert.equal(code(short), "SETTLEMENT_MISMATCH");
+    assert.equal(short?.status === "failed" ? short.credited?.amount : null, "20000000");
     // A fresh credit above the order: the step reports the order's take amount, not the whole credit.
     fill(seconds(PREPARED_AT) + 60, "30000000");
     const settled = await debridgeDlnAdapter.poll?.(step, Date.now());
@@ -452,7 +457,14 @@ describe("deBridge DLN verification and settlement (EVM)", () => {
     landFill([{ ...fulfilledOrderLog(order, orderId), address: OTHER_EVM_ADDRESS }]);
     assert.equal(await poll(), "settling", "event from an unpinned contract");
     landFill([fulfilledOrderLog({ ...order, receiverDst: OTHER_EVM_ADDRESS.toLowerCase() }, orderId)]);
-    assert.equal(await poll(), "SETTLEMENT_MISMATCH");
+    const foreign = await debridgeDlnAdapter.poll?.(step, Date.now());
+    assert.equal(code(foreign), "SETTLEMENT_MISMATCH");
+    assert.equal(foreign?.status === "failed" ? foreign.credited : null, undefined, "nothing reached the recipient");
+    // The order's fill paid the recipient less than the floor: failed, with the credit recorded.
+    landFill([fulfilledOrderLog({ ...order, takeAmount: 20_000_000n }, orderId)]);
+    const short = await debridgeDlnAdapter.poll?.(step, Date.now());
+    assert.equal(code(short), "SETTLEMENT_MISMATCH");
+    assert.equal(short?.status === "failed" ? short.credited?.amount : null, "20000000");
     landFill([fulfilledOrderLog(order, orderId)]);
     const settled = await debridgeDlnAdapter.poll?.(step, Date.now());
     assert.equal(settled?.status, "settled");

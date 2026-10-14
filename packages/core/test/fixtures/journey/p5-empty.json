@@ -1,0 +1,484 @@
+{
+ "source": "journey-scratch/probes/plan-empty.json #0 (live, 2026-10-14)",
+ "text": "bridge 50 USDC from base to solana then swap half to JitoSOL",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_4ddee7d7da504748979741a9012d344f",
+  "createdAt": "2026-10-14T13:36:10.704Z",
+  "updatedAt": "2026-10-14T13:36:10.704Z",
+  "expiresAt": "2026-10-14T14:06:10.704Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 50 USDC from base to solana then swap half to JitoSOL",
+   "accounts": [
+    "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 50 USDC from base to solana, then swap half to JitoSOL",
+   "confidence": 0.95
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 50 USDC from Base to Solana",
+    "network": "base",
+    "chain": "eip155:8453",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "protocol": "relay",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "50000000",
+     "formatted": "50",
+     "usd": 49.99
+    },
+    "expectedOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "49772914",
+     "formatted": "49.772914",
+     "usd": 49.77
+    },
+    "minimumOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "49524050",
+     "formatted": "49.52405",
+     "usd": 49.52
+    },
+    "recipient": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "solana",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.2283,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:10.704Z",
+      "reference": "0x17919849714dc66e37d63f4cf8c8488e9eeff351598868bebf5bbdaf9231671d",
+      "detail": "Quoted by Relay. Selected over 2 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:10.704Z",
+      "detail": "Also quoted: deBridge DLN: 48.995593 USDC guaranteed (net 46.515816 after 0.001 ETH), ~20 s, 2 transaction(s); not selected."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:36:10.704Z",
+      "detail": "LI.FI could not quote (ROUTE_UNAVAILABLE)."
+     }
+    ]
+   },
+   {
+    "id": "s2",
+    "index": 1,
+    "kind": "swap",
+    "title": "Swap 24.762025 USDC for JitoSOL on Solana",
+    "network": "solana",
+    "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+    "protocol": "jupiter",
+    "mode": "wallet",
+    "input": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "24762025",
+     "formatted": "24.762025",
+     "usd": 24.76
+    },
+    "expectedOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "179307423",
+     "formatted": "0.179307423",
+     "usd": 24.78
+    },
+    "minimumOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "178410886",
+     "formatted": "0.178410886",
+     "usd": 24.66
+    },
+    "dependsOn": [
+     "s1"
+    ],
+    "settlement": {
+     "kind": "same-network"
+    },
+    "feesUsd": 0.0106,
+    "estimatedSeconds": 15,
+    "status": "pending",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "solana",
+      "observedAt": "2026-10-14T13:36:10.704Z",
+      "reference": "slot:456857200",
+      "detail": "Quoted by Jupiter."
+     }
+    ],
+    "warnings": [
+     "Route: Kipseli \u2192 AlphaQ."
+    ]
+   }
+  ],
+  "edges": [
+   {
+    "from": "s1",
+    "to": "s2",
+    "kind": "funds"
+   }
+  ],
+  "summary": {
+   "title": "Bridge 50 USDC from Base to Solana \u2192 Swap 24.762025 USDC for JitoSOL on Solana",
+   "networks": [
+    "base",
+    "solana"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "50000000",
+     "formatted": "50",
+     "usd": 49.99
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "25010889",
+     "formatted": "25.010889",
+     "usd": 25.01
+    },
+    {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "179307423",
+     "formatted": "0.179307423",
+     "usd": 24.78
+    }
+   ],
+   "totalFeesUsd": 0.2389,
+   "estimatedSeconds": 35,
+   "signaturesRequired": 3,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.",
+   "Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known)."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_4ddee7d7da504748979741a9012d344f",
+  "computedAt": "2026-10-14T13:36:11.920Z",
+  "stage": "plan",
+  "basis": "quoted",
+  "rows": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "-50000000",
+     "formatted": "-50",
+     "usd": -50
+    },
+    "worst": {
+     "amount": "-50000000",
+     "formatted": "-50",
+     "usd": -50
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "solana",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+    "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "24886457",
+     "formatted": "+24.8864",
+     "usd": 24.886457
+    },
+    "worst": {
+     "amount": "24762025",
+     "formatted": "+24.762",
+     "usd": 24.762025
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1",
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "solana",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+    "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+    "symbol": "JitoSOL",
+    "decimals": 9,
+    "listed": true,
+    "expected": {
+     "amount": "180208463",
+     "formatted": "+0.180208",
+     "usd": 24.903717
+    },
+    "worst": {
+     "amount": "178410886",
+     "formatted": "+0.17841",
+     "usd": 24.655303
+    },
+    "certainty": "estimated",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   }
+  ],
+  "payments": [],
+  "fees": [
+   {
+    "kind": "venue",
+    "label": "Relay relayer fee",
+    "asset": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "amount": "227086",
+    "formatted": "0.227086",
+    "usd": 0.227086,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "base"
+   }
+  ],
+  "approvals": [],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "bridge",
+    "status": "failed",
+    "at": "2026-10-14T13:36:11.920Z",
+    "deltas": [
+     {
+      "network": "base",
+      "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-50000000",
+       "formatted": "-50"
+      },
+      "worst": {
+       "amount": "-50000000",
+       "formatted": "-50"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "49772914",
+       "formatted": "+49.7729"
+      },
+      "worst": {
+       "amount": "49524050",
+       "formatted": "+49.524"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "kind": "venue",
+      "label": "Relay relayer fee",
+      "asset": {
+       "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+       "symbol": "USDC",
+       "decimals": 6
+      },
+      "amount": "227086",
+      "formatted": "0.227086",
+      "usd": 0.227059,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "base"
+     }
+    ],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "INSUFFICIENT_BALANCE",
+      "severity": "warn",
+      "message": "Step 1: The account holds 0 base units of the input; 50000000 is needed."
+     },
+     {
+      "code": "SIMULATION_FAILED",
+      "severity": "warn",
+      "message": "Step 1: The transaction would fail on-chain (execution reverted)."
+     }
+    ]
+   },
+   {
+    "stepId": "s2",
+    "network": "solana",
+    "kind": "swap",
+    "status": "quoted",
+    "at": "2026-10-14T13:36:11.920Z",
+    "deltas": [
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-24886457",
+       "formatted": "-24.8864"
+      },
+      "worst": {
+       "amount": "-24762025",
+       "formatted": "-24.762"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+      "symbol": "JitoSOL",
+      "decimals": 9,
+      "listed": true,
+      "expected": {
+       "amount": "180208463",
+       "formatted": "+0.180208"
+      },
+      "worst": {
+       "amount": "178410886",
+       "formatted": "+0.17841"
+      },
+      "certainty": "estimated",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "PREVIEW_STEP_QUOTED",
+      "severity": "warn",
+      "message": "Step 2 is shown as quoted (not simulated); its network fee is not included."
+     }
+    ]
+   }
+  ],
+  "totals": {
+   "youPayUsd": 50,
+   "youGetUsd": {
+    "expected": 49.79,
+    "worst": 49.42
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0,
+   "venueFeesUsd": 0.23,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": 0.21,
+    "worst": 0.58
+   },
+   "priceDifferenceUsd": -0.02,
+   "unpriced": []
+  },
+  "arrival": {
+   "network": "solana",
+   "seconds": 20
+  },
+  "needs": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "amount": "50000000",
+    "formatted": "50",
+    "reason": "input-balance",
+    "have": "0"
+   }
+  ],
+  "warnings": [],
+  "digest": "sha256:40b65be7b315b5c9f6860034aff11ebb5d7a1e10fbf47ed68bc2149f9e8be60a"
+ }
+}

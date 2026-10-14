@@ -1,0 +1,5732 @@
+{
+ "spec": "kletia.clarify-corpus/v1",
+ "about": "Clarifying questions and per-task memory: expected engine behaviour. Each case is a thread; each turn is a message (say), an answer to an open question (answer), or an edit of an assumption chip (assumption). expect.status: ready (plan shape), needs_input (questions), cancelled, refused (error code; the thread state is unchanged). Questions list only what must hold: field, kind, reason, options (exact ids, in order), recommended (option id or null), allowsText, mustNotOffer. Assumptions are checked as a subset unless assumptionsExact. Plan shape: kind@network[->toNetwork] amount[ (portion bps)] from[->to][ to recipient][ [protocol[:vault]]][ {provider}] joined by ' | '. Cases marked phase 2 are skipped; phase byoc cases need the grammar's contract matcher. A case's why field explains expectations that are not obvious. Facts come from the fixture wallets through holdings.readFacts (stub readers); the preview wallet uses @kletia/core PREVIEW_ACCOUNT_IDS.",
+ "fixtures": {
+  "wallets": {
+   "full": {
+    "about": "EVM + Solana accounts; USDC on Base and Arbitrum, ETH on three EVM networks, SOL and USDC on Solana, an Aave USDC position on Base.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.05",
+      "USDC": "120.40",
+      "USDbC": "50",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.01",
+      "USDC": "30",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0.002",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "3",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0.004"
+     },
+     "solana": {
+      "SOL": "2.5",
+      "USDC": "12",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {
+     "base/aave-v3/USDC": "103.21"
+    }
+   },
+   "evm_base": {
+    "about": "EVM account only; funds on Base only.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.05",
+      "USDC": "120.40",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     }
+    },
+    "positions": {}
+   },
+   "sol_only": {
+    "about": "Solana account only.",
+    "accounts": [
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "solana": {
+      "SOL": "2.5",
+      "USDC": "12",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "two_usdc": {
+    "about": "USDC on Base (200) and Arbitrum One (150).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.02",
+      "USDC": "200",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0.02",
+      "USDC": "150",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "1",
+      "USDC": "0",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "low_evm": {
+    "about": "Little USDC on EVM networks, 400 USDC on Solana.",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.01",
+      "USDC": "3.10",
+      "USDbC": "0",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "2",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "0.5",
+      "USDC": "400",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "lookalike": {
+    "about": "Base: 3 USDC but 150 USDbC (the legacy bridged USDC).",
+    "accounts": [
+     "eip155:8453:0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy"
+    ],
+    "balances": {
+     "base": {
+      "ETH": "0.01",
+      "USDC": "3",
+      "USDbC": "150",
+      "WETH": "0",
+      "cbBTC": "0",
+      "DAI": "0",
+      "EURC": "0",
+      "AERO": "0"
+     },
+     "arbitrum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0",
+      "ARB": "0"
+     },
+     "ethereum": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "optimism": {
+      "ETH": "0",
+      "USDC": "0",
+      "WETH": "0"
+     },
+     "polygon": {
+      "POL": "0",
+      "USDC": "0",
+      "WPOL": "0",
+      "WETH": "0"
+     },
+     "solana": {
+      "SOL": "0",
+      "USDC": "0",
+      "USDT": "0",
+      "PYUSD": "0",
+      "JitoSOL": "0",
+      "mSOL": "0",
+      "JupSOL": "0",
+      "JUP": "0",
+      "BONK": "0",
+      "WIF": "0",
+      "cbBTC": "0"
+     }
+    },
+    "positions": {}
+   },
+   "preview": {
+    "about": "Studio's preview accounts (core PREVIEW_ACCOUNT_IDS): balances are never read (unknown, not zero).",
+    "accounts": [
+     "eip155:8453:0x9B58BE768EAB41bD43C8293DDDB6bf3c0D066590",
+     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:92x2Ef9emSPRLCDhZNBRoJmqfP65AhNYMYV4pFVsE4BK"
+    ],
+    "balances": null,
+    "positions": null
+   }
+  },
+  "names": {
+   "vitalik.eth": {
+    "evm": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+   },
+   "jesse.base.eth": {
+    "base": "0x2211d1D0020DAEA8039E46Cf1367962070d77DA9"
+   },
+   "toly.sns": {
+    "solana": "86xCnPeV69n6t3DnyGvkKobf9FdN2H9oiVDdaMpo2MMY"
+   }
+  },
+  "solanaTokens": {
+   "USCD": "unverified",
+   "dollars": "unverified",
+   "stSOL": "verified"
+  },
+  "pricesUsd": {
+   "SOL": 105.3,
+   "ETH": 2500
+  },
+  "contracts": [
+   {
+    "registration": "acme-base",
+    "entry": "deposit",
+    "network": "base",
+    "vm": "evm",
+    "aliases": [
+     "acme vault",
+     "acme"
+    ],
+    "verbs": [
+     "deposit",
+     "stake"
+    ],
+    "spends": true
+   },
+   {
+    "registration": "acme-pool-base",
+    "entry": "deposit",
+    "network": "base",
+    "vm": "evm",
+    "aliases": [
+     "acme pool"
+    ],
+    "verbs": [
+     "deposit"
+    ],
+    "spends": true
+   },
+   {
+    "registration": "acme-pool-arbitrum",
+    "entry": "deposit",
+    "network": "arbitrum",
+    "vm": "evm",
+    "aliases": [
+     "acme pool"
+    ],
+    "verbs": [
+     "deposit"
+    ],
+    "spends": true
+   }
+  ],
+  "previewAccounts": [
+   "eip155:8453:0x9B58BE768EAB41bD43C8293DDDB6bf3c0D066590",
+   "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:92x2Ef9emSPRLCDhZNBRoJmqfP65AhNYMYV4pFVsE4BK"
+  ]
+ },
+ "cases": [
+  {
+   "id": "A01",
+   "category": "complete",
+   "title": "A complete swap plans with no question and no chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C01"
+   }
+  },
+  {
+   "id": "A02",
+   "category": "complete",
+   "title": "Network named in the text",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 0.01 ETH for USDC on base",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 0.01 ETH->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C02"
+   }
+  },
+  {
+   "id": "A03",
+   "category": "complete",
+   "title": "A complete bridge",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C03"
+   }
+  },
+  {
+   "id": "A04",
+   "category": "complete",
+   "title": "A transfer to a name on a named network",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik.eth on optimism",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@optimism 5 USDC to vitalik.eth",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C04",
+    "note": "SELF_TRANSFER with the vitalik account; plans with another account"
+   }
+  },
+  {
+   "id": "A05",
+   "category": "complete",
+   "title": "Morpho without a vault: the default vault is an editable chip, not a question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into morpho on base",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]",
+      "assumptions": [
+       {
+        "field": "actions[0].venue",
+        "source": "default",
+        "material": false
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C05",
+    "note": "default vault only in step warnings"
+   }
+  },
+  {
+   "id": "A06",
+   "category": "complete",
+   "title": "Stake with a named provider",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1.5 SOL with marinade",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1.5 SOL->mSOL {marinade}",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C06"
+   }
+  },
+  {
+   "id": "A07",
+   "category": "complete",
+   "title": "Withdraw all from a named venue and network",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw all USDC from aave on base",
+     "expect": {
+      "status": "ready",
+      "plan": "withdraw@base max USDC [aave-v3]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "POSITION_EMPTY",
+    "probe": "N03",
+    "note": "probe account had no position"
+   }
+  },
+  {
+   "id": "A08",
+   "category": "complete",
+   "title": "An exact amount above the balance is not questioned (the fare shows the shortfall)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 100 USDC from ethereum to base",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@ethereum->base 100 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C08"
+   },
+   "why": "R0/R6g: never ask what the user already said; the preview's balance check reports it."
+  },
+  {
+   "id": "A09",
+   "category": "complete",
+   "title": "Cross-network swap with 'as'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "move 0.01 ETH from arbitrum to solana as SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->solana 0.01 ETH->SOL",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C09"
+   }
+  },
+  {
+   "id": "A10",
+   "category": "complete",
+   "title": "Buy with an amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "buy JitoSOL with 2 SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2 SOL->JitoSOL",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "C10"
+   }
+  },
+  {
+   "id": "A11",
+   "category": "complete",
+   "title": "Two steps with a share of the previous output",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 50 USDC from base to solana then swap half to JitoSOL",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 50 USDC | swap@solana max(5000) USDC->JitoSOL",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "P01"
+   }
+  },
+  {
+   "id": "A12",
+   "category": "complete",
+   "title": "Capitals and a trailing full stop",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "Swap 1 SOL To USDC On Solana.",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "T12"
+   }
+  },
+  {
+   "id": "A13",
+   "category": "complete",
+   "title": "Polite prefix and suffix are ignored",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "I want to swap 1 SOL to USDC please",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W01",
+    "note": "trailing 'please' broke the match"
+   }
+  },
+  {
+   "id": "A14",
+   "category": "complete",
+   "title": "Stake without a provider: Jito is a chip with Marinade and Jupiter as one-tap alternatives",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1 SOL->JitoSOL {jito}",
+      "assumptions": [
+       {
+        "field": "actions[0].provider",
+        "source": "default",
+        "value": {
+         "provider": "jito"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "Jito silently"
+   }
+  },
+  {
+   "id": "A15",
+   "category": "complete",
+   "title": "A dollar amount on Base pays in USDC (chip, DAI as the alternative)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "can you bridge $25 from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].from",
+        "source": "default",
+        "value": {
+         "asset": "USDC"
+        },
+        "material": false
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "W02",
+    "note": "USDC silently"
+   }
+  },
+  {
+   "id": "A16",
+   "category": "complete",
+   "title": "Send on a testnet named in the text",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 1 USDC to 0x000000000000000000000000000000000000dEaD on arc",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@arc 1 USDC to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "U06"
+   }
+  },
+  {
+   "id": "A17",
+   "category": "complete",
+   "title": "Basename recipients decide the network (Base), no question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 1 USDC to jesse.base.eth",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 1 USDC to jesse.base.eth",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "M02"
+   }
+  },
+  {
+   "id": "A18",
+   "category": "complete",
+   "title": "SNS recipients decide the network (Solana), no question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 0.1 SOL to toly.sns",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@solana 0.1 SOL to toly.sns",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   }
+  },
+  {
+   "id": "B01",
+   "category": "missing-amount",
+   "title": "Swap without an amount: ask how much, with All and Half from the balance (fee reserve kept)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "all"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2.49 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance",
+        "material": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A01"
+   }
+  },
+  {
+   "id": "B02",
+   "category": "missing-amount",
+   "title": "'my SOL' is still a missing amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap my SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A02"
+   }
+  },
+  {
+   "id": "B03",
+   "category": "missing-amount",
+   "title": "Bridge without an amount; answer with a number",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge USDC from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "50",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 50 USDC",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A03"
+   }
+  },
+  {
+   "id": "B04",
+   "category": "missing-amount",
+   "title": "Send to a name without amount or network: network first (it changes the balances), then amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send USDC to vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "25",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 25 USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A04"
+   }
+  },
+  {
+   "id": "B05",
+   "category": "missing-amount",
+   "title": "Stake without an amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake SOL with jito",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "half"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1.25 SOL->JitoSOL {jito}"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A05"
+   }
+  },
+  {
+   "id": "B06",
+   "category": "missing-amount",
+   "title": "Deposit without an amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit USDC into aave on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A06"
+   }
+  },
+  {
+   "id": "B07",
+   "category": "missing-amount",
+   "title": "Buy with an input but no amount",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "buy JitoSOL with SOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A07"
+   }
+  },
+  {
+   "id": "B08",
+   "category": "missing-amount",
+   "title": "'all my SOL' on a first step reads the balance and keeps the fee reserve (material chip)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap all my SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2.49 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A08"
+   }
+  },
+  {
+   "id": "B09",
+   "category": "missing-amount",
+   "title": "'half of my SOL' is half the balance",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap half of my SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.25 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A09"
+   }
+  },
+  {
+   "id": "B10",
+   "category": "missing-amount",
+   "title": "'all my USDC' (a token: no reserve)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge all my USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 120.4 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A10"
+   }
+  },
+  {
+   "id": "B11",
+   "category": "missing-amount",
+   "title": "Withdraw without an amount: All closes the position, Half is half of it",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw USDC from aave on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "all"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "withdraw@base max USDC [aave-v3]"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A11"
+   }
+  },
+  {
+   "id": "B12",
+   "category": "missing-amount",
+   "title": "Balances unknown: the amount question has no shortcuts, only free text",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "swap SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A01"
+   }
+  },
+  {
+   "id": "B13",
+   "category": "missing-amount",
+   "title": "'all my USDC' with unknown balances asks for an exact amount (never guesses)",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "bridge all my USDC from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_BALANCE_UNKNOWN",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "A10"
+   }
+  },
+  {
+   "id": "B14",
+   "category": "missing-amount",
+   "title": "A dependent second step never asks; only the first step's amount is asked",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap SOL to USDC then bridge it to base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "C01",
+   "category": "missing-source",
+   "title": "Bridge without a source: the funded network is assumed (largest balance), alternatives one tap away",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S01"
+   }
+  },
+  {
+   "id": "C02",
+   "category": "missing-source",
+   "title": "Balances unknown and no default: ask where the money comes from",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "SOURCE_MISSING",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "from arbitrum",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->solana 25 USDC",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S01"
+   }
+  },
+  {
+   "id": "C03",
+   "category": "missing-source",
+   "title": "Balances unknown, integrator default network: assumed as a chip",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "default",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "defaultNetwork": "base"
+   },
+   "today": {
+    "code": "PLANNED",
+    "probe": "S01",
+    "note": "plans silently from defaultNetwork"
+   }
+  },
+  {
+   "id": "C04",
+   "category": "missing-source",
+   "title": "No network holds enough: ask, showing what each network holds",
+   "wallet": "low_evm",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "SOURCE_MISSING",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S01"
+   },
+   "why": "Only networks that hold some USDC are offered (largest first); any other network can be typed."
+  },
+  {
+   "id": "C05",
+   "category": "missing-source",
+   "title": "'move 10 USDC to base': Arbitrum (30) beats Solana (12)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "move 10 USDC to base",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->base 10 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "arbitrum"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S02",
+    "note": "message suggested 'from base to base'"
+   }
+  },
+  {
+   "id": "C06",
+   "category": "missing-source",
+   "title": "Native ETH source: only Base holds 0.01 ETH",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 0.01 ETH to arbitrum",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->arbitrum 0.01 ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S03"
+   }
+  },
+  {
+   "id": "C07",
+   "category": "missing-source",
+   "title": "Multi-step: the bridge source is assumed, the deposit follows the bridge",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 50 USDC to polygon then deposit it into aave",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->polygon 50 USDC | deposit@polygon max USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S05"
+   }
+  },
+  {
+   "id": "C08",
+   "category": "missing-source",
+   "title": "A fixed departure (sourceNetwork) is what the user said: no chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "arbitrum"
+   },
+   "today": {
+    "code": "new",
+    "note": "sourceNetwork is a new request field"
+   }
+  },
+  {
+   "id": "C09",
+   "category": "missing-source",
+   "title": "'send 25 USDC to solana' is a bridge to the user's own Solana account",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 25 USDC to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "S04"
+   }
+  },
+  {
+   "id": "C10",
+   "category": "departure",
+   "title": "A fixed departure where the action cannot run: Kletia adds the bridge as a material chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 10 USDC into kamino",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 10 USDC | deposit@solana max USDC [kamino]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "value": {
+         "network": "solana"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "base"
+   },
+   "today": {
+    "code": "new",
+    "note": "fixed departure"
+   }
+  },
+  {
+   "id": "C11",
+   "category": "departure",
+   "title": "Departure Solana, Aave: bridge to Base (Kletia's default), the other Aave networks are one-tap bridge targets",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 50 USDC into aave",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 50 USDC | deposit@base max USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    },
+    {
+     "assumption": {
+      "id": "a.actions.0.network",
+      "option": "arbitrum"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->arbitrum 50 USDC | deposit@arbitrum max USDC [aave-v3]"
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "solana"
+   },
+   "today": {
+    "code": "new",
+    "note": "fixed departure"
+   }
+  },
+  {
+   "id": "C12",
+   "category": "departure",
+   "title": "Departure Base, a swap into SOL: bridge first, then swap what arrives",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 10 USDC | swap@solana max USDC->SOL",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "base"
+   },
+   "today": {
+    "code": "new",
+    "note": "fixed departure"
+   }
+  },
+  {
+   "id": "C13",
+   "category": "departure",
+   "title": "A network the user typed beats the departure (the sentence wins, no bridge)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 50 USDC into aave on arbitrum",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@arbitrum 50 USDC [aave-v3]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "solana"
+   },
+   "today": {
+    "code": "new",
+    "note": "fixed departure"
+   }
+  },
+  {
+   "id": "C14",
+   "category": "departure",
+   "title": "Departure 'auto': the only network where this runs is short, the funded one bridges first (chip)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into kamino",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 100 USDC | deposit@solana max USDC [kamino]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "auto"
+   },
+   "today": {
+    "code": "new",
+    "note": "fixed departure"
+   }
+  },
+  {
+   "id": "C15",
+   "category": "departure",
+   "title": "No departure: the only network where this runs is short and another holds enough; confirm the bridge",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into kamino",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "confirm",
+        "reason": "FUNDS_ELSEWHERE",
+        "options": [
+         "solana"
+        ],
+        "recommended": "solana",
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "say": "yes",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 100 USDC | deposit@solana max USDC [kamino]",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "plans on Solana with 12 USDC; the fare shows the shortfall"
+   }
+  },
+  {
+   "id": "C16",
+   "category": "departure",
+   "title": "Departure Base and a SOL stake: SOL lives on Solana, so the stake runs there (no bridge, no chip beyond the provider)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 SOL with jito",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1 SOL->JitoSOL {jito}",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "base"
+   },
+   "today": {
+    "code": "new",
+    "note": "SOURCE_UNREACHABLE"
+   }
+  },
+  {
+   "id": "C17",
+   "category": "departure",
+   "title": "Departure Base, a payment to a Solana address: one bridge leg pays the recipient on Solana (chip)",
+   "wallet": "full",
+   "request": {
+    "sourceNetwork": "base"
+   },
+   "turns": [
+    {
+     "say": "send 5 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 5 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "Unified departure rules (departure.ts): a third-party transfer elsewhere is one bridge leg to the recipient with the exact input; planned as structured actions."
+  },
+  {
+   "id": "C18",
+   "category": "departure",
+   "title": "Departure Base, ETH staking with Lido: ETH is portable, so Kletia bridges to Ethereum first and stakes what arrives",
+   "wallet": "full",
+   "request": {
+    "sourceNetwork": "base"
+   },
+   "turns": [
+    {
+     "say": "stake 0.01 ETH with lido",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->ethereum 0.01 ETH | stake@ethereum max ETH->wstETH {lido}",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "Unified departure rules: a stake whose input is portable from the departure gets a bridge in front of it."
+  },
+  {
+   "id": "C19",
+   "category": "departure",
+   "title": "Departure Solana, a payment to an Ethereum name: where vitalik.eth receives is asked; the answer bridges from Solana to the recipient",
+   "wallet": "full",
+   "request": {
+    "sourceNetwork": "solana"
+   },
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 5 USDC to vitalik.eth",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "The recipient's network is a purpose question (R2); the departure then pays the recipient through one bridge leg (departure.ts)."
+  },
+  {
+   "id": "D01",
+   "category": "missing-destination",
+   "title": "Bridge without a destination: ask, no recommendation (it is the user's purpose)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING",
+        "options": [
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon",
+         "solana"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.toNetwork",
+      "option": "solana"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D01"
+   }
+  },
+  {
+   "id": "D02",
+   "category": "missing-destination",
+   "title": "Move from Solana without a destination",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "move 10 USDC from solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D02"
+   }
+  },
+  {
+   "id": "D03",
+   "category": "missing-destination",
+   "title": "Neither source nor destination: destination first, then the source is assumed by balance",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon",
+         "solana"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D03"
+   }
+  },
+  {
+   "id": "D04",
+   "category": "missing-output",
+   "title": "Swap without an output asset",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "OUTPUT_ASSET_MISSING",
+        "options": [
+         "USDC",
+         "USDT",
+         "PYUSD",
+         "JitoSOL",
+         "mSOL"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "JitoSOL",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->JitoSOL"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D04"
+   },
+   "why": "Output options follow the Solana registry order (SOL excluded), so PYUSD is offered and JupSOL is reachable by typing."
+  },
+  {
+   "id": "D05",
+   "category": "missing-output",
+   "title": "Swap on Base without an output asset",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "OUTPUT_ASSET_MISSING",
+        "options": [
+         "ETH",
+         "WETH",
+         "cbBTC",
+         "DAI",
+         "EURC"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D05"
+   },
+   "why": "Output options follow the Base registry order (USDC excluded as the input)."
+  },
+  {
+   "id": "D06",
+   "category": "missing-destination",
+   "title": "Destination and amount are independent: both asked in one turn",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge USDC from base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING"
+       },
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.toNetwork",
+      "option": "solana"
+     },
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "all",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 120.4 USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "D07",
+   "category": "missing-output",
+   "title": "Output and amount are independent on Solana: both asked",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap SOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "OUTPUT_ASSET_MISSING"
+       },
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "D08",
+   "category": "missing-input",
+   "title": "'get me some JitoSOL': with what (held tokens offered), then how much",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "get me some JitoSOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].from",
+        "kind": "choice",
+        "reason": "INPUT_ASSET_MISSING",
+        "options": [
+         "SOL",
+         "USDC"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "SOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "1",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->JitoSOL"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W09"
+   }
+  },
+  {
+   "id": "E01",
+   "category": "network",
+   "title": "Swap USDC to ETH: both Base and Arbitrum work; the larger balance wins as a chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N01",
+    "note": "Base silently"
+   }
+  },
+  {
+   "id": "E02",
+   "category": "network",
+   "title": "Same with unknown balances: Kletia's default (Base) as a chip",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "default",
+        "value": {
+         "network": "base"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N01"
+   }
+  },
+  {
+   "id": "E03",
+   "category": "network",
+   "title": "The integrator's default network wins when it can run the action",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@arbitrum 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "default",
+        "value": {
+         "network": "arbitrum"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "defaultNetwork": "arbitrum"
+   },
+   "today": {
+    "code": "PLANNED",
+    "probe": "N01"
+   }
+  },
+  {
+   "id": "E04",
+   "category": "network",
+   "title": "Aave without a network: the only network holding 100 USDC",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into aave",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N02",
+    "note": "Base silently"
+   }
+  },
+  {
+   "id": "E05",
+   "category": "network",
+   "title": "Aave without a network, unknown balances: Base as Kletia's default chip",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into aave",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "default"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N02"
+   }
+  },
+  {
+   "id": "E06",
+   "category": "network",
+   "title": "Funds are on Solana where Aave does not run: offer to bridge first (consequence question)",
+   "wallet": "low_evm",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into aave",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "FUNDS_ELSEWHERE",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": "base",
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 100 USDC | deposit@base max USDC [aave-v3]"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N02",
+    "note": "plans on Base; the user has 3.10 USDC there"
+   }
+  },
+  {
+   "id": "E07",
+   "category": "network",
+   "title": "Withdraw all without a network: the one network with a position",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw all USDC from aave",
+     "expect": {
+      "status": "ready",
+      "plan": "withdraw@base max USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "position",
+        "value": {
+         "network": "base"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "POSITION_EMPTY",
+    "probe": "N03"
+   },
+   "phase": 2,
+   "why": "Needs position readers on every Aave network (phase 2); a v1 build without them behaves as E08."
+  },
+  {
+   "id": "E08",
+   "category": "network",
+   "title": "Withdraw without a network and unknown positions: ask where the position is",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "withdraw all USDC from aave",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "NETWORK_AMBIGUOUS",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "POSITION_EMPTY",
+    "probe": "N03"
+   }
+  },
+  {
+   "id": "E09",
+   "category": "network",
+   "title": "Send to an address held on two networks: ask which network (wrong-network sends lose funds)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "arbitrum"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@arbitrum 5 USDC to 0x000000000000000000000000000000000000dEaD"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N04",
+    "note": "Base silently"
+   }
+  },
+  {
+   "id": "E10",
+   "category": "network",
+   "title": "Send to an address when only one network holds the funds: assumed, shown as a material chip",
+   "wallet": "evm_base",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N04"
+   }
+  },
+  {
+   "id": "E11",
+   "category": "network",
+   "title": "Send to an address with unknown balances: ask",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x1111111111111111111111111111111111111111",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N04"
+   }
+  },
+  {
+   "id": "E12",
+   "category": "network",
+   "title": "Send to an address with an integrator default network: chip",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x1111111111111111111111111111111111111111",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x1111111111111111111111111111111111111111",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "default"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "defaultNetwork": "base"
+   },
+   "today": {
+    "code": "PLANNED",
+    "probe": "N04"
+   }
+  },
+  {
+   "id": "E13",
+   "category": "network",
+   "title": "Native ETH send: three funded networks, ask",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 0.001 ETH to 0x000000000000000000000000000000000000dEaD",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "N05",
+    "note": "Base silently"
+   }
+  },
+  {
+   "id": "E14",
+   "category": "network",
+   "title": "Send to an ENS name held on two networks: ask",
+   "wallet": "two_usdc",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "arbitrum",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@arbitrum 5 USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "M01",
+    "note": "Base silently"
+   }
+  },
+  {
+   "id": "E15",
+   "category": "network",
+   "title": "Departure fixed by the console: the transfer runs there, no question",
+   "wallet": "two_usdc",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik.eth",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@arbitrum 5 USDC to vitalik.eth",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "request": {
+    "sourceNetwork": "arbitrum"
+   },
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "E16",
+   "category": "network",
+   "title": "Deposit into Kamino (only on Solana): derived, no chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 10 USDC into kamino",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@solana 10 USDC [kamino]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   }
+  },
+  {
+   "id": "F01",
+   "category": "asset",
+   "title": "'ETH' on Polygon means two very different tokens: ask, ether (WETH) recommended",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 0.01 ETH to 0x000000000000000000000000000000000000dEaD on polygon",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].from",
+        "kind": "choice",
+        "reason": "ASSET_AMBIGUOUS",
+        "options": [
+         "WETH",
+         "POL"
+        ],
+        "recommended": "WETH",
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.from",
+      "option": "WETH"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@polygon 0.01 WETH to 0x000000000000000000000000000000000000dEaD"
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X03"
+   }
+  },
+  {
+   "id": "F02",
+   "category": "asset",
+   "title": "MATIC is a 1:1 rename of POL: assumed with a chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 1 MATIC to 0x000000000000000000000000000000000000dEaD on polygon",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@polygon 1 POL to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [
+       {
+        "field": "actions[0].from",
+        "source": "alias",
+        "value": {
+         "asset": "POL"
+        },
+        "material": false
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X11"
+   }
+  },
+  {
+   "id": "F03",
+   "category": "asset",
+   "title": "BTC on Base is cbBTC: material alias chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 100 USDC to BTC on base",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 100 USDC->cbBTC",
+      "assumptions": [
+       {
+        "field": "actions[0].to",
+        "source": "alias",
+        "value": {
+         "asset": "cbBTC"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X09"
+   }
+  },
+  {
+   "id": "F04",
+   "category": "asset",
+   "title": "'USD' means a USD stablecoin: USDC assumed, USDT and PYUSD one tap away",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USD",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].to",
+        "source": "alias",
+        "value": {
+         "asset": "USDC"
+        },
+        "material": false
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X06"
+   }
+  },
+  {
+   "id": "F05",
+   "category": "asset",
+   "title": "'dollars' is a USD word, never a lookup of a token called 'dollars'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to dollars",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].to",
+        "source": "alias"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNVERIFIED",
+    "probe": "X07",
+    "note": "suggested the mint of an unverified token called 'dollars'"
+   }
+  },
+  {
+   "id": "F06",
+   "category": "asset",
+   "title": "USDbC is listed transfer-only: a swap of it is refused (no venue routes it)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDbC to USDC on base",
+     "expect": {
+      "status": "refused",
+      "error": "ROUTE_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X01"
+   },
+   "why": "USDbC is in the registry with transferOnly (the Relay USDbC to USDC quote failed), so a swap is refused as transfer-only."
+  },
+  {
+   "id": "F07",
+   "category": "asset",
+   "title": "Look-alike held: the user has 3 USDC but 150 USDbC; ask, no recommendation for a payment",
+   "wallet": "lookalike",
+   "turns": [
+    {
+     "say": "send 100 USDC to 0x000000000000000000000000000000000000dEaD on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].from",
+        "kind": "choice",
+        "reason": "ASSET_LOOKALIKE",
+        "options": [
+         "USDC",
+         "USDbC"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   }
+  },
+  {
+   "id": "F08",
+   "category": "asset",
+   "title": "Look-alike held when spending into a swap: the transfer-only USDbC is never offered; the swap plans and the fare shows the shortfall",
+   "wallet": "lookalike",
+   "turns": [
+    {
+     "say": "swap 100 USDC to ETH on base",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 100 USDC->ETH",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   },
+   "why": "Round 6 build: USDbC is transfer-only, so it is never suggested for a swap (it would be refused); an exact amount above the balance is not questioned (R6)."
+  },
+  {
+   "id": "F09",
+   "category": "asset",
+   "title": "Typo 'USCD' matches an unverified token: ask 'did you mean USDC?' and never offer the unverified one",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USCD",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "ASSET_LOOKALIKE",
+        "options": [
+         "USDC"
+        ],
+        "recommended": "USDC",
+        "allowsText": true,
+        "mustNotOffer": [
+         "USCD"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.to",
+      "option": "USDC"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNVERIFIED",
+    "probe": "T03",
+    "note": "suggested the unverified look-alike's mint"
+   }
+  },
+  {
+   "id": "F10",
+   "category": "asset",
+   "title": "Typo 'SOLL' matches nothing: corrected to SOL with a material chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1.5 SOLL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.5 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].from",
+        "source": "correction",
+        "value": {
+         "asset": "SOL"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "T10"
+   }
+  },
+  {
+   "id": "F11",
+   "category": "asset",
+   "title": "USDT is not listed on Base: ask (it is a real token, never 'corrected' to USDC)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 10 USDT from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].from",
+        "kind": "choice",
+        "reason": "ASSET_NOT_ON_NETWORK",
+        "options": [
+         "USDC"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN",
+    "probe": "X04"
+   }
+  },
+  {
+   "id": "F12",
+   "category": "asset",
+   "title": "ETH has no Solana counterpart: ask what should arrive",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 0.01 ETH from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "COUNTERPART_MISSING",
+        "options": [
+         "SOL",
+         "USDC"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.to",
+      "option": "SOL"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 0.01 ETH->SOL"
+     }
+    }
+   ],
+   "today": {
+    "code": "ASSET_REQUIRED",
+    "probe": "X10"
+   }
+  },
+  {
+   "id": "F13",
+   "category": "asset",
+   "title": "A verified non-canonical Solana token plans as today",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to stSOL",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->stSOL",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "X12"
+   }
+  },
+  {
+   "id": "F14",
+   "category": "asset",
+   "title": "Lower-case symbols are fine",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 usdc to 0x000000000000000000000000000000000000dEaD on base",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   }
+  },
+  {
+   "id": "F15",
+   "category": "asset",
+   "title": "'ether' is ETH (silent synonym)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ether on arbitrum",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@arbitrum 10 USDC->ETH",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "TOKEN_UNKNOWN"
+   }
+  },
+  {
+   "id": "G01",
+   "category": "recipient",
+   "title": "Send without a recipient: ask (address or name), then the network",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "base",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R01"
+   }
+  },
+  {
+   "id": "G02",
+   "category": "recipient",
+   "title": "Send on a named network without a recipient",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "0x000000000000000000000000000000000000dEaD",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R02"
+   }
+  },
+  {
+   "id": "G03",
+   "category": "recipient",
+   "title": "'pay 20 USDC' asks who",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "pay 20 USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING"
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R03"
+   }
+  },
+  {
+   "id": "G04",
+   "category": "recipient",
+   "title": "Transfer SOL without a recipient; an SNS answer decides the network",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "transfer 1 SOL",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "toly.sns",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@solana 1 SOL to toly.sns"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R04"
+   }
+  },
+  {
+   "id": "G05",
+   "category": "recipient",
+   "title": "'to my friend' is a nickname: ask for an address, never look it up",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to my friend",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R05"
+   }
+  },
+  {
+   "id": "G06",
+   "category": "recipient",
+   "title": "'to vitalik' (no .eth): ask; Kletia does not complete names (a stranger may own vitalik.eth-like names)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING",
+        "options": [],
+        "recommended": null,
+        "allowsText": true,
+        "mustNotOffer": [
+         "vitalik.eth"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK"
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "R06"
+   }
+  },
+  {
+   "id": "G07",
+   "category": "recipient",
+   "title": "A name with no address: ask for the recipient again",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to nonexistent-name-xyz-123.eth on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_UNRESOLVED",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "RECIPIENT_NAME_UNRESOLVED",
+    "probe": "M05"
+   }
+  },
+  {
+   "id": "G08",
+   "category": "recipient",
+   "title": ".sol names moved to .sns: confirm the .sns name with its resolved address",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 0.1 SOL to toly.sol",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "confirm",
+        "reason": "RECIPIENT_NAME_MOVED",
+        "options": [
+         "toly.sns"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "yes",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@solana 0.1 SOL to toly.sns",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "RECIPIENT_NAME_UNSUPPORTED",
+    "probe": "M03"
+   }
+  },
+  {
+   "id": "G09",
+   "category": "recipient",
+   "title": "An Ethereum name on Solana: offer EVM networks where the user holds USDC, or a Solana address",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalik.eth on solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_NETWORK_MISMATCH",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.recipient",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "RECIPIENT_NAME_UNSUPPORTED",
+    "probe": "M04"
+   }
+  },
+  {
+   "id": "G10",
+   "category": "recipient",
+   "title": "A misspelt name is never 'corrected' into another person's name",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to vitalk.eth on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_UNRESOLVED",
+        "options": [],
+        "recommended": null,
+        "allowsText": true,
+        "mustNotOffer": [
+         "vitalik.eth"
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "RECIPIENT_NAME_UNRESOLVED"
+   }
+  },
+  {
+   "id": "G12",
+   "category": "recipient",
+   "title": "A mixed-case address whose EIP-55 checksum fails is a likely typo: ask again, never correct it",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x52908400098527886e0F7030069857D2E4169EE7 on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_CHECKSUM",
+        "options": [],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "0x52908400098527886E0F7030069857D2E4169EE7",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x52908400098527886E0F7030069857D2E4169EE7"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "accepted; Relay later refuses such addresses with ROUTE_UNAVAILABLE"
+   }
+  },
+  {
+   "id": "G11",
+   "category": "recipient",
+   "title": "Sending to yourself stays a refusal (nothing to ask)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x4f1859Ae1Ed5a8e1d1BE7d7df3F1A47De5BC6e5C on base",
+     "expect": {
+      "status": "refused",
+      "error": "SELF_TRANSFER",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "SELF_TRANSFER",
+    "probe": "C04"
+   }
+  },
+  {
+   "id": "H01",
+   "category": "typo",
+   "title": "Verb typo with one close match: corrected, material chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swpa 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].kind",
+        "source": "correction",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T01"
+   }
+  },
+  {
+   "id": "H02",
+   "category": "typo",
+   "title": "'form' for 'from' (a connector): corrected without a chip (it changes no value)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC form base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T02"
+   },
+   "why": "Connector fixes change no value and are recorded only in the turn log, not as chips."
+  },
+  {
+   "id": "H03",
+   "category": "typo",
+   "title": "Network typo with one close match: corrected, material chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 usdc from bsae to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "correction",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T04"
+   }
+  },
+  {
+   "id": "H04",
+   "category": "typo",
+   "title": "Provider typo 'jitto'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 SOL with jitto",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1 SOL->JitoSOL {jito}",
+      "assumptions": [
+       {
+        "field": "actions[0].protocol",
+        "source": "correction"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T05"
+   }
+  },
+  {
+   "id": "H05",
+   "category": "typo",
+   "title": "Venue typo 'aavee'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into aavee on base",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].protocol",
+        "source": "correction"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T06"
+   }
+  },
+  {
+   "id": "H06",
+   "category": "typo",
+   "title": "Network typo 'solan'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 sol to usdc on solan",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "correction"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T07"
+   }
+  },
+  {
+   "id": "H07",
+   "category": "typo",
+   "title": "'frm' (3 letters, one missing letter) for 'from'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC frm base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T08"
+   }
+  },
+  {
+   "id": "H08",
+   "category": "typo",
+   "title": "Decimal comma '1,5' reads as 1.5 with a material chip",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1,5 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.5 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "correction",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T09"
+   }
+  },
+  {
+   "id": "H09",
+   "category": "typo",
+   "title": "Long verb typo 'briddge' (distance 1 of 7 letters)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "briddge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].kind",
+        "source": "correction"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "T11"
+   }
+  },
+  {
+   "id": "H10",
+   "category": "format",
+   "title": "'1,500' when the balance covers only 1.5: ask which reading, the covered one recommended",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1,500 USDC to ETH on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_FORMAT_AMBIGUOUS",
+        "options": [
+         "decimal",
+         "thousands"
+        ],
+        "recommended": "decimal",
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "decimal"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 1.5 USDC->ETH"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "read as 1500"
+   }
+  },
+  {
+   "id": "H11",
+   "category": "format",
+   "title": "'1,500' with unknown balances is 1500 (English format), no question",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "swap 1,500 USDC to ETH on base",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 1500 USDC->ETH",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED"
+   }
+  },
+  {
+   "id": "H12",
+   "category": "typo",
+   "title": "Network typo next to an address",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD on bsae",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "correction"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "H13",
+   "category": "format",
+   "title": "Number words",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap ten USDC to SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 10 USDC->SOL",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W03"
+   }
+  },
+  {
+   "id": "H14",
+   "category": "typo",
+   "title": "Two-letter typos are never guessed ('tp')",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL tp USDC",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "H15",
+   "category": "typo",
+   "title": "A typo equally close to two verbs is asked, never guessed ('bend': lend or send)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bend 5 USDC on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "choice",
+        "reason": "VERB_AMBIGUOUS",
+        "options": [
+         "transfer",
+         "deposit"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "H15b",
+   "category": "typo",
+   "title": "'sned' (transposed) is unique: corrected, then the missing recipient is asked",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "sned 5 USDC on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING"
+       }
+      ],
+      "assumptions": [
+       {
+        "field": "actions[0].kind",
+        "source": "correction"
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "H16",
+   "category": "format",
+   "title": "Arrow wording",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "exchange 1 SOL → USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "W06"
+   }
+  },
+  {
+   "id": "I01",
+   "category": "wording",
+   "title": "'put … in aave' is a deposit",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "put 100 USDC in aave on base",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W07"
+   }
+  },
+  {
+   "id": "I02",
+   "category": "wording",
+   "title": "'earn yield on 100 USDC': network from the balance, then the venue (Aave V3 recommended, Kletia's default)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "earn yield on 100 USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].protocol",
+        "kind": "choice",
+        "reason": "VENUE_MISSING",
+        "options": [
+         "aave-v3",
+         "compound-v3",
+         "moonwell",
+         "morpho",
+         "spark-savings",
+         "fluid"
+        ],
+        "recommended": "aave-v3",
+        "allowsText": false
+       }
+      ],
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.protocol",
+      "option": "compound-v3"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [compound-v3]"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W08"
+   },
+   "why": "Round 6 build: the venue options are every protocol with an executable USDC venue on Base, in registry order (Spark Savings and Fluid joined)."
+  },
+  {
+   "id": "I03",
+   "category": "wording",
+   "title": "'convert … into …'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "convert 1 SOL into USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "W05"
+   }
+  },
+  {
+   "id": "I04",
+   "category": "wording",
+   "title": "'please …, thanks'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "please bridge 25 USDC from base to solana, thanks",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "I05",
+   "category": "wording",
+   "title": "'what can you do' is not an intent: refused with examples",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "what can you do",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W10"
+   }
+  },
+  {
+   "id": "I06",
+   "category": "wording",
+   "title": "'$10 of SOL': priced at plan time, a material chip with the price",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap $10 of SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 0.094966 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "price",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "W04"
+   },
+   "phase": 2
+  },
+  {
+   "id": "I07",
+   "category": "wording",
+   "title": "Unsupported action words are refused, never asked",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "unstake my JitoSOL",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "I08",
+   "category": "wording",
+   "title": "Gibberish is refused",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "asdf qwer",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "I09",
+   "category": "wording",
+   "title": "Bare 'spark' names Spark Savings and SparkLend: ask, Spark Savings suggested",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into spark",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].protocol",
+        "kind": "choice",
+        "reason": "VENUE_AMBIGUOUS",
+        "options": [
+         "spark-savings",
+         "sparklend"
+        ],
+        "recommended": "spark-savings",
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.protocol",
+      "option": "spark-savings"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [spark-savings]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        },
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "A bare 'spark' is ambiguous; clarify asks VENUE_AMBIGUOUS with Spark Savings suggested."
+  },
+  {
+   "id": "I10",
+   "category": "wording",
+   "title": "'spark' with a network only Spark Savings serves needs no question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into spark on base",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [spark-savings]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "SparkLend runs on Ethereum only, so a typed Base settles the venue word."
+  },
+  {
+   "id": "J01",
+   "category": "multi-step",
+   "title": "Swap on Solana then send to an ENS name: ask where vitalik.eth receives; the payment becomes one bridge that pays vitalik.eth there",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC and send it to vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[1].network",
+        "kind": "choice",
+        "reason": "NETWORK_HANDOFF",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.1.network",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "P02",
+    "note": "Step 2 spends funds on Base, but step 1 delivers them on Solana"
+   },
+   "why": "Unified departure rules: a third-party payment on another network is one bridge leg to the recipient (no transfer after the bridge); planned as structured actions with the closest sentence as the request text."
+  },
+  {
+   "id": "J02",
+   "category": "multi-step",
+   "title": "Bridge then deposit, all said",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 20 USDC from solana to base and deposit it into aave",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 20 USDC | deposit@base max USDC [aave-v3]",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "P03"
+   }
+  },
+  {
+   "id": "J03",
+   "category": "multi-step",
+   "title": "Swap then stake on Solana",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to SOL on solana, then stake it with jito",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 10 USDC->SOL | stake@solana max SOL->JitoSOL {jito}",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "P04"
+   }
+  },
+  {
+   "id": "J04",
+   "category": "multi-step",
+   "title": "'stake it' after bridging USDC: staking buys JitoSOL with the USDC (material chip)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana then stake it",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC | stake@solana max USDC->JitoSOL {jito}",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       },
+       {
+        "field": "actions[1].from",
+        "source": "context",
+        "material": true
+       },
+       {
+        "field": "actions[1].provider",
+        "source": "default"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "P05",
+    "note": "with defaultNetwork base it silently merged into one bridge to JitoSOL"
+   }
+  },
+  {
+   "id": "J05",
+   "category": "multi-step",
+   "title": "Three steps across networks with the Morpho default vault",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC then bridge it to base then deposit it into morpho",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC | bridge@solana->base max USDC | deposit@base max USDC [morpho:steakhouse-prime-usdc]",
+      "assumptions": [
+       {
+        "field": "actions[2].venue",
+        "source": "default"
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "P06"
+   }
+  },
+  {
+   "id": "J06",
+   "category": "multi-step",
+   "title": "Withdraw all then bridge",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw all USDC from aave on base then bridge it to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "withdraw@base max USDC [aave-v3] | bridge@base->solana max USDC",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "POSITION_EMPTY",
+    "probe": "P08"
+   }
+  },
+  {
+   "id": "J07",
+   "category": "multi-step",
+   "title": "Bridge then send to a Solana address",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana and then send it to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC | transfer@solana max USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "probe": "P07"
+   }
+  },
+  {
+   "id": "K01",
+   "category": "refusal",
+   "title": "Borrowing is not supported: refused, never asked",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "borrow 100 USDC from aave on base",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "U03"
+   }
+  },
+  {
+   "id": "K02",
+   "category": "refusal",
+   "title": "ETH staking with Lido runs on Ethereum (wstETH); an exact amount above the balance is not questioned",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 ETH with lido",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@ethereum 1 ETH->wstETH {lido}",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "U02"
+   },
+   "why": "Capability comes from the engine: once D5 P4 (Lido on Ethereum) lands this case becomes ready (stake@ethereum 1 ETH->wstETH {lido}); the build updates it with D5. Round 6 build: Lido, Rocket Pool and ether.fi staking landed on Ethereum (evm-yield-and-staking), so the sentence is ready."
+  },
+  {
+   "id": "K03",
+   "category": "refusal",
+   "title": "Mainnet and testnet never mix: refused (no question can fix it)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 10 USDC from base to arc",
+     "expect": {
+      "status": "refused",
+      "error": "CAPITAL_LANE_MIXED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "CAPITAL_LANE_MIXED",
+    "probe": "U04"
+   }
+  },
+  {
+   "id": "K04",
+   "category": "refusal",
+   "title": "A message with a private key is refused and nothing is stored",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD on base, my private key is 0xabababababababababababababababababababababababababababababababab",
+     "expect": {
+      "status": "refused",
+      "error": "MESSAGE_SECRET_REFUSED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "the platform API stores intent text verbatim"
+   }
+  },
+  {
+   "id": "K05",
+   "category": "refusal",
+   "title": "A seed phrase label is refused",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "my seed phrase is abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+     "expect": {
+      "status": "refused",
+      "error": "MESSAGE_SECRET_REFUSED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "K06",
+   "category": "refusal",
+   "title": "Swaps run on OP Mainnet (Uniswap V3, Velodrome, Relay): ready",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH on optimism",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@optimism 10 USDC->ETH",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "U05"
+   },
+   "why": "Capability comes from the engine: once D5 P0 (Relay same-network swaps on OP Mainnet) lands this case becomes ready; the build updates it with D5. Round 6 build: same-network swaps landed on OP Mainnet (evm-swaps-and-feeds), so a typed OP Mainnet swap plans."
+  },
+  {
+   "id": "K07",
+   "category": "refusal",
+   "title": "Without a Solana account, a Solana swap needs one (no question)",
+   "wallet": "evm_base",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "refused",
+      "error": "ACCOUNT_REQUIRED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "ACCOUNT_REQUIRED",
+    "probe": "C01"
+   }
+  },
+  {
+   "id": "K08",
+   "category": "refusals",
+   "title": "A SOL staking provider never stakes ETH: refused with the provider's asset",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 ETH with jito",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "why": "Providers stake one asset on one network (grammar stakeDraft)."
+  },
+  {
+   "id": "M01",
+   "category": "contract",
+   "title": "A registered alias with an amount plans as today (no question)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into acme vault",
+     "expect": {
+      "status": "ready",
+      "plan": "call@base 100 USDC <acme-base#deposit>"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "BYOC phrase"
+   },
+   "phase": "byoc"
+  },
+  {
+   "id": "M02",
+   "category": "contract",
+   "title": "A spending contract phrase without an amount: ask how much (today a refusal)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit USDC into acme vault",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "40",
+     "expect": {
+      "status": "ready",
+      "plan": "call@base 40 USDC <acme-base#deposit>"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "note": "Say how much to deposit"
+   },
+   "phase": "byoc"
+  },
+  {
+   "id": "M03",
+   "category": "contract",
+   "title": "An alias registered on two networks: ask which, offering only the registered networks",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into acme pool",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "NETWORK_AMBIGUOUS",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "arbitrum"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "call@arbitrum 100 USDC <acme-pool-arbitrum#deposit>"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "note": "names several registered actions"
+   },
+   "phase": "byoc"
+  },
+  {
+   "id": "M04",
+   "category": "contract",
+   "title": "A verb the registration does not accept is refused with the accepted verbs; the opposite action is never offered",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw 100 USDC from acme vault",
+     "expect": {
+      "status": "refused",
+      "error": "INTENT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "note": "accepts deposit, not withdraw"
+   },
+   "phase": "byoc"
+  },
+  {
+   "id": "M05",
+   "category": "contract",
+   "title": "A contract step after a built-in step: the dependent amount needs no question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from solana to base then deposit it into acme vault",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 25 USDC | call@base max USDC <acme-base#deposit>"
+     }
+    }
+   ],
+   "today": {
+    "code": "PLANNED",
+    "note": "BYOC phrase"
+   },
+   "phase": "byoc"
+  },
+  {
+   "id": "L01",
+   "category": "thread",
+   "title": "'make it 2' changes the amount of the one exact step",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "make it 2",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2 SOL->USDC",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F01"
+   }
+  },
+  {
+   "id": "L02",
+   "category": "thread",
+   "title": "'from arbitrum instead' changes the bridge source",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    },
+    {
+     "say": "from arbitrum instead",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->solana 25 USDC",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F02"
+   }
+  },
+  {
+   "id": "L03",
+   "category": "thread",
+   "title": "'send it to vitalik.eth instead' changes the recipient and keeps the network the user said",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD on base",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD"
+     }
+    },
+    {
+     "say": "send it to vitalik.eth instead",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to vitalik.eth",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F03"
+   }
+  },
+  {
+   "id": "L04",
+   "category": "thread",
+   "title": "'and then stake it' appends a step that spends the previous output",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    },
+    {
+     "say": "and then stake it",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC | stake@solana max USDC->JitoSOL {jito}",
+      "turn": "append"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F04"
+   }
+  },
+  {
+   "id": "L05",
+   "category": "thread",
+   "title": "'cancel' closes the task; a later message is refused with THREAD_CLOSED",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "cancel",
+     "expect": {
+      "status": "cancelled"
+     }
+    },
+    {
+     "say": "make it 2",
+     "expect": {
+      "status": "refused",
+      "error": "THREAD_CLOSED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F05"
+   }
+  },
+  {
+   "id": "L06",
+   "category": "thread",
+   "title": "'use arbitrum' on a bridge could be either end: ask which",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    },
+    {
+     "say": "use arbitrum",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "edit",
+        "kind": "choice",
+        "reason": "EDIT_TARGET_AMBIGUOUS",
+        "options": [
+         "actions[0].network",
+         "actions[0].toNetwork"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.edit",
+      "option": "actions[0].network"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@arbitrum->solana 25 USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F06"
+   }
+  },
+  {
+   "id": "L07",
+   "category": "thread",
+   "title": "'actually 0.5' answers the open amount question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "actually 0.5",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 0.5 SOL->USDC",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F07"
+   }
+  },
+  {
+   "id": "L08",
+   "category": "thread",
+   "title": "'50%' answers the amount question as half the balance (chip)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "50%",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.25 SOL->USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance"
+       }
+      ],
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "L09",
+   "category": "thread",
+   "title": "A bare network word answers the open source question",
+   "wallet": "preview",
+   "turns": [
+    {
+     "say": "bridge 25 USDC to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "SOURCE_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "base",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F09"
+   }
+  },
+  {
+   "id": "L10",
+   "category": "thread",
+   "title": "'yes' answers the open confirm question",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 0.1 SOL to toly.sol",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "confirm",
+        "reason": "RECIPIENT_NAME_MOVED"
+       }
+      ]
+     }
+    },
+    {
+     "say": "yes",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@solana 0.1 SOL to toly.sns",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F10"
+   }
+  },
+  {
+   "id": "L11",
+   "category": "thread",
+   "title": "'to base instead' after a swap: receive the output on Base (cross-network swap)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "to base instead",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@solana->base 1 SOL->USDC",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F11"
+   }
+  },
+  {
+   "id": "L12",
+   "category": "thread",
+   "title": "'via lifi' pins the bridge venue",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    },
+    {
+     "say": "via lifi",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC [lifi]",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F12"
+   }
+  },
+  {
+   "id": "L13",
+   "category": "thread",
+   "title": "'then deposit it into kamino' appends a deposit on the previous output's network",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "then deposit it into kamino",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC | deposit@solana max USDC [kamino]",
+      "turn": "append"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F13"
+   }
+  },
+  {
+   "id": "L14",
+   "category": "thread",
+   "title": "'undo' restores the previous version of the task",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "make it 2",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2 SOL->USDC"
+     }
+    },
+    {
+     "say": "undo",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC",
+      "turn": "control"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F14"
+   }
+  },
+  {
+   "id": "L15",
+   "category": "thread",
+   "title": "An edit Kletia cannot read is refused and the task is unchanged",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "double it",
+     "expect": {
+      "status": "refused",
+      "error": "EDIT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    },
+    {
+     "say": "make it 2",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2 SOL->USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F15"
+   }
+  },
+  {
+   "id": "L16",
+   "category": "thread",
+   "title": "Answer by option id",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.toNetwork",
+      "option": "solana"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "D01"
+   }
+  },
+  {
+   "id": "L17",
+   "category": "thread",
+   "title": "A stale question id is refused (QUESTION_NOT_OPEN) and the task is unchanged",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].toNetwork",
+        "kind": "choice",
+        "reason": "DESTINATION_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "all"
+     },
+     "expect": {
+      "status": "refused",
+      "error": "QUESTION_NOT_OPEN",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L18",
+   "category": "thread",
+   "title": "Editing an assumption chip: tap Arbitrum on 'On Base'",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    },
+    {
+     "assumption": {
+      "id": "a.actions.0.network",
+      "option": "arbitrum"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@arbitrum 10 USDC->ETH",
+      "turn": "answer"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L19",
+   "category": "thread",
+   "title": "A complete new sentence replaces the task; 'undo' brings the old one back",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "bridge 25 USDC from base to solana",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC",
+      "turn": "replace"
+     }
+    },
+    {
+     "say": "undo",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L20",
+   "category": "thread",
+   "title": "'yes' with nothing to confirm is refused",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "yes",
+     "expect": {
+      "status": "refused",
+      "error": "EDIT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F10"
+   }
+  },
+  {
+   "id": "L21",
+   "category": "thread",
+   "title": "Two independent questions; answering one leaves the other open",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send USDC on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].recipient",
+        "kind": "address",
+        "reason": "RECIPIENT_MISSING"
+       },
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "say": "vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING"
+       }
+      ]
+     }
+    },
+    {
+     "say": "10",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 10 USDC to vitalik.eth"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "L22",
+   "category": "thread",
+   "title": "'make it 50' with two exact amounts: ask which step",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "bridge 25 USDC from base to solana then swap 10 USDC to SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 25 USDC | swap@solana 10 USDC->SOL"
+     }
+    },
+    {
+     "say": "make it 50",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "edit",
+        "kind": "choice",
+        "reason": "EDIT_TARGET_AMBIGUOUS",
+        "options": [
+         "actions[0].amount",
+         "actions[1].amount"
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.edit",
+      "option": "actions[0].amount"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->solana 50 USDC | swap@solana 10 USDC->SOL"
+     }
+    }
+   ],
+   "today": {
+    "code": "INTENT_UNSUPPORTED",
+    "probe": "F01"
+   }
+  },
+  {
+   "id": "L23",
+   "category": "thread",
+   "title": "'to <address> instead' changes the recipient",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD on base",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD"
+     }
+    },
+    {
+     "say": "to 0x1111111111111111111111111111111111111111 instead",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x1111111111111111111111111111111111111111",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L24",
+   "category": "thread",
+   "title": "'actually make it USDT' changes the output asset",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "actually make it USDT",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDT",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L25",
+   "category": "thread",
+   "title": "'with marinade' changes the staking provider (the Jito chip disappears)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "stake 1 SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1 SOL->JitoSOL {jito}"
+     }
+    },
+    {
+     "say": "with marinade",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 1 SOL->mSOL {marinade}",
+      "assumptions": [],
+      "assumptionsExact": true,
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L26",
+   "category": "thread",
+   "title": "'on arbitrum instead' moves a deposit; an exact amount above the balance is not questioned",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "deposit 100 USDC into aave on base",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]"
+     }
+    },
+    {
+     "say": "on arbitrum instead",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@arbitrum 100 USDC [aave-v3]",
+      "turn": "edit"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L27",
+   "category": "thread",
+   "title": "A seed phrase in a follow-up is refused; the task is unchanged",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "my private key is 0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+     "expect": {
+      "status": "refused",
+      "error": "MESSAGE_SECRET_REFUSED",
+      "stateUnchanged": true
+     }
+    },
+    {
+     "say": "make it 2",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 2 SOL->USDC"
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L28",
+   "category": "thread",
+   "title": "An assumption shown earlier is kept when a later edit does not invalidate it",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    },
+    {
+     "say": "make it 20",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 20 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        }
+       }
+      ],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  },
+  {
+   "id": "L29",
+   "category": "thread",
+   "title": "An assumption that no longer covers the amount is re-decided",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 10 USDC to ETH",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 10 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance",
+        "value": {
+         "network": "base"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "say": "make it 125",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 125 USDC->ETH",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   },
+   "why": "125 exceeds every balance; the largest balance stays the default and the fare shows the shortfall."
+  },
+  {
+   "id": "L30",
+   "category": "thread",
+   "title": "'undo' with no history is refused",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "swap 1 SOL to USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1 SOL->USDC"
+     }
+    },
+    {
+     "say": "undo",
+     "expect": {
+      "status": "refused",
+      "error": "EDIT_UNSUPPORTED",
+      "stateUnchanged": true
+     }
+    }
+   ],
+   "today": {
+    "code": "new"
+   }
+  }
+ ]
+}

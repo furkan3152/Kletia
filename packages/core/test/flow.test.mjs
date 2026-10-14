@@ -133,3 +133,21 @@ test("journey contract constants: rules R1-R12, severities, option kinds and lim
   assert.ok(journey.JOURNEY_LIMITS.topupMaxUsd <= Number(journey.GAS_ON_ARRIVAL_USD.max));
   assert.match(journey.JOURNEY_SPEC, /^kletia\.journey\/v\d+$/u);
 });
+
+test("F6 reserve arithmetic: two times the fees plus rent, two significant digits, the 25 % limit", async () => {
+  const { ceilSignificant, gasReserveUnits, reserveTooLarge, GAS_RESERVE_MAX_SHARE_BPS } = await import("../dist/index.js");
+  assert.equal(ceilSignificant(4_458n), 4_500n);
+  assert.equal(ceilSignificant(4_500n), 4_500n);
+  assert.equal(ceilSignificant(4_501n), 4_600n);
+  assert.equal(ceilSignificant(99n), 99n);
+  assert.equal(ceilSignificant(991n), 1_000n);
+  assert.equal(ceilSignificant(0n), 0n);
+  // 2 x 445,876 gwei-units of fees -> 891,752 -> 900,000.
+  assert.equal(gasReserveUnits(445_876n), 900_000n);
+  // Solana with an empty wallet: 2 x 105,000 lamports + 890,880 rent-exempt minimum = 1,100,880 -> 1,200,000.
+  assert.equal(gasReserveUnits(105_000n, 890_880n), 1_200_000n);
+  assert.equal(GAS_RESERVE_MAX_SHARE_BPS, 2_500);
+  assert.equal(reserveTooLarge(25n, 100n), true);
+  assert.equal(reserveTooLarge(24n, 100n), false);
+  assert.equal(reserveTooLarge(0n, 0n), false);
+});

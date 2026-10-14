@@ -358,6 +358,23 @@ describe("registries", () => {
     assert.ok(base.actions.includes("deposit"));
   });
 
+  it("lists Relay same-network swaps on Ethereum, OP Mainnet and Polygon PoS with the built-in adapters", async () => {
+    configurePlatform({ adapters: null });
+    try {
+      const reply = await call<{ networks: NetworkView[] }>(server, "GET", "/networks");
+      for (const key of ["ethereum", "optimism", "polygon", "base", "arbitrum"] as const) {
+        const network = reply.body.networks.find((entry) => entry.key === key);
+        assert.ok(network?.actions.includes("swap"), `${key} swaps`);
+        const relay = network?.routes.find((route) => route.kind === "swap" && route.protocol === "relay");
+        assert.deepEqual(relay?.toNetworks, [key], `${key} swap:relay`);
+      }
+      const solana = reply.body.networks.find((entry) => entry.key === "solana");
+      assert.equal(solana?.routes.some((route) => route.kind === "swap" && route.protocol === "relay"), false, "Relay does not swap on Solana");
+    } finally {
+      configurePlatform({ adapters: STUB_ADAPTERS });
+    }
+  });
+
   it("follows configurePlatform({ adapters }) instead of advertising the built-in set", async () => {
     configurePlatform({ adapters: [stubJupiter] });
     const networks = await call<{ networks: NetworkView[] }>(server, "GET", "/networks");

@@ -1,0 +1,425 @@
+{
+ "source": "journey-scratch/probes/plan-2.json #0 (live, 2026-10-14)",
+ "text": "swap 1 SOL to USDC then bridge it to arbitrum",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_31e4bf23f9744bd0a542aca3c045ad9b",
+  "createdAt": "2026-10-14T13:35:13.909Z",
+  "updatedAt": "2026-10-14T13:35:13.909Z",
+  "expiresAt": "2026-10-14T14:05:13.909Z",
+  "status": "planned",
+  "request": {
+   "text": "swap 1 SOL to USDC then bridge it to arbitrum",
+   "accounts": [
+    "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "swap 1 SOL to USDC, then bridge it to arbitrum",
+   "confidence": 0.95
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "swap",
+    "title": "Swap 1 SOL for USDC on Solana",
+    "network": "solana",
+    "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "protocol": "jupiter",
+    "mode": "wallet",
+    "input": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+     "symbol": "SOL",
+     "decimals": 9,
+     "amount": "1000000000",
+     "formatted": "1",
+     "usd": 105.69
+    },
+    "expectedOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "105715581",
+     "formatted": "105.715581",
+     "usd": 105.69
+    },
+    "minimumOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "105187004",
+     "formatted": "105.187004",
+     "usd": 105.16
+    },
+    "dependsOn": [],
+    "settlement": {
+     "kind": "same-network"
+    },
+    "feesUsd": 0.0106,
+    "estimatedSeconds": 15,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "solana",
+      "observedAt": "2026-10-14T13:35:13.909Z",
+      "reference": "slot:456856934",
+      "detail": "Quoted by Jupiter."
+     }
+    ],
+    "warnings": [
+     "Route: Kipseli."
+    ]
+   },
+   {
+    "id": "s2",
+    "index": 1,
+    "kind": "bridge",
+    "title": "Bridge 105.187004 USDC from Solana to Arbitrum One",
+    "network": "solana",
+    "chain": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "protocol": "relay",
+    "mode": "wallet",
+    "input": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "105187004",
+     "formatted": "105.187004",
+     "usd": 105.18
+    },
+    "expectedOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "105140203",
+     "formatted": "105.140203",
+     "usd": 105.13
+    },
+    "minimumOutput": {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "104614502",
+     "formatted": "104.614502",
+     "usd": 104.6
+    },
+    "recipient": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "dependsOn": [
+     "s1"
+    ],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "arbitrum",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.0864,
+    "estimatedSeconds": 20,
+    "status": "pending",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "solana",
+      "observedAt": "2026-10-14T13:35:13.909Z",
+      "reference": "0x1791984914444d26cd4d4fd488a2390f1e0773b1c9d5f6f17a8333aa4bbd8674",
+      "detail": "Quoted by Relay. Selected over 1 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "solana",
+      "observedAt": "2026-10-14T13:35:13.909Z",
+      "detail": "Also quoted: deBridge DLN: 104.07892 USDC guaranteed (net 102.488936 after 0.015 SOL), ~24 s, 1 transaction(s); not selected."
+     }
+    ]
+   }
+  ],
+  "edges": [
+   {
+    "from": "s1",
+    "to": "s2",
+    "kind": "funds"
+   }
+  ],
+  "summary": {
+   "title": "Swap 1 SOL for USDC on Solana \u2192 Bridge 105.187004 USDC from Solana to Arbitrum One",
+   "networks": [
+    "solana",
+    "arbitrum"
+   ],
+   "inputs": [
+    {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+     "symbol": "SOL",
+     "decimals": 9,
+     "amount": "1000000000",
+     "formatted": "1",
+     "usd": 105.69
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "528577",
+     "formatted": "0.528577",
+     "usd": 0.53
+    },
+    {
+     "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "105140203",
+     "formatted": "105.140203",
+     "usd": 105.13
+    }
+   ],
+   "totalFeesUsd": 0.097,
+   "estimatedSeconds": 35,
+   "signaturesRequired": 2,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.",
+   "Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known)."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_31e4bf23f9744bd0a542aca3c045ad9b",
+  "computedAt": "2026-10-14T13:35:14.639Z",
+  "stage": "plan",
+  "basis": "quoted",
+  "rows": [
+   {
+    "network": "solana",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+    "symbol": "SOL",
+    "decimals": 9,
+    "listed": true,
+    "expected": {
+     "amount": "-1000000000",
+     "formatted": "-1",
+     "usd": -105.749918
+    },
+    "worst": {
+     "amount": "-1000000000",
+     "formatted": "-1",
+     "usd": -105.749918
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "105668544",
+     "formatted": "+105.668",
+     "usd": 105.668544
+    },
+    "worst": {
+     "amount": "104614502",
+     "formatted": "+104.614",
+     "usd": 104.614502
+    },
+    "certainty": "estimated",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "solana",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "worst": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1",
+     "s2"
+    ],
+    "role": "transit"
+   }
+  ],
+  "payments": [],
+  "fees": [],
+  "approvals": [],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "solana",
+    "kind": "swap",
+    "status": "quoted",
+    "at": "2026-10-14T13:35:14.639Z",
+    "deltas": [
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501",
+      "symbol": "SOL",
+      "decimals": 9,
+      "listed": true,
+      "expected": {
+       "amount": "-1000000000",
+       "formatted": "-1"
+      },
+      "worst": {
+       "amount": "-1000000000",
+       "formatted": "-1"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "105715581",
+       "formatted": "+105.715"
+      },
+      "worst": {
+       "amount": "105187004",
+       "formatted": "+105.187"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "PREVIEW_STEP_QUOTED",
+      "severity": "warn",
+      "message": "Step 1 is shown as quoted (not simulated); its network fee is not included."
+     }
+    ]
+   },
+   {
+    "stepId": "s2",
+    "network": "solana",
+    "kind": "bridge",
+    "status": "quoted",
+    "at": "2026-10-14T13:35:14.639Z",
+    "deltas": [
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-105715581",
+       "formatted": "-105.715"
+      },
+      "worst": {
+       "amount": "-105187004",
+       "formatted": "-105.187"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:42161/erc20:0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "105668544",
+       "formatted": "+105.668"
+      },
+      "worst": {
+       "amount": "104614502",
+       "formatted": "+104.614"
+      },
+      "certainty": "estimated",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "PREVIEW_STEP_QUOTED",
+      "severity": "warn",
+      "message": "Step 2 is shown as quoted (not simulated); its network fee is not included."
+     }
+    ]
+   }
+  ],
+  "totals": {
+   "youPayUsd": 105.75,
+   "youGetUsd": {
+    "expected": 105.67,
+    "worst": 104.61
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0,
+   "venueFeesUsd": 0,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": 0.08,
+    "worst": 1.14
+   },
+   "priceDifferenceUsd": 0.08,
+   "unpriced": []
+  },
+  "arrival": {
+   "network": "arbitrum",
+   "seconds": 20
+  },
+  "needs": [],
+  "warnings": [],
+  "digest": "sha256:ae93b0f032dba6e9fdc8ad6f363fff63dcea8ccaf4747bd9c85f9747d6acc654"
+ }
+}

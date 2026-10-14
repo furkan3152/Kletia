@@ -1,0 +1,618 @@
+{
+ "source": "journey-scratch/probes/plan-2.json #3 (live, 2026-10-14)",
+ "text": "bridge 100 USDC from ethereum to base and deposit it into morpho",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_bdaa0c61f3c849b487341d99f0837ad5",
+  "createdAt": "2026-10-14T13:35:16.652Z",
+  "updatedAt": "2026-10-14T13:35:16.652Z",
+  "expiresAt": "2026-10-14T14:05:16.652Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 100 USDC from ethereum to base and deposit it into morpho",
+   "accounts": [
+    "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 100 USDC from ethereum to base, then deposit it into morpho",
+   "confidence": 0.95
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 100 USDC from Ethereum to Base via LI.FI",
+    "network": "ethereum",
+    "chain": "eip155:1",
+    "account": "eip155:1:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "protocol": "lifi",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "100000000",
+     "formatted": "100",
+     "usd": 99.99
+    },
+    "expectedOutput": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "99736610",
+     "formatted": "99.73661",
+     "usd": 99.65
+    },
+    "minimumOutput": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "99686741",
+     "formatted": "99.686741",
+     "usd": 99.69
+    },
+    "recipient": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "base",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.569,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "ethereum",
+      "observedAt": "2026-10-14T13:35:16.652Z",
+      "reference": "0xfa201602acb5e2c7f5e2fc9a8315275a2b9ae92ac46159f639d72080084520fd",
+      "detail": "Quoted by LI.FI. Selected over 2 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "ethereum",
+      "observedAt": "2026-10-14T13:35:16.652Z",
+      "detail": "Also quoted: Relay: 99.469136 USDC guaranteed, ~20 s, 2 transaction(s); not selected."
+     },
+     {
+      "kind": "quote",
+      "network": "ethereum",
+      "observedAt": "2026-10-14T13:35:16.652Z",
+      "detail": "Also quoted: deBridge DLN: 99.429051 USDC guaranteed (net 96.949074 after 0.001 ETH), ~20 s, 2 transaction(s); not selected."
+     }
+    ],
+    "warnings": [
+     "Route: LI.FI via Across (LI.FI charges 0.25%)."
+    ]
+   },
+   {
+    "id": "s2",
+    "index": 1,
+    "kind": "deposit",
+    "title": "Deposit 99.686741 USDC into Steakhouse Prime USDC (Morpho) on Base",
+    "network": "base",
+    "chain": "eip155:8453",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "protocol": "morpho",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "99686741",
+     "formatted": "99.686741",
+     "usd": 99.69
+    },
+    "expectedOutput": {
+     "asset": "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9",
+     "symbol": "steakUSDC",
+     "decimals": 18,
+     "amount": "95465263673429256432",
+     "formatted": "95.465263673429256432"
+    },
+    "minimumOutput": {
+     "asset": "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9",
+     "symbol": "steakUSDC",
+     "decimals": 18,
+     "amount": "95369798409755827175",
+     "formatted": "95.369798409755827175"
+    },
+    "venue": "base:morpho:steakhouse-prime-usdc",
+    "dependsOn": [
+     "s1"
+    ],
+    "settlement": {
+     "kind": "same-network"
+    },
+    "feesUsd": 0.0113,
+    "estimatedSeconds": 20,
+    "status": "pending",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:35:16.652Z",
+      "detail": "Quoted by Morpho Vaults."
+     }
+    ],
+    "warnings": [
+     "Using Steakhouse Prime USDC; name another Morpho Vaults venue with params.venue (gauntlet-usdc-prime, gauntlet-usdc-prime-v1, spark-usdc).",
+     "Variable yield: about 4.63% APY at planning (realised share-price growth over the last 7 days); not guaranteed."
+    ]
+   }
+  ],
+  "edges": [
+   {
+    "from": "s1",
+    "to": "s2",
+    "kind": "funds"
+   }
+  ],
+  "summary": {
+   "title": "Bridge 100 USDC from Ethereum to Base via LI.FI \u2192 Deposit 99.686741 USDC into Steakhouse Prime USDC (Morpho) on Base",
+   "networks": [
+    "ethereum",
+    "base"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "100000000",
+     "formatted": "100",
+     "usd": 99.99
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "49869",
+     "formatted": "0.049869",
+     "usd": 0.05
+    },
+    {
+     "asset": "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9",
+     "symbol": "steakUSDC",
+     "decimals": 18,
+     "amount": "95465263673429256432",
+     "formatted": "95.465263673429256432"
+    }
+   ],
+   "totalFeesUsd": 0.5803,
+   "estimatedSeconds": 40,
+   "signaturesRequired": 4,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.",
+   "Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known)."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_bdaa0c61f3c849b487341d99f0837ad5",
+  "computedAt": "2026-10-14T13:35:17.614Z",
+  "stage": "plan",
+  "basis": "partial",
+  "rows": [
+   {
+    "network": "ethereum",
+    "account": "eip155:1:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "-100000000",
+     "formatted": "-100",
+     "usd": -100
+    },
+    "worst": {
+     "amount": "-100000000",
+     "formatted": "-100",
+     "usd": -100
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "base",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:8453/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-2333427826298",
+     "formatted": "-0.00000233342",
+     "usd": -0.005781
+    },
+    "worst": {
+     "amount": "-2333427826298",
+     "formatted": "-0.00000233342",
+     "usd": -0.005781
+    },
+    "certainty": "simulated-assumed-funds",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "base",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9",
+    "symbol": "steakUSDC",
+    "decimals": 18,
+    "listed": false,
+    "expected": {
+     "amount": "95513020570007225676",
+     "formatted": "+95.513"
+    },
+    "worst": {
+     "amount": "95369798409755827175",
+     "formatted": "+95.3697"
+    },
+    "certainty": "estimated",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "base",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "worst": {
+     "amount": "0",
+     "formatted": "0",
+     "usd": 0
+    },
+    "certainty": "venue-minimum",
+    "steps": [
+     "s1",
+     "s2"
+    ],
+    "role": "transit"
+   }
+  ],
+  "payments": [],
+  "fees": [
+   {
+    "kind": "venue",
+    "label": "LI.FI fees",
+    "usd": 0.2634,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "ethereum"
+   },
+   {
+    "stepId": "s2",
+    "network": "base",
+    "kind": "network",
+    "label": "Base network fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "2321298000000",
+    "formatted": "0.00000232129",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 0.005751
+   },
+   {
+    "stepId": "s2",
+    "network": "base",
+    "kind": "l1-data",
+    "label": "Base L1 data fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "12129826298",
+    "formatted": "0.0000000121298",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 3e-05
+   }
+  ],
+  "approvals": [
+   {
+    "stepId": "s2",
+    "network": "base",
+    "token": {
+     "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "spender": "0xbeef0e0834849acc03f0089f01f4f1eeb06873c9",
+    "spenderLabel": "Steakhouse Prime USDC",
+    "amount": "99686741",
+    "formatted": "99.6867",
+    "leftAfter": "0"
+   }
+  ],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "ethereum",
+    "kind": "bridge",
+    "status": "failed",
+    "at": "2026-10-14T13:35:17.614Z",
+    "deltas": [
+     {
+      "network": "ethereum",
+      "account": "eip155:1:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-100000000",
+       "formatted": "-100"
+      },
+      "worst": {
+       "amount": "-100000000",
+       "formatted": "-100"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "base",
+      "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "99736610",
+       "formatted": "+99.7366"
+      },
+      "worst": {
+       "amount": "99686741",
+       "formatted": "+99.6867"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "kind": "venue",
+      "label": "LI.FI fees",
+      "usd": 0.2634,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "ethereum"
+     }
+    ],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "INSUFFICIENT_BALANCE",
+      "severity": "warn",
+      "message": "Step 1: The account holds 37192124 base units of the input; 100000000 is needed."
+     },
+     {
+      "code": "SIMULATION_FAILED",
+      "severity": "warn",
+      "message": "Step 1: The transaction would fail on-chain (execution reverted)."
+     }
+    ]
+   },
+   {
+    "stepId": "s2",
+    "network": "base",
+    "kind": "deposit",
+    "status": "simulated-assumed-funds",
+    "at": "2026-10-14T13:35:17.785Z",
+    "block": "52597786",
+    "endpoint": "base-rpc.publicnode.com",
+    "overrides": [
+     {
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "amount": "99686741"
+     }
+    ],
+    "deltas": [
+     {
+      "network": "base",
+      "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:8453/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-2333427826298",
+       "formatted": "-0.00000233342"
+      },
+      "worst": {
+       "amount": "-2333427826298",
+       "formatted": "-0.00000233342"
+      },
+      "certainty": "simulated-assumed-funds",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "base",
+      "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "-99736610",
+       "formatted": "-99.7366"
+      },
+      "worst": {
+       "amount": "-99686741",
+       "formatted": "-99.6867"
+      },
+      "certainty": "simulated-assumed-funds",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "base",
+      "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9",
+      "symbol": "steakUSDC",
+      "decimals": 18,
+      "listed": false,
+      "expected": {
+       "amount": "95513020570007225676",
+       "formatted": "+95.513"
+      },
+      "worst": {
+       "amount": "95369798409755827175",
+       "formatted": "+95.3697"
+      },
+      "certainty": "estimated",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "stepId": "s2",
+      "network": "base",
+      "kind": "network",
+      "label": "Base network fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "2321298000000",
+      "formatted": "0.00000232129",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     },
+     {
+      "stepId": "s2",
+      "network": "base",
+      "kind": "l1-data",
+      "label": "Base L1 data fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "12129826298",
+      "formatted": "0.0000000121298",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     }
+    ],
+    "approvals": [
+     {
+      "stepId": "s2",
+      "network": "base",
+      "token": {
+       "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+       "symbol": "USDC",
+       "decimals": 6
+      },
+      "spender": "0xbeef0e0834849acc03f0089f01f4f1eeb06873c9",
+      "spenderLabel": "Steakhouse Prime USDC",
+      "amount": "99686741",
+      "formatted": "99.6867",
+      "leftAfter": "0"
+     }
+    ],
+    "gas": {
+     "used": "386883",
+     "price": "6000000",
+     "l1Fee": "12129826298"
+    },
+    "issues": []
+   }
+  ],
+  "totals": {
+   "youPayUsd": 100.01,
+   "youGetUsd": {
+    "expected": null,
+    "worst": null
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0.01,
+   "venueFeesUsd": 0.26,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": null,
+    "worst": null
+   },
+   "priceDifferenceUsd": null,
+   "unpriced": [
+    "eip155:8453/erc20:0xbeef0e0834849aCC03f0089F01f4F1Eeb06873C9"
+   ]
+  },
+  "arrival": {
+   "network": "base",
+   "seconds": 20
+  },
+  "needs": [
+   {
+    "network": "ethereum",
+    "account": "eip155:1:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": {
+     "asset": "eip155:1/erc20:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+     "symbol": "USDC",
+     "decimals": 6
+    },
+    "amount": "100000000",
+    "formatted": "100",
+    "reason": "input-balance",
+    "have": "37192124"
+   }
+  ],
+  "warnings": [
+   "Step 2 was simulated with 99.6867 USDC that LI.FI delivers to you on Base; it will be simulated again before you sign it.",
+   "PREVIEW_UNPRICED: no price for 1 asset(s); totals that need them are null."
+  ],
+  "digest": "sha256:ae0fe3869be2af6d3ed25f1ef630f6422f32952d802ffee0ef6ec31630431dd2"
+ }
+}

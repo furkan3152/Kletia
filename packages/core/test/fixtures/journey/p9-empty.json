@@ -1,0 +1,573 @@
+{
+ "source": "journey-scratch/probes/plan-native.json #1 (live, 2026-10-14)",
+ "text": "bridge 0.01 ETH from base to arbitrum and deposit it into aave",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_602bb3d4b79a4b25856a843d9b84921d",
+  "createdAt": "2026-10-14T13:50:10.773Z",
+  "updatedAt": "2026-10-14T13:50:10.773Z",
+  "expiresAt": "2026-10-14T14:20:10.773Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 0.01 ETH from base to arbitrum and deposit it into aave",
+   "accounts": [
+    "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:CmScyaDDQjK7wgsCc2GWjWew68ZZLVzFpidArohV58Rw"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 0.01 ETH from base to arbitrum, then deposit it into aave",
+   "confidence": 0.95
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 0.01 ETH from Base to Arbitrum One",
+    "network": "base",
+    "chain": "eip155:8453",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "protocol": "relay",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "10000000000000000",
+     "formatted": "0.01",
+     "usd": 24.76
+    },
+    "expectedOutput": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "9990371499662436",
+     "formatted": "0.009990371499662436",
+     "usd": 24.73
+    },
+    "minimumOutput": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "9940419642164124",
+     "formatted": "0.009940419642164124",
+     "usd": 24.61
+    },
+    "recipient": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "arbitrum",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.0244,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:50:10.773Z",
+      "reference": "0x1791985811c4baf0539111fbabe22d845deb9f52242b597fa317c5420325748f",
+      "detail": "Quoted by Relay. Selected over 1 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:50:10.773Z",
+      "detail": "Also quoted: deBridge DLN: 0.009862362907431807 ETH guaranteed (net 0.008861267433415933 after 0.001 ETH), ~20 s, 1 transaction(s); not selected."
+     }
+    ]
+   },
+   {
+    "id": "s2",
+    "index": 1,
+    "kind": "deposit",
+    "title": "Supply 0.00994 ETH to Aave V3 on Arbitrum One",
+    "network": "arbitrum",
+    "chain": "eip155:42161",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "protocol": "aave-v3",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "9940419642164124",
+     "formatted": "0.009940419642164124"
+    },
+    "expectedOutput": {
+     "asset": "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+     "symbol": "aArbWETH",
+     "decimals": 18,
+     "amount": "9940419642164124",
+     "formatted": "0.009940419642164124"
+    },
+    "minimumOutput": {
+     "asset": "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+     "symbol": "aArbWETH",
+     "decimals": 18,
+     "amount": "9940419642164122",
+     "formatted": "0.009940419642164122"
+    },
+    "venue": "arbitrum:aave-v3:weth",
+    "dependsOn": [
+     "s1"
+    ],
+    "settlement": {
+     "kind": "same-network"
+    },
+    "feesUsd": 0.0189,
+    "estimatedSeconds": 30,
+    "status": "pending",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "arbitrum",
+      "observedAt": "2026-10-14T13:50:10.773Z",
+      "detail": "Quoted by Aave V3."
+     }
+    ],
+    "warnings": [
+     "Variable yield: about 0.97% APY at planning (the current on-chain supply rate); not guaranteed."
+    ]
+   }
+  ],
+  "edges": [
+   {
+    "from": "s1",
+    "to": "s2",
+    "kind": "funds"
+   }
+  ],
+  "summary": {
+   "title": "Bridge 0.01 ETH from Base to Arbitrum One \u2192 Supply 0.00994 ETH to Aave V3 on Arbitrum One",
+   "networks": [
+    "base",
+    "arbitrum"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "10000000000000000",
+     "formatted": "0.01",
+     "usd": 24.76
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "49951857498312",
+     "formatted": "0.000049951857498312",
+     "usd": 0.12
+    },
+    {
+     "asset": "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+     "symbol": "aArbWETH",
+     "decimals": 18,
+     "amount": "9940419642164124",
+     "formatted": "0.009940419642164124"
+    }
+   ],
+   "totalFeesUsd": 0.0433,
+   "estimatedSeconds": 50,
+   "signaturesRequired": 4,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed.",
+   "Dependent steps spend the previous step's guaranteed minimum output (or the observed output once known)."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_602bb3d4b79a4b25856a843d9b84921d",
+  "computedAt": "2026-10-14T13:50:11.696Z",
+  "stage": "plan",
+  "basis": "partial",
+  "rows": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:8453/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-10000000000000000",
+     "formatted": "-0.01",
+     "usd": -24.772862
+    },
+    "worst": {
+     "amount": "-10000000000000000",
+     "formatted": "-0.01",
+     "usd": -24.772862
+    },
+    "certainty": "quoted",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:42161/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-6268361052000",
+     "formatted": "-0.00000626836",
+     "usd": -0.015529
+    },
+    "worst": {
+     "amount": "-6268361052000",
+     "formatted": "-0.00000626836",
+     "usd": -0.015529
+    },
+    "certainty": "venue-minimum",
+    "steps": [
+     "s1",
+     "s2"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+    "symbol": "aArbWETH",
+    "decimals": 18,
+    "listed": false,
+    "expected": {
+     "amount": "9990371499662434",
+     "formatted": "+0.00999037"
+    },
+    "worst": {
+     "amount": "9940419642164122",
+     "formatted": "+0.00994041"
+    },
+    "certainty": "estimated",
+    "steps": [
+     "s2"
+    ],
+    "role": "you"
+   }
+  ],
+  "payments": [],
+  "fees": [
+   {
+    "kind": "venue",
+    "label": "Relay relayer fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "9628500337564",
+    "formatted": "0.000009628500337564",
+    "usd": 0.023853,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "base"
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "network",
+    "label": "Arbitrum One network fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "6157602864000",
+    "formatted": "0.0000061576",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 0.015254
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "l1-data",
+    "label": "Arbitrum One L1 data fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "110758188000",
+    "formatted": "0.000000110758",
+    "paid": "on-top",
+    "certainty": "simulated-assumed-funds",
+    "usd": 0.000274
+   }
+  ],
+  "approvals": [
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "token": {
+     "asset": "eip155:42161/erc20:0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+     "symbol": "WETH",
+     "decimals": 18
+    },
+    "spender": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+    "spenderLabel": "Aave V3 WETH",
+    "amount": "9940419642164124",
+    "formatted": "0.00994041",
+    "leftAfter": "0"
+   }
+  ],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "bridge",
+    "status": "unavailable",
+    "at": "2026-10-14T13:50:11.696Z",
+    "deltas": [
+     {
+      "network": "base",
+      "account": "eip155:8453:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:8453/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-10000000000000000",
+       "formatted": "-0.01"
+      },
+      "worst": {
+       "amount": "-10000000000000000",
+       "formatted": "-0.01"
+      },
+      "certainty": "quoted",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "9990371499662436",
+       "formatted": "+0.00999037"
+      },
+      "worst": {
+       "amount": "9940419642164124",
+       "formatted": "+0.00994041"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "kind": "venue",
+      "label": "Relay relayer fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "9628500337564",
+      "formatted": "0.000009628500337564",
+      "usd": 0.023838,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "base"
+     }
+    ],
+    "approvals": [],
+    "issues": [
+     {
+      "code": "PREVIEW_UNAVAILABLE",
+      "severity": "warn",
+      "message": "Step 1 could not be simulated (simulation RPC error -38014); its numbers are quoted."
+     }
+    ]
+   },
+   {
+    "stepId": "s2",
+    "network": "arbitrum",
+    "kind": "deposit",
+    "status": "simulated-assumed-funds",
+    "at": "2026-10-14T13:50:12.021Z",
+    "block": "514758624",
+    "endpoint": "arbitrum-one-rpc.publicnode.com",
+    "overrides": [
+     {
+      "asset": "eip155:42161/slip44:60",
+      "amount": "9940419642164124"
+     }
+    ],
+    "deltas": [
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-9996639860714436",
+       "formatted": "-0.00999663"
+      },
+      "worst": {
+       "amount": "-9946688003216124",
+       "formatted": "-0.00994668"
+      },
+      "certainty": "simulated-assumed-funds",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+      "asset": "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+      "symbol": "aArbWETH",
+      "decimals": 18,
+      "listed": false,
+      "expected": {
+       "amount": "9990371499662434",
+       "formatted": "+0.00999037"
+      },
+      "worst": {
+       "amount": "9940419642164122",
+       "formatted": "+0.00994041"
+      },
+      "certainty": "estimated",
+      "steps": [
+       "s2"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "kind": "network",
+      "label": "Arbitrum One network fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "6157602864000",
+      "formatted": "0.0000061576",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     },
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "kind": "l1-data",
+      "label": "Arbitrum One L1 data fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "110758188000",
+      "formatted": "0.000000110758",
+      "paid": "on-top",
+      "certainty": "simulated-assumed-funds"
+     }
+    ],
+    "approvals": [
+     {
+      "stepId": "s2",
+      "network": "arbitrum",
+      "token": {
+       "asset": "eip155:42161/erc20:0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+       "symbol": "WETH",
+       "decimals": 18
+      },
+      "spender": "0x794a61358d6845594f94dc1db02a252b5b4814ad",
+      "spenderLabel": "Aave V3 WETH",
+      "amount": "9940419642164124",
+      "formatted": "0.00994041",
+      "leftAfter": "0"
+     }
+    ],
+    "gas": {
+     "used": "307143",
+     "price": "20048000",
+     "l1Fee": "110758188000"
+    },
+    "issues": []
+   }
+  ],
+  "totals": {
+   "youPayUsd": 24.79,
+   "youGetUsd": {
+    "expected": null,
+    "worst": null
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0.02,
+   "venueFeesUsd": 0.02,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": null,
+    "worst": null
+   },
+   "priceDifferenceUsd": null,
+   "unpriced": [
+    "eip155:42161/erc20:0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8"
+   ]
+  },
+  "arrival": {
+   "network": "arbitrum",
+   "seconds": 20
+  },
+  "needs": [
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xde4bd9c9350682d24a10f5a4e4129cc4ba770d5e",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "6268361052000",
+    "formatted": "0.00000626836",
+    "reason": "gas-on-arrival",
+    "have": "0"
+   }
+  ],
+  "warnings": [
+   "Step 2 was simulated with 0.00994041 ETH that Relay delivers to you on Arbitrum One; it will be simulated again before you sign it.",
+   "PREVIEW_GAS_ON_ARRIVAL: you need about 0.00000626836 ETH on Arbitrum One to sign step 2.",
+   "PREVIEW_UNPRICED: no price for 1 asset(s); totals that need them are null."
+  ],
+  "digest": "sha256:d9fd1b5c64842864bb2366fd9288fbc5335ddb9496c7c6e2da3819d209710164"
+ }
+}

@@ -22,11 +22,14 @@ import {
   applySlippage,
   CHAINS,
   formatAssetId,
+  fromBaseUnits,
+  nativeAssetId,
   type IntentStep,
   type NetworkKey,
   type StepEvidence,
   type TransactionRequest,
 } from "@kletia/core";
+import { configureGasReserveReader, type GasReserveFacts } from "../planner.js";
 import { configurePlatform } from "../service.js";
 import { MemoryIntentStore } from "../store.js";
 import { assetAmount, sameAsset, type ResolvedAsset } from "../assets.js";
@@ -128,6 +131,8 @@ export interface StubControls {
   relayEvmTransactions: number;
   /** Fee reported by every planned step, in USD. */
   feeUsd: number;
+  /** Actions the stub Relay prepared, in order (gas top-up, amounts). */
+  relayActions: AdapterAction[];
   calls: { verify: number; poll: number; prepare: number };
 }
 
@@ -159,6 +164,7 @@ function defaultControls(): StubControls {
     tamper: (payload) => payload,
     relayEvmTransactions: 2,
     feeUsd: 0.05,
+    relayActions: [],
     calls: { verify: 0, poll: 0, prepare: 0 },
   };
 }
@@ -198,6 +204,7 @@ function prepared(action: AdapterAction, plan: PlannedStep, transactions: Transa
     ...(plan.feesUsd !== undefined ? { feesUsd: plan.feesUsd } : {}),
     ...(trackingId ? { trackingId, quoteId: trackingId } : {}),
     warnings: [],
+    ...(plan.gasTopup ? { gasTopup: plan.gasTopup } : {}),
   };
   stub.calls.prepare += 1;
   return stub.tamper(payload, action);
@@ -254,19 +261,41 @@ export const stubJupiter: ProtocolAdapter = {
 
 const RELAY_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "solana"];
 
+/** Gas a stub Relay leg delivers when asked for a top-up (0.0002 of the destination's gas asset, about $0.50). */
+export const STUB_GAS_TOPUP_UNITS = "200000000000000";
+
+function stubGasTopup(action: AdapterAction): Pick<PlannedStep, "gasTopup"> {
+  if (action.gasTopupUsd === undefined) return {};
+  const native = CHAINS[action.destinationNetwork].nativeAsset;
+  return {
+    gasTopup: {
+      asset: nativeAssetId(action.destinationNetwork),
+      symbol: native.symbol,
+      decimals: native.decimals,
+      amount: STUB_GAS_TOPUP_UNITS,
+      formatted: fromBaseUnits(STUB_GAS_TOPUP_UNITS, native.decimals),
+      usd: Number(action.gasTopupUsd),
+    },
+  };
+}
+
 export const stubRelay: ProtocolAdapter = {
   id: "relay",
   protocols: ["relay"],
   label: "Stub Relay",
+  supportsGasTopup: (route) => route.network !== route.destinationNetwork && CHAINS[route.destinationNetwork].vm === "evm" &&
+    RELAY_NETWORKS.includes(route.destinationNetwork) && !route.output.isNative,
   supports: (route) => RELAY_NETWORKS.includes(route.network) && RELAY_NETWORKS.includes(route.destinationNetwork) &&
     (route.kind === "bridge" ? route.network !== route.destinationNetwork
       : route.kind === "swap" && route.network === route.destinationNetwork && route.network !== "solana" && !sameAsset(route.input, route.output)),
   plan: async (action) => planned(action, "relay", action.output, rate(action), {
     quoteId: randomRequestId(),
     transactionCount: action.network === "solana" ? 1 : stub.relayEvmTransactions,
+    ...stubGasTopup(action),
   }),
   prepare: async ({ action }) => {
-    const plan = planned(action, "relay", action.output, rate(action));
+    stub.relayActions.push(action);
+    const plan = planned(action, "relay", action.output, rate(action), stubGasTopup(action));
     const requestId = randomRequestId();
     if (action.network === "solana") {
       return prepared(action, plan, [solanaPayload(action, RELAY_SOLANA_PROGRAM)], [RELAY_SOLANA_PROGRAM], action.network !== action.destinationNetwork ? requestId : undefined);
@@ -338,9 +367,19 @@ export const stubAave: ProtocolAdapter = {
 export const STUB_ADAPTERS: readonly ProtocolAdapter[] = [stubJupiter, stubSolanaTransfer, stubEvmTransfer, stubRelay, stubAave];
 
 /** Fresh in-memory store, stub adapters and default scripted outcomes. */
+/** Gas facts of the F6 reserve in engine tests: a funded account (no reserve) unless a test says otherwise. */
+export const FUNDED_GAS_FACTS: GasReserveFacts = Object.freeze({
+  balance: 10n ** 24n,
+  gasPriceWei: 1_000_000_000n,
+  walletRentLamports: 890_880n,
+  tokenAccountRentLamports: 2_039_280n,
+});
+
 export function resetEngine(): MemoryIntentStore {
   Object.assign(stub, defaultControls());
   const store = new MemoryIntentStore();
   configurePlatform({ store, adapters: STUB_ADAPTERS });
+  // Never read the chain while planning in tests; journeyPlanner sets an empty account to see the reserve.
+  configureGasReserveReader(async () => FUNDED_GAS_FACTS);
   return store;
 }

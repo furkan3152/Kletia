@@ -129,3 +129,31 @@ export function scaleFloor(minimum: bigint, flow: FundedFlow | null): bigint {
   if (!flow || flow.encoded === 0n || flow.spends.worst >= flow.encoded) return minimum;
   return (minimum * flow.spends.worst) / flow.encoded;
 }
+
+/** F6: a planned gas reserve may take at most this share of what the step's share of the floor is (else AMOUNT_TOO_SMALL). */
+export const GAS_RESERVE_MAX_SHARE_BPS = 2_500;
+
+/** Rounds a non-negative integer up to `digits` significant digits (4,458 -> 4,500 with two). */
+export function ceilSignificant(value: bigint, digits = 2): bigint {
+  if (value <= 0n) return 0n;
+  const width = value.toString().length;
+  if (width <= digits) return value;
+  const unit = 10n ** BigInt(width - digits);
+  return ((value + unit - 1n) / unit) * unit;
+}
+
+/**
+ * F6: the gas reserve a funded step keeps from a gas-asset input when the
+ * account holds too little gas on that network: two times the estimated
+ * fees of the step and the later wallet steps there, plus `extra` (Solana:
+ * the rent-exempt minimum of an empty wallet), rounded up to two
+ * significant digits.
+ */
+export function gasReserveUnits(fees: bigint, extra = 0n): bigint {
+  return ceilSignificant(2n * (fees < 0n ? 0n : fees) + (extra < 0n ? 0n : extra));
+}
+
+/** True when `reserve` takes GAS_RESERVE_MAX_SHARE_BPS or more of `share` (what arrives would mostly pay network fees). */
+export function reserveTooLarge(reserve: bigint, share: bigint): boolean {
+  return reserve > 0n && reserve * 10_000n >= share * BigInt(GAS_RESERVE_MAX_SHARE_BPS);
+}

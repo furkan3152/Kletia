@@ -1,8 +1,13 @@
 /**
  * Aave V3 supply and withdraw on every reserve the registry pins
  * (YIELD_VENUES kind "aave-reserve": Base, Arbitrum One, Ethereum, OP
- * Mainnet, Polygon). The Pool, data provider and aToken come from the
- * planner-resolved venue; on-chain reads only confirm them.
+ * Mainnet, Polygon), and the same Pool interface for Aave V3 forks
+ * (`createAaveFamilyAdapter`: SparkLend on Ethereum). Each family member
+ * keeps its own protocol id, venues, labels and Pool pin; a venue of one
+ * protocol never executes under another. The Pool, data provider and aToken
+ * come from the planner-resolved venue; on-chain reads only confirm them
+ * (and, for a fork with a pinned PoolAddressesProvider, the provider must
+ * report the same Pool and data provider).
  *
  * - Supply: native ETH is wrapped into the pinned WETH first; an exact
  *   approval of the Pool when the allowance is short; then
@@ -16,6 +21,8 @@
  * - Verify: the Pool Supply / Withdraw event bound to the landed calldata,
  *   the aToken mint and the underlying transfer (never the receipt status
  *   alone); the observed amount becomes the step's actual output.
+ * - Journey facts: `positionOf` (aToken balance, withdrawable now) and
+ *   `venueCapacity` (supply cap headroom, exit liquidity, pause / freeze).
  */
 import { decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, parseAbi, zeroAddress, type Address, type Hex } from "viem";
 import {
@@ -24,11 +31,16 @@ import {
   formatAmount,
   fromBaseUnits,
   nativeAssetId,
+  venueContracts,
   yieldVenuesFor,
   type AaveReserveVenue,
   type EvmTransactionRequest,
   type IntentStep,
   type NetworkKey,
+  type ParsedAccountId,
+  type VenueCapacity,
+  type VenuePosition,
+  type YieldVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, type ResolvedAsset } from "../assets.js";
@@ -56,11 +68,13 @@ import {
   payloadRecords,
   plannedAllowance,
   ratio,
+  receiptAmount,
   receiptAsset,
   sameAddress,
   SECONDS_PER_YEAR,
   simulate,
   SIMULATION_UNAVAILABLE,
+  smaller,
   stepVenue,
   supportsLending,
   tokenSymbol,
@@ -95,6 +109,11 @@ export const POOL_ABI = parseAbi([
   "error SupplyCapExceeded()",
   "error HealthFactorLowerThanLiquidationThreshold()",
   "error WithdrawToAToken()",
+]);
+/** PoolAddressesProvider reads that tie a fork's Pool and data provider to its pinned provider. */
+export const ADDRESSES_PROVIDER_ABI = parseAbi([
+  "function getPool() view returns (address)",
+  "function getPoolDataProvider() view returns (address)",
 ]);
 export const DATA_PROVIDER_ABI = parseAbi([
   "function getReserveTokensAddresses(address asset) view returns (address aTokenAddress,address stableDebtTokenAddress,address variableDebtTokenAddress)",
@@ -133,6 +152,17 @@ function reservesNetworks(): NetworkKey[] {
 }
 
 type AaveContext = LendingContext<AaveReserveVenue>;
+/** What the read-only paths (metrics, positions, capacity) know about a reserve. */
+type ReserveRef = Pick<AaveContext, "venue" | "network" | "token" | "underlying">;
+
+/** Aave V3 and its forks: protocol id, display name and the name of its Pool in proofs. */
+export interface AaveFamily {
+  readonly protocol: "aave-v3" | "sparklend";
+  readonly label: string;
+  readonly pool: string;
+}
+
+const AAVE: AaveFamily = { protocol: "aave-v3", label: "Aave V3", pool: "Aave Pool" };
 
 interface ReserveState {
   readonly liquidityRate: bigint;
@@ -157,6 +187,7 @@ async function readReserve(context: Pick<AaveContext, "venue" | "network" | "tok
   ]));
   assertPinned(tokens[0], venue.receipt.address, "aToken (data provider)", venue);
   assertPinned(data.aTokenAddress, venue.receipt.address, "aToken (pool)", venue);
+  await assertAddressesProvider(context);
   if (config[0] !== BigInt(context.underlying.decimals)) {
     throw new PlatformError("VENUE_UNVERIFIED", `${venue.name} reports ${config[0]} decimals, not ${context.underlying.decimals}.`, 422);
   }
@@ -168,6 +199,23 @@ async function readReserve(context: Pick<AaveContext, "venue" | "network" | "tok
     frozen: config[9],
     paused,
   };
+}
+
+/**
+ * A fork whose PoolAddressesProvider is pinned (SparkLend) must have the
+ * provider report the venue's Pool and data provider. Aave V3 reserves pin
+ * the Pool directly and are not re-read here.
+ */
+async function assertAddressesProvider(context: Pick<ReserveRef, "venue" | "network">): Promise<void> {
+  const [provider] = venueContracts(context.venue.protocol, context.network, "addresses-provider");
+  if (!provider) return;
+  const client = evmClient(context.network);
+  const [pool, dataProvider] = await withTimeout(Promise.all([
+    client.readContract({ address: getAddress(provider), abi: ADDRESSES_PROVIDER_ABI, functionName: "getPool" }),
+    client.readContract({ address: getAddress(provider), abi: ADDRESSES_PROVIDER_ABI, functionName: "getPoolDataProvider" }),
+  ]));
+  assertPinned(pool, context.venue.target, "Pool (addresses provider)", context.venue);
+  assertPinned(dataProvider, context.venue.dataProvider, "data provider (addresses provider)", context.venue);
 }
 
 /** Supply needs an active, unpaused, unfrozen reserve; withdrawals only active and unpaused. */
@@ -197,7 +245,7 @@ async function exitLiquidity(context: Pick<AaveContext, "venue" | "network" | "t
   );
 }
 
-async function aTokenBalance(context: AaveContext): Promise<bigint> {
+async function aTokenBalance(context: Pick<AaveContext, "venue" | "network" | "owner">): Promise<bigint> {
   return withTimeout(evmClient(context.network).readContract({
     address: getAddress(context.venue.receipt.address),
     abi: erc20Abi,
@@ -206,15 +254,20 @@ async function aTokenBalance(context: AaveContext): Promise<bigint> {
   }));
 }
 
-async function assertSupplyCap(context: AaveContext, amount: bigint, state: ReserveState): Promise<void> {
+/** Supply cap in underlying base units (null: no cap) and what already counts against it. */
+async function supplyCap(context: ReserveRef, state: ReserveState): Promise<{ readonly cap: bigint | null; readonly used: bigint }> {
   const client = evmClient(context.network);
   const [caps, supply] = await withTimeout(Promise.all([
     client.readContract({ address: getAddress(context.venue.dataProvider), abi: DATA_PROVIDER_ABI, functionName: "getReserveCaps", args: [context.token] }),
     client.readContract({ address: getAddress(context.venue.receipt.address), abi: erc20Abi, functionName: "totalSupply" }),
   ]));
-  const cap = caps[1] * 10n ** BigInt(context.underlying.decimals);
   const treasury = (state.accruedToTreasury * state.liquidityIndex) / RAY;
-  if (caps[1] > 0n && supply + treasury + amount > cap) {
+  return { cap: caps[1] > 0n ? caps[1] * 10n ** BigInt(context.underlying.decimals) : null, used: supply + treasury };
+}
+
+async function assertSupplyCap(context: AaveContext, amount: bigint, state: ReserveState): Promise<void> {
+  const { cap, used } = await supplyCap(context, state);
+  if (cap !== null && used + amount > cap) {
     throw new PlatformError(
       "RESERVE_UNAVAILABLE",
       `${context.venue.name} is at its supply cap (${formatUnits(cap, context.underlying.decimals, context.underlying.symbol)}); ${formatUnits(amount, context.underlying.decimals, context.underlying.symbol)} does not fit.`,
@@ -223,12 +276,12 @@ async function assertSupplyCap(context: AaveContext, amount: bigint, state: Rese
   }
 }
 
-function title(context: AaveContext, amount: bigint, symbol: string, close: boolean): string {
+function title(family: AaveFamily, context: AaveContext, amount: bigint, symbol: string, close: boolean): string {
   const chain = CHAINS[context.network].name;
   const what = close ? `all ${symbol}` : `${formatAmount(fromBaseUnits(amount, context.underlying.decimals))} ${symbol}`;
   return context.kind === "deposit"
-    ? `Supply ${what} to Aave V3 on ${chain}`
-    : `Withdraw ${what} from Aave V3 on ${chain}`;
+    ? `Supply ${what} to ${family.label} on ${chain}`
+    : `Withdraw ${what} from ${family.label} on ${chain}`;
 }
 
 interface Quote {
@@ -242,7 +295,7 @@ interface Quote {
   readonly warnings: string[];
 }
 
-async function supplyQuote(action: AdapterAction, context: AaveContext, stage: "plan" | "prepare"): Promise<Quote> {
+async function supplyQuote(family: AaveFamily, action: AdapterAction, context: AaveContext, stage: "plan" | "prepare"): Promise<Quote> {
   const { venue, network, owner, token } = context;
   const amount = BigInt(action.amount);
   if (amount <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", "Nothing to supply.", 422);
@@ -268,7 +321,7 @@ async function supplyQuote(action: AdapterAction, context: AaveContext, stage: "
     if (simulation.status === "unavailable") warnings.push(SIMULATION_UNAVAILABLE);
     gas = await callGas(network, request, SUPPLY_GAS);
   }
-  transactions.push(evmCall(context, venue.target, data, 0n, gas, title(context, amount, context.underlying.symbol, false)));
+  transactions.push(evmCall(context, venue.target, data, 0n, gas, title(family, context, amount, context.underlying.symbol, false)));
   const symbol = await tokenSymbol(network, venue.receipt.address, `a${context.underlying.symbol}`);
   return {
     transactions,
@@ -276,13 +329,13 @@ async function supplyQuote(action: AdapterAction, context: AaveContext, stage: "
     expected: amount,
     // The aToken mint rounds the scaled amount down (credits amount - 1 wei).
     minimum: lessRounding(amount),
-    output: receiptAsset(network, venue.receipt, symbol, `Aave ${context.underlying.symbol}`),
+    output: receiptAsset(network, venue.receipt, symbol, `${family === AAVE ? "Aave" : family.label} ${context.underlying.symbol}`),
     gas: SUPPLY_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n),
     warnings: [...warnings, ...(stage === "plan" ? apyNote({ supplyApy: reserveApy(state), apySource: "rate" }) : [])],
   };
 }
 
-async function withdrawQuote(action: AdapterAction, context: AaveContext): Promise<Quote> {
+async function withdrawQuote(family: AaveFamily, action: AdapterAction, context: AaveContext): Promise<Quote> {
   const { venue, network, owner, token } = context;
   await openReserve(context);
   const client = evmClient(network);
@@ -293,21 +346,21 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   ]);
   const symbol = context.underlying.symbol;
   if (position === 0n) {
-    throw new PlatformError("POSITION_EMPTY", `The account has no ${symbol} supplied to Aave V3 on ${CHAINS[network].name}.`, 422);
+    throw new PlatformError("POSITION_EMPTY", `The account has no ${symbol} supplied to ${family.label} on ${CHAINS[network].name}.`, 422);
   }
   const requested = action.closePosition ? position : BigInt(action.amount);
   if (requested <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", "Nothing to withdraw.", 422);
   if (requested > position) {
     throw new PlatformError(
       "INSUFFICIENT_BALANCE",
-      `The account has ${formatUnits(position, context.underlying.decimals, symbol)} supplied to Aave V3 on ${CHAINS[network].name}; ${formatUnits(requested, context.underlying.decimals, symbol)} was requested.`,
+      `The account has ${formatUnits(position, context.underlying.decimals, symbol)} supplied to ${family.label} on ${CHAINS[network].name}; ${formatUnits(requested, context.underlying.decimals, symbol)} was requested.`,
       422,
     );
   }
   if (liquidity < requested) {
     throw new PlatformError(
       "VENUE_ILLIQUID",
-      `Aave V3 ${symbol} on ${CHAINS[network].name} can pay out ${formatUnits(liquidity, context.underlying.decimals, symbol)} right now (borrowers hold the rest); ${formatUnits(requested, context.underlying.decimals, symbol)} cannot be withdrawn yet.`,
+      `${family.label} ${symbol} on ${CHAINS[network].name} can pay out ${formatUnits(liquidity, context.underlying.decimals, symbol)} right now (borrowers hold the rest); ${formatUnits(requested, context.underlying.decimals, symbol)} cannot be withdrawn yet.`,
       422,
     );
   }
@@ -319,12 +372,12 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   assertSimulation(simulation, `withdrawal from ${venue.name}`);
   const warnings = simulation.status === "unavailable" ? [SIMULATION_UNAVAILABLE] : [];
   if (account && account[1] > 0n) {
-    warnings.push("The account has an open Aave borrow; the withdrawal lowers its health factor (it was simulated against it).");
+    warnings.push(`The account has an open ${family === AAVE ? "Aave" : family.label} borrow; the withdrawal lowers its health factor (it was simulated against it).`);
   }
   const gas = simulation.status === "ok" ? await callGas(network, request, WITHDRAW_GAS) : WITHDRAW_GAS.toString();
   // A close credits at least the position read now (interest only adds); rounding may shave a wei.
   const minimum = close ? lessRounding(requested) : requested;
-  const transactions = [evmCall(context, venue.target, data, 0n, gas, title(context, requested, symbol, action.closePosition === true))];
+  const transactions = [evmCall(context, venue.target, data, 0n, gas, title(family, context, requested, symbol, action.closePosition === true))];
   if (context.native) {
     transactions.push(unwrapTransaction(context, minimum));
     if (close) warnings.push("Interest accrued after preparing stays in the account as WETH.");
@@ -340,18 +393,18 @@ async function withdrawQuote(action: AdapterAction, context: AaveContext): Promi
   };
 }
 
-async function quote(action: AdapterAction, stage: "plan" | "prepare"): Promise<{ context: AaveContext; quote: Quote }> {
-  const context = lendingContext(action, "aave-reserve", "aave-v3");
-  const result = context.kind === "deposit" ? await supplyQuote(action, context, stage) : await withdrawQuote(action, context);
+async function quote(family: AaveFamily, action: AdapterAction, stage: "plan" | "prepare"): Promise<{ context: AaveContext; quote: Quote }> {
+  const context = lendingContext(action, "aave-reserve", family.protocol);
+  const result = context.kind === "deposit" ? await supplyQuote(family, action, context, stage) : await withdrawQuote(family, action, context);
   return { context, quote: result };
 }
 
 /* ------------------------------------------------------------ verification */
 
-function proveSupply(step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
+function proveSupply(family: AaveFamily, step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
-  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the Aave Pool." });
+  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `No landed transaction called the ${family.pool}.` });
   const decoded = decodeFunctionData({ abi: POOL_ABI, data: call.input as Hex });
   if (decoded.functionName !== "supply" || !sameAddress(decoded.args[0], underlying) || !sameAddress(decoded.args[2], account)) {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The Pool call is not a supply of the venue's asset for the step account." });
@@ -369,14 +422,14 @@ function proveSupply(step: IntentStep, venue: AaveReserveVenue, underlying: Addr
   const receipt = step.minimumOutput as NonNullable<IntentStep["minimumOutput"]>;
   return {
     actualOutput: observed(receipt, amount),
-    evidence: [eventEvidence(step, call, observedAt, `Aave Pool Supply: ${formatUnits(amount, receipt.decimals, step.input?.symbol ?? "")} credited to ${account} (${receipt.symbol} minted).`)],
+    evidence: [eventEvidence(step, call, observedAt, `${family.pool} Supply: ${formatUnits(amount, receipt.decimals, step.input?.symbol ?? "")} credited to ${account} (${receipt.symbol} minted).`)],
   };
 }
 
-function proveWithdraw(step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
+function proveWithdraw(family: AaveFamily, step: IntentStep, venue: AaveReserveVenue, underlying: Address, receipts: readonly LandedEvmReceipt[], observedAt: string): EvmOutcome {
   const account = stepOwner(step);
   const call = landedCall(receipts, venue.target);
-  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "No landed transaction called the Aave Pool." });
+  if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `No landed transaction called the ${family.pool}.` });
   const decoded = decodeFunctionData({ abi: POOL_ABI, data: call.input as Hex });
   if (decoded.functionName !== "withdraw" || !sameAddress(decoded.args[0], underlying) || !sameAddress(decoded.args[2], account)) {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The Pool call is not a withdrawal of the venue's asset to the step account." });
@@ -401,18 +454,23 @@ function proveWithdraw(step: IntentStep, venue: AaveReserveVenue, underlying: Ad
   if (received === null) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The ETH withdrawal landed without its unwrap transaction." });
   return {
     actualOutput: observed(output, received),
-    evidence: [eventEvidence(step, call, observedAt, `Aave Pool Withdraw: ${formatUnits(amount, output.decimals, output.symbol)} paid to ${account}.`)],
+    evidence: [eventEvidence(step, call, observedAt, `${family.pool} Withdraw: ${formatUnits(amount, output.decimals, output.symbol)} paid to ${account}.`)],
   };
 }
 
 /* ----------------------------------------------------------------- metrics */
 
-/** Supply APY, aToken supply (TVL), withdraw liquidity and utilisation of an Aave reserve. */
-export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetrics> {
+function reserveRef(venue: AaveReserveVenue): ReserveRef {
   const network = venue.network as EvmNetworkKey;
   const underlying = findAssetBySymbol(network, venue.asset);
   if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
-  const context = { venue, network, token: getAddress(underlying.address), underlying };
+  return { venue, network, token: getAddress(underlying.address), underlying };
+}
+
+/** Supply APY, aToken supply (TVL), withdraw liquidity and utilisation of an Aave-family reserve. */
+export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetrics> {
+  const context = reserveRef(venue);
+  const { network } = context;
   const [state, supplied, liquidity] = await Promise.all([
     readReserve(context),
     withTimeout(evmClient(network).readContract({ address: getAddress(venue.receipt.address), abi: erc20Abi, functionName: "totalSupply" })),
@@ -439,61 +497,130 @@ export async function aaveMetrics(venue: AaveReserveVenue): Promise<LendingMetri
   };
 }
 
-export const aaveV3Adapter: ProtocolAdapter = {
-  id: "aave-v3",
-  protocols: ["aave-v3"],
-  label: "Aave V3",
+/* --------------------------------------------------------- journey facts */
 
-  supports(route) {
-    return supportsLending(route, "aave-v3", "aave-reserve", { deposit: true, withdraw: true });
-  },
+function familyVenue(family: AaveFamily, venue: YieldVenue): AaveReserveVenue {
+  if (venue.kind !== "aave-reserve" || venue.protocol !== family.protocol) {
+    throw new PlatformError("VENUE_INVALID", `${venue.name} is not one of the ${family.label} reserves.`, 500);
+  }
+  return venue;
+}
 
-  async plan(action): Promise<PlannedStep> {
-    const { context, quote: planned } = await quote(action, "plan");
-    const fees = await estimateEvmFeeUsd(context.network, planned.gas);
-    return {
-      protocol: "aave-v3",
-      title: title(context, planned.input, action.input.symbol, action.closePosition === true),
-      mode: "wallet",
-      input: assetAmount(action.input, planned.input.toString()),
-      expectedOutput: assetAmount(planned.output, planned.expected.toString()),
-      minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      estimatedSeconds: 10 * planned.transactions.length,
-      settlement: { kind: "same-network" },
-      warnings: planned.warnings,
-      transactionCount: planned.transactions.length,
-      slippageBps: action.slippageBps,
-      // The plan already encodes the payload (no provider involved): the preview simulates it.
-      preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
-    };
-  },
+/** The owner's aToken balance at the reserve (1:1 with the underlying) and what can leave now. */
+async function reservePosition(family: AaveFamily, venue: AaveReserveVenue, owner: ParsedAccountId): Promise<VenuePosition | null> {
+  const context = reserveRef(venue);
+  const [state, balance, liquidity] = await Promise.all([
+    readReserve(context),
+    aTokenBalance({ ...context, owner: getAddress(owner.address) }),
+    exitLiquidity(context),
+  ]);
+  if (balance === 0n) return null;
+  const symbol = await tokenSymbol(context.network, venue.receipt.address, `a${context.underlying.symbol}`);
+  const open = state.active && !state.paused;
+  return {
+    venue: venue.id,
+    network: context.network,
+    protocol: family.protocol,
+    name: venue.name,
+    receipt: receiptAmount(context.network, venue.receipt, symbol, balance),
+    underlying: underlyingAmount(context, balance),
+    rate: null,
+    usd: null,
+    apy: reserveApy(state),
+    withdrawableNow: underlyingAmount(context, open ? smaller(balance, liquidity) : 0n),
+    observedAt: new Date().toISOString(),
+  };
+}
 
-  async prepare({ action }): Promise<PreparedPayload> {
-    const { context, quote: prepared } = await quote(action, "prepare");
-    const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
-    return {
-      transactions: prepared.transactions,
-      records: payloadRecords(context.network, prepared.transactions),
-      input: assetAmount(action.input, prepared.input.toString()),
-      expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
-      minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
-      ...(fees !== undefined ? { feesUsd: fees } : {}),
-      warnings: prepared.warnings,
-    };
-  },
+/** Supply cap headroom, exit liquidity and the pause / freeze flags of a reserve. */
+async function reserveCapacity(family: AaveFamily, venue: AaveReserveVenue): Promise<VenueCapacity> {
+  const context = reserveRef(venue);
+  const [state, liquidity] = await Promise.all([readReserve(context), exitLiquidity(context)]);
+  const { cap, used } = await supplyCap(context, state);
+  return {
+    venue: venue.id,
+    capRemaining: cap === null ? null : (cap > used ? cap - used : 0n).toString(),
+    exitLiquidity: liquidity.toString(),
+    paused: state.paused || !state.active,
+    frozen: state.frozen,
+    shareRate: null,
+    observedAt: new Date().toISOString(),
+  };
+}
 
-  async verify(context) {
-    const venue = stepVenue(context.step, "aave-reserve");
-    const underlying = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
-    if (!venue || !underlying || !context.step.minimumOutput) {
-      return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The step has no Aave V3 registry venue or output." } };
-    }
-    const observedAt = new Date(context.now).toISOString();
-    const { result } = await verifyEvmReceipts(context, (receipts) =>
-      context.step.kind === "withdraw"
-        ? proveWithdraw(context.step, venue, getAddress(underlying), receipts, observedAt)
-        : proveSupply(context.step, venue, getAddress(underlying), receipts, observedAt));
-    return result;
-  },
-};
+/**
+ * An adapter for Aave V3 or one of its forks: the same Pool calls, checks
+ * and proofs, bound to the family's protocol id (its venues only, its own
+ * labels in titles and evidence).
+ */
+export function createAaveFamilyAdapter(protocol: AaveFamily["protocol"], label: string): ProtocolAdapter {
+  const family: AaveFamily = protocol === "aave-v3" ? AAVE : { protocol, label, pool: `${label} Pool` };
+  return {
+    id: protocol,
+    protocols: [protocol],
+    label,
+
+    supports(route) {
+      return supportsLending(route, protocol, "aave-reserve", { deposit: true, withdraw: true });
+    },
+
+    async plan(action): Promise<PlannedStep> {
+      const { context, quote: planned } = await quote(family, action, "plan");
+      const fees = await estimateEvmFeeUsd(context.network, planned.gas);
+      return {
+        protocol,
+        title: title(family, context, planned.input, action.input.symbol, action.closePosition === true),
+        mode: "wallet",
+        input: assetAmount(action.input, planned.input.toString()),
+        expectedOutput: assetAmount(planned.output, planned.expected.toString()),
+        minimumOutput: assetAmount(planned.output, planned.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        estimatedSeconds: 10 * planned.transactions.length,
+        settlement: { kind: "same-network" },
+        warnings: planned.warnings,
+        transactionCount: planned.transactions.length,
+        slippageBps: action.slippageBps,
+        // The plan already encodes the payload (no provider involved): the preview simulates it.
+        preview: { transactions: planned.transactions, approvalSpender: context.venue.spender, expiresAt: Math.floor(Date.now() / 1000) + LENDING_PREVIEW_TTL_SECONDS },
+      };
+    },
+
+    async prepare({ action }): Promise<PreparedPayload> {
+      const { context, quote: prepared } = await quote(family, action, "prepare");
+      const fees = await estimateEvmFeeUsd(context.network, prepared.gas);
+      return {
+        transactions: prepared.transactions,
+        records: payloadRecords(context.network, prepared.transactions),
+        input: assetAmount(action.input, prepared.input.toString()),
+        expectedOutput: assetAmount(prepared.output, prepared.expected.toString()),
+        minimumOutput: assetAmount(prepared.output, prepared.minimum.toString()),
+        ...(fees !== undefined ? { feesUsd: fees } : {}),
+        warnings: prepared.warnings,
+      };
+    },
+
+    async verify(context) {
+      const venue = stepVenue(context.step, "aave-reserve");
+      const underlying = venue ? findAssetBySymbol(venue.network, venue.asset)?.address : null;
+      if (!venue || venue.protocol !== protocol || !underlying || !context.step.minimumOutput) {
+        return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: `The step has no ${label} registry venue or output.` } };
+      }
+      const observedAt = new Date(context.now).toISOString();
+      const { result } = await verifyEvmReceipts(context, (receipts) =>
+        context.step.kind === "withdraw"
+          ? proveWithdraw(family, context.step, venue, getAddress(underlying), receipts, observedAt)
+          : proveSupply(family, context.step, venue, getAddress(underlying), receipts, observedAt));
+      return result;
+    },
+
+    async positionOf(venue, owner) {
+      return reservePosition(family, familyVenue(family, venue), owner);
+    },
+
+    async venueCapacity(venue) {
+      return reserveCapacity(family, familyVenue(family, venue));
+    },
+  };
+}
+
+export const aaveV3Adapter: ProtocolAdapter = createAaveFamilyAdapter("aave-v3", "Aave V3");

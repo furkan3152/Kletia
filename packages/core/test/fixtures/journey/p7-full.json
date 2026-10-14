@@ -1,0 +1,372 @@
+{
+ "source": "journey-scratch/probes/plan-2.json #4 (live, 2026-10-14)",
+ "text": "bridge 0.01 ETH from arbitrum to solana as SOL then stake it with jito",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_1fd80741c82a4ec3b904f864611fec88",
+  "createdAt": "2026-10-14T13:35:17.796Z",
+  "updatedAt": "2026-10-14T13:35:17.796Z",
+  "expiresAt": "2026-10-14T14:05:17.796Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 0.01 ETH from arbitrum to solana as SOL then stake it with jito",
+   "accounts": [
+    "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 0.01 ETH from arbitrum to solana as SOL, then stake it with jito",
+   "confidence": 0.95,
+   "optimizations": [
+    "Merged bridge (action 1) and stake on Solana (action 2) into one Relay cross-network swap into JitoSOL; saves a signature and a settlement wait."
+   ]
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 0.01 ETH from Arbitrum One to Solana as JitoSOL",
+    "network": "arbitrum",
+    "chain": "eip155:42161",
+    "account": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "protocol": "relay",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "10000000000000000",
+     "formatted": "0.01",
+     "usd": 24.78
+    },
+    "expectedOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "176872438",
+     "formatted": "0.176872438",
+     "usd": 24.39
+    },
+    "minimumOutput": {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "175988077",
+     "formatted": "0.175988077",
+     "usd": 24.27
+    },
+    "recipient": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "solana",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.1061,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "arbitrum",
+      "observedAt": "2026-10-14T13:35:17.796Z",
+      "reference": "0x1791984918c795a238cafc89a1a175b9626f398d63c73149007d2e889958dee7",
+      "detail": "Quoted by Relay. Selected over 1 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "arbitrum",
+      "observedAt": "2026-10-14T13:35:17.796Z",
+      "detail": "deBridge DLN could not quote (PROVIDER_TRANSACTION_INVALID)."
+     }
+    ],
+    "warnings": [
+     "Fees and price impact total 1.58% of the amount."
+    ]
+   }
+  ],
+  "edges": [],
+  "summary": {
+   "title": "Bridge 0.01 ETH from Arbitrum One to Solana as JitoSOL",
+   "networks": [
+    "arbitrum",
+    "solana"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "10000000000000000",
+     "formatted": "0.01",
+     "usd": 24.78
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+     "symbol": "JitoSOL",
+     "decimals": 9,
+     "amount": "176872438",
+     "formatted": "0.176872438",
+     "usd": 24.39
+    }
+   ],
+   "totalFeesUsd": 0.1061,
+   "estimatedSeconds": 20,
+   "signaturesRequired": 1,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_1fd80741c82a4ec3b904f864611fec88",
+  "computedAt": "2026-10-14T13:35:19.508Z",
+  "stage": "plan",
+  "basis": "simulated",
+  "rows": [
+   {
+    "network": "arbitrum",
+    "account": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:42161/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-10000545426032000",
+     "formatted": "-0.0100005",
+     "usd": -24.777569
+    },
+    "worst": {
+     "amount": "-10000545426032000",
+     "formatted": "-0.0100005",
+     "usd": -24.777569
+    },
+    "certainty": "simulated",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "solana",
+    "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+    "symbol": "JitoSOL",
+    "decimals": 9,
+    "listed": true,
+    "expected": {
+     "amount": "176872438",
+     "formatted": "+0.176872",
+     "usd": 24.442699
+    },
+    "worst": {
+     "amount": "175988077",
+     "formatted": "+0.175988",
+     "usd": 24.320486
+    },
+    "certainty": "venue-minimum",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   }
+  ],
+  "payments": [],
+  "fees": [
+   {
+    "stepId": "s1",
+    "network": "arbitrum",
+    "kind": "network",
+    "label": "Arbitrum One network fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "496728240000",
+    "formatted": "0.000000496728",
+    "paid": "on-top",
+    "certainty": "simulated",
+    "usd": 0.001231
+   },
+   {
+    "stepId": "s1",
+    "network": "arbitrum",
+    "kind": "l1-data",
+    "label": "Arbitrum One L1 data fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "48697792000",
+    "formatted": "0.0000000486977",
+    "paid": "on-top",
+    "certainty": "simulated",
+    "usd": 0.000121
+   },
+   {
+    "kind": "venue",
+    "label": "Relay relayer fee",
+    "asset": {
+     "asset": "eip155:42161/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "42025700112059",
+    "formatted": "0.000042025700112059",
+    "usd": 0.104124,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "arbitrum"
+   }
+  ],
+  "approvals": [],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "arbitrum",
+    "kind": "bridge",
+    "status": "simulated",
+    "at": "2026-10-14T13:35:19.920Z",
+    "block": "514755163",
+    "endpoint": "arbitrum-one-rpc.publicnode.com",
+    "deltas": [
+     {
+      "network": "arbitrum",
+      "account": "eip155:42161:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:42161/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-10000545426032000",
+       "formatted": "-0.0100005"
+      },
+      "worst": {
+       "amount": "-10000545426032000",
+       "formatted": "-0.0100005"
+      },
+      "certainty": "simulated",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "solana",
+      "account": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "asset": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+      "symbol": "JitoSOL",
+      "decimals": 9,
+      "listed": true,
+      "expected": {
+       "amount": "176872438",
+       "formatted": "+0.176872"
+      },
+      "worst": {
+       "amount": "175988077",
+       "formatted": "+0.175988"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "stepId": "s1",
+      "network": "arbitrum",
+      "kind": "network",
+      "label": "Arbitrum One network fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "496728240000",
+      "formatted": "0.000000496728",
+      "paid": "on-top",
+      "certainty": "simulated"
+     },
+     {
+      "stepId": "s1",
+      "network": "arbitrum",
+      "kind": "l1-data",
+      "label": "Arbitrum One L1 data fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "48697792000",
+      "formatted": "0.0000000486977",
+      "paid": "on-top",
+      "certainty": "simulated"
+     },
+     {
+      "kind": "venue",
+      "label": "Relay relayer fee",
+      "asset": {
+       "asset": "eip155:42161/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "42025700112059",
+      "formatted": "0.000042025700112059",
+      "usd": 0.104133,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "arbitrum"
+     }
+    ],
+    "approvals": [],
+    "gas": {
+     "used": "24824",
+     "price": "20010000",
+     "l1Fee": "48697792000"
+    },
+    "issues": []
+   }
+  ],
+  "totals": {
+   "youPayUsd": 24.78,
+   "youGetUsd": {
+    "expected": 24.44,
+    "worst": 24.32
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0,
+   "venueFeesUsd": 0.1,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": 0.33,
+    "worst": 0.46
+   },
+   "priceDifferenceUsd": 0.23,
+   "unpriced": []
+  },
+  "arrival": {
+   "network": "solana",
+   "seconds": 20
+  },
+  "needs": [],
+  "warnings": [],
+  "digest": "sha256:db7f7d8d77105ebe2ed5a6136ce3ca93464ea6d5ea7400f3c4aa6a09cc11a57a"
+ }
+}

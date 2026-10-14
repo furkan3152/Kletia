@@ -16,6 +16,9 @@
  *   `Transfer(0 -> dst)` (a supply that only repaid debt mints nothing:
  *   SUPPLY_REPAID_DEBT); `Withdraw(src, to, amount)` plus the burn
  *   `Transfer(src -> 0)` and the base-token transfer.
+ * - Journey facts: `positionOf` reads the account's Comet balance (1:1 with
+ *   the base asset, interest included) and `venueCapacity` the pause flags and
+ *   the cash that can leave (Comet has no supply cap on the base asset).
  */
 import { decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, parseAbi, zeroAddress, type Hex } from "viem";
 import {
@@ -24,9 +27,14 @@ import {
   formatAmount,
   fromBaseUnits,
   nativeAssetId,
+  type AssetAmount,
   type CometVenue,
   type EvmTransactionRequest,
   type IntentStep,
+  type ParsedAccountId,
+  type VenueCapacity,
+  type VenuePosition,
+  type YieldVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
 import { assetAmount, type ResolvedAsset } from "../../assets.js";
@@ -385,6 +393,69 @@ export async function compoundMetrics(venue: CometVenue): Promise<LendingMetrics
   };
 }
 
+/* ---------------------------------------------------------- journey facts */
+
+function cometParts(venue: YieldVenue): { venue: CometVenue; network: EvmNetworkKey; token: `0x${string}`; underlying: NonNullable<ReturnType<typeof findAssetBySymbol>> } {
+  if (venue.kind !== "comet" || venue.protocol !== "compound-v3") throw new PlatformError("VENUE_INVALID", `${venue.name} is not a Compound V3 Comet.`, 500);
+  const network = venue.network as EvmNetworkKey;
+  const underlying = findAssetBySymbol(network, venue.asset);
+  if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
+  return { venue, network, token: getAddress(underlying.address), underlying };
+}
+
+function amountOf(asset: { readonly id: string; readonly symbol: string; readonly decimals: number }, units: bigint): AssetAmount {
+  return { asset: asset.id as AssetAmount["asset"], symbol: asset.symbol, decimals: asset.decimals, amount: units.toString(), formatted: fromBaseUnits(units, asset.decimals) };
+}
+
+/** The account's Comet balance at `venue` (base asset units, interest included); null when empty. */
+export async function cometPosition(venue: YieldVenue, owner: ParsedAccountId): Promise<VenuePosition | null> {
+  const parts = cometParts(venue);
+  const client = evmClient(parts.network);
+  const comet = getAddress(parts.venue.target);
+  const [balance, cash] = await withTimeout(Promise.all([
+    client.readContract({ address: comet, abi: COMET_ABI, functionName: "balanceOf", args: [getAddress(owner.address)] }),
+    client.readContract({ address: parts.token, abi: erc20Abi, functionName: "balanceOf", args: [comet] }),
+  ]));
+  if (balance === 0n) return null;
+  const receipt = receiptAsset(parts.network, parts.venue.receipt, `c${parts.underlying.symbol}v3`, `${parts.venue.name} balance`);
+  return {
+    venue: parts.venue.id,
+    network: parts.network,
+    protocol: "compound-v3",
+    name: parts.venue.name,
+    receipt: amountOf(receipt, balance),
+    underlying: amountOf(parts.underlying, balance),
+    rate: null,
+    usd: null,
+    apy: null,
+    withdrawableNow: amountOf(parts.underlying, balance < cash ? balance : cash),
+    observedAt: new Date().toISOString(),
+  };
+}
+
+/** Pause flags and the cash a Comet can pay out now; no cap on base supply; 1:1 balances. */
+export async function cometCapacity(venue: YieldVenue): Promise<VenueCapacity> {
+  const parts = cometParts(venue);
+  const client = evmClient(parts.network);
+  const comet = getAddress(parts.venue.target);
+  const [state, cash, utilization] = await Promise.all([
+    readComet(parts),
+    withTimeout(client.readContract({ address: parts.token, abi: erc20Abi, functionName: "balanceOf", args: [comet] })),
+    withTimeout(client.readContract({ address: comet, abi: COMET_ABI, functionName: "getUtilization" })),
+  ]);
+  return {
+    venue: parts.venue.id,
+    capRemaining: null,
+    // Withdrawals paused: nothing can leave now.
+    exitLiquidity: state.withdrawPaused ? "0" : cash.toString(),
+    paused: state.supplyPaused,
+    frozen: false,
+    shareRate: null,
+    observedAt: new Date().toISOString(),
+    utilization: ratio(utilization, 10n ** 18n),
+  };
+}
+
 export const compoundV3Adapter: ProtocolAdapter = {
   id: "compound-v3",
   protocols: ["compound-v3"],
@@ -442,4 +513,7 @@ export const compoundV3Adapter: ProtocolAdapter = {
         : proveSupply(context.step, venue, getAddress(base), receipts, observedAt));
     return result;
   },
+
+  positionOf: cometPosition,
+  venueCapacity: cometCapacity,
 };

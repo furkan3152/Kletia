@@ -313,6 +313,30 @@ describe("service lifecycle", () => {
     assert.equal(step(graph, "s1").failure?.code, "SETTLEMENT_REFUNDED");
   });
 
+  it("records the credit of a fill below the floor as observedCredit on the failed step", async () => {
+    const created = await createIntent(BRIDGE_THEN_SWAP);
+    await prepareStep(created.id, "s1");
+    const minimum = step(await getIntent(created.id), "s1").minimumOutput as NonNullable<IntentStep["minimumOutput"]>;
+    const credited = { ...minimum, amount: "1000000", formatted: "1" };
+    stub.poll = () => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message: "below the floor" }, credited });
+    const graph = await submitStep(created.id, "s1", [randomEvmHash(), randomEvmHash()]);
+    assert.equal(statuses(graph), "failed:s1=failed,s2=pending");
+    assert.deepEqual(step(graph, "s1").observedCredit, credited);
+    assert.equal(step(graph, "s1").actualOutput, undefined, "never an output a later step spends");
+    assert.equal((await failure(prepareStep(created.id, "s2"))).code, "STEP_NOT_READY");
+  });
+
+  it("asks a planned gas top-up again at prepare and keeps what the payload delivers", async () => {
+    const created = await createIntent({ text: "bridge 25 USDC from base to arbitrum", accounts: ACCOUNTS, constraints: { gasOnArrival: { arbitrum: "0.05" } } });
+    assert.ok(step(created, "s1").gasTopup);
+    const { intent } = await prepareStep(created.id, "s1");
+    assert.equal(stub.relayActions.at(-1)?.gasTopupUsd, "0.05");
+    assert.deepEqual(step(intent, "s1").gasTopup, step(created, "s1").gasTopup);
+    const plain = await createIntent({ text: "bridge 25 USDC from base to arbitrum", accounts: ACCOUNTS });
+    await prepareStep(plain.id, "s1");
+    assert.equal(stub.relayActions.at(-1)?.gasTopupUsd, undefined, "opt-in only");
+  });
+
   it("binds a reference to one step only (REFERENCE_ALREADY_USED)", async () => {
     const recipient = `send 0.001 ETH to ${OTHER_EVM_ADDRESS} on arbitrum`;
     const first = await createIntent({ text: recipient, accounts: ACCOUNTS });

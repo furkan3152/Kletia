@@ -3,7 +3,9 @@
  * (direct and through Multicall3 `aggregate3`, which the Base / Arbitrum
  * clients batch view reads into), eth_estimateGas, balances and blocks.
  * Contracts are registered by address with an ABI and per-function handlers;
- * a handler throws `Revert` to revert. Transaction / receipt reads fall
+ * a handler throws `Revert` to revert. Storage words (eth_getStorageAt, e.g.
+ * EIP-1967 implementation slots) and runtime code (eth_getCode, e.g.
+ * EIP-1167 clones) are set per address. Transaction / receipt reads fall
  * through to rpcMock's fixtures, so a test can plan, prepare, land the
  * prepared payload with chosen logs and verify it.
  */
@@ -67,6 +69,10 @@ export interface LendingChain {
   readonly nativeBalances: Map<string, bigint>;
   latestBlock: bigint;
   latestTimestamp: number;
+  /** `${address}:${slot}` (lower case) -> 32-byte word. */
+  readonly storage: Map<string, Hex>;
+  /** address (lower case) -> runtime code. */
+  readonly code: Map<string, Hex>;
   contract(address: string, abi: Abi, handlers: Record<string, Handler>): void;
   restore(): void;
 }
@@ -89,6 +95,8 @@ export function installLendingChain(): LendingChain {
     nativeBalances: new Map(),
     latestBlock: 50_000_000n,
     latestTimestamp: Math.floor(Date.now() / 1000),
+    storage: new Map(),
+    code: new Map(),
     contract(address, abi, handlers) {
       contracts.set(address.toLowerCase(), { abi, handlers });
     },
@@ -107,6 +115,12 @@ export function installLendingChain(): LendingChain {
     if (!contract) {
       chain.unknown.push(`no contract ${to} (${data.slice(0, 10)})`);
       throw new Error(`no contract at ${to}`);
+    }
+    if (data === "0x" && contract.handlers.receive) {
+      // Plain value transfer: the contract's receive() (e.g. wstETH staking).
+      chain.calls.push({ to: to.toLowerCase(), functionName: "receive", args: [], ...(call.from ? { from: call.from } : {}), direct });
+      contract.handlers.receive([], call);
+      return "0x";
     }
     let decoded;
     try {
@@ -160,6 +174,10 @@ export function installLendingChain(): LendingChain {
           return { result: hex(chain.gasEstimate) };
         case "eth_gasPrice":
           return { result: hex(1_000_000n) };
+        case "eth_getStorageAt":
+          return { result: chain.storage.get(`${String(params[0]).toLowerCase()}:${String(params[1]).toLowerCase()}`) ?? `0x${"00".repeat(32)}` };
+        case "eth_getCode":
+          return { result: chain.code.get(String(params[0]).toLowerCase()) ?? (contracts.has(String(params[0]).toLowerCase()) ? "0x6080" : "0x") };
         case "eth_getBalance":
           return { result: hex(chain.nativeBalances.get(String(params[0]).toLowerCase()) ?? 0n) };
         case "eth_blockNumber":
@@ -266,6 +284,17 @@ export function setBalance(token: TokenState, owner: string, amount: bigint): vo
 
 export function setAllowance(token: TokenState, owner: string, spender: string, amount: bigint): void {
   token.allowances.set(key(owner, spender), amount);
+}
+
+/** Points an EIP-1967 proxy's implementation slot at `implementation`. */
+export function setImplementation(chain: LendingChain, proxy: string, implementation: string): void {
+  const slot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+  chain.storage.set(`${proxy.toLowerCase()}:${slot}`, `0x${implementation.toLowerCase().slice(2).padStart(64, "0")}` as Hex);
+}
+
+/** Gives `address` the runtime code of an EIP-1167 minimal proxy to `target`. */
+export function setClone(chain: LendingChain, address: string, target: string): void {
+  chain.code.set(address.toLowerCase(), `0x363d3d373d3d3d363d73${target.toLowerCase().slice(2)}5af43d82803e903d91602b57fd5bf3` as Hex);
 }
 
 /* ----------------------------------------------------------------- logs */

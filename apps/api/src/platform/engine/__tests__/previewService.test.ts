@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { PREVIEW_DIGEST_PATTERN, type IntentGraph, type IntentPreview } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { configurePlatform, createIntentDetailed, getIntent, prepareStep, refreshIntent, refreshIntentPreview, submitStep } from "../service.js";
-import { getPreviewStore } from "../preview/index.js";
+import { getPreviewStore, previewIntent } from "../preview/index.js";
 import { resetSimulationEndpoints } from "../contracts/simulationRpc.js";
 import { stubEvmTransfer } from "./helpers.js";
 import {
@@ -171,6 +171,16 @@ describe("plan-time preview", () => {
     chain.world.native.set(USER.toLowerCase(), 10n ** 18n);
     const funded = await created(bridgeThenSwap);
     assert.deepEqual(funded.preview.needs.filter((need) => need.reason === "gas-on-arrival"), []);
+  });
+
+  it("credits gas the intent itself delivers (a planned top-up on the arriving leg) before asking for gas", async () => {
+    chain.world.native.clear();
+    const { intent, preview } = await created(bridgeThenSwap);
+    assert.ok(preview.needs.some((need) => need.reason === "gas-on-arrival" && need.network === "arbitrum"));
+    const topup = { asset: "eip155:42161/slip44:60" as const, symbol: "ETH", decimals: 18, amount: (10n ** 15n).toString(), formatted: "0.001" };
+    const withTopup: IntentGraph = { ...intent, steps: intent.steps.map((step) => (step.id === "s1" ? { ...step, gasTopup: topup } : step)) };
+    const fresh = await previewIntent(withTopup, { stage: "refresh", store: false });
+    assert.deepEqual(fresh.needs.filter((need) => need.reason === "gas-on-arrival").map((need) => need.network), ["base"]);
   });
 
   it("never fails a plan when simulation is unavailable: steps are labelled unavailable", async () => {

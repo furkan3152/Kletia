@@ -1,8 +1,17 @@
 /**
  * Relay adapter: cross-network bridges and bridge-and-swap between the EVM
  * networks Relay serves in the registry and Solana, plus same-network swaps on
- * Base and Arbitrum. A cross-network step settles only when Relay reports the
- * fill and the destination transaction is visible on the destination network.
+ * every EVM network it serves (Ethereum, Base, Arbitrum One, OP Mainnet,
+ * Polygon PoS). A cross-network step settles only when Relay reports the fill
+ * and the destination transaction is visible on the destination network; a
+ * same-network swap confirms only when its receipts credit the step account
+ * with at least the guaranteed output (Relay's floor is its own claim, never
+ * bound by the calldata Kletia checks).
+ *
+ * Every quote names the depositing account as `refundTo`, so a failed fill is
+ * refunded to the user (never to a third-party recipient). A leg planned with
+ * gas on arrival (`AdapterAction.gasTopupUsd`) asks Relay for a destination
+ * gas top-up (`topupGas`) and refuses a quote that does not deliver it.
  *
  * Every Relay call is checked against the pinned contracts in
  * `VENUE_CONTRACTS` at plan and at prepare: EVM calls may only approve the
@@ -14,6 +23,7 @@
 import { decodeFunctionData, erc20Abi, getAddress, parseAbi, type Hex } from "viem";
 import {
   CHAINS,
+  GAS_ON_ARRIVAL_USD,
   explorerTxUrl,
   formatAmount,
   formatAssetId,
@@ -35,6 +45,7 @@ import { assetAmount, assetFromRef, providerCurrency, sameAsset, type ResolvedAs
 import {
   erc20CreditFromLogs,
   evmChainId,
+  evmClient,
   isEvmNetwork,
   nativeBalanceDelta,
   observeEvmTransaction,
@@ -72,13 +83,16 @@ import {
   SOL_RENT_TOLERANCE_LAMPORTS,
   stepOwner,
   tokenDelta,
-  verifyEvmReferences,
+  verifyEvmReceipts,
   verifySolanaReferences,
+  type EvmOutcome,
+  type LandedEvmReceipt,
 } from "./verification.js";
 
 /** Networks Relay serves, from the protocol registry (its contracts are pinned per network in VENUE_CONTRACTS). */
 export const RELAY_NETWORKS: readonly NetworkKey[] = Object.freeze([...(getProtocol("relay")?.networks ?? [])]);
-const SAME_NETWORK_SWAP_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum"];
+/** Same-network swaps: every EVM network Relay serves (Base, Arbitrum One, Ethereum, OP Mainnet and Polygon PoS). */
+export const RELAY_SWAP_NETWORKS: readonly NetworkKey[] = Object.freeze(RELAY_NETWORKS.filter((network) => isEvmNetwork(network)));
 const APPROVE_SELECTOR = "0x095ea7b3";
 const MAX_TOTAL_IMPACT_PERCENT = 10;
 
@@ -113,21 +127,67 @@ function title(action: Pick<AdapterAction, "kind" | "network" | "destinationNetw
   return action.output.symbol.toUpperCase() === action.input.symbol.toUpperCase() ? base : `${base} as ${action.output.symbol}`;
 }
 
+/**
+ * True when Relay can deliver destination gas with the route: a cross-network
+ * leg to an EVM network it serves whose output is not that network's gas
+ * asset (Relay refuses top-ups of the gas currency and non-EVM destinations;
+ * Base to Solana answers NO_SWAP_ROUTES_FOUND, live 2026-10-14).
+ */
+function supportsGasTopup(route: AdapterRoute): boolean {
+  return crossNetwork(route) && RELAY_NETWORKS.includes(route.network) && RELAY_NETWORKS.includes(route.destinationNetwork) &&
+    isEvmNetwork(route.destinationNetwork) && !route.output.isNative;
+}
+
+/** Relay `topupGasAmount` (USD with 6 decimals) of a gasOnArrival value ("0.50" -> "500000"); refuses anything else. */
+export function topupMicroUsd(usd: string): string {
+  const match = /^(\d{1,2})(?:\.(\d{1,2}))?$/u.exec(usd);
+  const cents = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : Number.NaN;
+  const min = Math.round(Number(GAS_ON_ARRIVAL_USD.min) * 100);
+  const max = Math.round(Number(GAS_ON_ARRIVAL_USD.max) * 100);
+  if (!Number.isInteger(cents) || cents < min || cents > max) {
+    throw new PlatformError("INVALID_REQUEST", `A gas top-up must be between $${GAS_ON_ARRIVAL_USD.min} and $${GAS_ON_ARRIVAL_USD.max}.`, 400);
+  }
+  return String(cents * 10_000);
+}
+
 async function quote(action: AdapterAction, slippageBps: number): Promise<RelayQuote> {
+  if (action.gasTopupUsd !== undefined && !supportsGasTopup(action)) {
+    throw new PlatformError(
+      "GAS_TOPUP_UNAVAILABLE",
+      `Relay cannot deliver gas on ${CHAINS[action.destinationNetwork].name} with this leg (EVM destinations only, and not when the leg already delivers the gas asset).`,
+      422,
+    );
+  }
   // Relay pays a Solana recipient's token account; a token account, mint or program vault there strands the output.
   if (isSolanaNetworkKey(action.destinationNetwork)) {
     await assertSolanaWalletRecipient(action.destinationNetwork, action.recipient.address);
   }
-  return fetchRelayQuote({
+  const result = await fetchRelayQuote({
     user: action.account.address,
     recipient: action.recipient.address,
+    // A failed fill is refunded to the depositing account, never to a third-party recipient.
+    refundTo: action.account.address,
     originChainId: relayChainId(action.network),
     destinationChainId: relayChainId(action.destinationNetwork),
     originCurrency: providerCurrency(action.input),
     destinationCurrency: providerCurrency(action.output),
     amount: action.amount,
     slippageBps,
+    ...(action.gasTopupUsd !== undefined ? { topupGasMicroUsd: topupMicroUsd(action.gasTopupUsd) } : {}),
   });
+  if (action.gasTopupUsd !== undefined && !result.gasTopup) {
+    throw new PlatformError("PROVIDER_TRANSACTION_INVALID", `Relay quoted the leg without the gas top-up it was asked for on ${CHAINS[action.destinationNetwork].name}.`, 502);
+  }
+  return result;
+}
+
+/** The gas a quote delivers on the destination, as an amount of the destination's gas asset (none when not asked). */
+function gasTopupAmount(action: AdapterAction, result: RelayQuote): ReturnType<typeof assetAmount> | undefined {
+  if (action.gasTopupUsd === undefined || !result.gasTopup) return undefined;
+  const native = CHAINS[action.destinationNetwork].nativeAsset;
+  const gas = assetFromRef({ asset: nativeAssetId(action.destinationNetwork), symbol: native.symbol, decimals: native.decimals });
+  if (result.gasTopup.decimals !== native.decimals) rejectRelayCall("Relay's gas top-up has another precision than the destination's gas asset.");
+  return assetAmount(gas, result.gasTopup.amount, result.gasTopup.amountUsd ?? undefined);
 }
 
 function quoteWarnings(result: RelayQuote): string[] {
@@ -475,6 +535,8 @@ export interface DestinationCheck {
   readonly confirmed: boolean;
   /** Amount observed arriving at the recipient (always measured when confirmed). */
   readonly credited: bigint | null;
+  /** EVM destinations: the block the fill was mined in (gas top-up evidence reads the balance across it). */
+  readonly blockNumber?: bigint;
 }
 
 const UNCONFIRMED: DestinationCheck = { confirmed: false, credited: null };
@@ -503,14 +565,14 @@ export async function destinationCredit(
     if (!output.isNative && output.address) {
       const credited = erc20CreditFromLogs(observation.logs, output.address, recipient);
       // A fill that moved no output token to the recipient is not this request's fill.
-      return credited > 0n ? { confirmed: true, credited } : UNCONFIRMED;
+      return credited > 0n ? { confirmed: true, credited, blockNumber: observation.blockNumber } : UNCONFIRMED;
     }
     if (observation.to !== null && observation.to.toLowerCase() === recipient.toLowerCase() && observation.value > 0n) {
-      return { confirmed: true, credited: observation.value };
+      return { confirmed: true, credited: observation.value, blockNumber: observation.blockNumber };
     }
     // A contract-forwarded native fill: the recipient's balance must have grown over the fill block.
     const delta = await nativeBalanceDelta(network, recipient, observation.blockNumber).catch(() => null);
-    return delta !== null && delta > 0n ? { confirmed: true, credited: delta } : UNCONFIRMED;
+    return delta !== null && delta > 0n ? { confirmed: true, credited: delta, blockNumber: observation.blockNumber } : UNCONFIRMED;
   }
   if (isSolanaNetworkKey(network)) {
     const read = await readSolanaCredit(network, hash, recipient, output.isNative ? null : (output.address as string));
@@ -531,16 +593,93 @@ export function cappedOutput(credited: bigint, cap: string | bigint | undefined)
   return credited > limit ? limit : credited;
 }
 
+/**
+ * Evidence of the gas top-up a settled fill delivered: the recipient's gas
+ * balance change across the fill block. Informational only (never a settle
+ * condition): the leg settles on its main output; an unreadable or absent
+ * top-up adds a note instead.
+ */
+async function gasTopupEvidence(step: IntentStep, destination: NetworkKey, recipient: string, check: DestinationCheck, observedAt: string): Promise<StepEvidence[]> {
+  if (!step.gasTopup || !isEvmNetwork(destination) || check.blockNumber === undefined) return [];
+  const native = CHAINS[destination].nativeAsset;
+  const delta = await nativeBalanceDelta(destination, recipient, check.blockNumber).catch(() => null);
+  const detail = delta !== null && delta > 0n
+    ? `Gas top-up of ${fromBaseUnits(delta, native.decimals)} ${native.symbol} credited on ${CHAINS[destination].name}.`
+    : `The planned gas top-up of ${step.gasTopup.formatted} ${native.symbol} was not observed in the fill block on ${CHAINS[destination].name}.`;
+  return [{ kind: "note", network: destination, observedAt, detail }];
+}
+
+/** Gas paid by `receipt` (gasUsed x effectiveGasPrice, plus the OP-stack L1 fee when the node reports it). */
+async function receiptGasCost(network: EvmNetworkKey, hash: string): Promise<bigint> {
+  const receipt = await evmClient(network).getTransactionReceipt({ hash: hash as Hex });
+  const l1Fee = (receipt as { l1Fee?: bigint | null }).l1Fee;
+  return receipt.gasUsed * receipt.effectiveGasPrice + (typeof l1Fee === "bigint" ? l1Fee : 0n);
+}
+
+/**
+ * Output proof of a Relay same-network swap (the receipts already match a
+ * payload prepared for the step and succeeded): the step account must be
+ * credited at least the lowest prepared floor. ERC-20 output: Transfer logs
+ * of the output token to the account in the swap receipts. Native output:
+ * the account's balance change across the block of the last receipt, plus
+ * the gas the step's receipts in that block paid (the router forwards the
+ * native output with an internal call, which emits no log).
+ */
+async function proveSameNetworkSwap(step: IntentStep, receipts: readonly LandedEvmReceipt[], observedAt: string): Promise<EvmOutcome> {
+  const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
+  const floor = lowestPreparedFloor(step);
+  if (!output || floor === null || !isEvmNetwork(step.network)) {
+    return { failure: { code: "OUTCOME_NOT_PROVEN", message: "The swap step has no recorded output floor." } };
+  }
+  const network = step.network;
+  const account = stepOwner(step);
+  let credited: bigint;
+  if (!output.isNative && output.address) {
+    credited = receipts.reduce((total, receipt) => total + erc20CreditFromLogs(receipt.logs, output.address as string, account), 0n);
+  } else {
+    const last = receipts[receipts.length - 1];
+    if (!last) return { failure: { code: "OUTCOME_NOT_PROVEN", message: "The swap has no landed receipt." } };
+    const sameBlock = receipts.filter((receipt) => receipt.blockNumber === last.blockNumber);
+    // Unreadable balances or receipts throw: the verification is retried, never confirmed on a guess.
+    const delta = await nativeBalanceDelta(network, account, last.blockNumber);
+    let gas = 0n;
+    for (const receipt of sameBlock) gas += await receiptGasCost(network, receipt.reference);
+    credited = delta + gas;
+  }
+  if (credited < floor) {
+    return {
+      failure: {
+        code: "OUTCOME_NOT_PROVEN",
+        message: `The Relay swap credited ${fromBaseUnits(credited < 0n ? 0n : credited, output.decimals)} ${output.symbol} to the account, below the guaranteed ${fromBaseUnits(floor, output.decimals)} ${output.symbol}.`,
+      },
+    };
+  }
+  const last = receipts[receipts.length - 1] as LandedEvmReceipt;
+  return {
+    actualOutput: assetAmount(output, cappedOutput(credited, step.expectedOutput?.amount).toString()),
+    evidence: [{
+      kind: "balance",
+      network,
+      reference: last.reference,
+      url: explorerTxUrl(network, last.reference),
+      observedAt,
+      detail: `Relay swap credited ${fromBaseUnits(credited, output.decimals)} ${output.symbol} to ${account} (guaranteed ${fromBaseUnits(floor, output.decimals)}).`,
+    }],
+  };
+}
+
 export const relayAdapter: ProtocolAdapter = {
   id: "relay",
   protocols: ["relay"],
   label: "Relay",
 
+  supportsGasTopup,
+
   supports(route) {
     if (!RELAY_NETWORKS.includes(route.network) || !RELAY_NETWORKS.includes(route.destinationNetwork)) return false;
     if (route.kind === "bridge") return crossNetwork(route);
     if (route.kind === "swap") {
-      return !crossNetwork(route) && SAME_NETWORK_SWAP_NETWORKS.includes(route.network) && !sameAsset(route.input, route.output);
+      return !crossNetwork(route) && RELAY_SWAP_NETWORKS.includes(route.network) && !sameAsset(route.input, route.output);
     }
     return false;
   },
@@ -554,6 +693,7 @@ export const relayAdapter: ProtocolAdapter = {
     if (!action.output.verified) warnings.push(`${action.output.symbol} is not a verified token.`);
     const cross = crossNetwork(action);
     const preview = relayPreview(action, result);
+    const gasTopup = gasTopupAmount(action, result);
     return {
       protocol: "relay",
       title: title(action),
@@ -569,6 +709,9 @@ export const relayAdapter: ProtocolAdapter = {
       transactionCount: result.calls.length,
       slippageBps: action.slippageBps,
       ...(preview ? { preview } : {}),
+      // Relay's minimum is its own quote; settlement (bridges) and verify (swaps) hold the fill to it.
+      floor: "claimed",
+      ...(gasTopup ? { gasTopup } : {}),
     };
   },
 
@@ -602,6 +745,7 @@ export const relayAdapter: ProtocolAdapter = {
         description: transaction.description,
       }));
     }
+    const gasTopup = gasTopupAmount(action, result);
     return {
       transactions,
       records,
@@ -610,13 +754,19 @@ export const relayAdapter: ProtocolAdapter = {
       ...(crossNetwork(action) ? { trackingId: result.requestId } : {}),
       quoteId: result.requestId,
       warnings,
+      ...(gasTopup ? { gasTopup } : {}),
     };
   },
 
   async verify(context): Promise<VerificationResult> {
     const { step } = context;
     // EVM: the exact quote binding proves the deposit calldata (and its Relay request) is ours.
-    if (step.chain.startsWith("eip155:")) return verifyEvmReferences(context);
+    if (step.chain.startsWith("eip155:")) {
+      if (step.settlement?.kind === "cross-network") return (await verifyEvmReceipts(context)).result;
+      // A same-network swap must also credit the account with at least the guaranteed output.
+      const observedAt = new Date(context.now).toISOString();
+      return (await verifyEvmReceipts(context, (receipts) => proveSameNetworkSwap(step, receipts, observedAt))).result;
+    }
     const input = step.input ? assetFromRef(step.input) : null;
     const owner = stepOwner(step);
     const { result } = await verifySolanaReferences(context, (observations) => {
@@ -665,7 +815,7 @@ export const relayAdapter: ProtocolAdapter = {
     // Unknown or foreign attribution stays settling (and times out to manual review); it never settles.
     if (match.kind !== "matched") return { status: "settling", evidence: [] };
     const state = match.state;
-    const mismatch = (message: string): SettlementResult => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message } });
+    const mismatch = (message: string): Extract<SettlementResult, { status: "failed" }> => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message } });
     if (state.recipient && !sameAddress(state.recipient, recipient.address)) {
       return mismatch("The Relay request for this deposit pays a different recipient.");
     }
@@ -690,8 +840,13 @@ export const relayAdapter: ProtocolAdapter = {
       );
       if (!check.confirmed || check.credited === null) continue;
       if (floor === null || check.credited < floor) {
-        return mismatch(`The Relay fill credited ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol}, below the guaranteed ${fromBaseUnits(floor ?? 0n, output.decimals)} ${output.symbol}.`);
+        // The credit reached the recipient although below the floor: it is recorded (observedCredit), never spent on.
+        return {
+          ...mismatch(`The Relay fill credited ${fromBaseUnits(check.credited, output.decimals)} ${output.symbol}, below the guaranteed ${fromBaseUnits(floor ?? 0n, output.decimals)} ${output.symbol}.`),
+          credited: assetAmount(output, check.credited.toString()),
+        };
       }
+      const topup = await gasTopupEvidence(step, destination, recipient.address, check, observedAt);
       const evidence: StepEvidence = {
         kind: "settlement",
         network: destination,
@@ -703,7 +858,7 @@ export const relayAdapter: ProtocolAdapter = {
       };
       return {
         status: "settled",
-        evidence: [evidence],
+        evidence: [evidence, ...topup],
         actualOutput: assetAmount(output, cappedOutput(check.credited, step.expectedOutput?.amount).toString()),
       };
     }

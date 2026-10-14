@@ -148,7 +148,7 @@ function Brand({
           placeholder="https://acme.example"
           onChange={(event) => onDraft({ ...draft, website: event.target.value })}
           error={of("website")[0]?.message}
-          hint="An https origin, no path. A new website starts unverified."
+          hint="An https origin, no port or path. A new website starts unverified."
         />
       </div>
       <div className="flex min-w-0 flex-col gap-3 border-t-2 border-[#1A1A1A]/10 pt-4 dark:border-white/10">

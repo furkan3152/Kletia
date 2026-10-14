@@ -16,7 +16,6 @@ import { describe, it } from "node:test";
 import ts from "typescript";
 import {
   ERROR_CATALOG,
-  FEATURE_ERROR_CODES,
   errorCatalogRows,
   isKletiaErrorCode,
   resolveErrorCode,
@@ -26,44 +25,6 @@ import {
 import { MAX_ERROR_DETAILS_BYTES, PlatformError, platformErrorDetails } from "../../errors.js";
 import { REJECTION_CODES } from "../../index.js";
 import { sendError } from "../context.js";
-
-/**
- * Round-6 codes catalogued (with their docs rows) before the package that
- * emits them lands (plan section 9). Each names its emitting package; a
- * pending code may already be emitted. The release package removes this list
- * once every code is emitted, so the "nothing emits it" check is strict again.
- */
-const PENDING_EMISSION: Readonly<Record<string, string>> = Object.freeze({
-  SOLANA_SWAP_INVALID: "solana-venues",
-  DEX_ASSET_UNSUPPORTED: "solana-venues",
-  DEX_QUOTE_MISMATCH: "solana-venues",
-  DEX_INSTRUCTION_INVALID: "solana-venues",
-  SIMULATION_UNVERIFIED: "solana-venues",
-  PRICE_UNAVAILABLE: "evm-swaps-and-feeds",
-  RECIPIENT_TOKEN_ACCOUNT_MISSING: "bridges",
-  SOURCE_REQUIRED: "planner-spine",
-  SOURCE_UNREACHABLE: "planner-spine",
-  INTENT_IN_FLIGHT: "amount-flow-and-relay",
-  GAS_TOPUP_UNAVAILABLE: "amount-flow-and-relay",
-  RECIPIENT_CHECKSUM_INVALID: "planner-spine",
-  MESSAGE_SECRET_REFUSED: "planner-spine",
-  QUESTION_NOT_OPEN: "clarify-engine",
-  ANSWER_INVALID: "clarify-engine",
-  EDIT_UNSUPPORTED: "clarify-engine",
-  THREAD_INVALID: "clarify-engine",
-  THREAD_CLOSED: "clarify-engine",
-  THREAD_NOT_FOUND: "api-clarify",
-  THREAD_CONFLICT: "api-clarify",
-  THREAD_REQUIRES_API_KEY: "api-clarify",
-  SECRET_KEY_FROM_BROWSER: "integrator-api-1",
-  SESSION_EXPIRES_BEFORE_ACTIVATION: "integrator-api-1",
-  PUBLISHABLE_KEY_FORBIDDEN: "integrator-api-2",
-  PUBLISHABLE_ORIGIN_FORBIDDEN: "integrator-api-2",
-  PROJECT_SETTINGS_INVALID: "integrator-api-2",
-  PROJECT_CONFLICT: "integrator-api-2",
-  FLOW_UNKNOWN: "integrator-api-2",
-  PROJECT_LOGO_INVALID: "integrator-api-2",
-});
 
 const SRC = fileURLToPath(new URL("../../../", import.meta.url));
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
@@ -174,25 +135,13 @@ describe("error catalog drift", () => {
     assert.deepEqual(wrong, []);
   });
 
-  it("has no catalog entry that nothing emits (except provider families, the generic fallbacks and pending round-6 codes)", () => {
+  it("has no catalog entry that nothing emits (except provider families and the generic fallbacks)", () => {
     const emitted = new Set(emissions.map((emission) => emission.code));
     const families = new Set<KletiaErrorCode>(["PROVIDER_UNAVAILABLE", "PROVIDER_REJECTED", "PLATFORM_ERROR"]);
     const unused = errorCatalogRows()
       .map((row) => row.code)
-      .filter((code) => !emitted.has(code) && !families.has(code) && !Object.hasOwn(PENDING_EMISSION, code));
+      .filter((code) => !emitted.has(code) && !families.has(code));
     assert.deepEqual(unused, []);
-  });
-
-  it("allows only catalogued round-6 feature codes to be pending, each with its emitting package", () => {
-    const round6 = new Set<string>(["protocols", "departure", "journey", "clarify", "integrator", "projects"].flatMap(
-      (feature) => FEATURE_ERROR_CODES[feature as keyof typeof FEATURE_ERROR_CODES],
-    ));
-    assert.equal(Object.keys(PENDING_EMISSION).length, 29, "the 29 round-6 codes of plan section 9");
-    for (const [code, emitter] of Object.entries(PENDING_EMISSION)) {
-      assert.ok(isKletiaErrorCode(code), `${code} is catalogued`);
-      assert.ok(round6.has(code), `${code} is a round-6 feature code`);
-      assert.match(emitter, /^[a-z][a-z0-9-]+$/u, `${code} names its emitting package`);
-    }
   });
 
   it("only builds dynamic codes from provider names (resolved by family)", () => {

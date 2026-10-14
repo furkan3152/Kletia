@@ -4,6 +4,32 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+Round 6: one desk for nine networks, a journey that says where the money is
+after every step, clarifying questions instead of refusals, new
+venues, and a project setup that lets a static site run Kletia with a
+browser-safe key. The registry now lists 42 protocols, 28 of them executable
+through the API, plus your own contracts. Nothing here signs or holds funds,
+and none of it has had an external audit.
+
+### Added
+
+- Departure: `sourceNetwork` (a network key or `"auto"`) names where the funds start; the planner puts a bridge in front of the first action when needed and explains its choice in `intent.interpretation.departure` (`SOURCE_REQUIRED`, `SOURCE_UNREACHABLE`) ([API](docs/platform/api-v1.md)).
+- The desk at `/app`: one text box for all nine networks, a departure board (Auto plus every network, test networks collapsed), tasks with ticket and fare, holdings, activity, a signing lock, and every network's extra tools inline. The old per-network console is gone; Studio hands off with "Run in the console".
+- Journey ledger (`kletia.journey/v1`, `GET /v1/intents/{id}/journey`, `?journey=true`): for every step, where the money is, who holds it, the least that arrives, refunds, gas on arrival and what follows. `POST /v1/intents/{id}/stop` ends an intent between steps (`409 INTENT_IN_FLIGHT` while a step is in flight). Amounts flow between legs, with opt-in `constraints.gasOnArrival` through Relay top-ups ([journey](docs/platform/journey.md)).
+- Clarifying questions: `POST /v1/intents?clarify=true` asks one or two short questions with options from the person's balances instead of refusing an incomplete sentence; defaults show as chips. Client-held threads, or Kletia-held threads for API keys (`/v1/threads`); the MCP `plan_intent` tool clarifies by default. The engine is deterministic (no model) ([clarify](docs/platform/clarify.md)).
+- Venues: Uniswap V3 on Base, Arbitrum, Ethereum, OP Mainnet and Polygon; Aerodrome (Base) and Velodrome (OP Mainnet) Slipstream; SparkLend, Spark Savings, Fluid Lending and Yearn V3; Lido, Rocket Pool and ether.fi; Raydium, Orca and Meteora as named routes through the Jupiter program; Across and Circle CCTP V2 (EVM to EVM and EVM to Solana) in the bridge auction. Each has pinned contracts, exact calldata checks and output proofs. Chainlink price bands, L2 sequencer gating and Pyth as a Solana price source.
+- Projects (`kletia.project/v1`): brand, allowed origins, domain verification through `/.well-known/kletia.json`, defaults, stored flows and a logo, with `If-Match` concurrency (`/v1/projects/current`). Publishable keys (`kl_pub_…`) are safe in browser code: they reach only the routes a page needs, from the allowed origins, and run stored flows; a server key sent from a browser is refused with `SECRET_KEY_FROM_BROWSER` ([projects](docs/platform/projects.md)).
+- Embed delivery: the embed script is served from the Kletia origin with Subresource Integrity, takes a publishable key and a flow, and shows the verified brand and questions. The Embed Builder in the portal writes the snippet and only ever outputs `kl_pub_` keys. Appearance tokens (`kletia.appearance/v1`) theme the widget and the embed with contrast floors ([theming](docs/platform/theming.md)).
+- Developer portal: a page per tool (Keys, Project, Embed, API explorer, Events, Errors, Venues, Agents, Recipes, Contracts, Rule Book, Links, Receipts, Webhooks) with a URL per object; sandbox keys on the testnet lane; the key's event stream (`GET /v1/events`, `kletia listen`); the served OpenAPI document at `GET /v1/openapi.json`; [quickstart](docs/platform/quickstart.md), [status and versioning](docs/platform/status.md) and [client generation](docs/platform/codegen.md) guides; `/changelog` renders this file.
+- SDK and CLI cover every new surface of this release: journey, stop, portfolios with positions, clarify turns and threads, error details, the event stream, sandbox keys, projects and publishable keys.
+
+### Security
+
+- A project's `brand.website` takes the default https port only, and the domain record is keyed by host and port: a proof served on another port of the same host can no longer verify the host on port 443 and carry the "verified" badge to `/embed`, flow sessions and the logo.
+- Publishable keys are held to an allowlist of routes and to the project's origins; flows run with the contract authority of the key that saved them, re-checked at prepare.
+- Messages that look like secrets (seed phrases, private keys) are refused before planning (`MESSAGE_SECRET_REFUSED`); mixed-case EVM recipients must pass their checksum (`RECIPIENT_CHECKSUM_INVALID`).
+- Every catalogued error code is now emitted somewhere; the temporary allowance for codes that nothing emitted yet is gone.
+
 ### Fixed
 
 - Hosted deploys: an install inside one app's folder (how the dashboard-created Render services build) no longer fails on packages that app does not use; the root `postinstall` skips a package whose build tools are not installed. The API had not deployed since the workspace move.

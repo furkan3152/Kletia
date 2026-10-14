@@ -7,8 +7,11 @@ This index separates current product truth from deployment procedure, network-sp
 | Goal | Start here | Then read |
 |---|---|---|
 | Understand the product and trust model | [Architecture overview](architecture/overview.md) | [Repository structure](architecture/repository-structure.md) |
+| Get a first integration running | [Quickstart](platform/quickstart.md) (static site, server or agent) | [Projects and publishable keys](platform/projects.md), [Status and versioning](platform/status.md) |
 | Integrate Kletia into another product | [Platform API v1](platform/api-v1.md) | [Error catalog](platform/errors.md), [OpenAPI document](platform/openapi.json), [API collections](platform/collections/README.md), [Core spec](../packages/core/README.md), [SDK](../packages/sdk/README.md), [widget and hooks](../packages/widget/README.md), [CLI](../packages/cli/README.md) |
-| Put the intent widget on any website | [Embed web component](platform/embed.md) | [@kletia/embed](../packages/embed/README.md), [widget and hooks](../packages/widget/README.md) for React apps |
+| Put the intent widget on any website | [Embed web component](platform/embed.md) | [Projects and publishable keys](platform/projects.md), [Theming](platform/theming.md), [@kletia/embed](../packages/embed/README.md), [widget and hooks](../packages/widget/README.md) for React apps |
+| Show where the money is, or ask instead of refusing | [Journey](platform/journey.md) | [Clarifying questions](platform/clarify.md) |
+| Generate a client in another language | [Client generation](platform/codegen.md) | [OpenAPI document](platform/openapi.json) |
 | Connect an AI agent | [MCP server](platform/mcp.md) | [Platform API v1](platform/api-v1.md) |
 | Bridge between networks | [Cross-chain venues](networks/cross-chain-venues.md) (Relay, LI.FI, deBridge DLN auction) | [Platform API v1](platform/api-v1.md) |
 | Run or deploy Kletia | [Root README](../README.md) | [Render runbook](deployment/render.md), [Vercel constraints](deployment/vercel.md), [Self-hosting and container images](deployment/self-hosting.md) |
@@ -24,6 +27,13 @@ This index separates current product truth from deployment procedure, network-sp
 - [Architecture overview](architecture/overview.md): components, lanes, custody, execution, evidence, and failure model.
 - [Repository structure](architecture/repository-structure.md): module ownership, path stability, and extension rules.
 - [Platform API v1](platform/api-v1.md): public integration contract (REST, events, webhooks, keys, idempotency, usage).
+- [Quickstart](platform/quickstart.md): three paths (static site, server, agent) from nothing to a working integration, on the sandbox or dry runs.
+- [Projects, publishable keys and flows](platform/projects.md): project settings, domain verification, browser-safe `kl_pub_` keys, stored flows and the logo.
+- [Journey](platform/journey.md): where the money is after every step, who holds it, refunds, gas on arrival and stopping between steps.
+- [Clarifying questions](platform/clarify.md): `?clarify=true`, questions and chips, and client-held or Kletia-held threads.
+- [Theming](platform/theming.md): appearance tokens for the widget and the embed.
+- [Status, availability and versioning](platform/status.md): hosted endpoints, how to tell which build a deployment runs, and how the API changes.
+- [Client generation](platform/codegen.md): typed clients in other languages from the served OpenAPI document.
 - [Error catalog](platform/errors.md): every error and step-failure code, its status, retry rule and remedy (also `GET /v1/errors`).
 - [Contracts](platform/contracts.md): register your own EVM contracts and Solana Actions.
 - [Asset preview](platform/preview.md): the fare breakdown and `PREVIEW_CHANGED`.

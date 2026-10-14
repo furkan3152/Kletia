@@ -56,6 +56,15 @@ test("brand names follow the integrator rules; reserved brands need their own ho
   assert.ok(validateProjectSettings({ schema: PROJECT_SCHEMA, brand: { name: "Uniswap", website: "https://app.uniswap.org" } }).ok);
 });
 
+test("brand.website takes the default https port only (a proof on another port proves nothing about the host)", () => {
+  for (const website of ["https://acme.example:8443", "https://acme.example:1024", "https://acme.example:65535"]) {
+    assert.deepEqual(paths(validateProjectSettings({ schema: PROJECT_SCHEMA, brand: { name: "Acme", website } })), ["brand.website"], website);
+  }
+  const explicit = validateProjectSettings({ schema: PROJECT_SCHEMA, brand: { name: "Acme", website: "https://acme.example:443" } });
+  assert.ok(explicit.ok);
+  assert.equal(explicit.value.brand.website, "https://acme.example");
+});
+
 test("defaults: lane, networks, sourceNetwork (or auto), actions, examples, appearance", () => {
   const issues = (defaults) => paths(validateProjectSettings({ schema: PROJECT_SCHEMA, defaults }));
   assert.deepEqual(issues({ lane: "mainnet" }), ["defaults.lane"]);

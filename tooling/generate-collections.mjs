@@ -49,6 +49,7 @@ const VARIABLES = [
   ["approvalId", "", "A Rule Book approval id (apr_…) from a held intent."],
   ["decisionId", "", "A Rule Book decision id (pdc_…) from the decision log."],
   ["linkId", "", "An intent link id (lk_…) from creating or listing links."],
+  ["threadId", "", "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."],
 ];
 
 /** Request bodies and query values that make a useful first call, keyed by operationId. */
@@ -157,7 +158,7 @@ function generate(document) {
     if (name === "accountId") return "accountId";
     const segments = path.split("/");
     const owner = segments[segments.indexOf(`{${name}}`) - 1] ?? "";
-    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", approvals: "approval", decisions: "decision" }[owner];
+    const singular = { intents: "intent", webhooks: "webhook", keys: "key", contracts: "contract", sessions: "session", links: "link", blinks: "link", approvals: "approval", decisions: "decision", threads: "thread" }[owner];
     if (singular) return `${singular}Id`;
     if (name === "seq") return "batchSeq";
     return name;

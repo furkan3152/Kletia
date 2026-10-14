@@ -95,7 +95,7 @@ Every tool is annotated `destructiveHint: false`, and every tool except
 | `list_protocols` | `network?`, `executableOnly?` (default true) | Registry protocols and whether Kletia executes them |
 | `list_assets` | `network` | Canonical assets (symbol, address or mint, decimals) |
 | `get_quote` | `network`, `from`, `to`, `amount`, `toNetwork?`, `account?`, `recipient?`, `slippageBps?` | Best route and alternatives (output, guaranteed minimum, fees, time) |
-| `plan_intent` | `text` or `actions` (`contract` / `entry` for custom contract steps), `accounts`, `defaultNetwork?`, `constraints?` | Dry-run plan: summary, steps (custom contract steps with `contract`, `entry` and their `review`), warnings, `externalRecipients`, `preview` (the [fare breakdown](preview.md): what leaves the user's wallets, what arrives, fees, needs) and `journey` (the compact [journey](journey.md), below); never stored |
+| `plan_intent` | `text` or `actions` (`contract` / `entry` for custom contract steps), `accounts`, `defaultNetwork?`, `constraints?`; for [clarifying questions](clarify.md): `thread?`, `answer?` (`{ question, option }` or `{ question, text }`), `assumption?` (`{ id, option }`), `clarify?` (default true) | `status`: `needs_input` (questions with options and their sentences, assumption chips, a draft and the `thread` to send back; a normal result, not `isError`), `planned` (summary, steps (custom contract steps with `contract`, `entry` and their `review`), warnings, `externalRecipients`, `preview` (the [fare breakdown](preview.md): what leaves the user's wallets, what arrives, fees, needs), `journey` (the compact [journey](journey.md), below), the canonical `sentence` and the `assumptions` Kletia made) or `cancelled`; always a dry run, never stored. Structured `actions` and `clarify: false` plan strictly (no `status`) |
 | `get_intent` | `intentId` | Status, steps, amounts, recipients, the latest on-chain evidence, `journey` (where the money is now and what follows) and `receipt` (`{ state, receiptId?, sequence? }`) |
 | `get_journey` | `intentId` | The intent's [journey](journey.md), compact: `stage`, `now`, stops (network, holder, custody, state, holdings as "99.9561 USDC (at least 99.4564) ≈ $99.96"), legs (venue, time, refund path), consequences (severity, title, detail, option ids and labels, the question to ask) and `blockers`; never transactions or replan requests, no URL except https tracking links (30 reads per minute per intent) |
 | `preview_intent` | `intentId`, `refreshQuotes?` | The intent's [asset-change preview](preview.md), recomputed now: rows (expected and at worst, with certainty labels), payments to others, approvals, totals, needs and warnings; never transactions (6 per minute per intent) |
@@ -111,6 +111,22 @@ With a key bound by a rule book, `plan_intent` and `get_intent` add a
 `policy` block (outcome, chain, USD value, the approval link of a held intent,
 and what remains of the key's spend windows); a refused plan returns the
 violated rule ids instead of failing silently.
+
+### Clarifying questions for agents
+
+`plan_intent` asks instead of refusing an incomplete sentence ("swap SOL to
+USDC", "send USDC to vitalik.eth"). A `needs_input` result is a normal result:
+its text lists each question with numbered options and the sentence each
+option leads to, and `structuredContent` carries the questions and the
+`thread`. Ask the person. **Never answer a question whose `purpose` is true
+yourself**; you may accept a suggested option of the other questions only
+when the person told you to go with Kletia's suggestions. Then call
+`plan_intent` again with the same `accounts`, the `thread` and `answer`
+(`{ question, option }` or `{ question, text }`), or send an option's
+`sentence` as new `text`. When the result is `planned`, tell the person about
+every assumption (material ones first), then call `create_signing_link` with
+`sentence`. Over MCP every turn is a dry run and threads stay client-held.
+Full reference: [clarify.md](clarify.md).
 
 ### The journey for agents
 
@@ -157,14 +173,16 @@ the grammar understands, so an agent can correct its own wording.
 ### Typical flow
 
 1. `list_networks` → pick networks and actions.
-2. `get_quote` or `plan_intent` with the user's accounts → show the plan.
+2. `get_quote` or `plan_intent` with the user's accounts → answer its
+   questions with the person (`needs_input`), then show the plan.
    Check `externalRecipients`: any address there is not one of the user's own
    accounts and must be confirmed by the user. The user's own address on
    another network of the same VM (a bridge's default recipient) is not listed.
    Steps also show `venue` (lending venue id), `recipientName` (the ENS,
    Basenames or SNS name a recipient came from) and `extraCosts` (value paid on
    top of the input, such as a bridge's fixed fee).
-3. `create_signing_link` with the same text → give the link to the user.
+3. `create_signing_link` with the planned `sentence` (or the same text when it
+   planned at once) → give the link to the user.
    Intents with custom contract steps cannot be handed off this way; the
    integrator's backend creates a session (`POST /v1/sessions`) and embeds it
    instead.

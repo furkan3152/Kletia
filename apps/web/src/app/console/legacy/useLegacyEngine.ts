@@ -12,10 +12,13 @@
  *   active network: an instance never changes network in the desk);
  * - the reset effect reacts to the wallet address (and the engine's own
  *   network), never to the wallet's chain;
- * - the plan-time "wallet must be on the chain" stop runs only for the
- *   classic shell; execution keeps refusing a route on another chain;
+ * - there is no plan-time "wallet must be on the chain" stop; execution keeps
+ *   refusing a route on another chain;
  * - the open conversation is attached to a sentence only in Answering mode
- *   (`answering`), or always for the classic shell;
+ *   (`answering`);
+ * - a Solana or cross-network sentence (only reachable through an engine pin)
+ *   is refused with a pointer to the desk's planner instead of the old
+ *   hand-off card; it never reaches `/api/intent`;
  * - composer, tab and drawer updates go to the host through callbacks;
  * - every message carries the desk task's `threadId` (the sentence's
  *   `threadId` option; a consent, a token selection or a workflow step keeps
@@ -30,7 +33,6 @@ import { useAccount, useChainId } from "wagmi";
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import {
   NETWORKS,
-  type AppTab,
   type NetworkMode,
 } from "../../../shared/config/networks";
 import { BACKEND_URL } from "../../../shared/config/runtime";
@@ -61,10 +63,6 @@ import {
   AGENTS_HANDOFF_MESSAGE,
   AGENTS_HANDOFF_WIDGET,
 } from "../../../shared/components/chat/agentsHandoff";
-import {
-  CROSS_NETWORK_HANDOFF_MESSAGE,
-  CROSS_NETWORK_HANDOFF_WIDGET,
-} from "../../../shared/components/chat/crossNetworkHandoff";
 import { detectCrossNetworkPrompt } from "../../../shared/platform/crossNetworkPrompt";
 import {
   type TransactionApproval,
@@ -105,7 +103,10 @@ import {
   createRequestId,
   describeAction,
   getErrorMessage,
-  isAppTab,
+  CROSS_NETWORK_ENGINE_MESSAGE,
+  ENGINE_TABS,
+  isEngineTab,
+  type EngineTab,
   isCalldata,
   isUnsignedIntegerString,
   parseExpiry,
@@ -143,7 +144,7 @@ export type SubmitIntentOptions = {
   semanticPlannerConsentToken?: string;
   /**
    * Answering mode: attach the open clarification conversation to this
-   * sentence. Only the classic shell attaches it to every sentence.
+   * sentence (never implicitly).
    */
   answering?: boolean;
   /** The desk task the sentence belongs to: every message it produces carries it. */
@@ -171,16 +172,10 @@ export type SemanticAiSession = {
 export interface LegacyEngineOptions {
   /** The engine's network: one instance per engine network. */
   readonly network: NetworkMode;
-  /**
-   * The old console's behaviour, kept while it exists for the parity run:
-   * refuse to plan while the wallet is on another chain, and attach the open
-   * clarification conversation to every sentence.
-   */
-  readonly classic?: boolean;
   /** The composer's sentence was taken (or refused for holding a secret). */
   readonly onInputConsumed?: () => void;
   /** The engine asked to open one of its modules (`open_widget`, already checked against the network's tabs). */
-  readonly onOpenWidget?: (tab: AppTab, subTarget: IntentResponse["subTarget"]) => void;
+  readonly onOpenWidget?: (tab: EngineTab, subTarget: IntentResponse["subTarget"]) => void;
   /** A verified portfolio scan arrived. */
   readonly onPortfolio?: () => void;
   /** The user chose to edit the sentence instead of allowing AI interpretation. */
@@ -191,7 +186,6 @@ export type LegacyEngine = ReturnType<typeof useLegacyEngine>;
 
 export function useLegacyEngine({
   network: networkMode,
-  classic = false,
   onInputConsumed,
   onOpenWidget,
   onPortfolio,
@@ -269,9 +263,8 @@ export function useLegacyEngine({
       clarificationSubmissionRef.current = null;
     }
 
-    // The classic shell also clears its composer, tab and drawer on these
-    // changes (and on a wallet chain change); the engine keeps only its own
-    // state, so a task's engine reacts to the wallet address, not its chain.
+    // The engine keeps only its own state, so a task's engine reacts to the
+    // wallet address, not its chain.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- moved verbatim from App.tsx
     setPendingPrivacyDecision(null);
     if (
@@ -292,13 +285,7 @@ export function useLegacyEngine({
     [],
   );
 
-  const supportedTabs = new Set(
-    network.navigation.flatMap((section) =>
-      section.items.flatMap((item) =>
-        item.action.type === "tab" ? [item.action.tab] : [],
-      ),
-    ),
-  );
+  const supportedTabs: ReadonlySet<EngineTab> = new Set(ENGINE_TABS[networkMode]);
 
   const isCurrentRequest = (request: ActiveRequest): boolean =>
     !request.controller.signal.aborted &&
@@ -369,7 +356,7 @@ export function useLegacyEngine({
       return;
     }
     // Solana and cross-network prompts are outside the EVM chat engines:
-    // hand them to the platform planner (Studio, or inline) instead of
+    // refuse them here (the desk's platform planner handles them) instead of
     // sending them to /api/intent. Structured follow-ups keep their flow.
     if (
       !options.clarificationSelection &&
@@ -393,9 +380,7 @@ export function useLegacyEngine({
         ...thread,
         id: `${handoffRequestId}:kletia`,
         role: "kletia",
-        text: CROSS_NETWORK_HANDOFF_MESSAGE,
-        widgetType: CROSS_NETWORK_HANDOFF_WIDGET,
-        widgetData: { prompt: userText },
+        text: CROSS_NETWORK_ENGINE_MESSAGE,
         network: networkMode,
         chainId: network.chainId,
         walletAddress: address,
@@ -415,21 +400,8 @@ export function useLegacyEngine({
       blockStructuredSelection();
       return;
     }
-    // Classic shell only: the desk plans on any chain and keeps the execution
-    // guard (executeRoute and the executor refuse a route on another chain).
-    if (classic && !walletMatchesNetwork) {
-      addMessage({
-        ...thread,
-        id: createRequestId(),
-        role: "kletia",
-        text: `Wallet is not connected to the ${network.name} network. Intent and transaction creation halted for security.`,
-        network: networkMode,
-        chainId: network.chainId,
-        walletAddress: address,
-      });
-      blockStructuredSelection();
-      return;
-    }
+    // The desk plans on any chain and keeps the execution guard
+    // (executeRoute and the executor refuse a route on another chain).
 
     onInputConsumed?.();
     const requestId = createRequestId();
@@ -439,7 +411,7 @@ export function useLegacyEngine({
     const activeConversation = conversationContextRef.current;
     const requestedConversation =
       options.conversation ||
-      (classic || options.answering ? activeConversation : null);
+      (options.answering ? activeConversation : null);
     const conversationIsValid = Boolean(
       requestedConversation &&
       activeConversation?.id === requestedConversation.id &&
@@ -903,7 +875,7 @@ export function useLegacyEngine({
           terminalLogs: [],
         });
         if (
-          isAppTab(data.widgetTarget) &&
+          isEngineTab(data.widgetTarget) &&
           supportedTabs.has(data.widgetTarget)
         ) {
           onOpenWidget?.(data.widgetTarget, data.subTarget);

@@ -21,6 +21,15 @@ import type {
   IntentGraph,
   IntentPreview,
   IntentRequest,
+  IntentTurnResponse,
+  Journey,
+  JourneyValueSource,
+  ClarifyThread,
+  ProjectFlow,
+  ProjectSettingsInput,
+  ThreadRef,
+  ThreadStatus,
+  VenuePosition,
   LinkDefinition,
   LinkFundingChoice,
   LinkOwnerView,
@@ -188,14 +197,45 @@ export interface PortfolioHolding {
   readonly usd: number | null;
   readonly verified: boolean;
   readonly isNative: boolean;
+  /** Where `usd` comes from (`unpriced` when it is null for lack of a price, `testnet` for testnet assets); newer API versions. */
+  readonly priceSource?: JourneyValueSource;
+  /** ISO time of the price reading; null when unpriced; newer API versions. */
+  readonly pricedAt?: string | null;
+}
+
+/** A venue whose position could not be read (unknown, not empty). */
+export interface PositionUnavailable {
+  readonly venue: string;
+  readonly code: string;
+  readonly message: string;
 }
 
 export interface PortfolioResponse {
   readonly account: AccountId;
   readonly network: NetworkKey;
   readonly holdings: readonly PortfolioHolding[];
+  /** Sum of the priced holdings (positions are not included). */
   readonly totalUsd: number;
   readonly unpricedCount: number;
+  readonly observedAt: string;
+  /** With `positions: true`: venue positions of the account on its network. */
+  readonly positions?: readonly VenuePosition[];
+  /** With `positions: true`: venues whose position could not be read. */
+  readonly positionsUnavailable?: readonly PositionUnavailable[];
+}
+
+/** Options of `portfolio` and `portfolios`. */
+export interface PortfolioOptions {
+  /** Also read venue positions (`?positions=true`; more RPC reads). */
+  readonly positions?: boolean;
+}
+
+/** `GET /v1/portfolio?accounts=…`: holdings of up to 12 accounts in one request. */
+export interface PortfoliosResponse {
+  /** Successful reads, in request order (duplicates removed). */
+  readonly portfolios: readonly PortfolioResponse[];
+  /** Accounts that could not be read (the request still answers 200). */
+  readonly failures: readonly { readonly account: string; readonly code: string; readonly message: string }[];
   readonly observedAt: string;
 }
 
@@ -207,7 +247,133 @@ export interface CreateIntentOptions {
    * call then resolves with `{ intent, preview }` instead of the intent.
    */
   readonly preview?: boolean;
+  /**
+   * Also build the journey (`?journey=true`): where the money is after every
+   * step and what follows. Implies the preview; the call then resolves with
+   * `{ intent, preview, journey }`.
+   */
+  readonly journey?: boolean;
+  /** `none` skips account reads for the journey (demo accounts); default `live`. */
+  readonly journeyReads?: "live" | "none";
 }
+
+/** `POST /v1/intents?journey=true`: the intent, its plan-stage preview and its journey (null when the API could not build one). */
+export interface IntentWithJourney {
+  readonly intent: IntentGraph;
+  readonly preview: IntentPreview | null;
+  readonly journey: Journey | null;
+}
+
+/** `POST /v1/intents/{id}/stop`: the stopped intent and where its money is now. */
+export interface StoppedIntent {
+  readonly intent: IntentGraph;
+  readonly journey: Journey | null;
+}
+
+/** Options of `intents.journey`. */
+export interface JourneyOptions {
+  /** Bypass the API's fact caches (at most once per 10 s per intent). */
+  readonly refresh?: boolean;
+  /** `none` skips account reads (demo accounts); default `live`. */
+  readonly reads?: "live" | "none";
+}
+
+/** Filter of `intents.list`. */
+export interface IntentListFilter {
+  /** 1-100 (default 20). */
+  readonly limit?: number;
+  /** Another key of the caller's subtree (an agent or publishable key) whose intents to list. */
+  readonly owner?: string;
+}
+
+/* --------------------------------------------------- clarifying questions */
+
+/** Options of `intents.turn` (one clarify turn, `POST /v1/intents?clarify=true`). */
+export interface IntentTurnOptions {
+  /** Plan without storing an intent when the thread is ready (recommended for every turn but the commit). */
+  readonly dryRun?: boolean;
+  /** Also compute the plan-stage preview when the turn plans. */
+  readonly preview?: boolean;
+  /** Also build the journey when the turn plans (implies the preview). */
+  readonly journey?: boolean;
+}
+
+/** `intents.turn`: the API's turn response; narrow on `status`. */
+export type IntentTurnResult = IntentTurnResponse & {
+  /** With `journey: true`, on a planned turn. */
+  readonly journey?: Journey | null;
+};
+
+/** One Kletia-held thread as `GET /v1/threads` lists it: its ref, a one-line summary and its times. */
+export interface ThreadListEntry extends ThreadRef {
+  /** The draft summary, the planned sentence, or "Cancelled". */
+  readonly summary: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** `GET /v1/threads`. */
+export interface ThreadList {
+  readonly threads: readonly ThreadListEntry[];
+  /** Pass to `threads.list({ cursor })` for the next page; null on the last one. */
+  readonly nextCursor: string | null;
+}
+
+/** Filter of `threads.list`. */
+export interface ThreadListFilter {
+  readonly status?: ThreadStatus;
+  /** 1-100. */
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+/** The request context a Kletia-held thread keeps between turns (the last one sent wins, field by field). */
+export interface ThreadContextView {
+  readonly accounts: readonly AccountId[];
+  readonly defaultNetwork?: NetworkKey;
+  readonly sourceNetwork?: NetworkKey | "auto";
+  readonly constraints?: Readonly<Record<string, unknown>>;
+  readonly metadata?: Readonly<Record<string, string>>;
+  readonly clientReference?: string;
+}
+
+/** `GET /v1/threads/{id}`: the thread, its ref, the context it keeps, its last response and its intents. */
+export interface ThreadDetail {
+  readonly thread: ClarifyThread;
+  readonly ref: ThreadRef;
+  readonly summary: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly context: ThreadContextView;
+  /** The last turn's response, compact (a planned turn keeps its sentence and chips, not the intent graph). */
+  readonly response: Readonly<Record<string, unknown>> | null;
+  /** Stored intents planned on this thread, newest last. */
+  readonly intents: readonly string[];
+}
+
+/* ------------------------------------------------- projects (phase 2) */
+
+/** A JSON merge patch of the project settings (`null` removes a field). */
+export type ProjectSettingsPatch = {
+  readonly [K in keyof Omit<ProjectSettingsInput, "schema">]?: ProjectSettingsInput[K] | null;
+} & { readonly schema?: ProjectSettingsInput["schema"] };
+
+/** `POST /v1/projects/current/publishable-keys`: the key, shown once. */
+export interface PublishableKeyRecord {
+  readonly id: string;
+  /** `kl_pub_…`: public by design (it identifies the project in browsers); shown once. */
+  readonly key: string;
+  readonly label: string;
+  readonly kind: "publishable";
+  readonly parentId: string;
+  readonly createdAt: string;
+}
+
+/** A stored flow as `projects.get` returns it. */
+export type ProjectFlowView = ProjectFlow & { readonly ownerKeyId: string };
+
+/** Content types `projects.setLogo` accepts. */
+export type ProjectLogoContentType = "image/png" | "image/webp";
 
 /** `POST /v1/intents?preview=true`: the intent and its plan-stage preview (absent when the API could not compute one). */
 export interface IntentWithPreview {
@@ -248,11 +414,25 @@ export interface WebhookRecord {
   readonly secret?: string;
 }
 
+/** Lanes a key's rule books allow: testnet only (a sandbox key), production only, or any. */
+export type KeyLane = "testnet" | "production" | "any";
+
+/** Options of `keys.create`. */
+export interface CreateKeyOptions {
+  /**
+   * A sandbox key: issued with a key-level rule book that keeps it on the
+   * testnet lane (`networks.lanes: ["testnet"]`).
+   */
+  readonly sandbox?: boolean;
+}
+
 export interface ApiKeyRecord {
   readonly id: string;
   readonly name: string;
   readonly tier: string;
   readonly createdAt?: string;
+  /** Lanes its rule books allow (API versions with sandbox keys). */
+  readonly lane?: KeyLane;
   /** Present only in the creation response. */
   readonly key?: string;
 }
@@ -272,8 +452,8 @@ export interface ApiKeySummary {
   readonly revokedAt: string | null;
   /** True for the key that made the request. */
   readonly current: boolean;
-  /** `agent` for keys created under another key (Rule Book API versions). */
-  readonly kind?: "project" | "agent";
+  /** `agent` for keys created under another key (Rule Book API versions); `publishable` for `kl_pub_` keys. */
+  readonly kind?: "project" | "agent" | "publishable";
   /** Parent of an agent key (null for project keys). */
   readonly parentId?: string | null;
   /** Levels below the project key (0 for project keys). */
@@ -284,6 +464,8 @@ export interface ApiKeySummary {
   readonly policyVersion?: number | null;
   /** Active agent keys below this key. */
   readonly descendants?: number;
+  /** Lanes its rule book chain allows (API versions with sandbox keys). */
+  readonly lane?: KeyLane;
 }
 
 /** `POST /v1/keys/{id}/rotate`: the same key id with a new secret (shown once). */

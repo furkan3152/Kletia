@@ -1,6 +1,6 @@
 import React from "react";
 import { fromBaseUnits } from "@kletia/core";
-import { ExternalLink, Landmark, ShieldCheck } from "lucide-react";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 
 import type { SolanaPortfolio, SolanaPreparedSwap } from "../api";
 import { formatTokenAmount } from "../format";
@@ -12,7 +12,7 @@ import {
 } from "../tokens";
 import { ui } from "../styles";
 import { LiveQuote, PreparedSwapDetails } from "./QuoteDetails";
-import { ConnectSolanaCta, ExecutionPanel, PanelHeader } from "./SolanaUi";
+import { ExecutionPanel } from "./SolanaUi";
 import { SlippagePresets } from "./SolanaSwap";
 
 interface SolanaStakeProps {
@@ -20,6 +20,7 @@ interface SolanaStakeProps {
   portfolio: SolanaPortfolio | null;
 }
 
+/** Liquid staking form (desk tool 06): SOL into JitoSOL, mSOL or JupSOL through a Jupiter swap. */
 export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
   const [lst, setLst] = React.useState<LiquidStakingSymbol>("JitoSOL");
   const [amount, setAmount] = React.useState("");
@@ -44,12 +45,9 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <PanelHeader
-        icon={Landmark}
-        title="Liquid staking"
-        description="Stake SOL into a liquid staking token. Kletia routes the deposit through Jupiter, so it executes as a swap into the token at the live pool price."
-      />
-      {!owner ? <ConnectSolanaCta /> : null}
+      <p className="text-sm text-muted">
+        Kletia routes the deposit through Jupiter, so it executes as a swap into the token at the live pool price.
+      </p>
 
       <form
         className={`${ui.card} flex flex-col gap-4`}
@@ -70,10 +68,10 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
               return (
                 <label
                   key={option.symbol}
-                  className={`flex cursor-pointer flex-col gap-1 border-[3px] border-[#1A1A1A] p-3 shadow-[3px_3px_0_#1A1A1A] transition-[transform,background-color] duration-100 focus-within:outline focus-within:outline-4 focus-within:outline-offset-2 focus-within:outline-[#9945FF] dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] ${
+                  className={`flex cursor-pointer flex-col gap-1 border-[3px] border-[#1A1A1A] p-3 shadow-[3px_3px_0_#1A1A1A] transition-[transform,background-color] duration-100 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-focus dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] ${
                     selected
-                      ? "bg-[#1A1A1A] text-white dark:bg-[#14F195] dark:text-[#1A1A1A]"
-                      : "bg-white hover:-translate-y-0.5 dark:bg-[#1A2841]"
+                      ? "bg-[#1A1A1A] text-white dark:bg-[#F1F5F9] dark:text-[#0B1120]"
+                      : "bg-surface hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
                   }`}
                 >
                   <span className="flex items-center justify-between gap-2">
@@ -88,7 +86,7 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
                           setLst(option.symbol);
                           execution.reset();
                         }}
-                        className="h-4 w-4 accent-[#9945FF]"
+                        className="h-4 w-4 accent-[#0052FF]"
                       />
                       {option.symbol}
                     </span>
@@ -108,7 +106,7 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
             href={LIQUID_STAKING_OPTIONS.find((option) => option.symbol === lst)?.website}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 self-start text-[11px] font-black uppercase text-[#9945FF] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#9945FF] dark:text-[#C4A1FF]"
+            className={`inline-flex items-center gap-1 self-start ${ui.textButton}`}
           >
             About {lst} <ExternalLink className="h-3 w-3" aria-hidden="true" />
             <span className="sr-only"> (opens in a new tab)</span>
@@ -125,7 +123,7 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
                 type="button"
                 disabled={locked}
                 onClick={() => setAmount(max)}
-                className="text-[11px] font-black uppercase text-[#9945FF] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#9945FF] disabled:opacity-50 dark:text-[#C4A1FF]"
+                className={ui.textButton}
               >
                 Max {formatTokenAmount(max)}
               </button>
@@ -146,7 +144,7 @@ export function SolanaStake({ owner, portfolio }: SolanaStakeProps) {
             aria-describedby={hintId}
             className={ui.input}
           />
-          <p id={hintId} className="text-xs font-bold text-gray-600 dark:text-slate-300" aria-live="polite">
+          <p id={hintId} className={ui.hint} aria-live="polite">
             {flow.amountError ??
               (overBalance
                 ? "Amount exceeds your SOL balance."

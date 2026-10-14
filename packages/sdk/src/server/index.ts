@@ -1,7 +1,7 @@
 /**
- * `@kletia/sdk/server`: helpers for your backend. Web Crypto only (no
- * `node:` imports), so they run on Node 20+, Bun, Deno, edge runtimes and
- * Workers.
+ * `@kletia/sdk/server`: helpers for your backend (webhook verification and
+ * the browser proxy). Web Crypto and the Fetch API only (no `node:`
+ * imports), so they run on Node 20+, Bun, Deno, edge runtimes and Workers.
  */
 export {
   constructWebhookEvent,
@@ -26,5 +26,7 @@ export type {
   WebhookRawBody,
   WebhookSecret,
 } from "./webhooks.js";
+export { BROWSER_PROXY_RULES, createKletiaProxy, DEFAULT_PROXY_MAX_BODY_BYTES, expressKletiaProxy } from "./proxy.js";
+export type { KletiaProxyOptions, NodeProxyRequest, NodeProxyResponse, ProxyRule } from "./proxy.js";
 export { signWebhookPayload, verifyWebhookSignature, WEBHOOK_SIGNATURE_HEADER } from "@kletia/core";
 export type { AnyKletiaEvent, KletiaEvent, KletiaEventType } from "@kletia/core";

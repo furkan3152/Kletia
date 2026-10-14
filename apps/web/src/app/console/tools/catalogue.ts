@@ -9,16 +9,19 @@
  * composer with the tool's engine pin; nothing is sent from here.
  *
  * Pure data (node --test loads it): `load` only names a dynamic import and is
- * never called here. The tool host (desk-tools package) adapts each
- * component's props.
+ * never called here. ToolPanel hosts each component and adapts its props from
+ * the fields below (`promptProp`, `host`, `networkProp`).
  */
 import type { NetworkKey, ProtocolId } from "@kletia/core";
 
 import { ACTIVE_WALLET_ADDRESS } from "../../../shared/config/intentExamples.ts";
 import type { LegacyNetwork } from "../state/deskModel.ts";
+import { ARC_FAUCET_URL } from "./funding.ts";
 
 export type ToolKind = "panel" | "form" | "read-only" | "prompt" | "link";
 export type ToolCategory = "pay" | "earn" | "swap" | "send" | "names" | "security" | "data" | "funding" | "contracts" | "agents";
+/** Callback props of the moved console components that receive a sentence. */
+export type ToolPromptProp = "onIntentTemplate" | "onActionClick" | "onWidgetClick";
 /** The wallet a tool needs before it can act. */
 export type ToolNeeds = "evm" | "solana" | "none";
 
@@ -48,6 +51,16 @@ export interface DeskTool {
   readonly load?: () => Promise<unknown>;
   /** Named export of the component in the loaded module. */
   readonly exportName?: string;
+  /**
+   * The component's callback that hands a sentence back: ToolPanel passes
+   * `onPrompt(text, { engine })`, which fills the composer with this tool's
+   * engine pinned (nothing is sent).
+   */
+  readonly promptProp?: ToolPromptProp;
+  /** `solana`: hosted by SolanaToolHost, which passes the Solana owner and mainnet portfolio. */
+  readonly host?: "solana";
+  /** The component takes `network` and `chainId`: ToolPanel offers the tool's networks as a choice. */
+  readonly networkProp?: boolean;
   /** Static starter sentences (prompt tools). */
   readonly prompts?: readonly ToolPrompt[];
   /** Destination of a link tool. */
@@ -132,6 +145,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["x402"],
     load: () => import("../../../networks/base/components/x402/X402ServiceRouter"),
     exportName: "X402ServiceRouter",
+    promptProp: "onIntentTemplate",
   },
   {
     id: "basenames",
@@ -146,6 +160,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["basenames"],
     load: () => import("../../../networks/base/components/BasenameClaimer"),
     exportName: "BasenameClaimer",
+    promptProp: "onActionClick",
   },
   {
     id: "address-risk",
@@ -160,6 +175,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["webacy"],
     load: () => import("../../../integrations/webacy/components/WebacyScanner"),
     exportName: "WebacyScanner",
+    networkProp: true,
   },
   {
     id: "jupiter-swap",
@@ -174,6 +190,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["jupiter"],
     load: () => import("../../../networks/solana/components/SolanaSwap"),
     exportName: "SolanaSwap",
+    host: "solana",
   },
   {
     id: "solana-send",
@@ -188,6 +205,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["system-transfer", "spl-token"],
     load: () => import("../../../networks/solana/components/SolanaSend"),
     exportName: "SolanaSend",
+    host: "solana",
   },
   {
     id: "liquid-staking",
@@ -202,6 +220,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["jito", "marinade", "sanctum"],
     load: () => import("../../../networks/solana/components/SolanaStake"),
     exportName: "SolanaStake",
+    host: "solana",
   },
   {
     id: "solana-lending-rates",
@@ -216,6 +235,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["jupiter-lend", "kamino"],
     load: () => import("../../../networks/solana/components/SolanaYields"),
     exportName: "SolanaYields",
+    host: "solana",
   },
   {
     id: "arc-contracts",
@@ -230,6 +250,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["arc-native"],
     load: () => import("../../../networks/arc/components/ArcDashboardWidget"),
     exportName: "ArcDashboardWidget",
+    promptProp: "onWidgetClick",
   },
   {
     id: "arc-lending",
@@ -244,6 +265,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["arc-native"],
     load: () => import("../../../networks/arc/components/ArcLendingDashboard"),
     exportName: "ArcLendingDashboard",
+    promptProp: "onActionClick",
   },
   {
     id: "allora",
@@ -258,6 +280,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     protocols: ["allora"],
     load: () => import("../../../integrations/allora/components/AlloraDashboard"),
     exportName: "AlloraDashboard",
+    promptProp: "onActionClick",
   },
   {
     id: "airdrop-check",
@@ -284,7 +307,7 @@ export const TOOLS: readonly DeskTool[] = Object.freeze([
     needs: "none",
     summary: "Get test USDC for Arc Testnet from Circle's faucet.",
     protocols: [],
-    href: "https://faucet.circle.com",
+    href: ARC_FAUCET_URL,
     external: true,
   },
   {

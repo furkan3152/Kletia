@@ -126,7 +126,7 @@ export function LegacyEngineControls({ engine }: { readonly engine: LegacyEngine
   );
 }
 
-export interface LegacyEngineHostProps extends Omit<LegacyEngineOptions, "classic"> {
+export interface LegacyEngineHostProps extends LegacyEngineOptions {
   /** Renders the engine's tasks; the engine is one instance for the network. */
   readonly children: (engine: LegacyEngine) => React.ReactNode;
 }

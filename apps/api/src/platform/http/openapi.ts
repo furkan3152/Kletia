@@ -33,6 +33,7 @@ import {
 } from "@kletia/core";
 import { REJECTION_CODES } from "../index.js";
 import { ACTION_KINDS, PROTOCOL_SURFACES } from "./catalog.js";
+import { CLARIFY_QUERY_PARAMETER, clarifyPaths, clarifySchemas, interpretationClarifyFields } from "./clarifyOpenapi.js";
 import { EVENT_ID_PATTERN, INTENT_ID_PATTERN, MAX_REFERENCE_LENGTH, MAX_REFERENCES, STEP_ID_PATTERN, WEBHOOK_ID_PATTERN } from "./context.js";
 import { DELIVERY_ERRORS, MAX_DELIVERIES_PER_WEBHOOK, MEMORY_DELIVERIES_PER_WEBHOOK, TEST_DELIVERIES_PER_MINUTE } from "./deliveries.js";
 import { PLATFORM_API_VERSION } from "./health.js";
@@ -929,6 +930,7 @@ function schemas(): JsonObject {
               ["network", "chosen"],
               { description: "Where the money starts. Present when the request set `sourceNetwork` (or a clarify answer chose a departure); absent on older deployments." },
             ),
+            ...interpretationClarifyFields(),
           },
           ["source", "confidence"],
         ),
@@ -1625,6 +1627,7 @@ function schemas(): JsonObject {
     ...policySchemas(),
     ...linkSchemas(),
     ...journeySchemas(),
+    ...clarifySchemas(),
 
     IntentResponse: obj({ intent: ref("IntentGraph") }, ["intent"]),
     IntentCreateResponse: obj(
@@ -1736,6 +1739,12 @@ function errors(...statuses: string[]): JsonObject {
     if (name) out[status] = { $ref: `#/components/responses/${name}` };
   }
   return out;
+}
+
+/** A JSON success response whose body is one of `schemas`. */
+function oneOfResponse(schemas: readonly string[], description: string, extraHeaders: JsonObject = {}): JsonObject {
+  const response = ok(schemas[0] as string, description, extraHeaders) as { content: { "application/json": { schema: JsonObject } } } & JsonObject;
+  return { ...response, content: { "application/json": { schema: { oneOf: schemas.map((name) => ref(name)) } } } };
 }
 
 function jsonBody(schema: string, required = true): JsonObject {
@@ -1855,7 +1864,8 @@ function paths(): JsonObject {
         tags: ["Intents"],
         summary: "Plan an intent into an IntentGraph",
         description:
-          "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200)." +
+          "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200).\n\n" +
+          "With `clarify=true` the request is one turn of a task (`IntentTurnRequest`) and Kletia asks instead of refusing: `needs_input` (200) carries at most two questions, assumption chips and a draft; `planned` is 201 when stored (200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent); `cancelled` is 200; a refusal answers its catalogue status and the thread is unchanged. Threads are client-held by default (send `thread` back); `remember: true` (API keys only) keeps them at Kletia (`threadId`, `expectedRev`, `If-Match`). Idempotency-Key also applies to dry-run turns that create or change a Kletia-held thread." +
           IDEMPOTENCY_NOTE,
         parameters: [
           { name: "dryRun", in: "query", required: false, schema: str({ enum: ["true", "false", "1", "0"] }) },
@@ -1868,13 +1878,28 @@ function paths(): JsonObject {
           },
           journeyQueryParameter("Also return the journey (where the money is after every step and what follows), built on the plan-stage preview, which it implies; dry runs too. Never a failed create (`journey: null`)."),
           JOURNEY_READS_PARAMETER,
+          CLARIFY_QUERY_PARAMETER,
           idempotencyKeyParam,
+          {
+            name: "If-Match",
+            in: "header",
+            required: false,
+            description: "With `clarify=true` and `threadId`: the thread revision the turn expects (as `expectedRev`), e.g. `\"3\"`; another revision is 409 THREAD_CONFLICT.",
+            schema: str({ pattern: "^(W/)?\"?[0-9]{1,9}\"?$" }),
+          },
         ],
-        requestBody: jsonBody("IntentRequest"),
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { oneOf: [ref("IntentRequest"), ref("IntentTurnRequest")], description: "`IntentTurnRequest` with `clarify=true`, otherwise `IntentRequest`." } } },
+        },
         responses: {
-          "201": ok("IntentCreateResponse", "Intent planned and stored.", REPLAYED_HEADER),
-          "200": ok("IntentCreateResponse", "Dry run, or idempotent replay of an existing intent.", REPLAYED_HEADER),
-          ...errors("409", "413", "415", "422", "502", "504"),
+          "201": oneOfResponse(["IntentCreateResponse", "IntentTurnResponse"], "Intent planned and stored (with `clarify=true`: a planned turn that stored its intent).", REPLAYED_HEADER),
+          "200": oneOfResponse(
+            ["IntentCreateResponse", "IntentTurnResponse"],
+            "Dry run, or idempotent replay of an existing intent. With `clarify=true`: needs_input, cancelled, a planned dry run or a replayed commit.",
+            REPLAYED_HEADER,
+          ),
+          ...errors("404", "409", "413", "415", "422", "502", "504"),
         },
       },
       get: {
@@ -1993,6 +2018,7 @@ function paths(): JsonObject {
       },
     },
     ...journeyPaths(),
+    ...clarifyPaths(),
     ...previewPaths(),
     ...receiptPaths(),
     ...policyPaths(),
@@ -2482,15 +2508,15 @@ export function buildOpenApiDocument(): JsonObject {
         "Idempotent-Replayed": { description: "`true` when the response replays an earlier request (Idempotency-Key or clientReference).", schema: str({ const: "true" }) },
       },
       responses: {
-        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
+        BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, MESSAGE_SECRET_REFUSED, THREAD_INVALID, THREAD_REQUIRES_API_KEY, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
         Forbidden: errorResponse("Not allowed (SECRET_KEY_FROM_BROWSER for a kl_dev_ or kl_agt_ key sent with a foreign Origin, KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, NOT_FOUND)."),
-        Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
+        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND)."),
+        Conflict: errorResponse("State conflict (QUESTION_NOT_OPEN, THREAD_CONFLICT, THREAD_CLOSED, STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN, POLICY_APPROVAL_EXPIRED, LINK_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, ANSWER_INVALID, EDIT_UNSUPPORTED, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },

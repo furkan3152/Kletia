@@ -25,8 +25,12 @@ import {
   type ContractReview,
   type ContractTestResult,
   type ContractView,
+  type ClarifyAssumption,
+  type ClarifyQuestion,
   type IntentGraph,
+  type IntentPreview,
   type IntentStep,
+  type IntentTurnRequest,
   type Journey,
 } from "@kletia/core";
 import {
@@ -43,8 +47,10 @@ import {
 import { assetRegistry, networkCapabilities, protocolRegistry } from "../catalog.js";
 import { HttpError, invalidRequest, type ApiTier } from "../context.js";
 import { createContractDirectory, getContract, keyContext, listContracts, parseContractListFilter, testContract } from "../contracts.js";
+import { runClarifyTurn } from "../clarify.js";
 import { contractTestLimiter } from "../limits.js";
 import { PlatformError } from "../../errors.js";
+import { JOURNEY_PLAN_DEADLINE_MS } from "../../engine/journey/facts.js";
 import { errorDocsLink } from "../errorsRoute.js";
 import { GET_JOURNEY_TOOL, GET_RECEIPT_TOOL, journeySummary, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
 import { journeyReadLimiter } from "../journey.js";
@@ -74,6 +80,8 @@ export interface KletiaTool {
   readonly inputSchema: JsonSchema;
   readonly annotations: ToolAnnotations;
   run(args: Record<string, unknown>, caller: ToolCaller): Promise<Record<string, unknown>>;
+  /** The text content of a result, when plain JSON would read poorly (default: the result as JSON). */
+  render?(value: Record<string, unknown>): string | null;
 }
 
 export interface ToolResult {
@@ -330,6 +338,101 @@ function stringArg(args: Record<string, unknown>, name: string): string | undefi
   return typeof value === "string" ? value : undefined;
 }
 
+/** The planned view agents read (no calldata, no quote bindings). */
+async function plannedView(intent: IntentGraph, preview: IntentPreview | undefined, journey: Journey | null, caller: ToolCaller): Promise<Record<string, unknown>> {
+  const remaining = intent.policy && caller.keyId ? await remainingFor(caller.keyId).catch(() => []) : [];
+  return {
+    dryRun: true,
+    ...(intent.policy ? { policy: { ...stampSummary(intent.policy), ...(remaining.length > 0 ? { remaining } : {}) } } : {}),
+    summary: summaryView(intent),
+    steps: intent.steps.map(stepView),
+    warnings: intent.warnings,
+    externalRecipients: externalRecipients(intent),
+    // The fare breakdown (stage plan): what leaves the user's wallets, what arrives, fees and needs.
+    ...(preview ? { preview: previewSummary(preview) } : {}),
+    // Where the money is after each step, and what the user must decide before signing.
+    ...(journey ? { journey: journeySummary(journey) } : {}),
+    expiresAt: intent.expiresAt,
+  };
+}
+
+function questionView(question: ClarifyQuestion): Record<string, unknown> {
+  return compact({
+    id: question.id,
+    kind: question.kind,
+    reason: question.reason,
+    purpose: question.purpose,
+    prompt: question.prompt,
+    why: question.why,
+    options: question.options.map((option) => compact({ id: option.id, label: option.label, detail: option.detail, recommended: option.recommended, sentence: option.sentence })),
+    allowsText: question.allowsText,
+    placeholder: question.placeholder,
+  });
+}
+
+function assumptionView(entry: ClarifyAssumption): Record<string, unknown> {
+  return { id: entry.id, label: entry.label, reason: entry.reason, material: entry.material, alternatives: entry.alternatives.map((option) => ({ id: option.id, label: option.label })) };
+}
+
+/**
+ * plan_intent with clarify (the default for text): one dry-run turn on a
+ * client-held thread. MCP never remembers threads and never stores intents
+ * here; needs_input is a normal result the agent relays to the person.
+ */
+async function clarifyPlan(args: Record<string, unknown>, caller: ToolCaller): Promise<Record<string, unknown>> {
+  const { clarify: _clarify, ...request } = args;
+  const response = await runClarifyTurn(request as unknown as IntentTurnRequest, {
+    ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}),
+    dryRun: true,
+    preview: true,
+    thread: null,
+  });
+  if (response.status === "cancelled") {
+    return { status: "cancelled", dryRun: true, thread: response.thread, next: "The task was cancelled. Start again with a new sentence when the person wants to." };
+  }
+  if (response.status === "needs_input") {
+    return {
+      status: "needs_input",
+      dryRun: true,
+      questions: response.questions.map(questionView),
+      assumptions: response.assumptions.map(assumptionView),
+      draft: { summary: response.draft.summary, missing: response.draft.missing },
+      thread: response.thread,
+      next: "Ask the person each question. Never pick an option of a question whose purpose is true yourself. Then call plan_intent with the same accounts, this thread and answer { question, option } (or { question, text }).",
+    };
+  }
+  let journey: Journey | null = null;
+  try {
+    journey = await journeyFor(response.intent, { preview: response.preview ?? null, reads: "live", deadlineMs: JOURNEY_PLAN_DEADLINE_MS });
+  } catch {
+    // The journey is advisory here; the plan stands without it.
+  }
+  return {
+    status: "planned",
+    ...(await plannedView(response.intent, response.preview, journey, caller)),
+    sentence: response.sentence,
+    assumptions: response.assumptions.map(assumptionView),
+    thread: response.thread,
+    next: "Nothing was stored. Tell the person what Kletia assumed, then call create_signing_link with text set to `sentence` and give the link to the user.",
+  };
+}
+
+/** needs_input as text: the questions with numbered options and the sentence each leads to. */
+function renderPlan(value: Record<string, unknown>): string | null {
+  if (value.status !== "needs_input" || !Array.isArray(value.questions)) return null;
+  const lines = ["Kletia needs input before it can plan this. Ask the person:"];
+  (value.questions as Record<string, unknown>[]).forEach((question, index) => {
+    lines.push(`${index + 1}. ${String(question.prompt)} (${String(question.why)}) [question ${String(question.id)}${question.purpose ? ", the person must answer" : ""}]`);
+    ((question.options as Record<string, unknown>[] | undefined) ?? []).forEach((option, number) => {
+      const extra = [option.detail ? String(option.detail) : "", option.recommended ? "suggested" : "", option.sentence ? `leads to "${String(option.sentence)}"` : ""].filter(Boolean).join("; ");
+      lines.push(`   ${number + 1}) ${String(option.label)} [option ${String(option.id)}]${extra ? `: ${extra}` : ""}`);
+    });
+    if (question.allowsText) lines.push(`   or a typed answer${question.placeholder ? ` (${String(question.placeholder)})` : ""}`);
+  });
+  lines.push("Send the answer to plan_intent with the thread from structuredContent.");
+  return lines.join("\n");
+}
+
 export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   {
     name: "list_networks",
@@ -432,16 +535,20 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   {
     name: "plan_intent",
     description:
-      "Plan an intent as a dry run: compile plain English such as \"bridge 25 USDC from base to solana then swap half to JitoSOL\" (or structured actions) into network-bound steps with live quotes. Nothing is stored and nothing can be signed from the result. `journey` says where the money is after each step and what follows; tell the user about every `block` consequence and ask its question. Review `externalRecipients`, then use create_signing_link so the user signs in Kletia Studio.",
+      "Plan an intent as a dry run: compile plain English such as \"bridge 25 USDC from base to solana then swap half to JitoSOL\" (or structured actions) into network-bound steps with live quotes. Nothing is stored and nothing can be signed from the result. " +
+      "Kletia asks when a sentence leaves out something that decides where money goes or how much (status needs_input, a normal result, not an error): " +
+      "when status is needs_input, ask the person. Never answer a question whose purpose is true yourself; you may accept a suggested option for other questions only when the person told you to go with Kletia's suggestions. " +
+      "Send the answer back with the returned `thread` as `answer` { question, option } (or { question, text }), or send an option's `sentence` as new text. " +
+      "When status is planned, tell the person about every assumption, and about every `block` consequence of `journey` and ask its question. Review `externalRecipients`, then call create_signing_link with `sentence` so the user signs in Kletia Studio. Set clarify to false (or send actions) for the strict planner, which refuses incomplete sentences.",
     inputSchema: {
       type: "object",
       properties: {
-        text: { type: "string", minLength: 1, maxLength: 1000, description: "The intent in plain English." },
+        text: { type: "string", minLength: 1, maxLength: 1000, description: "The intent in plain English, or a reply on a thread (\"50\", \"make it 2\", \"cancel\")." },
         actions: {
           type: "array",
           minItems: 1,
           maxItems: 8,
-          description: "Structured alternative to `text`.",
+          description: "Structured alternative to `text` (planned strictly, never asked about).",
           items: {
             type: "object",
             properties: {
@@ -481,19 +588,49 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
           },
           additionalProperties: false,
         },
+        clarify: { type: "boolean", description: "Ask instead of refusing an incomplete sentence (default true)." },
+        thread: {
+          type: "object",
+          description: "The `thread` of the previous plan_intent result, exactly as returned (kletia.thread/v1). Send it with `answer`, `assumption` or a follow-up `text`.",
+        },
+        answer: {
+          type: "object",
+          properties: {
+            question: { type: "string", maxLength: 96, description: "The question id (q.…)." },
+            option: { type: "string", maxLength: 128, description: "The id of the option the person chose." },
+            text: { type: "string", minLength: 1, maxLength: 1000, description: "The person's own answer, when the question allows text." },
+          },
+          required: ["question"],
+          additionalProperties: false,
+        },
+        assumption: {
+          type: "object",
+          properties: { id: { type: "string", maxLength: 96, description: "The assumption id (a.…)." }, option: { type: "string", maxLength: 128, description: "One of its alternatives." } },
+          required: ["id", "option"],
+          additionalProperties: false,
+        },
       },
       required: ["accounts"],
       additionalProperties: false,
     },
     annotations: annotations("Plan an intent (dry run)", true, false),
     async run(args, caller) {
-      if (typeof args.text !== "string" && !Array.isArray(args.actions)) {
+      const clarify = args.clarify !== false && args.actions === undefined;
+      if (!clarify && typeof args.text !== "string" && !Array.isArray(args.actions)) {
         throw invalidRequest("Provide text or actions.", [{ path: "text", message: "Required unless actions are given." }]);
       }
+      if (!clarify && (args.thread !== undefined || args.answer !== undefined || args.assumption !== undefined)) {
+        throw invalidRequest("thread, answer and assumption need clarify (and text, not actions).", [{ path: "clarify", message: "Must not be false with a thread." }]);
+      }
       // With a key, the caller's registered contracts (ids, aliases) plan too, as a dry run, and its rule book judges the plan.
-      let planned: Awaited<ReturnType<typeof createIntentDetailed>>;
       try {
-        planned = await createIntentDetailed(args, { dryRun: true, preview: true, journey: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+        if (clarify) return await clarifyPlan(args, caller);
+        const { clarify: _clarify, ...request } = args;
+        const planned = await createIntentDetailed(request, { dryRun: true, preview: true, journey: true, ...(caller.keyId ? { ownerKeyId: caller.keyId } : {}) });
+        return {
+          ...(await plannedView(planned.intent, planned.preview, planned.journey ?? null, caller)),
+          next: "Nothing was stored. To execute, call create_signing_link with the same text and give the link to the user.",
+        };
       } catch (error) {
         // A refusal of the rule book is an answer, not an error: the agent sees the rule ids it broke.
         const denied = caller.keyId ? deniedPlan(error) : null;
@@ -505,23 +642,8 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
           next: "The rule book of this key refused the plan. Change the request so it fits every rule listed; splitting amounts or adding accounts does not help.",
         };
       }
-      const { intent, preview, journey } = planned;
-      const remaining = intent.policy && caller.keyId ? await remainingFor(caller.keyId).catch(() => []) : [];
-      return {
-        dryRun: true,
-        ...(intent.policy ? { policy: { ...stampSummary(intent.policy), ...(remaining.length > 0 ? { remaining } : {}) } } : {}),
-        summary: summaryView(intent),
-        steps: intent.steps.map(stepView),
-        warnings: intent.warnings,
-        externalRecipients: externalRecipients(intent),
-        // The fare breakdown (stage plan): what leaves the user's wallets, what arrives, fees and needs.
-        ...(preview ? { preview: previewSummary(preview) } : {}),
-        // Where the money is after each step, and what the user must decide before signing.
-        ...(journey ? { journey: journeySummary(journey) } : {}),
-        expiresAt: intent.expiresAt,
-        next: "Nothing was stored. To execute, call create_signing_link with the same text and give the link to the user.",
-      };
     },
+    render: renderPlan,
   },
   {
     name: "get_intent",
@@ -713,7 +835,7 @@ function textOf(value: Record<string, unknown>): string {
 export async function runTool(tool: KletiaTool, args: Record<string, unknown>, caller: ToolCaller): Promise<ToolResult> {
   try {
     const value = await tool.run(args, caller);
-    return { content: [{ type: "text", text: textOf(value) }], structuredContent: value };
+    return { content: [{ type: "text", text: tool.render?.(value) ?? textOf(value) }], structuredContent: value };
   } catch (error) {
     const failure = error instanceof HttpError ? error : toPlatformError(error);
     const docs = errorDocsLink(failure.code);

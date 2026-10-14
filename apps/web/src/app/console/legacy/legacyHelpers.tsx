@@ -6,7 +6,7 @@
 import React from "react";
 import type { Hex } from "viem";
 import { explorerTxUrl, formatAccountId } from "@kletia/core";
-import type { AppTab, NetworkMode } from "../../../shared/config/networks";
+import type { NetworkMode } from "../../../shared/config/networks";
 import { recordActivity } from "../../../shared/sync/activityStore";
 import { emitPortfolioInvalidated } from "../../../shared/sync/bus";
 import type { IntentResponse } from "../../../shared/types";
@@ -18,19 +18,26 @@ export const BASE_SWAP_EXECUTION_POLICY_SETTING =
 
 export const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export const APP_TABS: readonly AppTab[] = [
-  "chat",
-  "basename",
-  "allora",
-  "airdrop",
-  "x402",
-  "webacy",
-  "arc",
-  "lending",
-];
+/**
+ * Modules a network engine may open (`action: "open_widget"`): the old
+ * console's tabs, per engine network. The desk maps each to its tool.
+ */
+export type EngineTab = "chat" | "basename" | "allora" | "airdrop" | "x402" | "webacy" | "arc" | "lending";
 
-export const isAppTab = (value: unknown): value is AppTab =>
-  typeof value === "string" && APP_TABS.includes(value as AppTab);
+export const ENGINE_TABS: Readonly<Record<NetworkMode, readonly EngineTab[]>> = Object.freeze({
+  base: Object.freeze(["chat", "webacy", "allora", "basename", "airdrop", "x402"] as const),
+  arc: Object.freeze(["chat", "arc", "lending"] as const),
+  arbitrum: Object.freeze(["chat", "webacy"] as const),
+});
+
+const ALL_ENGINE_TABS: ReadonlySet<string> = new Set<string>(Object.values(ENGINE_TABS).flat());
+
+export const isEngineTab = (value: unknown): value is EngineTab =>
+  typeof value === "string" && ALL_ENGINE_TABS.has(value);
+
+/** An engine-pinned sentence that names Solana or crosses networks: the engines cannot run it. */
+export const CROSS_NETWORK_ENGINE_MESSAGE =
+  "This sentence involves Solana or more than one network, which the EVM engines cannot run. Send it from the desk's composer without an engine pin and Kletia's planner will plan it.";
 
 export const createRequestId = (): string => {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();

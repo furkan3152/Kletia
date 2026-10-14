@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme pool</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font: 16px/1.5 system-ui, sans-serif; }
+      main { max-width: 560px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+    </style>
+    <!-- The element script from the Kletia origin (pin it with the manifest's integrity in production). -->
+    <script src="{{EMBED_SCRIPT}}" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Supply USDC to the Acme testnet pool</h1>
+      <p>Arbitrum Sepolia. You review the call, the approval and the simulated result before your wallet signs anything.</p>
+      <kletia-intent origin="{{KLETIA_WEB_ORIGIN}}" session="{{SESSION_ID}}" theme="light" height="720" label="Acme pool deposit"></kletia-intent>
+    </main>
+  </body>
+</html>

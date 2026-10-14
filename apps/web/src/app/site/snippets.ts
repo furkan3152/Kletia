@@ -4,15 +4,24 @@
  * keep them in sync when a public API changes. Snippets never contain a real
  * secret: keys and webhook secrets are always read from the environment.
  */
-import { PREVIEW_ACCOUNTS } from "../../shared/platform/previewAccounts";
+import embedPackage from "@kletia/embed/package.json" with { type: "json" };
+
+import { PREVIEW_ACCOUNTS } from "../../shared/platform/previewAccounts.ts";
 import type { CodeLanguage } from "./ui/highlight";
 
 export const API_BASE_URL = "https://api.kletiaai.xyz";
 export const WEB_BASE_URL = "https://kletiaai.xyz";
 export const MCP_URL = `${API_BASE_URL}/v1/mcp`;
-/** Version the embed snippets pin (lockstep with the other @kletia packages). */
-export const EMBED_VERSION = "0.2.0";
-export const EMBED_CDN_URL = `https://cdn.jsdelivr.net/npm/@kletia/embed@${EMBED_VERSION}/dist/index.js`;
+/**
+ * Version the embed snippets pin: read from packages/embed/package.json, so a
+ * release never ships snippets for another version (verify-documentation
+ * checks every written @kletia/<package>@<version> pin the same way).
+ */
+export const EMBED_VERSION: string = embedPackage.version;
+/** The element script, served by the Kletia origin under its exact version (immutable, CORS-enabled). */
+export const EMBED_SCRIPT_URL = `${WEB_BASE_URL}/sdk/embed/${EMBED_VERSION}/kletia-embed.min.js`;
+/** Integrity hashes of every served version, for the script tag's `integrity` attribute. */
+export const EMBED_MANIFEST_URL = `${WEB_BASE_URL}/sdk/embed/manifest.json`;
 /** mcp-remote bridges stdio-only MCP clients to a Streamable HTTP server. */
 export const MCP_REMOTE = "mcp-remote@0.14.3";
 
@@ -56,23 +65,28 @@ const final = await executeIntent(kletia, intent, {
   onUpdate: (next) => render(next),
 });`;
 
-export const SDK_QUICKSTART = `import { KletiaClient, formatAccountId } from "@kletia/sdk";
+/**
+ * A complete file that runs as pasted (Node 18.17 or later, `npm install
+ * @kletia/sdk`, then `node quickstart.mjs`): its placeholders are defined, the
+ * key comes from the environment, and the plan is a dry run.
+ */
+export const SDK_QUICKSTART = `// quickstart.mjs: Node 18.17 or later. npm install @kletia/sdk, then node quickstart.mjs
+import { KletiaClient } from "@kletia/sdk";
 
-const kletia = new KletiaClient(); // public tier; pass { apiKey } on your server
+// Without KLETIA_API_KEY this runs on the public tier (30 requests a minute per IP).
+const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
+
+// Any CAIP-10 account plans; this demo account is never read and never signs.
+const account = process.env.KLETIA_ACCOUNT ?? "${PREVIEW_ACCOUNTS.solana}";
 
 const networks = await kletia.networks();
-console.log(networks.map((network) => \`\${network.name}: \${network.actions.join(", ")}\`));
+console.log(networks.map((network) => \`\${network.name}: \${network.actions.join(", ")}\`).join("\\n"));
 
-const intent = await kletia.intents.create(
-  {
-    text: "swap 1 SOL to USDC",
-    accounts: [formatAccountId("solana", solanaAddress)],
-  },
-  { dryRun: true }, // plan and quote without persisting
-);
+// A dry run plans and quotes without storing anything; nothing is signed.
+const intent = await kletia.intents.create({ text: "swap 1 SOL to USDC", accounts: [account] }, { dryRun: true });
 
 for (const step of intent.steps) {
-  console.log(step.title, step.expectedOutput?.formatted, step.expectedOutput?.symbol);
+  console.log(step.title, step.expectedOutput?.formatted ?? "", step.expectedOutput?.symbol ?? "");
 }`;
 
 export const REST_CREATE_INTENT = `curl -X POST ${API_BASE_URL}/v1/intents \\
@@ -153,9 +167,8 @@ export const EMBED_EVENTS: readonly { name: string; detail: string; description:
   { name: "kletia:resize", detail: "{ height }", description: "The content height changed (the element resizes itself)." },
 ];
 
-/** Example /embed path (relative, so it also opens on preview deployments). */
-export const EMBED_PATH =
-  "/embed?theme=auto&text=swap%201%20SOL%20to%20USDC&examples=swap%201%20SOL%20to%20USDC,stake%202%20SOL%20with%20jito,bridge%2025%20USDC%20from%20base%20to%20solana";
+/** Example /embed path (relative, so it also opens on preview deployments); short enough for one snippet line. */
+export const EMBED_PATH = "/embed?text=swap%201%20SOL%20to%20USDC&examples=swap%201%20SOL%20to%20USDC,stake%202%20SOL%20with%20jito";
 
 export const EMBED_URL = `${WEB_BASE_URL}${EMBED_PATH}`;
 
@@ -435,7 +448,9 @@ app.post("/webhooks/kletia", (c) =>
 
 export default app;`;
 
-const ELEMENT_HTML = `<script type="module" src="${EMBED_CDN_URL}" crossorigin="anonymous"></script>
+const ELEMENT_HTML = `<!-- Serve this page over http(s): a file:// page has no origin, so the widget cannot connect. -->
+<!-- Add integrity="sha384-…" for this version from ${EMBED_MANIFEST_URL} -->
+<script src="${EMBED_SCRIPT_URL}" crossorigin="anonymous"></script>
 
 <kletia-intent
   theme="auto"
@@ -545,6 +560,7 @@ npx @kletia/cli plan "bridge 25 USDC from base to solana then swap half to JitoS
 # Keys: the secret goes to a new mode-600 file, never to your terminal history.
 npm install -g @kletia/cli
 kletia keys create ci --secret-file ./ci-key.txt
+kletia keys create sandbox-dev --sandbox --secret-file ./sandbox-key.txt   # testnets only
 export KLETIA_API_KEY="$(cat ./ci-key.txt)"
 kletia keys list
 kletia keys rotate key_… --grace-seconds 3600 --secret-file ./ci-key-next.txt
@@ -561,8 +577,8 @@ export KLETIA_WEBHOOK_SECRET=whsec_…
 kletia webhooks forward --intent int_… --to http://localhost:3000/api/kletia/webhook
 
 # Rule Books and agent keys (the agent's secret goes to a new mode-600 file)
-kletia keys create-agent --parent key_… --name payouts-bot --template payments-agent \
-  --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \
+kletia keys create-agent --parent key_… --name payouts-bot --template payments-agent \\
+  --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \\
   --expires 7d --secret-file ./agent-key.txt
 kletia keys tree
 kletia policy evaluate key_… --text "send 300 USDC to 0xVendor on base" --account base:0xTreasury
@@ -755,12 +771,12 @@ Ed25519PublicKey.from_public_bytes(base64.urlsafe_b64decode(pad(x))).verify(
 )`;
 
 const MCP_AGENT_KEY = `# 1. An agent key bound by a rule book (a project key creates it; the secret goes to a file).
-kletia keys create-agent --parent key_… --name research-bot --template payments-agent \
-  --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \
+kletia keys create-agent --parent key_… --name research-bot --template payments-agent \\
+  --account base:0xTreasury --recipient base:0xVendor --approver-wallet base:0xYou \\
   --expires 7d --secret-file ./agent-key.txt
 
 # 2. Connect the agent with that key, never a project key.
-claude mcp add --transport http kletia ${MCP_URL} \
+claude mcp add --transport http kletia ${MCP_URL} \\
   --header "Authorization: Bearer $(cat ./agent-key.txt)"`;
 
 const MCP_AGENT_FLOW = `get_policy                      → what binds this key: caps, recipients, timetable, what is left today
@@ -769,6 +785,84 @@ create_intent { text, accounts } → stored under the rule book: intentId, the p
                                    the approval link when held (give it to a human)
 get_approval { approvalId }     → pending, approved, rejected or expired (reading never approves)
 get_intent { intentId }         → settlement, then get_receipt for the signed receipt`;
+
+const JOURNEY_EXECUTE = `import { executeIntent, KletiaClient } from "@kletia/sdk";
+import { askUser, render, signers } from "./your-app.js"; // your UI and the user's wallets
+
+const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
+const accounts = [process.env.SOLANA_ACCOUNT, process.env.BASE_ACCOUNT]; // CAIP-10, the user's own
+
+// 1. Plan with the journey: where the money waits after every step, and what follows from it.
+const { intent, journey } = await kletia.intents.create(
+  { text: "bridge 100 USDC from solana to base and deposit it into aave", accounts },
+  { journey: true }, // implies the fare preview; journey.basis.previewDigest equals preview.digest
+);
+for (const stop of journey.stops) {
+  const held = stop.holdings.map((holding) => \`at least \${holding.atLeast.formatted} \${holding.asset.symbol}\`);
+  console.log(stop.network, stop.holder.label, stop.custody, held.join(", "));
+}
+
+// 2. Every "block" consequence is answered before the leg it concerns is signed.
+const journeyAnswers = {};
+for (const id of journey.blockers) {
+  const consequence = journey.consequences.find((item) => item.id === id);
+  journeyAnswers[id] = await askUser(consequence.prompt?.question ?? consequence.title, consequence.options);
+}
+
+// 3. Execute. Without an answer, executeIntent stops before that wallet prompt and returns the intent.
+const final = await executeIntent(kletia, intent, signers, {
+  onJourney: (next) => render(next), // after the plan and after every step change
+  journeyAnswers,
+});
+console.log(final.status);`;
+
+const JOURNEY_STOP = `# Where the money is now (public: the intent id is the capability).
+curl -s "${API_BASE_URL}/v1/intents/$INTENT_ID/journey"
+
+# End the intent at its current stop: skips what has not started and never moves money.
+curl -s -X POST "${API_BASE_URL}/v1/intents/$INTENT_ID/stop" \\
+  -H "authorization: Bearer $KLETIA_API_KEY" \\
+  -H "idempotency-key: stop-$INTENT_ID"`;
+
+const QUESTIONS_TURNS = `import { KletiaClient } from "@kletia/sdk";
+import { ask } from "./your-app.js"; // shows the question and its options, returns the person's choice
+
+const kletia = new KletiaClient({ apiKey: process.env.KLETIA_API_KEY });
+const accounts = [process.env.SOLANA_ACCOUNT]; // CAIP-10, the user's own
+
+// A sentence with a gap ("how much?") gets questions instead of a guess.
+let turn = await kletia.intents.turn({ text: "swap SOL to USDC", accounts }, { dryRun: true, preview: true });
+
+while (turn.status === "needs_input") {
+  const question = turn.questions[0];
+  // Purpose questions (amounts, recipients) are the person's to answer, never yours or an agent's.
+  const choice = await ask(question.prompt, question.why, question.options, question.allowsText);
+  const answer = choice.option
+    ? { question: question.id, option: choice.option }
+    : { question: question.id, text: choice.text };
+  // Send the thread back exactly as it came: it is signed and holds what was asked and answered.
+  turn = await kletia.intents.turn({ thread: turn.thread, accounts, answer }, { dryRun: true, preview: true });
+}
+
+if (turn.status === "planned") {
+  console.log(turn.sentence); // "swap 2.49 SOL to USDC on solana"
+  for (const assumption of turn.assumptions) {
+    console.log(assumption.material ? "Check:" : "Assumed:", assumption.label, "-", assumption.reason);
+  }
+}`;
+
+const QUESTIONS_REST = `ACCOUNT="${PREVIEW_ACCOUNTS.solana}"
+
+# First turn: clarify=true answers 200 with questions when the sentence has a gap.
+curl -s -X POST "${API_BASE_URL}/v1/intents?clarify=true&dryRun=true" \\
+  -H "content-type: application/json" \\
+  -d "{\\"text\\":\\"swap SOL to USDC\\",\\"accounts\\":[\\"$ACCOUNT\\"]}" > turn.json
+
+# Next turn: the thread exactly as returned, plus the answer to one open question.
+jq --arg account "$ACCOUNT" \\
+  '{thread, accounts: [$account], answer: {question: .questions[0].id, option: "half"}}' turn.json |
+  curl -s -X POST "${API_BASE_URL}/v1/intents?clarify=true&dryRun=true" \\
+    -H "content-type: application/json" -d @-`;
 
 export const RECIPES: readonly Recipe[] = [
   {
@@ -1010,6 +1104,44 @@ export const RECIPES: readonly Recipe[] = [
       "A receipt proves what Kletia observed and signed, not best execution, solvency, or that a third-party contract is honest.",
     ],
   },
+  {
+    id: "journey",
+    label: "Journey",
+    group: "Platform features",
+    title: "Show where the money is after every step",
+    summary:
+      "The journey lists every place the money waits (your wallet, a bridge in transit, a lending venue), how much arrives at least, and what follows: a later step without gas, a paused venue, where a refund goes.",
+    install: "npm install @kletia/sdk",
+    files: [
+      { id: "execute", label: "journey.mjs", language: "ts", filename: "journey.mjs", code: JOURNEY_EXECUTE },
+      { id: "stop", label: "Read and stop", language: "bash", filename: "terminal", code: JOURNEY_STOP },
+    ],
+    notes: [
+      "Answer every consequence in journey.blockers before the leg it concerns is signed; the SDK never answers one for you.",
+      "Fetch the journey with the plan and again on intent.step_updated and intent.status_changed events, not on a timer.",
+      "Amounts never round in your favour: atLeast is the bound in your disfavour, and an unpriced asset is never $0.",
+      "Stopping never moves money: it skips the steps that have not started and leaves the money where the journey says.",
+    ],
+  },
+  {
+    id: "questions",
+    label: "Questions",
+    group: "Platform features",
+    title: "Ask before guessing: clarifying questions",
+    summary:
+      "With clarify=true a sentence with a gap gets questions with options instead of a guess, and every assumption Kletia made comes back with the plan, the material ones first.",
+    install: "npm install @kletia/sdk",
+    files: [
+      { id: "turns", label: "turns.mjs", language: "ts", filename: "turns.mjs", code: QUESTIONS_TURNS },
+      { id: "rest", label: "REST", language: "bash", filename: "terminal", code: QUESTIONS_REST },
+    ],
+    notes: [
+      "Questions whose purpose is true (how much, to whom) belong to the person. An agent may pick a suggested option only for the others, and only when told to.",
+      "Threads are held by your client by default: send each one back exactly as returned. remember: true keeps it on Kletia's side and needs an API key.",
+      "Never put keys or seed phrases in a message: the API refuses it with MESSAGE_SECRET_REFUSED and stores nothing.",
+      "Without clarify=true, POST /v1/intents behaves exactly as before.",
+    ],
+  },
 ];
 
 /** MCP tools, mirrored from docs/platform/mcp.md. Only create_intent and create_link store anything. */
@@ -1018,8 +1150,9 @@ export const MCP_TOOLS: readonly { name: string; input: string; output: string; 
   { name: "list_protocols", input: "network?, executableOnly?", output: "Registry protocols and whether Kletia executes them" },
   { name: "list_assets", input: "network", output: "Canonical assets (symbol, address or mint, decimals)" },
   { name: "get_quote", input: "network, from, to, amount, toNetwork?, …", output: "Best route and alternatives" },
-  { name: "plan_intent", input: "text or actions, accounts, constraints?", output: "Dry-run plan with externalRecipients and the fare preview; never stored" },
-  { name: "get_intent", input: "intentId", output: "Status, steps, amounts, recipients, evidence and the receipt state" },
+  { name: "plan_intent", input: "text or actions, accounts, thread?, answer?", output: "Dry-run plan with externalRecipients, the fare and the journey, or questions to ask (needs_input); never stored" },
+  { name: "get_intent", input: "intentId", output: "Status, steps, amounts, recipients, evidence, the journey and the receipt state" },
+  { name: "get_journey", input: "intentId", output: "Where the money is after every step, what follows and the questions to ask before signing" },
   { name: "preview_intent", input: "intentId, refreshQuotes?", output: "The fare breakdown recomputed now; never transactions" },
   { name: "get_receipt", input: "intentId or shareUrl", output: "The signed receipt: digest, key, disclosed groups, anchors" },
   { name: "list_intents", input: "limit?", output: "The key's recent intents", key: true },

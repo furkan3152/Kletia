@@ -1,4 +1,4 @@
-import { ERROR_CATEGORIES, errorCatalogRows, errorDocsUrl, resolveErrorCode, type KletiaErrorCategory } from "@kletia/core";
+import { errorCatalogRows, errorDocsUrl, resolveErrorCode } from "@kletia/core";
 import type { ErrorCatalogResponse } from "@kletia/sdk";
 import { RefreshCw, Search, X } from "lucide-react";
 import { useDeferredValue, useId, useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import { useRoute } from "../../routes/useRoute";
 import { Badge } from "../../site/ui/Badge";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../site/ui/styles";
 import { CopyLinkButton } from "./components/CopyLinkButton";
+import { categoryLabel, codeCount, groupErrors } from "./docs/errorsModel";
 
 interface ErrorRow {
   readonly code: string;
@@ -23,28 +24,8 @@ interface ErrorRow {
   readonly docs: string;
 }
 
-const CATEGORY_LABEL: Record<KletiaErrorCategory, string> = {
-  request: "Request",
-  authentication: "Authentication",
-  permission: "Permission",
-  not_found: "Not found",
-  conflict: "Conflict",
-  expired: "Expired",
-  intent: "Intent",
-  verification: "Verification",
-  settlement: "Settlement",
-  rate_limit: "Rate limit",
-  upstream: "Upstream",
-  unavailable: "Unavailable",
-  internal: "Internal",
-};
-
 const ERROR_HASH = /^#error-([A-Z][A-Z0-9_]*)$/u;
 const CATEGORY_PREVIEW = 4;
-
-function categoryLabel(category: string): string {
-  return (CATEGORY_LABEL as Record<string, string>)[category] ?? category;
-}
 
 function bundledRows(): ErrorRow[] {
   return errorCatalogRows().map((row) => ({ ...row, docs: errorDocsUrl(row.code) }));
@@ -109,15 +90,10 @@ export function ErrorsReference() {
     );
   });
 
-  const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
-  const categories = [
-    ...ERROR_CATEGORIES.filter((item) => counts.has(item)),
-    ...[...counts.keys()].filter((item) => !(ERROR_CATEGORIES as readonly string[]).includes(item)),
-  ];
-  const grouped = categories
-    .map((item) => ({ category: item, rows: filtered.filter((row) => row.category === item) }))
-    .filter((group) => group.rows.length > 0);
+  const allGroups = groupErrors(rows);
+  const categories = allGroups.map((group) => group.category);
+  const counts = new Map(allGroups.map((group) => [group.category, group.rows.length]));
+  const grouped = groupErrors(filtered);
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
@@ -155,7 +131,7 @@ export function ErrorsReference() {
               autoComplete="off"
               spellCheck={false}
               className={cx(
-                "min-h-11 w-full min-w-0 border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-10 text-[15px] text-[#1A1A1A] placeholder:text-[#6B7280] dark:border-[#4B5563] dark:bg-[#0B1120] dark:text-[#F1F5F9] dark:placeholder:text-[#64748B]",
+                "min-h-11 w-full min-w-0 border-[3px] border-control bg-surface py-2 pl-9 pr-10 text-body text-fg placeholder:text-placeholder",
                 FOCUS_RING,
               )}
             />
@@ -190,13 +166,13 @@ export function ErrorsReference() {
                 aria-pressed={selected}
                 onClick={() => setCategory(item)}
                 className={cx(
-                  "inline-flex min-h-8 items-center gap-1.5 border-2 border-[#1A1A1A] px-2 text-[11px] font-bold dark:border-[#4B5563]",
+                  "inline-flex min-h-9 items-center gap-1.5 border-2 border-control px-2 text-xs font-bold",
                   selected ? "bg-[#1A1A1A] text-white dark:bg-[#FFD60A] dark:text-[#1A1A1A]" : "bg-white hover:bg-[#FFF7CC] dark:bg-[#0B1120] dark:hover:bg-[#1A2841]",
                   FOCUS_RING,
                 )}
               >
                 {item === "all" ? "All" : categoryLabel(item)}
-                <span className="font-code text-[10px] opacity-75">{item === "all" ? rows.length : counts.get(item)}</span>
+                <span className="font-code text-code-s">{item === "all" ? rows.length : counts.get(item)}</span>
               </button>
             );
           })}
@@ -242,11 +218,12 @@ export function ErrorsReference() {
           const open = needle !== "" || category !== "all" || expanded.includes(group.category) || group.rows.some((row) => row.code === target);
           const shown = open || group.rows.length <= CATEGORY_PREVIEW + 2 ? group.rows : group.rows.slice(0, CATEGORY_PREVIEW);
           return (
-            <section key={group.category} aria-label={`${categoryLabel(group.category)} errors`} className="min-w-0">
-              <h3 className={cx(LABEL, "mb-2 flex items-center gap-2")}>
-                {categoryLabel(group.category)}
-                <span className={cx("font-code text-[10px]", TEXT_MUTED)}>{group.rows.length}</span>
-              </h3>
+            <section key={group.category} aria-label={`${group.label} errors`} className="min-w-0">
+              <h2 className={cx(LABEL, "mb-2 flex items-center gap-2")}>
+                {group.label}
+                <span className="sr-only">, </span>
+                <span className={cx("font-code text-code-s normal-case tracking-normal", TEXT_MUTED)}>{codeCount(group.rows.length)}</span>
+              </h2>
               <ul className={cx("min-w-0 divide-y-2 divide-[#1A1A1A]/10 dark:divide-white/10", INK_BORDER, SURFACE)}>
                 {shown.map((row) => {
                   const targeted = row.code === target;
@@ -261,7 +238,7 @@ export function ErrorsReference() {
                       )}
                     >
                       <div className="flex min-w-0 flex-col items-start gap-1">
-                        <code className="max-w-full break-all font-code text-[12.5px] font-bold">{row.code}</code>
+                        <code className="max-w-full break-all font-code text-code font-bold">{row.code}</code>
                         <span className="flex flex-wrap gap-1">
                           <Badge tone={statusTone(row)}>{statusText(row)}</Badge>
                           <Badge tone={row.retryable ? "green" : "outline"}>{row.retryable ? "Retry" : "No retry"}</Badge>

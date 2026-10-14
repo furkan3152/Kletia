@@ -263,7 +263,7 @@ test("quote sends the movement, accepts account shorthand and marks the best rou
 test("plan is a dry run unless --save, and calls out recipients that are not yours", async () => {
   const dry = await cli(["plan", "bridge 25 USDC from base to solana", "--account", `base:${EVM}`]);
   assert.equal(dry.code, 0);
-  assert.equal(last().search, "?dryRun=true");
+  assert.equal(last().search, "?clarify=true&dryRun=true", "plan asks by default (clarify), as a dry run");
   assert.deepEqual(last().body.accounts, [`eip155:8453:${EVM}`]);
   assert.match(dry.stdout, /s1\s+ready\s+base→solana\s+relay\s+25 USDC\s+24\.9 USDC \(min 24\.85\)/u);
   assert.match(dry.stderr, /Dry run: nothing was stored/u);
@@ -274,7 +274,7 @@ test("plan is a dry run unless --save, and calls out recipients that are not you
   assert.doesNotMatch(rehomed.stdout, /not yours/u, "the same EVM address on another network is the user's own");
   const saved = await cli(["plan", "bridge 25 USDC from base to solana", "--account", `eip155:8453:${EVM}`, "--save"]);
   assert.equal(saved.code, 0);
-  assert.equal(last().search, "");
+  assert.equal(last().search, "?clarify=true");
   assert.match(saved.stderr, /kletia intents watch int_saved/u);
   const missing = await cli(["plan", "bridge 25 USDC"]);
   assert.equal(missing.code, 64);

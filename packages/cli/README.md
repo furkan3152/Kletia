@@ -17,7 +17,10 @@ npx @kletia/cli plan "bridge 25 USDC from base to solana then swap half to JitoS
 ```
 
 Install it globally with `npm install -g @kletia/cli` to get the `kletia`
-command. Node 20 or newer.
+command. Node 20 or newer. The packages are released together from a
+`packages-v*` tag of this repository; before a version is on npm, run it
+from a checkout of that tag: `npm ci`, then `node packages/cli/dist/bin.js`
+(for example as `alias kletia="node $PWD/packages/cli/dist/bin.js"`).
 
 ## Configuration
 
@@ -25,7 +28,7 @@ command. Node 20 or newer.
 |---|---|
 | `KLETIA_API_KEY` | Developer key (`kl_dev_…`), or an agent key (`kl_agt_…`), for keyed commands and higher limits |
 | `KLETIA_BASE_URL` | API origin (default `https://api.kletiaai.xyz`; `http://` only for localhost) |
-| `KLETIA_WEBHOOK_SECRET` | Signing secret for `webhooks verify` and `webhooks forward` (comma-separated during a rotation) |
+| `KLETIA_WEBHOOK_SECRET` | Signing secret for `webhooks verify`, `webhooks forward` and `listen` (comma-separated during a rotation) |
 
 Secrets are read from the environment only. `--api-key` and similar flags are
 refused, because flags end up in shell history and process lists.
@@ -38,11 +41,16 @@ refused, because flags end up in shell history and process lists.
 | `networks`, `protocols`, `assets [--network <key>]` | Registries |
 | `venues [--network <key>] [--protocol <id>]` | EVM lending venues with supply APY, size and exit liquidity |
 | `quote <amount> <asset> [<to-asset>] --from <network> [--to <network>]` | Best routes for one movement; the best is marked `*`. `--max-seconds` sets the bridge time limit (default 600) |
-| `plan "<text>" --account <account>…` | Plans an intent as a dry run; `--save` stores it. `--max-slippage-bps` and `--max-seconds` set constraints; `--preview` adds the fare breakdown |
+| `plan "<text>" --account <account>…` | Plans an intent as a dry run; `--save` stores it. `--max-slippage-bps` and `--max-seconds` set constraints; `--preview` adds the fare breakdown, `--journey` the journey. Asks what is missing ([below](#questions)); `--no-clarify` refuses an incomplete sentence instead |
+| `plan --thread <file> --answer <question>=<option> --account <account>…` | Continues a task that asked a question (`=text:<words>` for a typed answer) |
+| `journey <intent id> [--refresh] [--reads none]` | Where the money is after every step: stops (network, holder, custody, amount and at-least, USD and its source), legs (venue, ETA) and consequences by severity with their options |
+| `stop <intent id>` | Ends an intent at its current stop: nothing further is signed; prints where the money is |
 | `preview <intent id> [--refresh-quotes] [--last]` | The asset-change preview ("fare breakdown"): per account and asset expected and worst case, payments to others, fees, approvals and needs, with the certainty of each number (`n/p` = not priced). Simulations only |
-| `intents get <id>`, `intents list` | Read intents (`list` needs a key) |
+| `intents get <id>`, `intents list [--limit N] [--owner <key>]` | Read intents (`list` needs a key; `--owner` lists an agent or publishable key below yours) |
 | `intents watch <id>` | Follows the event stream until the intent ends |
-| `keys create <name>`, `keys list`, `keys rotate <id> [--grace-seconds N]`, `keys revoke <id> --yes` | Key management |
+| `keys create <name> [--sandbox]`, `keys list`, `keys rotate <id> [--grace-seconds N]`, `keys revoke <id> --yes` | Key management; `--sandbox` keeps the key on the testnet lane (Arbitrum Sepolia, Arc Testnet, Solana Devnet), `keys list` shows each key's lane |
+| `keys create-publishable [--label <label>]` | A publishable key (`kl_pub_…`) for browsers, shown once |
+| `project get`, `project set --file patch.json [--if-match <hash>]`, `project verify-domain` | Project settings (brand, allowed origins, defaults, flows): `set` merge-patches and is refused when the project changed since `--if-match` (default: the hash read first); `verify-domain` checks `/.well-known/kletia.json` now |
 | `keys create-agent --parent <key> --name <name> (--policy <file> \| --template <name> [--account …] [--recipient …] [--approver-wallet …]) [--expires 30d]` | Agent key bound by a rule book (validated locally first); its `kl_agt_` secret is shown once |
 | `keys tree` | Project keys and their agent keys, with rule book versions and expiry |
 | `policy template [<name>]`, `policy validate --file <policy.json> [--against <key>]` | Templates; local validation with the canonical hash and what tightens or loosens |
@@ -59,7 +67,8 @@ refused, because flags end up in shell history and process lists.
 | `webhooks test <id>`, `webhooks deliveries <id>` | Send a signed test event now; read the delivery log |
 | `webhooks verify --signature "<header>" [--file body.json]` | Checks a delivery's signature (body on stdin by default) |
 | `webhooks forward --intent <id> --to http://localhost:3000/…` | Forwards an intent's events to a local endpoint, signed like real deliveries |
-| `contracts init --network <key> --address <0x…> [--out file]` | Writes a starter definition from the contract's verified ABI (or `--abi <file>`), with TODOs for what needs a decision |
+| `listen --forward-to http://localhost:3000/… [--event <type>…] [--scope self\|subtree]` | Forwards every event of your key (contracts, links, rule books, keys and intents) to a local endpoint, signed like real deliveries, until Ctrl-C |
+| `contracts init --network <key> --address <0x…> [--out file] [--function <name or signature>…]` | Writes a starter definition from the contract's verified ABI (or `--abi <file>`), with TODOs for what needs a decision; an ERC-4626 vault's deposit is prefilled from the inspection |
 | `contracts inspect --network <key> (--address <0x…> \| --program <id>…)` | Code hash, proxy and implementation, source verification, and every ABI function marked allowed or refused (with the reason); Solana program pins and upgrade authorities |
 | `contracts register --file def.json` | Validates the definition locally, then registers it (`--file -` reads stdin) |
 | `contracts list [--network] [--vm] [--status]`, `contracts get <id>` | Registrations with status, pins, verification, actions and revisions |
@@ -81,6 +90,35 @@ step that sends funds to an account that is not one of yours (your own address
 on another network of the same VM, such as a bridge's default recipient, counts
 as yours).
 
+### Questions
+
+When a sentence leaves something open that matters ("swap SOL to USDC": how
+much?), `plan` asks in the terminal:
+
+```
+$ kletia plan "swap SOL to USDC" --account solana:YourSolanaAddress
+How much SOL?  You hold 2.5 SOL on Solana.
+  1) All · 2.49 SOL   Keeps 0.01 SOL for network fees
+  2) Half · 1.25 SOL
+  or type amount in sol
+> 1
+Planned: swap 2.49 SOL to USDC on solana
+Kletia assumed: All your SOL: 2.49 (You hold 2.5 SOL on Solana; 0.01 SOL stays for network fees.)
+```
+
+Without a terminal (piped, in CI, from an agent) or with `--json`, it prints
+the `needs_input` response as JSON and exits **6**. Save its `thread` and
+continue with the answer:
+
+```bash
+kletia plan "swap SOL to USDC" --account solana:… > turn.json   # exit 6
+kletia plan --thread turn.json --answer q.actions.0.amount=all --account solana:…
+```
+
+`--no-clarify` keeps the strict behaviour: an incomplete sentence is refused
+with its error code. Against an API without clarifying questions, `plan`
+plans as before.
+
 ## Custom contracts
 
 Register your own EVM contract functions (or a Solana Actions endpoint) so
@@ -101,7 +139,16 @@ kletia contracts test ct_… --entry deposit --account base:0xYourTestAccount --
 - `init` guesses only unambiguous bindings (a receiver-like address is your
   user, an `amount`/`assets` argument is the step amount, an event named
   after the function proves it) and writes everything else as a `TODO` that
-  local validation reports. It never overwrites a file.
+  local validation reports. It never overwrites a file. `--function` takes a
+  name or a canonical signature (`--function "deposit(uint256,address)"`;
+  commas inside parentheses do not split the list).
+- For an ERC-4626 vault (the inspection's `hints.erc4626`), the
+  `deposit(uint256,address)` entry is prefilled: the vault's asset as input
+  with an exact approval to the vault, its shares (`$self`) as output, the
+  standard `Deposit` event and a phrase from `--name`. `limits.maxAmount`
+  stays a decision on mainnet.
+- `sessions create` prints a warning when a registration of the template is
+  still pending: visitors cannot use the session before it activates.
 - `register` and `sessions create` run the same checks as the API
   (`validateContractDefinition`, `validateSessionCreateRequest`) before
   sending anything; a refusal prints the code, the issues and the docs link,
@@ -146,7 +193,24 @@ as `…#s=rsh_…&k=[redacted]`, and the configured
 ## Local webhook development
 
 Real deliveries go only to public HTTPS endpoints. To exercise a local
-receiver, forward an intent's events to it, signed with your secret:
+receiver, forward your key's events to it with `kletia listen`, signed with
+your secret exactly like real deliveries:
+
+```bash
+export KLETIA_API_KEY=kl_dev_…  KLETIA_WEBHOOK_SECRET=whsec_…
+kletia listen --forward-to http://localhost:3000/webhooks/kletia
+kletia listen --forward-to http://localhost:3000/webhooks/kletia --event contract.activated --scope subtree
+```
+
+It follows `GET /v1/events` (the same routing as your webhooks: contract,
+link, rule book and key events as well as intent events), reconnects after
+the last event when the API closes the stream, skips events it already
+forwarded, and runs until Ctrl-C (or `--wait <seconds>`). Each line shows the
+endpoint's HTTP status. Verify on the receiving side with
+`constructWebhookEvent` / `expressWebhookHandler` from `@kletia/sdk/server`
+([examples/node-server](../../examples/node-server/README.md)).
+
+For one intent only:
 
 ```bash
 export KLETIA_WEBHOOK_SECRET=whsec_…
@@ -171,6 +235,7 @@ event still was not forwarded, the command prints a warning and exits 1.
 | 3 | Receipt invalid (signature, digest, commitment, key, share link, EAS envelope); `policy decisions --verify-chain`: the chain is broken |
 | 4 | `receipt reverify`: an on-chain source proved a difference, or sources conflict |
 | 5 | Receipt checks inconclusive: sources unavailable (a pruned public node is never evidence), evidence sealed, or the receipt is still pending |
+| 6 | `plan`: Kletia needs an answer and there is no terminal to ask in (the `needs_input` JSON is on stdout) |
 | 64 | Usage error |
 | 130 | Interrupted |
 

@@ -59,13 +59,6 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
   const studio = useStudioPlanner(initialText || STUDIO_DEFAULT_PROMPT);
   const { plan, submit } = studio;
   const resultsRef = useRef<HTMLDivElement>(null);
-  const autoPlanned = useRef(false);
-
-  useEffect(() => {
-    if (!initialText || autoPlanned.current) return;
-    autoPlanned.current = true;
-    void submit(initialText);
-  }, [initialText, submit]);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -93,6 +86,15 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
   useLayoutEffect(() => {
     submitRef.current = submit;
   });
+
+  // `?q=` plans once per mount, with no "already planned" ref: StrictMode's
+  // simulated unmount aborts the first request (useApiAction aborts on
+  // unmount), and the remount must plan again instead of waiting forever.
+  // Typing never re-runs it: submit is read through the ref and the effect
+  // depends on the initial text only.
+  useEffect(() => {
+    if (initialText) void submitRef.current(initialText);
+  }, [initialText]);
 
   const showResults = useCallback(() => {
     const results = resultsRef.current;

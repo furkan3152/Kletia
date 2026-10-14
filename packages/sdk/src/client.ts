@@ -2,8 +2,11 @@ import {
   isContractId,
   isLinkId,
   isSessionId,
+  isThreadId,
   PREVIEW_DIGEST_PATTERN,
+  PUBLISHABLE_KEY_PATTERN,
   validateLinkDefinition,
+  type AccountId,
   type AnyKletiaEvent,
   type AssetDescriptor,
   type ContractDefinition,
@@ -14,6 +17,8 @@ import {
   type IntentGraph,
   type IntentPreview,
   type IntentRequest,
+  type IntentTurnRequest,
+  type Journey,
   type LinkDefinition,
   type LinkOwnerView,
   type LinkStats,
@@ -23,6 +28,8 @@ import {
   type PolicyDefaults,
   type PolicyDocument,
   type ProtocolDescriptor,
+  type ProjectProfile,
+  type ProjectView,
   type ProtocolId,
   type SessionCreateRequest,
   type SessionView,
@@ -75,7 +82,22 @@ import type {
   ContractRegistration,
   ContractWithRevisions,
   CreateIntentOptions,
+  CreateKeyOptions,
   ErrorCatalogResponse,
+  IntentListFilter,
+  IntentTurnOptions,
+  IntentTurnResult,
+  IntentWithJourney,
+  JourneyOptions,
+  PortfolioOptions,
+  PortfoliosResponse,
+  ProjectLogoContentType,
+  ProjectSettingsPatch,
+  PublishableKeyRecord,
+  StoppedIntent,
+  ThreadDetail,
+  ThreadList,
+  ThreadListFilter,
   HttpMethod,
   HealthReport,
   NetworkCapabilities,
@@ -111,6 +133,14 @@ export interface KletiaClientOptions {
    * the public tier or a `baseUrl` that proxies through your server.
    */
   readonly apiKey?: string;
+  /**
+   * Publishable key (`kl_pub_…`, project phase 2): safe in browsers, sent as
+   * `Authorization: Bearer kl_pub_…`. It plans intents, starts sessions from
+   * the project's stored flows and reads the project profile; every
+   * server-only method is refused locally with PUBLISHABLE_KEY_FORBIDDEN
+   * before anything is sent. Never combined with `apiKey`.
+   */
+  readonly publishableKey?: string;
   /** Per-attempt timeout in milliseconds (default 20000). */
   readonly timeoutMs?: number;
   /**
@@ -150,11 +180,20 @@ export interface WaitForIntentOptions extends Omit<WatchIntentOptions, "signal">
   readonly timeoutMs?: number;
 }
 
-/** `intents.create`: the intent, or `{ intent, preview }` with `preview: true`. */
+/** Options of `events.stream` (`GET /v1/events`, key required). */
+export interface EventStreamOptions extends StreamOptions {
+  /** `self` (default): the key's own events; `subtree`: also its agent and publishable keys' (and, for project keys, project-wide rule book events). */
+  readonly scope?: "self" | "subtree";
+  /** Only these event types (webhook event type names). */
+  readonly types?: readonly string[];
+}
+
+/** `intents.create`: the intent, `{ intent, preview }` with `preview: true`, or `{ intent, preview, journey }` with `journey: true`. */
 export interface CreateIntent {
-  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly preview: true }): Promise<IntentWithPreview>;
-  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions & { readonly preview?: false }): Promise<IntentGraph>;
-  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions): Promise<IntentGraph | IntentWithPreview>;
+  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly journey: true }): Promise<IntentWithJourney>;
+  (request: IntentRequest, options: CreateIntentOptions & RequestOptions & { readonly preview: true; readonly journey?: false }): Promise<IntentWithPreview>;
+  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions & { readonly preview?: false; readonly journey?: false }): Promise<IntentGraph>;
+  (request: IntentRequest, options?: CreateIntentOptions & RequestOptions): Promise<IntentGraph | IntentWithPreview | IntentWithJourney>;
 }
 
 /** Options of `receipts.get`. */
@@ -190,6 +229,16 @@ interface CallBehaviour {
   readonly mayEndOwnSecret?: "rotate" | "revoke";
   /** Retryable codes the caller handles itself (e.g. receipts.get waiting on RECEIPT_NOT_READY): never retried here. */
   readonly noRetryCodes?: ReadonlySet<string>;
+  /** The retry class when it depends on the body (clarify turns), instead of the route's. */
+  readonly retryClass?: RetryClass;
+}
+
+/** A request body sent as raw bytes (`projects.setLogo`) instead of JSON. */
+class RawBody {
+  constructor(
+    readonly bytes: Uint8Array,
+    readonly contentType: string,
+  ) {}
 }
 
 /** An attempt that failed this way may still have run on the server. */
@@ -281,6 +330,7 @@ function errorFromResponse(response: Response, parsed: unknown, fallbackMessage:
     requestId: response.headers.get("x-request-id"),
     retryAfterSeconds: retryAfterSeconds(response),
     docs: typeof error.docs === "string" ? error.docs : null,
+    details: isRecord(error.details) ? error.details : null,
   };
   const policy = policyDetails(error.policy);
   if (policy) return new KletiaPolicyError({ ...input, policy });
@@ -332,6 +382,12 @@ function sessionSegment(id: string): string {
 /** A link id path segment; anything else is refused before a request is made. */
 function linkSegment(id: string): string {
   if (!isLinkId(id)) throw new TypeError("Link ids look like lk_ followed by 24 lower-case hex characters.");
+  return id;
+}
+
+/** A thread id (`th_…`) path segment. */
+function threadSegment(id: string): string {
+  if (!isThreadId(id)) throw new TypeError("Thread ids look like th_ followed by 24 base32 characters.");
   return id;
 }
 
@@ -390,7 +446,78 @@ const ROUTE_CLASSES: readonly { readonly method: string; readonly pattern: RegEx
   { method: "POST", pattern: /^\/links$/iu, kind: "idempotent" },
   { method: "PATCH", pattern: /^\/links\/[^/]+$/iu, kind: "idempotent" },
   { method: "POST", pattern: /^\/links\/[^/]+\/quote$/iu, kind: "safe" },
+  // Stopping replays its first answer for the same Idempotency-Key.
+  { method: "POST", pattern: /^\/intents\/[^/]+\/stop$/iu, kind: "idempotent" },
+  // Projects (phase 2): a stale If-Match after a lost response would answer
+  // PROJECT_CONFLICT, so settings writes are not repeated automatically.
+  { method: "PATCH", pattern: /^\/projects\/current$/iu, kind: "unsafe" },
+  { method: "POST", pattern: /^\/projects\/current\/domain\/verify$/iu, kind: "safe" },
+  { method: "POST", pattern: /^\/projects\/current\/publishable-keys$/iu, kind: "idempotent" },
+  { method: "PUT", pattern: /^\/projects\/current\/logo$/iu, kind: "safe" },
 ];
+
+/**
+ * Retry class of a clarify turn (clarify design 7.1): a turn that changes a
+ * Kletia-held thread (`threadId`, or `remember` on the first turn) is
+ * repeated only with an Idempotency-Key, dry run or not (the API replays the
+ * first answer for the key); a dry-run turn on a client-held thread changes
+ * nothing and is safe to repeat; a turn that stores an intent is repeated
+ * only with an Idempotency-Key, like `intents.create`.
+ */
+export function turnRetryClass(request: IntentTurnRequest, options: { readonly dryRun?: boolean } = {}): RetryClass {
+  if (request.threadId !== undefined || request.remember === true) return "idempotent";
+  return options.dryRun ? "safe" : "idempotent";
+}
+
+/**
+ * What a publishable key may call (integrator design 4.8): the public tier,
+ * stored or dry-run intents, sessions from stored flows and the project
+ * profile. Anything else is refused before it is sent.
+ */
+const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: RegExp }[] = [
+  { method: "GET", pattern: /^\/(?:health|networks|protocols|assets|venues|errors|openapi\.json|status\/badge|publishable\/profile)$/iu },
+  { method: "GET", pattern: /^\/portfolio(?:\/[^/]+)?$/iu },
+  { method: "POST", pattern: /^\/(?:quotes|intents|mcp|policy\/validate)$/iu },
+  { method: "GET", pattern: /^\/intents\/[^/]+(?:\/(?:events|journey|preview|receipt|receipts|receipt\/shares))?$/iu },
+  { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
+  { method: "POST", pattern: /^\/intents\/[^/]+\/steps\/[^/]+\/(?:prepare|submit)$/iu },
+  { method: "DELETE", pattern: /^\/intents\/[^/]+\/receipt\/(?:shares\/[^/]+|disclosures)$/iu },
+  { method: "GET", pattern: /^\/receipts\/(?:keys|log|log\/inclusion|log\/[^/]+|[^/]+|[^/]+\/status|[^/]+\/shares\/[^/]+)$/iu },
+  { method: "GET", pattern: /^\/policy\/approvals\/[^/]+$/iu },
+  { method: "POST", pattern: /^\/policy\/approvals\/[^/]+\/(?:approve|reject)$/iu },
+  { method: "GET", pattern: /^\/links\/[^/]+(?:\/(?:card\.png|page))?$/iu },
+  { method: "POST", pattern: /^\/links\/[^/]+\/(?:quote|intents|report)$/iu },
+  { method: "GET", pattern: /^\/blinks\/[^/]+$/iu },
+  { method: "POST", pattern: /^\/blinks\/[^/]+(?:\/next)?$/iu },
+  { method: "GET", pattern: /^\/sessions\/[^/]+$/iu },
+  { method: "POST", pattern: /^\/sessions(?:\/[^/]+\/intents)?$/iu },
+];
+
+function routePath(path: string): string | null {
+  let pathname = path.split(/[?#]/u, 1)[0] ?? "";
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  return pathname.replace(/\/+$/u, "").replace(/^\/v1(?=\/)/iu, "");
+}
+
+/** Why a publishable key may not make this call, or null when it may. */
+function publishableRefusal(method: string, path: string, body: unknown): string | null {
+  const pathname = routePath(path);
+  const verb = method.toUpperCase();
+  if (pathname === null || !PUBLISHABLE_ROUTES.some((route) => route.method === verb && route.pattern.test(pathname))) {
+    return `${verb} ${pathname ?? path} is a server-only method: call it from your server with a secret key.`;
+  }
+  // Publishable keys start sessions only from the project's stored flows.
+  if (verb === "POST" && /^\/sessions$/iu.test(pathname)) {
+    if (!isRecord(body) || typeof body.flow !== "string" || Object.keys(body).some((key) => key !== "flow" && key !== "hostOrigin")) {
+      return "A publishable key creates sessions only from a stored flow: send { flow, hostOrigin }.";
+    }
+  }
+  return null;
+}
 
 function requestRetryClass(method: string, path: string, query: Readonly<Record<string, string | undefined>> = {}): RetryClass {
   let pathname = path.split(/[?#]/u, 1)[0] ?? "";
@@ -462,6 +589,7 @@ function retriesOption(value: number | undefined, fallback: number): number {
 export class KletiaClient {
   readonly baseUrl: string;
   private readonly apiKey: string | undefined;
+  private readonly publishableKey: string | undefined;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryBaseDelayMs: number;
@@ -472,7 +600,14 @@ export class KletiaClient {
 
   constructor(options: KletiaClientOptions = {}) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+    if (options.publishableKey !== undefined) {
+      if (options.apiKey) throw new TypeError("Pass either apiKey (server) or publishableKey (browser), not both.");
+      if (!PUBLISHABLE_KEY_PATTERN.test(options.publishableKey)) {
+        throw new TypeError("publishableKey must be a publishable key (kl_pub_ followed by 32 letters and digits); secret keys never go in browser code.");
+      }
+    }
     this.apiKey = options.apiKey;
+    this.publishableKey = options.publishableKey;
     this.timeoutMs = options.timeoutMs ?? 20_000;
     this.maxRetries = retriesOption(options.maxRetries, DEFAULT_MAX_RETRIES);
     this.retryBaseDelayMs = Math.max(0, options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS);
@@ -484,19 +619,34 @@ export class KletiaClient {
     this.webOrigin = new URL(options.webOrigin ?? DEFAULT_WEB_ORIGIN).origin;
   }
 
-  /** True when the client sends an API key (idempotency keys are generated only then). */
+  /** True when the client sends an API key (idempotency keys are generated only then; never for a publishable key). */
   get hasApiKey(): boolean {
     return Boolean(this.apiKey);
   }
 
+  /** True when the client sends a publishable key (`kl_pub_…`). */
+  get hasPublishableKey(): boolean {
+    return Boolean(this.publishableKey);
+  }
+
   private headers(extra: Record<string, string> = {}): Record<string, string> {
+    const key = this.apiKey ?? this.publishableKey;
     return {
       accept: "application/json",
       "x-kletia-sdk": `js/${SDK_VERSION}`,
       ...this.extraHeaders,
-      ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+      ...(key ? { authorization: `Bearer ${key}` } : {}),
       ...extra,
     };
+  }
+
+  /** With a publishable key, server-only calls are refused here: nothing is sent. */
+  private assertAllowed(method: string, path: string, body: unknown): void {
+    if (!this.publishableKey) return;
+    const refusal = publishableRefusal(method, path, body);
+    if (refusal) {
+      throw new KletiaApiError({ code: "PUBLISHABLE_KEY_FORBIDDEN", message: `${refusal} (Refused by the SDK; nothing was sent.)`, status: 0 });
+    }
   }
 
   /**
@@ -522,11 +672,12 @@ export class KletiaClient {
     init: LowLevelRequestOptions,
     behaviour: CallBehaviour,
   ): Promise<T> {
+    this.assertAllowed(method, path, body instanceof RawBody ? undefined : body);
     const url = new URL(`${this.baseUrl}/v1${path}`);
     for (const [key, value] of Object.entries(init.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, value);
     }
-    const kind = requestRetryClass(method, path, init.query);
+    const kind = behaviour.retryClass ?? requestRetryClass(method, path, init.query);
     let idempotencyKey: string | null = null;
     let generated = false;
     if (kind === "prepare") {
@@ -593,16 +744,17 @@ export class KletiaClient {
     );
     const timeout = AbortSignal.timeout(this.timeoutMs);
     const signal = userSignal ? AbortSignal.any([userSignal, timeout]) : timeout;
+    const contentType = body === undefined ? null : body instanceof RawBody ? body.contentType : "application/json";
     let response: Response;
     try {
       response = await this.fetchImpl(url.toString(), {
         method,
         headers: this.headers({
           ...own,
-          ...(body === undefined ? {} : { "content-type": "application/json" }),
+          ...(contentType ? { "content-type": contentType } : {}),
           ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         }),
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined ? {} : { body: body instanceof RawBody ? new Uint8Array(body.bytes) : JSON.stringify(body) }),
         signal,
       });
     } catch (error) {
@@ -633,6 +785,89 @@ export class KletiaClient {
       throw errorFromResponse(response, parsed, `Request failed with status ${response.status}.`);
     }
     return parsed as T;
+  }
+
+  /**
+   * Opens a Server-Sent Events stream and calls `onEvent` with each JSON
+   * envelope until the stream ends, the signal aborts or the callback throws.
+   */
+  private async openEventStream(
+    path: string,
+    query: Readonly<Record<string, string | undefined>>,
+    onEvent: (event: AnyKletiaEvent) => void,
+    options: StreamOptions,
+  ): Promise<void> {
+    this.assertAllowed("GET", path, undefined);
+    const url = new URL(`${this.baseUrl}/v1${path}`);
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) url.searchParams.set(key, value);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url.toString(), {
+        method: "GET",
+        headers: this.headers({
+          accept: "text/event-stream",
+          ...(options.lastEventId ? { "last-event-id": options.lastEventId } : {}),
+        }),
+        ...(options.signal ? { signal: options.signal } : {}),
+      });
+    } catch (error) {
+      throw transportError(error, options.signal);
+    }
+    if (!response.ok) {
+      // Same error envelope as every other endpoint (TOO_MANY_STREAMS, INTENT_NOT_FOUND, …).
+      const text = await response.text().catch(() => "");
+      let parsed: unknown = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      throw errorFromResponse(response, parsed, "Event stream could not be opened.");
+    }
+    if (!response.body) {
+      throw new KletiaApiError({
+        code: `HTTP_${response.status}`,
+        message: "Event stream could not be opened.",
+        status: response.status,
+        requestId: response.headers.get("x-request-id"),
+      });
+    }
+    options.onOpen?.();
+    const body = response.body;
+    const messages = readServerSentEvents(body, options.signal);
+    let ended = false;
+    try {
+      while (true) {
+        let next: IteratorResult<{ readonly data: string }>;
+        try {
+          next = await messages.next();
+        } catch (error) {
+          if (options.signal?.aborted) return;
+          // A dropped connection mid-stream; reconnect with the last event id.
+          throw transportError(error, options.signal);
+        }
+        if (next.done) {
+          ended = true;
+          return;
+        }
+        if (!next.value.data) continue;
+        let event: AnyKletiaEvent;
+        try {
+          event = JSON.parse(next.value.data) as AnyKletiaEvent;
+        } catch {
+          // Ignore malformed frames; the server only sends JSON envelopes.
+          continue;
+        }
+        // Errors thrown by the callback reach the caller unchanged.
+        onEvent(event);
+      }
+    } finally {
+      if (!ended) {
+        // Stopped early (abort or a throwing callback): close the connection.
+        await messages.return(undefined).catch(() => undefined);
+        await body.cancel().catch(() => undefined);
+      }
+    }
   }
 
   health(options: RequestOptions = {}): Promise<HealthReport> {
@@ -673,8 +908,27 @@ export class KletiaClient {
     return this.request<QuoteResponse>("POST", "/quotes", request, options);
   }
 
-  portfolio(accountId: string, options: RequestOptions = {}): Promise<PortfolioResponse> {
-    return this.request<PortfolioResponse>("GET", `/portfolio/${encodeSegment(accountId, "accountId")}`, undefined, options);
+  /** Holdings of one account (`positions: true` adds venue positions). */
+  portfolio(accountId: string, options: RequestOptions & PortfolioOptions = {}): Promise<PortfolioResponse> {
+    const { positions, ...rest } = options;
+    return this.request<PortfolioResponse>("GET", `/portfolio/${encodeSegment(accountId, "accountId")}`, undefined, {
+      ...rest,
+      query: { positions: positions ? "true" : undefined },
+    });
+  }
+
+  /**
+   * Holdings of up to 12 accounts in one request (`GET /v1/portfolio?accounts=`),
+   * in request order; an account that cannot be read is listed in `failures`.
+   */
+  portfolios(accounts: readonly (AccountId | string)[], options: RequestOptions & PortfolioOptions = {}): Promise<PortfoliosResponse> {
+    if (accounts.length === 0 || accounts.length > 12) throw new RangeError("portfolios takes 1 to 12 accounts.");
+    if (accounts.some((account) => typeof account !== "string" || !account || account.includes(","))) throw new TypeError("Accounts are CAIP-10 ids.");
+    const { positions, ...rest } = options;
+    return this.request<PortfoliosResponse>("GET", "/portfolio", undefined, {
+      ...rest,
+      query: { accounts: accounts.join(","), positions: positions ? "true" : undefined },
+    });
   }
 
   /** The error catalog (`GET /v1/errors`), the same table as `ERROR_CATALOG` in `@kletia/core`. */
@@ -701,24 +955,92 @@ export class KletiaClient {
      * With `preview: true` it resolves with `{ intent, preview }`: the
      * plan-stage asset-change preview ("fare breakdown").
      */
-    create: (async (request: IntentRequest, options: CreateIntentOptions & RequestOptions = {}): Promise<IntentGraph | IntentWithPreview> => {
-      const { dryRun, preview, ...rest } = options;
-      const body = await this.request<{ intent: IntentGraph; preview?: IntentPreview }>("POST", "/intents", request, {
+    create: (async (request: IntentRequest, options: CreateIntentOptions & RequestOptions = {}): Promise<IntentGraph | IntentWithPreview | IntentWithJourney> => {
+      const { dryRun, preview, journey, journeyReads, ...rest } = options;
+      const body = await this.request<{ intent: IntentGraph; preview?: IntentPreview; journey?: Journey | null }>("POST", "/intents", request, {
         ...rest,
-        query: { dryRun: dryRun ? "true" : undefined, preview: preview ? "true" : undefined },
+        query: {
+          dryRun: dryRun ? "true" : undefined,
+          // The journey is built on the plan-stage preview, so it implies one.
+          preview: preview || journey ? "true" : undefined,
+          journey: journey ? "true" : undefined,
+          journeyReads: journey && journeyReads ? journeyReads : undefined,
+        },
       });
+      if (journey) return { intent: body.intent, preview: body.preview ?? null, journey: body.journey ?? null };
       return preview ? { intent: body.intent, preview: body.preview ?? null } : body.intent;
     }) as CreateIntent,
+    /**
+     * One clarify turn (`POST /v1/intents?clarify=true`): `needs_input` with
+     * questions, `planned` with the intent (stored unless `dryRun`), or
+     * `cancelled`; narrow on `status`. Send the returned `thread` back (or
+     * `threadId` for a Kletia-held one) with an `answer` to continue; a turn
+     * with the ready thread and no input is the commit. Retries follow
+     * `turnRetryClass`.
+     */
+    turn: async (request: IntentTurnRequest, options: IntentTurnOptions & RequestOptions = {}): Promise<IntentTurnResult> => {
+      const { dryRun, preview, journey, ...rest } = options;
+      if (request.thread !== undefined && request.threadId !== undefined) throw new TypeError("Send either thread (client-held) or threadId (Kletia-held), not both.");
+      if (request.threadId !== undefined && !isThreadId(request.threadId)) throw new TypeError("Thread ids look like th_ followed by 24 base32 characters.");
+      return this.call<IntentTurnResult>(
+        "POST",
+        "/intents",
+        request,
+        {
+          ...rest,
+          query: {
+            clarify: "true",
+            dryRun: dryRun ? "true" : undefined,
+            preview: preview || journey ? "true" : undefined,
+            journey: journey ? "true" : undefined,
+          },
+        },
+        { retryClass: turnRetryClass(request, { dryRun: dryRun === true }) },
+      );
+    },
     get: async (id: string, options: RequestOptions = {}): Promise<IntentGraph> => {
       const body = await this.request<{ intent: IntentGraph }>("GET", `/intents/${encodeSegment(id, "id")}`, undefined, options);
       return body.intent;
     },
-    list: async (limit = 20, options: RequestOptions = {}): Promise<IntentGraph[]> => {
+    /**
+     * Intents created with this key, newest first: `list(20)` or
+     * `list({ limit, owner })` (`owner`: an agent or publishable key of the
+     * caller's subtree).
+     */
+    list: async (limitOrFilter: number | IntentListFilter = 20, options: RequestOptions = {}): Promise<IntentGraph[]> => {
+      const filter: IntentListFilter = typeof limitOrFilter === "number" ? { limit: limitOrFilter } : limitOrFilter;
+      const limit = filter.limit ?? 20;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new RangeError("limit must be an integer between 1 and 100.");
+      if (filter.owner !== undefined && (!filter.owner || filter.owner.length > 200)) throw new TypeError("owner must be a key id.");
       const body = await this.request<{ intents: IntentGraph[] }>("GET", "/intents", undefined, {
         ...options,
-        query: { limit: String(limit) },
+        query: { limit: String(limit), owner: filter.owner },
       });
       return body.intents;
+    },
+    /**
+     * Where the money is after every step and what follows (`GET
+     * /v1/intents/{id}/journey`). At most 30 reads per intent per minute;
+     * `refresh` bypasses the fact caches at most once per 10 s.
+     */
+    journey: async (id: string, options: RequestOptions & JourneyOptions = {}): Promise<Journey> => {
+      const { refresh, reads, ...rest } = options;
+      const body = await this.request<{ journey: Journey }>("GET", `/intents/${encodeSegment(id, "id")}/journey`, undefined, {
+        ...rest,
+        query: { refresh: refresh ? "true" : undefined, reads },
+      });
+      return body.journey;
+    },
+    /**
+     * End the intent at its current stop (`POST /v1/intents/{id}/stop`):
+     * nothing further is signed and the money stays where the journey says.
+     * 409 INTENT_IN_FLIGHT (retryable, Retry-After) while a step is moving or
+     * holds a payload that may still be signed: never stop while you hold
+     * broadcast references that were not submitted.
+     */
+    stop: async (id: string, options: RequestOptions = {}): Promise<StoppedIntent> => {
+      const body = await this.request<{ intent: IntentGraph; journey?: Journey | null }>("POST", `/intents/${encodeSegment(id, "id")}/stop`, {}, options);
+      return { intent: body.intent, journey: body.journey ?? null };
     },
     /**
      * Build wallet-ready transactions for a ready step. Never retried and
@@ -788,80 +1110,8 @@ export class KletiaClient {
      * (the API closes streams after 30 minutes; reconnect with `lastEventId`)
      * or the signal aborts.
      */
-    stream: async (
-      id: string,
-      onEvent: (event: AnyKletiaEvent) => void,
-      options: StreamOptions = {},
-    ): Promise<void> => {
-      let response: Response;
-      try {
-        response = await this.fetchImpl(`${this.baseUrl}/v1/intents/${encodeSegment(id, "id")}/events`, {
-          method: "GET",
-          headers: this.headers({
-            accept: "text/event-stream",
-            ...(options.lastEventId ? { "last-event-id": options.lastEventId } : {}),
-          }),
-          ...(options.signal ? { signal: options.signal } : {}),
-        });
-      } catch (error) {
-        throw transportError(error, options.signal);
-      }
-      if (!response.ok) {
-        // Same error envelope as every other endpoint (TOO_MANY_STREAMS, INTENT_NOT_FOUND, …).
-        const text = await response.text().catch(() => "");
-        let parsed: unknown = null;
-        try {
-          parsed = text ? JSON.parse(text) : null;
-        } catch {
-          parsed = null;
-        }
-        throw errorFromResponse(response, parsed, "Event stream could not be opened.");
-      }
-      if (!response.body) {
-        throw new KletiaApiError({
-          code: `HTTP_${response.status}`,
-          message: "Event stream could not be opened.",
-          status: response.status,
-          requestId: response.headers.get("x-request-id"),
-        });
-      }
-      options.onOpen?.();
-      const body = response.body;
-      const messages = readServerSentEvents(body, options.signal);
-      let ended = false;
-      try {
-        while (true) {
-          let next: IteratorResult<{ readonly data: string }>;
-          try {
-            next = await messages.next();
-          } catch (error) {
-            if (options.signal?.aborted) return;
-            // A dropped connection mid-stream; reconnect with the last event id.
-            throw transportError(error, options.signal);
-          }
-          if (next.done) {
-            ended = true;
-            return;
-          }
-          if (!next.value.data) continue;
-          let event: AnyKletiaEvent;
-          try {
-            event = JSON.parse(next.value.data) as AnyKletiaEvent;
-          } catch {
-            // Ignore malformed frames; the server only sends JSON envelopes.
-            continue;
-          }
-          // Errors thrown by the callback reach the caller unchanged.
-          onEvent(event);
-        }
-      } finally {
-        if (!ended) {
-          // Stopped early (abort or a throwing callback): close the connection.
-          await messages.return(undefined).catch(() => undefined);
-          await body.cancel().catch(() => undefined);
-        }
-      }
-    },
+    stream: (id: string, onEvent: (event: AnyKletiaEvent) => void, options: StreamOptions = {}): Promise<void> =>
+      this.openEventStream(`/intents/${encodeSegment(id, "id")}/events`, {}, onEvent, options),
     /**
      * Resolves with the intent once it reaches a terminal status (completed,
      * partially_completed, failed, expired or cancelled). Follows the event
@@ -895,6 +1145,43 @@ export class KletiaClient {
         clearTimeout(timer);
         signal?.removeEventListener("abort", onAbort);
       }
+    },
+  };
+
+  /**
+   * Clarify threads Kletia holds for this key (`remember: true`). Owner
+   * scoped: another key's thread is 404 THREAD_NOT_FOUND.
+   */
+  readonly threads = {
+    /** The key's Kletia-held threads, newest first. */
+    list: (filter: ThreadListFilter = {}, options: RequestOptions = {}): Promise<ThreadList> =>
+      this.request<ThreadList>("GET", "/threads", undefined, {
+        ...options,
+        query: { status: filter.status, limit: filter.limit === undefined ? undefined : String(filter.limit), cursor: filter.cursor },
+      }),
+    /** One thread with the context it keeps and its last response. */
+    get: (id: string, options: RequestOptions = {}): Promise<ThreadDetail> => this.request<ThreadDetail>("GET", `/threads/${threadSegment(id)}`, undefined, options),
+    /** Forget a thread now (204; idempotent). */
+    delete: async (id: string, options: RequestOptions = {}): Promise<void> => {
+      await this.call("DELETE", `/threads/${threadSegment(id)}`, undefined, options, { goneAfterRetryIsDone: true });
+    },
+  };
+
+  /**
+   * The key's events as they would reach its webhooks (`GET /v1/events`,
+   * Server-Sent Events; key required). For local development and servers
+   * that prefer a stream to webhooks; `kletia listen` forwards them signed.
+   */
+  readonly events = {
+    /**
+     * Resolves when the stream ends (the API closes it after 30 minutes;
+     * reconnect with `lastEventId` and de-duplicate by event id) or the
+     * signal aborts. At most 2 streams per key.
+     */
+    stream: (onEvent: (event: AnyKletiaEvent) => void, options: EventStreamOptions = {}): Promise<void> => {
+      const { scope, types, ...rest } = options;
+      if (types !== undefined && types.some((type) => typeof type !== "string" || !/^[a-z_.]{1,64}$/u.test(type))) throw new TypeError("types are event type names such as intent.status_changed.");
+      return this.openEventStream("/events", { scope, types: types && types.length > 0 ? types.join(",") : undefined }, onEvent, rest);
     },
   };
 
@@ -944,10 +1231,12 @@ export class KletiaClient {
     /**
      * Issue a developer key. The raw key is returned only once. Without an
      * API key this starts a new project; with a developer key it adds a key to
-     * the caller's project (at most 5 active).
+     * the caller's project (at most 5 active). `sandbox: true` keeps the key
+     * on the testnet lane (a key-level rule book written in the same request).
      */
-    create: async (name: string, options: RequestOptions = {}): Promise<ApiKeyRecord> => {
-      const body = await this.request<{ key: ApiKeyRecord }>("POST", "/keys", { name }, options);
+    create: async (name: string, options: RequestOptions & CreateKeyOptions = {}): Promise<ApiKeyRecord> => {
+      const { sandbox, ...rest } = options;
+      const body = await this.request<{ key: ApiKeyRecord }>("POST", "/keys", { name, ...(sandbox ? { sandbox: true } : {}) }, rest);
       return body.key;
     },
     /** The keys of the caller's project. Secrets are never listed. */
@@ -1407,13 +1696,79 @@ export class KletiaClient {
   };
 
   /**
+   * Project settings, publishable keys and the domain proof (project phase
+   * 2). Reads need a key of the project; writes need a project key with its
+   * current secret.
+   */
+  readonly projects = {
+    /** The project view: settings, version, `hash` (the If-Match value) and domain proof. */
+    get: async (options: RequestOptions = {}): Promise<ProjectView> => {
+      const body = await this.request<{ project: ProjectView }>("GET", "/projects/current", undefined, options);
+      return body.project;
+    },
+    /**
+     * Merge-patch the settings (`null` removes a field). `ifMatch` is the
+     * `hash` the change is based on: a project changed meanwhile is refused
+     * with 409 PROJECT_CONFLICT. Not retried automatically.
+     */
+    update: async (patch: ProjectSettingsPatch, options: RequestOptions & { readonly ifMatch: string }): Promise<ProjectView> => {
+      const { ifMatch, ...rest } = options;
+      if (typeof ifMatch !== "string" || !/^(?:sha256:)?[0-9a-f]{64}$/u.test(ifMatch)) throw new TypeError("ifMatch must be the project's hash (from projects.get).");
+      const body = await this.request<{ project: ProjectView }>("PATCH", "/projects/current", patch, { ...rest, headers: { "if-match": `"${ifMatch}"` } });
+      return body.project;
+    },
+    /** Fetch `https://<website>/.well-known/kletia.json` now and check that it lists this project. */
+    verifyDomain: async (options: RequestOptions = {}): Promise<ProjectView> => {
+      const body = await this.request<{ project: ProjectView }>("POST", "/projects/current/domain/verify", {}, options);
+      return body.project;
+    },
+    /**
+     * Issue a publishable key (`kl_pub_…`, shown once; at most 5 active per
+     * project). It is meant for browsers: its rule book is derived from the
+     * project defaults and it works only from the project's allowed origins.
+     */
+    createPublishableKey: async (input: { readonly label: string }, options: RequestOptions = {}): Promise<PublishableKeyRecord> => {
+      if (typeof input?.label !== "string" || !input.label.trim() || input.label.length > 80) throw new TypeError("label is 1-80 characters.");
+      const body = await this.request<{ key: PublishableKeyRecord }>("POST", "/projects/current/publishable-keys", { label: input.label }, options);
+      return body.key;
+    },
+    /**
+     * Upload the brand logo (verified projects): PNG or WebP bytes, at most
+     * 64 KB, 32-512 px, aspect 1:1 to 4:1. Checked here only for type and
+     * size; the API reads the image header.
+     */
+    setLogo: async (bytes: Uint8Array, contentType: ProjectLogoContentType, options: RequestOptions = {}): Promise<ProjectView> => {
+      if (contentType !== "image/png" && contentType !== "image/webp") throw new TypeError("The logo must be image/png or image/webp.");
+      if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength > 65_536) throw new RangeError("The logo must be 1 byte to 64 KB.");
+      const body = await this.request<{ project: ProjectView }>("PUT", "/projects/current/logo", new RawBody(bytes, contentType), options);
+      return body.project;
+    },
+    /** Remove the brand logo. */
+    deleteLogo: async (options: RequestOptions = {}): Promise<void> => {
+      await this.request("DELETE", "/projects/current/logo", undefined, options);
+    },
+  };
+
+  /** What a publishable key reveals about its project (call it with `publishableKey`). */
+  readonly publishable = {
+    profile: async (options: RequestOptions = {}): Promise<ProjectProfile> => {
+      const body = await this.request<{ profile: ProjectProfile }>("GET", "/publishable/profile", undefined, options);
+      return body.profile;
+    },
+  };
+
+  /**
    * Sessions: a fixed template of actions your backend creates with its key;
    * a page you list in `allowedOrigins` turns it into an intent for the
    * visitor's own accounts, without a key.
    */
   readonly sessions = {
-    /** Create a session (`POST /v1/sessions`, key required, idempotent). The response carries `embedUrl`. */
-    create: async (request: SessionCreateRequest, options: RequestOptions = {}): Promise<SessionView> => {
+    /**
+     * Create a session (`POST /v1/sessions`, key required, idempotent). The
+     * response carries `embedUrl`. With a publishable key, only from a stored
+     * flow of the project: `{ flow, hostOrigin }`.
+     */
+    create: async (request: SessionCreateRequest | { readonly flow: string; readonly hostOrigin: string }, options: RequestOptions = {}): Promise<SessionView> => {
       const body = await this.request<{ session: SessionView }>("POST", "/sessions", request, options);
       return body.session;
     },

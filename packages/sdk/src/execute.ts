@@ -2,6 +2,7 @@ import {
   CHAINS,
   materialChange,
   normalizeAddress,
+  openBlockers,
   parseAccountId,
   parseAssetId,
   previewDigest,
@@ -14,6 +15,8 @@ import {
   type IntentGraph,
   type IntentStatus,
   type IntentStep,
+  type Journey,
+  type JourneyConsequence,
   type StepExecutionPayload,
   type StepStatus,
   type TransactionRequest,
@@ -85,6 +88,24 @@ export interface ExecuteIntentOptions {
    * the hook the `KletiaPolicyError` is thrown.
    */
   readonly onApprovalRequired?: (approval: PolicyApprovalReference | null, error: KletiaPolicyError) => void | Promise<void>;
+  /**
+   * Called with each new journey (where the money is after every step and
+   * what follows): after the plan and whenever a step changes, at most every
+   * 5 s, and only when the journey changed (its digest). Passing it (or
+   * `journeyAnswers`) makes `executeIntent` read the journey and enforce its
+   * blockers; without either nothing extra is fetched.
+   */
+  readonly onJourney?: (journey: Journey, intent: IntentGraph) => void;
+  /**
+   * Answers to the journey's prompts, by consequence id → option id. A
+   * `block` consequence of a step without a valid answer stops before that
+   * step is prepared (no wallet prompt) and `executeIntent` returns the
+   * intent, like a declined preview; `onJourneyBlocked` says which. Options
+   * are data: the SDK never re-plans, stops or plans anything on its own.
+   */
+  readonly journeyAnswers?: Readonly<Record<string, string>>;
+  /** Called when unanswered blockers stop the run before a step's wallet prompt. */
+  readonly onJourneyBlocked?: (blockers: readonly JourneyConsequence[], step: IntentStep, journey: Journey) => void | Promise<void>;
 }
 
 /** Why `onPreview` is asked. */
@@ -109,6 +130,71 @@ interface PreviewGate {
   /** The preview the user approved last, whose digest prepare acknowledges. */
   approved: IntentPreview | null;
   loaded: boolean;
+}
+
+/** Journey reads while a run is in progress: at most one per this many ms (the API allows 30 per intent per minute). */
+const JOURNEY_MIN_INTERVAL_MS = 5_000;
+
+/** The journey as one `executeIntent` run knows it. */
+interface JourneyTracker {
+  journey: Journey | null;
+  /** Step statuses the journey was read for. */
+  basis: string | null;
+  readAt: number;
+  /** Digest last handed to `onJourney`. */
+  delivered: string | null;
+}
+
+/** Step statuses that change the journey's stops (the intent's `updatedAt` also moves on refreshes that change nothing). */
+function journeyBasis(intent: IntentGraph): string {
+  return `${intent.status}|${intent.steps.map((step) => `${step.id}:${step.status}`).join(",")}`;
+}
+
+/**
+ * Reads the journey when the steps changed since the last read (waiting out
+ * the 5 s spacing when `fresh` is needed) and hands a changed one to
+ * `onJourney`. A journey for another intent is refused.
+ */
+async function trackJourney(
+  client: KletiaClient,
+  intent: IntentGraph,
+  tracker: JourneyTracker,
+  options: Pick<ExecuteIntentOptions, "onJourney" | "signal">,
+  fresh: boolean,
+  stepId = "",
+): Promise<Journey | null> {
+  const basis = journeyBasis(intent);
+  if (tracker.journey && tracker.basis === basis) return tracker.journey;
+  const wait = tracker.readAt + JOURNEY_MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) {
+    if (!fresh) return tracker.journey;
+    await sleep(wait, options.signal);
+  }
+  let journey: Journey;
+  try {
+    journey = await client.intents.journey(intent.id, options.signal ? { signal: options.signal } : {});
+  } catch (error) {
+    // Blockers are unknown without the journey: never sign on a guess.
+    if (!fresh) return tracker.journey;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new KletiaExecutionError(`Stopped before signing: the journey of ${intent.id} could not be read (${reason}).`, intent.id, stepId, error);
+  }
+  if (journey?.intentId !== intent.id || !Array.isArray(journey.consequences)) {
+    throw new KletiaExecutionError("Stopped before signing: Kletia returned a journey for another intent.", intent.id, stepId);
+  }
+  tracker.journey = journey;
+  tracker.basis = basis;
+  tracker.readAt = Date.now();
+  if (journey.digest !== tracker.delivered) {
+    tracker.delivered = journey.digest;
+    options.onJourney?.(journey, intent);
+  }
+  return journey;
+}
+
+/** Blocking consequences of `step` (or of no particular leg) the answers leave open. */
+function stepBlockers(journey: Journey, step: IntentStep, answers: Readonly<Record<string, string>>): readonly JourneyConsequence[] {
+  return openBlockers(journey, answers).filter((consequence) => consequence.legIds.length === 0 || consequence.legIds.includes(step.id));
 }
 
 /** Rounds of PREVIEW_CHANGED re-approval before giving up on a step. */
@@ -640,13 +726,26 @@ export async function executeIntent(
   }
   if (typeof intentOrId === "string") forgetAccepted(intent);
   const gate: PreviewGate = { current: options.preview ?? null, approved: null, loaded: false };
+  // The journey is read only when the caller asked for it (no extra calls otherwise).
+  const journeyOn = options.onJourney !== undefined || options.journeyAnswers !== undefined;
+  const tracker: JourneyTracker = { journey: null, basis: null, readAt: 0, delivered: null };
   options.onUpdate?.(intent);
+  if (journeyOn && !TERMINAL.includes(intent.status)) await trackJourney(client, intent, tracker, options, false);
   while (!TERMINAL.includes(intent.status)) {
     if (options.signal?.aborted) throw options.signal.reason ?? new Error("Aborted");
     if (Date.now() > deadline) throw new Error(`Intent ${intent.id} did not finish before the deadline.`);
     const ready = intent.steps.filter((step) => step.status === "ready" || step.status === "awaiting_signature");
     if (ready.length > 0) {
       const step = ready[0] as IntentStep;
+      if (journeyOn && !unsubmitted.has(unsubmittedKey(intent.id, step.id))) {
+        // Fail closed: the journey of exactly these step states, read before any wallet prompt.
+        const journey = (await trackJourney(client, intent, tracker, options, true, step.id)) as Journey;
+        const blockers = stepBlockers(journey, step, options.journeyAnswers ?? {});
+        if (blockers.length > 0) {
+          await options.onJourneyBlocked?.(blockers, step, journey);
+          return intent;
+        }
+      }
       if (options.beforeStep && !(await options.beforeStep(step, intent))) return intent;
       const outcome = await executeStep(client, intent, step, signers, options, gate);
       intent = outcome.intent;
@@ -667,6 +766,8 @@ export async function executeIntent(
     intent = await client.intents.refresh(intent.id);
     forgetAccepted(intent);
     options.onUpdate?.(intent);
+    if (journeyOn) await trackJourney(client, intent, tracker, options, false);
   }
+  if (journeyOn) await trackJourney(client, intent, tracker, options, false).catch(() => null);
   return intent;
 }

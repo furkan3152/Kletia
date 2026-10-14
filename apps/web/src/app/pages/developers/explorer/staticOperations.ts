@@ -3,8 +3,8 @@
  * GET /v1/openapi.json. Used only while the live document is loading or when
  * the API is unreachable; the live document always wins.
  */
-import type { JsonSchema } from "./schema";
-import { CURATED_BODIES, type ExplorerOperation, type ExplorerParam, type HttpMethod } from "./operations";
+import type { JsonSchema } from "./schema.ts";
+import { CURATED_BODIES, type ExplorerOperation, type ExplorerParam, type HttpMethod } from "./operations.ts";
 
 const JSON_ONLY = ["application/json"] as const;
 const STANDARD_HEADERS = ["X-Request-Id", "RateLimit", "RateLimit-Policy"] as const;
@@ -126,6 +126,23 @@ const SPECS: readonly Spec[] = [
     body: { required: ["references"] },
   },
   { id: "refreshIntent", method: "POST", path: "/v1/intents/{id}/refresh", tag: "Intents", summary: "Re-read settlement state now", params: [INTENT_ID] },
+  {
+    id: "getIntentJourney",
+    method: "GET",
+    path: "/v1/intents/{id}/journey",
+    tag: "Intents",
+    summary: "Where the money is after every step, and what follows",
+    params: [INTENT_ID, query("refresh", str({ enum: ["true", "false"] })), query("reads", str({ enum: ["live", "none"] }))],
+  },
+  {
+    id: "stopIntent",
+    method: "POST",
+    path: "/v1/intents/{id}/stop",
+    tag: "Intents",
+    summary: "End an intent at its current stop",
+    params: [INTENT_ID],
+    idempotent: true,
+  },
   {
     id: "cancelIntent",
     method: "POST",

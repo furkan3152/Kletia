@@ -1,23 +1,17 @@
-import { RecipesSection } from "../RecipesSection";
-import { AnchorScope } from "../shell/AnchorScope";
-import { PortalPageHeader } from "../shell/PortalPageHeader";
+import { RecipePage } from "../docs/RecipePage";
+import { RecipesIndexPage } from "../docs/RecipesIndexPage";
+import { resolveRecipe } from "../docs/recipesModel";
 import type { PortalPageProps } from "../shell/portalRoutes";
 
 /**
- * Recipes (`/developers/recipes`, `/developers/recipes/<id>`): copy-ready
- * integrations. The recipe picker still opens a recipe from its
- * `#recipe-` anchor, so the path's id is handed to it as one.
+ * Recipes (`/developers/recipes`, `/developers/recipes/<id>`): the index, or
+ * the one recipe the path names. An unknown id shows the index with a note.
  */
 export default function RecipesPage({ param }: PortalPageProps) {
-  return (
-    <>
-      <PortalPageHeader
-        title="Recipes"
-        intro="Copy-ready integrations for the SDK, the React widget and hooks, the embed, the Rule Book, custom contracts, links, receipts, MCP clients and the CLI. Secrets always come from the environment."
-      />
-      <AnchorScope hash={param ? `#recipe-${param}` : null}>
-        <RecipesSection />
-      </AnchorScope>
-    </>
+  const route = resolveRecipe(param);
+  return route.view === "recipe" ? (
+    <RecipePage key={route.recipe.id} recipe={route.recipe} previous={route.previous} next={route.next} />
+  ) : (
+    <RecipesIndexPage unknown={route.unknown} />
   );
 }

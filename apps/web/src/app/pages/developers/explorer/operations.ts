@@ -2,8 +2,8 @@
  * Explorer operation model, built from GET /v1/openapi.json (or the static
  * fallback in staticOperations.ts when the API is unreachable).
  */
-import { PREVIEW_ACCOUNTS } from "../../../../shared/platform/previewAccounts";
-import { derefSchema, exampleFor, isRecord, resolveRef, type JsonSchema, type OpenApiDoc } from "./schema";
+import { PREVIEW_ACCOUNTS } from "../../../../shared/platform/previewAccounts.ts";
+import { derefSchema, exampleFor, isRecord, resolveRef, type JsonSchema, type OpenApiDoc } from "./schema.ts";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type ParamLocation = "path" | "query" | "header";

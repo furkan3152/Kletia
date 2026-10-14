@@ -294,6 +294,9 @@ function printSession(print: Printer, session: SessionView): void {
     const where = action.toNetwork ? `${action.network}→${action.toNetwork}` : action.network;
     print.out(`  ${index + 1}. ${action.kind} on ${where}: ${action.label}${action.amount ? ` (${action.amount}${action.from ? ` ${action.from}` : ""})` : ""}`);
   });
+  for (const warning of session.warnings ?? []) {
+    if (warning.code === "CONTRACT_PENDING") print.out(`warning: ${warning.contract} is still pending; it activates at ${when(warning.activatesAt)}, and visitors cannot use this session before then.`);
+  }
 }
 
 /* -------------------------------------------------------------- commands */
@@ -517,6 +520,8 @@ function printInspection(print: Printer, inspection: ContractInspection): void {
   }
   print.out(`${inspection.network} ${inspection.address}`);
   if (inspection.denied) print.out(`denied: ${inspection.denied}`);
+  const vault = inspection.hints?.erc4626;
+  if (vault) print.out(`ERC-4626 vault of ${vault.registrySymbol ?? `${vault.asset} (not a Kletia registry asset here)`}: \`kletia contracts init\` prefills its deposit entry`);
   if (inspection.eip7702) print.out("refused: an EIP-7702 delegated account, whose code its owner can swap at any time");
   if (!inspection.deployed) print.out("no contract code at this address");
   if (inspection.pins) {
@@ -637,7 +642,40 @@ interface StarterOptions {
   readonly website?: string;
 }
 
+const ERC4626_DEPOSIT = "deposit(uint256,address)";
+
+/**
+ * The deposit entry of an ERC-4626 vault (inspection `hints.erc4626`):
+ * the underlying as input with an exact approval to the vault, the shares
+ * (`$self`) as output, the standard Deposit event and a phrase. Only what
+ * the hint proves is filled; `limits.maxAmount` stays a decision.
+ */
+function erc4626Entry(
+  network: NetworkKey,
+  hint: { readonly asset: string; readonly registrySymbol: string | null },
+  events: readonly AbiEventItem[],
+  options: StarterOptions,
+): Record<string, unknown> {
+  const deposit = events.find(
+    (event) => event.name === "Deposit" && !event.anonymous && event.inputs.some((input) => input.name === "owner") && event.inputs.some((input) => input.name === "assets"),
+  );
+  const symbol = hint.registrySymbol;
+  const vaultName = options.name ? `${options.name} ${symbol ?? ""} vault`.replace(/\s+/gu, " ") : `${symbol ?? "the"} vault`;
+  const alias = options.name ? `${options.name} vault`.toLowerCase().replace(/[^a-z0-9 ]+/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 40) : null;
+  return {
+    label: `Deposit into ${vaultName}`.slice(0, CONTRACT_LIMITS.labelLength),
+    input: {
+      token: symbol ?? `TODO: the vault's asset ${hint.asset} is not a Kletia registry asset on ${network}; spending entries need a listed input`,
+      approval: { spender: "$self" },
+    },
+    output: { token: "$self", toleranceBps: 10 },
+    ...(deposit ? { events: [{ event: "Deposit", emitter: "$self", where: { owner: "$account", assets: "$amount" }, output: "shares" }] } : {}),
+    phrases: { verbs: ["deposit"], aliases: [alias ?? "TODO: what users call the vault, e.g. acme vault"] },
+  };
+}
+
 function starterDefinition(inspection: EvmContractInspectionView, abi: readonly ContractAbiItem[], options: StarterOptions, usage: string): Record<string, unknown> {
+  const vault = inspection.hints?.erc4626;
   const functions = abi.filter((item): item is AbiFunctionItem => item.type === "function");
   const events = abi.filter((item): item is AbiEventItem => item.type === "event");
   const classified = functions.map((fn) => ({ fn, verdict: classifyAbiFunction(fn) }));
@@ -663,7 +701,7 @@ function starterDefinition(inspection: EvmContractInspectionView, abi: readonly 
     const spends = state.amount !== null;
     const payable = fn.stateMutability === "payable";
     const event = guessEvent(fn, events, state.amount);
-    return {
+    const base = {
       id: actionId(fn.name, taken),
       label: humanLabel(fn.name),
       function: verdict.signature,
@@ -674,6 +712,12 @@ function starterDefinition(inspection: EvmContractInspectionView, abi: readonly 
       events: [event ?? { event: "TODO: an event of the ABI that proves success", emitter: "$self", where: {} }],
       ...(spends && mainnet ? { limits: { maxAmount: "TODO: largest amount per step" } } : {}),
     };
+    // An ERC-4626 vault's deposit has one shape: fill it from the inspection's hint.
+    if (vault && verdict.signature === ERC4626_DEPOSIT && spends && !payable) {
+      const { limits, ...rest } = base as typeof base & { limits?: unknown };
+      return { ...rest, ...erc4626Entry(inspection.network, vault, events, options), ...(limits ? { limits } : {}) };
+    }
+    return base;
   });
   // The ABI is an allowlist: the chosen functions, then the events (those the actions reference first).
   // Error items are left out so the starter keeps room under the item cap.
@@ -769,6 +813,10 @@ const init: Command = {
       }
       const actions = (definition.actions as readonly { id: string }[]).map((action) => action.id).join(", ");
       context.print.out(`Wrote ${out} for ${network}:${definition.address as string} (actions: ${actions}).`);
+      const vault = inspection.hints?.erc4626;
+      if (vault && (definition.actions as readonly { function: string }[]).some((action) => action.function === ERC4626_DEPOSIT)) {
+        context.print.out(`ERC-4626 vault: the deposit entry takes ${vault.registrySymbol ?? vault.asset} with an exact approval to the vault and outputs its shares.`);
+      }
       if (inspection.pins?.proxy) context.print.out(`It is a ${inspection.pins.proxy.kind} proxy; the implementation ${inspection.pins.proxy.implementation} is pinned too.`);
       if (issues.length === 0) context.print.out(`It validates locally. Next: kletia contracts register --file ${out}`);
       else {

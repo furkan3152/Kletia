@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDownUp, ArrowLeftRight, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowDownUp, RefreshCw, ShieldCheck } from "lucide-react";
 
 import type { SolanaPortfolio, SolanaPreparedSwap } from "../api";
 import { formatTokenAmount } from "../format";
@@ -7,11 +7,12 @@ import { exceedsBalance, maxSpendable, useSwapFlow } from "../hooks/useSwapFlow"
 import { canonicalToken, type TokenOption } from "../tokens";
 import { ui } from "../styles";
 import { LiveQuote, PreparedSwapDetails } from "./QuoteDetails";
-import { ConnectSolanaCta, ExecutionPanel, PanelHeader } from "./SolanaUi";
+import { ExecutionPanel } from "./SolanaUi";
 import { TokenPicker } from "./TokenPicker";
 
 const SLIPPAGE_PRESETS = [30, 50, 100] as const;
 
+/** Owner and mainnet portfolio come from the desk's SolanaToolHost, which also offers the wallet connection. */
 interface SolanaSwapProps {
   owner: string | null;
   portfolio: SolanaPortfolio | null;
@@ -50,6 +51,11 @@ export function SlippagePresets({
   );
 }
 
+/**
+ * Jupiter swap form (desk tool 04): best-price routing across Solana venues.
+ * Kletia prepares and simulates the transaction and useSolanaExecution runs
+ * its pre-sign checks before the wallet is asked.
+ */
 export function SolanaSwap({ owner, portfolio }: SolanaSwapProps) {
   const [from, setFrom] = React.useState<TokenOption>(() => canonicalToken("SOL"));
   const [to, setTo] = React.useState<TokenOption>(() => canonicalToken("USDC"));
@@ -71,12 +77,6 @@ export function SolanaSwap({ owner, portfolio }: SolanaSwapProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <PanelHeader
-        icon={ArrowLeftRight}
-        title="Swap"
-        description="Best-price routing across Solana venues through Jupiter. Kletia prepares and simulates the transaction; your wallet signs it."
-      />
-      {!owner ? <ConnectSolanaCta /> : null}
 
       <form
         className={`${ui.card} flex flex-col gap-4`}
@@ -125,7 +125,7 @@ export function SolanaSwap({ owner, portfolio }: SolanaSwapProps) {
                 type="button"
                 disabled={locked}
                 onClick={() => setAmount(max)}
-                className="text-[11px] font-black uppercase text-[#9945FF] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#9945FF] disabled:opacity-50 dark:text-[#C4A1FF]"
+                className={ui.textButton}
               >
                 Max {formatTokenAmount(max)}
               </button>
@@ -146,7 +146,7 @@ export function SolanaSwap({ owner, portfolio }: SolanaSwapProps) {
             aria-describedby={amountHintId}
             className={ui.input}
           />
-          <p id={amountHintId} className="text-xs font-bold text-gray-600 dark:text-slate-300" aria-live="polite">
+          <p id={amountHintId} className={ui.hint} aria-live="polite">
             {flow.amountError ??
               (overBalance
                 ? `Amount exceeds your ${from.symbol} balance.`

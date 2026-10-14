@@ -210,9 +210,9 @@ const intent = await kletia.intents.create({
                     </span>
                     <span className="flex flex-wrap items-center gap-2">
                       <Badge dot={networkColor(row.network)}>{networkName(row.network)}</Badge>
-                      <span className={cx("break-all font-code text-[11px]", TEXT_MUTED)}>{row.venue}</span>
+                      <span className={cx("break-all font-code text-code-s", TEXT_MUTED)}>{row.venue}</span>
                     </span>
-                    <span className="grid grid-cols-3 gap-2 text-[11px]">
+                    <span className="grid grid-cols-3 gap-2 text-xs">
                       <span>
                         <span className={cx("block", TEXT_MUTED)}>Supplied</span>
                         <span className="font-code">{amount(metrics?.totalSupplied ?? null)}</span>
@@ -235,7 +235,7 @@ const intent = await kletia.intents.create({
             <table className="w-full border-collapse text-left text-sm">
               <caption className="sr-only">Lending venues, sorted by {SORTS.find((item) => item.value === sort)?.label}</caption>
               <thead>
-                <tr className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>
+                <tr className={cx(LABEL, TEXT_MUTED)}>
                   <th scope="col" className="py-2 pr-3">Venue</th>
                   <th scope="col" className="py-2 pr-3">Network</th>
                   <th scope="col" className="py-2 pr-3 text-right">Supply APY</th>
@@ -258,10 +258,10 @@ const intent = await kletia.intents.create({
                           className={cx("flex flex-col items-start text-left", FOCUS_RING)}
                         >
                           <span className="font-bold">{row.name}</span>
-                          <span className={cx("font-code text-[11px]", TEXT_MUTED)}>{row.venue}</span>
+                          <span className={cx("font-code text-code-s", TEXT_MUTED)}>{row.venue}</span>
                         </button>
                         {metrics?.warnings.length ? (
-                          <span className="mt-1 flex items-start gap-1 text-[11px] text-[#8A6100] dark:text-[#FFD60A]">
+                          <span className="mt-1 flex items-start gap-1 text-xs text-warning">
                             <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
                             {metrics.warnings[0]}
                           </span>
@@ -269,12 +269,12 @@ const intent = await kletia.intents.create({
                       </td>
                       <td className="py-2.5 pr-3">
                         <Badge dot={networkColor(row.network)}>{networkName(row.network)}</Badge>
-                        <span className={cx("mt-1 block text-[11px]", TEXT_MUTED)}>{protocolName(row.protocol)}</span>
+                        <span className={cx("mt-1 block text-xs", TEXT_MUTED)}>{protocolName(row.protocol)}</span>
                       </td>
                       <td className="py-2.5 pr-3 text-right font-code font-bold">
                         {percent(metrics?.supplyApy)}
                         {metrics?.apySource === "share-price" ? (
-                          <span className={cx("block text-[10px] font-normal", TEXT_MUTED)}>
+                          <span className={cx("block text-xs font-normal", TEXT_MUTED)}>
                             realised, {Math.round((metrics.apyWindowSeconds ?? 0) / 86400) || "<1"} d
                           </span>
                         ) : null}

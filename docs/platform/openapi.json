@@ -613,7 +613,7 @@
           "Intents"
         ],
         "summary": "Plan an intent into an IntentGraph",
-        "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "description": "Natural-language `text` is compiled by a deterministic grammar; unsupported wording returns 422 INTENT_UNSUPPORTED with example phrases in `error.hints`. With `dryRun=true` the plan is quoted but not stored (200; Idempotency-Key is ignored). A repeated `clientReference` from the same API key returns the original intent (200).\n\nWith `clarify=true` the request is one turn of a task (`IntentTurnRequest`) and Kletia asks instead of refusing: `needs_input` (200) carries at most two questions, assumption chips and a draft; `planned` is 201 when stored (200 on a dry run, or with `Idempotent-Replayed: true` when the turn's clientReference already planned an intent); `cancelled` is 200; a refusal answers its catalogue status and the thread is unchanged. Threads are client-held by default (send `thread` back); `remember: true` (API keys only) keeps them at Kletia (`threadId`, `expectedRev`, `If-Match`). Idempotency-Key also applies to dry-run turns that create or change a Kletia-held thread. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
         "parameters": [
           {
             "name": "dryRun",
@@ -673,7 +673,32 @@
             }
           },
           {
+            "name": "clarify",
+            "in": "query",
+            "required": false,
+            "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "1",
+                "0"
+              ]
+            }
+          },
+          {
             "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "With `clarify=true` and `threadId`: the thread revision the turn expects (as `expectedRev`), e.g. `\"3\"`; another revision is 409 THREAD_CONFLICT.",
+            "schema": {
+              "type": "string",
+              "pattern": "^(W/)?\"?[0-9]{1,9}\"?$"
+            }
           }
         ],
         "requestBody": {
@@ -681,14 +706,22 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IntentRequest"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/IntentRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IntentTurnRequest"
+                  }
+                ],
+                "description": "`IntentTurnRequest` with `clarify=true`, otherwise `IntentRequest`."
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Dry run, or idempotent replay of an existing intent.",
+            "description": "Dry run, or idempotent replay of an existing intent. With `clarify=true`: needs_input, cancelled, a planned dry run or a replayed commit.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -706,13 +739,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntentCreateResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/IntentCreateResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/IntentTurnResponse"
+                    }
+                  ]
                 }
               }
             }
           },
           "201": {
-            "description": "Intent planned and stored.",
+            "description": "Intent planned and stored (with `clarify=true`: a planned turn that stored its intent).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/X-Request-Id"
@@ -730,7 +770,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IntentCreateResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/IntentCreateResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/IntentTurnResponse"
+                    }
+                  ]
                 }
               }
             }
@@ -740,6 +787,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1515,6 +1565,225 @@
           },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/threads": {
+      "get": {
+        "operationId": "listThreads",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "List the key's Kletia-held clarify threads",
+        "description": "Threads created with `remember: true` by this API key that have not expired, most recently used first. Publishable keys and the public tier have no Kletia-held threads.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "needs_input",
+                "ready",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`nextCursor` of the previous page.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Threads, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/threads/{id}": {
+      "get": {
+        "operationId": "getThread",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Read a Kletia-held clarify thread",
+        "description": "The thread blob, its context, its last response and its intents. Another key's thread, or an expired one, is 404 THREAD_NOT_FOUND.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^th_[a-z2-7]{24}$",
+              "description": "`th_` followed by 24 base32 characters."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteThread",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Delete a Kletia-held clarify thread",
+        "description": "The row is removed at once; later turns on it get 404 THREAD_NOT_FOUND. Intents it planned are not affected.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^th_[a-z2-7]{24}$",
+              "description": "`th_` followed by 24 base32 characters."
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -8668,7 +8937,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "Invalid input (INVALID_REQUEST, INVALID_JSON, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...).",
+        "description": "Invalid input (INVALID_REQUEST, INVALID_JSON, MESSAGE_SECRET_REFUSED, THREAD_INVALID, THREAD_REQUIRES_API_KEY, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8713,7 +8982,7 @@
         }
       },
       "NotFound": {
-        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, NOT_FOUND).",
+        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8728,7 +8997,7 @@
         }
       },
       "Conflict": {
-        "description": "State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...).",
+        "description": "State conflict (QUESTION_NOT_OPEN, THREAD_CONFLICT, THREAD_CLOSED, STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8788,7 +9057,7 @@
         }
       },
       "Unprocessable": {
-        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
+        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, GAS_TOPUP_UNAVAILABLE, ANSWER_INVALID, EDIT_UNSUPPORTED, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -9893,6 +10162,66 @@
                   "chosen"
                 ],
                 "description": "Where the money starts. Present when the request set `sourceNetwork` (or a clarify answer chose a departure); absent on older deployments."
+              },
+              "assumptions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+                      "examples": [
+                        "actions[0].amount"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 160
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "balance",
+                        "position",
+                        "context",
+                        "correction",
+                        "alias",
+                        "price"
+                      ]
+                    },
+                    "material": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "label",
+                    "source",
+                    "material"
+                  ]
+                },
+                "description": "Clarify turns: what Kletia assumed (the chips the person saw), material ones first."
+              },
+              "thread": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^th_[a-z2-7]{24}$",
+                    "description": "`th_` followed by 24 base32 characters."
+                  },
+                  "rev": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "rev"
+                ],
+                "description": "Clarify turns: the thread and revision this intent was planned from."
               }
             },
             "required": [
@@ -22179,6 +22508,1553 @@
         "required": [
           "intent",
           "journey"
+        ]
+      },
+      "ClarifyOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[\\w.:[\\]-]{1,128}$",
+            "examples": [
+              "all",
+              "base"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 48,
+            "examples": [
+              "All · 2.49 SOL"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 96,
+            "examples": [
+              "Keeps 0.01 SOL for network fees"
+            ]
+          },
+          "recommended": {
+            "type": "boolean",
+            "const": true,
+            "description": "Kletia's suggestion: at most one per question, never on gap or recipient questions."
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "sentence": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "The complete sentence this choice leads to when the thread is then ready; a stateless agent can send it as `text`."
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      },
+      "ClarifyQuestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^q\\.[\\w.[\\]-]{1,94}$",
+            "examples": [
+              "q.actions.0.amount"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+            "examples": [
+              "actions[0].amount"
+            ],
+            "description": "The slot this question fills (or `edit` for an ambiguous follow-up)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "amount",
+              "address",
+              "confirm"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "AMOUNT_MISSING",
+              "AMOUNT_BALANCE_UNKNOWN",
+              "DESTINATION_MISSING",
+              "OUTPUT_ASSET_MISSING",
+              "INPUT_ASSET_MISSING",
+              "RECIPIENT_MISSING",
+              "SOURCE_MISSING",
+              "TRANSFER_NETWORK",
+              "NETWORK_AMBIGUOUS",
+              "VENUE_MISSING",
+              "COUNTERPART_MISSING",
+              "VENUE_AMBIGUOUS",
+              "NETWORK_HANDOFF",
+              "FUNDS_ELSEWHERE",
+              "AMOUNT_FORMAT_AMBIGUOUS",
+              "ASSET_AMBIGUOUS",
+              "ASSET_LOOKALIKE",
+              "ASSET_NOT_ON_NETWORK",
+              "RECIPIENT_UNRESOLVED",
+              "RECIPIENT_NAME_MOVED",
+              "RECIPIENT_NETWORK_MISMATCH",
+              "RECIPIENT_CHECKSUM",
+              "VERB_AMBIGUOUS",
+              "EDIT_TARGET_AMBIGUOUS"
+            ]
+          },
+          "purpose": {
+            "type": "boolean",
+            "description": "True when only the person can answer (AMOUNT_MISSING, AMOUNT_BALANCE_UNKNOWN, DESTINATION_MISSING, OUTPUT_ASSET_MISSING, INPUT_ASSET_MISSING, RECIPIENT_MISSING, SOURCE_MISSING, TRANSFER_NETWORK, COUNTERPART_MISSING, NETWORK_HANDOFF, FUNDS_ELSEWHERE, AMOUNT_FORMAT_AMBIGUOUS, ASSET_AMBIGUOUS, ASSET_LOOKALIKE, ASSET_NOT_ON_NETWORK, RECIPIENT_UNRESOLVED, RECIPIENT_NAME_MOVED, RECIPIENT_NETWORK_MISMATCH, RECIPIENT_CHECKSUM, VERB_AMBIGUOUS, EDIT_TARGET_AMBIGUOUS): agents relay these and never pick an option themselves."
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 160,
+            "examples": [
+              "How much SOL?"
+            ]
+          },
+          "why": {
+            "type": "string",
+            "maxLength": 160,
+            "examples": [
+              "You hold 2.5 SOL on Solana."
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyOption"
+            },
+            "maxItems": 8
+          },
+          "allowsText": {
+            "type": "boolean",
+            "description": "The question also takes a typed answer (`answer.text`)."
+          },
+          "placeholder": {
+            "type": "string",
+            "maxLength": 64,
+            "examples": [
+              "Amount in SOL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "field",
+          "kind",
+          "reason",
+          "purpose",
+          "prompt",
+          "why",
+          "options",
+          "allowsText"
+        ]
+      },
+      "ClarifyAssumption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^a\\.[\\w.[\\]-]{1,94}$",
+            "examples": [
+              "a.actions.0.network"
+            ]
+          },
+          "field": {
+            "type": "string",
+            "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+            "examples": [
+              "actions[0].amount"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 160,
+            "examples": [
+              "On Base"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 160,
+            "examples": [
+              "Your largest USDC balance."
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "default",
+              "balance",
+              "position",
+              "context",
+              "correction",
+              "alias",
+              "price"
+            ]
+          },
+          "material": {
+            "type": "boolean",
+            "description": "Changes where money goes or how much moves: highlight it and announce it."
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyOption"
+            },
+            "maxItems": 4,
+            "description": "One-tap alternatives (send `assumption` { id, option })."
+          }
+        },
+        "required": [
+          "id",
+          "field",
+          "label",
+          "reason",
+          "source",
+          "material",
+          "alternatives"
+        ]
+      },
+      "ClarifyDraft": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 200,
+            "examples": [
+              "Swap SOL to USDC on Solana"
+            ]
+          },
+          "sentence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The canonical sentence once the thread is ready; null while questions are open."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields of the open questions."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "swap",
+                    "bridge",
+                    "transfer",
+                    "stake",
+                    "deposit",
+                    "withdraw",
+                    "call",
+                    "action"
+                  ]
+                },
+                "network": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "toNetwork": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "string",
+                  "examples": [
+                    "25",
+                    "all",
+                    "half",
+                    "it"
+                  ]
+                },
+                "recipient": {
+                  "type": "string"
+                },
+                "protocol": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "index"
+              ]
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "sentence",
+          "missing",
+          "steps"
+        ]
+      },
+      "ClarifyThreadStep": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "enum": [
+                  "swap",
+                  "bridge",
+                  "transfer",
+                  "stake",
+                  "deposit",
+                  "withdraw",
+                  "call",
+                  "action"
+                ]
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "kindCandidates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "swap",
+                "bridge",
+                "transfer",
+                "stake",
+                "deposit",
+                "withdraw",
+                "call",
+                "action"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 4
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "object",
+                "description": "`exact` { value } or `usd` { value } (decimal strings), or `previous`, `balance`, `position` { bps } (a share in basis points).",
+                "properties": {
+                  "t": {
+                    "type": "string",
+                    "enum": [
+                      "exact",
+                      "usd",
+                      "previous",
+                      "balance",
+                      "position"
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/DecimalAmount"
+                  },
+                  "raw": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "bps": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "t"
+                ]
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "from": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "network": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "toNetwork": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "recipient": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "protocol": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "vault": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "provider": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "contract": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "`<registration>#<entry>`."
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "answer",
+                  "assumed",
+                  "derived"
+                ],
+                "description": "`user` typed it, `answer` picked or typed in reply, `assumed` Kletia's default (shown as a chip), `derived` follows from another slot."
+              },
+              "why": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "balance",
+                      "position",
+                      "context",
+                      "correction",
+                      "alias",
+                      "price"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "source",
+                  "code"
+                ],
+                "description": "Assumed slots: the template code of the reason (never free text)."
+              }
+            },
+            "required": [
+              "v",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          "usdFrom": {
+            "type": "boolean"
+          },
+          "usdTo": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClarifyThread": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "string",
+            "const": "kletia.thread/v1"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^th_[a-z2-7]{24}$",
+            "description": "`th_` followed by 24 base32 characters."
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Turns applied so far; a thread closes at 50."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "needs_input",
+              "ready",
+              "cancelled"
+            ]
+          },
+          "policy": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}\\.\\d{1,4}$",
+            "examples": [
+              "2026-10.1"
+            ],
+            "description": "The policy version that wrote it; an older one is re-analysed."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyThreadStep"
+            },
+            "maxItems": 8
+          },
+          "open": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields of the open questions."
+          },
+          "pendingEdit": {
+            "type": "object",
+            "description": "An edit waiting for its target (engine-defined shape)."
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+                  "examples": [
+                    "actions[0].amount"
+                  ]
+                },
+                "from": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "to": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "material": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "field",
+                "from",
+                "to",
+                "material"
+              ]
+            }
+          },
+          "turns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "kletia"
+                  ]
+                },
+                "kind": {
+                  "type": "string",
+                  "maxLength": 24
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "description": "Kletia's own words (\"Changed the amount to 2\"), never the user's message."
+                }
+              },
+              "required": [
+                "role",
+                "kind",
+                "label"
+              ]
+            },
+            "maxItems": 8
+          },
+          "undo": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ClarifyThreadStep"
+              }
+            },
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "spec",
+          "id",
+          "rev",
+          "status",
+          "policy",
+          "steps",
+          "open",
+          "corrections",
+          "turns",
+          "undo"
+        ],
+        "description": "A client-held thread (`kletia.thread/v1`, at most 16384 bytes): send it back exactly as returned. Kletia re-checks every value each turn, so a changed blob can only say what its sender could have typed."
+      },
+      "ThreadRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^th_[a-z2-7]{24}$",
+            "description": "`th_` followed by 24 base32 characters."
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Send it as `expectedRev` (or `If-Match: \"<rev>\"`) to refuse a thread that moved on."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "needs_input",
+              "ready",
+              "cancelled"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "30 minutes after the last turn, at most 24 hours after creation."
+          }
+        },
+        "required": [
+          "id",
+          "rev",
+          "status",
+          "expiresAt"
+        ],
+        "description": "A Kletia-held thread (`remember: true`)."
+      },
+      "IntentTurnRequest": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            },
+            "minItems": 1,
+            "maxItems": 6,
+            "description": "Required unless a Kletia-held thread kept them."
+          },
+          "defaultNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "sourceNetwork": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              {
+                "type": "string",
+                "const": "auto"
+              }
+            ],
+            "description": "Where the money starts (as on IntentRequest)."
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/IntentConstraints"
+          },
+          "metadata": {
+            "type": "object",
+            "maxProperties": 20,
+            "propertyNames": {
+              "maxLength": 40
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "clientReference": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,72}$",
+            "description": "The intent stored at revision n gets `<clientReference>:r<n>` (default `thread:<threadId>:r<n>`), so a retried commit returns the same intent."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "A sentence, an answer in words (\"50\"), a follow-up (\"make it 2\", \"from arbitrum instead\") or a control word (\"cancel\", \"undo\")."
+          },
+          "answer": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string",
+                "pattern": "^q\\.[\\w.[\\]-]{1,94}$",
+                "examples": [
+                  "q.actions.0.amount"
+                ]
+              },
+              "option": {
+                "type": "string",
+                "pattern": "^[\\w.:[\\]-]{1,128}$",
+                "examples": [
+                  "all",
+                  "base"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "question"
+            ],
+            "description": "Exactly one of option and text.",
+            "additionalProperties": false
+          },
+          "assumption": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^a\\.[\\w.[\\]-]{1,94}$",
+                "examples": [
+                  "a.actions.0.network"
+                ]
+              },
+              "option": {
+                "type": "string",
+                "pattern": "^[\\w.:[\\]-]{1,128}$",
+                "examples": [
+                  "all",
+                  "base"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "option"
+            ],
+            "description": "Change an assumption chip to one of its alternatives.",
+            "additionalProperties": false
+          },
+          "thread": {
+            "$ref": "#/components/schemas/ClarifyThread"
+          },
+          "threadId": {
+            "type": "string",
+            "pattern": "^th_[a-z2-7]{24}$",
+            "description": "A Kletia-held thread of this API key."
+          },
+          "remember": {
+            "type": "boolean",
+            "description": "First turn only: Kletia keeps the thread (API key required; 400 THREAD_REQUIRES_API_KEY otherwise)."
+          },
+          "expectedRev": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "With threadId: refuse with 409 THREAD_CONFLICT when the thread is at another revision."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One clarify turn: at most one input (text, answer, assumption; none with a ready thread is the commit turn) and at most one memory (thread or threadId). Structured `actions` are refused: send them without `clarify`."
+      },
+      "IntentTurnNeedsInput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "needs_input"
+          },
+          "turn": {
+            "type": "string",
+            "enum": [
+              "message",
+              "answer",
+              "edit",
+              "append",
+              "replace",
+              "control",
+              "none"
+            ]
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyQuestion"
+            },
+            "minItems": 1,
+            "maxItems": 2
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyAssumption"
+            },
+            "maxItems": 3
+          },
+          "draft": {
+            "$ref": "#/components/schemas/ClarifyDraft"
+          },
+          "thread": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClarifyThread"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "turn",
+          "questions",
+          "assumptions",
+          "draft",
+          "thread"
+        ]
+      },
+      "IntentTurnPlanned": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "planned"
+          },
+          "turn": {
+            "type": "string",
+            "enum": [
+              "message",
+              "answer",
+              "edit",
+              "append",
+              "replace",
+              "control",
+              "none"
+            ]
+          },
+          "intent": {
+            "$ref": "#/components/schemas/IntentGraph"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/IntentPreview",
+            "description": "With `preview=true` or `journey=true`."
+          },
+          "journey": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Journey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `journey=true`: the journey on `preview`; null when it could not be built."
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyAssumption"
+            }
+          },
+          "sentence": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "The canonical sentence: it compiles to exactly the planned actions."
+          },
+          "thread": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClarifyThread"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadRef"
+              }
+            ]
+          },
+          "replayed": {
+            "type": "boolean",
+            "const": true,
+            "description": "The intent already existed under this clientReference."
+          }
+        },
+        "required": [
+          "status",
+          "turn",
+          "intent",
+          "assumptions",
+          "sentence",
+          "thread"
+        ]
+      },
+      "IntentTurnCancelled": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "cancelled"
+          },
+          "turn": {
+            "type": "string",
+            "const": "control"
+          },
+          "thread": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClarifyThread"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "turn",
+          "thread"
+        ]
+      },
+      "IntentTurnResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IntentTurnNeedsInput"
+          },
+          {
+            "$ref": "#/components/schemas/IntentTurnPlanned"
+          },
+          {
+            "$ref": "#/components/schemas/IntentTurnCancelled"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "status",
+          "mapping": {
+            "needs_input": "#/components/schemas/IntentTurnNeedsInput",
+            "planned": "#/components/schemas/IntentTurnPlanned",
+            "cancelled": "#/components/schemas/IntentTurnCancelled"
+          }
+        }
+      },
+      "ThreadContext": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          },
+          "defaultNetwork": {
+            "$ref": "#/components/schemas/NetworkKey"
+          },
+          "sourceNetwork": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              {
+                "type": "string",
+                "const": "auto"
+              }
+            ]
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/IntentConstraints"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "clientReference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "description": "The request context the thread keeps (the last one sent, field by field)."
+      },
+      "ThreadSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ThreadRef"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "The draft summary, the planned sentence, or \"Cancelled\"."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "summary",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        ]
+      },
+      "ThreadResponse": {
+        "type": "object",
+        "properties": {
+          "thread": {
+            "$ref": "#/components/schemas/ClarifyThread"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/ThreadRef"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ThreadContext"
+          },
+          "response": {
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "The last turn's response with its ThreadRef; a planned turn keeps status, turn, sentence, assumptions, dryRun and (when stored) intentId, not the intent graph. Null when it did not fit in 32 KB."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntentId"
+            },
+            "maxItems": 5,
+            "description": "Stored intents planned on this thread, newest last."
+          }
+        },
+        "required": [
+          "thread",
+          "ref",
+          "summary",
+          "createdAt",
+          "updatedAt",
+          "context",
+          "response",
+          "intents"
+        ],
+        "description": "A Kletia-held thread: the blob (`thread`, as a client-held thread would carry it), its ref, the context it keeps, its last response and its intents."
+      },
+      "ThreadListResponse": {
+        "type": "object",
+        "properties": {
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Send as `cursor` for the next page; null on the last page."
+          }
+        },
+        "required": [
+          "threads",
+          "nextCursor"
         ]
       },
       "IntentResponse": {

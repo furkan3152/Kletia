@@ -377,3 +377,34 @@ test("round 6 reserved words: brand words anywhere, common words only as a whole
   assert.equal(reservedIntegratorName("Velodrome Club")?.word, "velodrome");
   assert.equal(reservedIntegratorName("Chainlink Labs Fan")?.word, "chainlink");
 });
+
+test("EVM liquid staking pins match the minted tokens in ASSETS (the staking adapters rely on it)", () => {
+  const one = (protocol, role) => {
+    const addresses = venueContracts(protocol, "ethereum", role);
+    assert.equal(addresses.length, 1, `${protocol} ${role}`);
+    return addresses[0].toLowerCase();
+  };
+  // Lido mints wstETH by receiving ETH at wstETH itself; Rocket Pool and ether.fi mint their lst-token.
+  assert.equal(one("lido", "deposit-target"), findAssetBySymbol("ethereum", "wstETH").address.toLowerCase());
+  assert.equal(one("rocket-pool", "lst-token"), findAssetBySymbol("ethereum", "rETH").address.toLowerCase());
+  assert.equal(one("etherfi", "lst-token"), findAssetBySymbol("ethereum", "weETH").address.toLowerCase());
+  for (const role of ["lst-token", "locator"]) one("lido", role);
+  for (const role of ["storage", "deposit-target"]) one("rocket-pool", role);
+  for (const role of ["deposit-target", "liquidity-pool", "underlying-token"]) one("etherfi", role);
+  // SparkLend's provider is pinned so the adapter can tie the Pool and data provider to it.
+  assert.equal(one("sparklend", "addresses-provider"), "0x02c3ea4e34c0cbd694d2adfa2c690eecbc1793ee");
+});
+
+test("SparkLend and Yearn V3 pins and governance roles are read back in docs/networks/evidence/evm-lending-additions.json", () => {
+  const evidence = JSON.parse(readFileSync(new URL("../../../docs/networks/evidence/evm-lending-additions.json", import.meta.url), "utf8"));
+  assert.equal(evidence.allChecksPass, true);
+  assert.ok(Object.values(evidence.checks).every(Boolean));
+  const sparklend = getYieldVenue("ethereum:sparklend:usdc");
+  assert.equal(evidence.pins.sparklendPool.toLowerCase(), sparklend.target.toLowerCase());
+  assert.equal(evidence.pins.sparklendDataProvider.toLowerCase(), sparklend.dataProvider.toLowerCase());
+  assert.equal(evidence.pins.spUSDC.toLowerCase(), sparklend.receipt.address.toLowerCase());
+  const yearn = getYieldVenue("ethereum:yearn-v3:usdc-1");
+  assert.equal(evidence.pins.yearnUsdc1.toLowerCase(), yearn.target.toLowerCase());
+  assert.equal(evidence.pins.yearnVaultOriginal.toLowerCase(), yearn.implementation.toLowerCase());
+  assert.deepEqual(evidence.pins.yearnRegistries.map((address) => address.toLowerCase()), yearn.registries.map((address) => address.toLowerCase()));
+});

@@ -148,7 +148,7 @@ function withSteps(graph: IntentGraph, steps: readonly IntentStep[], now: number
     steps,
     status: deriveStatus(graph, steps, now),
     updatedAt: nextTimestamp(graph.updatedAt, now),
-    summary: summarize(steps, graph.edges, graph.summary.signaturesRequired, graph.summary.title),
+    summary: summarize(steps, graph.edges, graph.summary.signaturesRequired, graph.summary.title, graph.request),
   };
 }
 
@@ -799,6 +799,8 @@ export async function prepareStep(intentId: string, stepId: string, options: Pre
         ...(prepared.minimumOutput ? { minimumOutput: prepared.minimumOutput } : {}),
         ...(step.call && review ? { call: { ...step.call, review } } : {}),
         ...(prepared.feesUsd !== undefined ? { feesUsd: roundUsd(prepared.feesUsd) } : {}),
+        // The top-up these transactions deliver (same USD as planned; the gas amount follows the price).
+        ...(step.gasTopup && prepared.gasTopup ? { gasTopup: prepared.gasTopup } : {}),
         ...(step.settlement
           ? { settlement: { ...step.settlement, ...(prepared.trackingId ? { trackingId: prepared.trackingId } : {}) } }
           : {}),
@@ -1044,7 +1046,15 @@ function applySettlement(step: IntentStep, result: SettlementResult, now: number
     };
   }
   if (result.status === "failed") {
-    return { ...step, status: transition(step, "failed"), evidence: appendEvidence(step, result.evidence), failure: result.failure };
+    // A fill below the floor still reached the recipient: recorded where it is (F4), never spent by a later step.
+    const credited = result.credited && BigInt(result.credited.amount) > 0n ? result.credited : undefined;
+    return {
+      ...step,
+      status: transition(step, "failed"),
+      evidence: appendEvidence(step, result.evidence),
+      failure: result.failure,
+      ...(credited ? { observedCredit: credited } : {}),
+    };
   }
   let next = step;
   if (result.trackingId && step.settlement && result.trackingId !== step.settlement.trackingId) {
@@ -1415,6 +1425,92 @@ export async function cancelIntent(id: string): Promise<IntentGraph> {
   } catch (error) {
     throw toPlatformError(error);
   }
+}
+
+/* ------------------------------------------------------------------ stop */
+
+/** Attaches the seconds after which a retry may succeed (sent as Retry-After). */
+function withRetryAfter(error: PlatformError, seconds: number): PlatformError & { readonly retryAfterSeconds: number } {
+  return Object.assign(error, { retryAfterSeconds: seconds });
+}
+
+/** Step statuses that mean money is moving: a stop waits for them (INTENT_IN_FLIGHT). */
+const IN_FLIGHT_STATUSES: readonly StepStatus[] = ["submitted", "confirmed", "settling", "indeterminate"];
+/** Seconds a stop is retried after when a step is in flight without a payload expiry to wait for. */
+export const STOP_RETRY_AFTER_SECONDS = 30;
+
+function stopInFlight(graph: IntentGraph, now: number): PlatformError | null {
+  const moving = graph.steps.find((step) => IN_FLIGHT_STATUSES.includes(step.status));
+  if (moving) {
+    return withRetryAfter(new PlatformError(
+      "INTENT_IN_FLIGHT",
+      `Step ${moving.id} is ${moving.status}; the intent can be stopped once it settles or fails.`,
+      409,
+      [{ path: `steps.${moving.id}`, message: `Step is ${moving.status}.` }],
+    ), STOP_RETRY_AFTER_SECONDS);
+  }
+  // A prepared payload that can still be signed and submitted keeps the step in flight until it expires.
+  const signable = graph.steps
+    .filter((step) => step.status === "awaiting_signature" && step.prepared && step.prepared.expiresAt * 1000 > now)
+    .sort((a, b) => (b.prepared?.expiresAt ?? 0) - (a.prepared?.expiresAt ?? 0))[0];
+  if (signable?.prepared) {
+    const seconds = Math.max(1, Math.ceil(signable.prepared.expiresAt - now / 1000));
+    return withRetryAfter(new PlatformError(
+      "INTENT_IN_FLIGHT",
+      `Step ${signable.id} has a prepared payload that can still be signed for ${seconds} s; stop the intent after it expires.`,
+      409,
+      [{ path: `steps.${signable.id}`, message: "Prepared payload still signable." }],
+    ), seconds);
+  }
+  return null;
+}
+
+/** Steps a stop skips: everything not started, waiting for a signature (payload expired) or failed. */
+const STOPPABLE_STATUSES: readonly StepStatus[] = ["pending", "ready", "awaiting_signature", "failed"];
+
+/**
+ * Ends an intent at its current stop (journey design 6.3): once nothing is
+ * in flight, every step not started (or failed) is skipped with a note. The
+ * status becomes `cancelled` when nothing had started (the same result as
+ * cancelIntent), else the derived status (`partially_completed` when a step
+ * settled). Stopping never moves money and is idempotent. Refused with
+ * INTENT_IN_FLIGHT (409, retryable, `retryAfterSeconds`) while a step is
+ * submitted, settling, under manual review or holds a signable payload.
+ */
+export async function stopIntent(id: string): Promise<IntentGraph> {
+  try {
+    return await withIntentLock(id, async () => {
+      const graph = await loadIntent(id);
+      const now = Date.now();
+      if (graph.status === "cancelled") return graph;
+      if (!graph.steps.some((step) => STOPPABLE_STATUSES.includes(step.status))) return graph;
+      const blocked = stopInFlight(graph, now);
+      if (blocked) throw blocked;
+      if (!hasStarted(graph)) return commit(graph, cancelledGraph(graph, now));
+      const label = stopLabel(graph);
+      const observedAt = new Date(now).toISOString();
+      const steps = graph.steps.map((step): IntentStep => {
+        if (!STOPPABLE_STATUSES.includes(step.status)) return step;
+        const path: StepStatus[] = step.status === "awaiting_signature" || step.status === "failed" ? ["ready", "skipped"] : ["skipped"];
+        return {
+          ...step,
+          status: transition(step, ...path),
+          evidence: appendEvidence(step, [{ kind: "note", network: step.network, observedAt, detail: `Skipped: the journey was ended at ${label}.` }]),
+        };
+      });
+      return commit(graph, withSteps(graph, steps, now));
+    });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/** Where the money stopped: the output of the last settled step ("Base One wallet after step 1"), else the start. */
+function stopLabel(graph: IntentGraph): string {
+  const settled = [...graph.steps].reverse().find((step) => step.status === "settled" || (step.mode === "read" && step.status === "confirmed"));
+  if (!settled) return "its start";
+  const network = settled.settlement?.destinationNetwork ?? settled.network;
+  return `the ${CHAINS[network].name} stop after step ${settled.index + 1}`;
 }
 
 /* ---------------------------------------------------------------- poller */

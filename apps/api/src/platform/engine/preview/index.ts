@@ -22,6 +22,7 @@ import {
   isStepDone,
   materialChange,
   parseAccountId,
+  parseAssetId,
   PREVIEW_WARNING_CODES,
   type AssetId,
   type IntentGraph,
@@ -42,6 +43,8 @@ import { assertInvariants, isContractStep, type InvariantViolation } from "./inv
 import { buildEvmJobs, planBlock, type EvmJob, type StepTransactions } from "./jobs.js";
 import { priceAssets } from "./pricer.js";
 import { simulateEvmJob, simulateSolanaStep, type SimulatedJob, type SimulatedSolanaStep } from "./simulate.js";
+import { estimateStepFee, gasPriceFrom, rentFrom, type FeeEstimate } from "../journey/fees.js";
+import { readFacts, type FactNeed, type WalletFacts } from "../holdings.js";
 import { evmStepPreview, quotedStepPreview, solanaStepPreview, type BuiltStep, type StepBuildContext } from "./steps.js";
 
 /** Retry-After of SIMULATION_UNAVAILABLE (503): endpoints usually recover within seconds. */
@@ -187,7 +190,7 @@ function fundingParentPending(graph: IntentGraph, step: IntentStep): boolean {
 const nativeBalances = new Map<string, { value: bigint; at: number }>();
 
 /** Native balance of an account (EVM: eth_getBalance through the simulation endpoints; Solana: getBalance), cached 30 s. */
-async function readNativeBalance(network: IntentStep["network"], address: string, deadline: number): Promise<bigint | null> {
+export async function readNativeBalance(network: IntentStep["network"], address: string, deadline: number): Promise<bigint | null> {
   const key = `${network}:${address.startsWith("0x") ? address.toLowerCase() : address}`;
   const cached = nativeBalances.get(key);
   if (cached && Date.now() - cached.at < NATIVE_BALANCE_TTL_MS) return cached.value;
@@ -296,6 +299,66 @@ async function runSimulations(
   return out;
 }
 
+/** Deadline of the fee facts (gas prices, rent, token accounts) read next to the simulations. */
+const FEE_FACTS_MS = 1_500;
+
+type EstimatedFees = Map<string, { readonly network: FeeEstimate; readonly rent: bigint | null }>;
+
+/** Output mints a Solana step credits to its own account (token accounts it may create). */
+function solanaOutputMint(step: IntentStep): string | null {
+  const output = step.minimumOutput ?? step.expectedOutput;
+  const parsed = output ? parseAssetId(output.asset) : null;
+  return parsed && !parsed.isNative && parsed.assetNamespace === "token" && parsed.chain.key === step.network ? parsed.reference : null;
+}
+
+/**
+ * Fee estimates of every unsigned wallet step (journey/fees.ts, design 6.5),
+ * from live gas prices, Solana rent, token-account existence and the wallet
+ * balances the simulations read. Unknown facts make the estimate's amount
+ * null (no line), never zero; read failures never fail the preview.
+ */
+function readFeeFacts(graph: IntentGraph, deadlineMs: number): Promise<WalletFacts | null> {
+  const steps = graph.steps.filter((step) => step.mode === "wallet" && !started(step));
+  if (steps.length === 0) return Promise.resolve(null);
+  const needs: FactNeed[] = [];
+  for (const step of steps) {
+    if (isEvmNetwork(step.network)) needs.push({ kind: "gasPrice", network: step.network });
+    else if (isSolanaNetworkKey(step.network)) {
+      needs.push({ kind: "solanaRent", network: step.network });
+      const mint = solanaOutputMint(step);
+      const account = parseAccountId(step.account);
+      if (mint && account && step.kind !== "transfer" && step.kind !== "bridge") needs.push({ kind: "tokenAccount", network: step.network, mint, owner: account.address });
+    }
+  }
+  return readFacts(graph.request.accounts, needs, { deadlineMs: Math.max(1, Math.min(FEE_FACTS_MS, deadlineMs)) }).catch(() => null);
+}
+
+function estimateFees(graph: IntentGraph, facts: WalletFacts | null, balances: ReadonlyMap<string, bigint>): EstimatedFees {
+  const out: EstimatedFees = new Map();
+  if (!facts) return out;
+  for (const step of graph.steps.filter((candidate) => candidate.mode === "wallet" && !started(candidate))) {
+    const account = parseAccountId(step.account);
+    const address = account ? (account.chain.namespace === "eip155" ? account.address.toLowerCase() : account.address) : "";
+    if (isSolanaNetworkKey(step.network)) {
+      const rent = rentFrom(facts, step.network);
+      const mint = solanaOutputMint(step);
+      const tokenFact = mint && step.kind !== "transfer" && step.kind !== "bridge"
+        ? facts.tokenAccounts.find((entry) => entry.network === step.network && entry.mint === mint && entry.owner === address)
+        : undefined;
+      const tokenAccounts = tokenFact ? [tokenFact.status === "known" ? tokenFact.exists ?? null : null] : [];
+      const walletLamports = balances.get(`${step.network}:${address}`) ?? null;
+      const full = estimateStepFee(step, { tokenAccountRentLamports: rent.tokenAccount, walletRentLamports: rent.wallet, walletLamports, tokenAccounts });
+      const base = estimateStepFee(step, {});
+      const total = BigInt(full.amount ?? "0");
+      const fee = BigInt(base.amount ?? "0");
+      out.set(step.id, { network: base, rent: total > fee ? total - fee : null });
+    } else if (isEvmNetwork(step.network)) {
+      out.set(step.id, { network: estimateStepFee(step, { gasPriceWei: gasPriceFrom(facts, step.network) }), rent: null });
+    }
+  }
+  return out;
+}
+
 /** Builds one step's preview from whatever was simulated for it. */
 async function buildStep(context: StepBuildContext, simulations: Simulations, attempted: boolean): Promise<BuiltStep> {
   const { step } = context;
@@ -316,15 +379,48 @@ async function buildStep(context: StepBuildContext, simulations: Simulations, at
 }
 
 /**
- * Gas-on-arrival needs (design §5.7): wallet steps on a network where the signer's native balance
- * (read at plan time) cannot pay their estimated network fees. A dust balance counts as none: the
- * need is the shortfall against the fees of every unsigned wallet step of that account there.
+ * Gas the intent itself delivers to `${network}:${address}` before step
+ * `beforeIndex` (journey design 6.5): gas top-ups of unsettled cross-network
+ * legs arriving there, and gas-asset outputs of earlier legs to that account
+ * that later steps do not spend (planned gas reserves included).
+ */
+function deliveredGas(graph: IntentGraph, network: IntentStep["network"], address: string, beforeIndex: number): bigint {
+  let total = 0n;
+  const native = `${CHAINS[network].id}/slip44:`;
+  for (const step of graph.steps) {
+    if (step.index >= beforeIndex || started(step) || step.status === "failed" || step.status === "skipped") continue;
+    const destination = step.settlement?.kind === "cross-network" ? step.settlement.destinationNetwork : step.network;
+    if (destination !== network) continue;
+    const recipient = parseAccountId(step.recipient ?? step.account);
+    const to = recipient ? (recipient.chain.namespace === "eip155" ? recipient.address.toLowerCase() : recipient.address) : "";
+    if (to !== address) continue;
+    if (step.gasTopup && step.gasTopup.asset.startsWith(native)) total += BigInt(step.gasTopup.amount);
+    const output = step.minimumOutput;
+    if (output && output.asset.startsWith(native)) {
+      const spent = graph.steps
+        .filter((child) => graph.edges.some((edge) => edge.from === step.id && edge.to === child.id && edge.kind === "funds") && child.input?.asset.startsWith(native))
+        .reduce((sum, child) => sum + BigInt(child.input?.amount ?? "0"), 0n);
+      const left = BigInt(output.amount) - spent;
+      if (left > 0n) total += left;
+    }
+  }
+  return total;
+}
+
+/**
+ * Gas-on-arrival needs (design §5.7, journey 6.5): wallet steps on a network
+ * where the signer's native balance (read at plan time) plus the gas the
+ * intent itself delivers there before each step cannot pay the network fees
+ * (simulated, or estimated for quoted steps) and estimated Solana rent of the
+ * unsigned wallet steps of that account up to that step. The need is the
+ * largest shortfall.
  */
 function gasOnArrival(graph: IntentGraph, previews: readonly StepPreview[], balances: ReadonlyMap<string, bigint>): { needs: PreviewNeed[]; warnings: string[] } {
   const needs: PreviewNeed[] = [];
   const warnings: string[] = [];
-  const accounts = new Map<string, { readonly step: IntentStep; readonly have: bigint; fee: bigint; readonly steps: number[] }>();
-  for (const step of graph.steps) {
+  const accounts = new Map<string, { readonly step: IntentStep; readonly have: bigint; fee: bigint; missing: bigint; readonly steps: number[] }>();
+  const ordered = [...graph.steps].sort((a, b) => a.index - b.index);
+  for (const step of ordered) {
     if (started(step) || step.mode !== "wallet") continue;
     const account = parseAccountId(step.account);
     if (!account) continue;
@@ -334,20 +430,20 @@ function gasOnArrival(graph: IntentGraph, previews: readonly StepPreview[], bala
     if (have === undefined) continue;
     const preview = previews.find((entry) => entry.stepId === step.id);
     const fee = (preview?.fees ?? [])
-      .filter((line) => (line.kind === "network" || line.kind === "l1-data") && line.amount !== undefined && line.asset)
+      .filter((line) => (line.kind === "network" || line.kind === "l1-data" || (line.kind === "rent" && line.certainty === "estimated")) && line.amount !== undefined && line.asset)
       .reduce((total, line) => total + BigInt(line.amount as string), 0n);
     if (fee === 0n) continue;
-    const entry = accounts.get(key);
-    if (entry) {
-      entry.fee += fee;
+    const entry = accounts.get(key) ?? { step, have, fee: 0n, missing: 0n, steps: [] };
+    entry.fee += fee;
+    const available = have + deliveredGas(graph, step.network, address, step.index);
+    if (available < entry.fee) {
+      if (entry.fee - available > entry.missing) entry.missing = entry.fee - available;
       entry.steps.push(step.index + 1);
-    } else {
-      accounts.set(key, { step, have, fee, steps: [step.index + 1] });
     }
+    accounts.set(key, entry);
   }
-  for (const { step, have, fee, steps } of accounts.values()) {
-    if (have >= fee) continue;
-    const missing = fee - have;
+  for (const { step, have, missing, steps } of accounts.values()) {
+    if (missing <= 0n) continue;
     const chain = CHAINS[step.network];
     const formatted = formatPreviewAmount(missing, chain.nativeAsset.decimals).replace(/^\+/u, "");
     needs.push({
@@ -425,6 +521,7 @@ export async function previewIntent(graph: IntentGraph, context: PreviewContext)
   const jobs = buildEvmJobs(graph, sources, stage);
   const empty: Simulations = { evm: new Map(), evmUnavailable: new Map(), solana: new Map(), solanaUnavailable: new Map(), balances: new Map() };
   let timedOut = false;
+  const feeFacts = readFeeFacts(graph, Math.min(budget, FEE_FACTS_MS));
   const simulations = await Promise.race([
     runSimulations(graph, jobs, solanaSources, deadline),
     new Promise<Simulations>((resolve) => {
@@ -435,6 +532,7 @@ export async function previewIntent(graph: IntentGraph, context: PreviewContext)
       timer.unref?.();
     }),
   ]);
+  const estimatedFees = estimateFees(graph, timedOut ? null : await feeFacts, simulations.balances);
   const built = new Map<string, StepPreview>();
   const steps: BuiltStep[] = [];
   for (const step of graph.steps) {
@@ -447,6 +545,7 @@ export async function previewIntent(graph: IntentGraph, context: PreviewContext)
       source: sources.get(step.id) ?? solanaSources.find((entry) => entry.step.id === step.id)?.source ?? (planned.get(step.id) ? sourceFromPlanned(step, planned.get(step.id) as PlannedStepPreview) : null),
       built,
       nativeBalances: simulations.balances,
+      estimatedFees,
     };
     const entry = started(step)
       ? quotedStepPreview(context2, "quoted", [])

@@ -24,9 +24,14 @@ import {
   formatAmount,
   fromBaseUnits,
   nativeAssetId,
+  type AssetAmount,
   type CTokenVenue,
   type EvmTransactionRequest,
   type IntentStep,
+  type ParsedAccountId,
+  type VenueCapacity,
+  type VenuePosition,
+  type YieldVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
 import { assetAmount, resolveAsset, type ResolvedAsset } from "../../assets.js";
@@ -532,6 +537,83 @@ export async function moonwellMetrics(venue: CTokenVenue): Promise<LendingMetric
   };
 }
 
+/* ---------------------------------------------------------- journey facts */
+
+function marketParts(venue: YieldVenue): { venue: CTokenVenue; network: EvmNetworkKey; token: `0x${string}`; underlying: NonNullable<ReturnType<typeof findAssetBySymbol>> } {
+  if (venue.kind !== "ctoken" || venue.protocol !== "moonwell") throw new PlatformError("VENUE_INVALID", `${venue.name} is not a Moonwell market.`, 500);
+  const network = venue.network as EvmNetworkKey;
+  const underlying = findAssetBySymbol(network, venue.asset);
+  if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
+  return { venue, network, token: getAddress(underlying.address), underlying };
+}
+
+function amountOf(asset: { readonly id: string; readonly symbol: string; readonly decimals: number }, units: bigint): AssetAmount {
+  return { asset: asset.id as AssetAmount["asset"], symbol: asset.symbol, decimals: asset.decimals, amount: units.toString(), formatted: fromBaseUnits(units, asset.decimals) };
+}
+
+/**
+ * Underlying per whole mToken, 18-decimal fixed point, from the exchange
+ * rate mantissa (underlying units = mTokens × rate / 1e18).
+ */
+export function mTokenShareRate(exchangeRate: bigint, mTokenDecimals: number, underlyingDecimals: number): bigint {
+  return (exchangeRate * 10n ** BigInt(mTokenDecimals)) / 10n ** BigInt(underlyingDecimals);
+}
+
+async function exchangeRate(network: EvmNetworkKey, mToken: `0x${string}`): Promise<bigint> {
+  // exchangeRateCurrent accrues interest first; read with eth_call only.
+  const rate = await withTimeout(evmClient(network).readContract({ address: mToken, abi: MTOKEN_ABI, functionName: "exchangeRateCurrent" }));
+  if (rate <= 0n) throw new PlatformError("VENUE_UNVERIFIED", "The Moonwell market reports no exchange rate.", 422);
+  return rate;
+}
+
+/** The account's mTokens at `venue` valued at the current exchange rate; null when empty. */
+export async function moonwellPosition(venue: YieldVenue, owner: ParsedAccountId): Promise<VenuePosition | null> {
+  const parts = marketParts(venue);
+  const mToken = getAddress(parts.venue.target);
+  const client = evmClient(parts.network);
+  const [shares, rate, cash] = await Promise.all([
+    withTimeout(client.readContract({ address: mToken, abi: MTOKEN_ABI, functionName: "balanceOf", args: [getAddress(owner.address)] })),
+    exchangeRate(parts.network, mToken),
+    withTimeout(client.readContract({ address: mToken, abi: MTOKEN_ABI, functionName: "getCash" })),
+  ]);
+  if (shares === 0n) return null;
+  const value = (shares * rate) / 10n ** 18n;
+  const receipt = receiptAsset(parts.network, parts.venue.receipt, `mw${parts.underlying.symbol}`, parts.venue.name);
+  return {
+    venue: parts.venue.id,
+    network: parts.network,
+    protocol: "moonwell",
+    name: parts.venue.name,
+    receipt: amountOf(receipt, shares),
+    underlying: amountOf(parts.underlying, value),
+    rate: mTokenShareRate(rate, parts.venue.receipt.decimals, parts.underlying.decimals).toString(),
+    usd: null,
+    apy: null,
+    withdrawableNow: amountOf(parts.underlying, value < cash ? value : cash),
+    observedAt: new Date().toISOString(),
+  };
+}
+
+/** Mint pause, supply cap headroom, cash and the share rate of a Moonwell market. */
+export async function moonwellCapacity(venue: YieldVenue): Promise<VenueCapacity> {
+  const parts = marketParts(venue);
+  const [state, rate] = await Promise.all([readMarket(parts), exchangeRate(parts.network, getAddress(parts.venue.target))]);
+  const total = supplied(state);
+  // A supply cap of 0 means no cap.
+  const capRemaining = state.supplyCap === 0n ? null : (state.supplyCap > total ? state.supplyCap - total : 0n).toString();
+  return {
+    venue: parts.venue.id,
+    capRemaining,
+    exitLiquidity: state.cash.toString(),
+    paused: state.mintPaused,
+    frozen: false,
+    shareRate: mTokenShareRate(rate, parts.venue.receipt.decimals, parts.underlying.decimals).toString(),
+    observedAt: new Date().toISOString(),
+    apy: apyFromScaledRate(state.supplyRate, 10n ** 18n),
+    utilization: ratio(state.borrows, total),
+  };
+}
+
 export const moonwellAdapter: ProtocolAdapter = {
   id: "moonwell",
   protocols: ["moonwell"],
@@ -589,4 +671,7 @@ export const moonwellAdapter: ProtocolAdapter = {
         : proveMint(context.step, venue, getAddress(underlying), receipts, observedAt));
     return result;
   },
+
+  positionOf: moonwellPosition,
+  venueCapacity: moonwellCapacity,
 };

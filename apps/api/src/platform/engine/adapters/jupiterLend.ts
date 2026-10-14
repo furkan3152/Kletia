@@ -29,7 +29,11 @@ import {
   type AssetDescriptor,
   type IntentStep,
   type JupiterLendVenue,
+  type ParsedAccountId,
   type PreparedStepRecord,
+  type VenueCapacity,
+  type VenuePosition,
+  type YieldVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, sameAsset, type ResolvedAsset } from "../assets.js";
@@ -316,6 +320,60 @@ function observedAmount(ref: Pick<AssetAmount, "asset" | "symbol" | "decimals">,
   return { asset: ref.asset, symbol: ref.symbol, decimals: ref.decimals, amount: units.toString(), formatted: fromBaseUnits(units, ref.decimals) };
 }
 
+/* ---------------------------------------------------------- journey facts */
+
+function lendVenue(venue: YieldVenue): { venue: JupiterLendVenue; underlying: AssetDescriptor } {
+  if (venue.kind !== "jupiter-lend") throw new PlatformError("VENUE_INVALID", `${venue.name} is not a Jupiter Lend vault.`, 500);
+  const underlying = findAssetBySymbol(venue.network, venue.asset);
+  if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned SPL underlying.`, 500);
+  return { venue, underlying };
+}
+
+/** Underlying per whole jlToken, 18-decimal fixed point, from the API's convertToAssets (units per 10^decimals). */
+export function jlShareRate(convertToAssets: bigint, underlyingDecimals: number): bigint {
+  return (convertToAssets * 10n ** 18n) / 10n ** BigInt(underlyingDecimals);
+}
+
+/** The account's jlTokens at `venue`, valued at the API's share price; null when empty. */
+export async function jupiterLendPosition(venue: YieldVenue, owner: ParsedAccountId): Promise<VenuePosition | null> {
+  const { venue: vault, underlying } = lendVenue(venue);
+  const shares = await readTokenBalance("solana", owner.address, vault.receipt.address);
+  if (shares === 0n) return null;
+  const rates = await readJupiterLendRates(vault, underlying.address as string);
+  const value = scaleByRate(shares, rates.convertToAssets, vault.receipt.decimals);
+  const receipt = receiptAsset(vault);
+  const withdrawable = rates.withdrawable === null ? null : value < rates.withdrawable ? value : rates.withdrawable;
+  return {
+    venue: vault.id,
+    network: vault.network,
+    protocol: "jupiter-lend",
+    name: vault.name,
+    receipt: assetAmount(receipt, shares.toString()),
+    underlying: assetAmount(resolvedUnderlying(underlying), value.toString()),
+    rate: jlShareRate(rates.convertToAssets, underlying.decimals).toString(),
+    usd: null,
+    apy: rates.totalRateBps / 10_000,
+    withdrawableNow: withdrawable === null ? null : assetAmount(resolvedUnderlying(underlying), withdrawable.toString()),
+    observedAt: new Date().toISOString(),
+  };
+}
+
+/** What a Jupiter Lend vault can pay out now (rate-limited withdrawals), its share rate and APY; no supply cap is exposed. */
+export async function jupiterLendCapacity(venue: YieldVenue): Promise<VenueCapacity> {
+  const { venue: vault, underlying } = lendVenue(venue);
+  const rates = await readJupiterLendRates(vault, underlying.address as string);
+  return {
+    venue: vault.id,
+    capRemaining: null,
+    exitLiquidity: rates.withdrawable === null ? null : rates.withdrawable.toString(),
+    paused: false,
+    frozen: false,
+    shareRate: jlShareRate(rates.convertToAssets, underlying.decimals).toString(),
+    observedAt: new Date().toISOString(),
+    apy: rates.totalRateBps / 10_000,
+  };
+}
+
 export const jupiterLendAdapter: ProtocolAdapter = {
   id: "jupiter-lend",
   protocols: ["jupiter-lend"],
@@ -470,4 +528,7 @@ export const jupiterLendAdapter: ProtocolAdapter = {
     if (result.status === "confirmed" && observed.actual) return { ...result, actualOutput: observed.actual };
     return result;
   },
+
+  positionOf: jupiterLendPosition,
+  venueCapacity: jupiterLendCapacity,
 };

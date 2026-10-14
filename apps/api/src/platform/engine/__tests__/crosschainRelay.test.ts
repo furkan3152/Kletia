@@ -32,7 +32,7 @@ const ORDER = `0x${"34".repeat(32)}` as Hex;
 
 let mock: CrossChainMock;
 /** Paths of every Relay API request, in order. */
-let relayCalls: { path: string; query: URLSearchParams; apiKey: string | null }[] = [];
+let relayCalls: { path: string; query: URLSearchParams; apiKey: string | null; body: Record<string, unknown> | null }[] = [];
 
 beforeEach(() => {
   mock = installCrossChainMock();
@@ -41,7 +41,10 @@ beforeEach(() => {
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     if (url.hostname.endsWith("relay.link")) {
-      relayCalls.push({ path: url.pathname, query: url.searchParams, apiKey: new Headers(init?.headers).get("x-api-key") });
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
+      relayCalls.push({ path: url.pathname, query: url.searchParams, apiKey: new Headers(init?.headers).get("x-api-key"), body });
+      // The chain mock answers quotes on /quote; /quote/v2 returns the same shape (recorded live 2026-10-14).
+      if (url.pathname === "/quote/v2") return inner(new URL("/quote", url).href, init);
     }
     return inner(input, init);
   }) as typeof fetch;
@@ -76,8 +79,8 @@ function approve(spender: string, amount: bigint): Hex {
   return encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender as Hex, amount] });
 }
 
-/** Relay `/quote` answering `action` with the given EVM calls (one transaction step per call). */
-function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[], out: { amount?: string; minimumAmount?: string } = {}) {
+/** Relay `/quote` answering `action` with the given EVM calls (one transaction step per call); `topup` adds details.currencyGasTopup. */
+function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[], out: { amount?: string; minimumAmount?: string; topup?: Record<string, unknown> | null } = {}) {
   const chainId = CHAINS[action.network].settlement.relayChainId as number;
   mock.rpc.relayQuote = (body) => ({
     steps: calls.map((call, index) => ({
@@ -95,10 +98,20 @@ function relayEvmQuote(action: AdapterAction, calls: readonly EvmCall[], out: { 
         amount: out.amount ?? "24974466",
         minimumAmount: out.minimumAmount ?? "24849594",
       },
+      ...(out.topup !== undefined ? { currencyGasTopup: out.topup } : {}),
       timeEstimate: 2,
     },
   });
 }
+
+/** Relay's `currencyGasTopup` for a $0.05 top-up on Arbitrum One (recorded live 2026-10-14, relay-v2-topup-50000.json). */
+const TOPUP_ARBITRUM = {
+  currency: { chainId: 42161, address: "0x0000000000000000000000000000000000000000", symbol: "ETH", name: "Ether", decimals: 18 },
+  amount: "20190036130756",
+  amountFormatted: "0.000020190036130756",
+  amountUsd: "0.050000",
+  minimumAmount: "20190036130756",
+};
 
 type SolanaIx = { readonly programId: string; readonly keys: { pubkey: string; isSigner: boolean; isWritable: boolean }[]; readonly data: string };
 
@@ -377,5 +390,125 @@ describe("Relay status v3 and request lookups", () => {
     mock.rpc.relayRequests.set(deposit, [{ id: requestId, status: "success", recipient: OTHER_EVM_ADDRESS, data: { inTxs: [{ txHash: deposit }] } }]);
     const result = await relayAdapter.poll?.(settlingStep(requestId, deposit), Date.now());
     assert.equal(result?.status === "failed" ? result.failure.code : result?.status, "SETTLEMENT_MISMATCH");
+  });
+});
+
+describe("Relay refunds, gas on arrival and observed credits", () => {
+  function bridgeCalls(action: AdapterAction): EvmCall[] {
+    return [
+      { to: action.input.address as string, data: approve(RELAY_DEPOSITORY, BigInt(action.amount)) },
+      { to: RELAY_DEPOSITORY, data: depositErc20(action) },
+    ];
+  }
+
+  it("names the depositing account as refundTo in every quote body, at plan and at prepare", async () => {
+    const action = bridgeAction("base", "arbitrum", { recipient: OTHER_EVM_ADDRESS });
+    relayEvmQuote(action, bridgeCalls(action));
+    await relayAdapter.plan(action);
+    const step = preparedStep({ network: "base", chain: CHAINS.base.id, account: action.account.id });
+    await relayAdapter.prepare({ graph: {} as IntentGraph, step, action, now: Date.now() });
+    const quotes = relayCalls.filter((call) => call.path === "/quote");
+    assert.equal(quotes.length, 2);
+    for (const call of quotes) {
+      assert.equal(call.body?.refundTo, EVM_ADDRESS, "refunds go to the depositor, not to the third-party recipient");
+      assert.equal(call.body?.recipient, OTHER_EVM_ADDRESS);
+      assert.equal(call.body?.topupGas, undefined, "gas on arrival is opt-in");
+    }
+  });
+
+  it("asks for the top-up in USD micro-units, parses currencyGasTopup and refuses a quote without it", async () => {
+    const action: AdapterAction = { ...bridgeAction("base", "arbitrum"), gasTopupUsd: "0.05" };
+    assert.equal(relayAdapter.supportsGasTopup?.(action), true);
+    relayEvmQuote(action, bridgeCalls(action), { topup: TOPUP_ARBITRUM });
+    const planned = await relayAdapter.plan(action);
+    const body = relayCalls.find((call) => call.path === "/quote")?.body;
+    assert.equal(body?.topupGas, true);
+    assert.equal(body?.topupGasAmount, "50000");
+    assert.deepEqual(planned.gasTopup, {
+      asset: "eip155:42161/slip44:60",
+      symbol: "ETH",
+      decimals: 18,
+      amount: "20190036130756",
+      formatted: "0.000020190036130756",
+      usd: 0.05,
+    });
+    // Prepare asks the same top-up again and carries what the transactions deliver.
+    const step = preparedStep({ network: "base", chain: CHAINS.base.id, account: action.account.id });
+    const prepared = await relayAdapter.prepare({ graph: {} as IntentGraph, step, action, now: Date.now() });
+    assert.equal(prepared.gasTopup?.amount, "20190036130756");
+    assert.equal(relayCalls.filter((call) => call.path === "/quote").at(-1)?.body?.topupGasAmount, "50000");
+    relayEvmQuote(action, bridgeCalls(action), { topup: null });
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /^PROVIDER_TRANSACTION_INVALID.*without the gas top-up/u);
+    relayEvmQuote(action, bridgeCalls(action), { topup: { ...TOPUP_ARBITRUM, currency: { ...TOPUP_ARBITRUM.currency, chainId: 8453 } } });
+    assert.match(await errorOf(() => relayAdapter.plan(action)), /^RELAY_QUOTE_INVALID.*gas top-up does not match/u);
+    assert.match(await errorOf(() => relayAdapter.plan({ ...action, gasTopupUsd: "9.99" })), /^INVALID_REQUEST/u);
+  });
+
+  it("serves gas on arrival only for EVM destinations whose output is not the gas asset", async () => {
+    assert.equal(relayAdapter.supportsGasTopup?.(bridgeAction("base", "solana")), false, "Solana destinations: Relay answers NO_SWAP_ROUTES_FOUND");
+    assert.equal(relayAdapter.supportsGasTopup?.(bridgeAction("base", "optimism", { symbol: "ETH", amount: "10000000000000000" })), false, "native output");
+    assert.equal(relayAdapter.supportsGasTopup?.(bridgeAction("base", "optimism", { symbol: "ETH", out: "USDC", amount: "10000000000000000" })), true, "merged ETH -> USDC");
+    const solana: AdapterAction = { ...bridgeAction("base", "solana"), gasTopupUsd: "0.50" };
+    assert.match(await errorOf(() => relayAdapter.plan(solana)), /^GAS_TOPUP_UNAVAILABLE/u);
+    assert.equal(relayCalls.some((call) => call.path === "/quote"), false, "refused before any quote");
+  });
+
+  it("quotes on /quote/v2 with RELAY_API_KEY and on /quote without (v1 deprecated, v2 key-only)", async () => {
+    const action = bridgeAction("base", "arbitrum");
+    relayEvmQuote(action, bridgeCalls(action));
+    await relayAdapter.plan(action);
+    configureRelayApiKey("test-relay-key");
+    await relayAdapter.plan(action);
+    assert.deepEqual(relayCalls.filter((call) => call.path.startsWith("/quote")).map((call) => `${call.path} ${call.apiKey ?? "-"}`), ["/quote -", "/quote/v2 test-relay-key"]);
+  });
+
+  it("fails a fill credited below the floor with the observed credit, and notes the gas top-up of a settled fill", async () => {
+    const requestId = randomRequestId();
+    const deposit = randomSolanaSignature();
+    const usdcBase = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const fill = (amount: bigint, blockNumber: bigint) => {
+      const hash = randomEvmHash();
+      mock.rpc.evm.set(hash, { hash, from: OTHER_EVM_ADDRESS, to: usdcBase, input: "0x", value: 0n, chainId: 8453, status: "success", blockNumber, timestamp: seconds(PREPARED_AT) + 30, logs: [transferLog(usdcBase, EVM_ADDRESS, amount)] });
+      mock.rpc.relayStatus.set(requestId, { status: "success", inTxHashes: [deposit], txHashes: [hash], destinationChainId: 8453 });
+      return hash;
+    };
+    const step: IntentStep = preparedStep({
+      kind: "bridge",
+      protocol: "relay",
+      status: "settling",
+      network: "solana",
+      chain: CHAINS.solana.id,
+      account: `${CHAINS.solana.id}:${SOL_ADDRESS}`,
+      recipient: `eip155:8453:${EVM_ADDRESS}`,
+      references: [deposit],
+      minimumOutput: { asset: `eip155:8453/erc20:${usdcBase}`, symbol: "USDC", decimals: 6, amount: "9900000", formatted: "9.9" },
+      settlement: { kind: "cross-network", destinationNetwork: "base", trackingId: requestId },
+      gasTopup: { asset: "eip155:8453/slip44:60", symbol: "ETH", decimals: 18, amount: "202866453735304", formatted: "0.000202866453735304", usd: 0.5 },
+      evidence: [{ kind: "quote", network: "solana", reference: requestId, observedAt: new Date(PREPARED_AT).toISOString() }],
+      prepared: {
+        quoteBinding: "d".repeat(64),
+        preparedAt: new Date(PREPARED_AT).toISOString(),
+        expiresAt: seconds(PREPARED_AT) + 90,
+        transactions: [{ vm: "svm", network: "solana", feePayer: SOL_ADDRESS, to: RELAY_SOLANA_DEPOSITORY, description: "deposit" }],
+      },
+    });
+    fill(1_000_000n, 9_301n);
+    const short = await relayAdapter.poll?.(step, Date.now());
+    assert.equal(short?.status, "failed");
+    assert.equal(short?.status === "failed" ? short.failure.code : "", "SETTLEMENT_MISMATCH");
+    assert.equal(short?.status === "failed" ? short.credited?.amount : "", "1000000", "the credit below the floor is reported");
+    // A settled fill: the recipient's gas balance grew over the fill block (informational evidence only).
+    fill(9_950_000n, 9_400n);
+    const owner = EVM_ADDRESS.toLowerCase();
+    mock.rpc.evmBalances.set(`${owner}@9399`, 7n);
+    mock.rpc.evmBalances.set(`${owner}@9400`, 7n + 202_866_453_735_304n);
+    const settled = await relayAdapter.poll?.(step, Date.now());
+    assert.equal(settled?.status, "settled");
+    assert.ok(settled?.evidence.some((entry) => entry.kind === "note" && /Gas top-up of 0\.000202866453735304 ETH credited on Base/u.test(entry.detail ?? "")), JSON.stringify(settled?.evidence));
+    // An unreadable balance never blocks settlement; it adds a note instead.
+    fill(9_950_000n, 9_500n);
+    const unread = await relayAdapter.poll?.(step, Date.now());
+    assert.equal(unread?.status, "settled");
+    assert.ok(unread?.evidence.some((entry) => /was not observed/u.test(entry.detail ?? "")));
   });
 });

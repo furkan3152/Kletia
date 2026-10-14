@@ -49,6 +49,11 @@ export {
 } from "./engine/preview/index.js";
 export type { PlannedStepPreview, PlannedVenueFee } from "./engine/adapters/types.js";
 
+/* Journey (engine side, journey design 11.3; the HTTP layer serves the routes). */
+export { journeyFor, resetJourneyCaches, type JourneyOptions } from "./engine/journey/index.js";
+export { readVenuePositions, type VenuePositionsResult } from "./engine/journey/positions.js";
+export { configureJourneyVenueReader, readJourneyFacts, type VenueReader } from "./engine/journey/facts.js";
+
 /** Id formats shared by the engine and the HTTP layer. */
 export { INTENT_ID_PATTERN, STEP_ID_PATTERN } from "./engine/util.js";
 
@@ -58,6 +63,8 @@ export { planIntent, planIntentWithPreviews, withIntentTtl, DEFAULT_SLIPPAGE_BPS
 export {
   ASSET_PRICE_SOURCES,
   chainGoverns,
+  configurePolicyHeadroom,
+  policyHeadroom,
   CHAINLINK_FEEDS,
   configurePolicyGate,
   configurePolicyPricing,
@@ -109,6 +116,8 @@ export {
   type PolicyErrorDetails,
   type PolicyEvent,
   type PolicyGate,
+  type PolicyHeadroom,
+  type PolicyHeadroomSources,
   type PolicyPricingTransport,
   type PolicySimulation,
   type PolicySimulationInput,

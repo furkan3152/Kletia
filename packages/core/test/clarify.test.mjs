@@ -190,6 +190,12 @@ test("threads: spec, id, sizes, turns, undo and slot syntax", () => {
   }
   assert.equal(validateThread(thread({ steps: [{ contract: { v: "ct_0123456789abcdef01234567#deposit", by: "user" } }] })).ok, true);
 
+  // An EDIT_TARGET_AMBIGUOUS question ("q.edit") keeps its field "edit" open while the edit waits in pendingEdit.
+  const editing = thread({ open: ["edit"], pendingEdit: { op: "network", dir: "use", network: "arbitrum" } });
+  assert.equal(validateThread(editing).ok, true);
+  assert.ok(paths(validateThread(thread({ open: ["edits"] }))).includes("open"));
+  assert.ok(paths(validateThread(thread({ status: "ready", open: ["edit"] }))).includes("open"));
+
   // Size: the serialised thread is at most 16 KB (UTF-8 bytes).
   const big = thread({ pendingEdit: { note: "é".repeat(8_200) } });
   assert.ok(JSON.stringify(big).length < THREAD_LIMITS.maxBytes);

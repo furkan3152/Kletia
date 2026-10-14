@@ -810,8 +810,9 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
   if (!boundedString(input.policy, 32, /^\d{4}-\d{2}\.\d{1,4}$/u)) issues.push({ path: at("policy"), message: "Must be a policy version such as 2026-10.1." });
   validateSteps(input.steps, at("steps"), issues);
   const open = input.open;
-  if (!Array.isArray(open) || open.length > THREAD_LIMITS.maxSteps * 4 || open.some((field) => typeof field !== "string" || !FIELD_PATTERN.test(field))) {
-    issues.push({ path: at("open"), message: "Open fields are slot paths such as actions[0].amount." });
+  // "edit" is the field of an EDIT_TARGET_AMBIGUOUS question (id "q.edit"): the edit waits in pendingEdit.
+  if (!Array.isArray(open) || open.length > THREAD_LIMITS.maxSteps * 4 || open.some((field) => typeof field !== "string" || !(FIELD_PATTERN.test(field) || field === "edit"))) {
+    issues.push({ path: at("open"), message: "Open fields are slot paths such as actions[0].amount, or \"edit\"." });
   } else if (input.status !== "needs_input" && open.length > 0) {
     issues.push({ path: at("open"), message: "Only a thread that needs input has open questions." });
   }

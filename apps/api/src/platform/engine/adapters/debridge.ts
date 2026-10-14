@@ -823,22 +823,33 @@ export const debridgeDlnAdapter: ProtocolAdapter = {
         .find((event) => event.args.orderId.toLowerCase() === match.orderId);
       if (!fulfilled) return { status: "settling", evidence: [] };
       const order = fulfilled.args.order;
+      const mismatch: Extract<SettlementResult, { status: "failed" }> = { status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message: "The deBridge fill does not pay the quoted recipient, asset or amount." } };
       if (
         order.receiverDst.toLowerCase() !== accountBytes(destination, recipient.address) ||
         order.takeTokenAddress.toLowerCase() !== tokenBytes(output) ||
-        order.takeChainId !== BigInt(dlnChainId(destination)) ||
-        order.takeAmount < floor
+        order.takeChainId !== BigInt(dlnChainId(destination))
       ) {
-        return { status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message: "The deBridge fill does not pay the quoted recipient, asset or amount." } };
+        return mismatch;
       }
+      // The fill paid the recipient its take amount, below the floor: recorded (observedCredit), never spent on.
+      if (order.takeAmount < floor) return { ...mismatch, credited: assetAmount(output, order.takeAmount.toString()) };
       credited = order.takeAmount;
     } else if (isSolanaNetworkKey(destination)) {
       // The tracking API names the fill: it must land after the step was first prepared (the service claims it for
       // this step only) and the reported output is at most the order's take amount.
       const read = await readSolanaCredit(destination, fill, recipient.address, output.isNative ? null : (output.address as string)).catch(() => null);
       const notBefore = fillNotBefore(step);
-      if (!read || read.status !== "success" || read.credited === null || read.credited < floor) return { status: "settling", evidence: [] };
+      if (!read || read.status !== "success" || read.credited === null || read.credited <= 0n) return { status: "settling", evidence: [] };
       if (notBefore === null || read.blockTime === null || read.blockTime < notBefore) return { status: "settling", evidence: [] };
+      if (read.credited < floor) {
+        // The order's own fill credited the recipient below the floor: the leg fails with the credit recorded.
+        return {
+          status: "failed",
+          evidence: [],
+          failure: { code: "SETTLEMENT_MISMATCH", message: `The deBridge fill credited ${fromBaseUnits(read.credited, output.decimals)} ${output.symbol}, below the guaranteed ${fromBaseUnits(floor, output.decimals)}.` },
+          credited: assetAmount(output, read.credited.toString()),
+        };
+      }
       credited = cappedOutput(read.credited, match.takeAmount ?? step.expectedOutput?.amount);
     } else {
       return { status: "settling", evidence: [] };

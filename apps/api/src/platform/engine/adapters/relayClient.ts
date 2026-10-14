@@ -2,6 +2,14 @@
  * Relay API client (https://docs.relay.link). Every response is validated
  * field-by-field; anything unexpected fails closed.
  *
+ * Quotes: `POST /quote/v2` when RELAY_API_KEY is set, else `POST /quote`.
+ * Relay documents v1 as deprecated ("use /quote/v2") and v2 as requiring an
+ * API key from 2026-10-02; checked live on 2026-10-14, v1 still answers
+ * keyless without Deprecation or Sunset headers and both return the same
+ * shape (evidence: round 6 amount-flow-and-relay). Keyed deployments use v2;
+ * keyless ones stay on v1 until it retires, rather than on a keyless v2 that
+ * Relay says it will refuse.
+ *
  * Settlement reads use `GET /intents/status/v3` (keyless). The by-hash lookup
  * uses `GET /requests/v3?depositTxHash=` only when RELAY_API_KEY is set: v3
  * requires `x-api-key` and returns only requests created under the same
@@ -63,6 +71,10 @@ export interface RelayQuoteRequest {
   /** Base units of the origin currency. */
   readonly amount: string;
   readonly slippageBps?: number;
+  /** Where Relay sends a refund if the fill fails (the depositing account). */
+  readonly refundTo?: string;
+  /** Destination gas to deliver with the fill, in USD micro-units (Relay `topupGasAmount`: 6 decimals, "500000" = $0.50). */
+  readonly topupGasMicroUsd?: string;
 }
 
 export interface RelayCurrencyAmount {
@@ -118,6 +130,17 @@ export interface RelayQuote {
   /** Total impact (fees + price) in percent; negative means value lost. */
   readonly totalImpactPercent: number | null;
   readonly recipient: string | null;
+  /**
+   * Destination gas the fill delivers (`details.currencyGasTopup`), when a
+   * top-up was asked: the destination chain's gas currency, base units and
+   * its USD. Its cost is inside `fees.relayerGas` (deducted from the output).
+   */
+  readonly gasTopup: RelayCurrencyAmount | null;
+}
+
+/** Quote path for the current key setting (see the module comment). */
+export function relayQuotePath(): "/quote" | "/quote/v2" {
+  return relayApiKey ? "/quote/v2" : "/quote";
 }
 
 function sameCurrency(a: string, b: string): boolean {
@@ -256,7 +279,10 @@ function venueFees(fees: unknown): RelayVenueFee[] {
 }
 
 export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<RelayQuote> {
-  const body = await fetchProviderJson(`${RELAY_API_URL}/quote`, {
+  if (request.topupGasMicroUsd !== undefined && !/^[1-9]\d{0,7}$/u.test(request.topupGasMicroUsd)) {
+    throw new PlatformError("INVALID_REQUEST", "The gas top-up amount is not a positive USD micro-unit amount.", 400);
+  }
+  const body = await fetchProviderJson(`${RELAY_API_URL}${relayQuotePath()}`, {
     provider: "Relay",
     method: "POST",
     headers: headers(),
@@ -271,6 +297,8 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
       tradeType: "EXACT_INPUT",
       ...(relayApiKey ? { referrer: "kletia" } : {}),
       ...(request.slippageBps !== undefined ? { slippageTolerance: String(request.slippageBps) } : {}),
+      ...(request.refundTo ? { refundTo: request.refundTo } : {}),
+      ...(request.topupGasMicroUsd !== undefined ? { topupGas: true, topupGasAmount: request.topupGasMicroUsd } : {}),
     },
   });
   if (!isRecord(body) || !isRecord(body.details)) throw invalid("details");
@@ -305,6 +333,14 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
   if (!requestId || !/^0x[0-9a-fA-F]{64}$/u.test(requestId)) throw invalid("requestId");
   const recipient = typeof details.recipient === "string" ? details.recipient : null;
   if (recipient !== null && !sameCurrency(recipient, request.recipient)) throw invalid("recipient does not match");
+  // A top-up is parsed only when asked; one that was asked must be delivered on the destination chain.
+  let gasTopup: RelayCurrencyAmount | null = null;
+  if (request.topupGasMicroUsd !== undefined && details.currencyGasTopup !== undefined && details.currencyGasTopup !== null) {
+    gasTopup = parseCurrencyAmount(details.currencyGasTopup, "currencyGasTopup");
+    if (gasTopup.chainId !== request.destinationChainId || gasTopup.address.toLowerCase() !== RELAY_NATIVE_EVM || gasTopup.amount === "0") {
+      throw invalid("gas top-up does not match the request");
+    }
+  }
   const impact = isRecord(details.totalImpact) ? finiteNumber(details.totalImpact.percent) : null;
   const time = finiteNumber(details.timeEstimate);
   return {
@@ -317,6 +353,7 @@ export async function fetchRelayQuote(request: RelayQuoteRequest): Promise<Relay
     timeEstimateSeconds: time !== null && time >= 0 && time < 86_400 ? Math.ceil(time) : 30,
     totalImpactPercent: impact,
     recipient,
+    gasTopup,
   };
 }
 

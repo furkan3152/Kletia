@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { validateIntentGraph, type IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
+import { evmLendingVenues } from "../adapters/lending/metrics.js";
 import { actionForStep, planIntent } from "../planner.js";
 import { decodeStepRef } from "../stepRef.js";
 import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS } from "./helpers.js";
@@ -154,6 +155,16 @@ describe("planner: lending venues", () => {
     const graph = await planIntent({ text: "bridge 20 USDC from solana to base and deposit it into compound", accounts: ACCOUNTS });
     assert.deepEqual(shape(graph), ["s1:bridge/relay@solana", "s2:deposit/compound-v3@base#base:compound-v3:usdc"]);
     assert.equal(graph.steps[1]?.account, `eip155:8453:${EVM_ADDRESS}`);
+  });
+});
+
+describe("venue listing order (/v1/venues)", () => {
+  it("lists the existing Ethereum venues first and the round-6 venues after them", () => {
+    const protocols = [...new Set(evmLendingVenues({ network: "ethereum" }).map((venue) => venue.protocol))];
+    assert.deepEqual(protocols, ["aave-v3", "compound-v3", "morpho", "sparklend", "spark-savings", "fluid", "yearn-v3"]);
+    const savings = evmLendingVenues({ network: "ethereum", protocol: "spark-savings" }).map((venue) => venue.slug);
+    assert.deepEqual(savings, ["usdc", "spusdc", "speth"], "sUSDC first: Ethereum's default USDC savings venue");
+    assert.deepEqual(evmLendingVenues({ network: "base", protocol: "fluid" }).map((venue) => venue.id), ["base:fluid:usdc", "base:fluid:weth"]);
   });
 });
 

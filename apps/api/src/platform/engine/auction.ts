@@ -13,7 +13,9 @@
  * `maxSeconds`, delivers another asset than the route's output, or carries
  * extra costs that cannot be priced (never guessed). Preferred protocols
  * (`constraints.preferProtocols`) win whenever one of them is eligible.
- * POST /v1/quotes ranks routes with the same comparator.
+ * POST /v1/quotes ranks routes with the same comparator. A leg planned with
+ * gas on arrival (`AdapterAction.gasTopupUsd`) admits only venues whose
+ * `supportsGasTopup(route)` is true, and only quotes that carry the top-up.
  */
 import { fromBaseUnits, getProtocol, type AssetAmount, type ProtocolId } from "@kletia/core";
 import { PlatformError, toPlatformError } from "../errors.js";
@@ -215,10 +217,18 @@ export function exclusionReason(quote: VenueQuote): string | null {
  * still applies, and a quote for another asset is never kept.
  */
 export async function runVenueAuction(
-  candidates: readonly ProtocolAdapter[],
+  offered: readonly ProtocolAdapter[],
   action: AdapterAction,
   options: AuctionOptions,
 ): Promise<AuctionResult> {
+  let candidates = offered;
+  // A leg with gas on arrival competes only among venues that deliver it (journey gas on arrival).
+  if (action.gasTopupUsd !== undefined) {
+    candidates = candidates.filter((adapter) => adapter.supportsGasTopup?.(action) === true);
+    if (candidates.length === 0) {
+      throw new PlatformError("GAS_TOPUP_UNAVAILABLE", "No venue can deliver gas with this leg (constraints.gasOnArrival).", 422);
+    }
+  }
   if (candidates.length === 0) throw new PlatformError("ROUTE_UNSUPPORTED", "No venue can serve this step.", 422);
   const timeoutMs = options.timeoutMs ?? venueQuoteTimeoutMs;
   const single = candidates.length === 1;
@@ -232,6 +242,15 @@ export async function runVenueAuction(
     const adapter = candidates[index] as ProtocolAdapter;
     if (result.status === "rejected") {
       failures.push({ adapter, protocol: effectiveProtocol(adapter, action), error: toPlatformError(result.reason) });
+      continue;
+    }
+    if (action.gasTopupUsd !== undefined && !result.value.gasTopup) {
+      // Asked for a top-up and quoted without one: never kept (the leg would arrive without gas).
+      failures.push({
+        adapter,
+        protocol: effectiveProtocol(adapter, action),
+        error: new PlatformError("PROVIDER_TRANSACTION_INVALID", `${adapter.label} quoted the leg without the gas top-up it was asked for.`, 502),
+      });
       continue;
     }
     quotes.push(await venueQuote(adapter, action, result.value, options.maxSeconds));

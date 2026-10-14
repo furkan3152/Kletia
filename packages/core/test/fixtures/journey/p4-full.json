@@ -1,0 +1,369 @@
+{
+ "source": "journey-scratch/probes/plan-2.json #1 (live, 2026-10-14)",
+ "text": "bridge 0.05 ETH from base to optimism then swap it to USDC",
+ "graph": {
+  "spec": "kletia.intent/v1",
+  "id": "int_e088829a0e3844f68edbde9385cb65dd",
+  "createdAt": "2026-10-14T13:35:14.821Z",
+  "updatedAt": "2026-10-14T13:35:14.821Z",
+  "expiresAt": "2026-10-14T14:05:14.821Z",
+  "status": "planned",
+  "request": {
+   "text": "bridge 0.05 ETH from base to optimism then swap it to USDC",
+   "accounts": [
+    "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+   ]
+  },
+  "interpretation": {
+   "source": "grammar",
+   "normalizedText": "bridge 0.05 ETH from base to optimism, then swap it to USDC",
+   "confidence": 0.95,
+   "optimizations": [
+    "Merged bridge (action 1) and swap on OP Mainnet (action 2) into one Relay cross-network swap into USDC; saves a signature and a settlement wait."
+   ]
+  },
+  "steps": [
+   {
+    "id": "s1",
+    "index": 0,
+    "kind": "bridge",
+    "title": "Bridge 0.05 ETH from Base to OP Mainnet as USDC",
+    "network": "base",
+    "chain": "eip155:8453",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "protocol": "relay",
+    "mode": "wallet",
+    "input": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "50000000000000000",
+     "formatted": "0.05",
+     "usd": 123.89
+    },
+    "expectedOutput": {
+     "asset": "eip155:10/erc20:0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "123609025",
+     "formatted": "123.609025",
+     "usd": 123.6
+    },
+    "minimumOutput": {
+     "asset": "eip155:10/erc20:0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "122990980",
+     "formatted": "122.99098",
+     "usd": 122.98
+    },
+    "recipient": "eip155:10:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "dependsOn": [],
+    "settlement": {
+     "kind": "cross-network",
+     "destinationNetwork": "optimism",
+     "expectedSeconds": 5
+    },
+    "feesUsd": 0.1067,
+    "estimatedSeconds": 20,
+    "status": "ready",
+    "evidence": [
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:35:14.821Z",
+      "reference": "0x1791984915760e615763d241e0d0d1b0a518d5c78c32f1637150ac6742be4ba4",
+      "detail": "Quoted by Relay. Selected over 1 other venue(s) by net guaranteed output, then time."
+     },
+     {
+      "kind": "quote",
+      "network": "base",
+      "observedAt": "2026-10-14T13:35:14.821Z",
+      "detail": "Also quoted: deBridge DLN: 122.995886 USDC guaranteed (net 120.515968 after 0.001 ETH), ~20 s, 1 transaction(s); not selected."
+     }
+    ]
+   }
+  ],
+  "edges": [],
+  "summary": {
+   "title": "Bridge 0.05 ETH from Base to OP Mainnet as USDC",
+   "networks": [
+    "base",
+    "optimism"
+   ],
+   "inputs": [
+    {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18,
+     "amount": "50000000000000000",
+     "formatted": "0.05",
+     "usd": 123.89
+    }
+   ],
+   "outputs": [
+    {
+     "asset": "eip155:10/erc20:0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+     "symbol": "USDC",
+     "decimals": 6,
+     "amount": "123609025",
+     "formatted": "123.609025",
+     "usd": 123.6
+    }
+   ],
+   "totalFeesUsd": 0.1067,
+   "estimatedSeconds": 20,
+   "signaturesRequired": 1,
+   "crossNetwork": true
+  },
+  "warnings": [
+   "Cross-network steps settle asynchronously; dependent steps unlock after the destination fill is observed."
+  ]
+ },
+ "preview": {
+  "spec": "kletia.preview/v1",
+  "intentId": "int_e088829a0e3844f68edbde9385cb65dd",
+  "computedAt": "2026-10-14T13:35:15.249Z",
+  "stage": "plan",
+  "basis": "simulated",
+  "rows": [
+   {
+    "network": "base",
+    "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:8453/slip44:60",
+    "symbol": "ETH",
+    "decimals": 18,
+    "listed": true,
+    "expected": {
+     "amount": "-50000155645359071",
+     "formatted": "-0.0500001",
+     "usd": -123.881476
+    },
+    "worst": {
+     "amount": "-50000155645359071",
+     "formatted": "-0.0500001",
+     "usd": -123.881476
+    },
+    "certainty": "simulated",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   },
+   {
+    "network": "optimism",
+    "account": "eip155:10:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "asset": "eip155:10/erc20:0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "symbol": "USDC",
+    "decimals": 6,
+    "listed": true,
+    "expected": {
+     "amount": "123609025",
+     "formatted": "+123.609",
+     "usd": 123.609025
+    },
+    "worst": {
+     "amount": "122990980",
+     "formatted": "+122.99",
+     "usd": 122.99098
+    },
+    "certainty": "venue-minimum",
+    "steps": [
+     "s1"
+    ],
+    "role": "you"
+   }
+  ],
+  "payments": [],
+  "fees": [
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "network",
+    "label": "Base network fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "148944000000",
+    "formatted": "0.000000148944",
+    "paid": "on-top",
+    "certainty": "simulated",
+    "usd": 0.000369
+   },
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "l1-data",
+    "label": "Base L1 data fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "6701359071",
+    "formatted": "0.00000000670135",
+    "paid": "on-top",
+    "certainty": "simulated",
+    "usd": 1.7e-05
+   },
+   {
+    "kind": "venue",
+    "label": "Relay relayer fee",
+    "asset": {
+     "asset": "eip155:8453/slip44:60",
+     "symbol": "ETH",
+     "decimals": 18
+    },
+    "amount": "42823944430844",
+    "formatted": "0.000042823944430844",
+    "usd": 0.106102,
+    "paid": "deducted",
+    "certainty": "quoted",
+    "stepId": "s1",
+    "network": "base"
+   }
+  ],
+  "approvals": [],
+  "steps": [
+   {
+    "stepId": "s1",
+    "network": "base",
+    "kind": "bridge",
+    "status": "simulated",
+    "at": "2026-10-14T13:35:15.468Z",
+    "block": "52597785",
+    "endpoint": "base-rpc.publicnode.com",
+    "deltas": [
+     {
+      "network": "base",
+      "account": "eip155:8453:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:8453/slip44:60",
+      "symbol": "ETH",
+      "decimals": 18,
+      "listed": true,
+      "expected": {
+       "amount": "-50000155645359071",
+       "formatted": "-0.0500001"
+      },
+      "worst": {
+       "amount": "-50000155645359071",
+       "formatted": "-0.0500001"
+      },
+      "certainty": "simulated",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     },
+     {
+      "network": "optimism",
+      "account": "eip155:10:0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "asset": "eip155:10/erc20:0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "symbol": "USDC",
+      "decimals": 6,
+      "listed": true,
+      "expected": {
+       "amount": "123609025",
+       "formatted": "+123.609"
+      },
+      "worst": {
+       "amount": "122990980",
+       "formatted": "+122.99"
+      },
+      "certainty": "venue-minimum",
+      "steps": [
+       "s1"
+      ],
+      "role": "you"
+     }
+    ],
+    "payments": [],
+    "fees": [
+     {
+      "stepId": "s1",
+      "network": "base",
+      "kind": "network",
+      "label": "Base network fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "148944000000",
+      "formatted": "0.000000148944",
+      "paid": "on-top",
+      "certainty": "simulated"
+     },
+     {
+      "stepId": "s1",
+      "network": "base",
+      "kind": "l1-data",
+      "label": "Base L1 data fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "6701359071",
+      "formatted": "0.00000000670135",
+      "paid": "on-top",
+      "certainty": "simulated"
+     },
+     {
+      "kind": "venue",
+      "label": "Relay relayer fee",
+      "asset": {
+       "asset": "eip155:8453/slip44:60",
+       "symbol": "ETH",
+       "decimals": 18
+      },
+      "amount": "42823944430844",
+      "formatted": "0.000042823944430844",
+      "usd": 0.106111,
+      "paid": "deducted",
+      "certainty": "quoted",
+      "stepId": "s1",
+      "network": "base"
+     }
+    ],
+    "approvals": [],
+    "gas": {
+     "used": "24824",
+     "price": "6000000",
+     "l1Fee": "6701359071"
+    },
+    "issues": []
+   }
+  ],
+  "totals": {
+   "youPayUsd": 123.88,
+   "youGetUsd": {
+    "expected": 123.61,
+    "worst": 122.99
+   },
+   "paidToOthersUsd": {
+    "expected": 0,
+    "worst": 0
+   },
+   "networkFeesUsd": 0,
+   "venueFeesUsd": 0.11,
+   "extraCostsUsd": 0,
+   "costUsd": {
+    "expected": 0.27,
+    "worst": 0.89
+   },
+   "priceDifferenceUsd": 0.17,
+   "unpriced": []
+  },
+  "arrival": {
+   "network": "optimism",
+   "seconds": 20
+  },
+  "needs": [],
+  "warnings": [],
+  "digest": "sha256:6764a34a3f140d20ee52347676a014b7b0fc5d6d5ca055e09c6b1405c554c6b7"
+ }
+}

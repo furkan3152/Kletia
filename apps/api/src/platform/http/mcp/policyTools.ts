@@ -23,14 +23,14 @@ import {
   type IntentPolicyStamp,
   type PolicyDocument,
 } from "@kletia/core";
-import { createIntentDetailed, policyErrorDetails } from "../../index.js";
+import { configurePolicyHeadroom, createIntentDetailed, policyErrorDetails, policyHeadroom } from "../../index.js";
 import { PlatformError } from "../../errors.js";
 import { apiKeyStore } from "../auth.js";
 import { HttpError, invalidRequest, type AuthContext } from "../context.js";
 import { rememberIntentOwner } from "../owners.js";
 import { assertAgentPermission } from "../policies/agentGuard.js";
 import { approvalStore, approvalView } from "../policies/approvals.js";
-import { chainLinks, readKeyChain } from "../policies/chain.js";
+import { chainLinks, keyChainSource, readKeyChain } from "../policies/chain.js";
 import { evaluatePolicyRequest } from "../policies/handlers.js";
 import { spendLedger } from "../policies/ledger.js";
 import { kletiaWebOrigin } from "../webOrigin.js";
@@ -53,15 +53,6 @@ export async function toolAuth(caller: ToolCaller): Promise<AuthContext> {
     keyKind: record.kind === "agent" ? "agent" : "project",
     ...(record.kind === "agent" ? { lineage: [...(record.lineage ?? [])] } : {}),
   };
-}
-
-function usd(micros: bigint): string {
-  return `${micros / 1_000_000n}.${((micros % 1_000_000n) / 10_000n).toString().padStart(2, "0")}`;
-}
-
-function capMicros(value: string): bigint {
-  const [whole = "0", fraction = ""] = value.split(".");
-  return BigInt(whole) * 1_000_000n + BigInt((fraction + "000000").slice(0, 6));
 }
 
 /** One rule book in plain terms (no addresses beyond counts, never the whole allowlists). */
@@ -98,19 +89,17 @@ export function stampSummary(stamp: IntentPolicyStamp | undefined): Record<strin
   };
 }
 
-/** Rolling 24 h / 7 d remainders of every capped scope of a key's chain. */
+/**
+ * The Rule Book headroom reads (key chain, spend ledger), installed once for
+ * the engine's `policyHeadroom` (journey facts read it too). The ledger is
+ * looked up per call because the HTTP layer may swap it (memory, Postgres).
+ */
+configurePolicyHeadroom({ chains: keyChainSource, ledger: () => spendLedger() });
+
+/** Rolling 24 h / 7 d remainders of every capped scope of a key's chain (engine `policyHeadroom`). */
 export async function remainingFor(keyId: string): Promise<Record<string, unknown>[]> {
-  const chain = await readKeyChain(keyId);
-  if (!chain) return [];
-  const capped = chain.levels.filter((level) => level.policy?.caps?.dailyUsd !== undefined || level.policy?.caps?.weeklyUsd !== undefined);
-  if (capped.length === 0) return [];
-  const usage = await spendLedger().usage(capped.map((level) => level.id), Date.now());
-  return capped.map((level) => {
-    const used = usage.get(level.id) ?? { dayUsdMicros: 0n, weekUsdMicros: 0n };
-    const caps = level.policy?.caps ?? {};
-    const left = (cap: string | undefined, spent: bigint) => (cap === undefined ? null : usd(capMicros(cap) > spent ? capMicros(cap) - spent : 0n));
-    return { scope: level.id, dailyRemainingUsd: left(caps.dailyUsd, used.dayUsdMicros), weeklyRemainingUsd: left(caps.weeklyUsd, used.weekUsdMicros) };
-  });
+  const headroom = await policyHeadroom(keyId, { chains: keyChainSource, ledger: () => spendLedger() });
+  return (headroom?.scopes ?? []).map((scope) => ({ ...scope }));
 }
 
 /** A refusal of the gate as a plan_intent answer (outcome deny with rule ids) instead of an error. */

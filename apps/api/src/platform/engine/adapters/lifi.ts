@@ -579,7 +579,7 @@ export const lifiAdapter: ProtocolAdapter = {
       return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The deposit is not a decodable LI.FI bridge call." } };
     }
     const status = await fetchLifiStatus(deposit, lifiChainId(step.network), lifiChainId(destination));
-    const mismatch = (message: string): SettlementResult => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message } });
+    const mismatch = (message: string): Extract<SettlementResult, { status: "failed" }> => ({ status: "failed", evidence: [], failure: { code: "SETTLEMENT_MISMATCH", message } });
     // Unindexed or attributed to another transfer: keep settling (times out to manual review), never settle.
     if (status.transactionId !== null && status.transactionId !== transfer.transactionId) return { status: "settling", evidence: [] };
     if (status.status === "FAILED") return { status: "failed", evidence: [], failure: { code: "SETTLEMENT_FAILED", message: "LI.FI reports the transfer failed." } };
@@ -595,17 +595,21 @@ export const lifiAdapter: ProtocolAdapter = {
     const sameToken = token !== null && output.address !== null &&
       (recipient.chain.namespace === "eip155" ? sameEvm(token, output.address) : token === output.address);
     if (!sameToken) return mismatch("LI.FI delivered a different asset.");
-    if (status.receiving.amount !== null && BigInt(status.receiving.amount) < transfer.floor) {
-      return mismatch("LI.FI delivered less than the deposit guaranteed.");
-    }
+    const reportedShort = status.receiving.amount !== null && BigInt(status.receiving.amount) < transfer.floor;
     const fill = status.receiving.txHash;
-    if (!fill) return { status: "settling", evidence: [] };
+    if (!fill) return reportedShort ? mismatch("LI.FI delivered less than the deposit guaranteed.") : { status: "settling", evidence: [] };
     // The fill must be mined after the step was first prepared; the service claims it for this step only.
     const check = await destinationCredit(destination, fill, output, recipient.address, fillNotBefore(step)).catch(
       (): DestinationCheck => ({ confirmed: false, credited: null }),
     );
+    // A short fill fails the leg; what the destination shows credited is recorded (observedCredit), never spent on.
+    const short = (message: string): SettlementResult => ({
+      ...mismatch(message),
+      ...(check.confirmed && check.credited !== null ? { credited: assetAmount(output, check.credited.toString()) } : {}),
+    });
+    if (reportedShort) return short("LI.FI delivered less than the deposit guaranteed.");
     if (!check.confirmed || check.credited === null) return { status: "settling", evidence: [] };
-    if (check.credited < transfer.floor) return mismatch("The destination credit is below the guaranteed output.");
+    if (check.credited < transfer.floor) return short("The destination credit is below the guaranteed output.");
     const evidence: StepEvidence = {
       kind: "settlement",
       network: destination,

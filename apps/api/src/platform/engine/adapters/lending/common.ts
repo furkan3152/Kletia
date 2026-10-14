@@ -1,6 +1,6 @@
 /**
- * Shared pieces of the EVM lending adapters (Aave V3, Compound V3, Morpho
- * ERC-4626 vaults, Moonwell): the registry venue lookup, exact approvals,
+ * Shared pieces of the EVM lending adapters (the Aave family, Compound V3,
+ * the ERC-4626 vault families, Moonwell): the registry venue lookup, exact approvals,
  * native ETH wrap / unwrap legs, strict simulation, receipt-log proofs and
  * rate / TVL reads.
  *
@@ -40,11 +40,14 @@ import {
   type CTokenVenue,
   type Erc4626Venue,
   type EvmTransactionRequest,
+  type FluidFTokenVenue,
   type IntentStep,
   type NetworkKey,
   type ProtocolId,
   type ReceiptToken,
+  type SparkVaultVenue,
   type StepEvidence,
+  type YearnVaultVenue,
 } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
 import type { ResolvedAsset } from "../../assets.js";
@@ -68,7 +71,7 @@ export const UNWRAP_GAS = 60_000n;
 
 const READ_TIMEOUT_MS = 10_000;
 
-export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue;
+export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue | SparkVaultVenue | FluidFTokenVenue | YearnVaultVenue;
 export type EvmLendingKind = EvmLendingVenue["kind"];
 export type VenueOfKind<K extends EvmLendingKind> = Extract<EvmLendingVenue, { kind: K }>;
 export type LendingKind = "deposit" | "withdraw";
@@ -225,6 +228,25 @@ export function assertPinned(actual: string, pinned: string, what: string, venue
       422,
     );
   }
+}
+
+/** EIP-1967 implementation slot: bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1). */
+export const EIP1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+
+/** The implementation an EIP-1967 proxy delegates to (read from its storage slot). */
+export async function proxyImplementation(network: EvmNetworkKey, proxy: string): Promise<Address> {
+  const word = await withTimeout(evmClient(network).getStorageAt({ address: getAddress(proxy), slot: EIP1967_IMPLEMENTATION_SLOT }));
+  return getAddress(`0x${(word ?? "0x").replace(/^0x/u, "").padStart(64, "0").slice(24)}`);
+}
+
+const EIP1167_PREFIX = "363d3d373d3d3d363d73";
+const EIP1167_SUFFIX = "5af43d82803e903d91602b57fd5bf3";
+
+/** The target of an EIP-1167 minimal proxy, or null when `address` holds any other code. */
+export async function cloneTarget(network: EvmNetworkKey, address: string): Promise<Address | null> {
+  const code = ((await withTimeout(evmClient(network).getCode({ address: getAddress(address) }))) ?? "0x").toLowerCase().replace(/^0x/u, "");
+  if (code.length !== 90 || !code.startsWith(EIP1167_PREFIX) || !code.endsWith(EIP1167_SUFFIX)) return null;
+  return getAddress(`0x${code.slice(EIP1167_PREFIX.length, EIP1167_PREFIX.length + 40)}`);
 }
 
 const symbolCache = new Map<string, string>();
@@ -445,6 +467,13 @@ export function transferred(receipts: readonly LandedEvmReceipt[], token: string
     .reduce((total, event) => total + event.args.value, 0n);
 }
 
+/** Sum of ERC-20 `Transfer(any -> to)` amounts emitted by `token` across receipts. */
+export function received(receipts: readonly LandedEvmReceipt[], token: string, to: string): bigint {
+  return evmEvents(receipts, { address: token, abi: erc20Abi, eventName: "Transfer" })
+    .filter((event) => sameAddress(event.args.to, to))
+    .reduce((total, event) => total + event.args.value, 0n);
+}
+
 /** WETH credited to `account` by wrapping (WETH9 Deposit or an aeWETH mint). */
 export function wrappedCredit(receipts: readonly LandedEvmReceipt[], weth: string, account: string): bigint {
   const deposits = evmEvents(receipts, { address: weth, abi: WETH_ABI, eventName: "Deposit" })
@@ -597,3 +626,26 @@ export async function bestEffort<T>(read: () => Promise<T>, timeoutMs = 4_000): 
   }
 }
 
+
+/* ------------------------------------------------------------ positions */
+
+/** Arguments of `maxDeposit` when no account is in view (venue capacity reads). */
+export const CAPACITY_PROBE = "0x0000000000000000000000000000000000000001";
+/** maxDeposit values at or above this read as "no cap" (Fluid reports 2^127). */
+export const UNCAPPED = 1n << 120n;
+
+/** Underlying per whole receipt (`perWhole` underlying base units) as an 18-decimal fixed-point string. */
+export function rate18(perWhole: bigint, underlyingDecimals: number): string {
+  return underlyingDecimals <= 18
+    ? (perWhole * 10n ** BigInt(18 - underlyingDecimals)).toString()
+    : (perWhole / 10n ** BigInt(underlyingDecimals - 18)).toString();
+}
+
+/** A receipt token amount (aToken, vault shares) as an AssetAmount. */
+export function receiptAmount(network: NetworkKey, receipt: ReceiptToken, symbol: string, units: bigint): AssetAmount {
+  return observed({ asset: formatAssetId(network, "erc20", getAddress(receipt.address)), symbol, decimals: receipt.decimals }, units);
+}
+
+export function smaller(a: bigint, b: bigint): bigint {
+  return a < b ? a : b;
+}

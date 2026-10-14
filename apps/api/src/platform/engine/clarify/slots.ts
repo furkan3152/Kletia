@@ -1,0 +1,398 @@
+/**
+ * The relaxed slot reader (clarify design §4.2): each clause of a message is
+ * matched by the grammar's own sentence shapes with every slot optional, so
+ * "swap SOL to USDC" reads as a swap with no amount instead of a refusal.
+ * Fragments come from grammar.ts (SENTENCE_FRAGMENTS and the venue words);
+ * keyword typos are corrected only when exactly one word is close (§4.3);
+ * contract aliases go through the grammar's matchContractPhrase (§4.11).
+ */
+import { normalizeMessage, SENTENCE_VERBS, type NetworkKey, type ThreadAmount } from "@kletia/core";
+import { PlatformError } from "../../errors.js";
+import {
+  BRIDGE_WORDS,
+  GRAMMAR_VENUE_WORDS,
+  LENDING_WORDS,
+  LST_WORDS,
+  matchContractPhrase,
+  NAME,
+  NETWORK_WORDS,
+  resolveNetworkName,
+  splitClauses,
+  SWAP_VENUE_WORDS,
+  VAULT,
+  VERBS,
+} from "../grammar.js";
+import type { ContractPhrase } from "../contracts/directory.js";
+import { candidates } from "./fuzzy.js";
+import {
+  bridgeProtocol,
+  dexProtocol,
+  isUsdWord,
+  knownSymbol,
+  lendingProtocol,
+  providerFromWord,
+  USD_ORDER,
+} from "./catalog.js";
+import type { Kind, Slot, WorkStep } from "./types.js";
+import type { ThreadCorrection } from "@kletia/core";
+
+const AMT =
+  "(?<amt>\\d{1,3}(?:\\.\\d{1,2})?%|\\$\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+|all|max|everything|it|them|that|half|a\\s+quarter|quarter)";
+const OF = "(?:\\s+of\\s+(?:it|them|that|the\\s+output|the\\s+proceeds))?";
+const GUARD = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|my|of)\\b)";
+const SYM = (name: string) => `${GUARD}(?<${name}>(?:eip155|solana):\\S+|[A-Za-z0-9$][\\w.\\-]{0,63})`;
+const NET = (name: string) => `(?<${name}>${NETWORK_WORDS})`;
+const ADDR = `(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
+const MY = "(?:(?:of\\s+)?my\\s+)?";
+const ON = `(?:\\s+(?:on|in)\\s+${NET("net")})?`;
+const DEX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))?`;
+/** A swap names its network and venue in either order. */
+const SWAP_SUFFIXES = [`${ON}${DEX}`, `${DEX}${ON}`];
+
+const rx = (source: string) => new RegExp(source, "iu");
+
+const SHAPES: readonly { shape: "usdSwap" | "earn" | "swap" | "buy" | "bridge" | "transfer" | "transferLabel" | "stake" | "deposit" | "withdraw"; regex: RegExp }[] = [
+  ...SWAP_SUFFIXES.map((suffix) => ({
+    shape: "usdSwap" as const,
+    regex: rx(`^(?<verb>swap|convert|trade|exchange|sell)\\s+(?<usd>\\$\\d[\\d,]*(?:\\.\\d+)?)\\s+(?:of|worth\\s+of)\\s+${MY}${SYM("a")}(?:\\s+(?:to|for|into)\\s+${SYM("b")})?${suffix}$`),
+  })),
+  { shape: "earn", regex: rx(`^(?:earn|get)\\s+(?:yield|interest)\\s+(?:on|with|from)\\s+(?:${AMT}\\s+)?${MY}${SYM("a")}${ON}$`) },
+  ...SWAP_SUFFIXES.map((suffix) => ({
+    shape: "swap" as const,
+    regex: rx(`^(?<verb>swap|convert|trade|exchange|sell)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+(?:to|for|into)\\s+${SYM("b")})?${suffix}$`),
+  })),
+  ...SWAP_SUFFIXES.map((suffix) => ({
+    shape: "buy" as const,
+    regex: rx(`^(?<verb>buy|get|purchase)(?:\\s+me)?(?:\\s+some)?\\s+${SYM("b")}(?:\\s+(?:with|using)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?)?${suffix}$`),
+  })),
+  {
+    shape: "bridge",
+    regex: rx(
+      `^(?<verb>bridge|move|send|transfer|port)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+from\\s+${NET("n1")})?(?:\\s+(?:to|into|onto)\\s+${NET("n2")})?` +
+        `(?:\\s+(?:as|into|for)\\s+${SYM("b")})?(?:\\s+(?:via|using|through|with|over)\\s+(?<bridge>${BRIDGE_WORDS}))?$`,
+    ),
+  },
+  { shape: "transfer", regex: rx(`^(?<verb>send|transfer|pay)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+to\\s+(?<rcpt>${ADDR}))?${ON}$`) },
+  {
+    shape: "transferLabel",
+    regex: rx(`^(?<verb>send|transfer|pay)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?\\s+to\\s+(?<label>(?:my\\s+)?[a-z][a-z0-9-]{1,40}(?:\\s+[a-z][a-z0-9-]{1,20})?)${ON}$`),
+  },
+  {
+    shape: "stake",
+    regex: rx(`^stake(?:\\s+${AMT}${OF})?\\s*${MY}(?:(?<a>sol|eth))?(?:\\s+(?:with|via|on|using|into|to|as|at)\\s+(?<lst>${LST_WORDS}))?${ON}$`),
+  },
+  {
+    shape: "deposit",
+    regex: rx(
+      `^(?<verb>deposit|supply|lend|put|place|invest)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?(?:\\s+(?:into|to|on|in|at|with)\\s+(?:the\\s+)?(?<venue>${LENDING_WORDS})(?:\\s+${VAULT})?(?:\\s+vault)?)?${ON}$`,
+    ),
+  },
+  {
+    shape: "withdraw",
+    regex: rx(
+      `^(?<verb>withdraw|redeem)(?:\\s+${AMT}${OF})?\\s*${MY}(?:${SYM("a")})?\\s+(?:from|out\\s+of)\\s+(?:my\\s+)?(?:the\\s+)?(?<venue>${LENDING_WORDS})(?:\\s+${VAULT})?(?:\\s+(?:vault|position))?${ON}$`,
+    ),
+  },
+];
+
+/* ------------------------------------------------------- vocabularies */
+
+const VERB_VOCAB: readonly string[] = VERBS;
+const CONNECTOR_VOCAB = ["from", "into", "onto", "with", "using", "through", "then"];
+const NETWORK_VOCAB = ["base", "arbitrum", "ethereum", "optimism", "polygon", "solana", "devnet", "sepolia", "mainnet"];
+/** Single venue and provider words of the grammar ("aave", "kamino", "jito", "uniswap", ...). */
+const VENUE_VOCAB: readonly string[] = [...new Set(GRAMMAR_VENUE_WORDS.flatMap((word) => word.split(/[\s.-]+/u)).filter((word) => /^[a-z]{4,}$/u.test(word)))]
+  .filter((word) => !["vault", "vaults", "lend", "earn", "lending", "savings", "pool"].includes(word));
+const FILLER = new Set([
+  "my", "the", "of", "all", "half", "max", "everything", "it", "them", "that", "some", "me", "a", "an", "quarter", "instead", "and", "to", "on", "in",
+  "at", "as", "for", "via", "vault", "position", "yield", "interest", "lend", "earn", "v3", "out", "savings", "pool",
+]);
+
+/** Reads an amount word: exact, a share of the previous output, or a share of the balance (first steps). */
+export function parseAmountText(raw: string, previousExists: boolean): ThreadAmount & { usd?: boolean } {
+  const value = raw.trim().toLowerCase().replace(/\s+/gu, " ");
+  const percent = /^(\d{1,3}(?:\.\d{1,2})?)%$/u.exec(value);
+  const share = (bps: number): ThreadAmount => (previousExists ? { t: "previous", bps } : { t: "balance", bps });
+  if (percent) {
+    const bps = Math.round(Number(percent[1]) * 100);
+    if (bps <= 0 || bps > 10_000) throw new PlatformError("INTENT_UNSUPPORTED", "A percentage must be between 0 and 100.", 422);
+    return share(bps);
+  }
+  if (value === "half") return share(5_000);
+  if (value === "quarter" || value === "a quarter") return share(2_500);
+  if (["all", "max", "everything"].includes(value)) return share(10_000);
+  if (["it", "them", "that"].includes(value)) {
+    if (!previousExists) throw new PlatformError("INTENT_UNSUPPORTED", "\"it\" refers to a previous step; give an amount.", 422);
+    return { t: "previous", bps: 10_000 };
+  }
+  const usd = value.startsWith("$");
+  let numeric = value.replace(/^\$/u, "");
+  const raw40 = value.slice(0, 40);
+  if (/^\d+,\d{1,2}$/u.test(numeric)) return { t: "exact", value: numeric.replace(",", "."), raw: raw40, ...(usd ? { usd } : {}) };
+  if (numeric.includes(",")) {
+    if (!/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(numeric)) {
+      throw new PlatformError("INTENT_UNSUPPORTED", "That amount is not clear; use a dot for decimals (for example 1.5).", 422);
+    }
+    numeric = numeric.replace(/,/gu, "");
+  }
+  if (numeric.startsWith(".")) numeric = `0${numeric}`;
+  if (!/^(?:0|[1-9]\d{0,29})(?:\.\d{1,30})?$/u.test(numeric) || /^0(?:\.0+)?$/u.test(numeric)) {
+    throw new PlatformError("INTENT_UNSUPPORTED", "The amount is not a positive number.", 422);
+  }
+  return { t: "exact", value: numeric, ...(value !== numeric ? { raw: raw40 } : {}), ...(usd ? { usd } : {}) };
+}
+
+function slot<T>(v: T, by: Slot<T>["by"] = "user"): Slot<T> {
+  return { v, by };
+}
+
+function assetToken(raw: string | undefined): { symbol?: string; usd?: boolean } {
+  if (!raw) return {};
+  if (isUsdWord(raw)) return { usd: true };
+  return { symbol: raw };
+}
+
+/** Stores a parsed amount: "$25" of a non-dollar token is a USD amount, "$25" alone pays in a stablecoin. */
+function amountSlot(step: WorkStep, amount: ThreadAmount & { usd?: boolean }): void {
+  if (amount.t === "exact" && amount.usd) {
+    const { usd: _usd, ...plain } = amount;
+    if (step.from && !USD_ORDER.includes(step.from.v.toUpperCase())) step.amount = slot({ t: "usd", value: plain.value });
+    else {
+      step.amount = slot(plain);
+      if (!step.from) step.usdFrom = true;
+    }
+    return;
+  }
+  step.amount = slot(amount);
+}
+
+function network(raw: string | undefined): NetworkKey | null {
+  return raw ? resolveNetworkName(raw) : null;
+}
+
+/** Words a contract phrase is said in: the first registered alias the clause names (longest first). */
+function contractWords(clause: string, phrases: readonly ContractPhrase[]): { alias: string; verb: string } | null {
+  const lower = clause.toLowerCase().replace(/\s+/gu, " ");
+  const verb = lower.split(" ", 1)[0] ?? "";
+  const aliases = [...new Set(phrases.flatMap((phrase) => phrase.aliases))].sort((a, b) => b.length - a.length);
+  const alias = aliases.find((entry) => new RegExp(`(?:^|\\s)${entry.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?:\\s|$)`, "u").test(lower));
+  return alias && /^[a-z]{2,16}$/u.test(verb) ? { alias, verb } : null;
+}
+
+/** A contract clause (bring-your-own-contract alias) as slots, or null when the clause names no registered alias. */
+function parseContractClause(clause: string, phrases: readonly ContractPhrase[], index: number, previousExists: boolean): WorkStep | null {
+  if (phrases.length === 0) return null;
+  const match = matchContractPhrase(clause, phrases, { index });
+  if (!match) return null;
+  const words = contractWords(clause, phrases);
+  if (!words) return null;
+  const step: WorkStep = { contract: slot(`${words.alias}#${words.verb}`) };
+  const amountMatch = new RegExp(`^\\S+\\s+${AMT}(?:\\s+(?<a>[A-Za-z][\\w.-]{0,63}))?\\s`, "iu").exec(clause);
+  const objectMatch = /^\S+\s+(?:my\s+)?(?<obj>[a-z][a-z0-9.-]{0,31})\s+(?:into|to|in|on|at|with|via|using|through|from|out\s+of)\s/iu.exec(clause);
+  if ("action" in match) {
+    step.kind = slot(match.action.kind as Kind);
+    step.network = slot(match.action.network, match.explicit ? "user" : "derived");
+    if (match.action.from) step.from = slot(match.action.from);
+  } else {
+    step.kind = slot(phrases.find((phrase) => phrase.aliases.includes(words.alias))?.vm === "svm" ? "action" : "call");
+    const symbol = amountMatch?.groups?.a ?? (amountMatch ? undefined : objectMatch?.groups?.obj);
+    if (symbol && knownSymbol(symbol)) step.from = slot(symbol);
+  }
+  const named = new RegExp(`\\s(?:on|in)\\s+${NET("net")}$`, "iu").exec(clause)?.groups?.net;
+  const said = network(named);
+  if (said) step.network = slot(said);
+  if (amountMatch?.groups?.amt) amountSlot(step, parseAmountText(amountMatch.groups.amt, previousExists));
+  return step;
+}
+
+/** One clause as slots, or null when no relaxed shape matches. */
+function parseClause(clause: string, previousExists: boolean): WorkStep | null {
+  for (const { shape, regex } of SHAPES) {
+    const match = regex.exec(clause);
+    if (!match?.groups) continue;
+    const g = match.groups;
+    const verb = (g.verb ?? shape).toLowerCase();
+    const out: WorkStep = {};
+    const a = assetToken(g.a);
+    if (a.symbol) out.from = slot(a.symbol);
+    if (a.usd) out.usdFrom = true;
+    const b = assetToken(g.b);
+    const net = network(g.net);
+    if (net) out.network = slot(net);
+    switch (shape) {
+      case "usdSwap":
+        out.kind = slot("swap");
+        out.amount = slot({ t: "usd", value: (g.usd as string).replace(/[$,]/gu, "") });
+        if (b.symbol) out.to = slot(b.symbol);
+        if (b.usd) out.usdTo = true;
+        if (g.dex) {
+          const protocol = dexProtocol(g.dex);
+          if (protocol) out.protocol = slot(protocol);
+        }
+        return out;
+      case "earn":
+        out.kind = slot("deposit");
+        if (g.amt) amountSlot(out, parseAmountText(g.amt, previousExists));
+        return out;
+      case "swap":
+        if (!g.amt && !g.a) continue;
+        out.kind = slot("swap");
+        if (b.symbol) out.to = slot(b.symbol);
+        if (b.usd) out.usdTo = true;
+        break;
+      case "buy":
+        out.kind = slot("swap");
+        out.buy = true;
+        if (b.symbol) out.to = slot(b.symbol);
+        if (b.usd) out.usdTo = true;
+        break;
+      case "bridge": {
+        // "send 5 USDC" is a transfer without a recipient; only bridge/move/port mean a bridge without a network.
+        if (!(g.n1 || g.n2) && !["bridge", "move", "port"].includes(verb)) continue;
+        out.kind = slot("bridge");
+        const source = network(g.n1);
+        const destination = network(g.n2);
+        if (source) out.network = slot(source);
+        if (destination) out.toNetwork = slot(destination);
+        if (b.symbol) out.to = slot(b.symbol);
+        if (b.usd) out.usdTo = true;
+        if (g.bridge) {
+          const protocol = bridgeProtocol(g.bridge);
+          if (protocol) out.protocol = slot(protocol);
+        }
+        break;
+      }
+      case "transfer":
+        out.kind = slot("transfer");
+        if (g.rcpt) out.recipient = slot(g.rcpt);
+        break;
+      case "transferLabel": {
+        const label = (g.label as string).toLowerCase();
+        if (resolveNetworkName(label)) continue;
+        out.kind = slot("transfer");
+        // The word itself is never kept: Kletia never looks up or completes a nickname.
+        out.nickname = true;
+        break;
+      }
+      case "stake": {
+        out.kind = slot("stake");
+        const provider = g.lst ? providerFromWord(g.lst) : undefined;
+        const said = g.a?.toUpperCase();
+        const input = said === "ETH" || said === "SOL" ? said : provider?.input ?? "SOL";
+        out.from = slot(input, said ? "user" : "derived");
+        if (provider) out.provider = slot(provider.id);
+        break;
+      }
+      case "deposit":
+      case "withdraw": {
+        out.kind = slot(shape);
+        if (g.venue) {
+          const protocol = lendingProtocol(g.venue);
+          if (protocol) out.protocol = slot(protocol);
+        }
+        if (g.vault) out.vault = slot(g.vault.toLowerCase());
+        break;
+      }
+    }
+    if (g.dex && out.kind?.v === "swap") {
+      const protocol = dexProtocol(g.dex);
+      if (protocol) out.protocol = slot(protocol);
+    }
+    if (g.amt) {
+      amountSlot(out, parseAmountText(g.amt, previousExists));
+      const amount = out.amount?.v;
+      if (shape === "withdraw" && amount && (amount.t === "balance" || (amount.t === "previous" && !previousExists))) {
+        out.amount = slot({ t: "position", bps: amount.bps });
+      }
+    }
+    return out;
+  }
+  return null;
+}
+
+function correctClause(clause: string, index: number): { text: string; corrections: ThreadCorrection[]; verbCandidates?: string[] } {
+  const corrections: ThreadCorrection[] = [];
+  let verbCandidates: string[] | undefined;
+  const out = clause.split(/\s+/u).map((token, position) => {
+    const lower = token.toLowerCase();
+    // Never touched: numbers, addresses, names, CAIP ids, symbols, known words (R8, R14).
+    if (!/^[a-z]+$/u.test(lower) || FILLER.has(lower) || knownSymbol(lower) || Object.hasOwn(SENTENCE_VERBS, lower) || resolveNetworkName(lower)) return token;
+    if (CONNECTOR_VOCAB.includes(lower) || VENUE_VOCAB.includes(lower) || NETWORK_VOCAB.includes(lower)) return token;
+    if (position === 0) {
+      const verbs = candidates(lower, VERB_VOCAB);
+      if (verbs.length === 1) {
+        corrections.push({ field: `actions[${index}].kind`, from: token.slice(0, 16), to: verbs[0] as string, material: true });
+        return verbs[0] as string;
+      }
+      if (verbs.length > 1) verbCandidates = verbs;
+      return token;
+    }
+    const found = candidates(lower, [...CONNECTOR_VOCAB, ...NETWORK_VOCAB, ...VENUE_VOCAB]);
+    if (found.length !== 1) return token;
+    const to = found[0] as string;
+    const name = NETWORK_VOCAB.includes(to) ? "network" : VENUE_VOCAB.includes(to) ? "protocol" : "text";
+    corrections.push({ field: `actions[${index}].${name}`, from: token.slice(0, 16), to, material: name !== "text" });
+    return to;
+  });
+  return { text: out.join(" "), corrections, ...(verbCandidates ? { verbCandidates } : {}) };
+}
+
+export interface ParsedSentence {
+  readonly steps: WorkStep[];
+  readonly corrections: ThreadCorrection[];
+}
+
+function notUnderstood(clause: string): PlatformError {
+  const verb = clause.split(/\s+/u)[0]?.toLowerCase() ?? "";
+  return new PlatformError(
+    "INTENT_UNSUPPORTED",
+    Object.hasOwn(SENTENCE_VERBS, verb)
+      ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
+      : `"${verb.slice(0, 32)}" is not a supported action. Kletia can swap, buy, bridge, send, stake, deposit and withdraw.`,
+    422,
+    [{ path: "text", message: "Could not read this clause." }],
+  );
+}
+
+/** A message as slots for every clause (1 to 8); unique keyword typos are corrected (R9, R10). */
+export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0): ParsedSentence {
+  const text = normalizeMessage(raw);
+  if (!text) throw new PlatformError("INTENT_UNSUPPORTED", "The message is empty.", 422);
+  const extraVerbs = phrases.flatMap((phrase) => phrase.verbs);
+  const clauses = splitClauses(text, extraVerbs);
+  if (clauses.length === 0 || clauses.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
+  const steps: WorkStep[] = [];
+  const corrections: ThreadCorrection[] = [];
+  clauses.forEach((clause, i) => {
+    const index = i + offset;
+    const previous = previousExists || i > 0;
+    let parsed = parseContractClause(clause, phrases, index, previous) ?? parseClause(clause, previous);
+    if (!parsed) {
+      const fixed = correctClause(clause, index);
+      parsed = parseClause(fixed.text, previous);
+      if (parsed) corrections.push(...fixed.corrections);
+      if (!parsed && fixed.verbCandidates) {
+        // R9: only verbs that make the rest of the clause read are candidates; one left is a correction.
+        const rest = fixed.text.split(/\s+/u).slice(1).join(" ");
+        const fitting = fixed.verbCandidates.filter((verb) => parseClause(`${verb} ${rest}`, previous) !== null);
+        const kinds = [...new Set(fitting.map((verb) => SENTENCE_VERBS[verb] as Kind))];
+        if (kinds.length === 1) {
+          parsed = parseClause(`${fitting[0]} ${rest}`, previous);
+          corrections.push(...fixed.corrections, { field: `actions[${index}].kind`, from: (clause.split(/\s+/u)[0] ?? "").slice(0, 16), to: fitting[0] as string, material: true });
+        } else if (kinds.length > 1) {
+          const probe = parseClause(`${fitting[0]} ${rest}`, previous) as WorkStep;
+          delete probe.kind;
+          probe.kindCandidates = kinds;
+          parsed = probe;
+        }
+      }
+    }
+    if (!parsed) throw notUnderstood(clause);
+    const amount = parsed.amount?.v;
+    if (amount?.t === "exact" && amount.raw && /^\$?\d+,\d{1,2}$/u.test(amount.raw)) {
+      corrections.push({ field: `actions[${index}].amount`, from: amount.raw.slice(0, 16), to: amount.value, material: true });
+    }
+    steps.push(parsed);
+  });
+  return { steps, corrections };
+}

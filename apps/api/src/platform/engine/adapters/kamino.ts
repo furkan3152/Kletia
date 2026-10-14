@@ -38,6 +38,8 @@ import {
   type AssetDescriptor,
   type IntentStep,
   type KaminoReserveVenue,
+  type VenueCapacity,
+  type YieldVenue,
 } from "@kletia/core";
 import { readSolanaLendingYields } from "../../../networks/solana/index.js";
 import { PlatformError } from "../../errors.js";
@@ -275,6 +277,44 @@ function observedAmount(ref: Pick<AssetAmount, "asset" | "symbol" | "decimals">,
   return { asset: ref.asset, symbol: ref.symbol, decimals: ref.decimals, amount: units.toString(), formatted: fromBaseUnits(units, ref.decimals) };
 }
 
+/* ---------------------------------------------------------- journey facts */
+
+/** 2^60: KLend's scaled-fraction unit. */
+const KLEND_FRACTION_ONE = 1n << 60n;
+
+/**
+ * Capacity of a Kamino reserve (journey facts): the collateral share rate
+ * from the pinned reserve account and the supply APY from Kamino's metrics.
+ * The deposit limit and the reserve's available liquidity are not decoded:
+ * they stay null (unknown), never zero. Positions (obligations) are a
+ * follow-up (journey design §12).
+ */
+export async function kaminoCapacity(venue: YieldVenue): Promise<VenueCapacity> {
+  if (venue.kind !== "kamino-reserve") throw new PlatformError("VENUE_INVALID", `${venue.name} is not a Kamino reserve.`, 500);
+  const underlying = underlyingOf(venue);
+  if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
+  const [reserve, yields] = await Promise.all([
+    readKaminoReserve("solana", venue, underlying.address),
+    Promise.race([
+      readSolanaLendingYields().catch(() => []),
+      new Promise<[]>((resolve) => setTimeout(() => resolve([]), 4_000).unref()),
+    ]),
+  ]);
+  // Liquidity per collateral unit (same decimals), as 18-decimal fixed point.
+  const shareRate = (reserve.totalLiquiditySf * 10n ** 18n) / (reserve.collateralSupply * KLEND_FRACTION_ONE);
+  const row = yields.find((entry) => entry.reserve === venue.reserve);
+  return {
+    venue: venue.id,
+    capRemaining: null,
+    exitLiquidity: null,
+    paused: false,
+    frozen: false,
+    shareRate: shareRate.toString(),
+    observedAt: new Date().toISOString(),
+    apy: row ? row.supplyApy : null,
+  };
+}
+
 export const kaminoAdapter: ProtocolAdapter = {
   id: "kamino",
   protocols: ["kamino"],
@@ -396,4 +436,6 @@ export const kaminoAdapter: ProtocolAdapter = {
     if (result.status === "confirmed" && observed.actual) return { ...result, actualOutput: observed.actual };
     return result;
   },
+
+  venueCapacity: kaminoCapacity,
 };

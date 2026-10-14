@@ -266,7 +266,11 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
         ...fields,
         turns: turn ? [...current.turns, turn] : current.turns,
       };
-      const leavesExecution = state.signingTaskId === id && next.status !== "executing";
+      // The lock goes with the execution: released when the task leaves `executing`, or
+      // finishes before it got there (an execution that failed while preparing).
+      const leavesExecution =
+        state.signingTaskId === id &&
+        ((current.status === "executing" && next.status !== "executing") || isFinishedStatus(next.status));
       const answeringClosed = state.answering === id && (next.question === null || isFinishedStatus(next.status));
       set({
         tasks: state.tasks.map((task) => (task.id === id ? next : task)),

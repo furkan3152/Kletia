@@ -85,7 +85,7 @@ export async function quoteSolanaDexSwap(dex: SolanaDex, labels: readonly string
       !isBaseUnitAmount(request.amount) || request.amount === "0" || BigInt(request.amount) > U64_MAX) {
     throw new SolanaProviderError("A direct DEX swap needs two distinct mints and a positive u64 input amount.", "SOLANA_SWAP_INVALID", 422);
   }
-  if (labels.length === 0) throw new SolanaProviderError("No verified pool layout is enabled for this venue.", "DEX_QUOTE_MISMATCH", 422);
+  if (labels.length === 0) throw new SolanaProviderError("No verified pool layout is enabled for this venue.", "VENUE_UNVERIFIED", 422);
   const params = new URLSearchParams({ inputMint: request.inputMint, outputMint: request.outputMint, amount: request.amount,
     slippageBps: String(normalizeSlippageBps(request.slippageBps)), swapMode: "ExactIn", onlyDirectRoutes: "true",
     restrictIntermediateTokens: "true", dexes: labels.join(","), instructionVersion: "V1" });

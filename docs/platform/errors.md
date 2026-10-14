@@ -317,6 +317,7 @@ introduced.
 | <a id="error-LINK_SOURCE_NOT_ALLOWED"></a>`LINK_SOURCE_NOT_ALLOWED` | 422 | no | Funding source not allowed | Fund the link from one of its networks and assets (error.issues lists them). On the destination network a deliver link takes only the delivered asset. |
 | <a id="error-NETWORK_UNSUPPORTED"></a>`NETWORK_UNSUPPORTED` | 422 / 500 | no | Network not supported | Use a network from GET /v1/networks that supports this action. |
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
+| <a id="error-POSITION_UNAVAILABLE"></a>`POSITION_UNAVAILABLE` | 502 | yes | Position not readable | Kletia could not read this venue position right now, or does not list positions for this venue yet. The funds are unaffected; check the venue directly or retry later. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
 | <a id="error-PRICE_IMPACT_TOO_HIGH"></a>`PRICE_IMPACT_TOO_HIGH` | 422 | no | Price impact too high | Move a smaller amount; routes that cost more than 5% are refused. |
 | <a id="error-PRICE_UNAVAILABLE"></a>`PRICE_UNAVAILABLE` | 422 | no | Price unavailable | No fresh oracle price covers an asset of this swap, so its price guard refuses it. Swap a priced asset, or plan again once the price feed updates. |

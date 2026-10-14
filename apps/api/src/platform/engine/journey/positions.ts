@@ -91,11 +91,11 @@ export async function readVenuePositions(account: AccountId, network: NetworkKey
   const parsed = parseAccountId(account);
   const chain = CHAINS[network];
   if (!parsed || parsed.chain.namespace !== chain.namespace) {
-    return { account, network, positions: [], unavailable: [{ venue: "*", code: "ACCOUNT_INVALID", message: `The account is not on ${chain.name}'s VM.` }], observedAt };
+    return { account, network, positions: [], unavailable: [{ venue: "*", code: "POSITION_UNAVAILABLE", message: `The account is not on ${chain.name}'s VM.` }], observedAt };
   }
   if (isPreviewAccount(account)) return { account, network, positions: [], unavailable: [], observedAt };
   const owner = parseAccountId(`${chain.id}:${parsed.address}`);
-  if (!owner) return { account, network, positions: [], unavailable: [{ venue: "*", code: "ACCOUNT_INVALID", message: "The account could not be read." }], observedAt };
+  if (!owner) return { account, network, positions: [], unavailable: [{ venue: "*", code: "POSITION_UNAVAILABLE", message: "The account could not be read." }], observedAt };
   const wanted = options.venues ? new Set(options.venues) : null;
   const venues = positionVenues(network).filter((venue) => !wanted || wanted.has(venue.id));
   const kamino = YIELD_VENUES.filter((venue) => venue.network === network && venue.kind === "kamino-reserve" && (!wanted || wanted.has(venue.id)));

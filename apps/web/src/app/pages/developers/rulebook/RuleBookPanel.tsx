@@ -13,7 +13,6 @@ import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { cx, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
 import { keyedClient } from "../keys/keyClient";
 import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
-import { NeedKey } from "../portal/NeedKey";
 import { PortalTabs } from "../portal/PortalTabs";
 import { useNow } from "../portal/useNow";
 import { AgentKeyForm } from "./AgentKeyForm";
@@ -82,7 +81,8 @@ export default function RuleBookPanel() {
   const now = useNow(pendingAnywhere ? 1_000 : 30_000);
   const onDraft = useCallback((next: PolicyDocument | null) => setDraft(next), []);
 
-  if (!kind) return <NeedKey purpose="read and edit rule books, run the simulator, read the decision log and issue agent keys" agentKeys />;
+  // The page's KeyGate asks for a key; the panel renders only with one.
+  if (!kind) return null;
 
   const refreshAll = (message: string) => {
     setNotice(message);

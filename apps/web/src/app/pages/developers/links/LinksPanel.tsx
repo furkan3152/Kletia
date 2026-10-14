@@ -16,7 +16,6 @@ import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { keyedClient } from "../keys/keyClient";
 import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
-import { NeedKey } from "../portal/NeedKey";
 import { formatUsd, formatWhen, timeUntil } from "../portal/portalFormat";
 import { PortalTabs } from "../portal/PortalTabs";
 import { useNow } from "../portal/useNow";
@@ -307,7 +306,8 @@ export default function LinksPanel() {
   const counting = (list.data ?? []).some((link) => link.status === "pending");
   const now = useNow(1_000, counting);
 
-  if (!kind) return <NeedKey purpose="publish, pause and withdraw intent links and read their counters" agentKeys />;
+  // The page's KeyGate asks for a key; the panel renders only with one.
+  if (!kind) return null;
   const links = list.data ?? [];
   const ruleBook = (policy.data?.effective?.chain.length ?? 0) > 0;
 

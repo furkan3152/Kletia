@@ -50,8 +50,11 @@ ENV NODE_ENV=production PORT=10000
 
 # The production server only uses Node built-ins and sends the same framing,
 # caching and security headers as the hosted static site.
-COPY --from=build /repo/apps/web/scripts/serve-production.mjs scripts/serve-production.mjs
+COPY --chmod=644 --from=build /repo/apps/web/scripts/serve-production.mjs scripts/serve-production.mjs
 COPY --from=build /repo/apps/web/dist dist
+# Vite preserves modes on copied public assets; USER node must read every file.
+RUN find scripts dist -type d -exec chmod 755 {} + \
+  && find scripts dist -type f -exec chmod 644 {} +
 
 USER node
 EXPOSE 10000

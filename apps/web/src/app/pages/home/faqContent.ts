@@ -53,8 +53,8 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
       "Yes. The /v1 REST API the console uses is public and described by an OpenAPI 3.1 document. On top of it there is the typed @kletia/sdk, the @kletia/widget React component and an /embed page you can place in an iframe.",
     ],
     links: [
-      { label: "Quickstart", to: "/developers#quickstart" },
-      { label: "Embed guide", to: "/developers#embed" },
+      { label: "Quickstart", to: "/developers#start" },
+      { label: "Embed guide", to: "/developers/recipes/web-component" },
     ],
   },
   {
@@ -63,7 +63,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     answer: [
       "Not to start. The public tier needs no key: registries, quotes and planning work at 30 requests per minute per IP, and the /embed page always uses it. A developer key raises the limit to 300 requests per minute and adds intent listing and webhooks.",
     ],
-    links: [{ label: "Developer keys", to: "/developers#keys" }],
+    links: [{ label: "Developer keys", to: "/developers/keys" }],
   },
   {
     id: "failure",

@@ -3,18 +3,21 @@
  * reads. Every loader takes the shared client and an AbortSignal so it can be
  * passed straight to `useApiResource` / `useApiAction`.
  */
-import type {
-  ApiKeyRecord,
-  HealthReport,
-  IntentGraph,
-  IntentRequest,
-  KletiaClient,
-  NetworkCapabilities,
-  QuoteRequest,
-  QuoteResponse,
+import {
+  KletiaApiError,
+  type ApiKeyRecord,
+  type HealthReport,
+  type IntentGraph,
+  type IntentPreview,
+  type IntentRequest,
+  type KletiaClient,
+  type NetworkCapabilities,
+  type QuoteRequest,
+  type QuoteResponse,
 } from "@kletia/sdk";
 import type { ProtocolDescriptor } from "@kletia/core";
 
+import type { PortfolioReads } from "../../app/console/state/holdings";
 import { PLATFORM_ORIGIN, sdkSignal } from "./kletiaClient";
 
 export type { ApiKeyRecord, HealthReport, NetworkCapabilities, QuoteRequest, QuoteResponse };
@@ -75,6 +78,68 @@ export async function planIntentDryRun(
     query: { dryRun: "true" },
   });
   return body.intent;
+}
+
+/** A dry-run plan with its plan-stage fare (`POST /v1/intents?dryRun=true&preview=true`). */
+export interface PlannedPreview {
+  readonly intent: IntentGraph;
+  /** The asset-change preview; null when the API could not compute one. */
+  readonly preview: IntentPreview | null;
+}
+
+/**
+ * Plans without persisting and returns the fare too
+ * (`POST /v1/intents?dryRun=true&preview=true`): the desk's no-wallet preview
+ * shows the same fare table as the review. Nothing is stored and nothing can
+ * be signed from a dry run.
+ */
+export async function planIntentDryRunWithPreview(
+  client: KletiaClient,
+  signal: AbortSignal | undefined,
+  request: IntentRequest,
+): Promise<PlannedPreview> {
+  const body = await client.request<{ intent: IntentGraph; preview?: IntentPreview | null }>("POST", "/intents", request, {
+    signal: sdkSignal(signal),
+    query: { dryRun: "true", preview: "true" },
+  });
+  return { intent: body.intent, preview: body.preview ?? null };
+}
+
+export type { PortfolioReads };
+
+/**
+ * Holdings of several accounts in one request (`GET /v1/portfolio?accounts=`).
+ * On an API without that route (404) it reads one account at a time, at most
+ * the six production accounts; `source` then says "per-account" so the
+ * caller can skip the batch next time (`skipBatch`). Unreadable accounts are
+ * failures, never empty portfolios.
+ */
+export async function fetchPortfolios(
+  client: KletiaClient,
+  signal: AbortSignal | undefined,
+  accounts: readonly string[],
+  options: { readonly skipBatch?: boolean } = {},
+): Promise<PortfolioReads> {
+  // Loaded on first use, so the site pages that share this module never carry the holdings model.
+  const { readPortfolios } = await import("../../app/console/state/holdings");
+  return readPortfolios(
+    {
+      batch: async (list) => {
+        try {
+          return await client.request<unknown>("GET", "/portfolio", undefined, {
+            signal: sdkSignal(signal),
+            query: { accounts: list.join(",") },
+          });
+        } catch (error) {
+          if (error instanceof KletiaApiError && error.status === 404) return null;
+          throw error;
+        }
+      },
+      single: (account) => client.portfolio(account, { signal: sdkSignal(signal) }),
+    },
+    accounts,
+    options,
+  );
 }
 
 export function requestQuote(

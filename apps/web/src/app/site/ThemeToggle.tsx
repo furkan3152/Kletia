@@ -1,7 +1,7 @@
 import { Moon, Sun } from "lucide-react";
 
 import type { SiteTheme } from "./theme";
-import { cx, FOCUS_RING, HARD_SHADOW_SM, INK_BORDER } from "./ui/styles";
+import { CONTROL_BORDER, cx, FOCUS_RING, HARD_SHADOW_SM } from "./ui/styles";
 
 export interface ThemeToggleProps {
   readonly theme: SiteTheme;
@@ -28,7 +28,7 @@ export function ThemeToggle({ theme, onToggle, className }: ThemeToggleProps) {
       title={dark ? "Switch to light theme" : "Switch to dark theme"}
       className={cx(
         "relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden bg-white text-[#1A1A1A] transition-[transform,box-shadow] duration-90 ease-kl-snap hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none dark:bg-[#1A2841] dark:text-[#FFD60A] motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-        INK_BORDER,
+        CONTROL_BORDER,
         HARD_SHADOW_SM,
         FOCUS_RING,
         className,

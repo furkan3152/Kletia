@@ -1,6 +1,6 @@
 import type { NetworkMode } from "./config/networks";
 import { getAddress, isAddress, parseUnits } from "viem";
-import { isBaseIntentRouterV2SwapBinding } from "../networks/base/security/intentV2Route";
+import { isBaseIntentRouterV2SwapBinding } from "../networks/base/security/intentV2Route.ts";
 
 export { isBaseIntentRouterV2SwapBinding };
 
@@ -632,7 +632,9 @@ export type ArcPortfolioData = {
     collateralKLET: string;
     borrowedUSDC: string;
     suppliedUSDC: string;
-    healthFactor: string;
+    /** Null while the pool's price source is not answering (the health factor cannot be computed). */
+    healthFactor: string | null;
+    healthAvailability?: "available" | "unavailable";
   };
   observedAtBlock: string;
 };
@@ -674,6 +676,10 @@ const hasStringFields = (
 
 const isWalletAsset = (value: unknown): boolean =>
   hasStringFields(value, ["symbol", "formatted"]);
+
+/** A decimal string, or null when the value could not be read (e.g. a price source outage). */
+const isStringOrNull = (value: unknown): boolean =>
+  value === null || typeof value === "string";
 
 const BASE_MAINNET_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const UUID_V4 =
@@ -1554,8 +1560,12 @@ export const isArcPortfolioData = (value: unknown): value is ArcPortfolioData =>
     "collateralKLET",
     "borrowedUSDC",
     "suppliedUSDC",
-    "healthFactor",
   ]) &&
+  // During an oracle outage the API still answers, with healthFactor null.
+  isStringOrNull(value.lending.healthFactor) &&
+  (value.lending.healthAvailability === undefined ||
+    value.lending.healthAvailability === "available" ||
+    value.lending.healthAvailability === "unavailable") &&
   typeof value.observedAtBlock === "string" &&
   UNSIGNED_INTEGER.test(value.observedAtBlock);
 

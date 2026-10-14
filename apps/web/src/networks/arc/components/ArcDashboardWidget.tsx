@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useBalance, useChainId, useReadContract } from "wagmi";
 import { formatEther, isAddress, parseEther } from "viem";
 import {
@@ -131,6 +132,17 @@ function parsePositiveAmount(
   return normalized;
 }
 
+/** LP token units (18 decimals) of an amount typed in the LP exit field; null when empty or malformed. */
+function lpTokenUnits(value: string): bigint | null {
+  const trimmed = value.trim();
+  if (!/^\d+(\.\d{1,18})?$/.test(trimmed)) return null;
+  try {
+    return parseEther(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 export const ArcDashboardWidget: React.FC<{
   onWidgetClick: (prompt: string) => void;
   activeWidget?: WidgetId;
@@ -202,6 +214,18 @@ export const ArcDashboardWidget: React.FC<{
       query: { enabled: Boolean(address) },
     });
 
+  // The Kletia Swap pool is its own LP token: the LP balance is the pool's balanceOf.
+  const { data: lpBalanceRaw, isError: isLpBalanceError } = useReadContract({
+    address: ARC_CONTRACTS.Swap as `0x${string}`,
+    abi: ARC_SWAP_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    chainId: ARC_CHAIN_ID,
+    query: { enabled: Boolean(address) && activeWidget === "liquidity" },
+  });
+  const lpBalance = typeof lpBalanceRaw === "bigint" ? lpBalanceRaw : undefined;
+  const { openConnectModal } = useConnectModal();
+
   // --- Form States ---
   const [swapAmount, setSwapAmount] = useState("1");
   const [isUsdcToToken, setIsUsdcToToken] = useState(true);
@@ -214,6 +238,7 @@ export const ArcDashboardWidget: React.FC<{
   const [stakeAmount, setStakeAmount] = useState("1");
   const [lpUsdcAmount, setLpUsdcAmount] = useState("1");
   const [lpTokenAmount, setLpTokenAmount] = useState("10");
+  const [lpWithdrawalAmount, setLpWithdrawalAmount] = useState("1");
   const [intentError, setIntentError] = useState<string | null>(null);
   const previousAddressRef = React.useRef<string | undefined>(undefined);
 
@@ -255,6 +280,20 @@ export const ArcDashboardWidget: React.FC<{
       chainId: ARC_CHAIN_ID,
       query: { enabled: !isUsdcToToken && Boolean(previewAmount) },
     });
+
+  // LP exit: disabled for an empty, zero or malformed amount, and above the LP balance when it is known.
+  const lpWithdrawalUnits = lpTokenUnits(lpWithdrawalAmount);
+  const lpWithdrawalAboveBalance =
+    lpWithdrawalUnits !== null && lpBalance !== undefined && lpWithdrawalUnits > lpBalance;
+  const lpWithdrawalDisabled =
+    lpWithdrawalUnits === null || lpWithdrawalUnits <= 0n || lpWithdrawalAboveBalance;
+  const lpBalanceLabel = !address
+    ? "Connect your wallet"
+    : isLpBalanceError
+      ? "Unavailable"
+      : lpBalance === undefined
+        ? "Checking…"
+        : `${formatEther(lpBalance)} LP`;
 
   const seedIntent = (buildPrompt: () => string) => {
     setIntentError(null);
@@ -646,6 +685,81 @@ export const ArcDashboardWidget: React.FC<{
             >
               💧 Prepare Liquidity Intent
             </ActionButton>
+            <section
+              aria-labelledby="arc-lp-exit-heading"
+              className="mt-6 border-t-[3px] border-[#1A1A1A] pt-4 dark:border-[#4B5563]"
+            >
+              <h4
+                id="arc-lp-exit-heading"
+                className="text-lg font-black uppercase tracking-tight text-[#1A1A1A] dark:text-white"
+              >
+                Remove Liquidity
+              </h4>
+              <div className="mt-2 mb-4 flex flex-wrap items-center justify-between gap-2">
+                <p
+                  role="status"
+                  className="min-w-0 break-words text-sm font-bold text-gray-700 dark:text-gray-300"
+                >
+                  LP balance: {lpBalanceLabel}
+                </p>
+                {!address && openConnectModal ? (
+                  <button
+                    type="button"
+                    onClick={openConnectModal}
+                    className="min-h-[44px] border-[3px] border-[#1A1A1A] bg-white px-3 text-xs font-black uppercase tracking-widest text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[3px_3px_0_#475569]"
+                  >
+                    Connect wallet
+                  </button>
+                ) : null}
+              </div>
+              <InputLabel>LP Tokens to Remove</InputLabel>
+              <div className="mb-2 flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <InputField
+                    aria-label="LP tokens to remove"
+                    aria-describedby={lpWithdrawalAboveBalance ? "arc-lp-exit-above" : undefined}
+                    aria-invalid={lpWithdrawalAboveBalance || undefined}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={lpWithdrawalAmount}
+                    onChange={(e) => setLpWithdrawalAmount(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={lpBalance === undefined || lpBalance === 0n}
+                  onClick={() => {
+                    if (lpBalance !== undefined) setLpWithdrawalAmount(formatEther(lpBalance));
+                  }}
+                  className="min-h-[44px] shrink-0 border-[3px] border-[#1A1A1A] bg-white px-3 text-xs font-black uppercase tracking-widest text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#4B5563] dark:bg-[#0F172A] dark:text-white dark:shadow-[3px_3px_0_#475569]"
+                >
+                  Max
+                </button>
+              </div>
+              {lpWithdrawalAboveBalance ? (
+                <p id="arc-lp-exit-above" className="mb-2 text-sm font-bold text-[#B91C1C] dark:text-[#FCA5A5]">
+                  More than your LP balance.
+                </p>
+              ) : null}
+              <ActionButton
+                disabled={lpWithdrawalDisabled}
+                colorClass="bg-[#0052FF] hover:bg-[#0040DD]"
+                onClick={() =>
+                  seedIntent(() => {
+                    const amount = parsePositiveAmount(
+                      lpWithdrawalAmount,
+                      "LP withdrawal",
+                      18,
+                    );
+                    return `Remove ${amount} LP tokens from Kletia Swap on Arc Testnet; simulate it before wallet approval`;
+                  })
+                }
+              >
+                Prepare LP Withdrawal Intent
+              </ActionButton>
+            </section>
           </div>
         );
 

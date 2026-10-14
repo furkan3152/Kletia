@@ -1,13 +1,13 @@
 import { CHAINS, PROTOCOLS } from "@kletia/core";
 import { ArrowUpRight } from "lucide-react";
 
+import { BACKEND_URL } from "../../shared/config/runtime";
 import { Link } from "../routes/Link";
 import { Icon } from "./art/Icon";
 import { LineRule } from "./art/Ornaments";
 import { KletiaMark } from "./KletiaMark";
 import { protocolCountLabel } from "./protocolCount";
 import {
-  API_DOC_URL,
   CONTRIBUTING_URL,
   GITHUB_URL,
   LICENSE_URL,
@@ -37,13 +37,13 @@ const COLUMNS: readonly { title: string; links: readonly FooterLink[] }[] = [
   {
     title: "Developers",
     links: [
-      { label: "Quickstart", to: "/developers#quickstart" },
-      { label: "API explorer", to: "/developers#explorer" },
-      { label: "Endpoint reference", to: "/developers#reference" },
-      { label: "Events and webhooks", to: "/developers#events" },
-      { label: "Embed and widget", to: "/developers#embed" },
-      { label: "Agents", to: "/developers#agents" },
-      { label: "API v1 spec", to: API_DOC_URL, external: true },
+      { label: "Overview", to: "/developers" },
+      { label: "API explorer", to: "/developers/api" },
+      { label: "Embed builder", to: "/developers/embed" },
+      { label: "Webhooks", to: "/developers/webhooks" },
+      { label: "Errors", to: "/developers/errors" },
+      { label: "Agents and MCP", to: "/developers/agents" },
+      { label: "OpenAPI JSON", to: `${BACKEND_URL}/v1/openapi.json`, external: true },
     ],
   },
   {

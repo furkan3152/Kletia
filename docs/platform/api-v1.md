@@ -371,6 +371,12 @@ create, delete or test webhooks.
 
 The SSE stream starts with `retry: 3000`, replays buffered events after `Last-Event-ID` (or `?since=<event id>`), then streams live events with a heartbeat comment every 15 s. Each API key and each client IP may hold 10 open streams (a stream opened with a key counts against both); a stream closes after 30 minutes. Replays and webhook retries can deliver an event more than once; de-duplicate by `id`.
 
+SSE buffers and live subscriptions belong to one API process. A restart, or a
+reconnection that reaches another replica, can leave a gap: `Last-Event-ID` is
+not a durable cursor. Re-fetch `GET /v1/intents/{id}` when you reconnect, and
+periodically while you follow an active intent; the event stream alone cannot
+reconstruct every transition across replicas.
+
 Webhook deliveries are `POST` with header
 `Kletia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`.
 Verify with `verifyWebhookSignature` from `@kletia/core`. Deliveries also carry
@@ -385,12 +391,48 @@ keys: at most 200 wait per key (beyond that the key's oldest delivery is
 dropped), at most 2 are in flight per key and a webhook receives one delivery
 at a time. A webhook whose last 5 attempts failed is paused for 30 s, doubling
 up to 5 minutes while it keeps failing; its deliveries wait during the pause.
+Pause counters belong to the API process that makes the attempts (a restart
+resets them); with Postgres the in-flight limits are shared by every process.
+
+Every attempt, retries included, re-reads the webhook and the live state of
+its key and every ancestor key: a deleted webhook, or a revoked or expired key
+or ancestor, receives no further attempt (the delivery is logged as dropped).
+When that state, the webhook or the intent's owner cannot be read (storage
+failing), the delivery waits without spending an attempt, 1 s doubling to
+60 s; after 120 such deferrals (about two hours) it is dropped as
+`deferred_too_long`.
+
+With Postgres (`KLETIA_DATABASE_URL`), webhook deliveries use a durable queue.
+Each routed delivery is stored before its first HTTP attempt, its event body
+encrypted with the platform secret, so retries survive API restarts. Workers
+claim bounded batches with 30-second fenced leases; an interrupted attempt is
+picked up again once its lease expires. Attempt results and retry schedules
+are recorded together, and a worker polls every 500 ms while there is work
+and backs off to every 5 s when idle. The queue deduplicates `(webhook id,
+event id)`, but a receiver must still deduplicate by event id: a crash after
+a successful HTTP response and before it is recorded repeats that delivery.
+Delivered, exhausted and dropped rows discard the body at once and keep their
+deduplication identifiers for 7 days. A queued body that no longer opens (the
+platform secret changed) is never sent: it is dropped as `payload_unreadable`
+and the rest of the queue keeps flowing. Without Postgres the queues are
+in memory and transient.
+
+The durable queue starts when an event is routed to a webhook. A state change
+and its routing are not one transaction, so a process crash before the first
+queue write can still lose that notification; queue bounds and exhausted
+retries can also prevent a delivery. Delivery is bounded at-least-once for
+queued work, not an exactly-once or complete event history: reconcile with the
+current intent state (`GET /v1/intents/{id}`).
 
 Webhook secrets are encrypted at rest with `KLETIA_PLATFORM_SECRET` (at least
 32 characters). It is required whenever `KLETIA_DATABASE_URL` is set; with the
 in-memory store a development key is used and `GET /v1/health` reports
 `webhooks.sealing: "development_fallback"`. `webhooks.dispatcher` reports the
-delivery queue of the answering API process.
+answering API process's activity and where deliveries wait (`storage`:
+`memory` or `postgres`); with Postgres, `queued` and `scheduledRetries` are the
+last snapshot of the shared queue and the other counters describe the
+answering process. Changing `KLETIA_PLATFORM_SECRET` makes every registered
+webhook secret and every queued body unreadable: re-create the webhooks.
 
 ## Idempotency
 
@@ -492,9 +534,16 @@ use one key per environment.
 - `GET /v1/webhooks/{id}/deliveries?limit=20` returns the newest attempts:
   `{ id, eventId, eventType, intentId?, attempt, status: succeeded | failed | dropped, httpStatus?, durationMs?, error?, nextRetryAt?, test?, at }`.
   `error` is a class (`timeout`, `connection_failed`, `http_status`,
-  `redirect`, `forbidden_address`, `queue_full`); payloads and error text are
-  never stored. Logs are kept 7 days (at most 1000 entries per webhook; 100
-  with in-memory storage) and deleted with the webhook.
+  `redirect`, `forbidden_address`, `queue_full`, `payload_unreadable`,
+  `deferred_too_long`); payloads and error text are never stored. Dropped
+  before sending: `queue_full` (a queue bound was hit), `payload_unreadable`
+  (a queued body no longer opens, for example after the platform secret
+  changed) and `deferred_too_long` (the delivery could not be attempted for
+  about two hours because key, webhook or intent storage kept failing; its
+  `attempt` is unchanged). A delivery dropped for a deleted webhook or a
+  revoked or expired key has no class. Logs are kept 7 days (at most 1000
+  entries per webhook; 100 with in-memory storage) and deleted with the
+  webhook.
 
 ## Usage
 

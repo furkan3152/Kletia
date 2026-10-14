@@ -2,10 +2,11 @@
  * `IntentStep.quoteRef` encoding. The planner records what it needs to
  * re-prepare a step later (provider quote id, applied slippage, the share of
  * the previous step's output the step consumes, liquid-staking provider, the
- * planned price floor, whether a withdraw closes the whole position) and every
- * prepare appends its payload's guaranteed minimum.
+ * planned price floor, whether a withdraw closes the whole position, the gas
+ * top-up a leg delivers) and every prepare appends its payload's guaranteed
+ * minimum.
  */
-import { isBaseUnitAmount } from "@kletia/core";
+import { GAS_ON_ARRIVAL_USD, isBaseUnitAmount } from "@kletia/core";
 import { base64UrlDecode, base64UrlEncode, canonicalJson, isRecord } from "./util.js";
 
 /** Guaranteed minimum output of one prepared payload. */
@@ -33,6 +34,8 @@ export interface StepRef {
   readonly floors?: readonly PreparedFloor[];
   /** Withdraw: close the whole position at the step's venue ("withdraw all"). */
   readonly closePosition?: true;
+  /** Cross-network leg with gas on arrival: the USD of destination gas planned ("0.50"); prepare asks the same top-up. */
+  readonly gasTopupUsd?: string;
 }
 
 const PREFIX = "kq1.";
@@ -40,6 +43,15 @@ const MAX_AMOUNT_DIGITS = 78;
 
 function amount(value: unknown): value is string {
   return isBaseUnitAmount(value) && value.length <= MAX_AMOUNT_DIGITS;
+}
+
+/** USD cents of a gas top-up within GAS_ON_ARRIVAL_USD, or null. */
+function gasTopupCents(value: unknown): number | null {
+  if (typeof value !== "string" || !/^\d{1,2}(?:\.\d{1,2})?$/u.test(value)) return null;
+  const cents = Math.round(Number(value) * 100);
+  const min = Math.round(Number(GAS_ON_ARRIVAL_USD.min) * 100);
+  const max = Math.round(Number(GAS_ON_ARRIVAL_USD.max) * 100);
+  return cents >= min && cents <= max ? cents : null;
 }
 
 export function encodeStepRef(ref: StepRef): string {
@@ -79,6 +91,8 @@ export function decodeStepRef(value: string | undefined): StepRef | null {
   const { plannedInput, plannedMinimum } = parsed;
   const planned = amount(plannedInput) && plannedInput !== "0" && amount(plannedMinimum) ? { plannedInput, plannedMinimum } : {};
   const floors = decodeFloors(parsed.floors);
+  // A top-up the plan committed to must be asked again on prepare: a malformed one invalidates the ref.
+  if (parsed.gasTopupUsd !== undefined && gasTopupCents(parsed.gasTopupUsd) === null) return null;
   return {
     v: 1,
     slippageBps,
@@ -88,5 +102,6 @@ export function decodeStepRef(value: string | undefined): StepRef | null {
     ...planned,
     ...(floors.length > 0 ? { floors } : {}),
     ...(parsed.closePosition === true ? { closePosition: true as const } : {}),
+    ...(typeof parsed.gasTopupUsd === "string" ? { gasTopupUsd: parsed.gasTopupUsd } : {}),
   };
 }

@@ -173,7 +173,7 @@ export function ErrorsReference() {
           {familyHint ? (
             <p className="text-xs">
               <code className="font-code font-bold">{deferred.trim()}</code> is a provider code: it means{" "}
-              <Link to={`/developers#error-${familyHint}`} className={cx("font-code font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+              <Link to={`/developers/errors#error-${familyHint}`} className={cx("font-code font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
                 {familyHint}
               </Link>
               .
@@ -222,7 +222,7 @@ export function ErrorsReference() {
           {resolveErrorCode(target) && resolveErrorCode(target) !== target ? (
             <>
               is a provider code: it means{" "}
-              <Link to={`/developers#error-${resolveErrorCode(target)}`} className={cx("font-code font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+              <Link to={`/developers/errors#error-${resolveErrorCode(target)}`} className={cx("font-code font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}>
                 {resolveErrorCode(target)}
               </Link>
               .

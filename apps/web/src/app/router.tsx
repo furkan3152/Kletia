@@ -97,28 +97,49 @@ function setMeta(attribute: "name" | "property", key: string, content: string) {
   element.setAttribute("content", content);
 }
 
-function applyDocumentMeta(route: RouteDefinition, pathname: string) {
+/** Title, description, robots and canonical path of a visited path (prefix routes such as the portal give their own). */
+function documentMeta(route: RouteDefinition, pathname: string) {
+  const meta = route.metaFor?.(pathname);
   const canonicalPath =
-    route.id === "console" ? "/app" : route.id === "notFound" || route.canonicalFromPath ? pathname : route.path;
-  const url = `${SITE_ORIGIN}${canonicalPath}`;
-  document.title = route.title;
-  setMeta("name", "description", route.description);
-  setMeta(
-    "name",
-    "robots",
-    route.robots ??
+    meta?.canonical ??
+    (route.id === "console" ? "/app" : route.id === "notFound" || route.canonicalFromPath ? pathname : route.path);
+  return {
+    title: meta?.title ?? route.title,
+    description: meta?.description ?? route.description,
+    robots:
+      meta?.robots ??
+      route.robots ??
       (route.id === "notFound" ? "noindex,follow" : route.kind === "embed" ? "noindex,nofollow" : "index,follow"),
-  );
-  setMeta("property", "og:title", route.title);
-  setMeta("property", "og:description", route.description);
+    url: `${SITE_ORIGIN}${canonicalPath}`,
+  };
+}
+
+function applyDocumentMeta(route: RouteDefinition, pathname: string) {
+  const { title, description, robots, url } = documentMeta(route, pathname);
+  document.title = title;
+  setMeta("name", "description", description);
+  setMeta("name", "robots", robots);
+  setMeta("property", "og:title", title);
+  setMeta("property", "og:description", description);
   setMeta("property", "og:url", url);
-  setMeta("name", "twitter:title", route.title);
-  setMeta("name", "twitter:description", route.description);
+  setMeta("name", "twitter:title", title);
+  setMeta("name", "twitter:description", description);
   const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
   if (canonical) canonical.href = url;
 }
 
-/** Scrolls to `#hash`, retrying for a short while so lazily rendered sections can mount. */
+/** How long a link to an anchor waits for a lazily loaded page to render its target. */
+const HASH_WAIT_MS = 6_000;
+
+/**
+ * Scrolls to `#hash` and focuses it, retrying while lazily loaded pages mount
+ * (a portal page chunk after a redirect). The visitor scrolling, clicking or
+ * typing first cancels it, so a late target never yanks the page.
+ *
+ * A non-interactive target gets tabindex -1 and `data-kl-arrival`: no focus
+ * box (it is not in the tab order) but a short signal-yellow underline
+ * (styles.css) until it loses focus.
+ */
 function scrollToHash(hash: string, smooth: boolean): () => void {
   let id: string;
   try {
@@ -126,26 +147,39 @@ function scrollToHash(hash: string, smooth: boolean): () => void {
   } catch {
     return () => undefined;
   }
-  let frame = 0;
+  const started = performance.now();
   let handle = 0;
+  let done = false;
+  const userEvents = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+  const stop = () => {
+    done = true;
+    window.cancelAnimationFrame(handle);
+    for (const type of userEvents) window.removeEventListener(type, stop, true);
+  };
   const attempt = () => {
+    if (done) return;
     const target = id ? document.getElementById(id) : null;
     if (target) {
+      stop();
       target.scrollIntoView({
         behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto",
         block: "start",
       });
-      if (!target.hasAttribute("tabindex") && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/u.test(target.tagName)) {
-        target.setAttribute("tabindex", "-1");
+      const interactive = /^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/u.test(target.tagName);
+      if (!target.hasAttribute("tabindex") && !interactive) target.setAttribute("tabindex", "-1");
+      if (!interactive && target.getAttribute("tabindex") === "-1") {
+        target.setAttribute("data-kl-arrival", "");
+        target.addEventListener("blur", () => target.removeAttribute("data-kl-arrival"), { once: true });
       }
       target.focus({ preventScroll: true });
       return;
     }
-    frame += 1;
-    if (frame < 90) handle = window.requestAnimationFrame(attempt);
+    if (performance.now() - started < HASH_WAIT_MS) handle = window.requestAnimationFrame(attempt);
+    else stop();
   };
+  for (const type of userEvents) window.addEventListener(type, stop, { capture: true, passive: true });
   attempt();
-  return () => window.cancelAnimationFrame(handle);
+  return stop;
 }
 
 function SiteBootFallback() {
@@ -295,11 +329,15 @@ export function AppRouter() {
     () =>
       subscribeLocation((next) => {
         const previous = renderedLocationRef.current;
+        const previousRoute = matchRoute(previous.pathname);
         const nextRoute = matchRoute(next.pathname);
+        // Only a change of route cross-fades the page: moving inside one route
+        // (between developer portal pages) swaps that route's own outlet.
         const animate =
           !CROSS_ORIGIN_FRAMED &&
           next.pathname !== previous.pathname &&
-          matchRoute(previous.pathname).kind === "site" &&
+          previousRoute.id !== nextRoute.id &&
+          previousRoute.kind === "site" &&
           nextRoute.kind === "site" &&
           supportsViewTransitions() &&
           !prefersReducedMotion();
@@ -354,17 +392,20 @@ export function AppRouter() {
     } else if (location.action !== "initial") {
       window.scrollTo(0, 0);
     }
-    if (pathChanged && location.action !== "initial" && !location.hash) {
+    // Routes that move focus themselves (the portal shell focuses its page H1) keep it.
+    if (pathChanged && location.action !== "initial" && !location.hash && !matchRoute(location.pathname).ownsFocus) {
       document.getElementById("main-content")?.focus({ preventScroll: true });
     }
     return cancel;
   }, [location]);
 
+  // The announcement names the page that was opened: a portal page's own title, not the portal's.
+  const pageTitle = documentMeta(route, location.pathname).title;
   React.useEffect(() => {
     if (location.action === "initial") return;
-    const timer = window.setTimeout(() => setAnnouncement(route.title), 60);
+    const timer = window.setTimeout(() => setAnnouncement(pageTitle), 60);
     return () => window.clearTimeout(timer);
-  }, [location, route.title]);
+  }, [location, pageTitle]);
 
   const busy = pending || preloading;
   const state = React.useMemo<RouterState>(

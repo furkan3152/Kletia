@@ -173,7 +173,7 @@ function ExchangeView({ exchange }: { readonly exchange: ExplorerExchange }) {
             </p>
           ) : null}
           <Link
-            to={`/developers#error-${errorAnchor}`}
+            to={`/developers/errors#error-${errorAnchor}`}
             className={cx("inline-flex w-fit items-center gap-1 text-xs font-bold underline decoration-2 underline-offset-2", FOCUS_RING)}
           >
             What {errorAnchor} means and what to do

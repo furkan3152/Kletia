@@ -187,7 +187,11 @@ export default function ArcPortfolioViewer({
         />
         <Metric
           label="Health factor"
-          value={displayAmount(data.lending.healthFactor)}
+          value={
+            data.lending.healthFactor === null
+              ? "Unavailable (price source not answering)"
+              : displayAmount(data.lending.healthFactor)
+          }
         />
       </div>
 

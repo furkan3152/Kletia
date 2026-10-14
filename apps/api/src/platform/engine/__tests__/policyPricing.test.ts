@@ -219,8 +219,12 @@ describe("policy pricing", () => {
 
   describe("feed table", () => {
     it("has a source for every mainnet registry asset and none for testnets", () => {
+      // Round-6 registry additions priced later: the evm-swaps-and-feeds package adds the LST-derived
+      // prices (and drops this list); transfer-only assets (USDbC) have no venue route to price them.
+      const pendingPrice = new Set(["ethereum:wstETH", "ethereum:rETH", "ethereum:weETH"]);
       for (const descriptor of ASSETS) {
         const sources = priceSourcesFor(descriptor.id);
+        if (descriptor.transferOnly || pendingPrice.has(`${descriptor.network}:${descriptor.symbol}`)) continue;
         if (CHAINS[descriptor.network].environment === "testnet") {
           assert.equal(ASSET_PRICE_SOURCES.has(normalizeAssetKey(descriptor.id)), false, `${descriptor.symbol} on ${descriptor.network}`);
         } else {

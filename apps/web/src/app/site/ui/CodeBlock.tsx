@@ -39,13 +39,41 @@ export interface CodeBlockProps {
    * already on screen at load are never hidden. Default "none".
    */
   readonly reveal?: "lines" | "none";
+  /**
+   * "inline": one line of code (`npm install …`) with a copy button and no
+   * title bar; long lines wrap instead of scrolling. Ignores `tabs`.
+   */
+  readonly variant?: "window" | "inline";
+}
+
+/** A one-line command with its copy button. */
+function InlineCode({ code, language, label, className }: { code: string; language: CodeLanguage; label: string; className?: string }) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={cx("flex min-w-0 items-center gap-3 bg-[#0D1117] py-2 pl-4 pr-2 text-[#E6EDF3]", INK_BORDER, className)}
+    >
+      <code className="min-w-0 flex-1 break-words font-code text-[13px] leading-6 [overflow-wrap:anywhere]">
+        {highlightCode(code, language)}
+      </code>
+      <CopyButton text={code} label={`Copy ${label}`} className="shrink-0" />
+    </div>
+  );
 }
 
 const LINE_REVEAL_MS_PER_LINE = 40;
 const LINE_REVEAL_MAX_MS = 1200;
 
 /** Dark code window with optional tabs, syntax colouring and a copy button. */
-export function CodeBlock({
+export function CodeBlock(props: CodeBlockProps) {
+  if (props.variant === "inline") {
+    return <InlineCode code={props.code ?? ""} language={props.language ?? "text"} label={props.label} className={props.className} />;
+  }
+  return <CodeWindow {...props} />;
+}
+
+function CodeWindow({
   tabs,
   code = "",
   language = "text",
@@ -189,11 +217,12 @@ export function CodeBlock({
     <div className={cx("flex min-w-0 flex-col bg-[#0D1117] text-[#E6EDF3]", INK_BORDER, HARD_SHADOW, className)}>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 border-b-[3px] border-[#1A1A1A] bg-[#161B22] px-3 py-2 dark:border-[#4B5563] sm:flex-nowrap">
         {list ? (
+          // File tabs wrap onto a second row below 480 px instead of becoming another sideways scroller.
           <div
             ref={tablistRef}
             role="tablist"
             aria-label={label}
-            className="group/tabs relative order-last flex min-w-0 basis-full gap-1 overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto"
+            className="group/tabs relative order-last flex min-w-0 basis-full flex-wrap gap-1 min-[480px]:flex-nowrap min-[480px]:overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto"
           >
             <span
               ref={indicatorRef}
@@ -217,7 +246,7 @@ export function CodeBlock({
                   onClick={() => setActiveId(tab.id)}
                   onKeyDown={(event) => onTabKeyDown(event, index)}
                   className={cx(
-                    "relative inline-flex min-h-9 shrink-0 items-center gap-2 border-2 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] transition-colors",
+                    "relative inline-flex min-h-9 shrink-0 items-center gap-2 border-2 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] transition-colors",
                     selected
                       ? "border-[#FFD60A] bg-[#FFD60A] text-[#1A1A1A] group-data-[indicator=on]/tabs:border-transparent group-data-[indicator=on]/tabs:bg-transparent group-data-[indicator=on]/tabs:delay-100"
                       : "border-transparent text-white/70 hover:border-white/30 hover:text-white",
@@ -241,7 +270,7 @@ export function CodeBlock({
         <CopyButton text={snippet} label={`Copy ${active ? active.label : label} snippet`} className="shrink-0" />
       </div>
       {list && snippetFile ? (
-        <p className="border-b border-white/10 px-4 py-1.5 font-code text-[11px] text-white/50">{snippetFile}</p>
+        <p className="border-b border-white/10 px-4 py-1.5 font-code text-xs text-white/70">{snippetFile}</p>
       ) : null}
       <div
         id={panelId}

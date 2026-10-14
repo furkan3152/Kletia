@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  AMBIGUOUS_VENUE_WORDS,
   ASSETS,
+  DEX_DEPLOYMENTS,
+  EXECUTABLE_PROTOCOLS,
+  RESERVED_CONTRACT_PHRASES,
+  dexContracts,
+  dexDeploymentsFor,
+  protocolDependencies,
+  venueByLabel,
   CHAINS,
   MORPHO_FACTORIES,
   NETWORK_KEYS,
@@ -201,4 +210,169 @@ test("request validation bounds maxSeconds and venue params", () => {
   const call = { kind: "call", network: "base", contract: "acme vault", entry: "deposit", amount: "100" };
   assert.equal(validateIntentRequest({ actions: [call], accounts }).ok, true);
   assert.equal(validateIntentRequest({ actions: [{ ...call, entry: undefined }], accounts }).ok, false);
+});
+
+/* ------------------------------------------------------------- round 6 */
+
+const ROUND6_PROTOCOLS = [
+  "velodrome", "sparklend", "spark-savings", "fluid", "yearn-v3", "lido", "rocket-pool", "etherfi", "raydium", "orca", "meteora", "chainlink", "pyth",
+];
+
+  assert.equal(PROTOCOLS.length, 44);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 42);
+  for (const id of ROUND6_PROTOCOLS) assert.ok(getProtocol(id), id);
+  assert.equal(getProtocol("spark"), null, "no bare spark id: Spark Savings and SparkLend are separate");
+  assert.deepEqual(AMBIGUOUS_VENUE_WORDS.spark, ["spark-savings", "sparklend"]);
+  assert.deepEqual(
+    PROTOCOLS.filter((protocol) => protocol.execution).map((protocol) => [protocol.id, protocol.execution]),
+    [["kletia-router-v2", "console"], ["basenames", "console"], ["x402", "service"], ["arc-native", "console"], ["circle-app-kit", "console"]],
+  );
+  for (const id of ["raydium", "orca", "meteora"]) {
+    assert.deepEqual(getProtocol(id).routedVia, ["jupiter"], id);
+    assert.deepEqual(protocolDependencies(id), [id, "jupiter"], id);
+  }
+  assert.deepEqual(protocolDependencies("jupiter"), ["jupiter"]);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.routedVia).length, 3);
+  for (const id of ["uniswap-v3", "across", "lifi"]) assert.ok(getProtocol(id).networks.length >= 5, id);
+  assert.deepEqual(getProtocol("uniswap-v3").kinds, ["swap"]);
+  assert.deepEqual(getProtocol("across").kinds, ["bridge"]);
+  assert.deepEqual(getProtocol("cctp-v2").kinds, ["bridge"]);
+  for (const id of ["lido", "rocket-pool", "etherfi"]) {
+    assert.deepEqual(getProtocol(id).kinds, ["stake"], id);
+    assert.deepEqual(getProtocol(id).networks, ["ethereum"], id);
+  }
+  for (const id of ["chainlink", "pyth"]) assert.deepEqual(getProtocol(id).capabilities, ["discover"], id);
+  for (const id of ["sparklend", "spark-savings", "fluid", "yearn-v3"]) {
+    assert.ok(protocolExecutesKind(id, "deposit") && protocolExecutesKind(id, "withdraw"), id);
+  }
+  // The Rule Book's executable set follows `capabilities` (narrowing denies by it); data feeds never execute.
+  assert.ok(EXECUTABLE_PROTOCOLS.includes("raydium") && !EXECUTABLE_PROTOCOLS.includes("pyth"));
+});
+
+test("DEX deployments: Uniswap V3 on five networks, Slipstream on Base and OP Mainnet, no classic pools", () => {
+  assert.equal(DEX_DEPLOYMENTS.length, 10);
+  assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "uniswap-v3").map((entry) => entry.network).sort(), ["arbitrum", "base", "ethereum", "optimism", "polygon"]);
+  assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "aerodrome").map((entry) => entry.network), ["base", "base", "base"]);
+  assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "velodrome").map((entry) => entry.network), ["optimism", "optimism"]);
+  assert.ok(DEX_DEPLOYMENTS.every((entry) => entry.dialect !== "solidly-v2"), "no classic pools");
+  assert.equal(new Set(DEX_DEPLOYMENTS.map((entry) => entry.id)).size, DEX_DEPLOYMENTS.length);
+  for (const deployment of DEX_DEPLOYMENTS) {
+    assert.equal(deployment.id.split(":").slice(0, 2).join(":"), `${deployment.network}:${deployment.protocol}`);
+    for (const address of [deployment.factory, deployment.router, deployment.quoter, deployment.wrappedNative]) assert.ok(isEvmAddress(address), `${deployment.id} ${address}`);
+    // The wrapped native is the registry's (WETH, or WPOL on Polygon).
+    const wrapped = ASSETS.find((asset) => asset.network === deployment.network && asset.address?.toLowerCase() === deployment.wrappedNative.toLowerCase());
+    assert.ok(wrapped && wrapped.category === "wrapped", `${deployment.id} wraps ${wrapped?.symbol}`);
+    assert.ok(getProtocol(deployment.protocol).networks.includes(deployment.network));
+    if (deployment.dialect === "uniswap-v3") assert.deepEqual(deployment.feeTiers, [100, 500, 3000, 10000]);
+    else assert.deepEqual(deployment.tickSpacings, [1, 50, 100, 200, 2000]);
+  }
+  assert.equal(dexDeploymentsFor("base", "aerodrome").length, 3);
+  // Every router and quoter is a pinned venue contract (preview rule I4 knows every spender).
+  for (const deployment of DEX_DEPLOYMENTS) {
+    assert.ok(isVenueContract(deployment.protocol, deployment.network, deployment.router, "swap-router"), deployment.id);
+    assert.ok(isVenueContract(deployment.protocol, deployment.network, deployment.quoter, "quoter"), deployment.id);
+    assert.ok(isVenueContract(deployment.protocol, deployment.network, deployment.factory, "pool-factory"), deployment.id);
+  }
+  // Uniswap's shared addresses appear once per (network, role).
+  assert.equal(dexContracts(DEX_DEPLOYMENTS).length, 30);
+});
+
+test("venue contracts: unique labels keyed by Jupiter label; Solana DEX programs pinned", () => {
+  const labelled = VENUE_CONTRACTS.filter((entry) => entry.label !== undefined);
+  assert.equal(new Set(labelled.map((entry) => entry.label)).size, labelled.length, "labels are unique");
+  assert.deepEqual(
+    Object.fromEntries(labelled.map((entry) => [entry.label, entry.protocol])),
+    { Raydium: "raydium", "Raydium CLMM": "raydium", "Raydium CP": "raydium", Whirlpool: "orca", "Meteora DLMM": "meteora", "Meteora DAMM v2": "meteora" },
+  );
+  assert.equal(venueByLabel("Whirlpool")?.address, "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc");
+  assert.equal(venueByLabel("Raydium")?.address, "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", "AMM v4 verified on-chain");
+  assert.equal(venueByLabel("Orca V2"), null);
+  for (const network of ["base", "arbitrum", "ethereum", "optimism", "polygon"]) {
+    assert.equal(venueContracts("across", network, "spoke-pool").length, 1, network);
+    assert.deepEqual(venueContracts("cctp-v2", network, "token-messenger"), ["0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"]);
+  }
+  assert.deepEqual(venueContracts("across", "solana"), [], "Across lists no Solana network yet");
+  assert.deepEqual(venueContracts("pyth", "solana", "receiver"), ["rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ"]);
+});
+
+test("yield venues: new kinds after Morpho; sUSDC is Ethereum's default USDC savings venue", () => {
+  const order = YIELD_VENUES.map((venue) => venue.protocol);
+  const lastMorpho = order.lastIndexOf("morpho");
+  for (const protocol of ["sparklend", "spark-savings", "fluid", "yearn-v3"]) {
+    assert.ok(order.indexOf(protocol) > lastMorpho, `${protocol} after the Morpho block`);
+    assert.ok(order.indexOf(protocol) < order.indexOf("jupiter-lend"), `${protocol} before Jupiter Lend`);
+  }
+  // Existing defaults stay the defaults: the first venue per (network, protocol, asset).
+  assert.equal(yieldVenuesFor("ethereum", "aave-v3")[0].id, "ethereum:aave-v3:usdc");
+  assert.equal(yieldVenuesFor("base", "morpho")[0].id, "base:morpho:steakhouse-prime-usdc");
+  assert.equal(yieldVenuesFor("ethereum", "spark-savings").filter((venue) => venue.asset === "USDC")[0].id, "ethereum:spark-savings:usdc");
+  const susdc = getYieldVenue("ethereum:spark-savings:usdc");
+  assert.equal(susdc.kind, "spark-vault");
+  assert.equal(susdc.generation, "susdc-v1");
+  assert.equal(susdc.receipt.decimals, 18);
+  assert.equal(susdc.psm, "0xA188EEC8F81263234dA3622A406892F3D630f98c");
+  assert.equal(getYieldVenue("ethereum:spark-savings:spusdc").admin, "0x3300f198988e4C9C63F75dF86De36421f06af8c4");
+  assert.equal(getYieldVenue("ethereum:sparklend:usdc").kind, "aave-reserve");
+  assert.equal(getYieldVenue("ethereum:sparklend:usdc").target, "0xC13e21B648A5Ee794902342038FF3aDAB66BE987");
+  for (const venue of YIELD_VENUES.filter((entry) => entry.kind === "fluid-ftoken")) {
+    assert.equal(venue.receipt.address, venue.target);
+    assert.equal(venue.receipt.decimals, findAssetBySymbol(venue.network, venue.asset).decimals);
+    assert.ok(isVenueContract("fluid", venue.network, venue.lendingFactory, "lending-factory"));
+  }
+  assert.equal(YIELD_VENUES.filter((entry) => entry.kind === "fluid-ftoken").length, 8);
+  for (const venue of YIELD_VENUES.filter((entry) => entry.kind === "yearn-vault")) {
+    assert.equal(venue.apiVersion, "3.0.2");
+    assert.ok(venue.registries.length >= 1 && venue.registries.every((registry) => isVenueContract("yearn-v3", "ethereum", registry, "registry")));
+    assert.ok(isVenueContract("yearn-v3", "ethereum", venue.implementation, "vault-original"));
+  }
+  for (const venue of YIELD_VENUES.filter((entry) => ["spark-vault", "fluid-ftoken", "yearn-vault"].includes(entry.kind))) {
+    assert.equal(venue.spender, venue.target, `${venue.id} approves the contract it calls`);
+  }
+  assert.equal(findYieldVenue("ethereum", "usdc-1", "yearn-v3")?.id, "ethereum:yearn-v3:usdc-1");
+});
+
+test("the 2026-10-14 pins are read back on-chain in docs/networks/evidence/protocols-2026-10-14.json", () => {
+  const evidence = JSON.parse(readFileSync(new URL("../../../docs/networks/evidence/protocols-2026-10-14.json", import.meta.url), "utf8"));
+  assert.equal(evidence.summary.failed.length, 0);
+  const verified = new Set(
+    [...evidence.evm, ...evidence.solana, ...evidence.assets]
+      .filter((entry) => entry.verified)
+      .map((entry) => `${entry.network ?? "solana"}:${entry.address.toLowerCase()}`),
+  );
+  const key = (network, address) => `${network}:${address.toLowerCase()}`;
+  const round6 = new Set([...ROUND6_PROTOCOLS, "uniswap-v3", "aerodrome", "across", "cctp-v2"]);
+  for (const row of VENUE_CONTRACTS.filter((entry) => round6.has(entry.protocol))) {
+    assert.ok(verified.has(key(row.network, row.address)), `${row.protocol} ${row.role} ${row.network} ${row.address}`);
+  }
+  for (const venue of YIELD_VENUES.filter((entry) => round6.has(entry.protocol))) {
+    assert.ok(verified.has(key(venue.network, venue.target)) || verified.has(key(venue.network, venue.receipt.address)), venue.id);
+  }
+  for (const symbol of ["wstETH", "rETH", "weETH"]) assert.ok(verified.has(key("ethereum", findAssetBySymbol("ethereum", symbol).address)), symbol);
+  assert.ok(verified.has(key("base", findAssetBySymbol("base", "USDbC").address)));
+});
+
+test("reserved words of the 2026-10-14 venues: brand words anywhere, common words only as a whole alias", async () => {
+  const { reservedContractPhrase, reservedIntegratorName } = await import("../dist/index.js");
+  for (const word of ["velodrome", "raydium", "meteora", "sparklend", "etherfi", "wsteth", "reth", "weeth", "rocketpool", "yearn", "uniswap", "aerodrome"]) {
+    assert.equal(reservedContractPhrase(`acme ${word} vault`), word, word);
+  }
+  for (const phrase of ["fluid", "spark", "orca", "lido", "pyth", "chainlink", "spark savings", "rocket pool", "uniswap v3", "susdc"]) {
+    assert.ok(RESERVED_CONTRACT_PHRASES.includes(phrase), phrase);
+    assert.equal(reservedContractPhrase(phrase), phrase, phrase);
+  }
+  // Common English words stay usable inside an alias.
+  for (const alias of ["fluid vault", "spark pool", "orca fund", "lido helper"]) assert.equal(reservedContractPhrase(alias), null, alias);
+  // Integrator names.
+  assert.equal(reservedIntegratorName("Raydium Pro")?.word, "raydium");
+  assert.equal(reservedIntegratorName("Lido Staking")?.word, "lido");
+  assert.equal(reservedIntegratorName("Pyth Oracle")?.word, "pyth");
+  assert.equal(reservedIntegratorName("Python Tools"), null, "pyth is a whole word");
+  assert.equal(reservedIntegratorName("Yearning Labs"), null, "yearn is a whole word");
+  assert.equal(reservedIntegratorName("Spark Yield")?.word, "spark");
+  assert.equal(reservedIntegratorName("SparkLend Tools")?.word, "sparklend");
+  assert.equal(reservedIntegratorName("Fluid Finance")?.hosts.includes("instadapp.io"), true);
+  assert.equal(reservedIntegratorName("Rocket Pool Fans")?.word, "rocketpool");
+  assert.equal(reservedIntegratorName("ether.fi tools")?.word, "etherfi");
+  assert.equal(reservedIntegratorName("Velodrome Club")?.word, "velodrome");
+  assert.equal(reservedIntegratorName("Chainlink Labs Fan")?.word, "chainlink");
 });

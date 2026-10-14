@@ -101,25 +101,3 @@ export const DELIVERY_HEADERS: readonly { name: string; description: string }[] 
   { name: "Kletia-Webhook-Id", description: "The webhook that matched." },
   { name: "Kletia-Delivery-Attempt", description: "1 for the first attempt, up to 4." },
 ];
-
-export interface TocItem {
-  readonly id: string;
-  readonly label: string;
-  /** Short label for the mobile section bar. */
-  readonly short: string;
-}
-
-export const TOC: readonly TocItem[] = [
-  { id: "quickstart", label: "Quickstart", short: "Start" },
-  { id: "keys", label: "Keys & auth", short: "Keys" },
-  { id: "rulebook", label: "Rule Book", short: "Rule Book" },
-  { id: "contracts", label: "Contracts", short: "Contracts" },
-  { id: "links", label: "Links", short: "Links" },
-  { id: "receipts", label: "Receipts", short: "Receipts" },
-  { id: "explorer", label: "API explorer", short: "Explorer" },
-  { id: "recipes", label: "Recipes", short: "Recipes" },
-  { id: "events", label: "Events & webhooks", short: "Events" },
-  { id: "venues", label: "Venues & auction", short: "Venues" },
-  { id: "errors", label: "Errors", short: "Errors" },
-  { id: "agents", label: "Agents", short: "Agents" },
-];

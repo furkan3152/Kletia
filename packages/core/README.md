@@ -12,14 +12,19 @@ npm install @kletia/core
 | Module | Exports |
 |---|---|
 | Chains | `CHAINS` (Base, Arbitrum One, Ethereum, OP Mainnet, Polygon PoS, Solana, plus Arc / Arbitrum Sepolia / Solana Devnet testnets), `NetworkKey`, `resolveChain`, `explorerTxUrl`, `sameCapitalLane` |
-| Identities | CAIP-10 `formatAccountId` / `parseAccountId` / `sameAccount` (same chain) / `sameAddressAccount` (same address on any chain of the VM), CAIP-19 `formatAssetId` / `parseAssetId`, `isEvmAddress`, `isSolanaAddress`, `isSolanaSignature`, base58 codec |
+| Identities | CAIP-10 `formatAccountId` / `parseAccountId` / `sameAccount` (same chain) / `sameAddressAccount` (same address on any chain of the VM), CAIP-19 `formatAssetId` / `parseAssetId`, `isEvmAddress`, `isSolanaAddress`, `isSolanaSignature`, base58 codec, `keccak256Hex`, `toChecksumAddress`, `evmChecksumState` (`valid`, `uncased` or `invalid` EIP-55) |
 | Amounts | `toBaseUnits`, `fromBaseUnits`, `formatAmount`, `applySlippage` (exact, bigint based) |
-| Registries | `ASSETS` (canonical per-network tokens), `PROTOCOLS` (venues, capabilities and executable `kinds`), `YIELD_VENUES` / `getYieldVenue` / `findYieldVenue` (pinned lending markets and vaults), `VENUE_CONTRACTS` / `venueContracts` (pinned bridge, aggregator and name-service contracts) |
-| Intents | `IntentRequest`, `IntentGraph`, `IntentStep` (with `call` for custom contract steps), `StepExecutionPayload` (with `review`), `TransactionRequest` |
+| Registries | `ASSETS` (canonical per-network tokens; `transferOnly` marks USDbC), `PROTOCOLS` (venues, capabilities, executable `kinds`, `execution` surface for console and service entries, `routedVia`), `protocolDependencies`, `YIELD_VENUES` / `getYieldVenue` / `findYieldVenue` (pinned lending markets and vaults), `DEX_DEPLOYMENTS` / `dexDeploymentsFor` (pinned Uniswap V3 and Slipstream factories, routers and quoters), `VENUE_CONTRACTS` / `venueContracts` / `venueByLabel` (pinned bridge, DEX, staking, aggregator and name-service contracts) |
+| Intents | `IntentRequest` (with `sourceNetwork`: a network key or `"auto"`), `IntentGraph` (`interpretation.departure`, `assumptions`, `thread`), `IntentStep` (with `call` for custom contract steps, `funding`, `gasTopup`, `observedCredit`), `StepExecutionPayload` (with `review`), `TransactionRequest` |
 | Lifecycle | `canTransitionStep`, `readySteps`, `deriveIntentStatus`, `topologicalOrder`, `validateIntentGraph` |
-| Validation | `validateIntentRequest`, `validateSessionCreateRequest`, `validateSessionIntentRequest`, `validateContractTestRequest`, `INTENT_ACTION_KINDS`, `MIN_MAX_SECONDS` / `MAX_MAX_SECONDS` |
+| Validation | `validateIntentRequest`, `validateIntentContext` (the context fields shared with clarify turns), `validateSessionCreateRequest`, `validateSessionIntentRequest`, `validateContractTestRequest`, `INTENT_ACTION_KINDS`, `MIN_MAX_SECONDS` / `MAX_MAX_SECONDS`, `GAS_ON_ARRIVAL_USD` |
+| Journeys | `Journey`, `JourneyStop`, `JourneyLeg`, `JourneyHolding`, `JourneyConsequence`, `JourneyOption`, `VenuePosition`, `VenueCapacity`, `JOURNEY_RULES` (R1-R12), `CONSEQUENCE_SEVERITIES`, `JOURNEY_OPTION_KINDS`, `JOURNEY_LIMITS` (types and constants) |
+| Amount flow | `fundedFlow` (a funded step's share, gas reserve and third-party cap), `parentCreditFromGraph`, `fundingParent`, `scaleOutput`, `scaleFloor` |
+| Clarifying questions | `ClarifyThread` (`kletia.thread/v1`), `IntentTurnRequest` / `IntentTurnResponse`, `validateIntentTurnRequest`, `validateThread`, `classifyMessage`, `parseFollowUp`, `CLARIFY_REASONS`, `PURPOSE_REASONS`, `UNSUGGESTED_REASONS`, `NATIVE_FEE_RESERVE`, `PREVIEW_ACCOUNT_IDS` / `isPreviewAccount`, `THREAD_LIMITS` |
+| Appearance | `KletiaAppearance` (`kletia.appearance/v1`), `APPEARANCE_FONT_STACKS`, `APPEARANCE_DEFAULTS`, `APPEARANCE_LIMITS`, `APPEARANCE_PUBLIC_VARIABLES` (types and constants) |
+| Projects | `ProjectSettingsInput` (`kletia.project/v1`), `ProjectView`, `ProjectProfile`, `PUBLISHABLE_KEY_PATTERN`, `PROJECT_LIMITS` (types and constants) |
 | Custom contracts | `ContractDefinition` (EVM ABI actions or Solana Actions), `validateContractDefinition`, `ContractView`, `ContractReview`, `ContractStepCall`, pins and session types, `CONTRACT_LIMITS`, `FORBIDDEN_SELECTORS` / `FORBIDDEN_NAME_PREFIXES`, `BENEFICIARY_ARG_PATTERN`, `RESERVED_CONTRACT_PHRASES`, `deniedTargetReason`, `classifyAbiFunction`, `functionSelector`, `toChecksumAddress`, `contractDefinitionHash` |
-| Errors | `ERROR_CATALOG` (every API error and step-failure code with status, category, retry rule and remedy), `describeError`, `resolveErrorCode`, `isRetryableError`, `errorDocsUrl`, `errorCatalogRows` |
+| Errors | `ERROR_CATALOG` (every API error and step-failure code with status, category, retry rule and remedy), `FEATURE_ERROR_CODES` (codes per feature), `describeError`, `resolveErrorCode`, `isRetryableError`, `errorDocsUrl`, `errorCatalogRows` |
 | Events | `KletiaEventMap`, `KletiaEvent`, `createEventBus` |
 | Webhooks | `signWebhookPayload`, `verifyWebhookSignature` |
 | Receipts | `verifyReceipt` (offline: JCS profile, SHA-256 digest, Ed25519 over `kletia.receipt.v1:<digest>`, salted path-bound disclosures, inclusion proofs), `buildReceipt`, `buildPlanRecord`, `projectRequest`, `receiptJcs`, `intentRef`, `receiptCommitment`, `receiptKeyId`, `RECEIPT_PROFILES`, `KLETIA_RECEIPT_KEY_PINS` |
@@ -64,6 +69,50 @@ An action names a venue with `params.venue` (id, slug or address);
 `amount: "max"` on a `withdraw` closes the whole position, and
 `constraints.maxSeconds` (default 600) bounds how slow a cross-network venue
 may be.
+
+## Departure, journeys and amount flow
+
+`sourceNetwork` says where the money starts: one network, or `"auto"` (Kletia
+picks a funded network). It is validated like `defaultNetwork` and recorded
+in receipts only when present, so earlier request digests do not change. The
+planner explains its choice in `interpretation.departure` (`chosen`: `text`,
+`request`, `auto` or `inferred`).
+
+A step funded by an earlier step spends its share of what that step delivers:
+
+```ts
+import { fundedFlow, parentCreditFromGraph } from "@kletia/core";
+
+const credit = parentCreditFromGraph(graph, step);           // observed, venue-minimum or quoted
+const flow = credit && fundedFlow(graph, step, credit);       // spends, kept (rest of the share + gas reserve), reserve
+```
+
+Shares round down, a planned gas reserve (`funding.gasReserve`) stays at the
+parent's output stop, and a funded payment to someone else never exceeds the
+planned input plus slippage. `constraints.gasOnArrival` (`{ "base": "0.50" }`,
+USD 0.05 to 5.00 per EVM network) asks a bridge leg to deliver gas too. The
+journey types (`journey.ts`) describe where the money is after each step and
+what follows; the API builds them.
+
+## Clarifying questions
+
+`POST /v1/intents?clarify=true` answers an incomplete sentence with questions
+instead of a refusal. Core holds the shapes and the checks every client
+shares:
+
+```ts
+import { classifyMessage, validateIntentTurnRequest } from "@kletia/core";
+
+validateIntentTurnRequest({ text: "swap SOL to USDC", accounts });   // first turn
+classifyMessage("make it 2", { hasOpenQuestion: false, hasTask: true }); // "edit"
+```
+
+A thread (`kletia.thread/v1`, at most 16 KB, 8 turn labels, 3 undo
+snapshots) keeps slots with their provenance, never the user's words.
+Questions whose reason is in `PURPOSE_REASONS` are for the person: agents
+relay them and never pick an option. `PREVIEW_ACCOUNT_IDS` are keyless demo
+accounts for read-only previews; they are never read and never the recipient
+of an example.
 
 ## Custom contracts
 

@@ -35,7 +35,7 @@ export function PortalTabs<T extends string>({ label, tabs, active, onChange, ch
       <div
         role="tablist"
         aria-label={label}
-        className="flex min-w-0 gap-1 overflow-x-auto border-b-[3px] border-[#1A1A1A] pb-0 [scrollbar-width:thin] dark:border-[#4B5563]"
+        className="flex min-w-0 gap-1 overflow-x-auto border-b-[3px] border-control pb-0 [scrollbar-width:thin]"
       >
         {tabs.map((tab, index) => {
           const selected = tab.id === active;
@@ -56,13 +56,13 @@ export function PortalTabs<T extends string>({ label, tabs, active, onChange, ch
               className={cx(
                 "-mb-[3px] inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-[3px] border-b-0 px-3.5 text-[12px] font-black uppercase tracking-[0.1em] transition-colors",
                 selected
-                  ? "border-[#1A1A1A] bg-[#FFD60A] text-[#1A1A1A] dark:border-[#4B5563]"
-                  : "border-transparent text-[#45464B] hover:text-[#1A1A1A] dark:text-[#A9B6C8] dark:hover:text-white",
+                  ? "border-control bg-[#FFD60A] text-[#1A1A1A]"
+                  : "border-transparent text-muted hover:text-fg",
                 FOCUS_RING,
               )}
             >
               {tab.label}
-              {tab.note ? <span className="font-code text-[10px] font-bold normal-case tracking-normal">{tab.note}</span> : null}
+              {tab.note ? <span className="font-code text-xs font-bold normal-case tracking-normal">{tab.note}</span> : null}
             </button>
           );
         })}

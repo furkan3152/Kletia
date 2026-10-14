@@ -254,6 +254,15 @@ const server = createServer(async (request, response) => {
 
   let path = requestedPath;
   let details = await existingFile(path);
+  if (!details && !extname(url.pathname)) {
+    // A fixed route has its own entry with its title and description (scripts/write-route-pages.mjs).
+    const routePage = safePath(`${url.pathname.replace(/\/+$/u, "")}.html`);
+    const routeDetails = routePage ? await existingFile(routePage) : null;
+    if (routeDetails) {
+      path = routePage;
+      details = routeDetails;
+    }
+  }
   if (!details) {
     const acceptsHtml = (request.headers.accept || "").includes("text/html");
     if (!acceptsHtml && extname(url.pathname)) {

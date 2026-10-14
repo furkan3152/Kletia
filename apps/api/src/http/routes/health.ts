@@ -39,7 +39,7 @@ router.get("/health", (_req, res) => {
   return res.json({
     success: true,
     status: "alive",
-    service: "kletia-omni-engine",
+    service: "kletia-api",
   });
 });
 
@@ -54,7 +54,7 @@ router.get(["/api/health/base", "/api/health/arc", "/api/health/arbitrum"], asyn
   return res.status(check.status === "ok" ? 200 : 503).json({
     success: check.status === "ok",
     status: check.status === "ok" ? "ready" : "unavailable",
-    service: "kletia-omni-engine",
+    service: "kletia-api",
     check,
   });
 });
@@ -71,7 +71,7 @@ router.get("/api/health", async (_req, res) => {
   return res.status(readyCount > 0 ? 200 : 503).json({
     success: readyCount > 0,
     status: fullyReady ? "ready" : readyCount > 0 ? "degraded" : "unavailable",
-    service: "kletia-omni-engine",
+    service: "kletia-api",
     checks,
   });
 });

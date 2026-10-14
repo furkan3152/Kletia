@@ -159,3 +159,8 @@ test("preview accounts come from core and are homed per lane", () => {
   assert.ok(evm.startsWith("eip155:5042002:") && evm.endsWith(PREVIEW_ACCOUNTS.evm.split(":")[2]));
   assert.ok(solana.startsWith("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:"), solana);
 });
+
+test("the desk's view paths are the pre-rendered console views", async () => {
+  const { CONSOLE_VIEW_PATHS } = await import("../../routes/routeTable.ts");
+  assert.deepEqual(Object.values(DESK_VIEW_PATHS).sort(), [...CONSOLE_VIEW_PATHS].sort());
+});

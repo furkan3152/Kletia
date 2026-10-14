@@ -18,7 +18,7 @@ import { WalletBar } from "./WalletBar";
 const copy = DESK_COPY.header;
 
 const NAV_ITEM =
-  "inline-flex min-h-11 items-center px-3 text-xs font-black uppercase tracking-[0.14em] text-fg underline-offset-8 hover:underline focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[current=page]:underline aria-[current=page]:decoration-[3px]";
+  "inline-flex min-h-11 items-center whitespace-nowrap px-3 text-xs font-black uppercase tracking-[0.14em] text-fg underline-offset-8 hover:underline focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] aria-[current=page]:underline aria-[current=page]:decoration-[3px]";
 
 export interface DeskHeaderProps {
   readonly view: DeskView;

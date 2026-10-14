@@ -16,6 +16,7 @@ import { DepartureBoardRows } from "./DepartureBoardRows";
 
 const copy = DESK_COPY.departure;
 const WIDE = "(min-width: 768px)";
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function isWide(): boolean {
   try {
@@ -106,6 +107,23 @@ export function DeparturePicker({
         event.preventDefault();
         event.stopPropagation();
         onCloseRef.current();
+        return;
+      }
+      // The sheet keeps focus inside: Tab wraps from the last control to the first and back
+      // (a modal dialog alone lets it leave for the browser's own controls).
+      if (event.key !== "Tab" || dialog.getAttribute("data-mode") !== "sheet") return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => element.checkVisibility?.() ?? true);
+      // Radios of one group take a single tab stop: only the checked one (or the first) counts.
+      const stops = focusable.filter((element) => !(element instanceof HTMLInputElement && element.type === "radio" && !element.checked));
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
       }
     };
     // Light dismiss for the popover: a pointer down outside the board and the chip.

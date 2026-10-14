@@ -64,7 +64,8 @@ export function TaskCard({ task, newest }: TaskCardProps) {
           </span>
         </button>
       ) : null}
-      <div hidden={collapsed} className="flex min-w-0 flex-col gap-4">
+      {/* Hidden, never unmounted: `hidden` alone would lose to the flex display class. */}
+      <div hidden={collapsed} className={collapsed ? "hidden" : "flex min-w-0 flex-col gap-4"}>
         {question ? (
           <Question
             taskId={task.id}

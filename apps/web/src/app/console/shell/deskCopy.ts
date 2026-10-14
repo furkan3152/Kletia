@@ -17,6 +17,9 @@ const COPY = {
   },
   wallets: {
     group: "Your wallets",
+    /** Visible pill text from 640 px; the accessible name stays "Connect EVM wallet", which contains it. */
+    connectEvmShort: "Connect EVM",
+    connectSolanaShort: "Connect Solana",
   },
   boot: {
     loading: "Loading Kletia",

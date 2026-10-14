@@ -88,6 +88,11 @@ function addressOf(account: string): string {
   return parsed.chain.namespace === "eip155" ? parsed.address.toLowerCase() : parsed.address;
 }
 
+/** A bare address as compared here (EVM lower-case). */
+function plainAddress(address: string): string {
+  return /^0x[0-9a-fA-F]{40}$/u.test(address) ? address.toLowerCase() : address;
+}
+
 function destinationOf(step: IntentStep): NetworkKey {
   return step.settlement?.kind === "cross-network" ? step.settlement.destinationNetwork ?? step.network : step.network;
 }
@@ -259,7 +264,7 @@ function feesFor(graph: IntentGraph, preview: IntentPreview | null, wallet: Wall
       const output = step.minimumOutput ?? step.expectedOutput;
       const mint = output ? parseAssetId(output.asset) : null;
       const tokenFact = mint && !mint.isNative && step.kind !== "transfer" && step.kind !== "bridge"
-        ? wallet.tokenAccounts.find((entry) => entry.network === step.network && entry.mint === mint.reference && entry.owner === owner)
+        ? wallet.tokenAccounts.find((entry) => entry.network === step.network && entry.mint === mint.reference && plainAddress(entry.owner) === owner)
         : undefined;
       const estimate = estimateStepFee(step, {
         tokenAccountRentLamports: rent.tokenAccount,
@@ -375,7 +380,7 @@ export async function readJourneyFacts(graph: IntentGraph, preview: IntentPrevie
   const native: Record<string, { amount: string; at: string } | null> = {};
   if (reads === "live") {
     for (const entry of balanceKeys) {
-      const fact = wallet?.balances.find((candidate) => candidate.network === entry.network && addressOf(candidate.owner) === entry.owner && candidate.asset === nativeAssetId(entry.network));
+      const fact = wallet?.balances.find((candidate) => candidate.network === entry.network && plainAddress(candidate.owner) === entry.owner && candidate.asset === nativeAssetId(entry.network));
       native[`${entry.network}:${entry.owner}`] = fact?.status === "known" && fact.amount !== undefined ? { amount: fact.amount, at } : null;
     }
   }

@@ -10,12 +10,13 @@
  * and media type guards -> JSON body (64 KB) -> authentication (records a
  * rejected key without responding) -> usage counter (keyed requests, on
  * finish) -> tier rate limit (a rejected key counts against the IP) ->
- * reject failed credentials -> routes (per route: key requirement, then
+ * reject failed credentials -> publishable keys: route allowlist, per-IP
+ * budget, project origin rule -> routes (per route: key requirement, then
  * Idempotency-Key) -> 404 -> errors.
  */
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response, type Router } from "express";
 import type { RateLimitRequestHandler } from "express-rate-limit";
-import { parseAccountId } from "@kletia/core";
+import { parseAccountId, PROJECT_LIMITS } from "@kletia/core";
 import {
   cancelIntent,
   createIntentDetailed,
@@ -33,7 +34,7 @@ import {
   submitStep,
   type SettlementPollerOptions,
 } from "../index.js";
-import { authenticate, enforceAuthentication, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
+import { apiKeyStore, authenticate, enforceAuthentication, keyKindOf, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
 import { validateContractTestRequest } from "@kletia/core";
 import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
 import { clarifyRequested, deleteThread, getThread, handleIntentTurn, listThreads, mutatesThread, screenClarifySecrets } from "./clarify.js";
@@ -80,6 +81,19 @@ import { readPlatformHealth } from "./health.js";
 import { idempotencyUnsupported, idempotent, startIdempotencyPruner } from "./idempotency.js";
 import { journeyReadsQuery, readJourney, stopWithJourney } from "./journey.js";
 import { issueKey, keyIdParam, listProjectKeys, parseRotateRequest, revokeKey, rotateKey } from "./keys.js";
+import {
+  createFlowSession,
+  createPublishableGuard,
+  createPublishableKey,
+  deleteProjectLogo,
+  getProject,
+  installPublishableContractGuard,
+  patchProject,
+  publishableProfile,
+  putProjectLogo,
+  serveProjectLogo,
+  verifyProjectDomain,
+} from "./projects.js";
 import { contractTestLimiter, contractWriteLimiter, createKeyIssuanceLimiter, createTierLimiter, takePortfolioReads } from "./limits.js";
 import { mcpOriginGuard } from "./mcp/origin.js";
 import { serveMcp } from "./mcp/server.js";
@@ -115,46 +129,53 @@ export interface PlatformRoute {
   readonly path: string;
   /** `operator`: an operator API key (developer keys are refused). */
   readonly auth: "public" | "key" | "operator";
+  /**
+   * Open to publishable keys: the public tier's operations, owned intents,
+   * flow sessions and the project profile. Every other route answers 403
+   * PUBLISHABLE_KEY_FORBIDDEN to a publishable key.
+   */
+  readonly publishable?: true;
 }
 
 /** Every endpoint the router serves (also used to keep the OpenAPI document honest). */
 export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
-  { method: "get", path: "/health", auth: "public" },
-  { method: "get", path: "/networks", auth: "public" },
-  { method: "get", path: "/protocols", auth: "public" },
-  { method: "get", path: "/assets", auth: "public" },
-  { method: "get", path: "/venues", auth: "public" },
-  { method: "post", path: "/quotes", auth: "public" },
-  { method: "get", path: "/portfolio", auth: "public" },
-  { method: "get", path: "/portfolio/:accountId", auth: "public" },
-  { method: "post", path: "/intents", auth: "public" },
+  { method: "get", path: "/health", auth: "public", publishable: true },
+  { method: "get", path: "/networks", auth: "public", publishable: true },
+  { method: "get", path: "/protocols", auth: "public", publishable: true },
+  { method: "get", path: "/assets", auth: "public", publishable: true },
+  { method: "get", path: "/venues", auth: "public", publishable: true },
+  { method: "post", path: "/quotes", auth: "public", publishable: true },
+  { method: "get", path: "/portfolio", auth: "public", publishable: true },
+  { method: "get", path: "/portfolio/:accountId", auth: "public", publishable: true },
+  { method: "post", path: "/intents", auth: "public", publishable: true },
+  // ?owner=key_…: a key of the caller's subtree (agent or publishable keys).
   { method: "get", path: "/intents", auth: "key" },
-  { method: "get", path: "/intents/:id", auth: "public" },
-  { method: "post", path: "/intents/:id/steps/:stepId/prepare", auth: "public" },
-  { method: "post", path: "/intents/:id/steps/:stepId/submit", auth: "public" },
-  { method: "post", path: "/intents/:id/refresh", auth: "public" },
-  { method: "post", path: "/intents/:id/cancel", auth: "public" },
-  { method: "get", path: "/intents/:id/events", auth: "public" },
+  { method: "get", path: "/intents/:id", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/steps/:stepId/prepare", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/steps/:stepId/submit", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/refresh", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/cancel", auth: "public", publishable: true },
+  { method: "get", path: "/intents/:id/events", auth: "public", publishable: true },
   // Journey: the itinerary of a stored intent, and ending it at its current stop.
-  { method: "get", path: "/intents/:id/journey", auth: "public" },
-  { method: "post", path: "/intents/:id/stop", auth: "public" },
-  { method: "post", path: "/intents/:id/preview", auth: "public" },
-  { method: "get", path: "/intents/:id/preview", auth: "public" },
-  { method: "get", path: "/intents/:id/receipt", auth: "public" },
-  { method: "get", path: "/intents/:id/receipts", auth: "public" },
-  { method: "post", path: "/intents/:id/receipt/shares", auth: "public" },
-  { method: "get", path: "/intents/:id/receipt/shares", auth: "public" },
-  { method: "delete", path: "/intents/:id/receipt/shares/:shareId", auth: "public" },
-  { method: "delete", path: "/intents/:id/receipt/disclosures", auth: "public" },
+  { method: "get", path: "/intents/:id/journey", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/stop", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/preview", auth: "public", publishable: true },
+  { method: "get", path: "/intents/:id/preview", auth: "public", publishable: true },
+  { method: "get", path: "/intents/:id/receipt", auth: "public", publishable: true },
+  { method: "get", path: "/intents/:id/receipts", auth: "public", publishable: true },
+  { method: "post", path: "/intents/:id/receipt/shares", auth: "public", publishable: true },
+  { method: "get", path: "/intents/:id/receipt/shares", auth: "public", publishable: true },
+  { method: "delete", path: "/intents/:id/receipt/shares/:shareId", auth: "public", publishable: true },
+  { method: "delete", path: "/intents/:id/receipt/disclosures", auth: "public", publishable: true },
   // Before /receipts/:receiptId, which would otherwise capture "keys" and "log".
-  { method: "get", path: "/receipts/keys", auth: "public" },
-  { method: "get", path: "/receipts/log", auth: "public" },
-  { method: "get", path: "/receipts/log/inclusion", auth: "public" },
-  { method: "get", path: "/receipts/log/:seq", auth: "public" },
+  { method: "get", path: "/receipts/keys", auth: "public", publishable: true },
+  { method: "get", path: "/receipts/log", auth: "public", publishable: true },
+  { method: "get", path: "/receipts/log/inclusion", auth: "public", publishable: true },
+  { method: "get", path: "/receipts/log/:seq", auth: "public", publishable: true },
   { method: "post", path: "/receipts/log/:seq/anchor", auth: "operator" },
-  { method: "get", path: "/receipts/:receiptId", auth: "public" },
-  { method: "get", path: "/receipts/:receiptId/status", auth: "public" },
-  { method: "get", path: "/receipts/:receiptId/shares/:shareId", auth: "public" },
+  { method: "get", path: "/receipts/:receiptId", auth: "public", publishable: true },
+  { method: "get", path: "/receipts/:receiptId/status", auth: "public", publishable: true },
+  { method: "get", path: "/receipts/:receiptId/shares/:shareId", auth: "public", publishable: true },
   { method: "post", path: "/webhooks", auth: "key" },
   { method: "get", path: "/webhooks", auth: "key" },
   { method: "delete", path: "/webhooks/:id", auth: "key" },
@@ -178,35 +199,35 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "put", path: "/projects/current/policy", auth: "key" },
   { method: "delete", path: "/projects/current/policy", auth: "key" },
   { method: "delete", path: "/projects/current/policy/pending", auth: "key" },
-  { method: "post", path: "/policy/validate", auth: "public" },
+  { method: "post", path: "/policy/validate", auth: "public", publishable: true },
   { method: "post", path: "/policy/evaluate", auth: "key" },
   { method: "get", path: "/policy/decisions", auth: "key" },
   { method: "get", path: "/policy/decisions/:id", auth: "key" },
   { method: "get", path: "/policy/spend", auth: "key" },
   { method: "get", path: "/policy/approvals", auth: "key" },
   // The id is the capability; deciding takes a project key or a listed wallet's signature.
-  { method: "get", path: "/policy/approvals/:id", auth: "public" },
+  { method: "get", path: "/policy/approvals/:id", auth: "public", publishable: true },
   { method: "post", path: "/policy/approvals/:id/approve", auth: "public" },
   { method: "post", path: "/policy/approvals/:id/reject", auth: "public" },
   { method: "get", path: "/usage", auth: "key" },
   // Intent links: CRUD with the publisher key; visitors quote and create intents publicly.
   { method: "post", path: "/links", auth: "key" },
   { method: "get", path: "/links", auth: "key" },
-  { method: "get", path: "/links/:id", auth: "public" },
+  { method: "get", path: "/links/:id", auth: "public", publishable: true },
   { method: "patch", path: "/links/:id", auth: "key" },
   { method: "delete", path: "/links/:id", auth: "key" },
-  { method: "post", path: "/links/:id/quote", auth: "public" },
-  { method: "post", path: "/links/:id/intents", auth: "public" },
+  { method: "post", path: "/links/:id/quote", auth: "public", publishable: true },
+  { method: "post", path: "/links/:id/intents", auth: "public", publishable: true },
   { method: "get", path: "/links/:id/stats", auth: "key" },
-  { method: "get", path: "/links/:id/card.png", auth: "public" },
-  { method: "get", path: "/links/:id/page", auth: "public" },
-  { method: "post", path: "/links/:id/report", auth: "public" },
+  { method: "get", path: "/links/:id/card.png", auth: "public", publishable: true },
+  { method: "get", path: "/links/:id/page", auth: "public", publishable: true },
+  { method: "post", path: "/links/:id/report", auth: "public", publishable: true },
   { method: "post", path: "/links/:id/suspend", auth: "operator" },
   { method: "post", path: "/links/:id/blink-approval", auth: "operator" },
   // Solana Actions; actions.json is served by the web origin.
-  { method: "get", path: "/blinks/:id", auth: "public" },
-  { method: "post", path: "/blinks/:id", auth: "public" },
-  { method: "post", path: "/blinks/:id/next", auth: "public" },
+  { method: "get", path: "/blinks/:id", auth: "public", publishable: true },
+  { method: "post", path: "/blinks/:id", auth: "public", publishable: true },
+  { method: "post", path: "/blinks/:id/next", auth: "public", publishable: true },
   { method: "post", path: "/contracts", auth: "key" },
   { method: "get", path: "/contracts", auth: "key" },
   // Before /contracts/:id, which would otherwise capture "inspect".
@@ -217,17 +238,27 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/contracts/:id/test", auth: "key" },
   { method: "post", path: "/contracts/:id/reverify", auth: "key" },
   { method: "post", path: "/contracts/:id/suspend", auth: "operator" },
-  { method: "post", path: "/sessions", auth: "key" },
-  { method: "get", path: "/sessions/:id", auth: "public" },
-  { method: "post", path: "/sessions/:id/intents", auth: "public" },
+  // A publishable key sends only { flow, hostOrigin } (projects.ts).
+  { method: "post", path: "/sessions", auth: "key", publishable: true },
+  { method: "get", path: "/sessions/:id", auth: "public", publishable: true },
+  { method: "post", path: "/sessions/:id/intents", auth: "public", publishable: true },
   // Kletia-held clarify threads: the key's own, read and deleted by id.
   { method: "get", path: "/threads", auth: "key" },
   { method: "get", path: "/threads/:id", auth: "key" },
   { method: "delete", path: "/threads/:id", auth: "key" },
-  { method: "get", path: "/errors", auth: "public" },
+  // Projects: settings, domain proof, publishable keys, logo, the publishable profile.
+  { method: "get", path: "/projects/current", auth: "key" },
+  { method: "patch", path: "/projects/current", auth: "key" },
+  { method: "post", path: "/projects/current/domain/verify", auth: "key" },
+  { method: "post", path: "/projects/current/publishable-keys", auth: "key" },
+  { method: "put", path: "/projects/current/logo", auth: "key" },
+  { method: "delete", path: "/projects/current/logo", auth: "key" },
+  { method: "get", path: "/projects/:projectId/logo/:file", auth: "public", publishable: true },
+  { method: "get", path: "/publishable/profile", auth: "key", publishable: true },
+  { method: "get", path: "/errors", auth: "public", publishable: true },
   { method: "post", path: "/mcp", auth: "public" },
-  { method: "get", path: "/status/badge", auth: "public" },
-  { method: "get", path: "/openapi.json", auth: "public" },
+  { method: "get", path: "/status/badge", auth: "public", publishable: true },
+  { method: "get", path: "/openapi.json", auth: "public", publishable: true },
 ] satisfies PlatformRoute[]);
 
 export interface PlatformRouterOptions {
@@ -256,6 +287,15 @@ function preParsedBodyBytes(req: Request): number {
   }
 }
 
+/** PUT /v1/projects/current/logo takes raw PNG or WebP bytes (projects/logo.ts checks them). */
+const LOGO_UPLOAD_PATH = /^\/projects\/current\/logo\/?$/iu;
+
+function isLogoUpload(req: Request): boolean {
+  return req.method === "PUT" && LOGO_UPLOAD_PATH.test(req.path) && typeof req.is(["image/png", "image/webp"]) === "string";
+}
+
+const logoBody = express.raw({ type: ["image/png", "image/webp"], limit: PROJECT_LIMITS.logoBytes });
+
 const bodyGuards: RequestHandler = (req, res, next) => {
   const length = Number(req.get("content-length") ?? "0");
   if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
@@ -269,7 +309,7 @@ const bodyGuards: RequestHandler = (req, res, next) => {
   const hasBody = req.get("transfer-encoding") !== undefined || (Number.isFinite(length) && length > 0);
   if (hasBody && (req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE")) {
     // `false` means a body is present with another media type (or none declared).
-    if (req.is(["application/json", "application/*+json"]) === false) {
+    if (req.is(["application/json", "application/*+json"]) === false && !isLogoUpload(req)) {
       sendError(req, res, new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "Send request bodies as application/json."));
       return;
     }
@@ -346,6 +386,24 @@ function webhookIdParam(req: Request): string {
   if (!WEBHOOK_ID_PATTERN.test(id)) {
     throw invalidRequest("Webhook ids look like wh_ followed by 24 hex characters.", [{ path: "id", message: "Invalid webhook id." }]);
   }
+  return id;
+}
+
+/**
+ * `GET /v1/intents?owner=key_…`: the key whose intents the caller may list:
+ * itself, or an agent or publishable key below it (project keys: any such key
+ * of their project; agent keys: their descendants). Anything else is 404
+ * KEY_NOT_FOUND (never revealing foreign keys).
+ */
+async function subtreeOwner(req: Request, owner: string): Promise<string> {
+  const id = keyIdParam(owner);
+  const auth = authOf(req);
+  const caller = keyId(req);
+  if (id === caller) return id;
+  const record = auth.projectId ? await apiKeyStore().findById(id) : null;
+  const below = record !== null && record.projectId === auth.projectId && keyKindOf(record) !== "project"
+    && (auth.keyKind !== "agent" || (record.lineage ?? []).includes(caller));
+  if (!below) throw new HttpError(404, "KEY_NOT_FOUND", "No agent or publishable key with this id in your subtree.");
   return id;
 }
 
@@ -550,7 +608,62 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       forbidAgent("sessions"),
       idempotent({ route: "POST /sessions" }),
       handle(async (req, res) => {
-        sendJson(res, 201, { session: await createSession(authOf(req), req.body) });
+        const auth = authOf(req);
+        // Publishable keys start single-use sessions from the project's stored flows only.
+        const session = auth.keyKind === "publishable" ? await createFlowSession(auth, req.body) : await createSession(auth, req.body);
+        sendJson(res, 201, { session });
+      }),
+    ],
+    "get /projects/current": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { project: await getProject(authOf(req)) });
+      }),
+    ],
+    "patch /projects/current": [
+      requireApiKey,
+      handle(async (req, res) => {
+        const project = await patchProject(authOf(req), req.get("if-match"), req.body);
+        res.setHeader("ETag", `"${project.hash}"`);
+        sendJson(res, 200, { project });
+      }),
+    ],
+    "post /projects/current/domain/verify": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { project: await verifyProjectDomain(authOf(req)) });
+      }),
+    ],
+    "post /projects/current/publishable-keys": [
+      requireApiKey,
+      idempotent({ route: "POST /projects/current/publishable-keys", secret: true }),
+      handle(async (req, res) => {
+        sendJson(res, 201, { key: await createPublishableKey(authOf(req), req.body) });
+      }),
+    ],
+    "put /projects/current/logo": [
+      requireApiKey,
+      logoBody,
+      handle(async (req, res) => {
+        sendJson(res, 200, { project: await putProjectLogo(authOf(req), req.body, req.get("content-type")) });
+      }),
+    ],
+    "delete /projects/current/logo": [
+      requireApiKey,
+      handle(async (req, res) => {
+        await deleteProjectLogo(authOf(req));
+        res.status(204).end();
+      }),
+    ],
+    "get /projects/:projectId/logo/:file": [
+      handle(async (req, res) => {
+        await serveProjectLogo(res, pathParam(req, "projectId"), pathParam(req, "file"));
+      }),
+    ],
+    "get /publishable/profile": [
+      requireApiKey,
+      handle(async (req, res) => {
+        sendJson(res, 200, { profile: await publishableProfile(authOf(req)) });
       }),
     ],
     "get /sessions/:id": [
@@ -612,8 +725,11 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         const withJourney = booleanQuery(req, "journey");
         const journeyReads = journeyReadsQuery(req, "journeyReads");
         const owner = authOf(req).keyId;
+        // Publishable-owned intents count in the publishable key's own spend windows (integrator 4.8).
+        const browserOwned = authOf(req).keyKind === "publishable";
         const { intent, replayed, preview, journey } = await createIntentDetailed(req.body, {
           ...(owner ? { ownerKeyId: owner } : {}),
+          ...(browserOwned ? { exposureScope: "owner" as const } : {}),
           dryRun,
           ...(withPreview ? { preview: true } : {}),
           ...(withJourney ? { journey: true, ...(journeyReads ? { journeyReads } : {}) } : {}),
@@ -652,7 +768,8 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       requireApiKey,
       handle(async (req, res) => {
         const limit = integerQuery(req, "limit", 20, 1, 100);
-        sendJson(res, 200, { intents: await listIntents(keyId(req), limit) });
+        const owner = queryParam(req, "owner", 40);
+        sendJson(res, 200, { intents: await listIntents(owner === undefined || owner === "" ? keyId(req) : await subtreeOwner(req, owner), limit) });
       }),
     ],
     "get /intents/:id": [
@@ -810,6 +927,8 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   installNameResolvers();
   // The engine resolves integrator contract registrations through this directory (idempotent).
   installContractDirectory();
+  // Publishable keys never resolve registrations themselves (flow sessions use the flow's saver).
+  installPublishableContractGuard();
   // Previews persist in Postgres when a database is configured; receipt events are buffered for SSE replay.
   installPreviewStore();
   startReceiptEventBuffer();
@@ -832,6 +951,8 @@ export function createPlatformRouter(options: PlatformRouterOptions = {}): Route
   const tierLimiter = createTierLimiter();
   router.use(tierLimiter);
   router.use(enforceAuthentication);
+  // Publishable keys: only the routes marked `publishable`, the per-IP budget and the project's origins.
+  router.use(createPublishableGuard(PLATFORM_ROUTES.filter((route) => route.publishable === true)));
 
   const table = handlers(options, tierLimiter);
   const byPath = new Map<string, PlatformRoute[]>();

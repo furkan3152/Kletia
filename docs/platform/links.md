@@ -45,7 +45,7 @@ Idempotency-Key: 6c0f…
 | Field | Rules |
 |---|---|
 | `title`, `description` | 3 to 80 and up to 280 printable characters. |
-| `publisher` | `name` (2 to 40 characters) and `website` (https; required on the production lane). Reserved names (protocols, Kletia) need a verified domain. |
+| `publisher` | `name` (2 to 40 characters) and `website` (https; required on the production lane). Reserved names (protocols, Kletia) need a verified domain. A link that calls a custom contract (`call`, `action`) must name the registration's integrator as publisher: the same `name` (case-insensitive) and the same `website` host as the registration's `integrator` (`422 LINK_PUBLISHER_MISMATCH` otherwise), so visitors see who stands behind the contract. |
 | `destination.actions` | 1 to 6 structured actions (`transfer`, `swap`, `bridge`, `stake`, `deposit`, `call`, `action`), fixed by the publisher. The first action's amount is fixed, or `$amount` (the visitor's amount). Recipient names (ENS, Basenames, SNS) are resolved and **pinned** at creation; custom contracts are pinned at their active revision. |
 | `funding.networks`, `funding.assets` | Where the visitor may start (up to 9 networks, 6 registry symbols). Every combination must reach the destination, or creation fails with `422 LINK_SOURCE_NOT_ALLOWED`. |
 | `funding.amount` | `{ "mode": "input", "bounds": { "USDC": { "min": "10", "max": "500", "default": "100" } } }`: the visitor picks the amount; `{ "mode": "deliver" }`: the recipient receives at least the destination's fixed amount and Kletia sizes the input (up to 3 quotes, within 50 bps of the target). |
@@ -77,6 +77,12 @@ custom contract is `pending` for 15 minutes
 "pay the attacker" link without the publisher's webhook hearing about it
 first. Visitors get `409 LINK_PENDING` with `Retry-After` meanwhile. Links
 that only move money between the visitor's own accounts activate at once.
+
+Every intent created through a link counts in the publishing key's own Rule
+Book spend windows, under the smallest caps of its chain ([exposure
+scope](policies.md#exposure-scope)): visitors can never use up the daily caps
+of the project or of other keys, and a cap on the publishing key bounds the
+link's total volume.
 
 ### Publisher verification
 

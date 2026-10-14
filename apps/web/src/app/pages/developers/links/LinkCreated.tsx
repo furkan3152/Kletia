@@ -2,7 +2,7 @@ import type { LinkOwnerView } from "@kletia/core";
 import { ArrowUpRight, Plus } from "lucide-react";
 
 import { PLATFORM_ORIGIN } from "../../../../shared/platform/kletiaClient";
-import { Button } from "../../../site/ui/Button";
+import { Button, ButtonLink } from "../../../site/ui/Button";
 import { CodeBlock } from "../../../site/ui/CodeBlock";
 import { CopyButton } from "../../../site/ui/CopyButton";
 import { cx, FOCUS_RING, INK_BORDER_THIN, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
@@ -25,7 +25,7 @@ export function LinkShare({ link }: { readonly link: LinkOwnerView }) {
           <div className="flex shrink-0 gap-2">
             <CopyButton text={link.urls.page} label="Copy the link" />
             {page ? (
-              <a href={page} target="_blank" rel="noopener noreferrer" className={cx("inline-flex min-h-9 items-center gap-1 border-2 border-white/25 px-2.5 text-[10px] font-black uppercase tracking-[0.14em] text-white hover:border-[#FFD60A] hover:text-[#FFD60A]", FOCUS_RING)}>
+              <a href={page} target="_blank" rel="noopener noreferrer" className={cx("inline-flex min-h-9 items-center gap-1 border-2 border-white/25 px-2.5 text-[12px] font-black uppercase tracking-[0.14em] text-white hover:border-[#FFD60A] hover:text-[#FFD60A]", FOCUS_RING)}>
                 Open
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="sr-only"> (opens in a new tab)</span>
@@ -64,7 +64,7 @@ export function LinkCreated({ link, onAnother }: { readonly link: LinkOwnerView;
   const website = httpsUrl(link.publisher.website);
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, link.status === "pending" ? "bg-[#FFF3B0] text-[#1A1A1A]" : "bg-[#E9FFF5] dark:bg-[#0E2A20]")}>
+      <div role="status" className={cx("flex flex-col gap-2 p-4", INK_BORDER_THIN, link.status === "pending" ? "bg-info-bg text-fg" : "bg-success-bg text-fg")}>
         <p className="font-display text-xl font-bold">
           Published <code className="font-code text-base">{link.id}</code>.
         </p>
@@ -84,10 +84,13 @@ export function LinkCreated({ link, onAnother }: { readonly link: LinkOwnerView;
           <CodeBlock code={wellKnownSnippet([], [link.id], [link.ownerKeyId])} language="json" label="Domain verification file" filename="kletia.json" />
         </div>
       ) : null}
-      <Button variant="secondary" className="self-start" onClick={onAnother}>
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        Make another link
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <ButtonLink to={`/developers/links/${link.id}`}>Open its page</ButtonLink>
+        <Button variant="secondary" onClick={onAnother}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Make another link
+        </Button>
+      </div>
     </div>
   );
 }

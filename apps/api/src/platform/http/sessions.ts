@@ -25,6 +25,14 @@
  * expire before a registration activates is refused (422
  * SESSION_EXPIRES_BEFORE_ACTIVATION) instead of being created dead.
  *
+ * Flow sessions: a publishable key sends only `{ flow, hostOrigin }`
+ * (projects.ts) and gets a single-use 600 s session from the project's
+ * stored flow, owned by the publishable key; its `contractAuthorityKeyId`
+ * (the key that saved the flow) is the key whose registrations the
+ * session's call / action steps resolve against, at creation, at plan and
+ * at prepare. Every session intent counts in its owner's own Rule Book
+ * spend windows (`exposureScope: "owner"`).
+ *
  * A leaked session id lets someone else run the same fixed actions with their
  * own funds and wallet, nothing more. Storage: memory (50,000 sessions) or
  * Postgres `kletia_sessions`.
@@ -46,11 +54,12 @@ import {
   type NetworkKey,
   type SessionActionView,
   type SessionAmountBounds,
+  type SessionCreateRequest,
   type SessionView,
   type SessionWarning,
 } from "@kletia/core";
 import { PlatformError, isPlatformError } from "../errors.js";
-import { createIntentDetailed } from "../index.js";
+import { contractDirectory, createIntentDetailed } from "../index.js";
 import { isKeyRevoked } from "./auth.js";
 import { contractsEnabled } from "./contractChecks.js";
 import { contractNow, createContractDirectory } from "./contracts.js";
@@ -83,6 +92,8 @@ export interface SessionTemplate {
   readonly metadata?: Readonly<Record<string, string>>;
   readonly clientReference?: string;
   readonly integrator: SessionIntegrator;
+  /** The key whose registrations the template's contract steps use, when not the owner (flow sessions). Never shown. */
+  readonly contractAuthorityKeyId?: string;
 }
 
 export interface SessionRecord {
@@ -464,33 +475,42 @@ function sessionView(record: SessionRecord, now: number, withEmbed = false, warn
   };
 }
 
-/** POST /v1/sessions. */
-export async function createSession(auth: AuthContext, body: unknown): Promise<SessionView> {
-  if (!auth.keyId) throw new HttpError(401, "API_KEY_REQUIRED", "Creating sessions requires an API key.");
-  const ownerKeyId = auth.keyId;
-  const validated = validateSessionCreateRequest(body);
-  if (!validated.ok) throw invalidRequest("The session request is invalid.", validated.issues);
-  const request = validated.value;
-  if (request.metadata && Object.keys(request.metadata).filter((key) => key !== SESSION_METADATA_KEY).length >= MAX_METADATA_ENTRIES) {
-    throw invalidRequest(`metadata holds at most ${MAX_METADATA_ENTRIES - 1} entries in a session (Kletia adds ${SESSION_METADATA_KEY}).`, [
-      { path: "metadata", message: `At most ${MAX_METADATA_ENTRIES - 1} entries.` },
-    ]);
-  }
+/** The template of a session (or a stored project flow) after its registrations were resolved and it was dry-run. */
+export interface PreparedTemplate {
+  readonly actions: readonly IntentActionSpec[];
+  readonly labels: readonly string[];
+  readonly amount?: SessionTemplate["amount"];
+  /** The first registration's integrator, null without contract steps. */
+  readonly integrator: SessionIntegrator | null;
+  readonly warnings: readonly SessionWarning[];
+}
 
-  // Contract actions: the session owner must be able to use each registration and entry. Aliases are
-  // replaced by the registration id, so a later alias change can never redirect the session.
+/**
+ * Resolves and checks a session template: contract actions must be usable by
+ * `contractKeyId` (default: the owner), aliases become registration ids (a
+ * later alias change can never redirect the session), amount bounds fit the
+ * spent asset, and the template is planned once as a dry run owned by
+ * `ownerKeyId` (template errors refuse it). Shared by sessions and the
+ * project flows (projects.ts).
+ */
+export async function prepareSessionTemplate(
+  request: Pick<SessionCreateRequest, "actions" | "amount" | "constraints">,
+  keys: { readonly ownerKeyId: string; readonly contractKeyId?: string },
+  now: number,
+): Promise<PreparedTemplate> {
+  const contractKeyId = keys.contractKeyId ?? keys.ownerKeyId;
   const actions: IntentActionSpec[] = [...request.actions];
   const labels: string[] = request.actions.map(actionLabel);
   const contractInputs: ({ symbol: string; decimals: number } | null)[] = request.actions.map(() => null);
   let integrator: SessionIntegrator | null = null;
   const warnings: SessionWarning[] = [];
-  const now = contractNow();
   if (request.actions.some((action) => CONTRACT_ACTION_KINDS.includes(action.kind))) {
     if (!contractsEnabled()) throw new PlatformError("CONTRACTS_DISABLED", "Custom contracts are disabled on this deployment.", 503);
-    const directory = createContractDirectory();
+    // The directory the engine plans with (the router installs it, wrapped so publishable keys resolve nothing).
+    const directory = contractDirectory() ?? createContractDirectory();
     for (const [index, action] of request.actions.entries()) {
       if (!CONTRACT_ACTION_KINDS.includes(action.kind) || !action.contract || !action.entry) continue;
-      const registration = await directory.resolve(ownerKeyId, action.contract, action.network);
+      const registration = await directory.resolve(contractKeyId, action.contract, action.network);
       if (!registration || registration.definition.network !== action.network) {
         throw new PlatformError("CONTRACT_UNKNOWN", `Unknown contract "${action.contract.slice(0, 64)}" for this API key on ${action.network}.`, 422, [
           { path: `actions[${index}].contract`, message: "Unknown contract." },
@@ -510,8 +530,6 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
       integrator ??= { ...registration.definition.integrator, domainVerified: registration.verification.domain.verified };
     }
   }
-  const firstOrigin = new URL(request.allowedOrigins[0] ?? "https://unknown.invalid");
-  integrator ??= { name: firstOrigin.hostname, domainVerified: false };
 
   // Amount bounds: within the spent asset's precision.
   let amount: SessionTemplate["amount"];
@@ -534,11 +552,32 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
   try {
     await createIntentDetailed(
       { actions, accounts: placeholderAccounts(actions), ...(request.constraints ? { constraints: request.constraints } : {}) },
-      { ownerKeyId, dryRun: true },
+      { ownerKeyId: keys.ownerKeyId, ...(keys.contractKeyId ? { contractAuthorityKeyId: keys.contractKeyId } : {}), dryRun: true },
     );
   } catch (error) {
     if (isTemplateError(error)) throw error;
   }
+  return { actions, labels, ...(amount ? { amount } : {}), integrator, warnings };
+}
+
+/** Everything a session is created from, already validated (POST /v1/sessions, or a project flow). */
+export interface SessionInput {
+  readonly ownerKeyId: string;
+  /** Flow sessions: the key that saved the flow (its registrations are the ones the session may call). */
+  readonly contractAuthorityKeyId?: string;
+  readonly request: SessionCreateRequest;
+  /** Used when the template has no contract step (default: the first allowed origin's host, unverified). */
+  readonly integrator?: SessionIntegrator;
+}
+
+/** Creates and stores a session from validated input (the 1,000 active sessions per owner key apply). */
+export async function createTemplateSession(input: SessionInput): Promise<SessionView> {
+  const { ownerKeyId, request } = input;
+  const now = contractNow();
+  const prepared = await prepareSessionTemplate(request, { ownerKeyId, ...(input.contractAuthorityKeyId ? { contractKeyId: input.contractAuthorityKeyId } : {}) }, now);
+  const warnings = [...prepared.warnings];
+  const firstOrigin = new URL(request.allowedOrigins[0] ?? "https://unknown.invalid");
+  const integrator = prepared.integrator ?? input.integrator ?? { name: firstOrigin.hostname, domainVerified: false };
 
   // A session that ends before one of its registrations activates could never be used: refuse it.
   const expiresAt = now + (request.expiresInSeconds ?? CONTRACT_LIMITS.sessionDefaultTtlSeconds) * 1000;
@@ -561,13 +600,14 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     id: `cs_${randomHex(16)}`,
     ownerKeyId,
     template: {
-      actions,
-      labels,
-      ...(amount ? { amount } : {}),
+      actions: prepared.actions,
+      labels: prepared.labels,
+      ...(prepared.amount ? { amount: prepared.amount } : {}),
       ...(request.constraints ? { constraints: request.constraints } : {}),
       ...(request.metadata ? { metadata: request.metadata } : {}),
       ...(request.clientReference ? { clientReference: request.clientReference } : {}),
       integrator,
+      ...(input.contractAuthorityKeyId ? { contractAuthorityKeyId: input.contractAuthorityKeyId } : {}),
     },
     allowedOrigins: request.allowedOrigins,
     maxIntents: request.maxIntents ?? 1,
@@ -578,6 +618,24 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
   };
   await sessionStore().create(record, CONTRACT_LIMITS.activeSessionsPerKey, iso(now));
   return sessionView(record, now, true, warnings);
+}
+
+/** POST /v1/sessions with a server key (publishable keys start sessions from flows: projects.ts). */
+export async function createSession(auth: AuthContext, body: unknown): Promise<SessionView> {
+  if (!auth.keyId) throw new HttpError(401, "API_KEY_REQUIRED", "Creating sessions requires an API key.");
+  if (auth.keyKind === "publishable") {
+    throw new PlatformError("PUBLISHABLE_KEY_FORBIDDEN", "A publishable key creates sessions only from a stored flow: send { flow, hostOrigin }.", 403);
+  }
+  const ownerKeyId = auth.keyId;
+  const validated = validateSessionCreateRequest(body);
+  if (!validated.ok) throw invalidRequest("The session request is invalid.", validated.issues);
+  const request = validated.value;
+  if (request.metadata && Object.keys(request.metadata).filter((key) => key !== SESSION_METADATA_KEY).length >= MAX_METADATA_ENTRIES) {
+    throw invalidRequest(`metadata holds at most ${MAX_METADATA_ENTRIES - 1} entries in a session (Kletia adds ${SESSION_METADATA_KEY}).`, [
+      { path: "metadata", message: `At most ${MAX_METADATA_ENTRIES - 1} entries.` },
+    ]);
+  }
+  return createTemplateSession({ ownerKeyId, request });
 }
 
 async function liveSession(id: string): Promise<SessionRecord> {
@@ -660,7 +718,12 @@ export async function createSessionIntent(id: string, body: unknown): Promise<Se
   };
   let created: { intent: IntentGraph; replayed: boolean };
   try {
-    created = await createIntentDetailed(intentRequest, { ownerKeyId: record.ownerKeyId });
+    // Session intents count in the owner's own spend windows; flow sessions call the flow saver's registrations.
+    created = await createIntentDetailed(intentRequest, {
+      ownerKeyId: record.ownerKeyId,
+      exposureScope: "owner",
+      ...(template.contractAuthorityKeyId ? { contractAuthorityKeyId: template.contractAuthorityKeyId } : {}),
+    });
   } catch (error) {
     await sessionStore().release(id).catch(() => undefined);
     throw error;

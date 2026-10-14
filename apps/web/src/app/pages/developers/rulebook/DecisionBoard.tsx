@@ -118,7 +118,7 @@ export function DecisionBoard({ apiKey, keys, names }: DecisionBoardProps) {
             {chain ? (
               <span
                 className={cx(
-                  "inline-flex items-center gap-1.5 border-2 px-2 py-1 font-code text-[10.5px] font-black uppercase tracking-[0.12em]",
+                  "inline-flex items-center gap-1.5 border-2 px-2 py-1 font-code text-[12px] font-black uppercase tracking-[0.12em]",
                   chain.valid ? "border-[#4ADE80] text-[#4ADE80]" : "border-[#FF8A8E] text-[#FF8A8E]",
                 )}
               >
@@ -133,7 +133,7 @@ export function DecisionBoard({ apiKey, keys, names }: DecisionBoardProps) {
                 setExhausted(false);
                 page.reload();
               }}
-              className="inline-flex min-h-9 items-center gap-1.5 border-2 border-[#3A3F4A] px-2.5 font-code text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#F4F1EA] hover:border-[#FFD60A] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]"
+              className="inline-flex min-h-9 items-center gap-1.5 border-2 border-[#3A3F4A] px-2.5 font-code text-[12px] font-bold uppercase tracking-[0.12em] text-[#F4F1EA] hover:border-[#FFD60A] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]"
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               Reload
@@ -203,7 +203,7 @@ export function DecisionBoard({ apiKey, keys, names }: DecisionBoardProps) {
         ) : null}
       </div>
       {more.status === "error" && more.error ? <ApiErrorPanel error={more.error} title="Could not load older decisions" /> : null}
-      <p className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>Kept 30 days by default · decisions name rule ids, never the request itself</p>
+      <p className={cx(LABEL, TEXT_MUTED)}>Kept 30 days by default · decisions name rule ids, never the request itself</p>
     </div>
   );
 }

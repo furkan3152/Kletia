@@ -14,6 +14,10 @@
  *   that write fails the key is revoked again (never left unrestricted).
  *   Every listed key shows its `lane` (testnet, production or any), derived
  *   from the active rule books of its chain.
+ * - POST /v1/projects/current/publishable-keys (projects.ts): a publishable
+ *   key (`kl_pub_`, browsers) under the calling project key, with a key-level
+ *   rule book derived from the project defaults, written in the same request
+ *   (revoked again if that write fails). At most 5 active per project.
  * - POST /v1/keys/{id}/children: an agent key (`kl_agt_`) under `{id}` with
  *   its first rule book (a document, a template, or the observer), at most
  *   2 levels below a project key, 100 active per project, expiring in 1 h to
@@ -35,13 +39,14 @@
  * grace window authenticates but cannot manage keys (403 KEY_SECRET_ROTATED),
  * so a leaked secret cannot take a rotated key over.
  */
-import { CHAINS, POLICY_LANES, POLICY_LIMITS, POLICY_TEMPLATES, policyFromTemplate, validatePolicy, type PolicyDocument, type PolicyLane, type PolicyTemplateId, type PolicyWarning } from "@kletia/core";
+import { CHAINS, PROJECT_LIMITS, POLICY_LANES, POLICY_LIMITS, POLICY_TEMPLATES, policyFromTemplate, validatePolicy, type PolicyDocument, type PolicyLane, type PolicyTemplateId, type PolicyWarning } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import {
   apiKeyStore,
   forgetCachedKey,
   issueAgentKey,
   issueDeveloperKey,
+  issuePublishableKey,
   keyKindOf,
   keyLive,
   newSecretFor,
@@ -49,6 +54,7 @@ import {
   type ApiKeyRecord,
   type IssuedAgentKey,
   type IssuedApiKey,
+  type IssuedPublishableKey,
   type KeyTier,
 } from "./auth.js";
 import { HttpError, invalidRequest, isRecord, type AuthContext } from "./context.js";
@@ -60,6 +66,7 @@ import { policyStore, projectScope, subjectKey } from "./policies/store.js";
 import { deleteWebhooksOfKey } from "./webhooks.js";
 
 export const MAX_ACTIVE_KEYS_PER_PROJECT = 5;
+export const MAX_ACTIVE_PUBLISHABLE_KEYS_PER_PROJECT = PROJECT_LIMITS.activePublishableKeys;
 export const MAX_ACTIVE_AGENT_KEYS_PER_PROJECT = POLICY_LIMITS.agentKeysPerProject;
 export const MAX_AGENT_DEPTH = POLICY_LIMITS.maxAgentDepth;
 export const DEFAULT_ROTATION_GRACE_SECONDS = 86_400;
@@ -152,9 +159,15 @@ function keyNotFound(): HttpError {
   return new HttpError(404, "KEY_NOT_FOUND", "No active API key with this id in your project.");
 }
 
+/** Refusal of a server-only operation for a publishable (browser) key. */
+export function publishableForbidden(message = "Publishable keys cannot manage keys. Use a server key."): PlatformError {
+  return new PlatformError("PUBLISHABLE_KEY_FORBIDDEN", message, 403);
+}
+
 /** The calling developer key, allowed to manage its project; throws for operator keys and rotated-out secrets. */
 function manager(auth: AuthContext): Manager {
   if (auth.tier === "operator") throw notManageable();
+  if (auth.keyKind === "publishable" || auth.tier === "publishable") throw publishableForbidden();
   if (!auth.keyId || !auth.projectId || auth.tier !== "developer") {
     throw new HttpError(401, "API_KEY_REQUIRED", "Managing keys requires a developer API key.");
   }
@@ -162,6 +175,35 @@ function manager(auth: AuthContext): Manager {
     throw new PlatformError("KEY_SECRET_ROTATED", "This secret was rotated and only authenticates until its grace window ends. Manage keys with the current secret.", 403);
   }
   return { keyId: auth.keyId, projectId: auth.projectId, kind: auth.keyKind === "agent" ? "agent" : "project" };
+}
+
+/**
+ * Issues a publishable key under the calling project key (projects.ts:
+ * POST /v1/projects/current/publishable-keys) with `ruleBook` as its first
+ * key-level rule book. Agent keys never issue them; a failed rule book write
+ * revokes the key again (it never exists without its rule book).
+ */
+export async function issueProjectPublishableKey(auth: AuthContext, label: string, ruleBook: PolicyDocument): Promise<IssuedPublishableKey> {
+  const caller = manager(auth);
+  if (caller.kind !== "project") throw agentForbidden("Only project keys issue publishable keys.");
+  const now = Date.now();
+  const issued = await issuePublishableKey(label, { id: caller.keyId, projectId: caller.projectId }, MAX_ACTIVE_PUBLISHABLE_KEYS_PER_PROJECT, now);
+  try {
+    const written = await policyStore().write({ scope: "key", subjectId: issued.id, projectId: caller.projectId, next: ruleBook, defaults: "project", createdBy: caller.keyId, ifMatch: "none", now });
+    if (written.applied !== "now") throw new Error(`publishable rule book ${written.applied}`);
+    await announceAmended(written.version, caller.keyId, now);
+  } catch (error) {
+    await apiKeyStore()
+      .revokeSubtree(issued.id, caller.projectId, new Date(now).toISOString())
+      .catch((revokeError: unknown) => console.error("[platform] could not revoke a publishable key whose rule book failed:", revokeError instanceof Error ? revokeError.message : revokeError));
+    forgetCachedKey(issued.id);
+    if (error instanceof PlatformError || error instanceof HttpError) throw error;
+    throw new PlatformError("STORE_UNAVAILABLE", "The publishable key's rule book could not be written; no key was issued. Try again.", 503);
+  }
+  await recordKeyDecision({ projectId: caller.projectId, keyId: issued.id, actorKeyId: caller.keyId, title: `Publishable key ${label.slice(0, 64)} created`, at: now });
+  // key.created's kind lists project and agent in core events.ts; publishable keys report their own kind.
+  publishKeyEvent("key.created", { projectId: projectScope(caller.projectId), keyId: issued.id, kind: "publishable" as "agent", parentId: caller.keyId, expiresAt: null });
+  return issued;
 }
 
 /**
@@ -269,6 +311,8 @@ async function restrictToSandbox(issued: IssuedApiKey, projectId: string, create
  */
 export async function issueKey(auth: AuthContext, name: string, options: { readonly sandbox?: boolean } = {}): Promise<IssuedProjectKey> {
   const now = Date.now();
+  // A publishable key is never a stepping stone to a server key (and never starts a project of its own).
+  if (auth.keyKind === "publishable" || auth.tier === "publishable") throw publishableForbidden("Publishable keys cannot issue API keys. Use a server key.");
   if (auth.tier !== "developer") {
     const issued = await issueDeveloperKey(name);
     // A new project: the key is its own project and writes its own first rule book.
@@ -435,6 +479,7 @@ export async function createChildKey(auth: AuthContext, parentId: string, reques
   }
   const parent = await apiKeyStore().findById(parentId);
   if (!parent || parent.projectId !== caller.projectId) throw keyNotFound();
+  if (keyKindOf(parent) === "publishable") throw publishableForbidden("Agent keys are never created under a publishable key; use a project key as the parent.");
   const parentChain = await readKeyChain(parentId, now);
   if (!parentChain || !parentChain.keyActive) throw keyNotFound();
   const depth = (parent.lineage ?? []).length + 1;

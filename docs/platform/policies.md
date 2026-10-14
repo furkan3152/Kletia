@@ -112,7 +112,7 @@ Idempotency-Key: 4c1e…
 | `networks.allow`, `networks.lanes` | `networks.allow`, `networks.lanes` | Every step's network (and a bridge's destination) must be listed; lanes are `production` and `testnet`. |
 | `kinds.allow` | `kinds.allow` | Action kinds (`transfer`, `swap`, `bridge`, `stake`, `deposit`, `withdraw`, `call`, `action`, …). |
 | `protocols.allow` / `deny` | `protocols.allow`, `protocols.deny` | Venues; deny always wins. |
-| `contracts.allow` | `contracts.allow` | Custom contract registrations (and entries) the key may call. Agent default: none. |
+| `contracts.allow` | `contracts.allow` | Custom contract registrations (and entries) the key may call: `[{ "id": "ct_…", "entries": ["supply"] }]` (`entries` absent: every entry of the registration). `kinds.allow` with `call` or `action` needs at least one entry here. Agent default: none. |
 | `assets.allow`, `categories`, `unlisted` | `assets.*` | `SYMBOL`, `SYMBOL@network`, `group:USDC`, CAIP-19 ids; categories such as `stablecoin`; `unlisted: "deny"` refuses assets outside the registry (position tokens of the registry's lending venues, such as aTokens and vault shares, count as listed). |
 | `accounts.allow` | `accounts.allow` | CAIP-10 accounts (or `eip155:*:<address>`) the intent may spend from. |
 | `recipients` | `recipients.mode`, `recipients.deny`, `recipients.names` | `own` (only the intent's own accounts; agent default), `allowlist` or `any`; names (ENS, Basenames, SNS) `deny`, `resolve` (checked after resolution) or `trusted`. |
@@ -232,6 +232,26 @@ test suite runs that against PostgreSQL).
 - `policy.spend_threshold` fires when a window crosses 80 % and 95 % of a cap.
 
 Without a database the ledger lives in memory: correct for one instance only.
+
+### Exposure scope
+
+Intents that strangers create on your behalf count in **one key's own
+windows only**: intents owned by a publishable key (the widget on your site,
+[projects.md](projects.md)), intents created through an [intent
+link](links.md) (owned by the publishing key) and intents created from a
+[session](contracts.md#sessions) (owned by the session's key). Their
+exposures are written to that key's scope alone and checked against the
+**chain's effective caps**: the smallest `dailyUsd` and the smallest
+`weeklyUsd` of the project, every ancestor and the key, applied to that
+key's own window. So a project `dailyUsd` of $1,000 means each publishable
+key, link publisher or session key may move up to $1,000 a day through
+those intents, while the project's own window (and the windows of your
+server keys) never fill up from them: visitors can never exhaust the caps
+your back office relies on. Put a cap on the publishable or publishing key
+itself to bound the total of what visitors can move through it. Every other
+rule of the chain (modes, networks, contracts, per-step and per-intent caps,
+approvals) applies as before; `GET /v1/policy/spend?keyId=` shows the key's
+own window.
 
 ## Approvals
 

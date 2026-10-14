@@ -41,13 +41,13 @@ describe("browser access to PATCH /v1/contracts/{id}", () => {
       for (const path of ["/v1/contracts/ctr_0123456789abcdef", "/V1/contracts/ctr_0123456789abcdef"]) {
         const preflight = await fetch(`${base}${path}`, {
           method: "OPTIONS",
-          headers: { origin, "access-control-request-method": "PATCH", "access-control-request-headers": "content-type,x-kletia-key,idempotency-key" },
+          headers: { origin, "access-control-request-method": "PATCH", "access-control-request-headers": "content-type,x-kletia-key,idempotency-key,kletia-host-origin" },
         });
         assert.equal(preflight.status, 204, `${origin} ${path}`);
         assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
         assert.ok(methods(preflight).includes("PATCH"), preflight.headers.get("access-control-allow-methods") ?? "");
         const headers = (preflight.headers.get("access-control-allow-headers") ?? "").toLowerCase();
-        for (const header of ["content-type", "x-kletia-key", "idempotency-key"]) assert.ok(headers.includes(header), header);
+        for (const header of ["content-type", "x-kletia-key", "idempotency-key", "kletia-host-origin"]) assert.ok(headers.includes(header), header);
         assert.equal(preflight.headers.get("access-control-allow-credentials"), null);
       }
     }

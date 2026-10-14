@@ -6,6 +6,11 @@
  * | public    | client IP (/56 for IPv6) | 30/min |
  * | developer | API key id     | 300/min      |
  * | operator  | API key id     | 1200/min     |
+ * | publishable | API key id   | 120/min      |
+ *
+ * A publishable key (browser key) is also counted against the public
+ * per-IP limit (30/min per address), so many visitors share the key's
+ * budget and one address cannot spend all of it.
  *
  * POST /v1/keys is additionally limited to 5 issued keys per hour per IP: a
  * request refused with a 4xx (an invalid body, a key limit, an agent key)
@@ -30,6 +35,7 @@ export const TIER_LIMITS: Readonly<Record<ApiTier, number>> = Object.freeze({
   public: 30,
   developer: 300,
   operator: 1_200,
+  publishable: 120,
 });
 
 export const KEY_ISSUANCE_LIMIT_PER_HOUR = 5;
@@ -306,4 +312,14 @@ export function acquireStreamSlot(req: Request): (() => void) | null {
 /** Open SSE streams in this process (observability and tests). */
 export function openStreamCount(): number {
   return totalStreams;
+}
+
+/* -------------------------------------------------- publishable keys */
+
+/** Requests with a publishable key: the public per-IP limit, on top of the key's own 120 per minute. */
+export const publishableAddressLimiter = new KeyWindowLimiter(TIER_LIMITS.public, 60_000, "requests per minute with a publishable key from one address", 20_000, "");
+
+/** Counts one publishable-key request against the caller's address (429 RATE_LIMITED when spent). */
+export function takePublishableAddress(req: Request): void {
+  publishableAddressLimiter.take(`ip:${clientIp(req)}`);
 }

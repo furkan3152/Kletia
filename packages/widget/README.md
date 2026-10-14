@@ -29,10 +29,40 @@ import { eip1193Signer, formatAccountId, walletStandardSolanaSigner } from "@kle
 
 The widget runs in the browser, so never pass a `kl_dev_` developer key to
 it: anyone can read it from your bundle and use it to list your intents and
-manage your webhooks. Use the keyless public tier (omit `clientOptions`) or a
-`baseUrl` pointing at a proxy route on your server (requests go to
-`<baseUrl>/v1/…`) that forwards them to the Kletia API and adds
-`Authorization: Bearer kl_dev_…` there.
+manage your webhooks. Use the keyless public tier (omit `clientOptions`), your
+project's **publishable key** (`publishableKey="kl_pub_…"`, made for browser
+code: it is sent as `Authorization: Bearer kl_pub_…`, only plans from the
+origins your project allows and owns the intents for your project; see
+[projects](../../docs/platform/projects.md)), or a `baseUrl` pointing at a
+proxy route on your server (requests go to `<baseUrl>/v1/…`) that forwards
+them to the Kletia API and adds `Authorization: Bearer kl_dev_…` there.
+
+## Questions and the journey
+
+- **Clarifying questions (always on).** Text is planned through clarify
+  turns (`POST /v1/intents?clarify=true`, [clarify](../../docs/platform/clarify.md)):
+  when a sentence leaves something open that only the user can decide (how
+  much, where to, which network a recipient is on), the widget asks in a
+  question card under the prompt instead of guessing. Choices are numbered
+  radio buttons (arrow keys move, Enter or 1-9 picks, Esc is "Not now"),
+  free text is offered where it makes sense, and Kletia's suggestion (only on
+  "how" questions, such as the venue) is marked "Suggested" in words. Once
+  planned, the defaults Kletia picked show as **Kletia assumed** chips;
+  picking an alternative re-plans. A refused answer keeps the card and the
+  thread. `onClarify` reports `{ count, reasons, questions: [{ reason, kind,
+  purpose }] }`, never the values. There is no off switch.
+- **Journey.** Every plan comes with its [journey](../../docs/platform/journey.md):
+  an itinerary after the fare and before the steps (`kw-journey`, never
+  hideable by appearance) that says where the money is after each step, who
+  holds it, how much (expected and at least, with the same certainty shapes
+  as the fare plus a filled square for amounts observed on-chain) and what
+  follows, as notices with fixed road signs (octagon Stop, diamond Act,
+  triangle Warning, circle Info; the rest folded under "More about this
+  route"). A **Stop** notice (for example no gas to sign the next leg) asks
+  one question and keeps **Execute** off until it is answered; "I will handle
+  it" is always one of the answers. The journey is read with the plan and
+  when a step changes (never polled); once the intent is over, or a leg
+  failed, it says where the money is now.
 
 ## Before anything is signed
 
@@ -160,7 +190,7 @@ function Checkout({ accounts, signers }) {
 
 | Hook | Returns |
 |---|---|
-| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, dryRun?, preview?, onPreview?, onReview?, onApprovalRequired? })` | `plan(text)`, `open(intentId)`, `startSession(sessionId, { hostOrigin?, amount? })`, `execute()`, `cancel()`, `reset()`, `intent`, `preview`, `phase` (`idle`, `planning`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences`. `open` loads an intent your backend created; `startSession` turns a session into an intent for `accounts` (`hostOrigin` defaults to `location.origin` and must be in the session's `allowedOrigins`). `onPreview` / `onReview` / `onApprovalRequired` are `executeIntent`'s gates (see `@kletia/sdk`); the preview gate runs with the plan's `preview` |
+| `useKletiaIntent({ accounts, signers?, metadata?, maxSlippageBps?, sourceNetwork?, dryRun?, preview?, journey?, onPreview?, onReview?, onApprovalRequired? })` | `plan(text)` (a clarify turn: it may ask first, `phase: "clarifying"` with `clarify.questions`), `answer({ questionId, optionId \| text })`, `chooseAssumption(id, optionId)`, `say(text)` (a follow-up such as "make it 50"), `clarify` (questions, assumptions, thread), `journey` and `answerJourney(consequenceId, optionId)` (with `journey: true`; open blockers keep `execute()` from signing), `open(intentId)`, `startSession(sessionId, { hostOrigin?, amount? })`, `execute()`, `cancel()`, `reset()`, `intent`, `preview`, `phase` (`idle`, `planning`, `clarifying`, `planned`, `executing`, `cancelling`, `finished`), `error`, `pendingReferences`. `open` loads an intent your backend created; `startSession` turns a session into an intent for `accounts` (`hostOrigin` defaults to `location.origin` and must be in the session's `allowedOrigins`). `onPreview` / `onReview` / `onApprovalRequired` are `executeIntent`'s gates (see `@kletia/sdk`); the preview gate runs with the plan's `preview` |
 | `useIntent(intentId)` | `intent`, `status` (`loading`, `live` on the event stream, `polling`, `done`, `error`), `error`, `lastEvent` |
 | `useQuote(request, { debounceMs: 400 })` | `data`, `status`, `error`, `reload()`; pass `null` to quote nothing |
 | `useNetworks()`, `usePortfolio(accountId)` | `data`, `status`, `error`, `reload()` |
@@ -181,6 +211,9 @@ Safety behaviour:
   does not show a quote for a different input unless `keepPreviousData`.
 - `useIntent` follows the event stream (resuming with `Last-Event-ID`) and
   polls while the stream is unavailable, until the intent is terminal.
+- An answer to a question that is no longer open (after `reset()`, a new
+  sentence or a newer turn) is never sent, and a late reply to one is
+  ignored. Threads are held in memory only (never `localStorage`).
 
 The state machines behind the hooks (`createIntentSession`,
 `createIntentFollower`, `createRequestLoader`) are exported too, for other
@@ -192,6 +225,7 @@ frameworks.
 |---|---|---|
 | `accounts` | `AccountId[]` | CAIP-10 accounts the user controls (required to plan) |
 | `client` / `clientOptions` | `KletiaClient` / options | API origin (`baseUrl`). Never put a `kl_dev_` key in browser code; proxy through your server to attribute intents to your key |
+| `publishableKey` | `kl_pub_…` | Your project's publishable key, sent as `Authorization: Bearer kl_pub_…` (ignored when `client` is given). With an explicit `hostOrigin`, requests also carry `Kletia-Host-Origin` (the hosted frame) |
 | `signers` | `{ evm?, solana? }` | Enables execution |
 | `theme` | `"light" \| "dark" \| "auto"` | Default: `appearance.colorScheme`, else `auto` |
 | `appearance` | `KletiaAppearance` | Appearance tokens (see [theming](../../docs/platform/theming.md)) |
@@ -206,6 +240,7 @@ frameworks.
 | `preview` | `boolean` | Ask for the fare breakdown with every plan (default `true`) |
 | `linkOrigin` | origin | Rebuild non-https approval and receipt links on this origin (the Kletia web app only) |
 | `onIntentCreated` / `onIntentOpened` / `onSessionLoaded` / `onUpdate` / `onComplete` / `onError` | callbacks | Lifecycle hooks (`onIntentOpened`: an `intentId` was loaded; `onSessionLoaded`: a `sessionId` was loaded) |
+| `onClarify` | `(event: ClarifyEvent) => void` | Kletia asked: `{ count, reasons, questions: [{ reason, kind, purpose }] }`, never values |
 
 ## Display helpers
 
@@ -213,10 +248,16 @@ frameworks.
 own UI: `fareModel(preview, intent)`, `contractReviewModel(review)`,
 `policyHold(intent)`, `policyOutcome(error)`, `approvalHref`,
 `receiptShareHref`, `receiptGroupsLabel`, `receiptPendingText`,
-`RECEIPT_SHARE_PROFILES`, `RECEIPT_SHARE_GROUPS`, `CERTAINTY_INFO`. They return
-plain text (control and direction-override characters removed) and only
-https links. The components are exported too: `FareBreakdown`,
-`ContractReview`, `PolicyNotice`, `ReceiptStamp`.
+`RECEIPT_SHARE_PROFILES`, `RECEIPT_SHARE_GROUPS`, `CERTAINTY_INFO`, and for
+the journey and questions `journeyModel(journey, { answered })`,
+`journeyPromptView(consequence)`, `validJourneyAnswers`, `SEVERITY_SIGNS`,
+`JOURNEY_CERTAINTY_INFO`, `clarifyView(turnResponse)`, `assumptionViews`
+and `clarifyEventOf`. They return plain text (control and
+direction-override characters removed) and only https links. The components
+are exported too: `FareBreakdown`, `ContractReview`, `PolicyNotice`,
+`ReceiptStamp`, `ClarifyCard` (`{ question, onAnswer, onDismiss, compact? }`,
+for clarify questions and journey prompts), `AssumptionChips`
+(`{ assumptions, onChange }`) and `JourneyRoute`.
 
 ## License
 

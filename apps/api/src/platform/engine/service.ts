@@ -56,7 +56,8 @@ import { policyGate, policyGateActive, type ExposureHandle } from "./policy/gate
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
 import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
-import { createIntentStore, type IntentStore } from "./store.js";
+import type { ExposureScopeHint } from "./policy/ruleBookGate.js";
+import { createIntentStore, type IntentRecordMeta, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
 
 /** Payloads expire quickly: Solana blockhashes and provider quotes go stale. */
@@ -218,6 +219,19 @@ export interface CreateIntentOptions {
   readonly actorKeyId?: string | null;
   /** Plan and quote without persisting. */
   readonly dryRun?: boolean;
+  /**
+   * The key whose contract registrations the intent's call / action steps
+   * use (planned and prepared), when it is not the owner: a session minted
+   * from a project flow carries the key that saved the flow. Stored with
+   * the intent.
+   */
+  readonly contractAuthorityKeyId?: string;
+  /**
+   * `owner`: the Rule Book counts this intent's exposures in the owner key's
+   * own windows only (session intents, publishable owners); intents created
+   * through a link always are. Stored with the intent.
+   */
+  readonly exposureScope?: "owner";
   /** Also compute the asset-change preview (stage `plan`) from the quotes' own transactions. */
   readonly preview?: boolean;
   /** Stage of that preview: `plan` (default) or `indicative` (placeholder accounts, link quotes). */
@@ -315,15 +329,20 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
       }
       const gate = policyGate();
       const actorKeyId = options.actorKeyId === undefined ? options.ownerKeyId : options.actorKeyId ?? undefined;
+      // Link intents always count in the publisher key's own windows.
+      const exposureScope = options.exposureScope === "owner" || options.linkId !== undefined ? "owner" as const : undefined;
       // Rule Book: request-level rules first, then the constraints the auction sees are narrowed.
-      const guard = await gate.beforePlan({
+      const planInput: Parameters<typeof gate.beforePlan>[0] & ExposureScopeHint = {
         ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
         ...(actorKeyId ? { actorKeyId } : {}),
         request: intentRequestFor(request, options.linkId),
         dryRun: options.dryRun === true,
-      });
+        ...(exposureScope ? { exposureScope } : {}),
+      };
+      const guard = await gate.beforePlan(planInput);
       const planned = await planIntentWithPreviews(guard.request, {
         ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
+        ...(options.contractAuthorityKeyId ? { contractAuthorityKeyId: options.contractAuthorityKeyId } : {}),
         ...(options.interpretation ? { interpretation: options.interpretation } : {}),
       });
       const previews = planned.previews;
@@ -336,7 +355,11 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
       rememberPlannedPreviews(graph.id, previews);
       if (options.dryRun) return { intent: graph, replayed: false };
       try {
-        await getIntentStore().create(graph, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+        await getIntentStore().create(graph, {
+          ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
+          ...(options.ownerKeyId && options.contractAuthorityKeyId ? { contractAuthorityKeyId: options.contractAuthorityKeyId } : {}),
+          ...(options.ownerKeyId && exposureScope ? { exposureScope } : {}),
+        });
       } catch (error) {
         // Another instance won the race for this clientReference: replay its intent.
         if (options.ownerKeyId && clientReference && isPlatformError(error) && error.code === "CLIENT_REFERENCE_EXISTS") {
@@ -397,6 +420,17 @@ export async function listIntents(ownerKeyId: string, limit = 50): Promise<Inten
   } catch (error) {
     throw toPlatformError(error);
   }
+}
+
+/**
+ * Owner, contract authority and exposure scope of a stored intent (stores
+ * without `metaOf`: the owner only). Undefined when the intent is unknown.
+ */
+async function intentMeta(id: string): Promise<IntentRecordMeta | undefined> {
+  const store = getIntentStore();
+  if (store.metaOf) return store.metaOf(id);
+  const owner = await store.ownerOf(id);
+  return owner === undefined ? undefined : owner === null ? {} : { ownerKeyId: owner };
 }
 
 /**
@@ -636,6 +670,7 @@ async function assertRecipientNameUnchanged(step: IntentStep): Promise<void> {
 
 interface ContractStepUse {
   readonly registration: RegisteredContract;
+  /** The intent's owner: the daily custom-contract notional is recorded against it. */
   readonly ownerKeyId: string;
   /** Priced notional of the step (null when unpriced). */
   readonly usd: number | null;
@@ -643,7 +678,9 @@ interface ContractStepUse {
 
 /**
  * Prepare-time checks of a call / action step against the live registry:
- * the intent's owner key may still use the registration, it is
+ * the intent's owner key (or its contract authority: the key
+ * that saved the project flow a session was minted from) may still use the
+ * registration, it is
  * active on the very revision and definition the step was planned on, its
  * targets are not deny-listed, and the amount is within the entry limits and
  * the USD cap. Pins are re-read by the adapter.
@@ -655,8 +692,10 @@ async function assertContractStepUsable(graph: IntentGraph, step: IntentStep, am
   }
   const snapshot = step.call;
   if (!snapshot) throw new PlatformError("STEP_INVALID", "The call step has no contract snapshot.", 500);
-  const owner = await getIntentStore().ownerOf(graph.id);
-  if (!owner || !(await directory.usableBy(snapshot.contract, owner))) {
+  const meta = await intentMeta(graph.id);
+  const owner = meta?.ownerKeyId;
+  const authority = meta?.contractAuthorityKeyId ?? owner;
+  if (!owner || !authority || !(await directory.usableBy(snapshot.contract, authority))) {
     throw new PlatformError("CONTRACT_NOT_USABLE", "The API key that created this intent may no longer use its contract registration.", 409);
   }
   const registration = await directory.current(snapshot.contract);
@@ -755,7 +794,8 @@ async function prepareStepLocked(intentId: string, stepId: string, options: Prep
       // Rule Book: the owner is read only when a gate is installed.
       const gate = policyGate();
       const governed = policyGateActive();
-      const ownerKeyId = governed ? (await getIntentStore().ownerOf(graph.id)) ?? null : null;
+      const meta = governed ? await intentMeta(graph.id) : undefined;
+      const ownerKeyId = governed ? meta?.ownerKeyId ?? null : null;
       const expiresAt = Math.floor(now / 1000) + PAYLOAD_TTL_SECONDS;
       const contractStep = step.kind === "call" || step.kind === "action";
       let usable: ContractStepUse | null = null;
@@ -868,7 +908,7 @@ async function prepareStepLocked(intentId: string, stepId: string, options: Prep
       let exposure: ExposureHandle | null = null;
       if (governed) {
         try {
-          exposure = await gate.beforePayload({
+          const clearance: Parameters<typeof gate.beforePayload>[0] & ExposureScopeHint = {
             graph: next,
             step: nextStep,
             prepared,
@@ -877,7 +917,9 @@ async function prepareStepLocked(intentId: string, stepId: string, options: Prep
             exposure: payloadExposure({ intentId: graph.id, step, quoteBinding, transactions: prepared.transactions, now }),
             now,
             solanaBlockHeight: () => solanaBlockHeight(step.network),
-          });
+            ...(meta?.exposureScope === "owner" ? { exposureScope: "owner" as const } : {}),
+          };
+          exposure = await gate.beforePayload(clearance);
         } catch (error) {
           if (isPlatformError(error) && error.code === "POLICY_APPROVAL_REJECTED") await cancelAfterRejection(graph, now);
           throw error;
@@ -1021,17 +1063,20 @@ async function reconcileVerified(before: IntentGraph, after: IntentGraph): Promi
   });
   if (verified.length === 0) return;
   try {
-    const ownerKeyId = (await getIntentStore().ownerOf(after.id)) ?? null;
+    const meta = await intentMeta(after.id);
+    const ownerKeyId = meta?.ownerKeyId ?? null;
     if (!ownerKeyId) return;
     for (const step of verified) {
       const landed = landedPayload(step);
-      await policyGate().afterVerification({
+      const input: Parameters<ReturnType<typeof policyGate>["afterVerification"]>[0] & ExposureScopeHint = {
         graph: after,
         step,
         ownerKeyId,
         ...(landed ? { landedNonces: landed.nonces } : {}),
         quoteBinding: landed?.quoteBinding ?? (CHAINS[step.network].vm === "svm" ? step.prepared?.quoteBinding ?? null : null),
-      });
+        ...(meta?.exposureScope === "owner" ? { exposureScope: "owner" as const } : {}),
+      };
+      await policyGate().afterVerification(input);
     }
   } catch (error) {
     console.warn(`[platform] policy reconcile of ${after.id} failed:`, toPlatformError(error).message);

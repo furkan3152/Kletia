@@ -97,7 +97,7 @@ const optionName = (attribute: string): string => attribute.replace(/-(\w)/gu, (
 
 /** Attributes `<kletia-intent>` reads. */
 export const OBSERVED_ATTRIBUTES: readonly string[] = [
-  "theme", "text", "examples", "bg", "height", "max-height", "origin", "reference", "label", "intent", "session", "source-network",
+  "theme", "text", "examples", "bg", "height", "max-height", "origin", "reference", "label", "intent", "session", "key", "flow", "source-network",
   ...THEME_ATTRIBUTES.map(([name]) => name),
 ];
 
@@ -130,6 +130,16 @@ export interface KletiaEmbedOptions {
    * visitor's wallet. Also sent in the fragment. `intent` wins when both are set.
    */
   readonly session?: string | null;
+  /**
+   * Your project's publishable key (`kl_pub_…`, attribute `key`): browser-safe
+   * by design, it can do only what the public tier and your stored flows
+   * allow, and only on the origins your project allows. The frame then shows
+   * your verified brand and project defaults. Sent in the fragment. Never put
+   * a secret key (`kl_dev_…`, `kl_agt_…`) here: it is refused.
+   */
+  readonly publishableKey?: string | null;
+  /** A stored flow of the project (`^[a-z][a-z0-9-]{0,31}$`), run with `publishableKey`. */
+  readonly flow?: string | null;
   /** Light palette (or the only one): six hex digits, `#` optional. Colours that fail contrast fall back in the frame. */
   readonly accent?: string | null;
   readonly accentInk?: string | null;
@@ -195,6 +205,12 @@ export interface KletiaCompletedDetail {
   /** Final intent status, e.g. `completed`, `partially_completed` or `failed`. */
   readonly status: string;
 }
+export interface KletiaQuestionDetail {
+  /** How many questions the widget is asking the visitor before it can plan. */
+  readonly count: number;
+  /** Why it asks (clarify reason codes such as `AMOUNT_MISSING`); never the visitor's text or values. */
+  readonly reasons: readonly string[];
+}
 export interface KletiaErrorDetail {
   /** Stable code, e.g. an API error code (see `GET /v1/errors`), `USER_REJECTED` or `BRIDGE_UNAVAILABLE`. */
   readonly code: string;
@@ -208,6 +224,7 @@ export interface KletiaEventDetailMap {
   "kletia:intent-created": KletiaIntentCreatedDetail;
   "kletia:step-updated": KletiaStepUpdatedDetail;
   "kletia:completed": KletiaCompletedDetail;
+  "kletia:question": KletiaQuestionDetail;
   "kletia:error": KletiaErrorDetail;
 }
 export type KletiaEventName = keyof KletiaEventDetailMap;
@@ -256,6 +273,9 @@ const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]+/gu;
 const REFERENCE = /^[A-Za-z0-9_.:-]{1,80}$/u;
 const INTENT_REF = /^int_[0-9a-f]{32}$/u;
 const SESSION_REF = /^cs_[0-9a-f]{32}$/u;
+/** Publishable keys (`kl_pub_` + 32 base62) and stored flow ids, the only shapes put in the fragment. */
+const PUBLISHABLE_KEY = /^kl_pub_[0-9A-Za-z]{32}$/u;
+const FLOW_ID = /^[a-z][a-z0-9-]{0,31}$/u;
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function clean(value: string, max: number): string {
@@ -290,14 +310,20 @@ export function normalizeReference(value: unknown): string | null {
 }
 
 /**
- * The URL fragment that opens an integrator-created intent (`#intent=int_…`)
- * or session (`#session=cs_…`), or "" when neither id is valid.
+ * The URL fragment: an integrator-created intent (`#intent=int_…`) or
+ * session (`#session=cs_…`), else a publishable key with an optional stored
+ * flow (`#key=kl_pub_…&flow=…`), or "" when nothing valid is set. Ids and
+ * keys of any other shape are dropped (a secret key never leaves the page).
  */
-export function embedFragment(options: Pick<KletiaEmbedOptions, "intent" | "session">): string {
+export function embedFragment(options: Pick<KletiaEmbedOptions, "intent" | "session" | "publishableKey" | "flow">): string {
   const intent = typeof options.intent === "string" ? options.intent.trim() : "";
   if (INTENT_REF.test(intent)) return `#intent=${intent}`;
   const session = typeof options.session === "string" ? options.session.trim() : "";
-  return SESSION_REF.test(session) ? `#session=${session}` : "";
+  if (SESSION_REF.test(session)) return `#session=${session}`;
+  const key = typeof options.publishableKey === "string" ? options.publishableKey.trim() : "";
+  if (!PUBLISHABLE_KEY.test(key)) return "";
+  const flow = typeof options.flow === "string" ? options.flow.trim() : "";
+  return FLOW_ID.test(flow) ? `#key=${key}&flow=${flow}` : `#key=${key}`;
 }
 
 /**
@@ -441,6 +467,8 @@ export function readElementConfig(getAttribute: (name: string) => string | null)
       reference: getAttribute("reference"),
       intent: getAttribute("intent"),
       session: getAttribute("session"),
+      publishableKey: getAttribute("key"),
+      flow: getAttribute("flow"),
       sourceNetwork: getAttribute("source-network"),
       ...Object.fromEntries(THEME_ATTRIBUTES.map(([name]) => [optionName(name), getAttribute(name)])),
     },
@@ -510,6 +538,13 @@ export function parseBridgeMessage(data: unknown): KletiaBridgeEvent | null {
       const intentId = match(message.intentId, INTENT_ID);
       const status = match(message.status, STATUS);
       return intentId && status ? { name: "kletia:completed", detail: { intentId, status } } : null;
+    }
+    case "question": {
+      // Counts and reason codes only: the frame never sends the visitor's text or values.
+      const count = message.count;
+      if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > 20 || !Array.isArray(message.reasons)) return null;
+      const reasons = [...new Set(message.reasons.filter((reason): reason is string => match(reason, CODE) !== null))].slice(0, 8);
+      return { name: "kletia:question", detail: { count, reasons } };
     }
     case "error": {
       const code = match(message.code, CODE);
@@ -637,6 +672,7 @@ function createElementClass(): CustomElementConstructor {
     #src = "";
     #reported: number | null = null;
     #scheduled = false;
+    #warnedKey = "";
 
     constructor() {
       super();
@@ -691,6 +727,12 @@ function createElementClass(): CustomElementConstructor {
           message: "The origin attribute must be an https origin, or http://localhost for development.",
         });
         return;
+      }
+      const key = config.options.publishableKey?.trim();
+      if (key && !PUBLISHABLE_KEY.test(key) && key !== this.#warnedKey) {
+        // Dropped, never forwarded. A secret key in page markup is already exposed: rotate it.
+        this.#warnedKey = key;
+        console.warn("kletia-intent: key ignored: not a publishable key (kl_pub_…). Revoke a secret key put in a page.");
       }
       const src = buildEmbedUrl(config.origin, config.options, pageOrigin());
       // A new fragment alone would not reload the frame: start a fresh document instead.
@@ -819,6 +861,7 @@ export interface MountKletiaIntentOptions extends KletiaFrameOptions {
   readonly onIntentCreated?: (detail: KletiaIntentCreatedDetail) => void;
   readonly onStepUpdated?: (detail: KletiaStepUpdatedDetail) => void;
   readonly onCompleted?: (detail: KletiaCompletedDetail) => void;
+  readonly onQuestion?: (detail: KletiaQuestionDetail) => void;
   readonly onError?: (detail: KletiaErrorDetail) => void;
 }
 
@@ -837,6 +880,7 @@ const HANDLERS: ReadonlyArray<readonly [keyof MountKletiaIntentOptions, KletiaEv
   ["onIntentCreated", "kletia:intent-created"],
   ["onStepUpdated", "kletia:step-updated"],
   ["onCompleted", "kletia:completed"],
+  ["onQuestion", "kletia:question"],
   ["onError", "kletia:error"],
 ];
 
@@ -855,6 +899,8 @@ function applyAttributes(element: Element, options: KletiaFrameOptions): void {
   set("reference", options.reference);
   set("intent", options.intent);
   set("session", options.session);
+  set("key", options.publishableKey);
+  set("flow", options.flow);
   set("height", options.height);
   set("max-height", options.maxHeight);
   set("label", options.label);

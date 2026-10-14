@@ -9,13 +9,17 @@
  *   proxy implementation or program deployment changed (`contract.suspended`);
  * - re-checks each registration's `/.well-known/kletia.json` once a day
  *   (a registration whose integrator name is a reserved brand is suspended
- *   when its domain stops verifying).
+ *   when its domain stops verifying);
+ * - re-checks each project's domain proof once a day: a project whose
+ *   file no longer lists it loses its verified brand (name, header and
+ *   logo) until it does again.
  *
  * The engine re-reads pins at every prepare and at the receipt block anyway;
  * the watcher only makes a change visible (and the registration suspended)
  * before someone tries to use it. Every check is read-only.
  */
 import { activateDueContracts, contractNow, contractsToWatch, watchContract, watchDomain, type WatchOutcome } from "./contracts.js";
+import { recheckProjectDomains } from "./projects.js";
 
 export const CONTRACT_WATCH_INTERVAL_MS = 10 * 60_000;
 export const CONTRACT_WATCH_BATCH = 200;
@@ -29,6 +33,8 @@ export interface ContractWatchReport {
   readonly suspended: number;
   readonly errors: number;
   readonly domainsChecked: number;
+  /** Project domain proofs re-checked in this pass (each at most daily). */
+  readonly projectDomainsChecked: number;
 }
 
 async function inBatches<T, R>(items: readonly T[], size: number, task: (item: T) => Promise<R>): Promise<R[]> {
@@ -62,12 +68,14 @@ export async function runContractWatch(batch = CONTRACT_WATCH_BATCH): Promise<Co
     return checkedAt === null || now - Date.parse(checkedAt) >= DOMAIN_RECHECK_MS;
   });
   const domains = await inBatches(dueForDomain, CONCURRENCY, watchDomain);
+  const projectDomainsChecked = await recheckProjectDomains(DOMAIN_RECHECK_MS, batch);
   return {
     activated,
     checked: outcomes.filter((outcome) => outcome.result !== "error").length,
     suspended: outcomes.filter((outcome) => outcome.result === "suspended").length,
     errors: outcomes.filter((outcome) => outcome.result === "error").length,
     domainsChecked: domains.filter((verified) => verified !== null).length,
+    projectDomainsChecked,
   };
 }
 

@@ -50,6 +50,8 @@ const VARIABLES = [
   ["decisionId", "", "A Rule Book decision id (pdc_…) from the decision log."],
   ["linkId", "", "An intent link id (lk_…) from creating or listing links."],
   ["threadId", "", "A Kletia-held clarify thread id (th_…) from a turn with remember: true, or from listing threads."],
+  ["projectId", "", "A project id (prj_…) from GET /v1/projects/current or the publishable profile."],
+  ["file", "", "A logo file name (<sha256>.png or <sha256>.webp) from the project's logo.url."],
 ];
 
 /** Request bodies and query values that make a useful first call, keyed by operationId. */

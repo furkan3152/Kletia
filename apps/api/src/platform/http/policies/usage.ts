@@ -6,7 +6,7 @@
  * are listed while they still have rows in the window.
  */
 import type { Request } from "express";
-import { keyKindOf } from "../auth.js";
+import { keyKindOf, type ApiKeyKind } from "../auth.js";
 import { invalidRequest, queryParam, type AuthContext } from "../context.js";
 import { intentCounts, usageStore, USAGE_WINDOWS, type UsageWindow } from "../usage.js";
 import { subtreeOf } from "./chain.js";
@@ -19,7 +19,7 @@ export const SUBTREE_USAGE_MAX_KEYS = 100;
 export interface SubtreeKeyUsage {
   readonly keyId: string;
   readonly name: string;
-  readonly kind: "project" | "agent";
+  readonly kind: ApiKeyKind;
   readonly parentId: string | null;
   readonly revokedAt: string | null;
   readonly requests: number;

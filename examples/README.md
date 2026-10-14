@@ -2,10 +2,12 @@
 
 Small apps that use Kletia the way an integrator would. They live outside the
 npm workspaces: each installs the published packages (`@kletia/widget`,
-`@kletia/sdk`, `@kletia/embed`) like any other project.
+`@kletia/sdk`, `@kletia/embed`) like any other project, except html-embed,
+which loads the embed script from the Kletia origin and installs nothing.
 
 | Example | What it shows |
 |---|---|
+| [html-embed](html-embed/README.md) | One script tag and `<kletia-intent>` on a plain page: the script from the Kletia origin pinned with its SRI hash, appearance attributes, an events log, and a zero-dependency server (`KLETIA_ORIGIN` for a local Kletia) |
 | [react-vite](react-vite/README.md) | `KletiaIntentWidget` with appearance tokens, a network and action scope, `sourceNetwork="auto"`, an EIP-1193 wallet, and plan-only previews before a wallet is connected |
 | [node-server](node-server/README.md) | A backend that keeps the key: `createKletiaProxy` for the browser, `POST /api/checkout` with the amount set on the server, a verified and de-duplicated webhook route, and `kletia listen` for local events |
 | [own-contract](own-contract/README.md) | Bring your own contract, testnet first: inspect, validate, register and test a call (a rebasing aToken output), then one embed session per page view |

@@ -17,6 +17,28 @@ import { PlatformError } from "../errors.js";
 
 export interface IntentRecordMeta {
   readonly ownerKeyId?: string;
+  /**
+   * The key whose contract registrations the intent's call / action steps
+   * use, when it is not the owner: a session minted from a project flow is
+   * owned by the publishable key and uses the registrations of the key that
+   * saved the flow. Absent: the owner.
+   */
+  readonly contractAuthorityKeyId?: string;
+  /**
+   * `owner`: the intent's exposures are written to and checked against the
+   * owner key's own spend windows only, with the chain's effective caps
+   * (publishable-owned, link and session intents). Absent: every level.
+   */
+  readonly exposureScope?: "owner";
+}
+
+/** The stored meta fields of a record (owner, contract authority, exposure scope). */
+function metaFields(meta: IntentRecordMeta): IntentRecordMeta {
+  return {
+    ...(meta.ownerKeyId ? { ownerKeyId: meta.ownerKeyId } : {}),
+    ...(meta.contractAuthorityKeyId ? { contractAuthorityKeyId: meta.contractAuthorityKeyId } : {}),
+    ...(meta.exposureScope === "owner" ? { exposureScope: "owner" as const } : {}),
+  };
 }
 
 export interface ReferenceClaim {
@@ -43,6 +65,12 @@ export interface IntentStore {
   findByClientReference(ownerKeyId: string, clientReference: string): Promise<IntentGraph | null>;
   /** API key id that created the intent: null for keyless intents, undefined when the intent is unknown. */
   ownerOf(id: string): Promise<string | null | undefined>;
+  /**
+   * Owner, contract authority and exposure scope of a stored intent;
+   * undefined when the intent is unknown (optional for custom stores, which
+   * then keep the owner as the contract authority and every level's windows).
+   */
+  metaOf?(id: string): Promise<IntentRecordMeta | undefined>;
   /**
    * Claims references for one step. Re-claiming by the same intent/step is a
    * no-op; a reference already claimed elsewhere throws 422 REFERENCE_ALREADY_USED.
@@ -96,6 +124,8 @@ function clampLimit(limit: number, max = 200): number {
 interface MemoryRecord {
   graph: IntentGraph;
   ownerKeyId?: string;
+  contractAuthorityKeyId?: string;
+  exposureScope?: "owner";
 }
 
 export class MemoryIntentStore implements IntentStore {
@@ -128,7 +158,7 @@ export class MemoryIntentStore implements IntentStore {
     if (meta.ownerKeyId && clientReference && (await this.findByClientReference(meta.ownerKeyId, clientReference))) {
       throw clientReferenceExists();
     }
-    this.touch(graph.id, { graph: structuredClone(graph), ...(meta.ownerKeyId ? { ownerKeyId: meta.ownerKeyId } : {}) });
+    this.touch(graph.id, { graph: structuredClone(graph), ...metaFields(meta) });
   }
 
   async get(id: string): Promise<IntentGraph | null> {
@@ -182,6 +212,11 @@ export class MemoryIntentStore implements IntentStore {
   async ownerOf(id: string): Promise<string | null | undefined> {
     const record = this.records.get(id);
     return record ? (record.ownerKeyId ?? null) : undefined;
+  }
+
+  async metaOf(id: string): Promise<IntentRecordMeta | undefined> {
+    const record = this.records.get(id);
+    return record ? metaFields(record) : undefined;
   }
 
   async claimReferences(claims: readonly ReferenceClaim[]): Promise<void> {
@@ -242,6 +277,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS kletia_intents_client_reference_idx
   ON kletia_intents (owner_key_id, client_reference)
   WHERE owner_key_id IS NOT NULL AND client_reference IS NOT NULL;
 ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS polled_at timestamptz;
+ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS contract_authority_key_id text;
+ALTER TABLE kletia_intents ADD COLUMN IF NOT EXISTS exposure_scope text;
 CREATE INDEX IF NOT EXISTS kletia_intents_poll_idx ON kletia_intents (status, polled_at NULLS FIRST, updated_at);
 CREATE TABLE IF NOT EXISTS kletia_intent_references (
   reference text PRIMARY KEY,
@@ -294,9 +331,12 @@ export class PostgresIntentStore implements IntentStore {
     // No conflict target: a duplicate id and a duplicate (owner, clientReference)
     // are both refused, so concurrent retries across instances create one intent.
     const result = await this.query(
-      `INSERT INTO kletia_intents (id, owner_key_id, status, graph, created_at, updated_at, client_reference)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7) ON CONFLICT DO NOTHING`,
-      [graph.id, meta.ownerKeyId ?? null, graph.status, JSON.stringify(graph), graph.createdAt, graph.updatedAt, clientReference],
+      `INSERT INTO kletia_intents (id, owner_key_id, status, graph, created_at, updated_at, client_reference, contract_authority_key_id, exposure_scope)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING`,
+      [
+        graph.id, meta.ownerKeyId ?? null, graph.status, JSON.stringify(graph), graph.createdAt, graph.updatedAt, clientReference,
+        meta.contractAuthorityKeyId ?? null, meta.exposureScope === "owner" ? "owner" : null,
+      ],
     );
     if (result.rowCount !== 0) return;
     if (clientReference && !(await this.get(graph.id))) throw clientReferenceExists();
@@ -357,6 +397,20 @@ export class PostgresIntentStore implements IntentStore {
     const result = await this.query<{ owner_key_id: string | null }>("SELECT owner_key_id FROM kletia_intents WHERE id = $1", [id]);
     const row = result.rows[0];
     return row ? row.owner_key_id : undefined;
+  }
+
+  async metaOf(id: string): Promise<IntentRecordMeta | undefined> {
+    const result = await this.query<{ owner_key_id: string | null; contract_authority_key_id: string | null; exposure_scope: string | null }>(
+      "SELECT owner_key_id, contract_authority_key_id, exposure_scope FROM kletia_intents WHERE id = $1",
+      [id],
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return metaFields({
+      ...(row.owner_key_id ? { ownerKeyId: row.owner_key_id } : {}),
+      ...(row.contract_authority_key_id ? { contractAuthorityKeyId: row.contract_authority_key_id } : {}),
+      ...(row.exposure_scope === "owner" ? { exposureScope: "owner" as const } : {}),
+    });
   }
 
   async claimReferences(claims: readonly ReferenceClaim[]): Promise<void> {

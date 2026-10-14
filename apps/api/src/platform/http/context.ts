@@ -12,7 +12,13 @@ import { PlatformError, toPlatformError, type PlatformIssue } from "../errors.js
 import { INTENT_ID_PATTERN, MAX_STEP_TRANSACTIONS, STEP_ID_PATTERN } from "../index.js";
 import { errorDocsLink } from "./errorsRoute.js";
 
-export type ApiTier = "public" | "developer" | "operator";
+/**
+ * `publishable`: a browser key (`kl_pub_…`). It may use the public tier's
+ * operations, plan and store intents it owns, start sessions from the
+ * project's stored flows and read the project profile; the router refuses
+ * everything else (403 PUBLISHABLE_KEY_FORBIDDEN).
+ */
+export type ApiTier = "public" | "developer" | "operator" | "publishable";
 
 export interface AuthContext {
   readonly tier: ApiTier;
@@ -24,9 +30,9 @@ export interface AuthContext {
   readonly viaPreviousSecret?: true;
   /** SHA-256 of the presented developer secret (never the secret itself): tells a key's current and previous secrets apart. */
   readonly secretHash?: string;
-  /** `project` keys (kl_dev_) or `agent` keys (kl_agt_, Rule Book children); absent for operator keys. */
-  readonly keyKind?: "project" | "agent";
-  /** Ancestors of an agent key, project key first. */
+  /** `project` keys (kl_dev_), `agent` keys (kl_agt_, Rule Book children) or `publishable` keys (kl_pub_, browsers); absent for operator keys. */
+  readonly keyKind?: "project" | "agent" | "publishable";
+  /** Ancestors of an agent or publishable key, project key first. */
   readonly lineage?: readonly string[];
   /** Set when the caller presented a credential that failed; the request is rejected after rate limiting. */
   readonly rejection?: HttpError | PlatformError;

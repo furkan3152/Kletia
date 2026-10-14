@@ -33,6 +33,27 @@ with the visitor's amount bounded to 1-100 USDC. `page.html` embeds it with
 the server. A session for a registration that is still pending carries a
 `CONTRACT_PENDING` warning (logged by the server).
 
+**No server of your own:** store the registration as a project
+flow and run it in the browser with a publishable key.
+
+```bash
+KLETIA_API_KEY=kl_dev_… CONTRACT_ID=ct_… PAGE_ORIGIN=https://shop.example node flow.mjs
+```
+
+`flow.mjs` reads the project (`projects.get`), merge-patches it under
+`If-Match` with your page origin in `allowedOrigins` and a `supply` flow (the
+registration's entry, 1-100 USDC chosen by the visitor), issues a publishable
+key (`kl_pub_…`, shown once) and prints the snippet:
+
+```html
+<kletia-intent key="kl_pub_…" flow="supply"></kletia-intent>
+```
+
+The flow is saved by your key, so its call step uses your registration; the
+publishable key alone can never call a contract (`CONTRACT_UNKNOWN`), works
+only from the allowed origins, and each visitor gets a single-use 600 s
+session from the flow. See docs/platform/projects.md.
+
 The supply mints aTokens, whose balance grows by interest between blocks, so
 the entry's output is declared `"rebasing": true`: Kletia then accepts a
 Transfer-log amount that differs from the balance change by at most 2 base
@@ -48,5 +69,6 @@ kletia contracts test ct_… --entry supply --account arbitrum-sepolia:0xYourWal
 ```
 
 `npm run check` runs `smoke.mjs` against an in-process stub of `/v1` (no
-network, no key, nothing signed); `npm run check:examples` at the repository
+network, no key, nothing signed; it covers register.mjs, session-server.mjs
+and flow.mjs); `npm run check:examples` at the repository
 root runs it through this example's `build` script.

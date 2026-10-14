@@ -96,6 +96,46 @@ attribute intents to your key, create them on your server (next path) and
 pass the intent id to the element. The attributes and events are in
 [embed.md](embed.md).
 
+### Branded, attributed and with your own contract: a publishable key (10-15 minutes)
+
+A static site can also run intents attributed to your project, with your
+brand and your own contract, without any server of yours. With your project
+key (`KLETIA_API_KEY` above):
+
+1. Allow your page and name your brand (`If-Match` is the `hash` that
+   `GET /v1/projects/current` returns):
+
+   ```bash
+   HASH=$(curl -s https://api.kletiaai.xyz/v1/projects/current -H "Authorization: Bearer $KLETIA_API_KEY" | node -pe 'JSON.parse(require("fs").readFileSync(0)).project.hash')
+   curl -s -X PATCH https://api.kletiaai.xyz/v1/projects/current \
+     -H "Authorization: Bearer $KLETIA_API_KEY" -H "content-type: application/json" -H "if-match: \"$HASH\"" \
+     -d '{"allowedOrigins":["http://localhost:8080"],"brand":{"name":"Acme Store","website":"https://acme.example"},"defaults":{"lane":"testnet"}}'
+   ```
+
+   Expected: `{ "project": { "version": 1, … "domain": { "host": "acme.example", "verified": false, … } } }`.
+   Publish `domain.file` at `https://acme.example/.well-known/kletia.json` and
+   call `POST /v1/projects/current/domain/verify`: the brand name and logo
+   show only once it is verified.
+2. Optional, your own contract: register it on a testnet (active at once,
+   [contracts.md](contracts.md#testnet-first)) and store it as a flow:
+   `node flow.mjs` in examples/own-contract does steps 2 and 3 for you.
+3. Issue a publishable key (shown once; safe in page code, it works only
+   from `allowedOrigins`):
+
+   ```bash
+   curl -s -X POST https://api.kletiaai.xyz/v1/projects/current/publishable-keys \
+     -H "Authorization: Bearer $KLETIA_API_KEY" -H "content-type: application/json" -d '{"label":"website"}'
+   ```
+
+   Expected: `{ "key": { "id": "key_…", "key": "kl_pub_…", "label": "website", "kind": "publishable", … } }`.
+4. Put it in the page: `<kletia-intent key="kl_pub_…"></kletia-intent>` for
+   text mode, or `<kletia-intent key="kl_pub_…" flow="deposit"></kletia-intent>`
+   for a stored flow. Intents are owned by the publishable key: your server
+   sees them through the parent key's `subtree` webhooks and
+   `GET /v1/intents?owner=key_…`.
+
+Details, limits and errors: [projects.md](projects.md).
+
 ## Server: plan with your key
 
 1. Install the SDK (Node 18.17 or later):

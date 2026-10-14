@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/write-route-pages.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-route-chunks.mjs",
+    "build": "tsc -b && vite build && node scripts/write-route-pages.mjs && node scripts/emit-embed-script.mjs && node scripts/write-receipt-keys.mjs && node scripts/check-bundle-budget.mjs && node scripts/check-route-chunks.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "lint": "eslint .",
     "verify:intent-user-journey": "tsx scripts/verifyIntentUserJourney.ts",

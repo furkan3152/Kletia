@@ -18,6 +18,10 @@
  *   key authenticates only while it and every ancestor are neither revoked nor
  *   expired (checked by the store in the same read), so a revocation holds
  *   even if the cascade write of a subtree failed.
+ * - Publishable keys: `kl_pub_` + 32 base62, children of a project key
+ *   (`kind: "publishable"`, depth 1, at most 5 active per project), meant
+ *   for browsers. They authenticate at the `publishable` tier; the router
+ *   limits what they may call and from which origins.
  *
  * A request presents a key as `Authorization: Bearer <key>` or
  * `X-Kletia-Key: <key>`. No key means the public tier; a key that does not
@@ -36,7 +40,7 @@
  * within 15 s everywhere else.
  */
 import type { RequestHandler } from "express";
-import { AGENT_KEY_PATTERN, AGENT_KEY_PREFIX } from "@kletia/core";
+import { AGENT_KEY_PATTERN, AGENT_KEY_PREFIX, PUBLISHABLE_KEY_PATTERN, PUBLISHABLE_KEY_PREFIX } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import { allowedOrigins } from "../../shared/http/cors.js";
 import { authOf, HttpError, invalidRequest, isRecord, sendError, setAuth, type ApiTier } from "./context.js";
@@ -61,17 +65,17 @@ export interface ApiKeyRecord {
   /** End of the previous secret's grace window after a rotation (null when none is valid). */
   readonly previousExpiresAt: string | null;
   readonly lastUsedAt: string | null;
-  /** `project` (default: every key issued by POST /v1/keys) or `agent` (a child key, Rule Book). */
+  /** `project` (default: every key issued by POST /v1/keys), `agent` (a child key, Rule Book) or `publishable` (a browser key under a project key). */
   readonly kind?: ApiKeyKind;
-  /** Parent of an agent key (null for project keys). */
+  /** Parent of an agent or publishable key (null for project keys). */
   readonly parentId?: string | null;
-  /** Ancestors of an agent key, project key first (empty for project keys). */
+  /** Ancestors of an agent or publishable key, project key first (empty for project keys). */
   readonly lineage?: readonly string[];
   /** When the key stops authenticating (always set on agent keys; null: never). */
   readonly expiresAt?: string | null;
 }
 
-export type ApiKeyKind = "project" | "agent";
+export type ApiKeyKind = "project" | "agent" | "publishable";
 
 export interface IssuedApiKey {
   readonly id: string;
@@ -96,7 +100,7 @@ export interface ApiKeyMatch {
 
 /** The kind of a stored key (records written before agent keys are project keys). */
 export function keyKindOf(record: Pick<ApiKeyRecord, "kind">): ApiKeyKind {
-  return record.kind === "agent" ? "agent" : "project";
+  return record.kind === "agent" || record.kind === "publishable" ? record.kind : "project";
 }
 
 /** A key that is not revoked and not expired at `now` (its own state only). */
@@ -116,6 +120,10 @@ export function keyCollision(): PlatformError {
 
 export function keyLimitReached(max: number): PlatformError {
   return new PlatformError("KEY_LIMIT_REACHED", `A project holds at most ${max} active API keys. Revoke one with DELETE /v1/keys/{id} first.`, 409);
+}
+
+export function publishableKeyLimitReached(max: number): PlatformError {
+  return new PlatformError("KEY_LIMIT_REACHED", `A project holds at most ${max} active publishable keys. Revoke one with DELETE /v1/keys/{id} first.`, 409);
 }
 
 export function agentKeyLimitReached(max: number): PlatformError {
@@ -142,6 +150,12 @@ export interface ApiKeyStore {
    * active agent keys; serialised per project like `insert`.
    */
   insertAgent(record: ApiKeyRecord, keyHash: string, maxActiveAgents: number, now: number): Promise<void>;
+  /**
+   * Inserts a publishable key (`kind: "publishable"`), refusing (409
+   * KEY_LIMIT_REACHED) when its project already holds `maxActive` active
+   * publishable keys; serialised per project like `insert`.
+   */
+  insertPublishable(record: ApiKeyRecord, keyHash: string, maxActive: number, now: number): Promise<void>;
   /** The key whose current secret, or unexpired previous secret, hashes to `keyHash` (with lineage liveness). */
   findByHash(keyHash: string, now: number): Promise<ApiKeyMatch | null>;
   /** The key with this id (revoked or not), null when unknown. */
@@ -213,6 +227,16 @@ export class MemoryApiKeyStore implements ApiKeyStore {
     for (const entry of this.byId.values()) if (activeAgent(entry.record, record.projectId, now)) count += 1;
     if (count >= maxActiveAgents) throw agentKeyLimitReached(maxActiveAgents);
     this.add({ ...record, kind: "agent" }, keyHash);
+  }
+
+  async insertPublishable(record: ApiKeyRecord, keyHash: string, maxActive: number, now: number): Promise<void> {
+    if (this.byHash.has(keyHash) || this.byId.has(record.id)) throw keyCollision();
+    let count = 0;
+    for (const entry of this.byId.values()) {
+      if (entry.record.projectId === record.projectId && keyKindOf(entry.record) === "publishable" && this.lineageLive(entry.record, now)) count += 1;
+    }
+    if (count >= maxActive) throw publishableKeyLimitReached(maxActive);
+    this.add({ ...record, kind: "publishable" }, keyHash);
   }
 
   private add(record: ApiKeyRecord, keyHash: string): void {
@@ -339,7 +363,13 @@ ALTER TABLE kletia_api_keys
   ADD COLUMN IF NOT EXISTS expires_at timestamptz;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'kletia_api_keys_kind_check') THEN
-    ALTER TABLE kletia_api_keys ADD CONSTRAINT kletia_api_keys_kind_check CHECK (kind IN ('project', 'agent'));
+    ALTER TABLE kletia_api_keys ADD CONSTRAINT kletia_api_keys_kind_check CHECK (kind IN ('project', 'agent', 'publishable'));
+  ELSIF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'kletia_api_keys_kind_check' AND pg_get_constraintdef(oid) LIKE '%publishable%'
+  ) THEN
+    -- Publishable keys widen the kind check of databases created before them.
+    ALTER TABLE kletia_api_keys DROP CONSTRAINT kletia_api_keys_kind_check;
+    ALTER TABLE kletia_api_keys ADD CONSTRAINT kletia_api_keys_kind_check CHECK (kind IN ('project', 'agent', 'publishable'));
   END IF;
 END $$;
 CREATE INDEX IF NOT EXISTS kletia_api_keys_lineage_idx ON kletia_api_keys USING gin (lineage);
@@ -384,7 +414,7 @@ function recordFromRow(row: ApiKeyRow): ApiKeyRecord | null {
     rotatedAt: isoOf(row.rotated_at),
     previousExpiresAt: isoOf(row.previous_expires_at),
     lastUsedAt: isoOf(row.last_used_at),
-    kind: row.kind === "agent" ? "agent" : "project",
+    kind: row.kind === "agent" || row.kind === "publishable" ? row.kind : "project",
     parentId: row.parent_id,
     lineage: Array.isArray(row.lineage) ? row.lineage : [],
     expiresAt: isoOf(row.expires_at),
@@ -434,6 +464,26 @@ export class PostgresApiKeyStore implements ApiKeyStore {
         `INSERT INTO kletia_api_keys (id, key_hash, name, tier, created_at, project_id, last4, kind, parent_id, lineage, expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'agent', $8, $9::text[], $10) ON CONFLICT DO NOTHING`,
         [record.id, keyHash, record.name, record.tier, record.createdAt, record.projectId, record.last4, record.parentId ?? null, [...(record.lineage ?? [])], record.expiresAt ?? null],
+      );
+      if (result.rowCount !== 1) throw keyCollision();
+    });
+  }
+
+  async insertPublishable(record: ApiKeyRecord, keyHash: string, maxActive: number, now: number): Promise<void> {
+    await dbTransaction(API_KEYS_SCHEMA, async (client) => {
+      // The same per-project lock as project and agent key issuance: the cap holds across instances.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`kletia_api_keys:${record.projectId}`]);
+      const at = new Date(now).toISOString();
+      const count = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM kletia_api_keys k
+         WHERE COALESCE(k.project_id, k.id) = $1 AND k.kind = 'publishable' AND ${LINEAGE_ACTIVE}`,
+        [record.projectId, at],
+      );
+      if (Number(count.rows[0]?.count ?? "0") >= maxActive) throw publishableKeyLimitReached(maxActive);
+      const result = await client.query(
+        `INSERT INTO kletia_api_keys (id, key_hash, name, tier, created_at, project_id, last4, kind, parent_id, lineage, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'publishable', $8, $9::text[], NULL) ON CONFLICT DO NOTHING`,
+        [record.id, keyHash, record.name, record.tier, record.createdAt, record.projectId, record.last4, record.parentId ?? null, [...(record.lineage ?? [])]],
       );
       if (result.rowCount !== 1) throw keyCollision();
     });
@@ -630,9 +680,55 @@ export function newAgentSecret(): { readonly key: string; readonly hash: string;
   return { key, hash: sha256Hex(key), last4: key.slice(-4) };
 }
 
+/** A fresh publishable secret (`kl_pub_`, browser code) and its stored forms. */
+export function newPublishableSecret(): { readonly key: string; readonly hash: string; readonly last4: string } {
+  const key = `${PUBLISHABLE_KEY_PREFIX}${randomBase62(32)}`;
+  return { key, hash: sha256Hex(key), last4: key.slice(-4) };
+}
+
 /** A new secret of the same kind as the key it replaces. */
 export function newSecretFor(record: Pick<ApiKeyRecord, "kind">): { readonly key: string; readonly hash: string; readonly last4: string } {
-  return keyKindOf(record) === "agent" ? newAgentSecret() : newDeveloperSecret();
+  const kind = keyKindOf(record);
+  return kind === "agent" ? newAgentSecret() : kind === "publishable" ? newPublishableSecret() : newDeveloperSecret();
+}
+
+export interface IssuedPublishableKey {
+  readonly id: string;
+  /** `kl_pub_…`: shown once; Kletia keeps only its SHA-256 hash. */
+  readonly key: string;
+  readonly label: string;
+  readonly kind: "publishable";
+  readonly parentId: string;
+  readonly createdAt: string;
+}
+
+/**
+ * Issues a publishable key under the project key `parent` (the caller checked
+ * that it is a live project key). Refuses (409 KEY_LIMIT_REACHED) when the
+ * project already holds `maxActive` active publishable keys.
+ */
+export async function issuePublishableKey(label: string, parent: Pick<ApiKeyRecord, "id" | "projectId">, maxActive: number, now = Date.now()): Promise<IssuedPublishableKey> {
+  const secret = newPublishableSecret();
+  const id = `key_${randomHex(12)}`;
+  const record: ApiKeyRecord = {
+    id,
+    name: label,
+    // Stored on the developer tier (the column's constraint); the kind makes it authenticate as `publishable`.
+    tier: "developer",
+    createdAt: new Date(now).toISOString(),
+    revokedAt: null,
+    projectId: parent.projectId,
+    last4: secret.last4,
+    rotatedAt: null,
+    previousExpiresAt: null,
+    lastUsedAt: null,
+    kind: "publishable",
+    parentId: parent.id,
+    lineage: [parent.id],
+    expiresAt: null,
+  };
+  await apiKeyStore().insertPublishable(record, secret.hash, maxActive, now);
+  return { id, key: secret.key, label, kind: "publishable", parentId: parent.id, createdAt: record.createdAt };
 }
 
 export interface IssuedAgentKey extends IssuedApiKey {
@@ -907,13 +1003,15 @@ export const authenticate: RequestHandler = (req, _res, next) => {
         return;
       }
       const agentKey = AGENT_KEY_PATTERN.test(key);
-      if (!DEVELOPER_KEY_PATTERN.test(key) && !agentKey) {
+      const publishableKey = PUBLISHABLE_KEY_PATTERN.test(key);
+      if (!DEVELOPER_KEY_PATTERN.test(key) && !agentKey && !publishableKey) {
         setAuth(req, { tier: "public", rejection: invalidKey() });
         return;
       }
       // A server key from a foreign browser origin: refused before any store lookup (validity is never
       // revealed). /v1/mcp keeps its own Origin rule (MCP_ORIGIN_FORBIDDEN, KLETIA_MCP_ALLOWED_ORIGINS).
-      if (!MCP_ROUTE.test(req.path) && !secretKeyOriginAllowed(req.get("origin"))) {
+      // Publishable keys are browser keys: their origin rule needs the project (projects.ts, after the limiter).
+      if (!publishableKey && !MCP_ROUTE.test(req.path) && !secretKeyOriginAllowed(req.get("origin"))) {
         setAuth(req, { tier: "public", rejection: secretKeyFromBrowser() });
         return;
       }
@@ -925,18 +1023,19 @@ export const authenticate: RequestHandler = (req, _res, next) => {
       }
       const { record } = match;
       // A key whose own expiry passed, or whose ancestor is revoked or expired, never authenticates.
-      if (match.active === false || !keyLive(record, now) || (keyKindOf(record) === "agent") !== agentKey) {
+      const expectedKind = agentKey ? "agent" : publishableKey ? "publishable" : "project";
+      if (match.active === false || !keyLive(record, now) || keyKindOf(record) !== expectedKind) {
         setAuth(req, { tier: "public", rejection: invalidKey(record.expiresAt && Date.parse(record.expiresAt) <= now ? "The API key expired." : undefined) });
         return;
       }
       const kind = keyKindOf(record);
       setAuth(req, {
-        tier: record.tier,
+        tier: kind === "publishable" ? "publishable" : record.tier,
         keyId: record.id,
         projectId: record.projectId,
         secretHash: hash,
         keyKind: kind,
-        ...(kind === "agent" ? { lineage: [...(record.lineage ?? [])] } : {}),
+        ...(kind !== "project" ? { lineage: [...(record.lineage ?? [])] } : {}),
         ...(match.viaPrevious ? { viaPreviousSecret: true as const } : {}),
       });
     } catch (error) {

@@ -89,12 +89,12 @@ function Article({ n, ctx, children }: { readonly n: number; readonly ctx: Artic
             {marks.issues > 0 || marks.changed ? (
               <span className="mt-1 flex flex-wrap gap-2">
                 {marks.issues > 0 ? (
-                  <span className="border-2 border-[#B91C1C] px-1.5 font-code text-[10px] font-black uppercase tracking-[0.08em] text-[#B91C1C] dark:border-[#FCA5A5] dark:text-[#FCA5A5]">
+                  <span className="border-2 border-[#B91C1C] px-1.5 font-code text-[12px] font-black uppercase tracking-[0.08em] text-[#B91C1C] dark:border-[#FCA5A5] dark:text-[#FCA5A5]">
                     {marks.issues} {marks.issues === 1 ? "issue" : "issues"}
                   </span>
                 ) : null}
                 {marks.changed ? (
-                  <span className="border-2 border-dashed border-[#1A1A1A] px-1.5 font-code text-[10px] font-black uppercase tracking-[0.08em] dark:border-white/60">Changed in the draft</span>
+                  <span className="border-2 border-dashed border-[#1A1A1A] px-1.5 font-code text-[12px] font-black uppercase tracking-[0.08em] dark:border-white/60">Changed in the draft</span>
                 ) : null}
               </span>
             ) : null}
@@ -293,7 +293,7 @@ export function SidingsArticle({ draft, set, ctx }: ArticleProps) {
                             onChange={(event) => update(event.target.checked ? [...allow, { id: contract.id }] : allow.filter((item) => item.id !== contract.id))}
                           />
                           <span className="min-w-0 break-words">{contract.integrator.name}</span>
-                          <code className={cx("font-code text-[11px]", TEXT_MUTED)}>{contract.id}</code>
+                          <code className={cx("font-code text-[12px]", TEXT_MUTED)}>{contract.id}</code>
                         </label>
                         {entry ? (
                           <div className="ml-6 flex flex-wrap gap-x-4 gap-y-1">
@@ -437,7 +437,7 @@ function Gauge({ used, cap, label }: { readonly used: string | null | undefined;
       <div className="kl-rb-gauge" data-level={level} aria-hidden="true">
         <span style={{ width: `${Math.round(ratio * 100)}%` }} />
       </div>
-      <p className="font-code text-[11px] font-bold">
+      <p className="font-code text-[12px] font-bold">
         {label}: {formatUsd(used ?? "0")} of {formatUsd(cap)} used ({Math.round(ratio * 100)}%)
       </p>
     </div>

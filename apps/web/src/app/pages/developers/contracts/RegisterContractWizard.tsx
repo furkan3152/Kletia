@@ -28,6 +28,7 @@ import { buildArg, classifyFunctions, eventItems, findFunction, guessArg, parseA
 import { AbiFunctionPicker } from "./AbiFunctionPicker";
 import { BindingEditor } from "./BindingEditor";
 import {
+  applyErc4626Hint,
   buildEvmDefinition,
   evmStepOf,
   newEntryDraft,
@@ -150,7 +151,9 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
     if (on) {
       const fn = findFunction(parsed.items, signature);
       if (!fn) return;
-      setEntries((current) => (current[signature] ? current : { ...current, [signature]: newEntryDraft(fn, parsed.items, guessArg) }));
+      // An ERC-4626 vault's deposit is prefilled from the inspection's hint (asset, approval, shares, Deposit event).
+      const draftEntry = applyErc4626Hint(newEntryDraft(fn, parsed.items, guessArg), inspection?.hints?.erc4626, parsed.items, name);
+      setEntries((current) => (current[signature] ? current : { ...current, [signature]: draftEntry }));
       setSelected((current) => (current.includes(signature) ? current : [...current, signature]));
     } else {
       setSelected((current) => current.filter((value) => value !== signature));
@@ -288,6 +291,18 @@ export function RegisterContractWizard({ apiKey, onRegistered, onCancel }: Regis
                   </dl>
                 ) : null}
                 <p className="text-sm">{sourceText(inspection.verification.source?.status)}.</p>
+                {inspection.hints?.erc4626 && !problem ? (
+                  <p className="text-sm font-semibold">
+                    ERC-4626 vault of{" "}
+                    {inspection.hints.erc4626.registrySymbol ?? (
+                      <>
+                        <code className="break-all font-code text-[12px]">{inspection.hints.erc4626.asset}</code> (not a Kletia registry asset on this network)
+                      </>
+                    )}
+                    : choosing deposit(uint256,address) prefills its entry with the asset, an exact approval to the vault, the shares as output and
+                    the Deposit event.
+                  </p>
+                ) : null}
                 {inspection.verification.implementationSource ? (
                   <p className="text-sm">Implementation: {sourceText(inspection.verification.implementationSource.status).toLowerCase()}.</p>
                 ) : null}

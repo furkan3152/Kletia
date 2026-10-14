@@ -126,6 +126,8 @@ export const platformCorsOptions: CorsOptions = {
     "Idempotency-Key",
     // Rule book writes are conditional on the version the portal read.
     "If-Match",
+    // The /embed frame sends the bridge-proven host page origin with a publishable key (integrator 4.8).
+    "Kletia-Host-Origin",
   ],
   exposedHeaders: [
     "X-Request-Id",

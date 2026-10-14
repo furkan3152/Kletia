@@ -10,6 +10,7 @@
   "scripts": {
     "register": "node register.mjs contract.arbitrum-sepolia.json",
     "start": "node session-server.mjs",
+    "flow": "node flow.mjs",
     "check": "node smoke.mjs",
     "build": "node smoke.mjs"
   },

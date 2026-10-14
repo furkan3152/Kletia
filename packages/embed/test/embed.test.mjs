@@ -390,3 +390,38 @@ test("the default origin is the Kletia origin the script was loaded from", () =>
   assert.equal(normalizeKletiaOrigin("", "https://kletia.example"), "https://kletia.example");
   assert.equal(normalizeKletiaOrigin("https://other.example", "https://kletia.example"), "https://other.example");
 });
+
+// ---------------------------------------------------------------------------
+// Publishable key and stored flow, questions
+// ---------------------------------------------------------------------------
+
+const PUB = `kl_pub_${"Ab3".repeat(10)}xy`;
+
+test("the key and flow attributes travel in the fragment, shape-checked; a secret key never does", () => {
+  const url = buildEmbedUrl("https://kletia.example", readElementConfig(attributes({ key: PUB, flow: "deposit-usdc" })).options, HOST);
+  assert.equal(new URL(url).hash, `#key=${PUB}&flow=deposit-usdc`);
+  assert.equal(new URL(url).searchParams.get("key"), null, "never in the query string");
+  assert.equal(embedFragment({ publishableKey: PUB }), `#key=${PUB}`);
+  assert.equal(embedFragment({ publishableKey: PUB, flow: "Bad Flow" }), `#key=${PUB}`);
+  assert.equal(embedFragment({ flow: "deposit" }), "", "a flow needs the key");
+  for (const bad of [`kl_dev_${"a".repeat(32)}`, `kl_agt_${"a".repeat(32)}`, "kl_pub_short", `kl_pub_${"a".repeat(32)}&intent=x`, ` ${PUB}x`]) {
+    assert.equal(embedFragment({ publishableKey: bad, flow: "deposit" }), "", bad);
+    assert.doesNotMatch(buildEmbedUrl("https://kletia.example", { publishableKey: bad }), /kl_(?:dev|agt)_/u);
+  }
+  // Integrator-created work wins over the key.
+  const session = `cs_${"b".repeat(32)}`;
+  assert.equal(embedFragment({ session, publishableKey: PUB, flow: "deposit" }), `#session=${session}`);
+  assert.ok(OBSERVED_ATTRIBUTES.includes("key") && OBSERVED_ATTRIBUTES.includes("flow"));
+});
+
+test("kletia:question carries a count and reason codes only, never values", () => {
+  assert.deepEqual(parseBridgeMessage(event("question", { count: 2, reasons: ["AMOUNT_MISSING", "AMOUNT_MISSING", "NETWORK_AMBIGUOUS"] })), {
+    name: "kletia:question",
+    detail: { count: 2, reasons: ["AMOUNT_MISSING", "NETWORK_AMBIGUOUS"] },
+  });
+  const leaky = parseBridgeMessage(event("question", { count: 1, reasons: ["swap 1 SOL", "0xabc", "AMOUNT_MISSING"], text: "swap 1 SOL", amount: "1" }));
+  assert.deepEqual(leaky, { name: "kletia:question", detail: { count: 1, reasons: ["AMOUNT_MISSING"] } });
+  for (const bad of [{ count: 0, reasons: [] }, { count: 1.5, reasons: [] }, { count: 1 }, { count: "1", reasons: [] }, { count: 99, reasons: [] }]) {
+    assert.equal(parseBridgeMessage(event("question", bad)), null, JSON.stringify(bad));
+  }
+});

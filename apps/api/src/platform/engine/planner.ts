@@ -160,6 +160,13 @@ export interface PlanOptions {
    */
   readonly ownerKeyId?: string;
   /**
+   * The key whose registrations the plan may call instead of the owner's: a
+   * session minted from a project flow is owned by the publishable key and
+   * calls the registrations of the key that saved the flow. Default:
+   * `ownerKeyId`.
+   */
+  readonly contractAuthorityKeyId?: string;
+  /**
    * Intent lifetime (default INTENT_TTL_MS): intents held for Rule Book
    * approval live longer so a human has time. Still capped by
    * `constraints.deadline`.
@@ -1544,7 +1551,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     // Structured actions name their networks: they win over a departure like a sentence that names one.
     explicitNetwork = specs.map(() => true);
   } else {
-    const contracts = await contractPhrases(options.ownerKeyId);
+    const contracts = await contractPhrases(options.contractAuthorityKeyId ?? options.ownerKeyId);
     const compile = (defaultNetwork: NetworkKey | undefined): GrammarResult => compileIntentText(request.text ?? "", {
       ...(defaultNetwork ? { defaultNetwork } : {}),
       accounts: request.accounts,
@@ -1576,6 +1583,8 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     plannerWarnings.push(...resolved.warnings);
   }
   const actions = normalizeActions(specs, request);
+  // Registrations resolve against the contract authority (a flow's saver) when one is given.
+  const contractKeyId = options.contractAuthorityKeyId ?? options.ownerKeyId;
 
   const drafts: StepDraft[] = [];
   const optimizations: string[] = [];
@@ -1598,7 +1607,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
         ...(next.provider ? { provider: next.provider } : {}),
       };
       try {
-        const candidate = await draftStep(merged, previous, accounts, request, options.ownerKeyId, context(actions.slice(index + 2)));
+        const candidate = await draftStep(merged, previous, accounts, request, contractKeyId, context(actions.slice(index + 2)));
         const venue = getProtocol(candidate.planned.protocol)?.name ?? candidate.adapter.label;
         draft = { ...candidate, merged: `Merged ${action.kind} (action ${index + 1}) and ${next.kind} on ${CHAINS[next.network].name} (action ${index + 2}) into one ${venue} cross-network swap into ${candidate.output?.symbol ?? next.to}; saves a signature and a settlement wait.` };
         index += 1;
@@ -1609,7 +1618,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
         draft = null;
       }
     }
-    draft ??= await draftStep(action, previous, accounts, request, options.ownerKeyId, context(actions.slice(index + 1)));
+    draft ??= await draftStep(action, previous, accounts, request, contractKeyId, context(actions.slice(index + 1)));
     if (draft.merged) optimizations.push(draft.merged);
     if (draft.gasReserve) reserved.add(`${draft.action.network}|${draft.account.id.toLowerCase()}`);
     if (gasTopupUsd !== undefined) {

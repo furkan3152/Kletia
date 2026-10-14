@@ -34,6 +34,7 @@ this same API for Solana and cross-network flows.
 | Developer | `Authorization: Bearer kl_dev_…` | 300 requests/min per key | Everything above, plus intent listing, webhooks, [custom contracts and sessions](contracts.md) |
 | Sandbox | A developer key issued with `"sandbox": true` | As developer | As developer, on testnets only ([sandbox keys](#sandbox-keys)) |
 | Agent | `Authorization: Bearer kl_agt_…` (a child key, [policies.md](policies.md#agent-keys)) | As developer | What its rule book chain permits |
+| Publishable | `Authorization: Bearer kl_pub_…` from an allowed browser origin ([projects.md](projects.md#publishable-keys)) | 120 requests/min per key, plus 30/min per IP | The public tier, intents it owns (never contract steps), sessions from the project's stored flows, the project profile |
 | Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above, plus suspending any contract registration |
 
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
@@ -90,6 +91,18 @@ normal [Rule Book](policies.md) rules (tighten now, loosen later), and
 `GET /v1/keys` reports every key's `lane`: `testnet`, `production` or `any`,
 derived from the active rule books of its chain.
 
+### Publishable keys
+
+A publishable key (`kl_pub_` + 32 base62, issued by `POST
+/v1/projects/current/publishable-keys`) is the browser key of a project. It
+works only from the origins in the project's `allowedOrigins` (`Origin`, or
+`Kletia-Host-Origin` from the Kletia `/embed` frame; `403
+PUBLISHABLE_ORIGIN_FORBIDDEN` otherwise), may call only the public tier,
+`POST /v1/intents` (owned by the key, never `call` or `action` steps), `POST
+/v1/sessions` with `{ flow, hostOrigin }` and `GET /v1/publishable/profile`
+(`403 PUBLISHABLE_KEY_FORBIDDEN` for anything else), and its intents count in
+its own Rule Book spend windows. The guide is [projects.md](projects.md).
+
 ### Server keys in browsers
 
 `kl_dev_` and `kl_agt_` keys are server keys. A request that presents one with
@@ -122,7 +135,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 |---|---|
 | 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
-| 403 | A server key sent from a browser on another site (`SECRET_KEY_FROM_BROWSER`), a rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`), a Rule Book refusal (`POLICY_VIOLATION`, …) |
+| 403 | A server key sent from a browser on another site (`SECRET_KEY_FROM_BROWSER`), a publishable key outside its operations or origins (`PUBLISHABLE_KEY_FORBIDDEN`, `PUBLISHABLE_ORIGIN_FORBIDDEN`), a rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`), a Rule Book refusal (`POLICY_VIOLATION`, …) |
 | 404 | Unknown intent, step, webhook, key, contract registration (`CONTRACT_NOT_FOUND`, also for other keys' private ones), session or path; no kept preview (`PREVIEW_NOT_FOUND`); unknown or unshared receipt, share or log batch (`RECEIPT_NOT_FOUND`, `RECEIPT_SHARE_NOT_FOUND`, `RECEIPT_LOG_NOT_FOUND`) |
 | 405 | Wrong method (with an `Allow` header) |
 | 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`, `CONTRACT_EXISTS`, `CONTRACT_LIMIT_REACHED`, `CONTRACT_PENDING`, `CONTRACT_SUSPENDED`, `CONTRACT_CHANGED`, `CONTRACT_REVISION_CHANGED`, `SESSION_USED`, `PREVIEW_CHANGED`, `RECEIPT_NOT_READY`, `RECEIPT_NOT_APPLICABLE`, `RECEIPT_SHARE_LIMIT`, `RECEIPT_ANCHOR_EXISTS`) |
@@ -145,7 +158,7 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | GET | `/v1/portfolio?accounts=` | public | Balances of up to 12 CAIP-10 accounts in one request (`?positions=true`; [portfolios](#portfolios)) |
 | GET | `/v1/portfolio/{accountId}` | public | Balances for one CAIP-10 account, priced with `priceSource` (`?positions=true` adds venue positions) |
 | POST | `/v1/intents` | public | Plan an intent into an `IntentGraph` (`?dryRun=true` to skip persistence, `?preview=true` for the [asset-change preview](preview.md), `?journey=true` for the [journey](journey.md), `?clarify=true` to ask [clarifying questions](clarify.md) instead of refusing) |
-| GET | `/v1/intents` | key | List intents created with the caller's key |
+| GET | `/v1/intents` | key | List intents created with the caller's key (`?owner=key_…`: an agent or publishable key below it) |
 | GET | `/v1/intents/{id}` | public | Read an intent |
 | POST | `/v1/intents/{id}/steps/{stepId}/prepare` | public | Build wallet-ready transactions for a ready step (optional body `{ "acknowledgedPreview": "sha256:…" }`; `?journey=true` adds the journey at signing time) |
 | POST | `/v1/intents/{id}/steps/{stepId}/submit` | public | Submit transaction hashes / signatures for verification |
@@ -226,12 +239,20 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 | POST | `/v1/contracts/{id}/test` | key | Dry-run one entry for an account (simulation and review) |
 | POST | `/v1/contracts/{id}/reverify` | key | Re-pin and re-check after an intended upgrade |
 | POST | `/v1/contracts/{id}/suspend` | operator | Suspend any registration |
-| POST | `/v1/sessions` | key | Create a session the embed turns into an intent for a visitor |
+| POST | `/v1/sessions` | key, publishable | Create a session the embed turns into an intent for a visitor (a publishable key sends only `{ flow, hostOrigin }`) |
 | GET | `/v1/sessions/{id}` | public | Session view for the embed |
 | POST | `/v1/sessions/{id}/intents` | public | Turn a session into an intent for the visitor's accounts |
 | GET | `/v1/threads` | key | The key's Kletia-held [clarify threads](clarify.md#threads) (`?status=&limit=&cursor=`) |
 | GET | `/v1/threads/{id}` | key | One thread: its blob, context, last response and intents |
 | DELETE | `/v1/threads/{id}` | key | Delete a thread at once |
+| GET | `/v1/projects/current` | key | The project's settings, version, hash and domain proof ([projects.md](projects.md)) |
+| PATCH | `/v1/projects/current` | key | Merge-patch the settings (`If-Match`; project key, current secret) |
+| POST | `/v1/projects/current/domain/verify` | key | Check `https://<brand.website>/.well-known/kletia.json` now |
+| POST | `/v1/projects/current/publishable-keys` | key | Issue a publishable key (`kl_pub_…`, shown once, at most 5 active) |
+| PUT | `/v1/projects/current/logo` | key | Upload the brand logo (raw PNG or WebP, at most 64 KB) |
+| DELETE | `/v1/projects/current/logo` | key | Remove the logo |
+| GET | `/v1/projects/{projectId}/logo/{sha256}.{png\|webp}` | public | The logo, immutable, while the domain is verified |
+| GET | `/v1/publishable/profile` | publishable | What the publishable key reveals: brand, origins, lane, defaults, flows |
 | GET | `/v1/errors` | public | Error catalog |
 | GET | `/v1/status/badge` | public | Status badge (SVG, or `?format=shields`) |
 | POST | `/v1/mcp` | public | Model Context Protocol server ([mcp.md](mcp.md)) |
@@ -291,7 +312,10 @@ Steps also carry `venue` (deposit / withdraw), `recipientName` (the name the
 recipient was resolved from) and `extraCosts` (value paid on top of the input,
 such as a deBridge fixed fee in the native asset, with `usd` when priced).
 
-`GET /v1/intents` accepts `?limit=1..100` (default 20).
+`GET /v1/intents` accepts `?limit=1..100` (default 20) and `?owner=key_…`: the
+intents of an agent or publishable key below the caller (project keys: any
+such key of the project; agent keys: their own descendants; `404
+KEY_NOT_FOUND` otherwise).
 
 #### Clarifying questions: `?clarify=true`
 

@@ -21,9 +21,9 @@ const ALL = rules(WIDGET_CSS);
 const rulesOf = (className) => ALL.filter(([selector]) => selector.split(",").some((part) => new RegExp(`^\\.${className}(?![\\w-])(?!.*\\s)`, "u").test(part.trim())));
 
 /** Classes appearance tokens restyle: their borders, padding, gaps, radius and fonts read variables. */
-const THEMABLE = ["kw-root", "kw-textarea", "kw-chip", "kw-btn", "kw-summary", "kw-step", "kw-input", "kw-gate", "kw-review", "kw-stopped", "kw-share", "kw-journey"];
+const THEMABLE = ["kw-root", "kw-textarea", "kw-chip", "kw-btn", "kw-summary", "kw-step", "kw-input", "kw-gate", "kw-review", "kw-stopped", "kw-share", "kw-journey", "kw-card", "kw-opt", "kw-assume-chip", "kw-jr-outcome"];
 /** Safety surfaces: their colours are fixed, never a public (themable) variable. */
-const SAFETY = ["kw-status", "kw-plate", "kw-stamp", "kw-stamp-warn", "kw-stamp-bad", "kw-stamp-receipt", "kw-review-notice", "kw-policy-held", "kw-policy-refused", "kw-policy-tag", "kw-fare-changed", "kw-fare-need"];
+const SAFETY = ["kw-status", "kw-plate", "kw-stamp", "kw-stamp-warn", "kw-stamp-bad", "kw-stamp-receipt", "kw-review-notice", "kw-policy-held", "kw-policy-refused", "kw-policy-tag", "kw-fare-changed", "kw-fare-need", "kw-sev", "kw-jr-here", "kw-jr-notice"];
 
 test("every border and padding of a themable class uses a variable", () => {
   for (const className of THEMABLE) {
@@ -89,4 +89,19 @@ test("density and shadow switches exist for the attributes the widget sets", () 
   assert.ok(ALL.some(([selector]) => selector === '.kw-root[data-density="compact"]'));
   assert.ok(ALL.some(([selector]) => selector.includes('.kw-root[data-shadow="none"]')));
   assert.ok(ALL.some(([selector, declarations]) => selector.startsWith(".kw-btn") && declarations.some(([p, v]) => p === "box-shadow" && v === "var(--kw-btn-shadow)")));
+});
+
+test("journey signage: every severity has a fixed sign colour, and nothing moves under reduced motion", () => {
+  for (const severity of ["block", "act", "warn", "info"]) {
+    const rule = ALL.find(([selector]) => selector === `.kw-sev[data-severity="${severity}"]`);
+    assert.ok(rule, severity);
+    const background = rule[1].find(([property]) => property === "background")?.[1];
+    const color = rule[1].find(([property]) => property === "color")?.[1];
+    assert.match(background, /^#[0-9a-f]{6}$/u, `${severity} background is a fixed colour`);
+    assert.match(color, /^#[0-9a-f]{6}$/u, `${severity} ink is a fixed colour`);
+  }
+  const reduced = WIDGET_CSS.match(/@media \(prefers-reduced-motion:reduce\)\{(.*)\}\s*$/mu)?.[1] ?? "";
+  assert.ok(reduced.includes(".kw-card{animation:none}"));
+  // Options stack full width in a narrow widget (phones).
+  assert.ok(/@container kw \(max-width:400px\)\{[^\n]*\.kw-opts\{grid-template-columns:minmax\(0,1fr\)\}/u.test(WIDGET_CSS));
 });

@@ -20,8 +20,13 @@
  * the integrator's backend created with its key, `#session=cs_…` runs a
  * session (`readEmbedFragment`). Only those two exact shapes are accepted.
  *
- * An API key is never read from the URL: the embed always calls the public
- * tier, so a key cannot leak through referrers, logs or browser history.
+ * A project's publishable key (`#key=kl_pub_…`, optionally `&flow=<id>`)
+ * also arrives in the fragment (`readEmbedKey`): it is browser-safe by design
+ * (public tier plus the project's stored flows, on the origins the project
+ * allows). A secret API key is never read from the URL, so one cannot leak
+ * through referrers, logs or browser history. Everything a URL can set is
+ * cosmetic: the brand comes only from the verified project profile
+ * (`profileView`), never from parameters.
  */
 
 export type EmbedTheme = "light" | "dark" | "auto";
@@ -59,6 +64,37 @@ export function readEmbedFragment(hash: string): EmbedTarget | null {
   const session = params.getAll("session");
   if (session.length === 1 && SESSION_FRAGMENT_ID.test(session[0] ?? "")) return { kind: "session", id: session[0] as string };
   return null;
+}
+
+/** A publishable key and the stored flow to run with it, from `#key=kl_pub_…&flow=…`. */
+export interface EmbedKeyTarget {
+  readonly key: string;
+  readonly flow: string | null;
+}
+
+const PUBLISHABLE_KEY = /^kl_pub_[0-9A-Za-z]{32}$/u;
+const FLOW_ID = /^[a-z][a-z0-9-]{0,31}$/u;
+
+/**
+ * Reads `#key=kl_pub_…` and an optional `&flow=<id>` (both exactly once and
+ * of their exact shapes). Nothing else is accepted: a secret key, a key of
+ * another shape or a malformed flow gives `null` (a bad flow drops the whole
+ * target, so the frame never runs text mode for a host that asked for a flow).
+ */
+export function readEmbedKey(hash: string): EmbedKeyTarget | null {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw || raw.length > 200) return null;
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(raw);
+  } catch {
+    return null;
+  }
+  const keys = params.getAll("key");
+  if (keys.length !== 1 || !PUBLISHABLE_KEY.test(keys[0] ?? "")) return null;
+  const flows = params.getAll("flow");
+  if (flows.length > 1 || (flows.length === 1 && !FLOW_ID.test(flows[0] ?? ""))) return null;
+  return { key: keys[0] as string, flow: flows[0] ?? null };
 }
 
 export const EMBED_MAX_TEXT = 500;
@@ -283,3 +319,159 @@ export function isFramed(): boolean {
 /** Connect buttons of the wallet bar (the static bar before the runtime loads uses the same box). */
 export const EMBED_PILL_CLASS =
   "flex min-h-11 min-w-0 items-center gap-2 border-[3px] border-[#1A1A1A] px-2.5 py-2 text-[11px] font-black uppercase tracking-wider shadow-[3px_3px_0_#1A1A1A] transition-[transform,box-shadow,background-color] duration-100 ease-out hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1A1A1A] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 active:translate-y-0.5 active:shadow-none motion-reduce:transition-none dark:border-[#4B5563] dark:shadow-[3px_3px_0_#475569] sm:px-3 sm:text-xs";
+
+// ---------------------------------------------------------------------------
+// The project profile a publishable key reveals
+// ---------------------------------------------------------------------------
+
+/** The parts of `ProjectProfile` (`@kletia/core`) the frame reads; anything else in the response is ignored. */
+export interface EmbedProfileInput {
+  readonly projectId?: unknown;
+  readonly brand?: unknown;
+  readonly allowedOrigins?: unknown;
+  readonly lane?: unknown;
+  readonly defaults?: unknown;
+  readonly flows?: unknown;
+}
+
+export interface EmbedBrand {
+  readonly name: string;
+  /** The verified website host, shown next to the name. */
+  readonly host: string | null;
+  /** Path of the logo on the API origin (`/v1/projects/<id>/logo/<sha256>.<png|webp>`), when the profile names one. */
+  readonly logoPath: string | null;
+}
+
+export interface EmbedProfileDefaults {
+  readonly networks: readonly string[] | null;
+  readonly actions: readonly string[] | null;
+  readonly sourceNetwork: string | null;
+  readonly examples: readonly string[] | null;
+  /** Unvalidated: the page runs it through `validateAppearance` before use. */
+  readonly appearance: unknown;
+}
+
+export type EmbedProfileView =
+  | { readonly ok: false; readonly code: "PUBLISHABLE_ORIGIN_FORBIDDEN"; readonly host: string }
+  | { readonly ok: false; readonly code: "FLOW_UNKNOWN" }
+  | { readonly ok: false; readonly code: "INVALID_RESPONSE" }
+  | {
+      readonly ok: true;
+      readonly projectId: string;
+      /** Only for a verified domain; never from URL parameters. */
+      readonly brand: EmbedBrand | null;
+      readonly testnet: boolean;
+      readonly defaults: EmbedProfileDefaults;
+      /** The stored flow to run, when the fragment named one (checked to exist). */
+      readonly flow: string | null;
+    };
+
+const PROJECT_ID = /^prj_[A-Za-z0-9_-]{1,80}$/u;
+const LOGO_PATH = /^\/v1\/projects\/(prj_[A-Za-z0-9_-]{1,80})\/logo\/[0-9a-f]{64}\.(?:png|webp)$/u;
+const LOGO_SHA = /^[0-9a-f]{64}$/u;
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+function stringList(value: unknown, pattern: RegExp, max: number): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const items = [...new Set(value.filter((item): item is string => typeof item === "string" && pattern.test(item)))].slice(0, max);
+  return items.length > 0 ? items : null;
+}
+
+/** The logo path on the API origin, from `brand.logo` (`{ sha256, type }` or the path itself) of a verified brand. */
+function logoPathOf(projectId: string, logo: unknown): string | null {
+  if (typeof logo === "string") {
+    const match = LOGO_PATH.exec(logo);
+    return match && match[1] === projectId ? logo : null;
+  }
+  if (!isRecord(logo) || typeof logo.sha256 !== "string" || !LOGO_SHA.test(logo.sha256)) return null;
+  const extension = logo.type === "image/png" ? "png" : logo.type === "image/webp" ? "webp" : null;
+  return extension ? `/v1/projects/${projectId}/logo/${logo.sha256}.${extension}` : null;
+}
+
+function hostOf(origin: string): string {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return origin;
+  }
+}
+
+/**
+ * What the frame does with a profile: refuse unless the bridge-proven host
+ * origin is one the project allowed (exact origin match), refuse a flow the
+ * project does not have, else the verified brand (only when `brand.verified`
+ * is true), the lane and the defaults. Fails closed on a malformed profile.
+ */
+export function profileView(input: unknown, hostOrigin: string, flow: string | null): EmbedProfileView {
+  if (!isRecord(input) || typeof input.projectId !== "string" || !PROJECT_ID.test(input.projectId) || !Array.isArray(input.allowedOrigins)) {
+    return { ok: false, code: "INVALID_RESPONSE" };
+  }
+  const profile = input as unknown as EmbedProfileInput & { readonly projectId: string; readonly allowedOrigins: readonly unknown[] };
+  if (!profile.allowedOrigins.some((origin) => origin === hostOrigin)) return { ok: false, code: "PUBLISHABLE_ORIGIN_FORBIDDEN", host: hostOf(hostOrigin) };
+  if (flow !== null) {
+    const flows = Array.isArray(profile.flows) ? profile.flows : [];
+    if (!flows.some((item) => isRecord(item) && item.id === flow)) return { ok: false, code: "FLOW_UNKNOWN" };
+  }
+  const brand = isRecord(profile.brand) && profile.brand.verified === true && typeof profile.brand.name === "string" && profile.brand.name.trim()
+    ? {
+        name: clean(profile.brand.name, 80),
+        host: typeof profile.brand.host === "string" && /^[a-z0-9.-]{1,253}(?::\d{1,5})?$/u.test(profile.brand.host) ? profile.brand.host : null,
+        logoPath: logoPathOf(profile.projectId, profile.brand.logo),
+      }
+    : null;
+  const defaults = isRecord(profile.defaults) ? profile.defaults : {};
+  const examples = Array.isArray(defaults.examples)
+    ? defaults.examples.filter((item): item is string => typeof item === "string").map((item) => clean(item, EMBED_MAX_EXAMPLE_LENGTH)).filter(Boolean).slice(0, EMBED_MAX_EXAMPLES)
+    : [];
+  return {
+    ok: true,
+    projectId: profile.projectId,
+    brand,
+    testnet: profile.lane === "testnet",
+    defaults: {
+      networks: stringList(defaults.networks, /^[a-z0-9][a-z0-9-]{0,39}$/u, EMBED_MAX_NETWORKS),
+      actions: stringList(defaults.actions, /^[a-z]+$/u, EMBED_ACTIONS.length)?.filter((action) => EMBED_ACTIONS.includes(action)) ?? null,
+      sourceNetwork: typeof defaults.sourceNetwork === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/u.test(defaults.sourceNetwork) ? defaults.sourceNetwork : null,
+      examples: examples.length > 0 ? examples : null,
+      appearance: defaults.appearance,
+    },
+    flow,
+  };
+}
+
+/**
+ * The query string with the project's defaults under it: `networks`,
+ * `actions`, `source` and `examples` the element did not set come from the
+ * profile, so the usual parsers (`readEmbedScope`, `readEmbedParams`)
+ * validate them like any parameter. Element attributes always win.
+ */
+export function searchWithDefaults(search: string, defaults: EmbedProfileDefaults): string {
+  let query: URLSearchParams;
+  try {
+    query = new URLSearchParams(search);
+  } catch {
+    query = new URLSearchParams();
+  }
+  if (!query.has("networks") && defaults.networks) query.set("networks", defaults.networks.join(","));
+  if (!query.has("actions") && defaults.actions && defaults.actions.length > 0) query.set("actions", defaults.actions.join(","));
+  if (!query.has("source") && defaults.sourceNetwork) query.set("source", defaults.sourceNetwork);
+  if (!query.has("examples") && defaults.examples) query.set("examples", defaults.examples.join(","));
+  const text = query.toString();
+  return text ? `?${text}` : "";
+}
+
+/**
+ * The project's default appearance with the element's attributes over it:
+ * each token the element set wins, colour palettes merge per colour.
+ */
+export function mergeAppearance<T extends object>(defaults: T | null | undefined, attributes: T): T {
+  if (!defaults) return attributes;
+  const merged: Record<string, unknown> = { ...(defaults as Readonly<Record<string, unknown>>) };
+  for (const [name, value] of Object.entries(attributes as Readonly<Record<string, unknown>>)) {
+    if (value === undefined) continue;
+    const base = merged[name];
+    merged[name] = (name === "light" || name === "dark") && isRecord(base) && isRecord(value) ? { ...base, ...value } : value;
+  }
+  return merged as T;
+}

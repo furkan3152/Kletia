@@ -1460,6 +1460,11 @@ export function domainFileListsContract(body: unknown, contractId: string): bool
   return isRecord(body) && Array.isArray(body.contracts) && body.contracts.some((entry) => entry === contractId);
 }
 
+/** True when a `/.well-known/kletia.json` body lists the project (`"projects": ["prj_…"]`). */
+export function domainFileListsProject(body: unknown, projectId: string): boolean {
+  return isRecord(body) && Array.isArray(body.projects) && body.projects.some((entry) => entry === projectId);
+}
+
 /**
  * True when a `/.well-known/kletia.json` body authorizes an intent link:
  * `"links": ["lk_…"]` lists it, or `"keys": ["key_…"]` lists its owner key

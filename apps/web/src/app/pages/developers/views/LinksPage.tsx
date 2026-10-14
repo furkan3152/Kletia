@@ -1,18 +1,26 @@
-import LinksPanel from "../links/LinksPanel";
-import { KeyGate } from "../shell/KeyGate";
+import { LinkDetailPage } from "../links/LinkDetailPage";
+import { LINK_ID } from "../links/linkRows";
+import { LinksListPage } from "../links/LinksListPage";
+import { NewLinkPage } from "../links/NewLinkPage";
 import { PortalPageHeader } from "../shell/PortalPageHeader";
+import type { PortalPageProps } from "../shell/portalRoutes";
+import { ButtonLink } from "../../../site/ui/Button";
 
-/** Intent links (`/developers/links`): today's links panel under the portal header and key gate. */
-export default function LinksPage() {
+/**
+ * Intent links (`/developers/links`, `/new`, `/:linkId`): the links as table
+ * rows, the builder and one link's page.
+ */
+export default function LinksPage({ param, search }: PortalPageProps) {
+  if (param === null) return <LinksListPage search={search} />;
+  if (param === "new") return <NewLinkPage />;
+  if (LINK_ID.test(param)) return <LinkDetailPage key={param} linkId={param} />;
   return (
     <>
-      <PortalPageHeader
-        title="Intent links"
-        intro="Publish a page that does one fixed thing in the visitor's own wallet, from any network you allow. Pause it, read its counters and share its card. Counters never hold visitor data."
-      />
-      <KeyGate purpose="publish, pause and withdraw intent links and read their counters" agentKeys>
-        <LinksPanel />
-      </KeyGate>
+      <PortalPageHeader title="No link here" back={{ label: "Links", to: "/developers/links" }} />
+      <p className="pb-4 text-sm">Link ids look like lk_ followed by 24 hex characters.</p>
+      <ButtonLink to="/developers/links" variant="secondary" size="sm" className="self-start">
+        Back to the links
+      </ButtonLink>
     </>
   );
 }

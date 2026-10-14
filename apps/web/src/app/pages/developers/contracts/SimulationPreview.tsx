@@ -25,19 +25,19 @@ export function SimulationPreview({ result }: { readonly result: ContractTestRes
         </p>
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div className="min-w-0">
-            <dt className={cx(LABEL, "!text-[10px]")}>In</dt>
+            <dt className={cx(LABEL)}>In</dt>
             <dd className="break-words font-code text-[13px] font-bold">{amountText(result.input)}</dd>
           </div>
           <div className="min-w-0">
-            <dt className={cx(LABEL, "!text-[10px]")}>Expected out</dt>
+            <dt className={cx(LABEL)}>Expected out</dt>
             <dd className="break-words font-code text-[13px] font-bold">{amountText(result.expectedOutput)}</dd>
           </div>
           <div className="min-w-0">
-            <dt className={cx(LABEL, "!text-[10px]")}>At least</dt>
+            <dt className={cx(LABEL)}>At least</dt>
             <dd className="break-words font-code text-[13px] font-bold">{amountText(result.minimumOutput)}</dd>
           </div>
           <div className="min-w-0">
-            <dt className={cx(LABEL, "!text-[10px]")}>Network fees</dt>
+            <dt className={cx(LABEL)}>Network fees</dt>
             <dd className="break-words font-code text-[13px] font-bold">
               {result.feesUsd !== undefined ? formatUsd(result.feesUsd) : "—"}
               {result.gas ? <span className="font-normal"> · gas {Number(result.gas).toLocaleString("en-US")}</span> : null}
@@ -53,7 +53,7 @@ export function SimulationPreview({ result }: { readonly result: ContractTestRes
               <span className="font-display text-lg font-bold leading-none">{index + 1}</span>
               <span className="min-w-0">
                 <span className="block break-words font-semibold">{transaction.description}</span>
-                <span className={cx("block break-all font-code text-[11px]", TEXT_MUTED)}>
+                <span className={cx("block break-all font-code text-[12px]", TEXT_MUTED)}>
                   {transaction.to ? `to ${transaction.to}` : null}
                   {transaction.selector ? ` · selector ${transaction.selector}` : null}
                   {transaction.value && transaction.value !== "0" ? ` · value ${transaction.value} wei` : null}

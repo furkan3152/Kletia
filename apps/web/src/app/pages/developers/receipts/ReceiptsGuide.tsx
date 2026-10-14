@@ -8,10 +8,10 @@ import { Link } from "../../../routes/Link";
 import { Icon } from "../../../site/art/Icon";
 import { RECEIPT_KEYS_MIRROR, RECEIPT_VERIFY_CLI, RECEIPT_VERIFY_PYTHON, RECEIPT_VERIFY_SDK } from "../../../site/snippets";
 import { ApiErrorPanel } from "../../../site/ui/ApiErrorPanel";
-import { Badge } from "../../../site/ui/Badge";
 import { Button } from "../../../site/ui/Button";
 import { CodeBlock } from "../../../site/ui/CodeBlock";
 import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
+import { StatusPill } from "../../../site/ui/StatusPill";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, INK_BORDER_THIN, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
 import { formatWhen } from "../portal/portalFormat";
 
@@ -151,7 +151,7 @@ export default function ReceiptsGuide() {
                         {key.kid}
                       </th>
                       <td className="px-3 py-2">
-                        <Badge tone={key.status === "active" ? "green" : key.status === "revoked" ? "red" : key.status === "development" ? "yellow" : "neutral"}>{key.status}</Badge>
+                        <StatusPill tone={key.status === "active" ? "success" : key.status === "revoked" ? "danger" : key.status === "development" ? "warning" : "neutral"}>{key.status}</StatusPill>
                       </td>
                       <td className="px-3 py-2 font-code text-[12px]">
                         {key.notBefore}
@@ -202,15 +202,15 @@ export default function ReceiptsGuide() {
                 <li key={batch.seq} className="flex min-w-0 flex-col gap-1 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="min-w-0">
                     <span className="font-bold">Batch {batch.seq}</span> · {batch.batch.size} {batch.batch.size === 1 ? "receipt" : "receipts"} · closed {formatWhen(batch.closedAt)}
-                    <span className={cx("block break-all font-code text-[11px]", TEXT_MUTED)}>root {batch.batch.root}</span>
+                    <span className={cx("block break-all font-code text-[12px]", TEXT_MUTED)}>root {batch.batch.root}</span>
                   </span>
-                  <Badge tone={batch.anchor ? "green" : "neutral"}>{batch.anchor ? "Anchored on Base" : "Not anchored"}</Badge>
+                  <StatusPill tone={batch.anchor ? "success" : "neutral"}>{batch.anchor ? "Anchored on Base" : "Not anchored"}</StatusPill>
                 </li>
               ))}
             </ul>
           )
         ) : null}
-        <p className={cx(LABEL, "!text-[10px]", TEXT_MUTED)}>A receipt proves what Kletia observed and signed; not best execution, solvency, or that a third-party contract is honest.</p>
+        <p className={cx(LABEL, TEXT_MUTED)}>A receipt proves what Kletia observed and signed; not best execution, solvency, or that a third-party contract is honest.</p>
       </section>
     </div>
   );

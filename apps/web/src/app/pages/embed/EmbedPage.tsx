@@ -1,6 +1,16 @@
 import "@fontsource-variable/inter";
 
-import { appearanceFromParams, CHAINS, type AccountId, type IntentGraph, type NetworkKey, type SessionView } from "@kletia/core";
+import {
+  appearanceFromParams,
+  CHAINS,
+  validateAppearance,
+  type AccountId,
+  type IntentGraph,
+  type KletiaAppearance,
+  type NetworkKey,
+  type SessionView,
+} from "@kletia/core";
+import { KletiaApiError } from "@kletia/sdk";
 import { DEFAULT_WIDGET_EXAMPLES, ensureWidgetStyles, KletiaIntentWidget } from "@kletia/widget";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { WidgetAction } from "@kletia/widget";
@@ -14,19 +24,28 @@ import { useRoute } from "../../routes/useRoute";
 import { Skeleton } from "../../site/ui/Skeleton";
 import { readBridgeParams } from "./embedBridge";
 import { EmbedBridgeNotice } from "./EmbedBridgeNotice";
-import { createEmbedClient } from "./embedClient";
+import { BACKEND_URL } from "../../../shared/config/runtime";
+import { createEmbedClient, type EmbedClientProject } from "./embedClient";
 import {
   applyEmbedDocumentMode,
   EMBED_PILL_CLASS,
   embedWalletVms,
   isFramed,
   leaveEmbedDocumentMode,
+  mergeAppearance,
+  profileView,
   readEmbedFragment,
+  readEmbedKey,
   readEmbedParams,
   readEmbedScope,
+  searchWithDefaults,
   watchSystemTheme,
+  type EmbedBrand,
+  type EmbedKeyTarget,
+  type EmbedTarget,
   type EmbedVm,
 } from "./embedParams";
+import type { EmbedBridge } from "./embedBridge";
 import { embedTargetKey, embedWidgetKey, openIntentFor, type SessionIntent } from "./embedTarget";
 import type { EmbedWalletState } from "./EmbedWalletBar";
 import { useEmbedBridge, useEmbedResize } from "./useEmbedBridge";
@@ -102,8 +121,8 @@ function ExternalRecipientWarning({ intent, owned, live }: { intent: IntentGraph
   );
 }
 
-/** A session runs only for the site that created it, proven by the bridge. */
-function SessionNeedsHost({ waiting }: { waiting: boolean }) {
+/** A session (or a publishable key) runs only for the site that set it up, proven by the bridge. */
+function SessionNeedsHost({ waiting, subject = "checkout" }: { waiting: boolean; subject?: "checkout" | "widget" }) {
   // The bridge notice gives a host 30 seconds to connect; so does this.
   const [gaveUp, setGaveUp] = useState(false);
   useEffect(() => {
@@ -118,9 +137,137 @@ function SessionNeedsHost({ waiting }: { waiting: boolean }) {
     >
       {waiting && !gaveUp
         ? "Connecting to the site that opened this widget…"
-        : "This checkout must be opened from the site that created it, through the Kletia embed element. Nothing was planned or signed."}
+        : subject === "widget"
+          ? "This widget must be opened through the Kletia embed element on the site that set it up. Nothing was planned or signed."
+          : "This checkout must be opened from the site that created it, through the Kletia embed element. Nothing was planned or signed."}
     </p>
   );
+}
+
+/** A plain refusal box: the frame plans nothing. */
+function EmbedRefusal({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-1.5 border-[3px] border-[#1A1A1A] bg-[#FFF3B0] p-3 text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] dark:border-[#B45309] dark:shadow-[3px_3px_0_#475569]"
+    >
+      <p className="text-xs font-black uppercase tracking-[0.12em]">{title}</p>
+      <p className="text-sm font-semibold">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * The verified project's name (and logo) above the widget. Only from a
+ * profile whose domain Kletia verified, on a host the project allowed;
+ * nothing a URL or an attribute sets can put a name here.
+ */
+function BrandHeader({ brand }: { brand: EmbedBrand }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2 px-0.5">
+      {brand.logoPath && !logoFailed ? (
+        <img
+          src={`${BACKEND_URL}${brand.logoPath}`}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-5 w-auto max-w-[80px] object-contain"
+          onError={() => setLogoFailed(true)}
+        />
+      ) : null}
+      <p className="min-w-0 truncate text-sm font-black uppercase tracking-[0.08em]">{brand.name}</p>
+      {brand.host ? (
+        <p className="text-xs font-bold text-[#0F6B3A] dark:text-[#6EE7A8]">
+          <span aria-hidden="true">✓ </span>
+          <span className="sr-only">Domain verified: </span>
+          {brand.host}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Testnet lane: test assets only. Not themable and always above the widget. */
+function TestnetRibbon() {
+  return (
+    <p
+      role="note"
+      className="border-[3px] border-dashed border-[#1A1A1A] bg-[#E9D5FF] px-3 py-1 text-center text-xs font-black uppercase tracking-[0.16em] text-[#1A1A1A] dark:border-[#C4B5FD]"
+    >
+      Testnet · test assets only
+    </p>
+  );
+}
+
+type ProjectState =
+  | { readonly status: "loading" }
+  | { readonly status: "refused"; readonly code: "PUBLISHABLE_ORIGIN_FORBIDDEN"; readonly host: string }
+  | { readonly status: "refused"; readonly code: "FLOW_UNKNOWN" | "UNAVAILABLE" }
+  | {
+      readonly status: "ready";
+      readonly view: Extract<ReturnType<typeof profileView>, { ok: true }>;
+      readonly project: EmbedClientProject;
+      /** The single-use session minted from the stored flow. */
+      readonly sessionId: string | null;
+    };
+
+/**
+ * One profile read (and one flow session) per key, flow and proven host for
+ * the life of the document: a flow session is single use, so a remount (React
+ * StrictMode, a theme change) must never mint a second one.
+ */
+const projectLoads = new Map<string, Promise<ProjectState>>();
+
+function loadProject(keyTarget: EmbedKeyTarget, hostOrigin: string): Promise<ProjectState> {
+  const cacheKey = `${keyTarget.key}|${keyTarget.flow ?? ""}|${hostOrigin}`;
+  const cached = projectLoads.get(cacheKey);
+  if (cached) return cached;
+  const project: EmbedClientProject = { publishableKey: keyTarget.key, hostOrigin };
+  const load = (async (): Promise<ProjectState> => {
+    const client = createEmbedClient("plan", project);
+    try {
+      const view = profileView(await client.publishable.profile(), hostOrigin, keyTarget.flow);
+      if (!view.ok) {
+        if (view.code === "PUBLISHABLE_ORIGIN_FORBIDDEN") return { status: "refused", code: view.code, host: view.host };
+        return { status: "refused", code: view.code === "FLOW_UNKNOWN" ? "FLOW_UNKNOWN" : "UNAVAILABLE" };
+      }
+      const session = view.flow ? await client.sessions.create({ flow: view.flow, hostOrigin }) : null;
+      return { status: "ready", view, project, sessionId: session?.id ?? null };
+    } catch (error) {
+      const code = error instanceof KletiaApiError ? error.code : null;
+      if (code === "PUBLISHABLE_ORIGIN_FORBIDDEN") return { status: "refused", code: "PUBLISHABLE_ORIGIN_FORBIDDEN", host: new URL(hostOrigin).host };
+      if (code === "FLOW_UNKNOWN") return { status: "refused", code: "FLOW_UNKNOWN" };
+      // Nothing to retry blindly: the visitor reloads, the host sees the code.
+      projectLoads.delete(cacheKey);
+      return { status: "refused", code: "UNAVAILABLE" };
+    }
+  })();
+  projectLoads.set(cacheKey, load);
+  return load;
+}
+
+/**
+ * Project mode: with `#key=kl_pub_…` the frame needs the bridge, reads the project
+ * profile with the proven host origin, refuses a host the project did not allow
+ * and mints the stored flow's session. `null` without a key.
+ */
+function useProject(keyTarget: EmbedKeyTarget | null, hostOrigin: string | null, bridge: EmbedBridge | null): ProjectState | null {
+  const [state, setState] = useState<{ readonly for: string; readonly value: ProjectState } | null>(null);
+  const cacheKey = keyTarget && hostOrigin ? `${keyTarget.key}|${keyTarget.flow ?? ""}|${hostOrigin}` : null;
+  useEffect(() => {
+    if (!keyTarget || !hostOrigin || !cacheKey) return undefined;
+    let current = true;
+    void loadProject(keyTarget, hostOrigin).then((value) => {
+      if (!current) return;
+      setState({ for: cacheKey, value });
+      if (value.status === "refused") bridge?.error({ code: value.code === "UNAVAILABLE" ? "EMBED_ERROR" : value.code });
+    });
+    return () => {
+      current = false;
+    };
+  }, [bridge, cacheKey, hostOrigin, keyTarget]);
+  if (!keyTarget || !cacheKey) return null;
+  return state?.for === cacheKey ? state.value : { status: "loading" };
 }
 
 /** The widget keeps planning (dry runs) when the wallet runtime cannot load. */
@@ -221,21 +368,36 @@ function WalletConnectBar({ vms, onConnect }: { vms: ReadonlySet<EmbedVm>; onCon
  */
 export default function EmbedPage() {
   const { location } = useRoute();
-  const params = useMemo(() => readEmbedParams(location.search), [location.search]);
   // Integrator-created work (`#intent=` / `#session=`): ids travel in the fragment only.
-  const target = useMemo(() => readEmbedFragment(location.hash), [location.hash]);
+  const fragmentTarget = useMemo(() => readEmbedFragment(location.hash), [location.hash]);
+  // A project's publishable key (and stored flow), also in the fragment; integrator-created work wins.
+  const keyTarget = useMemo(() => (fragmentTarget ? null : readEmbedKey(location.hash)), [fragmentTarget, location.hash]);
   const bridgeParams = useMemo(() => readBridgeParams(location.search), [location.search]);
+  const { bridge, snapshot: bridgeSnapshot } = useEmbedBridge();
+  const provenHost = bridgeSnapshot.status === "connected" ? bridgeSnapshot.origin : null;
+  const projectState = useProject(keyTarget, provenHost, bridge);
+  const project = projectState?.status === "ready" ? projectState : null;
+  // The project's defaults sit under the element's own settings (attributes win).
+  const search = useMemo(() => (project ? searchWithDefaults(location.search, project.view.defaults) : location.search), [location.search, project]);
+  const params = useMemo(() => readEmbedParams(search), [search]);
+  const target = useMemo<EmbedTarget | null>(
+    () => fragmentTarget ?? (project?.sessionId ? { kind: "session", id: project.sessionId } : null),
+    [fragmentTarget, project],
+  );
   // Cosmetic and scope settings from the URL, validated here (the element validated them too): anything a URL sets
   // is presentation or a refusal boundary, never trust.
-  const appearance = useMemo(() => appearanceFromParams(new URLSearchParams(location.search)).appearance, [location.search]);
-  const scope = useMemo(() => readEmbedScope(location.search, CHAINS), [location.search]);
+  const appearance = useMemo(() => {
+    const fromUrl = appearanceFromParams(new URLSearchParams(location.search)).appearance;
+    const defaults = project ? validateAppearance(project.view.defaults.appearance) : null;
+    return mergeAppearance<KletiaAppearance>(defaults?.ok ? defaults.value : null, fromUrl);
+  }, [location.search, project]);
+  const scope = useMemo(() => readEmbedScope(search, CHAINS), [search]);
   const scopeNetworks = useMemo(() => (scope.networks ?? undefined) as readonly NetworkKey[] | undefined, [scope.networks]);
   const scopeActions = useMemo(() => (scope.actions ?? undefined) as readonly WidgetAction[] | undefined, [scope.actions]);
   const [framed] = useState(isFramed);
   /** null until the visitor asks for a wallet ("" = load without opening a picker, for a remembered wallet). */
   const [walletRequest, setWalletRequest] = useState<EmbedVm | "" | null>(() => (walletRemembered() ? "" : null));
   const [sessionView, setSessionView] = useState<SessionView | null>(null);
-  const { bridge, snapshot: bridgeSnapshot } = useEmbedBridge();
   useEmbedResize(bridge);
   // The host's reference travels with the intent so its server can match it (it is publicly readable).
   const metadata = useMemo(
@@ -296,7 +458,8 @@ export default function EmbedPage() {
     [live, targetKey, wallet.signers],
   );
   useLayoutEffect(() => lease?.activate(), [lease]);
-  const client = useMemo(() => createEmbedClient(live ? "live" : "plan"), [live]);
+  const projectClient = project?.project ?? null;
+  const client = useMemo(() => createEmbedClient(live ? "live" : "plan", projectClient), [live, projectClient]);
   const accounts = live ? wallet.accounts : PREVIEW_ACCOUNT_LIST;
 
   // A new account set or a new target invalidates any plan on screen: start fresh with the last prompt.
@@ -341,11 +504,31 @@ export default function EmbedPage() {
     [bridge],
   );
   const onError = useCallback((error: unknown) => bridge?.error(error), [bridge]);
+  // Questions before a plan: the host learns how many and why, never the values.
+  const onClarify = useCallback((report: unknown) => bridge?.question(report), [bridge]);
   const onSessionLoaded = useCallback((view: SessionView) => setSessionView(view), []);
 
   // Flow A: the host's backend created the intent. Flow B: a session; it needs the host origin the bridge proved.
   const sessionWaiting = target?.kind === "session" && !openIntentId && bridge !== null && bridgeSnapshot.status !== "connected";
   const sessionBlocked = target?.kind === "session" && !openIntentId && (bridge === null || bridgeSnapshot.status !== "connected");
+  // A publishable key needs the bridge (the proven host is checked against the project), then the profile.
+  const keyGate: React.ReactNode = !keyTarget ? null : bridge === null || !provenHost ? (
+    <SessionNeedsHost waiting={bridge !== null} subject="widget" />
+  ) : projectState?.status === "loading" ? (
+    <p role="status" className="px-0.5 text-sm font-semibold text-[#45464B] dark:text-[#A9B6C8]">
+      Loading this site&apos;s settings…
+    </p>
+  ) : projectState?.status === "refused" ? (
+    projectState.code === "PUBLISHABLE_ORIGIN_FORBIDDEN" ? (
+      <EmbedRefusal title="Not set up for this site">
+        This widget is not set up for {projectState.host}. Nothing was planned.
+      </EmbedRefusal>
+    ) : projectState.code === "FLOW_UNKNOWN" ? (
+      <EmbedRefusal title="Checkout not available">This checkout is not set up on this site. Nothing was planned.</EmbedRefusal>
+    ) : (
+      <EmbedRefusal title="Not available right now">This site&apos;s widget settings could not be read. Nothing was planned; reload to try again.</EmbedRefusal>
+    )
+  ) : null;
 
   return (
     <main
@@ -364,6 +547,10 @@ export default function EmbedPage() {
       {bridge && bridgeParams.hostOrigin ? (
         <EmbedBridgeNotice bridge={bridge} snapshot={bridgeSnapshot} expectedOrigin={bridgeParams.hostOrigin} />
       ) : null}
+      {keyGate ?? (
+        <>
+      {project?.view.testnet ? <TestnetRibbon /> : null}
+      {project?.view.brand ? <BrandHeader brand={project.view.brand} /> : null}
       {walletRequest === null ? (
         <WalletConnectBar vms={vms} onConnect={setWalletRequest} />
       ) : (
@@ -420,8 +607,11 @@ export default function EmbedPage() {
           onUpdate={onUpdate}
           onComplete={onComplete}
           onError={onError}
+          onClarify={onClarify}
           className="!max-w-none"
         />
+      )}
+        </>
       )}
     </main>
   );

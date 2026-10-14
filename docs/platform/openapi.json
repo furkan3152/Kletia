@@ -81,7 +81,11 @@
     },
     {
       "name": "Sessions",
-      "description": "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet."
+      "description": "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow)."
+    },
+    {
+      "name": "Projects",
+      "description": "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile."
     },
     {
       "name": "Rule Book",
@@ -825,7 +829,8 @@
         "tags": [
           "Intents"
         ],
-        "summary": "List intents created with the caller's key",
+        "summary": "List intents created with the caller's key (or a key below it)",
+        "description": "`owner=key_…`: the intents of an agent or publishable key in the caller's subtree (project keys: any such key of the project; agent keys: their descendants); 404 KEY_NOT_FOUND otherwise.",
         "security": [
           {
             "bearerAuth": []
@@ -844,6 +849,15 @@
               "minimum": 1,
               "maximum": 100,
               "default": 20
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
             }
           }
         ],
@@ -874,6 +888,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6307,6 +6324,563 @@
         }
       }
     },
+    "/v1/projects/current": {
+      "get": {
+        "operationId": "getProject",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "The caller's project: settings, version, hash and domain proof",
+        "description": "Any key of the project (agent keys read too). Version 0 and empty settings until the first PATCH.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProject",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Merge-patch the project settings (If-Match)",
+        "description": "A project key with its current secret. The merged settings are validated (400 PROJECT_SETTINGS_INVALID with issues): at most 20 origins, brand names with the integrator rules, defaults (appearance through validateAppearance) and at most 20 flows, each dry-run like a session template as the caller, who becomes its saver (its contract authority). A new website starts unverified. Never retried automatically.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "The project's `hash` (quoted, `sha256:` optional) the change is based on. A stale hash answers 409 PROJECT_CONFLICT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSettingsPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved project (ETag: its hash).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/current/domain/verify": {
+      "post": {
+        "operationId": "verifyProjectDomain",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Check the domain proof now",
+        "description": "Fetches https://<brand.website>/.well-known/kletia.json (16 KB at most, no redirects, public hosts only) and checks that `projects` lists this project. Re-checked daily; a project whose file stops listing it loses its verified brand.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project with the check's result.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/current/publishable-keys": {
+      "post": {
+        "operationId": "createPublishableKey",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Issue a publishable key (kl_pub_, browsers)",
+        "description": "A project key with its current secret. At most 5 active per project (409 KEY_LIMIT_REACHED). The key gets a rule book derived from the project defaults (kinds, networks, lane, storeIntents; the stored flows' kinds, networks and registrations), editable with PUT /v1/keys/{id}/policy. It may call the public tier, plan and store intents it owns (never call or action steps), start sessions from stored flows and read GET /v1/publishable/profile; anything else is 403 PUBLISHABLE_KEY_FORBIDDEN. Every request must come from an allowed origin (403 PUBLISHABLE_ORIGIN_FORBIDDEN) and counts 120 per minute per key plus the public per-IP limit.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishableKeyCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The key, shown once.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishableKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/current/logo": {
+      "put": {
+        "operationId": "setProjectLogo",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Upload the brand logo (PNG or WebP)",
+        "description": "Raw bytes with Content-Type image/png or image/webp, at most 64 KB, 32-512 px per side, width 1 to 4 times the height. Only the PNG IHDR / WebP VP8, VP8L or VP8X header is read; SVG, GIF, APNG and animated WebP are refused (422 PROJECT_LOGO_INVALID). Shown only in the frame header next to the verified name.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The project with its logo.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProjectLogo",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Remove the brand logo",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/projects/{projectId}/logo/{file}": {
+      "get": {
+        "operationId": "getProjectLogo",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "A project's logo (public, immutable)",
+        "description": "`file` is `<sha256>.png` or `<sha256>.webp`. Fixed Content-Type, `Cache-Control: public, max-age=31536000, immutable`, `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: cross-origin`. 404 while the domain is not verified.",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^prj_[A-Za-z0-9_]+$",
+              "examples": [
+                "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+              ]
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}\\.(png|webp)$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The logo bytes.",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/publishable/profile": {
+      "get": {
+        "operationId": "getPublishableProfile",
+        "tags": [
+          "Projects"
+        ],
+        "summary": "What a publishable key reveals about its project",
+        "description": "Brand (with `verified`), allowed origins, lane, defaults and the stored flows' ids, labels and networks. Never keys, flow contents or who saved them. Call it with the publishable key from an allowed origin.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "createWebhook",
@@ -7922,7 +8496,7 @@
           "Sessions"
         ],
         "summary": "Create a session the embed turns into an intent for a visitor",
-        "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds `warnings: [{ code: \"CONTRACT_PENDING\", contract, activatesAt }]`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (`details.minimumExpiresInSeconds`). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds `warnings: [{ code: \"CONTRACT_PENDING\", contract, activatesAt }]`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (`details.minimumExpiresInSeconds`). Every session intent counts in the owner key's own Rule Book spend windows. With a publishable key, send only `{ flow, hostOrigin }`: a single-use 600 s session from the project's stored flow, owned by the publishable key, whose call / action steps use the registrations of the key that saved the flow (404 FLOW_UNKNOWN; 403 PUBLISHABLE_ORIGIN_FORBIDDEN when hostOrigin is not an allowed origin). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
         "security": [
           {
             "bearerAuth": []
@@ -7941,7 +8515,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SessionCreateRequest"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SessionCreateRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FlowSessionRequest"
+                  }
+                ]
               }
             }
           }
@@ -7976,6 +8557,12 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -8861,7 +9448,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "kl_dev_<32 base62>",
-        "description": "Developer or operator API key."
+        "description": "Developer, agent or operator API key; or a publishable key (kl_pub_, browsers: only the operations the Projects tag lists, from the project's allowed origins)."
       },
       "apiKeyHeader": {
         "type": "apiKey",
@@ -12192,16 +12779,17 @@
             "type": "string",
             "enum": [
               "project",
-              "agent"
+              "agent",
+              "publishable"
             ],
-            "description": "`agent`: a kl_agt_ key issued under another key (POST /v1/keys/{id}/children)."
+            "description": "`agent`: a kl_agt_ key issued under another key (POST /v1/keys/{id}/children); `publishable`: a kl_pub_ browser key under a project key (POST /v1/projects/current/publishable-keys)."
           },
           "parentId": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Parent of an agent key."
+            "description": "Parent of an agent or publishable key."
           },
           "depth": {
             "type": "integer",
@@ -12640,7 +13228,8 @@
                       "type": "string",
                       "enum": [
                         "project",
-                        "agent"
+                        "agent",
+                        "publishable"
                       ]
                     },
                     "parentId": {
@@ -21383,6 +21972,662 @@
           "title",
           "label"
         ]
+      },
+      "ProjectSettings": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "kletia.project/v1"
+          },
+          "brand": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 40,
+                "description": "Same rules as a registration's integrator.name; reserved brand names need their own website."
+              },
+              "website": {
+                "type": "string",
+                "description": "https origin whose /.well-known/kletia.json lists the project (domain proof)."
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "An https origin (any port), or http://localhost:<port> for development; no path.",
+              "examples": [
+                "https://shop.example"
+              ]
+            },
+            "maxItems": 20,
+            "description": "Pages where the project's publishable keys work (the Origin header, or Kletia-Host-Origin from the /embed frame)."
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "production",
+                  "testnet"
+                ]
+              },
+              "networks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "sourceNetwork": {
+                "type": "string",
+                "description": "A network key of `networks`, or `auto`."
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "swap",
+                    "bridge",
+                    "transfer",
+                    "stake",
+                    "deposit",
+                    "withdraw"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "examples": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "maxItems": 6
+              },
+              "appearance": {
+                "type": "object",
+                "description": "KletiaAppearance (validateAppearance in @kletia/core): colours, radius, border, shadow, font, density, header. Safety surfaces are never themable."
+              }
+            }
+          },
+          "flows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,31}$"
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntentActionSpec"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8,
+                  "description": "Structured actions only, validated and dry-run like POST /v1/sessions."
+                },
+                "amount": {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "min": {
+                      "$ref": "#/components/schemas/DecimalAmount"
+                    },
+                    "max": {
+                      "$ref": "#/components/schemas/DecimalAmount"
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "min",
+                    "max"
+                  ],
+                  "description": "The visitor may choose this action's amount within the bounds."
+                },
+                "constraints": {
+                  "$ref": "#/components/schemas/IntentConstraints"
+                },
+                "ownerKeyId": {
+                  "type": "string",
+                  "description": "The key that saved the flow: its registrations are the flow's contract authority (set by the API)."
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "actions",
+                "ownerKeyId"
+              ]
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "ProjectSettingsPatch": {
+        "type": "object",
+        "description": "JSON merge patch (RFC 7386) of kletia.project/v1 settings: objects merge, `null` removes a field, arrays replace. A new or changed flow is dry-run as the caller, who becomes its saver.",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "kletia.project/v1"
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 40,
+                    "description": "Same rules as a registration's integrator.name; reserved brand names need their own website."
+                  },
+                  "website": {
+                    "type": "string",
+                    "description": "https origin whose /.well-known/kletia.json lists the project (domain proof)."
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowedOrigins": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "An https origin (any port), or http://localhost:<port> for development; no path.",
+                  "examples": [
+                    "https://shop.example"
+                  ]
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaults": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "flows": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]{0,31}$"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntentActionSpec"
+                      },
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "description": "Structured actions only, validated and dry-run like POST /v1/sessions."
+                    },
+                    "amount": {
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "min": {
+                          "$ref": "#/components/schemas/DecimalAmount"
+                        },
+                        "max": {
+                          "$ref": "#/components/schemas/DecimalAmount"
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "min",
+                        "max"
+                      ],
+                      "description": "The visitor may choose this action's amount within the bounds."
+                    },
+                    "constraints": {
+                      "$ref": "#/components/schemas/IntentConstraints"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "actions"
+                  ]
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ProjectLogo": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "/v1/projects/{projectId}/logo/{sha256}.{png|webp} (served while the domain is verified)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 512
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 32,
+            "maximum": 512
+          }
+        },
+        "required": [
+          "url",
+          "sha256",
+          "contentType",
+          "width",
+          "height"
+        ]
+      },
+      "ProjectView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^prj_[A-Za-z0-9_]+$",
+            "examples": [
+              "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 until the settings are first saved."
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "description": "SHA-256 of the canonical settings: the If-Match value."
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ProjectSettings"
+          },
+          "domain": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "verified": {
+                "type": "boolean"
+              },
+              "checkedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "file": {
+                "type": "string",
+                "description": "The JSON to publish at https://<website>/.well-known/kletia.json.",
+                "examples": [
+                  "{\"projects\":[\"prj_key_2dce0f6a1b2c3d4e5f6a7b8c\"]}"
+                ]
+              }
+            },
+            "required": [
+              "host",
+              "verified",
+              "checkedAt",
+              "file"
+            ]
+          },
+          "logo": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProjectLogo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "hash",
+          "settings",
+          "domain",
+          "updatedAt",
+          "updatedBy"
+        ]
+      },
+      "ProjectResponse": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectView"
+          }
+        },
+        "required": [
+          "project"
+        ]
+      },
+      "ProjectProfile": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "pattern": "^prj_[A-Za-z0-9_]+$",
+            "examples": [
+              "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+            ]
+          },
+          "brand": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "verified": {
+                    "type": "boolean"
+                  },
+                  "logo": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ProjectLogo"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "host",
+                  "verified"
+                ],
+                "description": "Show the name, header and logo only when `verified` (the domain proves the brand)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "An https origin (any port), or http://localhost:<port> for development; no path.",
+              "examples": [
+                "https://shop.example"
+              ]
+            }
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "production",
+              "testnet"
+            ]
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "networks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "sourceNetwork": {
+                "type": "string",
+                "description": "A network key of `networks`, or `auto`."
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "swap",
+                    "bridge",
+                    "transfer",
+                    "stake",
+                    "deposit",
+                    "withdraw"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "examples": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "maxItems": 6
+              },
+              "appearance": {
+                "type": "object",
+                "description": "KletiaAppearance (validateAppearance in @kletia/core): colours, radius, border, shadow, font, density, header. Safety surfaces are never themable."
+              }
+            }
+          },
+          "flows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "networks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NetworkKey"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "networks"
+              ]
+            }
+          }
+        },
+        "required": [
+          "projectId",
+          "brand",
+          "allowedOrigins",
+          "lane",
+          "defaults",
+          "flows"
+        ]
+      },
+      "ProjectProfileResponse": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/ProjectProfile"
+          }
+        },
+        "required": [
+          "profile"
+        ]
+      },
+      "PublishableKeyCreateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "examples": [
+              "website"
+            ]
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "PublishableKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^kl_pub_[0-9A-Za-z]{32}$",
+            "description": "Shown once; only its SHA-256 hash is stored. Meant for browser code: it works only from the project's allowed origins."
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "publishable"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "The project key that issued it (revoking that key revokes this one)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "kind",
+          "parentId",
+          "createdAt"
+        ]
+      },
+      "PublishableKeyResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/PublishableKey"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "FlowSessionRequest": {
+        "type": "object",
+        "properties": {
+          "flow": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,31}$",
+            "description": "Id of a flow stored in the project settings."
+          },
+          "hostOrigin": {
+            "type": "string",
+            "description": "Origin of the page hosting the widget; must be in allowedOrigins.",
+            "examples": [
+              "https://shop.example"
+            ]
+          }
+        },
+        "required": [
+          "flow",
+          "hostOrigin"
+        ],
+        "additionalProperties": false,
+        "description": "With a publishable key: a single-use session (600 s) from a stored flow, owned by the publishable key; its call / action steps use the registrations of the key that saved the flow."
       },
       "StepFunding": {
         "type": "object",

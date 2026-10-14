@@ -4,6 +4,7 @@ import type { KletiaClient } from "@kletia/sdk";
 import { useKletiaClient } from "./context.js";
 import {
   createIntentSession,
+  type ClarifyAnswerInput,
   type IntentSessionConfig,
   type IntentSessionState,
   type PlanInput,
@@ -16,8 +17,20 @@ export interface UseKletiaIntentOptions extends IntentSessionConfig {
 }
 
 export interface UseKletiaIntentResult extends IntentSessionState {
-  /** Plans an intent from text (or a request without accounts); resolves with it, or null (see `error`). */
+  /**
+   * Plans an intent from text (a clarify turn: it may ask first, `phase:
+   * "clarifying"` with `clarify.questions`) or from a request without
+   * accounts; resolves with the intent, or null (see `error` and `clarify`).
+   */
   plan(input: PlanInput): Promise<IntentGraph | null>;
+  /** A follow-up for the current task ("make it 50"), or a new task when there is none. */
+  say(text: string): Promise<IntentGraph | null>;
+  /** Answers an open question; ignored once the question is gone (after `reset` or a new sentence). */
+  answer(input: ClarifyAnswerInput): Promise<IntentGraph | null>;
+  /** Picks another value for one of Kletia's assumptions (`clarify.assumptions`) and re-plans. */
+  chooseAssumption(assumptionId: string, optionId: string): Promise<IntentGraph | null>;
+  /** Records the answer to a journey prompt; open blockers keep `execute()` from signing. */
+  answerJourney(consequenceId: string, optionId: string): void;
   /** Opens a stored intent (e.g. one your backend created) to review and execute it. */
   open(intentId: string): Promise<IntentGraph | null>;
   /** Turns a session your backend created (`cs_…`) into an intent for `accounts`, to review and execute it. */
@@ -34,8 +47,11 @@ export interface UseKletiaIntentResult extends IntentSessionState {
  * Plan and execute one intent at a time with the user's wallets.
  *
  * ```tsx
- * const { plan, execute, intent, phase, error } = useKletiaIntent({ accounts, signers });
+ * const { plan, answer, clarify, execute, intent, phase, error } = useKletiaIntent({ accounts, signers, journey: true });
  * <button onClick={() => plan("bridge 25 USDC from base to solana")}>Plan</button>
+ * {phase === "clarifying" && clarify?.questions[0]?.options.map((option) => (
+ *   <button key={option.id} onClick={() => answer({ questionId: clarify.questions[0].id, optionId: option.id })}>{option.label}</button>
+ * ))}
  * <button disabled={phase !== "planned"} onClick={execute}>Execute</button>
  * ```
  *
@@ -58,6 +74,10 @@ export function useKletiaIntent(options: UseKletiaIntentOptions): UseKletiaInten
     () => ({
       ...state,
       plan: session.plan,
+      say: session.say,
+      answer: session.answer,
+      chooseAssumption: session.chooseAssumption,
+      answerJourney: session.answerJourney,
       open: session.open,
       startSession: session.startSession,
       execute: session.execute,

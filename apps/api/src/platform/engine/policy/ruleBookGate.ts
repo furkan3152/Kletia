@@ -18,6 +18,14 @@
  *   the pinned one is recorded (`execution.pinNonce`) and stops the group
  *   from counting once. Verification is never refused.
  *
+ * Exposure scope: the exposures of intents owned by a publishable key, and
+ * of link and session intents (the engine passes `exposureScope:
+ * "owner"`), are written to and checked against the owner key's own
+ * windows only, under the chain's effective caps (the smallest daily and
+ * weekly cap of every level). Strangers using a widget, a link or a
+ * session can then never use up the windows of the project or of the
+ * server keys above the owner; a cap on the owner bounds them all.
+ *
  * Fail closed: an unreadable store, an unknown or revoked owner, an
  * unpriced amount a USD rule needs, a hold without a priced ceiling.
  */
@@ -120,7 +128,45 @@ export interface RuleBookGate extends PolicyGate {
 
 interface PlanState {
   readonly snapshot: PolicyChainSnapshot;
+  /** Exposures count in the owner's own windows only (see ownWindows). */
+  readonly own: boolean;
   approval?: PolicyApprovalRecord;
+}
+
+/**
+ * Engine hint passed with `beforePlan`, `beforePayload` and
+ * `afterVerification` inputs: `owner` keeps the intent's exposures in the
+ * owner key's own windows (link and session intents, publishable owners).
+ */
+export interface ExposureScopeHint {
+  readonly exposureScope?: "owner";
+}
+
+/**
+ * Whether exposures stay in the owner's own windows: the engine's hint, or an
+ * owner of kind `publishable` (the HTTP chain source returns the owner record
+ * with its kind), so a publishable owner is scoped even without the hint.
+ */
+export function ownWindows(snapshot: PolicyChainSnapshot, hint: ExposureScopeHint | undefined): boolean {
+  if (hint?.exposureScope === "owner") return true;
+  const record = (snapshot as PolicyChainSnapshot & { readonly record?: { readonly kind?: string } | null }).record;
+  return record?.kind === "publishable";
+}
+
+/** The chain's effective caps (the smallest per window) as one cap on the owner's own scope; null without caps. */
+function ownerCap(owner: string, caps: readonly ScopeCap[]): ScopeCap | null {
+  const smallest = (values: readonly (bigint | undefined)[]): bigint | undefined =>
+    values.reduce<bigint | undefined>((min, value) => (value === undefined ? min : min === undefined || value < min ? value : min), undefined);
+  const daily = smallest(caps.map((cap) => cap.dailyUsdMicros));
+  const weekly = smallest(caps.map((cap) => cap.weeklyUsdMicros));
+  if (daily === undefined && weekly === undefined) return null;
+  return { scope: owner, ...(daily !== undefined ? { dailyUsdMicros: daily } : {}), ...(weekly !== undefined ? { weeklyUsdMicros: weekly } : {}) };
+}
+
+/** Every level sees the owner's own usage (its caps then apply to the owner's window). */
+function ownerUsageForLevels(levels: readonly PolicyChainLevel[], owner: string, usage: ReadonlyMap<string, PolicyWindowUsage>): ReadonlyMap<string, PolicyWindowUsage> {
+  const own = usage.get(owner);
+  return own ? new Map(levels.map((level) => [level.id, own])) : new Map();
 }
 
 /* ---------------------------------------------------------------- helpers */
@@ -341,7 +387,7 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
       throw policyError(evaluation.code ?? "POLICY_VIOLATION", { decisionId: decision.id, stage: "plan", outcome: "deny", keyId: evaluation.violations[0]?.keyId ?? input.ownerKeyId, violations: evaluation.violations, retryAt: null });
     }
     const guard: PlanGuard = { ...base, request: narrowConstraints(documentsOf(snapshot.levels), input.request), governed: true };
-    states.set(guard, { snapshot });
+    states.set(guard, { snapshot, own: ownWindows(snapshot, input as ExposureScopeHint) });
     return guard;
   }
 
@@ -353,7 +399,7 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
       // A guard this gate did not issue (configuration changed mid-request): read the chain again.
       const snapshot = await readChain(owner);
       if (!snapshot || !snapshot.keyActive) return refuseRevoked(owner, snapshot, "plan", clock(), guard.request);
-      state = { snapshot };
+      state = { snapshot, own: ownWindows(snapshot, guard as PlanGuard & ExposureScopeHint) };
       states.set(guard, state);
     }
     const { snapshot } = state;
@@ -363,7 +409,10 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
     let usage: ReadonlyMap<string, PolicyWindowUsage> | undefined;
     if (capped) {
       try {
-        usage = await options.ledger.usage(levels.map((level) => level.id), at);
+        // Own-window intents: every level's caps are previewed against the owner's own usage.
+        usage = state.own
+          ? ownerUsageForLevels(levels, owner, await options.ledger.usage([owner], at))
+          : await options.ledger.usage(levels.map((level) => level.id), at);
       } catch (error) {
         throw closed(error);
       }
@@ -511,10 +560,14 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
       ...(exposureUsd !== null ? { windowDeltaUsdMicros: exposureUsd } : {}),
     });
     const violations = [...evaluation.allViolations];
-    const caps = levels.flatMap((level) => {
+    const levelCaps = levels.flatMap((level) => {
       const cap = windowCaps(level);
       return cap ? [cap] : [];
     });
+    // Own-window intents: written to the owner's scope only, under the chain's effective (smallest) caps.
+    const own = ownWindows(snapshot, input as PayloadClearanceInput & ExposureScopeHint);
+    const ownCap = own ? ownerCap(owner, levelCaps) : null;
+    const caps = own ? (ownCap ? [ownCap] : []) : levelCaps;
     const stepIndex = detailed.facts.steps.find((entry) => entry.id === step.id)?.index ?? step.index;
     if (exposureUsd === null && caps.length > 0 && !violations.some((violation) => violation.rule === "pricing.unavailable")) {
       const level = levels.find((candidate) => windowCaps(candidate) !== null) as PolicyChainLevel;
@@ -619,7 +672,7 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
     };
     let result;
     try {
-      result = await options.ledger.reserve({ exposure, scopes: levels.map((level) => level.id), caps, chain: links, now: at });
+      result = await options.ledger.reserve({ exposure, scopes: own ? [owner] : levels.map((level) => level.id), caps, chain: links, now: at });
     } catch (error) {
       throw closed(error);
     }
@@ -721,7 +774,7 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
         projectId: snapshot.projectId, ownerKeyId: owner, intentId: graph.id, stepId: step.id, network: step.network,
         quoteBinding: binding, exclusiveKey: null, validUntilHeight: null, usdMicros: usd, decisionId, createdAt: at,
       };
-      await options.ledger.recordLanded(exposure, snapshot.levels.map((level) => level.id));
+      await options.ledger.recordLanded(exposure, ownWindows(snapshot, input as VerificationReconcileInput & ExposureScopeHint) ? [owner] : snapshot.levels.map((level) => level.id));
       const violation: PolicyViolation = {
         rule: "submit.uncleared", scope: "key", keyId: owner, path: `steps[${step.index}]`,
         message: "A verified payload had no cleared exposure (prepared before the rule book applied); it now counts as landed.",

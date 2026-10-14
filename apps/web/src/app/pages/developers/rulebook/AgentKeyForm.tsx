@@ -149,7 +149,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
                   onChange={(event) => setContractIds((current) => (event.target.checked ? [...current, contract.id] : current.filter((id) => id !== contract.id)))}
                 />
                 <span className="min-w-0 break-words">{contract.integrator.name}</span>
-                <code className={cx("font-code text-[11px]", TEXT_MUTED)}>{contract.id}</code>
+                <code className={cx("font-code text-[12px]", TEXT_MUTED)}>{contract.id}</code>
               </label>
             ))}
           </fieldset>
@@ -197,7 +197,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
                 <li key={agent.id} className="flex min-w-0 flex-wrap items-start justify-between gap-3 p-3">
                   <div className="min-w-0">
                     <p className="break-words font-bold">{agent.name}</p>
-                    <p className={cx("break-all font-code text-[11px]", TEXT_MUTED)}>
+                    <p className={cx("break-all font-code text-[12px]", TEXT_MUTED)}>
                       {agent.id} · level {agent.depth ?? 1} · expires {formatWhen(agent.expiresAt)}
                       {below.length > 0 ? ` · ${below.length} below it` : ""}
                     </p>

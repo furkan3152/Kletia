@@ -2,6 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================================
+   SEMANTIC COLOUR TOKENS (site and developer portal)
+   One role per variable, light on :root and dark under .dark. Tailwind
+   names them (bg-paper, bg-surface, text-fg, text-muted, border-line,
+   border-control, text-accent-text, bg-signal, outline-focus, StatusPill
+   tones...), so a component states its role once and both themes follow.
+   Text pairs are at least 4.5:1, --kl-control and --kl-focus at least 3:1
+   on --kl-paper and --kl-surface in both themes
+   (site/ui/__tests__/tokens.test.mjs). --kl-line is decorative only.
+   The art (--kla-*), the network colours and the widget's --kw-* tokens
+   are separate and never read these.
+   ========================================================================= */
+:root {
+  --kl-paper: #f4f1ea;
+  --kl-surface: #ffffff;
+  --kl-surface-2: #fbfaf7;
+  --kl-text: #1a1a1a;
+  --kl-muted: #45464b;
+  --kl-line: #1a1a1a;
+  --kl-control: #1a1a1a;
+  --kl-accent: #0052ff;
+  --kl-accent-text: #0047e0;
+  --kl-signal: #ffd60a;
+  --kl-focus: #0052ff;
+  --kl-placeholder: #6b7280;
+  --kl-success: #0b5e3a;
+  --kl-success-bg: #e6fff4;
+  --kl-info: #0047e0;
+  --kl-info-bg: #e8eeff;
+  --kl-warning: #7a3500;
+  --kl-warning-bg: #fff3b0;
+  --kl-danger: #b91c1c;
+  --kl-danger-bg: #ffe4e4;
+  --kl-neutral: #45464b;
+  --kl-neutral-bg: #f1efe8;
+}
+.dark {
+  --kl-paper: #0b1120;
+  --kl-surface: #131e32;
+  --kl-surface-2: #0f1a2c;
+  --kl-text: #f1f5f9;
+  --kl-muted: #a9b6c8;
+  --kl-line: #4b5563;
+  --kl-control: #64748b;
+  --kl-accent: #0052ff;
+  --kl-accent-text: #7ea6ff;
+  --kl-signal: #ffd60a;
+  --kl-focus: #ffd60a;
+  --kl-placeholder: #94a3b8;
+  --kl-success: #5cf2b4;
+  --kl-success-bg: #0e2a22;
+  --kl-info: #7ea6ff;
+  --kl-info-bg: #14213d;
+  --kl-warning: #fbbf24;
+  --kl-warning-bg: #2a2110;
+  --kl-danger: #fca5a5;
+  --kl-danger-bg: #2a1215;
+  --kl-neutral: #a9b6c8;
+  --kl-neutral-bg: #1a2841;
+}
+
 html,
 body,
 #root {
@@ -483,6 +544,12 @@ html.kletia-site #root {
   background-color: transparent;
 }
 
+/* Developer portal (PortalShell sets data-kl-portal): anchors land below the
+   sticky site header (75 px) and the sticky portal bar (55 px). */
+html.kletia-site[data-kl-portal] {
+  scroll-padding-top: 146px;
+}
+
 /* =========================================================================
    EMBED MODE
    /embed runs inside third-party iframes: document scrolling, its own theme
@@ -779,6 +846,39 @@ html.kletia-embed.kletia-embed-transparent body {
   .kl-reveal[data-reveal="shown"][data-reveal-stagger] > [data-reveal-item] {
     animation: kl-reveal-in var(--kl-dur-slow) var(--kl-ease-out) backwards;
     animation-delay: calc(var(--kl-i, 0) * var(--kl-stagger) + var(--kl-reveal-delay, 0ms));
+  }
+}
+
+/* ---- Arrival marker ---------------------------------
+   An anchor the router scrolled to and focused carries data-kl-arrival
+   (router.tsx). It is not in the tab order, so it shows no focus box; a
+   signal-yellow underline marks the arrival and fades over 1.2 s (static
+   while it keeps focus under reduced motion). Targets with their own
+   pulse (.kl-attn-ring) keep only that. */
+[data-kl-arrival]:focus,
+[data-kl-arrival]:focus-visible {
+  outline: none;
+}
+:where([data-kl-arrival]) {
+  position: relative;
+}
+[data-kl-arrival]:not(.kl-attn-ring, .kl-hatch, .kl-spotlight)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 4px;
+  background-color: var(--kl-signal);
+  pointer-events: none;
+  animation: kl-arrival 1200ms var(--kl-ease-out) forwards;
+}
+@keyframes kl-arrival {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -1210,6 +1310,10 @@ html[data-kl-vt]::view-transition {
   }
   .kl-attn-ring--once::after {
     opacity: 0;
+  }
+  [data-kl-arrival]::before {
+    animation: none !important;
+    opacity: 1;
   }
   .kl-hatch::before {
     animation: none !important;

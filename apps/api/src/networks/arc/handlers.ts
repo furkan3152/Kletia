@@ -1064,13 +1064,17 @@ export async function getArcPortfolio(userAddress: string) {
       args: [user],
       blockNumber: observedBlock,
     }),
-    arcPublicClient.readContract({
-      address: ARC_CONTRACTS.Lending,
-      abi: ARC_LENDING_ABI,
-      functionName: "healthFactor",
-      args: [user],
-      blockNumber: observedBlock,
-    }),
+    // healthFactor prices collateral through the pool oracle; an oracle outage reverts it.
+    // The rest of the portfolio is still read, and the health factor is reported unavailable.
+    arcPublicClient
+      .readContract({
+        address: ARC_CONTRACTS.Lending,
+        abi: ARC_LENDING_ABI,
+        functionName: "healthFactor",
+        args: [user],
+        blockNumber: observedBlock,
+      })
+      .catch(() => null),
     ARC_VAULT_EXECUTION_MODE === "vault_v2"
       ? Promise.all([
           arcPublicClient.readContract({
@@ -1141,7 +1145,8 @@ export async function getArcPortfolio(userAddress: string) {
         collateralKLET: formatUnits(lendingCollateral, 18),
         borrowedUSDC: formatUnits(lendingBorrowed, 18),
         suppliedUSDC: formatUnits(lendingSupplied, 18),
-        healthFactor: formatUnits(lendingHealth, 18),
+        healthFactor: lendingHealth === null ? null : formatUnits(lendingHealth, 18),
+        healthAvailability: lendingHealth === null ? ("unavailable" as const) : ("available" as const),
       },
       routeAvailability: {
         status: "available_for_intent_planning",

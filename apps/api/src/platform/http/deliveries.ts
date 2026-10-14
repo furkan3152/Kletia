@@ -10,6 +10,10 @@
  * Recording is fire-and-forget through a bounded queue, so it never delays
  * or blocks delivery. Storage: memory (last 100 per webhook) or Postgres
  * `kletia_webhook_deliveries` (pruned to 7 days and 1000 rows per webhook).
+ * With Postgres the durable delivery queue (webhookQueue.ts) writes its
+ * attempts, retries and drops into the same table in its own transactions;
+ * deleting a webhook's log also cancels its queued deliveries, and pruning
+ * the log also expires the queue's completed rows.
  */
 import { performance } from "node:perf_hooks";
 import { signWebhookPayload } from "@kletia/core";
@@ -20,8 +24,24 @@ import { randomHex } from "./secrets.js";
 import { assertWebhooksAvailable, webhookSecret, webhooksForOwner, type WebhookRecord } from "./webhooks.js";
 
 export type DeliveryStatus = "succeeded" | "failed" | "dropped";
-/** Coarse failure class; `paused` is reserved for deliveries skipped while a webhook is paused. */
-export type DeliveryError = "timeout" | "connection_failed" | "http_status" | "redirect" | "forbidden_address" | "queue_full" | "paused";
+/**
+ * Coarse failure class; `paused` is reserved for deliveries skipped while a
+ * webhook is paused. Dropped before sending: `queue_full` (a bound was hit),
+ * `payload_unreadable` (a queued body no longer opens, for example after
+ * KLETIA_PLATFORM_SECRET changed) and `deferred_too_long` (the delivery could
+ * not be attempted for about two hours because key, webhook or intent storage
+ * kept failing).
+ */
+export type DeliveryError =
+  | "timeout"
+  | "connection_failed"
+  | "http_status"
+  | "redirect"
+  | "forbidden_address"
+  | "queue_full"
+  | "paused"
+  | "payload_unreadable"
+  | "deferred_too_long";
 
 export const DELIVERY_ERRORS: readonly DeliveryError[] = Object.freeze([
   "timeout",
@@ -31,6 +51,8 @@ export const DELIVERY_ERRORS: readonly DeliveryError[] = Object.freeze([
   "forbidden_address",
   "queue_full",
   "paused",
+  "payload_unreadable",
+  "deferred_too_long",
 ]);
 
 export interface WebhookDelivery {
@@ -142,9 +164,15 @@ export class MemoryDeliveryStore implements DeliveryStore {
   }
 }
 
-const DELIVERIES_SCHEMA = {
+/**
+ * The delivery log table. Exported so the durable queue writes its log rows
+ * through the same lazily created schema; the advisory lock serialises the
+ * DDL of processes that start together (one database, several replicas).
+ */
+export const DELIVERIES_SCHEMA = {
   name: "kletia_webhook_deliveries",
   ddl: `
+SELECT pg_advisory_xact_lock(hashtextextended('kletia_schema:webhook_deliveries', 0));
 CREATE TABLE IF NOT EXISTS kletia_webhook_deliveries (
   id text PRIMARY KEY,
   webhook_id text NOT NULL,
@@ -252,10 +280,13 @@ export class PostgresDeliveryStore implements DeliveryStore {
   }
 
   async deleteForWebhook(webhookId: string): Promise<void> {
+    // Queued deliveries go first: their sealed bodies must not outlive the webhook.
+    await (await import("./webhookQueue.js")).cancelQueuedWebhook(webhookId);
     await dbQuery(DELIVERIES_SCHEMA, "DELETE FROM kletia_webhook_deliveries WHERE webhook_id = $1", [webhookId]);
   }
 
   async prune(now: number): Promise<void> {
+    await (await import("./webhookQueue.js")).pruneWebhookQueue(now);
     await dbQuery(DELIVERIES_SCHEMA, "DELETE FROM kletia_webhook_deliveries WHERE at < $1", [
       new Date(now - DELIVERY_RETENTION_DAYS * 86_400_000).toISOString(),
     ]);

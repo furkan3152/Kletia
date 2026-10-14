@@ -26,7 +26,9 @@
  * - A registration is usable only by its owning key, or by keys of the same
  *   project when `visibility: "project"`; foreign and unknown ids are
  *   indistinguishable (404 CONTRACT_NOT_FOUND here, CONTRACT_UNKNOWN when
- *   planning). Registrations of a revoked key are unusable.
+ *   planning). The calling key, the registration owner and their ancestors
+ *   must remain live (unrevoked, unexpired, in the registration's project);
+ *   the directory reads them fresh again at plan and at prepare.
  * - Any anomaly the engine reports (pins changed, outcome mismatch, program
  *   changed) suspends the registration until the integrator re-verifies; an
  *   operator suspension can only be lifted by an operator.
@@ -91,7 +93,7 @@ import {
 } from "../index.js";
 import { isSolanaNetworkKey } from "../../networks/solana/index.js";
 import { createActionTransport } from "./actionTransport.js";
-import { apiKeyStore, isKeyRevoked } from "./auth.js";
+import { apiKeyStore, keyLive, loadOperatorKeys } from "./auth.js";
 import {
   activationDelaySeconds,
   comparePins,
@@ -1549,20 +1551,67 @@ function directoryTransport(): ActionTransport {
   return transport;
 }
 
-async function ownerUsable(record: ContractRecord, ownerKeyId: string): Promise<boolean> {
+interface ContractKeyScope {
+  readonly projectId: string | null;
+}
+
+/**
+ * Fresh key and lineage state (no cache): capability-based prepares, such as
+ * an embed intent or a session, must also stop after a revocation or an
+ * expiry. Operator keys have no project; unknown keys are not live.
+ */
+async function liveContractScope(keyId: string): Promise<ContractKeyScope | null> {
+  if ([...loadOperatorKeys().values()].some((key) => key.id === keyId)) return { projectId: null };
+  const keys = apiKeyStore();
+  const key = await keys.findById(keyId);
+  const now = Date.now();
+  if (!key || !keyLive(key, now)) return null;
+  const lineage = key.lineage ?? [];
+  if (lineage.length > 0) {
+    const ancestors = new Map((await keys.findMany(lineage)).map((ancestor) => [ancestor.id, ancestor]));
+    const live = lineage.every((id) => {
+      const ancestor = ancestors.get(id);
+      return ancestor !== undefined && ancestor.projectId === key.projectId && keyLive(ancestor, now);
+    });
+    if (!live) return null;
+  }
+  return { projectId: key.projectId };
+}
+
+type ContractScopeReader = (keyId: string) => Promise<ContractKeyScope | null>;
+
+/**
+ * Whether `ownerKeyId` may use the registration: its owner (in the same
+ * project), or a key of the registration's project when it is
+ * project-visible and its owner is still live.
+ */
+async function ownerUsable(record: ContractRecord, ownerKeyId: string, scopeOf: ContractScopeReader = liveContractScope): Promise<boolean> {
   if (record.status === "deleted") return false;
-  let allowed = record.ownerKeyId === ownerKeyId;
-  if (!allowed && record.visibility === "project" && record.projectId !== null) allowed = (await projectOf(ownerKeyId)) === record.projectId;
-  if (!allowed) return false;
-  // A revoked owner key takes its registrations with it (also for project keys).
-  return !(await isKeyRevoked(record.ownerKeyId));
+  const caller = await scopeOf(ownerKeyId);
+  if (!caller) return false;
+  if (record.ownerKeyId === ownerKeyId) return caller.projectId === record.projectId;
+  if (record.visibility !== "project" || record.projectId === null || caller.projectId !== record.projectId) return false;
+  // A revoked or expired owner key takes its registrations with it (also for project keys).
+  const owner = await scopeOf(record.ownerKeyId);
+  return owner !== null && owner.projectId === record.projectId;
 }
 
 async function usableEntries(ownerKeyId: string): Promise<ContractEntry[]> {
-  const projectId = await projectOf(ownerKeyId);
+  // Share fresh reads within this one operation, without a TTL that could keep revoked keys usable.
+  const scopes = new Map<string, Promise<ContractKeyScope | null>>();
+  const scopeOf: ContractScopeReader = (id) => {
+    let pending = scopes.get(id);
+    if (!pending) {
+      pending = liveContractScope(id);
+      scopes.set(id, pending);
+    }
+    return pending;
+  };
+  const caller = await scopeOf(ownerKeyId);
+  if (!caller) return [];
   const out: ContractEntry[] = [];
-  for (const raw of await contractStore().listVisible(ownerKeyId, projectId)) {
-    if (await ownerUsable(raw.record, ownerKeyId)) out.push(await settle(raw));
+  for (const raw of await contractStore().listVisible(ownerKeyId, caller.projectId)) {
+    if (await ownerUsable(raw.record, ownerKeyId, scopeOf)) out.push(await settle(raw));
   }
   return out;
 }

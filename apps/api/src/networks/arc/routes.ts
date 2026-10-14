@@ -672,23 +672,24 @@ router.get(
           functionName: "getSuppliedBalance",
           args: [address],
         }),
+        // The three oracle-priced reads revert during a price-source outage; balances still answer.
         arcPublicClient.readContract({
           address: ARC_CONTRACTS.Lending,
           abi: ARC_LENDING_ABI,
           functionName: "healthFactor",
           args: [address],
-        }),
+        }).catch(() => null),
         arcPublicClient.readContract({
           address: ARC_CONTRACTS.Lending,
           abi: ARC_LENDING_ABI,
           functionName: "_getMaxBorrow",
           args: [address],
-        }),
+        }).catch(() => null),
         arcPublicClient.readContract({
           address: ARC_CONTRACTS.Lending,
           abi: ARC_LENDING_ABI,
           functionName: "_getKletPrice",
-        }),
+        }).catch(() => null),
       ]);
     res.json({
       success: true,
@@ -696,9 +697,10 @@ router.get(
       collateralKLET: formatUnits(collateral, 18),
       borrowedUSDC: formatUnits(borrowed, 18),
       suppliedUSDC: formatUnits(supplied, 18),
-      healthFactor: formatUnits(health, 18),
-      maxBorrowUSDC: formatUnits(maxBorrow, 18),
-      kletPriceUSDC: formatUnits(kletPrice, 18),
+      healthFactor: health === null ? null : formatUnits(health, 18),
+      maxBorrowUSDC: maxBorrow === null ? null : formatUnits(maxBorrow, 18),
+      kletPriceUSDC: kletPrice === null ? null : formatUnits(kletPrice, 18),
+      oracleAvailability: health === null || maxBorrow === null || kletPrice === null ? "unavailable" : "available",
       ...metadata(),
     });
   }),

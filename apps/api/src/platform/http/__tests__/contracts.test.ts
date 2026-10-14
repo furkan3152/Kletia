@@ -42,8 +42,8 @@ const { configureContractEngine } = await import("../contractChecks.js");
 const { contractTestLimiter, contractWriteLimiter } = await import("../limits.js");
 const transportModule = await import("../actionTransport.js");
 const { createGuardedLookup } = await import("../netguard.js");
-const { issueDeveloperKey } = await import("../auth.js");
-const { contractDirectory, createIntentDetailed } = await import("../../index.js");
+const { apiKeyStore, issueAgentKey, issueDeveloperKey } = await import("../auth.js");
+const { contractDirectory, createIntentDetailed, prepareStep } = await import("../../index.js");
 const harnessModule = await import("../../engine/__tests__/contractHarness.js");
 const { KLETIA_TOOLS, runTool } = await import("../mcp/tools.js");
 const sessionsModule = await import("../sessions.js");
@@ -709,6 +709,49 @@ describe("POST /v1/contracts/{id}/test and the kill switch", () => {
 /* ------------------------------------------------------------ directory */
 
 describe("contract directory (engine hook)", () => {
+  it("removes a revoked sibling's access without revoking the registration owner", async () => {
+    const owner = await issueKey("live-owner");
+    const sibling = await issueKey("revoked-sibling", owner);
+    const view = await register(owner.key, evmDefinition({ network: "arc", action: depositAction({ phrases: PHRASES }), extra: { visibility: "project" } }));
+    const directory = contractDirectory();
+    assert.ok(directory);
+    assert.equal((await directory.resolve(sibling.id, "acme vault", "arc"))?.id, view.id);
+    assert.equal(await directory.usableBy(view.id, sibling.id), true);
+    assert.equal((await directory.phrases(sibling.id)).length, 1);
+
+    assert.equal((await call(server, "DELETE", `/keys/${sibling.id}`, { key: owner.key })).status, 204);
+    assert.equal(await directory.resolve(sibling.id, view.id), null);
+    assert.equal(await directory.resolve(sibling.id, "acme vault", "arc"), null);
+    assert.equal(await directory.usableBy(view.id, sibling.id), false);
+    assert.deepEqual(await directory.phrases(sibling.id), []);
+    assert.equal(await directory.usableBy(view.id, owner.id), true, "the owner's integration stays available");
+  });
+
+  it("refuses expired agent keys and an expired ancestor even when their project still has a live registration", async () => {
+    const owner = await issueKey("lineage-owner");
+    const parent = await issueKey("lineage-parent", owner);
+    const parentRecord = await apiKeyStore().findById(parent.id);
+    assert.ok(parentRecord);
+    const expires = new Date(Date.now() + 3_600_000).toISOString();
+    const agent = await issueAgentKey("lineage-agent", parentRecord, expires, 20);
+    const view = await register(owner.key, evmDefinition({ network: "arc", action: depositAction({ phrases: PHRASES }), extra: { visibility: "project" } }));
+    const directory = contractDirectory();
+    assert.ok(directory);
+    assert.equal(await directory.usableBy(view.id, agent.id), true);
+
+    await apiKeyStore().setExpiry(agent.id, owner.id, new Date(Date.now() - 1_000).toISOString());
+    assert.equal(await directory.usableBy(view.id, agent.id), false);
+    assert.deepEqual(await directory.phrases(agent.id), []);
+    await apiKeyStore().setExpiry(agent.id, owner.id, expires);
+    assert.equal(await directory.usableBy(view.id, agent.id), true);
+
+    await apiKeyStore().setExpiry(parent.id, owner.id, new Date(Date.now() - 1_000).toISOString());
+    assert.equal(await directory.resolve(agent.id, view.id), null);
+    assert.equal(await directory.usableBy(view.id, agent.id), false);
+    assert.deepEqual(await directory.phrases(agent.id), []);
+    assert.equal(await directory.usableBy(view.id, owner.id), true);
+  });
+
   it("never resolves foreign ids, resolves aliases per network and lists phrases", async () => {
     const owner = await issueKey("dir-owner");
     const sibling = await issueKey("dir-sibling", owner);
@@ -776,6 +819,24 @@ describe("engine integration (offline EVM world)", () => {
   after(() => {
     harness.restore();
     installStubs();
+  });
+
+  it("refuses prepare on an already planned project contract after its caller key is revoked", async () => {
+    const owner = await issueKey("prepare-owner");
+    const sibling = await issueKey("prepare-sibling", owner);
+    const auth = { tier: "developer" as const, keyId: owner.id, projectId: owner.id };
+    const view = await contracts.registerContract(auth, { ...harnessModule.vaultDefinitionBody(), visibility: "project" });
+    now = START + 900_000;
+    const { intent } = await createIntentDetailed({
+      accounts: [`eip155:8453:${harnessModule.USER}`],
+      actions: [{ kind: "call", network: "base", contract: view.id, entry: "deposit", amount: "100" }],
+    }, { ownerKeyId: sibling.id });
+    const step = intent.steps[0];
+    assert.ok(step);
+    await apiKeyStore().revoke(sibling.id, owner.id, new Date().toISOString());
+    const reads = harness.router.calls.length;
+    await assert.rejects(prepareStep(intent.id, step.id), (error: { code?: string }) => error.code === "CONTRACT_NOT_USABLE");
+    assert.equal(harness.router.calls.length, reads, "refusal precedes any prepare or simulation RPC");
   });
 
   it("registers with the engine's pins, plans aliases for the owning key only, and honours activation and the kill switch", async () => {
@@ -1007,6 +1068,13 @@ describe("postgres contract store", () => {
       assert.deepEqual((await store.history(first, 5)).map((item) => item.revision), [2, 1]);
       assert.deepEqual(await store.counts(owner), { registered: 2, suspended: 0 });
       assert.equal((await store.listVisible(owner, null)).length, 2);
+      assert.deepEqual(await store.listVisible(spender, owner), [], "private registrations are not shared with sibling keys");
+      const siblingEntry = await store.get(second);
+      assert.ok(siblingEntry);
+      assert.equal(await store.update({ ...siblingEntry.record, visibility: "project", updatedAt }, created), true);
+      assert.deepEqual((await store.listVisible(spender, owner)).map((item) => item.record.id), [second]);
+      assert.deepEqual(await store.listVisible(spender, spender), [], "project-visible registrations never become a global catalog");
+      assert.deepEqual(await store.listVisible(spender, null), [], "keyless project membership grants no access");
 
       const day = "2026-10-09";
       assert.equal(await store.addSpend(owner, day, 600, 1000), true);

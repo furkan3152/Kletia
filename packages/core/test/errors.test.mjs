@@ -208,7 +208,8 @@ test("receipt, Rule Book, intent link and asset preview codes carry their status
   };
   assert.equal(Object.keys(expected).length, 55);
   const { FEATURE_ERROR_CODES } = await import("../dist/index.js");
-  assert.deepEqual(Object.values(FEATURE_ERROR_CODES).flat().sort(), Object.keys(expected).sort(), "every round-5 code is attributed to its feature");
+  const round5 = ["receipts", "policies", "links", "preview"].flatMap((feature) => FEATURE_ERROR_CODES[feature]);
+  assert.deepEqual(round5.sort(), Object.keys(expected).sort(), "every receipt, policy, link and preview code is attributed to its feature");
   for (const [code, [status, category, retryable]] of Object.entries(expected)) {
     const entry = ERROR_CATALOG[code];
     assert.ok(entry, `${code} is catalogued`);
@@ -221,4 +222,64 @@ test("receipt, Rule Book, intent link and asset preview codes carry their status
   }
   assert.equal(describeError("POLICY_PRICE_UNAVAILABLE").category, "unavailable");
   assert.equal(describeError("POLICY_APPROVAL_REJECTED").category, "permission");
+});
+
+test("protocol, departure, journey, clarify, integrator and project codes carry their statuses", async () => {
+  // [status, category, retryable]
+  const expected = {
+    // Named venues and price guards.
+    SOLANA_SWAP_INVALID: [422, "request", false],
+    DEX_ASSET_UNSUPPORTED: [422, "intent", false],
+    DEX_QUOTE_MISMATCH: [502, "upstream", true],
+    DEX_INSTRUCTION_INVALID: [502, "upstream", true],
+    SIMULATION_UNVERIFIED: [502, "upstream", true],
+    PRICE_UNAVAILABLE: [422, "intent", false],
+    RECIPIENT_TOKEN_ACCOUNT_MISSING: [422, "intent", false],
+    // Departure.
+    SOURCE_REQUIRED: [422, "intent", false],
+    SOURCE_UNREACHABLE: [422, "intent", false],
+    // Journey.
+    INTENT_IN_FLIGHT: [409, "conflict", true],
+    GAS_TOPUP_UNAVAILABLE: [422, "intent", false],
+    // Clarifying questions.
+    RECIPIENT_CHECKSUM_INVALID: [422, "intent", false],
+    MESSAGE_SECRET_REFUSED: [400, "request", false],
+    QUESTION_NOT_OPEN: [409, "conflict", false],
+    ANSWER_INVALID: [422, "intent", false],
+    EDIT_UNSUPPORTED: [422, "intent", false],
+    THREAD_INVALID: [400, "request", false],
+    THREAD_NOT_FOUND: [404, "not_found", false],
+    THREAD_CONFLICT: [409, "conflict", false],
+    THREAD_CLOSED: [409, "conflict", false],
+    THREAD_REQUIRES_API_KEY: [400, "request", false],
+    // Integrator surfaces.
+    SECRET_KEY_FROM_BROWSER: [403, "permission", false],
+    SESSION_EXPIRES_BEFORE_ACTIVATION: [422, "intent", false],
+    // Projects and publishable keys.
+    PUBLISHABLE_KEY_FORBIDDEN: [403, "permission", false],
+    PUBLISHABLE_ORIGIN_FORBIDDEN: [403, "permission", false],
+    PROJECT_SETTINGS_INVALID: [400, "request", false],
+    PROJECT_CONFLICT: [409, "conflict", false],
+    FLOW_UNKNOWN: [404, "not_found", false],
+    PROJECT_LOGO_INVALID: [422, "intent", false],
+  };
+  assert.equal(Object.keys(expected).length, 29);
+  const { FEATURE_ERROR_CODES } = await import("../dist/index.js");
+  const groups = { protocols: 7, departure: 2, journey: 2, clarify: 10, integrator: 2, projects: 6 };
+  for (const [feature, count] of Object.entries(groups)) assert.equal(FEATURE_ERROR_CODES[feature]?.length, count, `${feature} has ${count} codes`);
+  const round6 = Object.keys(groups).flatMap((feature) => FEATURE_ERROR_CODES[feature]);
+  assert.deepEqual([...round6].sort(), Object.keys(expected).sort(), "every protocol, departure, journey, clarify, integrator and project code is attributed to its feature");
+  assert.equal(new Set(Object.values(FEATURE_ERROR_CODES).flat()).size, Object.values(FEATURE_ERROR_CODES).flat().length, "no code belongs to two features");
+  for (const [code, [status, category, retryable]] of Object.entries(expected)) {
+    const entry = ERROR_CATALOG[code];
+    assert.ok(entry, `${code} is catalogued`);
+    assert.equal(entry.status, status, `${code} status`);
+    assert.equal(entry.category, category, `${code} category`);
+    assert.equal(entry.retryable, retryable, `${code} retryable`);
+    assert.equal(Boolean(entry.step), false, `${code} is not a step failure`);
+    assert.equal(resolveErrorCode(code), code, `${code} resolves to itself`);
+  }
+  // SETTLEMENT_MISMATCH now says where the money is.
+  assert.match(ERROR_CATALOG.SETTLEMENT_MISMATCH.remedy, /observedCredit/u);
+  assert.equal(ERROR_CATALOG.SETTLEMENT_MISMATCH.step, true);
 });

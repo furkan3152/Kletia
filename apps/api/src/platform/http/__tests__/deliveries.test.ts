@@ -200,7 +200,8 @@ describe("dispatcher drops", () => {
       release = () => resolve(204);
     });
     const dispatcher = new WebhookDispatcher(() => blocked, (record) => records.push(record));
-    const owner = `key_${randomBytes(12).toString("hex")}`;
+    // A real key: every attempt re-reads its owner, and made-up ids are dropped as unauthorized.
+    const owner = (await (await import("../auth.js")).issueDeveloperKey("delivery-drop-test")).id;
     await createWebhook(owner, { url: `https://93.184.215.14/${owner}/drops`, events: ["intent.status_changed"] });
     dispatcher.start();
     try {
@@ -257,6 +258,23 @@ function contract(name: string, make: () => import("../deliveries.js").DeliveryS
       assert.deepEqual((await store.list(owner, webhookId, 10)).map((entry) => entry.id), [newest.id, recent.id]);
       await store.deleteForWebhook(webhookId);
       assert.deepEqual(await store.list(owner, webhookId, 10), []);
+    });
+
+    it("keeps the queue's drop classes (unreadable payloads, deferrals past the bound)", async () => {
+      const store = make();
+      const owner = `key_${randomBytes(12).toString("hex")}`;
+      const webhookId = `wh_${randomBytes(12).toString("hex")}`;
+      const now = Date.now();
+      await store.insert([
+        record(webhookId, owner, new Date(now - 1_000).toISOString(), { status: "dropped", error: "payload_unreadable", httpStatus: undefined, durationMs: undefined }),
+        record(webhookId, owner, new Date(now).toISOString(), { status: "dropped", error: "deferred_too_long", attempt: 2, httpStatus: undefined, durationMs: undefined }),
+      ]);
+      const listed = await store.list(owner, webhookId, 10);
+      assert.deepEqual(listed.map((entry) => [entry.status, entry.error, entry.attempt]), [
+        ["dropped", "deferred_too_long", 2],
+        ["dropped", "payload_unreadable", 1],
+      ]);
+      await store.deleteForWebhook(webhookId);
     });
   });
 }

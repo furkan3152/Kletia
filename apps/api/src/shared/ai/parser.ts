@@ -2369,6 +2369,28 @@ function deterministicIntent(
   });
 }
 
+const PORTFOLIO_WORDS =
+  /\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu;
+
+/**
+ * Base forms of the console's money-moving verbs, English and Turkish, with
+ * Unicode-aware word edges (a leading "ç" or "ö" is a letter here, unlike in
+ * `\b`). Read phrases such as "staking positions" or "lending balance" do
+ * not contain them.
+ */
+const MONEY_MOVING_VERB =
+  /(?<![\p{L}\p{N}_])(?:withdraw|remove|repay|unstake|claim|deposit|stake|swap|send|pay|transfer|lend|borrow|bridge|add|buy|sell|supply|move|convert|exchange|trade|close|exit|redeem|migrate|wrap|unwrap|mint|launch|register|renew|approve|provide|rebalance|liquidate|çek|cek|yatır|yatir|gönder|gonder|öde|ode|aktar|takas|köprüle|koprule)(?![\p{L}\p{N}_])/iu;
+
+/**
+ * A deterministic portfolio read: the prompt names a portfolio, balance,
+ * position or holdings and no money-moving verb. "withdraw my whole aave
+ * position on base" or "send my USDC balance to 0x…" is an action and must
+ * never be answered with a portfolio read.
+ */
+function isDeterministicPortfolioRead(prompt: string): boolean {
+  return PORTFOLIO_WORDS.test(prompt) && !MONEY_MOVING_VERB.test(prompt);
+}
+
 type NaturalWorkflowStep = NonNullable<ParsedIntent["workflowSteps"]>[number];
 
 /**
@@ -2553,7 +2575,7 @@ function parseRawDeterministicBaseIntent(
   const lower = prompt.toLocaleLowerCase("tr-TR");
   if (/\barc(?:\s+testnet)?\b/i.test(lower)) return null;
 
-  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+  if (isDeterministicPortfolioRead(prompt)) {
     return deterministicIntent({
       action: "portfolio",
       amount: "0",
@@ -3143,7 +3165,7 @@ function parsePreparedDeterministicArcIntent(
   const finish = (intent: ParsedIntent | null): ParsedIntent | null =>
     bindPrivateFieldSlots(intent, userPrompt);
 
-  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+  if (isDeterministicPortfolioRead(prompt)) {
     return finish(deterministicIntent({
       action: "portfolio",
       amount: "0",
@@ -3459,6 +3481,19 @@ function parsePreparedDeterministicArcIntent(
       amount: match[1],
       secondaryAmount: match[2],
       message: "Preparing the live-reserve Arc liquidity route.",
+    }));
+  }
+
+  // The liquidity widget's LP exit: burns LP tokens of the Kletia Swap pool for its reserve share.
+  match = new RegExp(
+    `^Remove ${ARC_WIDGET_AMOUNT} LP tokens? from Kletia Swap on Arc Testnet(?:; simulate it before wallet approval)?$`,
+    "i",
+  ).exec(prompt);
+  if (match) {
+    return finish(deterministicIntent({
+      action: "remove_liquidity",
+      amount: match[1],
+      message: "Preparing the Arc liquidity withdrawal.",
     }));
   }
 
@@ -4022,7 +4057,7 @@ function parsePreparedDeterministicArbitrumIntent(
   const finish = (intent: ParsedIntent | null): ParsedIntent | null =>
     bindPrivateFieldSlots(intent, userPrompt);
 
-  if (/\b(?:portfolio|balances?|positions?|holdings|portföy|portfoy|bakiye|pozisyonlar?)\b/iu.test(prompt)) {
+  if (isDeterministicPortfolioRead(prompt)) {
     return finish(deterministicIntent({
       action: "portfolio",
       amount: "0",

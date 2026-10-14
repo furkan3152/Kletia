@@ -57,6 +57,13 @@ export interface AssetDeltaRow {
   readonly steps: readonly string[];
   /** `transit`: credits and debits cancel (funds passing through the wallet). */
   readonly role: "you" | "transit";
+  /**
+   * Base units of this row's gas asset that a later step keeps back for
+   * network fees (journey amount flow F6, `funding.gasReserve`), already
+   * counted in `expected` and `worst`. Shown as "kept for network fees".
+   * Summed over the contributing deltas; never part of the digest.
+   */
+  readonly keptForFees?: string;
 }
 
 export interface ExternalPayment {
@@ -89,6 +96,11 @@ export interface FeeLine {
   readonly usd?: number;
   /** `deducted`: already inside a lower output; `on-top`: debited in addition; `refundable`: Solana rent returned when the account closes. */
   readonly paid: "deducted" | "on-top" | "refundable";
+  /**
+   * `estimated` on the network fee lines of quoted steps (no simulation): an
+   * upper-bound estimate from gas limits and live gas prices, counted in
+   * `networkFeesUsd` like any other fee line.
+   */
   readonly certainty: Certainty;
 }
 
@@ -326,6 +338,7 @@ interface RowAccumulator {
   sawCredit: boolean;
   sawDebit: boolean;
   order: number;
+  keptForFees: bigint;
 }
 
 /**
@@ -361,6 +374,7 @@ export function aggregatePreview(
     worst: bigint;
     certainty: Certainty;
     stepId: string;
+    keptForFees?: bigint;
   }) => {
     if (!networkOrder.includes(entry.network)) networkOrder.push(entry.network);
     const key = `${entry.network}|${addressKey(entry.account)}|${normalizedAsset(entry.asset)}`;
@@ -379,9 +393,11 @@ export function aggregatePreview(
       sawCredit: false,
       sawDebit: false,
       order: sequence++,
+      keptForFees: 0n,
     };
     accumulator.expected += entry.expected;
     accumulator.worst += entry.worst;
+    if (entry.keptForFees !== undefined && entry.keptForFees > 0n) accumulator.keptForFees += entry.keptForFees;
     accumulator.certainty = existing ? weakest(accumulator.certainty, entry.certainty) : entry.certainty;
     if (!accumulator.steps.includes(entry.stepId)) accumulator.steps.push(entry.stepId);
     if (entry.expected > 0n || entry.worst > 0n) accumulator.sawCredit = true;
@@ -402,6 +418,7 @@ export function aggregatePreview(
         worst: BigInt(delta.worst.amount),
         certainty: delta.certainty,
         stepId: step.stepId,
+        ...(delta.keptForFees !== undefined && /^\d+$/u.test(delta.keptForFees) ? { keptForFees: BigInt(delta.keptForFees) } : {}),
       });
     }
     for (const payment of step.payments) {
@@ -459,6 +476,8 @@ export function aggregatePreview(
       certainty: row.certainty,
       steps: row.steps,
       role: transit ? "transit" : "you",
+      // What is kept for fees can never exceed what the row still credits.
+      ...(row.keptForFees > 0n && !transit && row.worst > 0n ? { keptForFees: (row.keptForFees < row.worst ? row.keptForFees : row.worst).toString() } : {}),
     };
   });
 

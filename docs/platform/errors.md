@@ -19,6 +19,11 @@ Every failed request returns the same envelope and a stable code:
   `message`.
 - `issues` lists the offending fields (`path` is a JSON path into the request).
 - `hints` appears on `INTENT_UNSUPPORTED`: phrases the grammar understands.
+- `details` (a JSON object of at most 4 KB) appears on codes that carry
+  structured context, for example `SOURCE_REQUIRED` with
+  `details.candidates` (the networks whose balances were read) and
+  `SOURCE_UNREACHABLE` with both networks. Clients that do not know a code's
+  details can ignore them.
 - `docs` links to the code's entry below (the host follows
   `KLETIA_WEB_ORIGIN` on self-hosted deployments).
 - Every response carries `X-Request-Id`; quote it when reporting a problem.
@@ -97,6 +102,20 @@ between the publisher (`LINK_DEFINITION_INVALID`, `LINK_POLICY_CONFLICT`,
 and `expandLink` in `@kletia/core` report the static ones before any
 request is sent.
 
+## Departure, journeys and clarifying questions
+
+`SOURCE_REQUIRED` and `SOURCE_UNREACHABLE` are only returned when a request
+sets `sourceNetwork`; clients that never send it keep the old behaviour.
+`INTENT_IN_FLIGHT` answers `POST /v1/intents/{id}/stop` while a step can
+still land (retry after `Retry-After`). A cross-network step that fails with
+`SETTLEMENT_MISMATCH` and carries `observedCredit` delivered that amount to
+the recipient's wallet on the destination network: the money is there, not
+lost. The clarifying-question codes (`QUESTION_NOT_OPEN`, `ANSWER_INVALID`,
+`EDIT_UNSUPPORTED`, `THREAD_*`) leave the thread exactly as it was, and
+`MESSAGE_SECRET_REFUSED` means nothing from the message was read or stored.
+`FEATURE_ERROR_CODES` in `@kletia/core` lists the codes each feature
+introduced.
+
 ## Catalog
 
 ### Request
@@ -115,9 +134,11 @@ request is sent.
 | <a id="error-INVALID_REQUEST_BODY"></a>`INVALID_REQUEST_BODY` | 400 | no | Unreadable request body | Send a complete UTF-8 JSON body with a correct Content-Length. |
 | <a id="error-LINK_DEFINITION_INVALID"></a>`LINK_DEFINITION_INVALID` | 400 | no | Invalid link definition | Fix the fields listed in error.issues. validateLinkDefinition in @kletia/core reports the same issues locally. |
 | <a id="error-LINK_IMMUTABLE_FIELD"></a>`LINK_IMMUTABLE_FIELD` | 422 | no | Link field cannot change | A link's promise only tightens: raise min, lower max, remove sources, lower uses, expire earlier or turn the blink off. Create a new link for anything else. |
+| <a id="error-MESSAGE_SECRET_REFUSED"></a>`MESSAGE_SECRET_REFUSED` | 400 | no | Secret in a message | Never send private keys, seed phrases or API keys. Nothing was stored. |
 | <a id="error-METHOD_NOT_ALLOWED"></a>`METHOD_NOT_ALLOWED` | 405 | no | Method not allowed | Use one of the methods listed in the Allow header. |
 | <a id="error-PAYLOAD_TOO_LARGE"></a>`PAYLOAD_TOO_LARGE` | 413 | no | Request body too large | Keep request bodies under 64 KB. |
 | <a id="error-POLICY_INVALID"></a>`POLICY_INVALID` | 400 | no | Invalid rule book | Fix the fields listed in error.issues. validatePolicy in @kletia/core reports the same issues locally. |
+| <a id="error-PROJECT_SETTINGS_INVALID"></a>`PROJECT_SETTINGS_INVALID` | 400 | no | Invalid project settings | Fix the fields listed in error.issues and send the change again. |
 | <a id="error-RECEIPT_ANCHOR_INVALID"></a>`RECEIPT_ANCHOR_INVALID` | 422 | no | Anchor transaction refused | The reported transaction is not a successful EAS timestamp(batchDigest) call for this batch on Base. Report the transaction that timestamped it. |
 | <a id="error-REFERENCES_INVALID"></a>`REFERENCES_INVALID` | 400 | no | Invalid references | Send { "references": [...] } with one transaction hash or signature per prepared transaction. |
 | <a id="error-REFERENCE_COUNT_MISMATCH"></a>`REFERENCE_COUNT_MISMATCH` | 400 | no | Wrong number of references | Submit exactly one reference per prepared transaction, in order. |
@@ -128,7 +149,10 @@ request is sent.
 | <a id="error-SOLANA_SELF_TRANSFER"></a>`SOLANA_SELF_TRANSFER` | 400 | no | Transfer to self | Send to a different account. |
 | <a id="error-SOLANA_SIGNATURE_INVALID"></a>`SOLANA_SIGNATURE_INVALID` | 400 | no | Invalid Solana signature | Submit the base58 signature of the sent transaction. |
 | <a id="error-SOLANA_SLIPPAGE_OUT_OF_RANGE"></a>`SOLANA_SLIPPAGE_OUT_OF_RANGE` | 400 | no | Slippage out of range | Use a slippage between 1 and 1000 basis points. |
+| <a id="error-SOLANA_SWAP_INVALID"></a>`SOLANA_SWAP_INVALID` | 422 | no | Invalid direct swap | Use two distinct initialized classic SPL mints and a positive u64 input amount. |
 | <a id="error-SOLANA_SWAP_SAME_TOKEN"></a>`SOLANA_SWAP_SAME_TOKEN` | 400 | no | Swap to the same token | Choose different input and output tokens. |
+| <a id="error-THREAD_INVALID"></a>`THREAD_INVALID` | 400 | no | Invalid thread | Send the thread exactly as the last response returned it, or start a new one. |
+| <a id="error-THREAD_REQUIRES_API_KEY"></a>`THREAD_REQUIRES_API_KEY` | 400 | no | Remembered threads need an API key | Send an API key, or hold the thread yourself and send it back in thread. |
 | <a id="error-UNSUPPORTED_MEDIA_TYPE"></a>`UNSUPPORTED_MEDIA_TYPE` | 415 | no | Unsupported media type | Send request bodies as UTF-8 application/json. |
 
 ### Authentication
@@ -156,6 +180,9 @@ request is sent.
 | <a id="error-POLICY_SCHEDULE_CLOSED"></a>`POLICY_SCHEDULE_CLOSED` | 403 | yes | Outside the rule book's timetable | Payloads are prepared only inside the timetable's windows. Retry after Retry-After seconds, when the next window opens. |
 | <a id="error-POLICY_SPEND_LIMIT"></a>`POLICY_SPEND_LIMIT` | 403 | yes | Spend cap reached | A rolling 24 h or 7 d USD cap of the key, an ancestor or the project is used up. Retry after Retry-After (error.policy.retryAt), or ask a project key to raise the cap. |
 | <a id="error-POLICY_VIOLATION"></a>`POLICY_VIOLATION` | 403 | no | Refused by the rule book | error.policy lists every violated rule id, the key whose rule book refused, the observed value and the limit. Change the request; splitting it or adding accounts does not help. |
+| <a id="error-PUBLISHABLE_KEY_FORBIDDEN"></a>`PUBLISHABLE_KEY_FORBIDDEN` | 403 | no | Not allowed for publishable keys | Publishable keys plan intents, start sessions from the project's stored flows and read the project profile. Use a server key for everything else. |
+| <a id="error-PUBLISHABLE_ORIGIN_FORBIDDEN"></a>`PUBLISHABLE_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this project | Call from a page origin listed in the project's allowedOrigins, or add the origin with PATCH /v1/projects/current. |
+| <a id="error-SECRET_KEY_FROM_BROWSER"></a>`SECRET_KEY_FROM_BROWSER` | 403 | no | Server key sent from a browser | This key is a server key. Call Kletia from your server, through createKletiaProxy, or use a publishable key in browsers. |
 | <a id="error-SESSION_ORIGIN_FORBIDDEN"></a>`SESSION_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this session | Embed the session only on one of its allowedOrigins, or create a session that lists this origin. |
 
 ### Not found
@@ -164,6 +191,7 @@ request is sent.
 |---|---|---|---|---|
 | <a id="error-APPROVAL_NOT_FOUND"></a>`APPROVAL_NOT_FOUND` | 404 | no | Approval not found | Check the approval id from the link (/approve#apr_…) or error.policy.approval. |
 | <a id="error-CONTRACT_NOT_FOUND"></a>`CONTRACT_NOT_FOUND` | 404 | no | Contract registration not found | List registrations with GET /v1/contracts; a key sees its own and the project-visible ones of its project. |
+| <a id="error-FLOW_UNKNOWN"></a>`FLOW_UNKNOWN` | 404 | no | Flow not found | Use the id of a flow stored in the project's settings; GET /v1/publishable/profile lists them. |
 | <a id="error-INTENT_NOT_FOUND"></a>`INTENT_NOT_FOUND` | 404 | no | Intent not found | Check the intent id. Dry runs are never stored. |
 | <a id="error-KEY_NOT_FOUND"></a>`KEY_NOT_FOUND` | 404 | no | API key not found | List your project's keys with GET /v1/keys; only active keys of your own project can be managed. |
 | <a id="error-LINK_NOT_FOUND"></a>`LINK_NOT_FOUND` | 404 | no | Link not found | Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links. |
@@ -175,6 +203,7 @@ request is sent.
 | <a id="error-RECEIPT_SHARE_NOT_FOUND"></a>`RECEIPT_SHARE_NOT_FOUND` | 404 | no | Receipt share not found | The share link is unknown or was revoked. Ask the receipt's owner for a new link. |
 | <a id="error-SESSION_NOT_FOUND"></a>`SESSION_NOT_FOUND` | 404 | no | Session not found | Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions. |
 | <a id="error-STEP_NOT_FOUND"></a>`STEP_NOT_FOUND` | 404 | no | Step not found | Use a step id from intent.steps (s1, s2, ...). |
+| <a id="error-THREAD_NOT_FOUND"></a>`THREAD_NOT_FOUND` | 404 | no | Unknown thread | The thread expired or belongs to another key. Start a new one. |
 | <a id="error-WEBHOOK_NOT_FOUND"></a>`WEBHOOK_NOT_FOUND` | 404 | no | Webhook not found | List your webhooks with GET /v1/webhooks; each key sees only its own. |
 
 ### Conflict
@@ -196,6 +225,7 @@ request is sent.
 | <a id="error-INTENT_COMPLETED"></a>`INTENT_COMPLETED` | 409 | no | Intent completed | Nothing is left to execute. |
 | <a id="error-INTENT_CONFLICT"></a>`INTENT_CONFLICT` | 409 | yes | Concurrent update | The intent changed while the request ran. Read it again and retry. |
 | <a id="error-INTENT_EXISTS"></a>`INTENT_EXISTS` | 409 | yes | Intent id collision | Send the request again. |
+| <a id="error-INTENT_IN_FLIGHT"></a>`INTENT_IN_FLIGHT` | 409 | yes | A step is in flight | Wait until it settles or its prepared payload expires (Retry-After), then stop the intent. |
 | <a id="error-INTENT_NOT_CANCELLABLE"></a>`INTENT_NOT_CANCELLABLE` | 409 | no | Intent cannot be cancelled | A step was already submitted; follow it to settlement instead. |
 | <a id="error-KEY_COLLISION"></a>`KEY_COLLISION` | 409 | yes | Key generation collided | Send the request again. |
 | <a id="error-KEY_DEPTH_EXCEEDED"></a>`KEY_DEPTH_EXCEEDED` | 409 | no | Agent key tree too deep | Agent keys sit at most 2 levels below a project key. Create the key under a shallower parent. |
@@ -214,6 +244,8 @@ request is sent.
 | <a id="error-POLICY_CONFLICT"></a>`POLICY_CONFLICT` | 409 | no | Rule book changed | The If-Match hash is not the current version. Read the rule book again and resend the change. |
 | <a id="error-PREVIEW_CHANGED"></a>`PREVIEW_CHANGED` | 409 | no | Preview changed | The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest. |
 | <a id="error-PROGRAM_CHANGED"></a>`PROGRAM_CHANGED` | 409 | no | Program changed | An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify. |
+| <a id="error-PROJECT_CONFLICT"></a>`PROJECT_CONFLICT` | 409 | no | Project settings changed | The If-Match hash is not the current version. Read the project again and resend the change. |
+| <a id="error-QUESTION_NOT_OPEN"></a>`QUESTION_NOT_OPEN` | 409 | no | Question not open | Read the thread again and answer one of its open questions. |
 | <a id="error-QUOTE_MOVED"></a>`QUOTE_MOVED` | 409 | no | Price moved | The price moved beyond the slippage limit since planning. Create a new intent to re-quote. |
 | <a id="error-RECEIPT_ANCHOR_EXISTS"></a>`RECEIPT_ANCHOR_EXISTS` | 409 | no | Batch already anchored | This log batch already has an anchoring transaction on record. |
 | <a id="error-RECEIPT_NOT_APPLICABLE"></a>`RECEIPT_NOT_APPLICABLE` | 409 | no | No receipt for this intent | Expired intents executed nothing, so they get no receipt. |
@@ -225,6 +257,8 @@ request is sent.
 | <a id="error-STEP_NOT_PREPARABLE"></a>`STEP_NOT_PREPARABLE` | 409 | no | Step cannot be prepared | Only ready or awaiting_signature steps can be prepared. |
 | <a id="error-STEP_NOT_READY"></a>`STEP_NOT_READY` | 409 | yes | Step not ready | Wait until the steps it depends on have settled, then prepare it. |
 | <a id="error-STEP_TRANSITION_INVALID"></a>`STEP_TRANSITION_INVALID` | 409 | no | Invalid step transition | Read the intent again; the step already moved on. |
+| <a id="error-THREAD_CLOSED"></a>`THREAD_CLOSED` | 409 | no | Thread closed | The task was cancelled or reached 50 turns. Start a new thread. |
+| <a id="error-THREAD_CONFLICT"></a>`THREAD_CONFLICT` | 409 | no | Thread changed | Another turn changed this thread. Read it again and resend. |
 | <a id="error-WEBHOOK_EXISTS"></a>`WEBHOOK_EXISTS` | 409 | no | Webhook already registered | A webhook with this URL already exists for this key. |
 | <a id="error-WEBHOOK_LIMIT_REACHED"></a>`WEBHOOK_LIMIT_REACHED` | 409 | no | Too many webhooks | A key can register at most 10 webhooks. Delete one first. |
 
@@ -250,6 +284,7 @@ request is sent.
 | <a id="error-ACTION_TRANSACTION_REJECTED"></a>`ACTION_TRANSACTION_REJECTED` | 422 | no | Action transaction refused | The action server's transaction broke Kletia's rules (signers, programs, instructions or simulated effects); see error.message. The integrator must fix the server. |
 | <a id="error-AMOUNT_INVALID"></a>`AMOUNT_INVALID` | 422 | no | Invalid amount | Use a positive decimal within the asset's precision, or max on a dependent step. |
 | <a id="error-AMOUNT_TOO_SMALL"></a>`AMOUNT_TOO_SMALL` | 422 | no | Amount too small | Increase the amount; it rounds to zero or is below the venue minimum. |
+| <a id="error-ANSWER_INVALID"></a>`ANSWER_INVALID` | 422 | no | Answer does not fit | Pick one of the question's options, or send free text of the kind it asks for. |
 | <a id="error-ASSET_INVALID"></a>`ASSET_INVALID` | 422 / 500 | no | Invalid asset | Use a symbol, an address or mint, or a CAIP-19 id. |
 | <a id="error-ASSET_MISMATCH"></a>`ASSET_MISMATCH` | 422 | no | Asset mismatch | A dependent step must spend the asset the previous step produces. |
 | <a id="error-ASSET_NETWORK_MISMATCH"></a>`ASSET_NETWORK_MISMATCH` | 422 | no | Asset on another network | Use an asset that lives on the step's network, or bridge first. |
@@ -267,7 +302,10 @@ request is sent.
 | <a id="error-CONTRACT_PROXY_UNSUPPORTED"></a>`CONTRACT_PROXY_UNSUPPORTED` | 422 | no | Proxy pattern not supported | Only EIP-1967, beacon, EIP-1822, ZeppelinOS and EIP-1167 proxies can be pinned; diamonds and unrecognised proxies are refused. |
 | <a id="error-CONTRACT_SPEND_LIMIT"></a>`CONTRACT_SPEND_LIMIT` | 422 | yes | Daily contract volume reached | This key reached its 24-hour notional cap for custom contract steps. Retry when the window moves on, or ask the operator for a higher cap. |
 | <a id="error-CONTRACT_UNKNOWN"></a>`CONTRACT_UNKNOWN` | 422 | no | Unknown contract | Use a registration id or alias that the intent's API key registered (or a project-visible one). Intents created without a key cannot call registered contracts. |
+| <a id="error-DEX_ASSET_UNSUPPORTED"></a>`DEX_ASSET_UNSUPPORTED` | 422 | no | Unsupported direct DEX asset | Use initialized classic SPL tokens with the registry's expected decimals. Token-2022 direct routes are not supported. |
+| <a id="error-EDIT_UNSUPPORTED"></a>`EDIT_UNSUPPORTED` | 422 | no | Follow-up not understood | Say the change ("make it 50", "from arbitrum instead") or send a complete new sentence. |
 | <a id="error-FEE_LIMIT_EXCEEDED"></a>`FEE_LIMIT_EXCEEDED` | 422 | no | Fees above the limit | Raise constraints.maxFeeUsd or move a larger amount. |
+| <a id="error-GAS_TOPUP_UNAVAILABLE"></a>`GAS_TOPUP_UNAVAILABLE` | 422 | no | No venue can deliver gas there | No venue can deliver gas on that network for this route (Relay serves EVM destinations when the output is not the gas asset). Remove constraints.gasOnArrival for it, or bring gas yourself. |
 | <a id="error-IDEMPOTENCY_KEY_REUSED"></a>`IDEMPOTENCY_KEY_REUSED` | 422 | no | Idempotency-Key reused | This key was used for a different request. Use a new key for a new request. |
 | <a id="error-INSUFFICIENT_BALANCE"></a>`INSUFFICIENT_BALANCE` | 422 | no | Insufficient balance | Fund the account or lower the amount. |
 | <a id="error-INTENT_UNSUPPORTED"></a>`INTENT_UNSUPPORTED` | 422 | no | Intent not supported | Rephrase using one of the examples in error.hints, or send structured actions. |
@@ -281,12 +319,16 @@ request is sent.
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
 | <a id="error-PRICE_IMPACT_TOO_HIGH"></a>`PRICE_IMPACT_TOO_HIGH` | 422 | no | Price impact too high | Move a smaller amount; routes that cost more than 5% are refused. |
+| <a id="error-PRICE_UNAVAILABLE"></a>`PRICE_UNAVAILABLE` | 422 | no | Price unavailable | No fresh oracle price covers an asset of this swap, so its price guard refuses it. Swap a priced asset, or plan again once the price feed updates. |
 | <a id="error-PROGRAM_NOT_ALLOWED"></a>`PROGRAM_NOT_ALLOWED` | 422 | no | Program not allowed | Allowlist the action's top-level programs in the registration. Built-in, native and deny-listed programs cannot be allowlisted. |
+| <a id="error-PROJECT_LOGO_INVALID"></a>`PROJECT_LOGO_INVALID` | 422 | no | Logo refused | Upload a PNG or WebP image of at most 64 KB, 32-512 px, with an aspect ratio between 1:1 and 4:1 and no animation. |
+| <a id="error-RECIPIENT_CHECKSUM_INVALID"></a>`RECIPIENT_CHECKSUM_INVALID` | 422 | no | Recipient checksum invalid | Check the address: its capital letters do not match its EIP-55 checksum, which usually means a mistyped character. |
 | <a id="error-RECIPIENT_INVALID"></a>`RECIPIENT_INVALID` | 422 | no | Invalid recipient | Use an address or CAIP-10 account on the destination network. |
 | <a id="error-RECIPIENT_NAME_UNRESOLVED"></a>`RECIPIENT_NAME_UNRESOLVED` | 422 | no | Name does not resolve | The name has no address for this network. Use the recipient's address. |
 | <a id="error-RECIPIENT_NAME_UNSUPPORTED"></a>`RECIPIENT_NAME_UNSUPPORTED` | 422 | no | Name not supported | This deployment cannot resolve this kind of name on this network. Use the recipient's address. |
 | <a id="error-RECIPIENT_NETWORK_MISMATCH"></a>`RECIPIENT_NETWORK_MISMATCH` | 422 | no | Recipient on another network | Use a bridge to move funds across networks. |
 | <a id="error-RECIPIENT_REQUIRED"></a>`RECIPIENT_REQUIRED` | 422 | no | Recipient required | Name the recipient of the transfer. |
+| <a id="error-RECIPIENT_TOKEN_ACCOUNT_MISSING"></a>`RECIPIENT_TOKEN_ACCOUNT_MISSING` | 422 | no | Recipient token account missing | The Solana recipient has no token account for the bridged asset yet, so the bridge cannot mint to it. Create the account first, or use another bridge. |
 | <a id="error-RELAY_SIGNATURE_STEP_UNSUPPORTED"></a>`RELAY_SIGNATURE_STEP_UNSUPPORTED` | 422 | no | Off-chain signature step | This route needs an off-chain signature, which Kletia does not execute. Try another amount or route. |
 | <a id="error-RESERVE_UNAVAILABLE"></a>`RESERVE_UNAVAILABLE` | 422 | no | Lending reserve unavailable | The market is paused, frozen or capped for this asset. Try another asset or venue. |
 | <a id="error-ROUTE_TOO_SLOW"></a>`ROUTE_TOO_SLOW` | 422 | no | No route fast enough | Every venue settles slower than constraints.maxSeconds. Raise it or drop the constraint. |
@@ -294,6 +336,7 @@ request is sent.
 | <a id="error-ROUTE_UNPRICED"></a>`ROUTE_UNPRICED` | 422 | no | Route costs not priceable | No venue quoted costs Kletia can price for this route. Try another amount or asset. |
 | <a id="error-ROUTE_UNSUPPORTED"></a>`ROUTE_UNSUPPORTED` | 422 | no | Route not supported | No venue routes this pair between these networks; see GET /v1/networks. |
 | <a id="error-SELF_TRANSFER"></a>`SELF_TRANSFER` | 422 | no | Transfer to self | Send to a different account. |
+| <a id="error-SESSION_EXPIRES_BEFORE_ACTIVATION"></a>`SESSION_EXPIRES_BEFORE_ACTIVATION` | 422 | no | Session ends before the contract activates | A pending registration of this session activates after the session expires. Raise expiresInSeconds past activatesAt, or create the session after activation. |
 | <a id="error-SIMULATION_ASSET_CHANGE_REFUSED"></a>`SIMULATION_ASSET_CHANGE_REFUSED` | 422 | no | Simulated asset changes refused | The simulation moves the user's assets differently than declared (extra debit or approval, leftover allowance, missing output). Fix the registration or the amount. |
 | <a id="error-SIMULATION_FAILED"></a>`SIMULATION_FAILED` | 422 | no | Simulation failed | The transaction would fail on-chain. Check the sending account's balance. |
 | <a id="error-SOLANA_MINT_DECIMALS_MISMATCH"></a>`SOLANA_MINT_DECIMALS_MISMATCH` | 422 | no | Mint decimals changed | Plan the intent again. |
@@ -301,6 +344,8 @@ request is sent.
 | <a id="error-SOLANA_PRICE_IMPACT_TOO_HIGH"></a>`SOLANA_PRICE_IMPACT_TOO_HIGH` | 422 | no | Price impact too high | Move a smaller amount; routes above 5% price impact are refused. |
 | <a id="error-SOLANA_RECIPIENT_NOT_WALLET"></a>`SOLANA_RECIPIENT_NOT_WALLET` | 422 | no | Recipient is not a wallet | Send to a wallet address, not a program or token account. |
 | <a id="error-SOLANA_TOKEN_UNKNOWN"></a>`SOLANA_TOKEN_UNKNOWN` | 422 | no | Unknown Solana token | Use a listed symbol or the token's mint address. |
+| <a id="error-SOURCE_REQUIRED"></a>`SOURCE_REQUIRED` | 422 | no | Departure network needed | No network holds enough of the first step's asset (error.details.candidates lists the balances read). Say where the money starts: a sourceNetwork or "from <network>". |
+| <a id="error-SOURCE_UNREACHABLE"></a>`SOURCE_UNREACHABLE` | 422 | no | Cannot start on that network | The first step cannot be funded from sourceNetwork (another capital lane, an asset that is not there, or no bridge for the pair); error.details names both networks. Start elsewhere. |
 | <a id="error-SWAP_SAME_ASSET"></a>`SWAP_SAME_ASSET` | 422 | no | Swap to the same asset | Choose different input and output assets. |
 | <a id="error-TESTNET_NOT_ALLOWED"></a>`TESTNET_NOT_ALLOWED` | 422 | no | Testnets not allowed | Set constraints.allowTestnets to true to plan on testnets. |
 | <a id="error-TOKEN_TRANSFER_FEE_UNSUPPORTED"></a>`TOKEN_TRANSFER_FEE_UNSUPPORTED` | 422 | no | Transfer-fee token | Token-2022 mints with transfer fees are not supported. |
@@ -338,7 +383,7 @@ request is sent.
 | Code | Status | Retry | Meaning | What to do |
 |---|---|---|---|---|
 | <a id="error-SETTLEMENT_FAILED"></a>`SETTLEMENT_FAILED` | step | no | Settlement failed | The cross-network fill failed. Check the source transaction for a refund. |
-| <a id="error-SETTLEMENT_MISMATCH"></a>`SETTLEMENT_MISMATCH` | step | no | Fill does not match the quote | The destination fill differs from the quoted route. Contact support with the intent id. |
+| <a id="error-SETTLEMENT_MISMATCH"></a>`SETTLEMENT_MISMATCH` | step | no | Fill does not match the quote | The fill differs from the quote. If observedCredit is set, that amount is in the recipient's wallet on the destination; otherwise contact support with the intent id. |
 | <a id="error-SETTLEMENT_REFUNDED"></a>`SETTLEMENT_REFUNDED` | step | no | Settlement refunded | The bridge refunded the deposit on the source network. Plan a new intent. |
 
 ### Rate limits
@@ -354,6 +399,8 @@ request is sent.
 |---|---|---|---|---|
 | <a id="error-ACTION_ENDPOINT_UNAVAILABLE"></a>`ACTION_ENDPOINT_UNAVAILABLE` | 502 | yes | Action server unavailable | The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly. |
 | <a id="error-ACTION_RESPONSE_INVALID"></a>`ACTION_RESPONSE_INVALID` | 502 | yes | Invalid action response | The integrator's Solana Action server returned malformed JSON or an error. Retry shortly; the integrator may need to fix it. |
+| <a id="error-DEX_INSTRUCTION_INVALID"></a>`DEX_INSTRUCTION_INVALID` | 502 | yes | Invalid direct DEX instructions | The provider returned a malformed or unsupported instruction bundle. Request a fresh route. |
+| <a id="error-DEX_QUOTE_MISMATCH"></a>`DEX_QUOTE_MISMATCH` | 502 | yes | Direct DEX quote mismatch | The provider quote does not match the requested venue, mints, amount or slippage. Request a fresh quote. |
 | <a id="error-JUPITER_QUOTE_INVALID"></a>`JUPITER_QUOTE_INVALID` | 502 | yes | Jupiter quote refused | Retry shortly. |
 | <a id="error-JUPITER_QUOTE_MISMATCH"></a>`JUPITER_QUOTE_MISMATCH` | 502 | yes | Jupiter quote mismatch | Jupiter returned a quote for another request. Retry shortly. |
 | <a id="error-JUPITER_SWAP_INVALID"></a>`JUPITER_SWAP_INVALID` | 502 | yes | Jupiter swap refused | Retry shortly. |
@@ -368,6 +415,7 @@ request is sent.
 | <a id="error-RELAY_QUOTE_INVALID"></a>`RELAY_QUOTE_INVALID` | 502 | yes | Relay quote refused | Relay returned a quote that failed Kletia's checks. Retry shortly. |
 | <a id="error-RPC_TIMEOUT"></a>`RPC_TIMEOUT` | 504 | yes | Network read timed out | Retry shortly. |
 | <a id="error-RPC_UNAVAILABLE"></a>`RPC_UNAVAILABLE` | 502 | yes | Network read failed | A network RPC is temporarily unavailable. Retry shortly. |
+| <a id="error-SIMULATION_UNVERIFIED"></a>`SIMULATION_UNVERIFIED` | 502 | yes | Direct DEX simulation unverified | The RPC simulation lacks the required reviewed pool CPI evidence. Use a complete RPC simulation or another venue. |
 | <a id="error-SOLANA_FOREIGN_SIGNER"></a>`SOLANA_FOREIGN_SIGNER` | 502 | no | Unexpected signer | The provider's instructions required another signer and were refused. Retry, or try another route. |
 | <a id="error-SOLANA_INSTRUCTION_INVALID"></a>`SOLANA_INSTRUCTION_INVALID` | 502 | yes | Provider instruction refused | The provider's instructions failed Kletia's checks. Retry shortly. |
 | <a id="error-SOLANA_RPC_UNAVAILABLE"></a>`SOLANA_RPC_UNAVAILABLE` | 502 | yes | Solana RPC unavailable | Retry shortly. |
@@ -402,7 +450,6 @@ request is sent.
 | <a id="error-STEP_INVALID"></a>`STEP_INVALID` | 500 · step | no | Step invalid | The stored step cannot be executed. Create a new intent. |
 | <a id="error-TRANSFER_BUILD_FAILED"></a>`TRANSFER_BUILD_FAILED` | 500 | yes | Transfer could not be built | Retry later. If it persists, report it with the requestId. |
 | <a id="error-VENUE_INVALID"></a>`VENUE_INVALID` | 500 | no | Venue does not match its adapter | The step's registry venue does not fit the adapter executing it. Create a new intent. |
-
 ## Adding a code
 
 1. Add the entry to `ERROR_CATALOG` in `packages/core/src/errors.ts` and

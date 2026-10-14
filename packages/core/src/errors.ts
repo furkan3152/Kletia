@@ -132,6 +132,11 @@ export const ERROR_CATALOG = {
   LINK_DEFINITION_INVALID: request("Invalid link definition", "Fix the fields listed in error.issues. validateLinkDefinition in @kletia/core reports the same issues locally."),
   LINK_IMMUTABLE_FIELD: request("Link field cannot change", "A link's promise only tightens: raise min, lower max, remove sources, lower uses, expire earlier or turn the blink off. Create a new link for anything else.", 422),
   RECEIPT_ANCHOR_INVALID: request("Anchor transaction refused", "The reported transaction is not a successful EAS timestamp(batchDigest) call for this batch on Base. Report the transaction that timestamped it.", 422),
+  SOLANA_SWAP_INVALID: request("Invalid direct swap", "Use two distinct initialized classic SPL mints and a positive u64 input amount.", 422),
+  MESSAGE_SECRET_REFUSED: request("Secret in a message", "Never send private keys, seed phrases or API keys. Nothing was stored."),
+  THREAD_INVALID: request("Invalid thread", "Send the thread exactly as the last response returned it, or start a new one."),
+  THREAD_REQUIRES_API_KEY: request("Remembered threads need an API key", "Send an API key, or hold the thread yourself and send it back in thread."),
+  PROJECT_SETTINGS_INVALID: request("Invalid project settings", "Fix the fields listed in error.issues and send the change again."),
 
   /* ------------------------------------------------------ authentication */
   API_KEY_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "API key required", remedy: "Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>." },
@@ -151,6 +156,9 @@ export const ERROR_CATALOG = {
   APPROVAL_SIGNATURE_INVALID: { status: 403, category: "permission", retryable: false, title: "Approval signature invalid", remedy: "Sign the exact typed data (EIP-712 \"Kletia Approvals\") or message text of this approval with the listed wallet, before it expires." },
   APPROVER_NOT_ALLOWED: { status: 403, category: "permission", retryable: false, title: "Not an approver of this intent", remedy: "Approve with an active project key outside the requester's subtree, or with a wallet the rule book lists. Agent keys never approve, and requireWallet refuses keys." },
   LINK_POLICY_CONFLICT: { status: 422, category: "permission", retryable: false, title: "Link outside the key's rule book", remedy: "The link reaches networks, assets, recipients, contracts or amounts the publisher key's rule book refuses (rule ids in error.issues). Tighten the link or use another key." },
+  SECRET_KEY_FROM_BROWSER: { status: 403, category: "permission", retryable: false, title: "Server key sent from a browser", remedy: "This key is a server key. Call Kletia from your server, through createKletiaProxy, or use a publishable key in browsers." },
+  PUBLISHABLE_KEY_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Not allowed for publishable keys", remedy: "Publishable keys plan intents, start sessions from the project's stored flows and read the project profile. Use a server key for everything else." },
+  PUBLISHABLE_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for this project", remedy: "Call from a page origin listed in the project's allowedOrigins, or add the origin with PATCH /v1/projects/current." },
 
   /* ---------------------------------------------------------------- keys */
   KEY_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "API key not found", remedy: "List your project's keys with GET /v1/keys; only active keys of your own project can be managed." },
@@ -171,6 +179,8 @@ export const ERROR_CATALOG = {
   APPROVAL_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Approval not found", remedy: "Check the approval id from the link (/approve#apr_…) or error.policy.approval." },
   LINK_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Link not found", remedy: "Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links." },
   PREVIEW_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "No preview yet", remedy: "Compute one with POST /v1/intents/{id}/preview, or create the intent with ?preview=true." },
+  THREAD_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Unknown thread", remedy: "The thread expired or belongs to another key. Start a new one." },
+  FLOW_UNKNOWN: { status: 404, category: "not_found", retryable: false, title: "Flow not found", remedy: "Use the id of a flow stored in the project's settings; GET /v1/publishable/profile lists them." },
 
   /* ------------------------------------------------------------ conflict */
   INTENT_CONFLICT: conflict("Concurrent update", "The intent changed while the request ran. Read it again and retry.", true),
@@ -216,6 +226,11 @@ export const ERROR_CATALOG = {
   LINK_RECIPIENT_CHANGED: conflict("Link recipient changed", "A pinned recipient name now resolves elsewhere, so the link paused itself. The publisher must review and resume it."),
   LINK_CONTRACT_CHANGED: conflict("Link contract changed", "The pinned contract registration has a newer revision, so the link paused itself. The publisher must review and resume it."),
   PREVIEW_CHANGED: conflict("Preview changed", "The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest."),
+  INTENT_IN_FLIGHT: conflict("A step is in flight", "Wait until it settles or its prepared payload expires (Retry-After), then stop the intent.", true),
+  QUESTION_NOT_OPEN: conflict("Question not open", "Read the thread again and answer one of its open questions."),
+  THREAD_CONFLICT: conflict("Thread changed", "Another turn changed this thread. Read it again and resend."),
+  THREAD_CLOSED: conflict("Thread closed", "The task was cancelled or reached 50 turns. Start a new thread."),
+  PROJECT_CONFLICT: conflict("Project settings changed", "The If-Match hash is not the current version. Read the project again and resend the change."),
 
   /* ------------------------------------------------------------- expired */
   INTENT_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Intent expired", remedy: "The plan expired before execution started. Create a new intent to re-quote." },
@@ -297,6 +312,17 @@ export const ERROR_CATALOG = {
   LINK_ACCOUNTS_REQUIRED: intent("Accounts missing for this link", "Send one account per virtual machine the route signs on (error.issues names them)."),
   LINK_PUBLISHER_MISMATCH: intent("Publisher does not match the contract", "The publisher name and website must match the integrator of every contract registration the link calls."),
   LINK_NOT_BLINK_ELIGIBLE: intent("Link cannot be a blink", "Blinks need a Solana-only visitor flow of at most 3 steps and a verified publisher domain; error.message gives the reason."),
+  DEX_ASSET_UNSUPPORTED: intent("Unsupported direct DEX asset", "Use initialized classic SPL tokens with the registry's expected decimals. Token-2022 direct routes are not supported."),
+  PRICE_UNAVAILABLE: intent("Price unavailable", "No fresh oracle price covers an asset of this swap, so its price guard refuses it. Swap a priced asset, or plan again once the price feed updates."),
+  RECIPIENT_TOKEN_ACCOUNT_MISSING: intent("Recipient token account missing", "The Solana recipient has no token account for the bridged asset yet, so the bridge cannot mint to it. Create the account first, or use another bridge."),
+  SOURCE_REQUIRED: intent("Departure network needed", "No network holds enough of the first step's asset (error.details.candidates lists the balances read). Say where the money starts: a sourceNetwork or \"from <network>\"."),
+  SOURCE_UNREACHABLE: intent("Cannot start on that network", "The first step cannot be funded from sourceNetwork (another capital lane, an asset that is not there, or no bridge for the pair); error.details names both networks. Start elsewhere."),
+  GAS_TOPUP_UNAVAILABLE: intent("No venue can deliver gas there", "No venue can deliver gas on that network for this route (Relay serves EVM destinations when the output is not the gas asset). Remove constraints.gasOnArrival for it, or bring gas yourself."),
+  RECIPIENT_CHECKSUM_INVALID: intent("Recipient checksum invalid", "Check the address: its capital letters do not match its EIP-55 checksum, which usually means a mistyped character."),
+  ANSWER_INVALID: intent("Answer does not fit", "Pick one of the question's options, or send free text of the kind it asks for."),
+  EDIT_UNSUPPORTED: intent("Follow-up not understood", "Say the change (\"make it 50\", \"from arbitrum instead\") or send a complete new sentence."),
+  SESSION_EXPIRES_BEFORE_ACTIVATION: intent("Session ends before the contract activates", "A pending registration of this session activates after the session expires. Raise expiresInSeconds past activatesAt, or create the session after activation."),
+  PROJECT_LOGO_INVALID: intent("Logo refused", "Upload a PNG or WebP image of at most 64 KB, 32-512 px, with an aspect ratio between 1:1 and 4:1 and no animation."),
 
   /* -------------------------------------------------------- verification */
   REFERENCE_ALREADY_USED: verification("Transaction already used", "This transaction already completed another step. " + RESUBMIT),
@@ -317,7 +343,7 @@ export const ERROR_CATALOG = {
 
   /* ---------------------------------------------------------- settlement */
   SETTLEMENT_FAILED: { status: null, category: "settlement", retryable: false, step: true, title: "Settlement failed", remedy: "The cross-network fill failed. Check the source transaction for a refund." },
-  SETTLEMENT_MISMATCH: { status: null, category: "settlement", retryable: false, step: true, title: "Fill does not match the quote", remedy: "The destination fill differs from the quoted route. Contact support with the intent id." },
+  SETTLEMENT_MISMATCH: { status: null, category: "settlement", retryable: false, step: true, title: "Fill does not match the quote", remedy: "The fill differs from the quote. If observedCredit is set, that amount is in the recipient's wallet on the destination; otherwise contact support with the intent id." },
   SETTLEMENT_REFUNDED: { status: null, category: "settlement", retryable: false, step: true, title: "Settlement refunded", remedy: "The bridge refunded the deposit on the source network. Plan a new intent." },
 
   /* ---------------------------------------------------------- rate limit */
@@ -349,6 +375,9 @@ export const ERROR_CATALOG = {
   ACTION_ENDPOINT_UNAVAILABLE: upstream("Action server unavailable", "The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly."),
   ACTION_RESPONSE_INVALID: upstream("Invalid action response", "The integrator's Solana Action server returned malformed JSON or an error. Retry shortly; the integrator may need to fix it."),
   LINK_DELIVERY_UNQUOTABLE: upstream("Delivery could not be sized", "No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network."),
+  DEX_QUOTE_MISMATCH: upstream("Direct DEX quote mismatch", "The provider quote does not match the requested venue, mints, amount or slippage. Request a fresh quote."),
+  DEX_INSTRUCTION_INVALID: upstream("Invalid direct DEX instructions", "The provider returned a malformed or unsupported instruction bundle. Request a fresh route."),
+  SIMULATION_UNVERIFIED: upstream("Direct DEX simulation unverified", "The RPC simulation lacks the required reviewed pool CPI evidence. Use a complete RPC simulation or another venue."),
 
   /* --------------------------------------------------------- unavailable */
   STORE_UNAVAILABLE: { status: 503, category: "unavailable", retryable: true, title: "Storage unavailable", remedy: "Retry shortly. Presented API keys cannot be verified meanwhile." },
@@ -380,13 +409,20 @@ export const ERROR_CODE_FAMILIES: readonly { readonly suffix: string; readonly c
   { suffix: "_REJECTED", code: "PROVIDER_REJECTED" },
 ]);
 
+/** Features whose codes `FEATURE_ERROR_CODES` groups. */
+export type ErrorFeature =
+  | "receipts" | "policies" | "links" | "preview"
+  | "protocols" | "departure" | "journey" | "clarify" | "integrator" | "projects";
+
 /**
- * Codes added by the round-5 designs, by feature. Core lands first, so until
- * the API package of a feature emits its codes the API's catalog drift test
- * lists them as catalogued but not emitted; this table names which package
- * owes each code (receipts R3, policies PF2/PF3a, links L2/L3, preview V2/V3).
+ * Codes of the later features, grouped by feature. Core lands first, so
+ * until the API package of a feature emits its codes the API's catalog
+ * drift test lists them as catalogued but not emitted; this table names the
+ * feature that owes each code (receipts, the Rule Book, intent links, asset
+ * preview, named venues and price guards, departure, journey, clarifying
+ * questions, the integrator surfaces and projects).
  */
-export const FEATURE_ERROR_CODES: Readonly<Record<"receipts" | "policies" | "links" | "preview", readonly KletiaErrorCode[]>> = Object.freeze({
+export const FEATURE_ERROR_CODES: Readonly<Record<ErrorFeature, readonly KletiaErrorCode[]>> = Object.freeze({
   receipts: Object.freeze([
     "RECEIPT_NOT_FOUND", "RECEIPT_NOT_READY", "RECEIPT_NOT_APPLICABLE", "RECEIPTS_DISABLED", "RECEIPT_SHARE_NOT_FOUND", "RECEIPT_SHARE_EXPIRED",
     "RECEIPT_SHARE_LIMIT", "RECEIPT_DISCLOSURES_WITHDRAWN", "RECEIPT_LOG_NOT_FOUND", "RECEIPT_ANCHOR_INVALID", "RECEIPT_ANCHOR_EXISTS",
@@ -404,6 +440,20 @@ export const FEATURE_ERROR_CODES: Readonly<Record<"receipts" | "policies" | "lin
     "LINK_PLAN_OUT_OF_BOUNDS", "LINKS_DISABLED",
   ] as const),
   preview: Object.freeze(["PREVIEW_CHANGED", "PREVIEW_NOT_FOUND"] as const),
+  protocols: Object.freeze([
+    "SOLANA_SWAP_INVALID", "DEX_ASSET_UNSUPPORTED", "DEX_QUOTE_MISMATCH", "DEX_INSTRUCTION_INVALID", "SIMULATION_UNVERIFIED", "PRICE_UNAVAILABLE",
+    "RECIPIENT_TOKEN_ACCOUNT_MISSING",
+  ] as const),
+  departure: Object.freeze(["SOURCE_REQUIRED", "SOURCE_UNREACHABLE"] as const),
+  journey: Object.freeze(["INTENT_IN_FLIGHT", "GAS_TOPUP_UNAVAILABLE"] as const),
+  clarify: Object.freeze([
+    "RECIPIENT_CHECKSUM_INVALID", "MESSAGE_SECRET_REFUSED", "QUESTION_NOT_OPEN", "ANSWER_INVALID", "EDIT_UNSUPPORTED", "THREAD_INVALID",
+    "THREAD_NOT_FOUND", "THREAD_CONFLICT", "THREAD_CLOSED", "THREAD_REQUIRES_API_KEY",
+  ] as const),
+  integrator: Object.freeze(["SECRET_KEY_FROM_BROWSER", "SESSION_EXPIRES_BEFORE_ACTIVATION"] as const),
+  projects: Object.freeze([
+    "PUBLISHABLE_KEY_FORBIDDEN", "PUBLISHABLE_ORIGIN_FORBIDDEN", "PROJECT_SETTINGS_INVALID", "PROJECT_CONFLICT", "FLOW_UNKNOWN", "PROJECT_LOGO_INVALID",
+  ] as const),
 });
 
 export const ERROR_DOCS_ORIGIN = "https://kletiaai.xyz";

@@ -9,6 +9,16 @@
  * Unlisted Solana mints are priced by Jupiter (liquidity floor applies);
  * unlisted EVM tokens have no source and are unpriced (fail closed wherever
  * a USD rule needs them). Testnet assets are worth $0 and are not listed.
+ *
+ * Round 6 (protocols design 3.12, read live on 2026-10-14):
+ * - Chainlink readings on Arbitrum One, OP Mainnet and Base are gated by the
+ *   network's L2 sequencer uptime feed: ignored while the sequencer is down,
+ *   within SEQUENCER_GRACE_SECONDS of it coming back, or when the uptime feed
+ *   cannot be read (fail closed).
+ * - The Ethereum liquid staking tokens are priced from their verified feeds:
+ *   wstETH = STETH / USD x wstETH.stEthPerToken(), rETH = RETH / ETH x ETH / USD,
+ *   weETH = weETH / ETH x ETH / USD (`derived` sources, fresh only when every
+ *   factor is fresh).
  */
 import { ASSETS, CHAINS, parseAssetId, WRAPPED_SOL_MINT, type AssetDescriptor, type AssetId } from "@kletia/core";
 import type { EvmNetworkKey } from "../chains/evm.js";
@@ -29,10 +39,47 @@ export interface JupiterFeed {
   readonly mint: string;
 }
 
-export type PriceSource = ChainlinkFeed | JupiterFeed;
+/**
+ * Chainlink L2 sequencer uptime feed: `answer` 0 = up, 1 = down; `startedAt`
+ * is when the status last changed.
+ */
+export interface SequencerFeed {
+  readonly kind: "sequencer";
+  readonly network: EvmNetworkKey;
+  readonly address: `0x${string}`;
+  readonly description: string;
+}
+
+/** On-chain exchange rate read with one argument-less view returning a uint256 (18 decimals). */
+export interface RateCall {
+  readonly network: EvmNetworkKey;
+  readonly address: `0x${string}`;
+  /** `stEthPerToken()` of wstETH. */
+  readonly functionName: "stEthPerToken";
+  /** Sane bounds of the rate (18 decimals); a reading outside them is not used. */
+  readonly min: bigint;
+  readonly max: bigint;
+}
+
+/**
+ * A price derived as the product of Chainlink readings (each scaled to 18
+ * decimals: a USD price or an X / ETH ratio) and an optional on-chain rate.
+ * Fresh only while every factor is fresh.
+ */
+export interface DerivedFeed {
+  readonly kind: "derived";
+  /** Stable id (`derived:<asset>`), also the reading id. */
+  readonly id: string;
+  readonly factors: readonly ChainlinkFeed[];
+  readonly rate?: RateCall;
+}
+
+export type PriceSource = ChainlinkFeed | JupiterFeed | DerivedFeed;
 
 /** Grace on top of a Chainlink heartbeat before a reading counts as stale. */
 export const CHAINLINK_GRACE_SECONDS = 300;
+/** L2 Chainlink readings are ignored for this long after the sequencer comes back up. */
+export const SEQUENCER_GRACE_SECONDS = 3_600;
 /** Jupiter readings need this much liquidity (USD) behind the price. */
 export const JUPITER_MIN_LIQUIDITY_USD = 100_000;
 /** Jupiter's `blockId` may trail the current slot by at most this many slots (about 6 minutes). */
@@ -67,6 +114,36 @@ export const CHAINLINK_FEEDS = Object.freeze({
   solUsdArbitrum: chainlink("arbitrum", "0x24ceA4b8ce57cdA5058b924B9B9987992450590c", "SOL / USD", 86_400),
   jitosolUsdBase: chainlink("base", "0x0ca181015d21A5ed19baFC17F2138883C2b16D54", "JITOSOL / USD", 86_400),
   wifUsdArbitrum: chainlink("arbitrum", "0xF7Ee427318d2Bd0EEd3c63382D0d52Ad8A68f90D", "WIF / USD", 86_400),
+  // Liquid staking (round 6): STETH / USD is 8 decimals; the two ETH ratios have 18.
+  stethUsdEthereum: chainlink("ethereum", "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8", "STETH / USD", 3_600),
+  rethEthEthereum: chainlink("ethereum", "0x536218f9E9Eb48863970252233c8F271f554C2d0", "RETH / ETH", 86_400),
+  weethEthEthereum: chainlink("ethereum", "0x5c9C449BbC9a6075A2c061dF312a35fd1E05fF22", "weETH / ETH", 86_400),
+});
+
+const sequencer = (network: EvmNetworkKey, address: `0x${string}`): SequencerFeed =>
+  Object.freeze({ kind: "sequencer", network, address, description: "L2 Sequencer Uptime Status Feed" });
+
+/** Sequencer uptime feeds of the L2 networks whose Chainlink readings they gate (all reported up on 2026-10-14). */
+export const SEQUENCER_UPTIME_FEEDS: Readonly<Partial<Record<EvmNetworkKey, SequencerFeed>>> = Object.freeze({
+  arbitrum: sequencer("arbitrum", "0xFdB631F5EE196F0ed6FAa767959853A9F217697D"),
+  optimism: sequencer("optimism", "0x371EAD81c9102C9BF4874A9075FFFf170F2Ee389"),
+  base: sequencer("base", "0xBCF85224fc0756B9Fa45aA7892530B47e10b6433"),
+});
+
+/** wstETH (Ethereum): the token whose stEthPerToken() converts STETH / USD into a wstETH price. */
+export const WSTETH_ETHEREUM = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0" as const;
+
+const derived = (id: string, factors: readonly ChainlinkFeed[], rate?: RateCall): DerivedFeed =>
+  Object.freeze({ kind: "derived", id, factors: Object.freeze([...factors]), ...(rate ? { rate: Object.freeze({ ...rate }) } : {}) });
+
+/** Derived liquid-staking prices (Ethereum). */
+export const DERIVED_FEEDS = Object.freeze({
+  // 1 wstETH was 1.2463 stETH on 2026-10-14 and only grows; outside [1, 2] the rate is not used.
+  wstethUsd: derived("derived:wstETH", [CHAINLINK_FEEDS.stethUsdEthereum], {
+    network: "ethereum", address: WSTETH_ETHEREUM, functionName: "stEthPerToken", min: 10n ** 18n, max: 2n * 10n ** 18n,
+  }),
+  rethUsd: derived("derived:rETH", [CHAINLINK_FEEDS.rethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
+  weethUsd: derived("derived:weETH", [CHAINLINK_FEEDS.weethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
 });
 
 /** Jupiter Price v3 ids (Solana mainnet mints). */
@@ -116,6 +193,9 @@ const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   JUP: [jupiter(J.jup)],
   BONK: [jupiter(J.bonk)],
   WIF: [jupiter(J.wif), F.wifUsdArbitrum],
+  WSTETH: [DERIVED_FEEDS.wstethUsd],
+  RETH: [DERIVED_FEEDS.rethUsd],
+  WEETH: [DERIVED_FEEDS.weethUsd],
 };
 
 /** CAIP-19 text with EVM token addresses lower-cased (registry lookups are case-insensitive). */

@@ -9,6 +9,7 @@
 import {
   CHAINS,
   findAssetBySymbol,
+  getProtocol,
   isEvmAddress,
   isSolanaAddress,
   MAX_INTENT_ACTIONS,
@@ -21,7 +22,7 @@ import {
   type NetworkKey,
   type ProtocolId,
 } from "@kletia/core";
-import { PlatformError, unsupported } from "../errors.js";
+import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
 import type { ContractPhrase } from "./contracts/directory.js";
 
 export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
@@ -44,27 +45,63 @@ export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "bridge 25 USDC from base to solana via lifi",
   "bridge 100 USDC from ethereum to base",
   "send 5 USDC to vitalik.eth on optimism",
+  "swap 1 SOL to USDC via raydium",
+  "swap 10 USDC to SOL on solana via orca",
+  "swap 1 SOL to USDC via meteora",
+  "swap 100 USDC to ETH on ethereum",
+  "stake 1 ETH with lido",
+  "deposit 100 USDC into sparklend on ethereum",
+  "deposit 100 USDC into spark savings on base",
+  "deposit 100 USDC into yearn on ethereum",
+  "bridge 100 USDC from base to arbitrum via across",
 ]);
 
-/** Lending venue words -> protocol. */
-const LENDING_VENUES: readonly { readonly pattern: RegExp; readonly protocol: ProtocolId }[] = [
+/** A venue word pattern and the protocol it names. */
+export interface VenueWord {
+  readonly pattern: RegExp;
+  readonly protocol: ProtocolId;
+}
+
+/** Lending and savings venue words -> protocol (bare "spark" is Spark Savings, with a warning naming SparkLend). */
+export const LENDING_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^aave(?:[\s-]*v3)?$/iu, protocol: "aave-v3" },
   { pattern: /^(?:compound(?:[\s-]*v3)?|comet)$/iu, protocol: "compound-v3" },
   { pattern: /^morpho(?:[\s-]+vaults?)?$/iu, protocol: "morpho" },
   { pattern: /^moonwell$/iu, protocol: "moonwell" },
   { pattern: /^(?:jupiter|jup)[\s-]+(?:lend|earn)$/iu, protocol: "jupiter-lend" },
   { pattern: /^kamino(?:[\s-]+lend)?$/iu, protocol: "kamino" },
-];
-const LENDING_WORDS =
-  "aave(?:[\\s-]*v3)?|compound(?:[\\s-]*v3)?|comet|morpho(?:[\\s-]+vaults?)?|moonwell|(?:jupiter|jup)[\\s-]+(?:lend|earn)|kamino(?:[\\s-]+lend)?";
+  { pattern: /^spark[\s-]*lend$/iu, protocol: "sparklend" },
+  { pattern: /^spark(?:[\s-]+savings)?$/iu, protocol: "spark-savings" },
+  { pattern: /^fluid(?:[\s-]+(?:lend|lending))?$/iu, protocol: "fluid" },
+  { pattern: /^yearn(?:[\s-]+v3)?$/iu, protocol: "yearn-v3" },
+]);
+export const LENDING_WORDS =
+  "aave(?:[\\s-]*v3)?|compound(?:[\\s-]*v3)?|comet|morpho(?:[\\s-]+vaults?)?|moonwell|(?:jupiter|jup)[\\s-]+(?:lend|earn)|kamino(?:[\\s-]+lend)?|" +
+  "spark[\\s-]*lend|spark(?:[\\s-]+savings)?|fluid(?:[\\s-]+(?:lending|lend))?|yearn(?:[\\s-]+v3)?";
+/** Lending protocols whose venues may be named by vault slug ("into morpho spark-usdc", "into yearn usdc-1", "into spark spusdc"). */
+const VAULT_PROTOCOLS: readonly ProtocolId[] = ["morpho", "spark-savings", "yearn-v3"];
 
 /** Cross-network venue words -> protocol ("bridge ... via lifi"). */
-const BRIDGE_VENUES: readonly { readonly pattern: RegExp; readonly protocol: ProtocolId }[] = [
+export const BRIDGE_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^(?:li\.?fi)$/iu, protocol: "lifi" },
   { pattern: /^(?:debridge(?:[\s-]+dln)?|dln)$/iu, protocol: "debridge-dln" },
   { pattern: /^relay$/iu, protocol: "relay" },
-];
-const BRIDGE_WORDS = "li\\.?fi|debridge(?:[\\s-]+dln)?|dln|relay";
+  { pattern: /^across$/iu, protocol: "across" },
+  { pattern: /^cctp(?:[\s-]*v2)?$/iu, protocol: "cctp-v2" },
+]);
+export const BRIDGE_WORDS = "li\\.?fi|debridge(?:[\\s-]+dln)?|dln|relay|across|cctp(?:[\\s-]*v2)?";
+
+/** Same-network swap venue words -> protocol ("swap ... via orca"). */
+export const SWAP_VENUES: readonly VenueWord[] = Object.freeze([
+  { pattern: /^(?:jupiter|jup)$/iu, protocol: "jupiter" },
+  { pattern: /^raydium$/iu, protocol: "raydium" },
+  { pattern: /^orca$/iu, protocol: "orca" },
+  { pattern: /^meteora$/iu, protocol: "meteora" },
+  { pattern: /^uniswap(?:[\s-]+v3)?$/iu, protocol: "uniswap-v3" },
+  { pattern: /^aerodrome$/iu, protocol: "aerodrome" },
+  { pattern: /^velodrome$/iu, protocol: "velodrome" },
+]);
+export const SWAP_VENUE_WORDS = "jupiter|jup|raydium|orca|meteora|uniswap(?:[\\s-]+v3)?|aerodrome|velodrome";
 
 /** Liquid staking targets reachable through Jupiter routes. */
 export const LIQUID_STAKING_TOKENS: Readonly<Record<string, { symbol: string; provider: string }>> = Object.freeze({
@@ -77,11 +114,32 @@ export const LIQUID_STAKING_TOKENS: Readonly<Record<string, { symbol: string; pr
   sanctum: { symbol: "JupSOL", provider: "Jupiter" },
 });
 
+/** EVM liquid staking on Ethereum: the staking word -> the token it mints and its protocol. */
+export const EVM_STAKING_TOKENS: Readonly<Record<string, { symbol: string; provider: string; protocol: ProtocolId }>> = Object.freeze({
+  lido: { symbol: "wstETH", provider: "Lido", protocol: "lido" },
+  steth: { symbol: "wstETH", provider: "Lido", protocol: "lido" },
+  wsteth: { symbol: "wstETH", provider: "Lido", protocol: "lido" },
+  "rocket pool": { symbol: "rETH", provider: "Rocket Pool", protocol: "rocket-pool" },
+  rocketpool: { symbol: "rETH", provider: "Rocket Pool", protocol: "rocket-pool" },
+  reth: { symbol: "rETH", provider: "Rocket Pool", protocol: "rocket-pool" },
+  "ether.fi": { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
+  etherfi: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
+  weeth: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
+  eeth: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
+});
+/** The network EVM liquid staking runs on. */
+export const EVM_STAKING_NETWORK: NetworkKey = "ethereum";
+
+function evmStakingToken(word: string | undefined) {
+  if (!word) return undefined;
+  return EVM_STAKING_TOKENS[word.toLowerCase().replace(/[\s-]+/gu, " ")];
+}
+
 /**
  * Every venue word and phrase the built-in sentences recognise (lending,
- * bridge and liquid-staking venues). Contract aliases may never use them: the
- * engine's drift test checks each is in @kletia/core RESERVED_CONTRACT_PHRASES
- * and still matches the patterns above.
+ * bridge, swap and liquid-staking venues). Contract aliases may never use
+ * them: the engine's drift test checks each is in @kletia/core
+ * RESERVED_CONTRACT_PHRASES and still matches the patterns above.
  */
 export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   "aave", "aave v3", "aavev3", "aave-v3",
@@ -90,13 +148,19 @@ export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   "moonwell",
   "jupiter lend", "jupiter earn", "jup lend", "jup earn",
   "kamino", "kamino lend",
-  "lifi", "li.fi", "debridge", "debridge dln", "dln", "relay",
+  "sparklend", "spark lend", "spark-lend", "spark", "spark savings", "spark-savings",
+  "fluid", "fluid lend", "fluid lending",
+  "yearn", "yearn v3", "yearn-v3",
+  "lifi", "li.fi", "debridge", "debridge dln", "dln", "relay", "across", "cctp", "cctp v2",
+  "jup", "raydium", "orca", "meteora", "uniswap", "uniswap v3", "aerodrome", "velodrome",
   ...Object.keys(LIQUID_STAKING_TOKENS),
+  ...Object.keys(EVM_STAKING_TOKENS),
 ]);
 
 /** True when `word` is a venue the built-in patterns match (drift test). */
 export function isGrammarVenueWord(word: string): boolean {
-  return [...LENDING_VENUES, ...BRIDGE_VENUES].some((venue) => venue.pattern.test(word)) || Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase());
+  return [...LENDING_VENUES, ...BRIDGE_VENUES, ...SWAP_VENUES].some((venue) => venue.pattern.test(word)) ||
+    Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase()) || evmStakingToken(word) !== undefined;
 }
 
 export interface GrammarContext {
@@ -115,6 +179,25 @@ export interface GrammarResult {
   readonly normalizedText: string;
   readonly clauses: readonly string[];
   readonly confidence: number;
+  /** Per action: true when its clause named the network or the source ("on base", "from base", a CAIP-10 recipient). */
+  readonly explicitNetwork: readonly boolean[];
+  /** Readings the user should know about (e.g. bare "spark" read as Spark Savings). */
+  readonly warnings: readonly string[];
+}
+
+/**
+ * A bridge clause without a source and nothing to infer it from. Same code
+ * (INTENT_UNSUPPORTED), message, hints and issues as every other clause
+ * refusal; the planner's departure step (`sourceNetwork: "auto"`) reads
+ * `missing` to choose a funded source instead.
+ */
+export class MissingSourceError extends PlatformError {
+  readonly missing: { readonly asset: string | null; readonly amount: string | null; readonly toNetwork: NetworkKey };
+
+  constructor(message: string, issues: readonly PlatformIssue[], missing: MissingSourceError["missing"]) {
+    super("INTENT_UNSUPPORTED", message, 422, issues, GRAMMAR_EXAMPLES);
+    this.missing = missing;
+  }
 }
 
 type AmountPhrase =
@@ -133,45 +216,77 @@ interface Draft {
   readonly recipient?: string;
   readonly lst?: string;
   readonly protocol?: ProtocolId;
-  /** Morpho vault slug named in the clause. */
+  /** Vault slug named in the clause (Morpho, Spark Savings, Yearn). */
   readonly venue?: string;
+  /** True when the clause named its network or source. */
+  readonly explicit: boolean;
+  readonly warnings?: readonly string[];
 }
 
-const VERBS = [
+/** Verbs that start a built-in sentence. */
+export const VERBS: readonly string[] = Object.freeze([
   "swap", "convert", "trade", "exchange", "sell", "buy", "bridge", "move", "send", "transfer", "pay", "port",
   "stake", "deposit", "supply", "lend", "withdraw", "redeem",
-];
+]);
 
-const AMOUNT =
+export const AMOUNT =
   "(?<amt>\\d{1,3}(?:\\.\\d{1,2})?%|\\$\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+|all|max|everything|it|them|that|half|a\\s+quarter|quarter)" +
   "(?:\\s+of\\s+(?:it|them|that|the\\s+output|the\\s+proceeds))?";
-const KEYWORD_GUARD = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at)\\b)";
-const ASSET = (name: string) => `${KEYWORD_GUARD}(?<${name}>(?:eip155|solana):\\S+|[A-Za-z0-9$][\\w.\\-]{0,63})`;
-const NETWORK_WORDS =
+export const KEYWORD_GUARD = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at)\\b)";
+export const ASSET = (name: string): string => `${KEYWORD_GUARD}(?<${name}>(?:eip155|solana):\\S+|[A-Za-z0-9$][\\w.\\-]{0,63})`;
+export const NETWORK_WORDS =
   "arbitrum[\\s-]+sepolia|arb[\\s-]+sepolia|solana[\\s-]+devnet|solana[\\s-]+mainnet|arbitrum[\\s-]+one|arc[\\s-]+testnet|base[\\s-]+mainnet|" +
   "ethereum[\\s-]+mainnet|op[\\s-]+mainnet|optimism[\\s-]+mainnet|polygon[\\s-]+pos|polygon[\\s-]+mainnet|mainnet-beta|" +
   "base|arbitrum|arb|arc|solana|sol|devnet|ethereum|optimism|polygon|matic|op";
-const NETWORK = (name: string) => `(?<${name}>${NETWORK_WORDS})`;
-const ON_NETWORK = `(?:\\s+(?:on|in|via)\\s+${NETWORK("net")})`;
+export const NETWORK = (name: string): string => `(?<${name}>${NETWORK_WORDS})`;
+export const ON_NETWORK = `(?:\\s+(?:on|in|via)\\s+${NETWORK("net")})`;
 /** Recipient names resolved through the name hook (ENS, Basenames, SNS). */
-const NAME = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.(?:eth|sns|sol)";
-const ADDRESS = `(?<addr>0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
-/** A Morpho vault slug after the venue word ("into morpho spark-usdc"); never a connector or "vault" itself. */
-const VAULT = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|vault|vaults|position)\\b)(?<vault>[a-z0-9][a-z0-9-]{2,63})";
-const LST_WORDS = Object.keys(LIQUID_STAKING_TOKENS).join("|");
+export const NAME = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.(?:eth|sns|sol)";
+export const ADDRESS = `(?<addr>0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
+/** A vault slug after the venue word ("into morpho spark-usdc"); never a connector or "vault" itself. */
+export const VAULT = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|vault|vaults|position)\\b)(?<vault>[a-z0-9][a-z0-9-]{2,63})";
+/** Solana and EVM liquid staking words. */
+export const LST_WORDS = [
+  ...Object.keys(LIQUID_STAKING_TOKENS),
+  "lido", "wsteth", "steth", "rocket[\\s-]*pool", "reth", "ether\\.?fi", "weeth", "eeth",
+].join("|");
+/** "via raydium", "using orca", "through uniswap" after a swap. */
+const SWAP_VENUE_SUFFIX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))`;
+/** A swap names its network and venue in either order. */
+const SWAP_SUFFIXES = [`${ON_NETWORK}?${SWAP_VENUE_SUFFIX}?`, `${SWAP_VENUE_SUFFIX}${ON_NETWORK}?`];
+
+/**
+ * The building blocks of the built-in sentences (exported for the clarify
+ * layer, which reads the same shapes without refusing).
+ */
+export const SENTENCE_FRAGMENTS = Object.freeze({
+  AMOUNT,
+  KEYWORD_GUARD,
+  NETWORK_WORDS,
+  ON_NETWORK,
+  NAME,
+  ADDRESS,
+  VAULT,
+  LENDING_WORDS,
+  BRIDGE_WORDS,
+  SWAP_VENUE_WORDS,
+  LST_WORDS,
+});
 
 const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"; regex: RegExp }[] = [
-  {
-    kind: "swap",
-    regex: new RegExp(
-      `^(?:swap|convert|trade|exchange|sell)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+(?:to|for|into)\\s+${ASSET("b")}${ON_NETWORK}?$`,
-      "iu",
-    ),
-  },
-  {
-    kind: "buy",
-    regex: new RegExp(`^buy\\s+${ASSET("b")}\\s+(?:with|using)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?${ON_NETWORK}?$`, "iu"),
-  },
+  ...SWAP_SUFFIXES.flatMap((suffix) => [
+    {
+      kind: "swap" as const,
+      regex: new RegExp(
+        `^(?:swap|convert|trade|exchange|sell)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+(?:to|for|into)\\s+${ASSET("b")}${suffix}$`,
+        "iu",
+      ),
+    },
+    {
+      kind: "buy" as const,
+      regex: new RegExp(`^buy\\s+${ASSET("b")}\\s+(?:with|using)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?${suffix}$`, "iu"),
+    },
+  ]),
   {
     kind: "bridge",
     regex: new RegExp(
@@ -187,7 +302,7 @@ const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"
   {
     kind: "stake",
     regex: new RegExp(
-      `^stake\\s+${AMOUNT}(?:\\s+(?<a>sol))?(?:\\s+(?:with|via|on|using|into|to|as|at)\\s+(?<lst>${LST_WORDS}))?${ON_NETWORK}?$`,
+      `^stake\\s+${AMOUNT}(?:\\s+(?<a>sol|eth))?(?:\\s+(?:with|via|on|using|into|to|as|at)\\s+(?<lst>${LST_WORDS}))?${ON_NETWORK}?$`,
       "iu",
     ),
   },
@@ -209,7 +324,12 @@ const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"
   },
 ];
 
-function normalizeText(text: string): string {
+/**
+ * The text the grammar reads: arrows become " to ", quotes and trailing
+ * punctuation go, polite prefixes ("please", "can you") and trailing
+ * courtesies ("please", "thanks") are dropped.
+ */
+export function normalizeText(text: string): string {
   let value = text
     .replace(/[→➡]|->|=>/gu, " to ")
     .replace(/[“”"']/gu, "")
@@ -219,6 +339,7 @@ function normalizeText(text: string): string {
     .trim();
   const prefix = /^(?:please|pls|kletia,?|i want to|i'?d like to|i would like to|can you|could you|let's|lets)\s+/iu;
   while (prefix.test(value)) value = value.replace(prefix, "");
+  value = value.replace(/(?:,?\s+(?:please|pls|thanks|thank\s+you|thx))+$/iu, "").replace(/[,.!?]+$/u, "").trim();
   return value;
 }
 
@@ -265,8 +386,12 @@ function parseAmount(raw: string, clause: string): AmountPhrase {
   return { type: "exact", value: numeric, usd };
 }
 
+function clauseMessage(clause: string, message: string): string {
+  return `${message} (in "${clause.slice(0, 120)}")`;
+}
+
 function clauseError(clause: string, message: string): PlatformError {
-  return unsupported(`${message} (in "${clause.slice(0, 120)}")`, GRAMMAR_EXAMPLES, [{ path: "text", message }]);
+  return unsupported(clauseMessage(clause, message), GRAMMAR_EXAMPLES, [{ path: "text", message }]);
 }
 
 function networkFromGroup(raw: string | undefined, clause: string): NetworkKey | undefined {
@@ -276,17 +401,25 @@ function networkFromGroup(raw: string | undefined, clause: string): NetworkKey |
   return network;
 }
 
-function venueProtocol(raw: string | undefined, venues: typeof LENDING_VENUES, clause: string): ProtocolId {
+function venueProtocol(raw: string | undefined, venues: readonly VenueWord[], clause: string): ProtocolId {
   const value = (raw ?? "").trim();
   const entry = venues.find((candidate) => candidate.pattern.test(value));
   if (!entry) throw clauseError(clause, `Unknown venue "${value.slice(0, 32)}".`);
   return entry.protocol;
 }
 
+function protocolName(id: ProtocolId): string {
+  return getProtocol(id)?.name ?? id;
+}
+
 function lendingDraft(clause: string, kind: "deposit" | "withdraw", groups: Record<string, string | undefined>, amount: AmountPhrase, network: NetworkKey | undefined): Draft {
   const protocol = venueProtocol(groups.venue, LENDING_VENUES, clause);
   const vault = groups.vault?.toLowerCase();
-  if (vault && protocol !== "morpho") throw clauseError(clause, `Only Morpho vaults are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
+  if (vault && !VAULT_PROTOCOLS.includes(protocol)) {
+    throw clauseError(clause, `Only Morpho, Spark Savings and Yearn vaults are named; say "${kind === "deposit" ? "into" : "from"} ${groups.venue ?? "the venue"}" without "${vault}".`);
+  }
+  // Bare "spark" names two protocols: the default (Spark Savings) is used and the alternative named.
+  const bareSpark = protocol === "spark-savings" && /^spark$/iu.test((groups.venue ?? "").trim()) && !vault;
   return {
     clause,
     kind,
@@ -295,6 +428,37 @@ function lendingDraft(clause: string, kind: "deposit" | "withdraw", groups: Reco
     protocol,
     ...(vault ? { venue: vault } : {}),
     ...(network ? { network } : {}),
+    explicit: network !== undefined,
+    ...(bareSpark ? { warnings: [`"spark" was read as Spark Savings; say "sparklend" to ${kind === "deposit" ? "lend on" : "withdraw from"} SparkLend instead.`] } : {}),
+  };
+}
+
+function stakeDraft(clause: string, groups: Record<string, string | undefined>, amount: AmountPhrase, network: NetworkKey | undefined): Draft {
+  const asset = groups.a?.toLowerCase();
+  const word = groups.lst?.toLowerCase().replace(/[\s-]+/gu, " ");
+  const evm = evmStakingToken(word);
+  if (evm || asset === "eth") {
+    if (asset === "sol") throw clauseError(clause, `${evm?.provider ?? "That provider"} stakes ETH on Ethereum, not SOL.`);
+    if (word && !evm) throw clauseError(clause, `"${groups.lst}" stakes SOL on Solana, not ETH.`);
+    return {
+      clause,
+      kind: "stake",
+      amount,
+      from: "ETH",
+      lst: word ?? "lido",
+      protocol: (evm ?? EVM_STAKING_TOKENS.lido)?.protocol as ProtocolId,
+      ...(network ? { network } : {}),
+      explicit: network !== undefined,
+    };
+  }
+  return {
+    clause,
+    kind: "stake",
+    amount,
+    ...(asset ? { from: "SOL" } : {}),
+    lst: word ?? "jito",
+    ...(network ? { network } : {}),
+    explicit: network !== undefined,
   };
 }
 
@@ -315,6 +479,8 @@ function matchClause(clause: string): Draft {
           ...(groups.a ? { from: groups.a } : {}),
           ...(groups.b ? { to: groups.b } : {}),
           ...(network ? { network } : {}),
+          ...(groups.dex ? { protocol: venueProtocol(groups.dex, SWAP_VENUES, clause) } : {}),
+          explicit: network !== undefined,
         };
       case "bridge": {
         const source = networkFromGroup(groups.n1, clause);
@@ -328,6 +494,7 @@ function matchClause(clause: string): Draft {
           ...(source ? { network: source } : {}),
           ...(destination ? { toNetwork: destination } : {}),
           ...(groups.bridge ? { protocol: venueProtocol(groups.bridge, BRIDGE_VENUES, clause) } : {}),
+          explicit: source !== undefined,
         };
       }
       case "transfer":
@@ -338,16 +505,10 @@ function matchClause(clause: string): Draft {
           ...(groups.a ? { from: groups.a } : {}),
           ...(groups.addr ? { recipient: groups.addr } : {}),
           ...(network ? { network } : {}),
+          explicit: network !== undefined || (groups.addr ?? "").includes(":"),
         };
       case "stake":
-        return {
-          clause,
-          kind: "stake",
-          amount,
-          ...(groups.a ? { from: "SOL" } : {}),
-          lst: (groups.lst ?? "jito").toLowerCase(),
-          ...(network ? { network } : {}),
-        };
+        return stakeDraft(clause, groups, amount, network);
       case "deposit":
       case "withdraw":
         return lendingDraft(clause, pattern.kind, groups, amount, network);
@@ -360,7 +521,7 @@ function matchClause(clause: string): Draft {
     ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
     : `"${verb.slice(0, 32)}" is not a supported action.`;
   throw unsupported(
-    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL), deposit/supply/lend into and withdraw from Aave, Compound, Morpho, Moonwell, Jupiter Lend or Kamino.`,
+    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL, or ETH on Ethereum), deposit/supply/lend into and withdraw from Aave, Compound, Morpho, Moonwell, SparkLend, Spark Savings, Fluid, Yearn V3, Jupiter Lend or Kamino.`,
     GRAMMAR_EXAMPLES,
     [{ path: "text", message: `Could not interpret "${clause.slice(0, 120)}".` }],
   );
@@ -396,13 +557,16 @@ function contractMatcher(phrases: readonly ContractPhrase[]): ContractMatcher | 
 }
 
 /**
- * A clause naming a registered alias: `<verb> [<amount> [<asset>]] <connector>
- * [the|my] <alias> [vault|pool|contract|program] [on <network>]`. Ambiguous
- * aliases are settled by `on <network>`, then by the previous step's
- * destination network. Returns null when the clause names no alias (built-in
- * sentences then apply unchanged).
+ * What a contract clause reads as: the action, a gap the user can fill (the
+ * amount of a spending entry; the network of an alias registered on several
+ * networks), or null when the clause names no registered alias.
  */
-function matchContractClause(clause: string, matcher: ContractMatcher, previousDestination: NetworkKey | undefined, index: number): IntentActionSpec | null {
+export type ContractPhraseMatch =
+  | { readonly action: IntentActionSpec; readonly explicit: boolean }
+  | { readonly gap: "amount"; readonly message: string }
+  | { readonly gap: "network"; readonly networks: readonly NetworkKey[]; readonly message: string };
+
+function matchWithMatcher(clause: string, matcher: ContractMatcher, previousDestination: NetworkKey | undefined, index: number): ContractPhraseMatch | null {
   const match = matcher.regex.exec(clause);
   if (!match?.groups) return null;
   const groups = match.groups;
@@ -425,7 +589,12 @@ function matchContractClause(clause: string, matcher: ContractMatcher, previousD
     if (onPrevious.length > 0) candidates = onPrevious;
   }
   if (distinct(candidates) > 1) {
-    throw clauseError(clause, `"${alias}" names several registered actions (${[...new Set(candidates.map((phrase) => CHAINS[phrase.network].name))].join(", ")}); add "on <network>".`);
+    const networks = [...new Set(candidates.map((phrase) => phrase.network))];
+    return {
+      gap: "network",
+      networks,
+      message: `"${alias}" names several registered actions (${networks.map((entry) => CHAINS[entry].name).join(", ")}); add "on <network>".`,
+    };
   }
   const phrase = candidates[0] as ContractPhrase;
   const raw = groups.amt;
@@ -433,7 +602,7 @@ function matchContractClause(clause: string, matcher: ContractMatcher, previousD
   if (!phrase.spends) {
     if (amount) throw clauseError(clause, `"${verb} … ${alias}" spends nothing; leave out the amount.`);
   } else if (!amount) {
-    throw clauseError(clause, `Say how much to ${verb}, e.g. "${verb} 100 ${groups.obj ?? "USDC"} into ${alias}".`);
+    return { gap: "amount", message: `Say how much to ${verb}, e.g. "${verb} 100 ${groups.obj ?? "USDC"} into ${alias}".` };
   }
   if (amount?.type === "previous" && index === 0) {
     throw clauseError(clause, "\"all\", \"half\", \"it\" and percentages refer to a previous step; give an explicit amount.");
@@ -447,14 +616,44 @@ function matchContractClause(clause: string, matcher: ContractMatcher, previousD
   if (amount?.type === "previous" && amount.portionBps !== 10_000) params.portionBps = amount.portionBps;
   amount = amount ?? null;
   return {
-    kind: phrase.vm === "evm" ? "call" : "action",
-    network: phrase.network,
-    contract: phrase.contract,
-    entry: phrase.entry,
-    ...(from ? { from } : {}),
-    ...(amount ? { amount: amount.type === "exact" ? amount.value : "max" } : {}),
-    ...(Object.keys(params).length > 0 ? { params } : {}),
+    action: {
+      kind: phrase.vm === "evm" ? "call" : "action",
+      network: phrase.network,
+      contract: phrase.contract,
+      entry: phrase.entry,
+      ...(from ? { from } : {}),
+      ...(amount ? { amount: amount.type === "exact" ? amount.value : "max" } : {}),
+      ...(Object.keys(params).length > 0 ? { params } : {}),
+    },
+    explicit: network !== undefined,
   };
+}
+
+const matcherCache = new WeakMap<readonly ContractPhrase[], ContractMatcher | null>();
+
+function cachedMatcher(phrases: readonly ContractPhrase[]): ContractMatcher | null {
+  if (!matcherCache.has(phrases)) matcherCache.set(phrases, contractMatcher(phrases));
+  return matcherCache.get(phrases) ?? null;
+}
+
+/**
+ * A clause naming a registered alias: `<verb> [<amount> [<asset>]] <connector>
+ * [the|my] <alias> [vault|pool|contract|program] [on <network>]`. Ambiguous
+ * aliases are settled by `on <network>`, then by the previous step's
+ * destination network; otherwise the network is a gap. A spending entry
+ * without an amount is an amount gap. Returns null when the clause names no
+ * alias (built-in sentences then apply unchanged); throws for what a
+ * question cannot fix (a verb the registration does not accept, a network it
+ * is not registered on, an amount on a non-spending entry).
+ */
+export function matchContractPhrase(
+  clause: string,
+  phrases: readonly ContractPhrase[],
+  options: { readonly previousDestination?: NetworkKey; readonly index?: number } = {},
+): ContractPhraseMatch | null {
+  const matcher = phrases.length > 0 ? cachedMatcher(phrases) : null;
+  if (!matcher) return null;
+  return matchWithMatcher(normalizeText(clause), matcher, options.previousDestination, options.index ?? 0);
 }
 
 interface InferenceContext {
@@ -462,10 +661,12 @@ interface InferenceContext {
   readonly accountNetworks: readonly NetworkKey[];
 }
 
-const SWAP_NETWORKS: readonly NetworkKey[] = ["solana", "base", "arbitrum"];
+/** Networks a swap may run on: Solana and the five EVM production networks (the planner checks live venues). */
+export const SWAP_NETWORKS: readonly NetworkKey[] = Object.freeze(["solana", "base", "arbitrum", "ethereum", "optimism", "polygon"]);
+const EVM_SWAP_NETWORKS: readonly NetworkKey[] = SWAP_NETWORKS.filter((network) => CHAINS[network].vm === "evm");
 const EVM_DEFAULT_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum"];
 /** EVM networks a transfer to an address or name may run on, in default order. */
-const EVM_TRANSFER_NETWORKS: readonly NetworkKey[] = ["base", "arbitrum", "ethereum", "optimism", "polygon", "arc", "arbitrum-sepolia"];
+export const EVM_TRANSFER_NETWORKS: readonly NetworkKey[] = Object.freeze(["base", "arbitrum", "ethereum", "optimism", "polygon", "arc", "arbitrum-sepolia"]);
 
 /** Networks with an executable venue of `protocol` for `kind`, in registry order. */
 function lendingNetworks(protocol: ProtocolId | undefined, kind: IntentActionKind): NetworkKey[] {
@@ -492,17 +693,28 @@ function preferred(candidates: readonly NetworkKey[], context: InferenceContext)
 function inferSwapNetwork(draft: Draft, context: InferenceContext): NetworkKey {
   const tokens = [draft.from ?? (draft.amount.type === "exact" && draft.amount.usd ? "USDC" : undefined), draft.to]
     .filter((token): token is string => token !== undefined);
-  const candidates = SWAP_NETWORKS.filter((network) => tokens.every((token) => knownOn(network, token)));
+  // A named venue keeps the swap on the networks it lists.
+  const venueNetworks = draft.protocol ? getProtocol(draft.protocol)?.networks ?? [] : null;
+  const networks = venueNetworks ? SWAP_NETWORKS.filter((network) => venueNetworks.includes(network)) : SWAP_NETWORKS;
+  const candidates = networks.filter((network) => tokens.every((token) => knownOn(network, token)));
   if (candidates.length === 1) return candidates[0] as NetworkKey;
   if (candidates.length > 1) {
     const pick = preferred(candidates, context);
     if (pick) return pick;
-    if (candidates.every((network) => EVM_DEFAULT_NETWORKS.includes(network))) return "base";
+    // Only EVM candidates and no hint: Base, as before more EVM networks swapped.
+    if (candidates.every((network) => CHAINS[network].vm === "evm")) {
+      const fallback = EVM_DEFAULT_NETWORKS.find((network) => candidates.includes(network));
+      if (fallback) return fallback;
+    }
     throw clauseError(draft.clause, `Say which network to use, e.g. "${draft.clause} on ${candidates[0]}".`);
   }
   // A token unknown to every EVM registry but plausible on Solana is resolved through Jupiter.
-  const evmKnown = tokens.some((token) => EVM_DEFAULT_NETWORKS.some((network) => knownOn(network, token)) && !knownOn("solana", token));
-  if (!evmKnown && tokens.every((token) => !isEvmAddress(token))) return "solana";
+  const solanaVenue = !venueNetworks || venueNetworks.includes("solana");
+  const evmKnown = tokens.some((token) => EVM_SWAP_NETWORKS.some((network) => knownOn(network, token)) && !knownOn("solana", token));
+  if (solanaVenue && !evmKnown && tokens.every((token) => !isEvmAddress(token))) return "solana";
+  if (draft.protocol && venueNetworks) {
+    throw clauseError(draft.clause, `${protocolName(draft.protocol)} swaps run on ${venueNetworks.map((network) => CHAINS[network].name).join(", ")}; ${tokens.join(" and ")} are not listed there together.`);
+  }
   throw clauseError(draft.clause, `Cannot find one network that lists ${tokens.join(" and ")}. Add "on <network>".`);
 }
 
@@ -528,6 +740,14 @@ function inferTransferNetwork(draft: Draft, context: InferenceContext): NetworkK
   throw clauseError(draft.clause, "The recipient is not a valid EVM or Solana address.");
 }
 
+/** A source to show in the "say where the funds come from" hint: never the destination itself. */
+function sourceHint(destination: NetworkKey, context: InferenceContext): NetworkKey {
+  const lane = CHAINS[destination].environment;
+  const order = [context.defaultNetwork, ...context.accountNetworks, "base", "solana", "arbitrum", ...(Object.keys(CHAINS) as NetworkKey[])]
+    .filter((entry): entry is NetworkKey => entry !== undefined);
+  return order.find((network) => network !== destination && CHAINS[network].environment === lane) ?? "base";
+}
+
 function inferNetwork(draft: Draft, previousDestination: NetworkKey | undefined, context: InferenceContext): NetworkKey {
   if (draft.network) return draft.network;
   switch (draft.kind) {
@@ -539,7 +759,8 @@ function inferNetwork(draft: Draft, previousDestination: NetworkKey | undefined,
       return byAddress;
     }
     case "stake":
-      return previousDestination ?? "solana";
+      // EVM liquid staking runs on Ethereum; SOL staking on Solana.
+      return previousDestination ?? (draft.protocol ? EVM_STAKING_NETWORK : "solana");
     case "deposit":
     case "withdraw": {
       if (previousDestination) return previousDestination;
@@ -549,7 +770,13 @@ function inferNetwork(draft: Draft, previousDestination: NetworkKey | undefined,
     case "bridge": {
       if (previousDestination) return previousDestination;
       if (context.defaultNetwork && context.defaultNetwork !== draft.toNetwork) return context.defaultNetwork;
-      throw clauseError(draft.clause, `Say where the funds come from, e.g. "from base to ${draft.toNetwork ?? "solana"}".`);
+      const destination = draft.toNetwork ?? "solana";
+      const message = `Say where the funds come from, e.g. "from ${sourceHint(destination, context)} to ${destination}".`;
+      throw new MissingSourceError(clauseMessage(draft.clause, message), [{ path: "text", message }], {
+        asset: draft.from ?? (draft.amount.type === "exact" && draft.amount.usd ? "USDC" : null),
+        amount: draft.amount.type === "exact" ? draft.amount.value : null,
+        toNetwork: destination,
+      });
     }
     default:
       return previousDestination ?? inferSwapNetwork(draft, context);
@@ -581,7 +808,8 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentA
   if (draft.venue) params.venue = draft.venue;
   let to = draft.to;
   if (draft.kind === "stake") {
-    const target = LIQUID_STAKING_TOKENS[draft.lst ?? "jito"] ?? LIQUID_STAKING_TOKENS.jito;
+    const evm = draft.protocol ? evmStakingToken(draft.lst) ?? EVM_STAKING_TOKENS.lido : undefined;
+    const target = evm ?? LIQUID_STAKING_TOKENS[draft.lst ?? "jito"] ?? LIQUID_STAKING_TOKENS.jito;
     to = target?.symbol ?? "JitoSOL";
     params.provider = target?.provider ?? "Jito";
   }
@@ -603,11 +831,11 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentA
   };
 }
 
-/** Compiles intent text into structured actions, or throws INTENT_UNSUPPORTED. */
+/** Compiles intent text into structured actions, or throws INTENT_UNSUPPORTED (MissingSourceError for a bridge without a source). */
 export function compileIntentText(text: string, context: GrammarContext = {}): GrammarResult {
   const normalizedText = normalizeText(text);
   if (!normalizedText) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
-  const matcher = context.contracts && context.contracts.length > 0 ? contractMatcher(context.contracts) : null;
+  const matcher = context.contracts && context.contracts.length > 0 ? cachedMatcher(context.contracts) : null;
   const clauses = splitClauses(normalizedText, matcher ? matcher.phrases.flatMap((phrase) => phrase.verbs) : []);
   if (clauses.length === 0) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
   if (clauses.length > MAX_INTENT_ACTIONS) {
@@ -621,15 +849,22 @@ export function compileIntentText(text: string, context: GrammarContext = {}): G
     accountNetworks,
   };
   const actions: IntentActionSpec[] = [];
+  const explicitNetwork: boolean[] = [];
+  const warnings: string[] = [];
   let previousDestination: NetworkKey | undefined;
   clauses.forEach((clause, index) => {
-    const contract = matcher ? matchContractClause(clause, matcher, previousDestination, index) : null;
+    const contract = matcher ? matchWithMatcher(clause, matcher, previousDestination, index) : null;
+    if (contract && "gap" in contract) throw clauseError(clause, contract.message);
     let action: IntentActionSpec;
-    if (contract) action = contract;
-    else {
+    if (contract) {
+      action = contract.action;
+      explicitNetwork.push(contract.explicit);
+    } else {
       const draft = matchClause(clause);
       const network = inferNetwork(draft, previousDestination, inference);
       action = toActionSpec(draft, network, index);
+      explicitNetwork.push(draft.explicit);
+      warnings.push(...(draft.warnings ?? []));
     }
     actions.push(action);
     previousDestination = action.toNetwork ?? action.network;
@@ -639,5 +874,7 @@ export function compileIntentText(text: string, context: GrammarContext = {}): G
     normalizedText: clauses.join(", then "),
     clauses,
     confidence: 0.95,
+    explicitNetwork,
+    warnings: [...new Set(warnings)],
   };
 }

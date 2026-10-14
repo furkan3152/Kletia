@@ -1,0 +1,763 @@
+{
+  "comment": "The 76-phrase grammar corpus of the Codex review (codex-scratch/diff/corpus.txt plus the examples of that time) with the outputs of main at 31e6782. Every phrase main accepted must compile to exactly these actions (regression net); refused phrases may now compile.",
+  "accounts": [
+    "eip155:8453:0x1111111111111111111111111111111111111111",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  ],
+  "phrases": [
+    {
+      "text": "swap 1 SOL to USDC",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL to USDC on solana",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL for USDC",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL into USDC on solana",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 0.01 ETH for USDC on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "base",
+          "from": "ETH",
+          "to": "USDC",
+          "amount": "0.01"
+        }
+      ]
+    },
+    {
+      "text": "swap 0.01 ETH to USDC on arbitrum",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "arbitrum",
+          "from": "ETH",
+          "to": "USDC",
+          "amount": "0.01"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL to USDC via raydium",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC via orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC using orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC through raydium on solana",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC on solana via raydium",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC with orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to ORCA",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "ORCA",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL to RAY",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "RAY",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL to ORCA on solana",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "ORCA",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "swap 10 USDC to SOL on solana via orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 10 USDC to SOL via jupiter",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC via uniswap",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 0.01 ETH to USDC on base via raydium",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "convert 1 SOL to USDC",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "trade 1 SOL for USDC via orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "exchange 2 SOL into JitoSOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "JitoSOL",
+          "amount": "2"
+        }
+      ]
+    },
+    {
+      "text": "sell 1 SOL for USDC",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "buy JitoSOL with 2 SOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "JitoSOL",
+          "amount": "2"
+        }
+      ]
+    },
+    {
+      "text": "buy USDC with 1 SOL via orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "buy USDC with 1 SOL on solana",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        }
+      ]
+    },
+    {
+      "text": "buy USDC using 1 SOL via raydium on solana",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap $10 of SOL to USDC",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap half of my SOL to USDC",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap all SOL to USDC",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC then stake it with jito",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "SOL",
+          "to": "USDC",
+          "amount": "1"
+        },
+        {
+          "kind": "stake",
+          "network": "solana",
+          "to": "JitoSOL",
+          "amount": "max",
+          "params": {
+            "provider": "Jito"
+          }
+        }
+      ]
+    },
+    {
+      "text": "bridge 25 USDC from base to solana then swap half to JitoSOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "base",
+          "from": "USDC",
+          "amount": "25",
+          "toNetwork": "solana"
+        },
+        {
+          "kind": "swap",
+          "network": "solana",
+          "to": "JitoSOL",
+          "amount": "max",
+          "params": {
+            "portionBps": 5000
+          }
+        }
+      ]
+    },
+    {
+      "text": "bridge 25 USDC from base to solana then swap it to SOL via raydium",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "bridge 25 USDC from base to solana then swap it to SOL via orca",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "bridge 25 USDC from base to solana and swap it to SOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "base",
+          "from": "USDC",
+          "amount": "25",
+          "toNetwork": "solana"
+        },
+        {
+          "kind": "swap",
+          "network": "solana",
+          "to": "SOL",
+          "amount": "max"
+        }
+      ]
+    },
+    {
+      "text": "bridge 25 USDC from base to solana via lifi",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "base",
+          "from": "USDC",
+          "amount": "25",
+          "toNetwork": "solana",
+          "protocol": "lifi"
+        }
+      ]
+    },
+    {
+      "text": "bridge 100 USDC from ethereum to base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "ethereum",
+          "from": "USDC",
+          "amount": "100",
+          "toNetwork": "base"
+        }
+      ]
+    },
+    {
+      "text": "bridge 20 USDC from solana to base and deposit it into aave",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "solana",
+          "from": "USDC",
+          "amount": "20",
+          "toNetwork": "base"
+        },
+        {
+          "kind": "deposit",
+          "network": "base",
+          "amount": "max",
+          "protocol": "aave-v3"
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into aave on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "base",
+          "from": "USDC",
+          "amount": "100",
+          "protocol": "aave-v3"
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into aave on ethereum",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "ethereum",
+          "from": "USDC",
+          "amount": "100",
+          "protocol": "aave-v3"
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into sparklend on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into spark lend on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into spark-lend on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into yearn on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into yearn v3 on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into yearn usdc-1 on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into yearn v3 usdc-1 on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into morpho spark-usdc on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "base",
+          "from": "USDC",
+          "amount": "100",
+          "protocol": "morpho",
+          "params": {
+            "venue": "spark-usdc"
+          }
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into morpho steakhouse-prime-usdc on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "base",
+          "from": "USDC",
+          "amount": "100",
+          "protocol": "morpho",
+          "params": {
+            "venue": "steakhouse-prime-usdc"
+          }
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into aave spark-usdc on base",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 100 USDC into spark on base",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 1 ETH into spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 1 WETH into spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "withdraw all USDC from spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "withdraw 50 USDC from yearn on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "withdraw all USDC from yearn usdc-1 on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "supply 100 USDC to spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "lend 100 USDC on spark on ethereum",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "deposit 10 USDC into jupiter lend",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "solana",
+          "from": "USDC",
+          "amount": "10",
+          "protocol": "jupiter-lend"
+        }
+      ]
+    },
+    {
+      "text": "deposit 10 USDC into kamino",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "solana",
+          "from": "USDC",
+          "amount": "10",
+          "protocol": "kamino"
+        }
+      ]
+    },
+    {
+      "text": "withdraw 50 USDC from aave on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "withdraw",
+          "network": "base",
+          "from": "USDC",
+          "amount": "50",
+          "protocol": "aave-v3"
+        }
+      ]
+    },
+    {
+      "text": "withdraw all USDC from compound on arbitrum",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "withdraw",
+          "network": "arbitrum",
+          "from": "USDC",
+          "amount": "max",
+          "protocol": "compound-v3"
+        }
+      ]
+    },
+    {
+      "text": "stake 1.5 SOL with marinade",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "stake",
+          "network": "solana",
+          "from": "SOL",
+          "to": "mSOL",
+          "amount": "1.5",
+          "params": {
+            "provider": "Marinade"
+          }
+        }
+      ]
+    },
+    {
+      "text": "stake 1 SOL with jito",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "stake",
+          "network": "solana",
+          "from": "SOL",
+          "to": "JitoSOL",
+          "amount": "1",
+          "params": {
+            "provider": "Jito"
+          }
+        }
+      ]
+    },
+    {
+      "text": "send 5 USDC to vitalik.eth on optimism",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "transfer",
+          "network": "optimism",
+          "from": "USDC",
+          "amount": "5",
+          "recipient": "vitalik.eth"
+        }
+      ]
+    },
+    {
+      "text": "send 5 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "transfer",
+          "network": "solana",
+          "from": "USDC",
+          "amount": "5",
+          "recipient": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+        }
+      ]
+    },
+    {
+      "text": "send 0.001 ETH to 0x000000000000000000000000000000000000dEaD on arbitrum",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "transfer",
+          "network": "arbitrum",
+          "from": "ETH",
+          "amount": "0.001",
+          "recipient": "0x000000000000000000000000000000000000dEaD"
+        }
+      ]
+    },
+    {
+      "text": "move 0.01 ETH from arbitrum to solana as SOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "arbitrum",
+          "from": "ETH",
+          "to": "SOL",
+          "amount": "0.01",
+          "toNetwork": "solana"
+        }
+      ]
+    },
+    {
+      "text": "swap 10 USDC to SOL on solana, then stake it with jito",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "swap",
+          "network": "solana",
+          "from": "USDC",
+          "to": "SOL",
+          "amount": "10"
+        },
+        {
+          "kind": "stake",
+          "network": "solana",
+          "to": "JitoSOL",
+          "amount": "max",
+          "params": {
+            "provider": "Jito"
+          }
+        }
+      ]
+    },
+    {
+      "text": "swap 1 SOL to USDC via raydium then send it to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "swap 1 SOL to USDC via raydium and deposit it into kamino",
+      "accepted": false,
+      "code": "INTENT_UNSUPPORTED"
+    },
+    {
+      "text": "bridge 25 USDC from base to solana",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "base",
+          "from": "USDC",
+          "amount": "25",
+          "toNetwork": "solana"
+        }
+      ]
+    },
+    {
+      "text": "bridge 100 USDC from solana to arbitrum",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "solana",
+          "from": "USDC",
+          "amount": "100",
+          "toNetwork": "arbitrum"
+        }
+      ]
+    },
+    {
+      "text": "bridge 50 USDC from base to solana then swap half to JitoSOL",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "bridge",
+          "network": "base",
+          "from": "USDC",
+          "amount": "50",
+          "toNetwork": "solana"
+        },
+        {
+          "kind": "swap",
+          "network": "solana",
+          "to": "JitoSOL",
+          "amount": "max",
+          "params": {
+            "portionBps": 5000
+          }
+        }
+      ]
+    },
+    {
+      "text": "deposit 100 USDC into morpho on base",
+      "accepted": true,
+      "actions": [
+        {
+          "kind": "deposit",
+          "network": "base",
+          "from": "USDC",
+          "amount": "100",
+          "protocol": "morpho"
+        }
+      ]
+    }
+  ]
+}

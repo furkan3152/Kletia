@@ -1,14 +1,18 @@
 /**
  * Code-identity pins of registered EVM contracts: every supported proxy
  * pattern (with the live Base USDC ZeppelinOS values), refusal hints, the
- * getProof → getCode fallback and diff detection.
+ * getProof → getCode fallback and diff detection, retries of reads at a
+ * pinned block that a lagging RPC node does not know yet, and the sanitized
+ * log line of mapped upstream errors.
  */
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { keccak256, pad, type Hex } from "viem";
 import type { EvmContractPins } from "@kletia/core";
 import { compareEvmPins, currentEvmPins, inspectEvmContract, PROXY_SLOTS, proxyRefusalReason, readEvmContractPins } from "../contracts/pins.js";
-import { installEvmHarness, resetContractCaches, type EvmHarness } from "./contractHarness.js";
+import { toPlatformError, sanitizeUpstreamMessage } from "../../errors.js";
+import { configureBlockLagRetry, readStorageSlot } from "../chains/evm.js";
+import { installEvmHarness, resetContractCaches, RpcError, type EvmHarness } from "./contractHarness.js";
 
 /** Live values read 2026-10-09 (design §4.2 and Appendix A). */
 const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -206,5 +210,96 @@ describe("EVM contract pins", () => {
     harness.world.codeAt.set("7:0xbeef010f9cb27031ad51e3333f9af9c6b1228183", "0x6003");
     const atBlock = await currentEvmPins("base", "0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183", [], { blockNumber: 7n });
     assert.equal(atBlock.codeHash, keccak256("0x6003"));
+  });
+});
+
+describe("pin reads at a pinned block on lagging RPC nodes", () => {
+  const TARGET = "0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A";
+
+  beforeEach(() => {
+    configureBlockLagRetry([1, 1]);
+    harness.world.code.set(TARGET.toLowerCase(), "0x6080604052600436106100");
+  });
+
+  afterEach(() => configureBlockLagRetry(null));
+
+  /** Makes eth_getStorageAt of the EIP-1967 implementation slot fail `times` times with `message`. */
+  function lagging(times: number, message = "unsupported block number 52376674"): { readonly blocks: string[] } {
+    const original = harness.router.handlers.get("eth_getStorageAt");
+    assert.ok(original);
+    const blocks: string[] = [];
+    let failures = 0;
+    harness.router.handlers.set("eth_getStorageAt", (params, url) => {
+      if (String(params[1]).toLowerCase() === PROXY_SLOTS.eip1967Implementation) {
+        blocks.push(String(params[2]));
+        if (failures < times) {
+          failures += 1;
+          throw new RpcError(-32000, message);
+        }
+      }
+      return original(params, url);
+    });
+    return { blocks };
+  }
+
+  it("retries twice at the same block and then reads the pins", async () => {
+    const seen = lagging(2);
+    const { pins } = await readEvmContractPins("base", TARGET, undefined, 52_376_674n);
+    assert.equal(pins.blockNumber, "52376674");
+    assert.equal(seen.blocks.length, 3);
+    assert.deepEqual(new Set(seen.blocks), new Set([`0x${(52_376_674n).toString(16)}`]), "every retry reads the same block");
+  });
+
+  it("recognises the other propagation-lag messages", async () => {
+    for (const message of ["header not found", "unknown block", "block not found"]) {
+      resetContractCaches();
+      const seen = lagging(1, message);
+      await readEvmContractPins("base", TARGET, undefined, 52_376_674n);
+      assert.equal(seen.blocks.length, 2, message);
+    }
+  });
+
+  it("fails RPC_UNAVAILABLE after the third lag error, and logs one sanitized line", async () => {
+    const seen = lagging(3);
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));
+    try {
+      const error = await readEvmContractPins("base", TARGET, undefined, 52_376_674n).then(() => null, (failure: unknown) => failure);
+      assert.ok(error, "the read fails");
+      assert.equal(seen.blocks.length, 3, "two retries, no more");
+      assert.equal(toPlatformError(error).code, "RPC_UNAVAILABLE");
+    } finally {
+      console.warn = original;
+    }
+    const line = warnings.find((entry) => entry.startsWith("[platform] upstream evm error:"));
+    assert.ok(line, warnings.join("\n"));
+    assert.doesNotMatch(line, /https?:\/\//u, "no RPC URL in the log");
+    assert.ok(line.length <= "[platform] upstream evm error: ".length + 160);
+  });
+
+  it("never retries other errors, nor reads at the latest block", async () => {
+    const other = lagging(1, "rate limit reached");
+    await assert.rejects(readEvmContractPins("base", TARGET, undefined, 52_376_674n));
+    assert.equal(other.blocks.length, 1);
+    harness.restore();
+    harness = installEvmHarness();
+    const latest = lagging(1);
+    await assert.rejects(readStorageSlot("base", TARGET, PROXY_SLOTS.eip1967Implementation));
+    assert.deepEqual(latest.blocks, ["latest"], "a read at latest has nothing to wait for");
+    // Pins without a block are still read at one pinned block (the latest number), so they retry.
+    const pinned = lagging(1);
+    const { pins } = await readEvmContractPins("base", TARGET);
+    assert.equal(pinned.blocks.length, 2);
+    assert.equal(pinned.blocks[0], `0x${BigInt(pins.blockNumber).toString(16)}`);
+  });
+
+  it("sanitizes upstream messages: URLs, long hex, keys; one line of at most 160 characters", () => {
+    const raw = `HTTP request failed.\nURL: https://base-mainnet.g.alchemy.com/v2/SECRETKEY123\nRequest body: {"data":"0x${"ab".repeat(60)}"} apikey=abc123 ${"x".repeat(300)}`;
+    const clean = sanitizeUpstreamMessage(raw);
+    assert.doesNotMatch(clean, /alchemy|SECRETKEY|abc123|\n/u);
+    assert.doesNotMatch(clean, /0x(?:ab){20}/u);
+    assert.ok(clean.length <= 160);
+    assert.match(clean, /^HTTP request failed\. URL: <url>/u);
   });
 });

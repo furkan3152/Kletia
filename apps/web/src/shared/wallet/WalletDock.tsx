@@ -58,7 +58,7 @@ function EvmPill({ evmWorkspace }: { evmWorkspace: boolean }) {
               <button
                 type="button"
                 onClick={openConnectModal}
-                aria-label="Connect an EVM wallet"
+                aria-label="Connect EVM wallet"
                 className={`${pillBase} bg-[#0052FF] text-white focus-visible:outline-[#FFD60A]`}
               >
                 <span className="sm:hidden">EVM</span>
@@ -106,7 +106,7 @@ function SolanaPill() {
       aria-label={
         account
           ? `Solana wallet ${shortenAddress(account.address)}. Open wallet options`
-          : "Connect a Solana wallet"
+          : "Connect Solana wallet"
       }
       className={`${pillBase} focus-visible:outline-[#9945FF] ${
         connected
@@ -138,7 +138,10 @@ function SolanaPill() {
 
 /**
  * Navbar wallet dock: one pill per namespace. The EVM pill keeps the
- * RainbowKit flow; the Solana pill opens the Wallet Standard picker.
+ * RainbowKit flow; the Solana pill opens the Wallet Standard picker. Each
+ * pill's accessible name contains its visible label (WCAG 2.5.3): "Connect
+ * EVM" and "EVM" are read as "Connect EVM wallet", "Connect Solana" and
+ * "SOL" as "Connect Solana wallet".
  */
 export function WalletDock({ evmWorkspace = true, className = "" }: WalletDockProps) {
   return (

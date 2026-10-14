@@ -23,6 +23,7 @@ import {
   classifyAbiFunction,
   contractActionFunction,
   contractDefinitionHash,
+  REBASING_TOLERANCE_UNITS,
   contractSecurityFields,
   contractTarget,
   deniedTargetReason,
@@ -232,6 +233,20 @@ test("definition hashes cover security fields only", async () => {
   assert.equal(isSecurityRelevantChange(base, capped), true);
   assert.equal("label" in contractSecurityFields(base).actions[0], false);
   assert.equal(canonicalJson({ b: 1, a: [true, null, { d: "x", c: undefined }] }), '{"a":[true,null,{"d":"x"}],"b":1}');
+});
+
+test("output.rebasing: stored only when true, validated, and part of definitionHash", async () => {
+  const strict = validateContractDefinition(evmDefinition()).value;
+  const rebasing = validateContractDefinition(evmDefinition({}, { output: { token: "$self", toleranceBps: 10, rebasing: true } }));
+  assert.equal(rebasing.ok, true, JSON.stringify(rebasing.issues));
+  assert.equal(rebasing.value.actions[0].output.rebasing, true);
+  const off = validateContractDefinition(evmDefinition({}, { output: { token: "$self", toleranceBps: 10, rebasing: false } })).value;
+  assert.equal("rebasing" in off.actions[0].output, false, "false normalises to absent");
+  assert.equal(await contractDefinitionHash(off), await contractDefinitionHash(strict), "definitions without the flag keep their hash");
+  assert.notEqual(await contractDefinitionHash(rebasing.value), await contractDefinitionHash(strict), "the flag is security relevant");
+  assert.equal(isSecurityRelevantChange(strict, rebasing.value), true);
+  expectRefused(validateContractDefinition(evmDefinition({}, { output: { token: "$self", rebasing: "yes" } })), "CONTRACT_DEFINITION_INVALID", "rebasing");
+  assert.equal(REBASING_TOLERANCE_UNITS, 2n);
 });
 
 /* ---------------------------------------------------- forbidden functions */

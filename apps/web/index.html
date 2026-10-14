@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="/kletia-logo.png" />
     <link rel="apple-touch-icon" href="/kletia-logo.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <title>Kletia: intent routing for EVM networks and Solana</title>
     <meta
       name="description"
@@ -33,9 +33,9 @@
     <meta name="base:app_id" content="6a31a6981f144514c3aaa376" />
     <!--
       Latin web fonts, fetched while the entry script loads so text first
-      paints in its final font (no swap, no layout shift). The console (/app)
-      uses none of them and /embed only Inter, so the script below skips the
-      rest there. The build fingerprints these hrefs to the same files the
+      paints in its final font (no swap, no layout shift). The site and the
+      desk at /app use all three, /embed only Inter, so the script below skips
+      the rest there. The build fingerprints these hrefs to the same files the
       @fontsource-variable stylesheets use; the dev server cannot serve them
       at these paths, so nothing is preloaded under it.
     -->
@@ -47,7 +47,7 @@
     <script>
       (function () {
         var path = location.pathname;
-        if (/^\/app(?:\/|$)/.test(path) || document.querySelector('script[src$="/@vite/client"]')) return;
+        if (document.querySelector('script[src$="/@vite/client"]')) return;
         var embed = /^\/embed(?:\/|$)/.test(path);
         var template = document.getElementById("kl-font-preloads");
         var links = template && template.content ? template.content.querySelectorAll("link") : [];

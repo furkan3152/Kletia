@@ -4,8 +4,8 @@ Kletia Platform API v1 is the integration surface for teams that want
 cross-network intents in their own product. The first-party Kletia app uses
 this same API for Solana and cross-network flows.
 
-- Base URL: `https://api.kletiaai.xyz/v1` (local: `http://localhost:3001/v1`)
-- Spec: `GET /v1/openapi.json` (OpenAPI 3.1)
+- Base URL: `https://api.kletiaai.xyz/v1` (local: `http://localhost:3001/v1`); what is live and which commit it runs: [status.md](status.md)
+- Spec: `GET /v1/openapi.json` (OpenAPI 3.1); generating clients: [codegen.md](codegen.md)
 - Types: [`@kletia/core`](../../packages/core/README.md) (intent spec), [`@kletia/sdk`](../../packages/sdk/README.md) (client)
 - Errors: [errors.md](errors.md) (also `GET /v1/errors`)
 - Agents: [mcp.md](mcp.md) (read-only MCP server at `/v1/mcp`)
@@ -32,11 +32,31 @@ this same API for Solana and cross-network flows.
 |---|---|---|---|
 | Public | No key | 30 requests/min per IP | Read registries, quotes, create and run intents |
 | Developer | `Authorization: Bearer kl_dev_…` | 300 requests/min per key | Everything above, plus intent listing, webhooks, [custom contracts and sessions](contracts.md) |
+| Sandbox | A developer key issued with `"sandbox": true` | As developer | As developer, on testnets only ([sandbox keys](#sandbox-keys)) |
+| Agent | `Authorization: Bearer kl_agt_…` (a child key, [policies.md](policies.md#agent-keys)) | As developer | What its rule book chain permits |
 | Operator | Key configured in `KLETIA_OPERATOR_API_KEYS` | 1200 requests/min per key | Everything above, plus suspending any contract registration |
 
 `POST /v1/keys` issues a developer key (shown once; stored only as a SHA-256
-hash). It is rate-limited per IP. Keys are managed per project; see
-[Key management](#key-management). Requests with an unknown or revoked key count
+hash). It needs no key; the body names the key and can ask for a sandbox key:
+
+```bash
+curl -sS -X POST https://api.kletiaai.xyz/v1/keys \
+  -H 'content-type: application/json' \
+  -d '{ "name": "acme-dev", "sandbox": true }'
+```
+
+```json
+{ "key": { "id": "key_3f2a9c0e1b7d4a6c8e0f1a2b", "name": "acme-dev", "tier": "developer", "createdAt": "2026-10-14T09:12:03.417Z", "key": "kl_dev_…", "lane": "testnet" } }
+```
+
+| Field | Type | |
+|---|---|---|
+| `name` | string, 1-64 printable characters | required |
+| `sandbox` | boolean, default `false` | `true`: a [sandbox key](#sandbox-keys) |
+
+At most 5 keys are issued per hour per IP; a request refused with a 4xx (an
+invalid body, `409 KEY_LIMIT_REACHED`) does not count against that budget.
+Keys are managed per project; see [Key management](#key-management). Requests with an unknown or revoked key count
 against the caller's IP at the public limit, and an IP is allowed 30 checks of
 unrecognised keys per minute: after that, keys that are not already verified
 get `429 RATE_LIMITED` (with `Retry-After`) without being looked up.
@@ -50,11 +70,51 @@ been submitted. API keys control rate limits, listing and webhook routing; keep
 `kl_dev_` keys on your server and proxy browser calls, or call the public tier
 from the browser.
 
+### Sandbox keys
+
+A sandbox key (`"sandbox": true`) is an ordinary developer key issued with a
+key-level rule book that keeps it on the testnet lane:
+
+```json
+{ "schema": "kletia.policy/v1", "label": "Sandbox", "networks": { "lanes": ["testnet"] } }
+```
+
+It plans and stores intents on Arbitrum Sepolia, Arc Testnet and Solana
+Devnet (transfers and own contracts on the two EVM testnets, transfers and
+Solana Actions on Solana Devnet); anything on a production network is
+refused with `403 POLICY_VIOLATION` (rule `networks.lanes`). Testnet
+registrations and intent links activate at once, so a sandbox key is the
+fastest way to try stored intents, webhooks and [own contracts](contracts.md#testnet-first).
+For mainnet dry runs use the keyless public tier. The rule book follows the
+normal [Rule Book](policies.md) rules (tighten now, loosen later), and
+`GET /v1/keys` reports every key's `lane`: `testnet`, `production` or `any`,
+derived from the active rule books of its chain.
+
+### Server keys in browsers
+
+`kl_dev_` and `kl_agt_` keys are server keys. A request that presents one with
+an `Origin` header from another site answers `403 SECRET_KEY_FROM_BROWSER`
+before the key is even looked up: a key in browser JavaScript is a key every
+visitor can copy. Server code sends no `Origin` and is unaffected; the
+first-party Kletia origins (and `CORS_ORIGINS`, `KLETIA_WEB_ORIGIN`) stay
+allowed, so the developer portal can manage keys. `/v1/mcp` keeps its own
+[Origin rule](mcp.md). Call Kletia from your server,
+through a proxy that forwards only browser-safe routes, or use the public tier
+in the browser. Operators can list exceptions for prototypes in
+`KLETIA_SECRET_KEY_BROWSER_ORIGINS` (comma-separated exact origins).
+
 ## Errors
 
 ```json
 { "error": { "code": "INTENT_UNSUPPORTED", "message": "…", "issues": [{ "path": "actions[0].network", "message": "…" }], "docs": "https://kletiaai.xyz/developers#error-INTENT_UNSUPPORTED" }, "requestId": "…" }
 ```
+
+Some codes add `error.details`, a JSON object of at most 4 KB with structured
+context: `SOURCE_REQUIRED` `{ asset, amount, toNetwork, candidates }`,
+`SOURCE_UNREACHABLE` `{ sourceNetwork, actionNetwork, asset, kind }`,
+`SESSION_EXPIRES_BEFORE_ACTIVATION` `{ contract, activatesAt, expiresAt, minimumExpiresInSeconds }`.
+Read the fields you need and ignore unknown ones; `details` never carries
+provider text or secrets.
 
 Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](errors.md) (`GET /v1/errors`, `ERROR_CATALOG` in `@kletia/core`) with its status, whether a retry can help and what to do; `error.docs` links to the entry. Every response carries `X-Request-Id` (a valid incoming UUID is echoed). `INTENT_UNSUPPORTED` errors also include `hints`: example phrases the grammar understands.
 
@@ -62,13 +122,13 @@ Codes are `UPPER_SNAKE_CASE` and stable. Every code is in the [error catalog](er
 |---|---|
 | 400 | Invalid input (`INVALID_REQUEST`, `INVALID_JSON`, `REFERENCES_INVALID`, `REFERENCE_COUNT_MISMATCH`, …) |
 | 401 | Unknown, malformed or revoked API key (a bad key is never downgraded to the public tier) |
-| 403 | A rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`) |
+| 403 | A server key sent from a browser on another site (`SECRET_KEY_FROM_BROWSER`), a rotated-out secret managing keys or registering contracts (`KEY_SECRET_ROTATED`), a refused browser origin on `/v1/mcp` (`MCP_ORIGIN_FORBIDDEN`), a session used from another site (`SESSION_ORIGIN_FORBIDDEN`), a Rule Book refusal (`POLICY_VIOLATION`, …) |
 | 404 | Unknown intent, step, webhook, key, contract registration (`CONTRACT_NOT_FOUND`, also for other keys' private ones), session or path; no kept preview (`PREVIEW_NOT_FOUND`); unknown or unshared receipt, share or log batch (`RECEIPT_NOT_FOUND`, `RECEIPT_SHARE_NOT_FOUND`, `RECEIPT_LOG_NOT_FOUND`) |
 | 405 | Wrong method (with an `Allow` header) |
 | 409 | State conflict (`QUOTE_MOVED`, `STEP_NOT_READY`, cancel after submission, duplicate webhook, `KEY_LIMIT_REACHED`, `KEY_NOT_MANAGEABLE`, `IDEMPOTENCY_REQUEST_IN_PROGRESS`, `RECIPIENT_NAME_CHANGED`, `CONTRACT_EXISTS`, `CONTRACT_LIMIT_REACHED`, `CONTRACT_PENDING`, `CONTRACT_SUSPENDED`, `CONTRACT_CHANGED`, `CONTRACT_REVISION_CHANGED`, `SESSION_USED`, `PREVIEW_CHANGED`, `RECEIPT_NOT_READY`, `RECEIPT_NOT_APPLICABLE`, `RECEIPT_SHARE_LIMIT`, `RECEIPT_ANCHOR_EXISTS`) |
 | 410 | Expired (`INTENT_EXPIRED`, `DEADLINE_PASSED`, `SESSION_EXPIRED`, `RECEIPT_SHARE_EXPIRED`, `RECEIPT_DISCLOSURES_WITHDRAWN`) |
 | 413 / 415 | Body over 64 KB / non-JSON body |
-| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, the custom contract refusals (`CONTRACT_UNKNOWN`, `CONTRACT_DENIED`, `CONTRACT_FUNCTION_FORBIDDEN`, `CONTRACT_NOT_DEPLOYED`, `SIMULATION_ASSET_CHANGE_REFUSED`, `ACTION_TRANSACTION_REJECTED`, …), and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
+| 422 | Understood but not executable (`INTENT_UNSUPPORTED`, `SOURCE_REQUIRED`, `SOURCE_UNREACHABLE`, `SESSION_EXPIRES_BEFORE_ACTIVATION`, `INSUFFICIENT_BALANCE`, `SELF_TRANSFER`, `FEE_LIMIT_EXCEEDED`, `CAPITAL_LANE_MIXED`, `ROUTE_UNSUPPORTED`, `ROUTE_TOO_SLOW`, `POSITION_EMPTY`, `VENUE_UNVERIFIED`, `VENUE_ILLIQUID`, `RECIPIENT_NAME_UNRESOLVED`, `WEBHOOK_URL_FORBIDDEN`, `IDEMPOTENCY_KEY_REUSED`, the custom contract refusals (`CONTRACT_UNKNOWN`, `CONTRACT_DENIED`, `CONTRACT_FUNCTION_FORBIDDEN`, `CONTRACT_NOT_DEPLOYED`, `SIMULATION_ASSET_CHANGE_REFUSED`, `ACTION_TRANSACTION_REJECTED`, …), and the reference rejections `REFERENCE_MISMATCH`, `REFERENCE_WRONG_SENDER`, `REFERENCE_WRONG_CHAIN`, `REFERENCE_ALREADY_USED`, `REFERENCE_STALE`) |
 | 429 | Rate limited (with `Retry-After`) |
 | 502 / 503 | Upstream provider unavailable (`ACTION_ENDPOINT_UNAVAILABLE` for an integrator's Solana Action server), or a feature not configured or disabled (`WEBHOOKS_NOT_CONFIGURED`, `CONTRACTS_DISABLED`, `SIMULATION_UNAVAILABLE`, `RECEIPTS_DISABLED`) |
 
@@ -226,6 +286,65 @@ such as a deBridge fixed fee in the native asset, with `usd` when priced).
 
 `GET /v1/intents` accepts `?limit=1..100` (default 20).
 
+#### Where the money starts: `sourceNetwork`
+
+`sourceNetwork` names the network the funds start on: a network key, or
+`"auto"`. Without it nothing changes. With it, the first action spends funds
+that are on that network, and the response says what the planner did in
+`intent.interpretation.departure`:
+
+```json
+{ "network": "base", "chosen": "request", "bridged": true, "reason": "Base holds 120.40 USDC; Solana 2.00" }
+```
+
+`chosen` is `text` (the sentence named the network), `request`
+(`sourceNetwork`), `auto` (picked by balance) or `inferred`; `bridged` is true
+when the planner put a bridge in front of the first action. A network key also
+serves as `defaultNetwork` when that is absent.
+
+| Case | Result |
+|---|---|
+| The first action already runs on the departure | unchanged; `chosen: "request"` |
+| The sentence names the first action's network and it differs | the sentence wins; `chosen: "text"`, with a warning that the departure was not used |
+| The first action is a swap, deposit or stake on another network and its input can move there | a bridge from the departure (same asset, the stated amount) is added first and the action spends its output; bridge and swap may merge into one cross-network swap; `bridged: true` |
+| The first action is a transfer on another network | `422 SOURCE_UNREACHABLE` (a bridge would deliver less than the stated amount; send it as two steps) |
+| The first action is a withdraw | unchanged, with a warning (a position starts where it is) |
+| Departure and action on different capital lanes (testnet and mainnet) | `422 SOURCE_UNREACHABLE` |
+| The input cannot move to the departure (SOL from Base, ETH from Solana) | `422 SOURCE_UNREACHABLE` |
+| `auto`, and the sentence names the network | `chosen: "text"`, no balance reads |
+| `auto` with preview (demo) accounts | no balance reads; as if absent, except a bridge without a source is `422 SOURCE_REQUIRED` |
+| `auto`, a bridge without a source | the input's balance is read on each same-lane network that lists it (at most 5 reads); the largest balance that covers the amount wins; none covers it: `422 SOURCE_REQUIRED` with `details.candidates` |
+| `auto`, the first action's own network covers the input | unchanged; `chosen: "auto"`, the reason names the balance |
+| `auto`, it does not but another network does | as the fixed case from that network; `chosen: "auto"`, `bridged: true` |
+| `auto`, no network covers it | unchanged; `chosen: "auto"`, reason "No network holds enough USDC"; the balance check reports the shortfall as usual |
+
+Inputs that can move (v1): USDC between every network that lists canonical
+USDC, and native ETH between Base, Arbitrum One, Ethereum and OP Mainnet.
+Bridges never run between testnets, so a testnet departure only works when the
+first action is already on it.
+
+Example: swap on Solana with the money on Base.
+
+```json
+{ "text": "swap 10 USDC to SOL", "sourceNetwork": "base", "accounts": ["eip155:8453:0x1111111111111111111111111111111111111111", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"] }
+```
+
+The plan bridges 10 USDC from Base to Solana and swaps its output to SOL
+(possibly as one cross-network swap); `departure` is
+`{ "network": "base", "chosen": "request", "bridged": true }`.
+
+Example: let Kletia find the funds.
+
+```json
+{ "text": "bridge 25 USDC to solana", "sourceNetwork": "auto", "accounts": ["eip155:8453:0x1111111111111111111111111111111111111111", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"] }
+```
+
+When no network holds 25 USDC the answer is:
+
+```json
+{ "error": { "code": "SOURCE_REQUIRED", "message": "No network holds 25 USDC for this bridge. Say where the money comes from.", "details": { "asset": "USDC", "amount": "25", "toNetwork": "solana", "candidates": [{ "network": "base", "balance": "3.10", "enough": false }] } }, "requestId": "…" }
+```
+
 Custom contract steps: `{ "kind": "call", "network": "arbitrum", "contract": "ct_…" | "<alias>", "entry": "deposit", "amount": "100" }`
 (`kind: "action"` on Solana networks) call a registration the request's API
 key may use; text plans with the key's aliases too ("deposit 100 USDC into
@@ -326,7 +445,8 @@ of exactly these transactions (simulated asset changes, approvals,
 provenance, "Not audited by Kletia"): show it to the user before handing the
 transactions to the wallet.
 
-A payload expires at `payload.expiresAt`; prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
+A payload expires at `payload.expiresAt`, a number of **Unix seconds** (not an
+ISO string like the other timestamps); prepare again to re-quote. `payload.quoteBinding` is a SHA-256 over each transaction's chain, sender, target, calldata and value (EVM) or fee payer and program (Solana); the landed transactions must match a prepared payload. Re-preparing is allowed, and an older payload that lands later still verifies. For Solana steps, `step.prepared.transactions[].to` holds the invoked program id.
 
 EVM steps verify plain wallets (the receipt sender must be the step account). Smart-contract wallets that relay through bundlers are not yet supported.
 
@@ -491,11 +611,13 @@ A key issued without a key starts a **project**; a key issued with a
 developer key (`POST /v1/keys` with `Authorization`) joins the caller's
 project. A project holds at most 5 active keys (`409 KEY_LIMIT_REACHED`).
 Intents, webhooks and usage belong to the individual key, not the project, so
-use one key per environment.
+use one key per environment. `POST /v1/keys` with `"sandbox": true` issues a
+[sandbox key](#sandbox-keys) into the same project.
 
 - `GET /v1/keys` lists the project's keys (newest first) with `last4`,
   `createdAt`, `lastUsedAt` (updated at most once a minute), `rotatedAt`,
-  `previousExpiresAt`, `revokedAt` and `current` (the calling key). Secrets
+  `previousExpiresAt`, `revokedAt`, `lane` (`testnet`, `production` or `any`:
+  what the key's rule books allow) and `current` (the calling key). Secrets
   are never returned.
 - `POST /v1/keys/{id}/rotate` with `{ "graceSeconds": 0..604800 }` (default
   86400) returns `{ key }` with a new secret and the **same id**. The previous

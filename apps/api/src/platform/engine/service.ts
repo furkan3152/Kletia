@@ -47,10 +47,11 @@ import {
 } from "./contracts/directory.js";
 import { emitGraphChanges, platformEvents } from "./events.js";
 import { resolveRecipientName } from "./names.js";
-import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl } from "./planner.js";
+import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl, type PlanInterpretation } from "./planner.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
 import { policyGate, policyGateActive, type ExposureHandle } from "./policy/gate.js";
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
+import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
 import { createIntentStore, type IntentStore } from "./store.js";
 import { INTENT_ID_PATTERN, nextTimestamp, roundUsd, STEP_ID_PATTERN } from "./util.js";
@@ -230,6 +231,11 @@ export interface CreateIntentOptions {
    * strict simulation by it). Engine-internal (planLinkIntent).
    */
   readonly linkId?: string;
+  /**
+   * Interpretation extras of the clarify layer (assumptions, thread, an
+   * applied departure), passed to the planner unchanged.
+   */
+  readonly interpretation?: PlanInterpretation;
 }
 
 export interface CreatedIntent {
@@ -269,6 +275,8 @@ function intentRequestFor(input: unknown, linkId: string | undefined): IntentReq
 /** Plans (and unless `dryRun`, stores) an intent, reporting whether it was an idempotent replay. */
 export async function createIntentDetailed(request: unknown, options: CreateIntentOptions = {}): Promise<CreatedIntent> {
   try {
+    // Before anything is validated, planned, stored or logged: free text with a secret is refused.
+    screenIntentRequest(request);
     const clientReference =
       typeof request === "object" && request !== null && "clientReference" in request &&
         typeof (request as { clientReference: unknown }).clientReference === "string"
@@ -288,7 +296,10 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         request: intentRequestFor(request, options.linkId),
         dryRun: options.dryRun === true,
       });
-      const planned = await planIntentWithPreviews(guard.request, { ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}) });
+      const planned = await planIntentWithPreviews(guard.request, {
+        ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
+        ...(options.interpretation ? { interpretation: options.interpretation } : {}),
+      });
       const previews = planned.previews;
       await options.verifyPlan?.(planned.graph);
       // The planned graph is evaluated in full: deny refuses here; allow and confirm stamp the intent.

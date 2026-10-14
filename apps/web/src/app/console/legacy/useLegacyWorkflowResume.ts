@@ -171,6 +171,7 @@ export function useLegacyWorkflowResume(): void {
           };
         }
         addMessage({
+          threadId: `wf:${plan.workflowId}`,
           id: `${plan.workflowId}:resume:${current.id}`,
           role: "kletia",
           text: body.message || "Workflow checkpoint restored.",
@@ -189,6 +190,7 @@ export function useLegacyWorkflowResume(): void {
         // be prepared and signed again.
         if (!workflowResume.pendingCheckpoint) clearWorkflowResume();
         addMessage({
+          threadId: `wf:${workflowResume.workflowId}`,
           id: `workflow-resume-error:${workflowResume.workflowId}`,
           role: "kletia",
           text: `Workflow could not be restored safely: ${getErrorMessage(error)}`,

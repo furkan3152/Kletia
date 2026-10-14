@@ -1,6 +1,8 @@
 /**
  * GET /v1/errors, the `docs` link on error envelopes, KLETIA_WEB_ORIGIN, and
- * the status badge (SVG and shields.io endpoint) driven by the health probe.
+ * the status badge (SVG and shields.io endpoint) driven by the health probe,
+ * the deployment's build commit in GET /v1/health and the served OpenAPI
+ * document's server list.
  */
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it } from "node:test";
@@ -27,8 +29,15 @@ before(async () => {
   server = await serve((app) => app.use("/v1", createPlatformRouter(), platformErrorHandler));
 });
 
+const BUILD_ENV = ["RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT", "KLETIA_API_ORIGIN"] as const;
+const savedBuildEnv = Object.fromEntries(BUILD_ENV.map((name) => [name, process.env[name]]));
+
 afterEach(() => {
   delete process.env.KLETIA_WEB_ORIGIN;
+  for (const name of BUILD_ENV) {
+    if (savedBuildEnv[name] === undefined) delete process.env[name];
+    else process.env[name] = savedBuildEnv[name];
+  }
 });
 
 after(async () => {
@@ -106,5 +115,54 @@ describe("GET /v1/status/badge", () => {
     assert.match(down.body, />down<\/text>/u);
     configureHealthProbe(probe(() => true));
     assertError(await call(server, "GET", "/status/badge?format=png"), 400, "INVALID_REQUEST");
+  });
+});
+
+describe("GET /v1/health build", () => {
+  type Build = { build: { commit: string | null; source: string | null } };
+  const COMMIT = "6a3bc27f0e1d2c3b4a5968778695a4b3c2d1e0f9";
+
+  it("is null when the deployment does not name its commit", async () => {
+    for (const name of BUILD_ENV) delete process.env[name];
+    const reply = await call<Build>(server, "GET", "/health");
+    assert.equal(reply.status, 200);
+    assert.deepEqual(reply.body.build, { commit: null, source: null });
+  });
+
+  it("reports RENDER_GIT_COMMIT first, then KLETIA_BUILD_COMMIT, and ignores values that are not commit ids", async () => {
+    process.env.KLETIA_BUILD_COMMIT = "abcdef1";
+    assert.deepEqual((await call<Build>(server, "GET", "/health")).body.build, { commit: "abcdef1", source: "env" });
+    process.env.RENDER_GIT_COMMIT = COMMIT.toUpperCase();
+    assert.deepEqual((await call<Build>(server, "GET", "/health")).body.build, { commit: COMMIT, source: "render" });
+    process.env.RENDER_GIT_COMMIT = "<script>alert(1)</script>";
+    process.env.KLETIA_BUILD_COMMIT = "main";
+    assert.deepEqual((await call<Build>(server, "GET", "/health")).body.build, { commit: null, source: null });
+  });
+});
+
+describe("GET /v1/openapi.json servers", () => {
+  type Servers = { servers: { url: string; description: string }[] };
+
+  it("lists production first when KLETIA_API_ORIGIN is unset, production or invalid", async () => {
+    delete process.env.KLETIA_API_ORIGIN;
+    const plain = await call<Servers>(server, "GET", "/openapi.json");
+    assert.equal(plain.body.servers[0]?.url, "https://api.kletiaai.xyz");
+    process.env.KLETIA_API_ORIGIN = "https://api.kletiaai.xyz";
+    assert.equal((await call<Servers>(server, "GET", "/openapi.json")).body.servers[0]?.url, "https://api.kletiaai.xyz");
+    process.env.KLETIA_API_ORIGIN = "http://evil.example";
+    assert.equal((await call<Servers>(server, "GET", "/openapi.json")).body.servers[0]?.url, "https://api.kletiaai.xyz", "plain HTTP is accepted only for localhost");
+    process.env.KLETIA_API_ORIGIN = "https://staging.example/v1?x=1";
+    assert.equal((await call<Servers>(server, "GET", "/openapi.json")).body.servers[0]?.url, "https://api.kletiaai.xyz", "only a bare origin is accepted");
+  });
+
+  it("lists this deployment's origin first when KLETIA_API_ORIGIN names another origin, and keeps the exported document unchanged", async () => {
+    process.env.KLETIA_API_ORIGIN = "https://staging.kletia.example";
+    const reply = await call<Servers>(server, "GET", "/openapi.json");
+    assert.deepEqual(reply.body.servers[0], { url: "https://staging.kletia.example", description: "This deployment" });
+    assert.ok(reply.body.servers.some((entry) => entry.url === "https://api.kletiaai.xyz"), "production stays listed");
+    process.env.KLETIA_API_ORIGIN = "http://localhost:3830";
+    assert.equal((await call<Servers>(server, "GET", "/openapi.json")).body.servers[0]?.url, "http://localhost:3830");
+    const { buildOpenApiDocument } = await import("../openapi.js");
+    assert.equal((buildOpenApiDocument() as unknown as Servers).servers[0]?.url, "https://api.kletiaai.xyz", "the exported document never depends on the environment");
   });
 });

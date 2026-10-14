@@ -6,6 +6,11 @@
  *
  * - Chainlink `latestRoundData()` by read-only `eth_call`: answer > 0 and
  *   `max(0, now - updatedAt) ≤ heartbeat + 300 s`; `decimals()` read on-chain.
+ *   On Arbitrum One, OP Mainnet and Base a reading counts only while the
+ *   network's sequencer uptime feed reports up for more than an hour; an
+ *   unreadable uptime feed drops the reading (fail closed).
+ * - Derived prices (wstETH, rETH, weETH): the product of fresh Chainlink
+ *   factors and, for wstETH, `stEthPerToken()` within sane bounds.
  * - Jupiter Price v3: `usdPrice > 0`, `liquidity ≥ 100,000` and
  *   `currentSlot - blockId ≤ 900`. Without a readable current slot Jupiter
  *   readings are not fresh (freshness cannot be shown).
@@ -28,9 +33,13 @@ import {
   JUPITER_MIN_LIQUIDITY_USD,
   listedAsset,
   priceSourcesFor,
+  SEQUENCER_GRACE_SECONDS,
+  SEQUENCER_UPTIME_FEEDS,
   type ChainlinkFeed,
+  type DerivedFeed,
   type JupiterFeed,
   type PriceSource,
+  type SequencerFeed,
 } from "./feeds.js";
 
 /** Fixed-point scale of every USD price here: USD per whole token × 10^18. */
@@ -44,12 +53,12 @@ const SLOT_TTL_MS = 10_000;
 const DISAGREEMENT_RATIO_BPS = 12_500n;
 
 export interface PriceReading {
-  readonly source: "chainlink" | "jupiter";
-  /** Proxy address or mint. */
+  readonly source: "chainlink" | "jupiter" | "derived";
+  /** Proxy address, mint or derived feed id. */
   readonly id: string;
   /** USD per whole token × 10^18. */
   readonly usd18: bigint;
-  /** Unix seconds of the reading (Chainlink `updatedAt`; Jupiter: read time). */
+  /** Unix seconds of the reading (Chainlink `updatedAt`; derived: the oldest factor's; Jupiter: read time). */
   readonly observedAt: number;
 }
 
@@ -98,6 +107,8 @@ interface CacheEntry<T> {
   readonly expiresAt: number;
 }
 const readings = new Map<string, CacheEntry<PriceReading | null>>();
+const sequencers = new Map<string, CacheEntry<boolean>>();
+const sequencerInflight = new Map<string, Promise<boolean>>();
 const decimals = new Map<string, number>();
 const inflight = new Map<string, Promise<PriceReading | null>>();
 let slot: CacheEntry<bigint | null> | null = null;
@@ -112,6 +123,8 @@ export function configurePolicyPricing(next: Partial<PolicyPricingTransport> | n
 /** Clears cached readings, feed decimals and the slot. */
 export function resetPolicyPricing(): void {
   readings.clear();
+  sequencers.clear();
+  sequencerInflight.clear();
   decimals.clear();
   inflight.clear();
   slot = null;
@@ -139,6 +152,7 @@ const FEED_ABI = parseAbi([
 ]);
 const DECIMALS_CALL = encodeFunctionData({ abi: FEED_ABI, functionName: "decimals" });
 const LATEST_ROUND_CALL = encodeFunctionData({ abi: FEED_ABI, functionName: "latestRoundData" });
+const RATE_ABI = parseAbi(["function stEthPerToken() view returns (uint256)"]);
 
 /** Scales an integer with `from` decimals to PRICE_SCALE, rounding up (conservative). */
 export function toUsd18(value: bigint, from: number): bigint {
@@ -176,7 +190,39 @@ async function feedDecimals(feed: ChainlinkFeed): Promise<number> {
   return value;
 }
 
+/**
+ * True when the sequencer of an L2 has been up for more than
+ * SEQUENCER_GRACE_SECONDS (cached like a reading). False while it is down,
+ * shortly after a restart, or when the uptime feed cannot be read.
+ */
+async function sequencerReady(feed: SequencerFeed): Promise<boolean> {
+  const key = `seq:${feed.network}:${feed.address.toLowerCase()}`;
+  const cached = sequencers.get(key);
+  if (cached && cached.expiresAt > transport.now()) return cached.value;
+  const pending = sequencerInflight.get(key);
+  if (pending) return pending;
+  const request = (async () => {
+    const raw = await withDeadline(transport.ethCall(feed.network, feed.address, LATEST_ROUND_CALL));
+    if (!raw) return false;
+    const [, answer, startedAt] = decodeFunctionResult({ abi: FEED_ABI, functionName: "latestRoundData", data: raw });
+    // A zero startedAt is an uninitialised round (Arbitrum before the first update): not a status.
+    if (answer !== 0n || startedAt === 0n) return false;
+    const nowSeconds = BigInt(Math.floor(transport.now() / 1000));
+    return nowSeconds > startedAt && nowSeconds - startedAt > BigInt(SEQUENCER_GRACE_SECONDS);
+  })()
+    .catch(() => false)
+    .then((value) => {
+      sequencers.set(key, { value, expiresAt: transport.now() + (value ? CACHE_TTL_MS : FAILURE_TTL_MS) });
+      sequencerInflight.delete(key);
+      return value;
+    });
+  sequencerInflight.set(key, request);
+  return request;
+}
+
 async function readChainlink(feed: ChainlinkFeed): Promise<PriceReading | null> {
+  const gate = SEQUENCER_UPTIME_FEEDS[feed.network];
+  if (gate && !(await sequencerReady(gate))) return null;
   const places = await feedDecimals(feed);
   const raw = await withDeadline(transport.ethCall(feed.network, feed.address, LATEST_ROUND_CALL));
   if (!raw) return null;
@@ -217,8 +263,31 @@ async function readJupiter(feed: JupiterFeed): Promise<PriceReading | null> {
   return { source: "jupiter", id: feed.mint, usd18, observedAt: Math.floor(transport.now() / 1000) };
 }
 
+/**
+ * Product of fresh factor readings (each at 18 decimals) and the optional
+ * on-chain rate; null when any factor is stale or the rate is out of bounds.
+ */
+async function readDerived(feed: DerivedFeed): Promise<PriceReading | null> {
+  if (feed.factors.length === 0) return null;
+  const factors = await Promise.all(feed.factors.map((factor) => readPriceSource(factor)));
+  if (factors.some((reading) => reading === null)) return null;
+  const fresh = factors as PriceReading[];
+  let usd18 = fresh[0]!.usd18;
+  for (const reading of fresh.slice(1)) usd18 = (usd18 * reading.usd18 + ONE_USD - 1n) / ONE_USD;
+  if (feed.rate) {
+    const raw = await withDeadline(transport.ethCall(feed.rate.network, feed.rate.address, encodeFunctionData({ abi: RATE_ABI, functionName: feed.rate.functionName })));
+    if (!raw) return null;
+    const rate = decodeFunctionResult({ abi: RATE_ABI, functionName: feed.rate.functionName, data: raw });
+    if (rate < feed.rate.min || rate > feed.rate.max) return null;
+    usd18 = (usd18 * rate + ONE_USD - 1n) / ONE_USD;
+  }
+  if (usd18 <= 0n) return null;
+  return { source: "derived", id: feed.id, usd18, observedAt: Math.min(...fresh.map((reading) => reading.observedAt)) };
+}
+
 function sourceKey(source: PriceSource): string {
-  return source.kind === "chainlink" ? `cl:${source.network}:${source.address.toLowerCase()}` : `jup:${source.mint}`;
+  if (source.kind === "chainlink") return `cl:${source.network}:${source.address.toLowerCase()}`;
+  return source.kind === "derived" ? source.id : `jup:${source.mint}`;
 }
 
 /** One fresh reading of a source (cached 30 s, failures 5 s); null when stale, invalid or unreachable. */
@@ -229,7 +298,7 @@ export async function readPriceSource(source: PriceSource): Promise<PriceReading
   if (cached && cached.expiresAt > now) return cached.value;
   const pending = inflight.get(key);
   if (pending) return pending;
-  const request = (source.kind === "chainlink" ? readChainlink(source) : readJupiter(source))
+  const request = (source.kind === "chainlink" ? readChainlink(source) : source.kind === "derived" ? readDerived(source) : readJupiter(source))
     .catch(() => null)
     .then((value) => {
       readings.set(key, { value, expiresAt: transport.now() + (value === null ? FAILURE_TTL_MS : CACHE_TTL_MS) });

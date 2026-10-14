@@ -333,3 +333,112 @@ describe("custom call: verify", () => {
     assert.equal(directory.anomalies.length, 0);
   });
 });
+
+describe("custom call: rebasing outputs (output.rebasing)", () => {
+  const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const ZERO_TOPIC = `0x${"0".repeat(64)}`;
+  type Log = { address: string; topics: string[]; data: string };
+
+  /** The vault's share mint (Transfer from the zero address). */
+  function isMint(log: Log): boolean {
+    return log.address.toLowerCase() === VAULT.toLowerCase() && log.topics[0]?.toLowerCase() === TRANSFER && log.topics[1] === ZERO_TOPIC;
+  }
+
+  function inflated(log: Log, by: bigint): Log {
+    return isMint(log) ? { ...log, data: `0x${(BigInt(log.data) + by).toString(16).padStart(64, "0")}` } : log;
+  }
+
+  /** Simulations report the share mint `by` base units above the balance change (index rounding of rebasing tokens). */
+  function inflateSimulatedMint(by: bigint): void {
+    const original = harness.router.handlers.get("eth_simulateV1");
+    assert.ok(original);
+    harness.router.handlers.set("eth_simulateV1", (params, url) => {
+      const blocks = original(params, url) as { calls: { logs: Log[] }[] }[];
+      return blocks.map((block) => ({ ...block, calls: block.calls.map((entry) => ({ ...entry, logs: entry.logs.map((log) => inflated(log, by)) })) }));
+    });
+  }
+
+  async function registerRebasing(rebasing: boolean | undefined): Promise<void> {
+    const output = { token: "$self", toleranceBps: 10, ...(rebasing === undefined ? {} : { rebasing }) };
+    await registerVault(vaultDefinitionBody({}, { output }));
+  }
+
+  /** A fresh offline world (no wrapped handlers) with the vault registered with `rebasing`. */
+  async function freshWorld(rebasing: boolean | undefined): Promise<void> {
+    harness.restore();
+    harness = installEvmHarness();
+    directory = installDirectory();
+    configurePlatform({ store: new MemoryIntentStore(), adapters: STUB_ADAPTERS, contracts: directory });
+    fund(harness.world, USDC_BASE, USER, 1_000_000_000n);
+    await registerRebasing(rebasing);
+  }
+
+  it("simulation accepts a 1-2 base-unit Transfer excess only with the flag, takes the balance change, and refuses 3", async () => {
+    for (const by of [1n, 2n]) {
+      await freshWorld(true);
+      inflateSimulatedMint(by);
+      const graph = await plan();
+      const step = graph.steps[0]!;
+      assert.equal(step.call?.rebasingOutput, true, "the flag travels in the step snapshot");
+      assert.equal(step.expectedOutput?.amount, (100_000_000n * SHARES_PER_USDC).toString(), "the balance change is the output");
+      assert.ok(step.call?.review.simulation.warnings.some((warning) => /Rebasing token/u.test(warning)));
+      const prepared = await prepareStep(graph.id, "s1");
+      assert.equal(prepared.payload.transactions?.length, 2, `prepare also accepts ${by}`);
+    }
+    await freshWorld(true);
+    inflateSimulatedMint(3n);
+    await assert.rejects(plan(), (error: unknown) => rejects("SIMULATION_ASSET_CHANGE_REFUSED")(error) && /at most 2 base units/u.test((error as Error).message));
+  });
+
+  it("simulation also accepts the balance moving 1-2 base units more than the Transfer logs, counting the logs", async () => {
+    for (const by of [-1n, -2n]) {
+      await freshWorld(true);
+      inflateSimulatedMint(by);
+      const graph = await plan();
+      assert.equal(graph.steps[0]!.expectedOutput?.amount, (100_000_000n * SHARES_PER_USDC + by).toString(), "the smaller amount counts");
+    }
+    await freshWorld(true);
+    inflateSimulatedMint(-3n);
+    await assert.rejects(plan(), rejects("SIMULATION_ASSET_CHANGE_REFUSED"));
+    await freshWorld(undefined);
+    inflateSimulatedMint(-1n);
+    await assert.rejects(plan(), rejects("SIMULATION_ASSET_CHANGE_REFUSED"));
+  });
+
+  it("stays strict without the flag (absent or false)", async () => {
+    for (const flag of [undefined, false]) {
+      await freshWorld(flag);
+      const graph = await plan();
+      assert.equal(graph.steps[0]!.call?.rebasingOutput, undefined);
+      await freshWorld(flag);
+      inflateSimulatedMint(1n);
+      await assert.rejects(plan(), (error: unknown) => rejects("SIMULATION_ASSET_CHANGE_REFUSED")(error) && /declare output\.rebasing/u.test((error as Error).message));
+    }
+  });
+
+  async function landedWith(rebasing: boolean | undefined, by: bigint) {
+    await registerRebasing(rebasing);
+    const graph = await plan();
+    const result = await prepareStep(graph.id, "s1");
+    const transactions = result.payload.transactions as EvmTransactionRequest[];
+    const hashes = harness.land(transactions, { logs: (index, logs) => (index === 1 ? logs.map((log) => inflated(log as Log, by)) : logs) });
+    return (await submitStep(graph.id, "s1", hashes)).steps[0]!;
+  }
+
+  it("landing accepts a 1-2 base-unit difference between the event and the transfers only with the flag", async () => {
+    for (const by of [1n, 2n]) {
+      const step = await landedWith(true, by);
+      assert.equal(step.status, "settled", JSON.stringify(step.failure));
+      assert.equal(step.actualOutput?.amount, (100_000_000n * SHARES_PER_USDC).toString(), "the smaller amount counts");
+    }
+  });
+
+  it("landing refuses 3 base units with the flag, and any difference without it", async () => {
+    const three = await landedWith(true, 3n);
+    assert.equal(three.failure?.code, "OUTCOME_NOT_PROVEN");
+    assert.match(three.failure?.message ?? "", /different output/u);
+    const strict = await landedWith(undefined, 1n);
+    assert.equal(strict.failure?.code, "OUTCOME_NOT_PROVEN");
+    assert.match(strict.failure?.message ?? "", /different output/u);
+  });
+});

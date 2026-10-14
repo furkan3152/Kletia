@@ -12,6 +12,7 @@ import {
   CONTRACT_EVENT_TYPES,
   CONTRACT_ID_PATTERN,
   CONTRACT_LIMITS,
+  REBASING_TOLERANCE_UNITS,
   CONTRACT_PARAM_NAME_PATTERN,
   CONTRACT_REFERENCE_PATTERN,
   CONTRACT_REVIEW_NOTICE,
@@ -161,7 +162,17 @@ function contractSchemas(): JsonObject {
           ["token"],
         ),
         value: obj({ bind: str({ description: "`$amount` (native input) or a wei literal." }), max: str({ pattern: WEI, description: "Wei cap." }) }, ["bind", "max"]),
-        output: obj({ token: str({ description: "`$self`, an `addresses` label or an ERC-20 address." }), toleranceBps: int({ minimum: 0, maximum: CONTRACT_LIMITS.maxToleranceBps, default: CONTRACT_LIMITS.defaultToleranceBps }) }, ["token"]),
+        output: obj(
+          {
+            token: str({ description: "`$self`, an `addresses` label or an ERC-20 address." }),
+            toleranceBps: int({ minimum: 0, maximum: CONTRACT_LIMITS.maxToleranceBps, default: CONTRACT_LIMITS.defaultToleranceBps }),
+            rebasing: bool({
+              default: false,
+              description: `The output token's balance is index-scaled (Aave aTokens and similar): simulation and landing accept a Transfer-log amount up to ${REBASING_TOLERANCE_UNITS} base units away from the balance change (or the declared event), either way, and count the smaller amount. Part of definitionHash (a change is a new revision). Without it, amounts must match exactly.`,
+            }),
+          },
+          ["token"],
+        ),
         events: arrayOf(ref("EventBinding"), { minItems: 1, maxItems: CONTRACT_LIMITS.eventsPerAction }),
         params: arrayOf(ref("ActionParam"), { maxItems: CONTRACT_LIMITS.paramsPerAction }),
         recipient: str({ enum: ["account", "any"], default: "account" }),
@@ -534,6 +545,20 @@ function contractSchemas(): JsonObject {
         verification: obj({ source: ref("SourceVerification"), implementationSource: { oneOf: [ref("SourceVerification"), { type: "null" }] } }, ["source", "implementationSource"]),
         abi: { type: ["array", "null"], items: ref("AbiItem"), description: "From Sourcify when verified (the implementation's for a proxy)." },
         functions: arrayOf(ref("AbiFunctionClassification")),
+        hints: obj(
+          {
+            erc4626: obj(
+              {
+                asset: str({ pattern: EVM_ADDRESS, description: "The vault's `asset()`, read with one eth_call." }),
+                registrySymbol: { type: ["string", "null"], description: "Registry symbol of the asset on this network, null when Kletia does not list it." },
+              },
+              ["asset", "registrySymbol"],
+              { description: "The verified ABI has `asset()`, `deposit(uint256,address)` and the ERC-4626 `Deposit` event. `kletia contracts init` and the portal wizard prefill the input, exact approval, output and event from it." },
+            ),
+          },
+          [],
+          { description: "Registration hints derived from the verified ABI; absent when none applies." },
+        ),
       },
       ["vm", "network", "address", "deployed", "codeSize", "eip7702", "denied", "pins", "verification", "abi", "functions"],
     ),
@@ -612,6 +637,17 @@ function contractSchemas(): JsonObject {
         maxIntents: int({ minimum: 1 }),
         used: int({ minimum: 0 }),
         embedUrl: str({ format: "uri", description: "Creation response only: the embed page with the id in the URL fragment." }),
+        warnings: arrayOf(
+          obj(
+            {
+              code: str({ const: "CONTRACT_PENDING" }),
+              contract: str({ pattern: CONTRACT_ID_PATTERN.source }),
+              activatesAt: str({ format: "date-time" }),
+            },
+            ["code", "contract", "activatesAt"],
+          ),
+          { description: "A registration of the template is still pending (mainnet activation delay): intents of the session are refused with 409 CONTRACT_PENDING until `activatesAt`. Absent when nothing applies." },
+        ),
       },
       ["id", "status", "expiresAt", "createdAt", "integrator", "allowedOrigins", "actions", "maxIntents", "used"],
       { description: "Never carries the API key or the project." },
@@ -665,6 +701,12 @@ function schemas(): JsonObject {
             issues: arrayOf(obj({ path: str(), message: str() }, ["path", "message"])),
             hints: arrayOf(str(), { description: "Optional guidance, e.g. example phrases on INTENT_UNSUPPORTED." }),
             docs: str({ format: "uri", description: "Documentation of the code: `https://kletiaai.xyz/developers#error-<CODE>`." }),
+            details: {
+              type: "object",
+              additionalProperties: true,
+              description:
+                "Structured context of some codes (a JSON object of at most 4 KB), e.g. `SOURCE_REQUIRED` `{ asset, amount, toNetwork, candidates: [{ network, balance, enough }] }`, `SOURCE_UNREACHABLE` `{ sourceNetwork, actionNetwork, asset, kind }`, `SESSION_EXPIRES_BEFORE_ACTIVATION` `{ contract, activatesAt, expiresAt, minimumExpiresInSeconds }`. Clients must tolerate unknown keys.",
+            },
             policy: { ...ref("PolicyErrorDetails"), description: "Rule Book refusals: every violated rule, the refusing key, when to retry and the approval to share." },
           },
           ["code", "message"],
@@ -738,6 +780,11 @@ function schemas(): JsonObject {
           actions: arrayOf(ref("IntentActionSpec"), { minItems: 1, maxItems: 8 }),
           accounts: arrayOf(ref("AccountId"), { minItems: 1, maxItems: 6 }),
           defaultNetwork: ref("NetworkKey"),
+          sourceNetwork: {
+            oneOf: [ref("NetworkKey"), str({ const: "auto" })],
+            description:
+              "Where the money starts. A network key: the first action spends funds there, and when it runs on another network the planner adds a bridge from this one first (a transfer elsewhere, an input the network does not have, or another capital lane is 422 SOURCE_UNREACHABLE). `auto`: the planner picks a network whose accounts hold enough of the first action's input (422 SOURCE_REQUIRED with `details.candidates` when a bridge has no source and nobody holds enough). A sentence that names the network wins. A network key also serves as `defaultNetwork` when that is absent. Absent: unchanged behaviour. See `interpretation.departure`.",
+          },
           constraints: ref("IntentConstraints"),
           metadata: { type: "object", maxProperties: 20, propertyNames: { maxLength: 40 }, additionalProperties: str({ maxLength: 500 }) },
           clientReference: str({ pattern: "^[A-Za-z0-9_.:-]{1,80}$", description: "Idempotency key (honoured for callers with an API key)." }),
@@ -861,6 +908,16 @@ function schemas(): JsonObject {
             normalizedText: str(),
             confidence: num({ minimum: 0, maximum: 1 }),
             optimizations: arrayOf(str()),
+            departure: obj(
+              {
+                network: ref("NetworkKey"),
+                chosen: str({ enum: ["text", "request", "auto", "inferred"], description: "`text`: the sentence named it; `request`: sourceNetwork; `auto`: chosen by balance; `inferred`: no hint was given." }),
+                bridged: bool({ description: "True when the planner added a bridge from `network` in front of the first action." }),
+                reason: str({ maxLength: 160, description: "One sentence, e.g. \"Base holds 120.40 USDC; Solana 2.00\"." }),
+              },
+              ["network", "chosen"],
+              { description: "Where the money starts. Present when the request set `sourceNetwork` (or a clarify answer chose a departure); absent on older deployments." },
+            ),
           },
           ["source", "confidence"],
         ),
@@ -1194,6 +1251,13 @@ function schemas(): JsonObject {
         status: str({ enum: ["ok", "degraded", "down"] }),
         api: str({ const: "v1" }),
         version: str(),
+        build: obj(
+          {
+            commit: { type: ["string", "null"], pattern: "^[0-9a-f]{7,64}$", description: "Git commit this deployment runs (RENDER_GIT_COMMIT on Render, otherwise KLETIA_BUILD_COMMIT); null when unknown." },
+            source: { type: ["string", "null"], enum: ["render", "env", null], description: "Where the commit came from." },
+          },
+          ["commit", "source"],
+        ),
         time: str({ format: "date-time" }),
         uptimeSeconds: int({ minimum: 0 }),
         networks: arrayOf(
@@ -1276,7 +1340,7 @@ function schemas(): JsonObject {
         ),
         preview: obj({ store: str({ enum: ["memory", "postgres", "custom"] }) }, ["store"]),
       },
-      ["status", "api", "version", "time", "uptimeSeconds", "networks", "storage", "policies", "links", "webhooks", "contracts", "receipts", "preview"],
+      ["status", "api", "version", "build", "time", "uptimeSeconds", "networks", "storage", "policies", "links", "webhooks", "contracts", "receipts", "preview"],
     ),
 
     Webhook: obj(
@@ -1302,7 +1366,13 @@ function schemas(): JsonObject {
       },
       ["url"],
     ),
-    ApiKeyCreateRequest: obj({ name: str({ minLength: 1, maxLength: 64 }) }, ["name"]),
+    ApiKeyCreateRequest: obj(
+      {
+        name: str({ minLength: 1, maxLength: 64 }),
+        sandbox: bool({ default: false, description: "Issue a sandbox key: a key-level rule book `{ networks: { lanes: [\"testnet\"] } }` is written with it, so it plans on Arbitrum Sepolia, Arc Testnet and Solana Devnet only (403 POLICY_VIOLATION networks.lanes elsewhere)." }),
+      },
+      ["name"],
+    ),
     ApiKey: obj(
       {
         id: str({ pattern: API_KEY_ID_PATTERN.source }),
@@ -1310,6 +1380,7 @@ function schemas(): JsonObject {
         tier: str({ enum: ["developer", "operator"] }),
         createdAt: str({ format: "date-time" }),
         key: str({ pattern: "^kl_dev_[0-9A-Za-z]{32}$", description: "The raw key. Shown once; only its SHA-256 hash is stored." }),
+        lane: { ...ref("KeyLane"), description: "Issuance response: the lanes the key's rule books allow (`testnet` for a sandbox key)." },
       },
       ["id", "name", "tier", "createdAt", "key"],
     ),
@@ -1344,6 +1415,7 @@ function schemas(): JsonObject {
         expiresAt: { type: ["string", "null"], format: "date-time", description: "When the key stops authenticating (always set on agent keys)." },
         policyVersion: { type: ["integer", "null"], description: "Active rule book version (null: none; an agent key without one is an observer)." },
         descendants: int({ minimum: 0, description: "Active agent keys below this key." }),
+        lane: ref("KeyLane"),
         last4: { type: ["string", "null"], description: "Last four characters of the current secret (null for keys issued before they were recorded)." },
         createdAt: str({ format: "date-time" }),
         lastUsedAt: { type: ["string", "null"], format: "date-time", description: "Updated at most once a minute." },
@@ -1352,8 +1424,12 @@ function schemas(): JsonObject {
         revokedAt: { type: ["string", "null"], format: "date-time" },
         current: bool({ description: "The key that made this request." }),
       },
-      ["id", "name", "tier", "kind", "parentId", "depth", "last4", "createdAt", "lastUsedAt", "rotatedAt", "previousExpiresAt", "revokedAt", "expiresAt", "policyVersion", "descendants", "current"],
+      ["id", "name", "tier", "kind", "parentId", "depth", "last4", "createdAt", "lastUsedAt", "rotatedAt", "previousExpiresAt", "revokedAt", "expiresAt", "policyVersion", "descendants", "lane", "current"],
     ),
+    KeyLane: str({
+      enum: ["testnet", "production", "any"],
+      description: "Lanes the key's active rule book chain (project, ancestors, the key) allows through `networks.lanes` and `networks.allow`: `testnet` (a sandbox key), `production`, or `any`.",
+    }),
     WebhookDelivery: obj(
       {
         id: str({ pattern: "^whd_[0-9a-f]{24}$" }),
@@ -1873,7 +1949,7 @@ function paths(): JsonObject {
         operationId: "createApiKey",
         tags: ["Keys"],
         summary: "Issue a developer key",
-        description: `The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most ${MAX_ACTIVE_KEYS_PER_PROJECT} active keys, else 409 KEY_LIMIT_REACHED). Limited to ${KEY_ISSUANCE_LIMIT_PER_HOUR} keys per hour per IP.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest.`,
+        description: `The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most ${MAX_ACTIVE_KEYS_PER_PROJECT} active keys, else 409 KEY_LIMIT_REACHED). Limited to ${KEY_ISSUANCE_LIMIT_PER_HOUR} keys per hour per IP; a request refused with a 4xx (an invalid body, a key limit) does not count. \`sandbox: true\` issues a key kept on the testnet lane by its own rule book. Body: \`{ "name": "acme-dev", "sandbox": true }\`.${IDEMPOTENCY_NOTE} The stored response is encrypted at rest.`,
         parameters: [idempotencyKeyParam],
         requestBody: jsonBody("ApiKeyCreateRequest"),
         responses: { "201": ok("ApiKeyResponse", "The new key.", REPLAYED_HEADER), ...errors("403", "409", "413", "415", "422") },
@@ -1958,7 +2034,7 @@ function paths(): JsonObject {
         operationId: "inspectContract",
         tags: ["Contracts"],
         summary: "What registering an address or programs would pin and allow",
-        description: `EVM (\`network\` + \`address\`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, and every function marked allowed or forbidden with the reason. Solana (\`network\` + \`programs\`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares ${CONTRACT_TESTS_PER_MINUTE} calls per minute per key with the test endpoint.`,
+        description: `EVM (\`network\` + \`address\`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, every function marked allowed or forbidden with the reason, and \`hints.erc4626\` (\`asset()\` read once, with its registry symbol) when the ABI is an ERC-4626 vault. Solana (\`network\` + \`programs\`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares ${CONTRACT_TESTS_PER_MINUTE} calls per minute per key with the test endpoint.`,
         security: KEY_REQUIRED,
         parameters: [
           { name: "network", in: "query", required: true, schema: str({ maxLength: 128 }) },
@@ -2038,7 +2114,7 @@ function paths(): JsonObject {
         operationId: "createSession",
         tags: ["Sessions"],
         summary: "Create a session the embed turns into an intent for a visitor",
-        description: `A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's \`embedUrl\` carries the id in the URL fragment. At most ${CONTRACT_LIMITS.activeSessionsPerKey} active sessions per key (429 RATE_LIMITED beyond).${IDEMPOTENCY_NOTE}`,
+        description: `A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's \`embedUrl\` carries the id in the URL fragment. At most ${CONTRACT_LIMITS.activeSessionsPerKey} active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds \`warnings: [{ code: "CONTRACT_PENDING", contract, activatesAt }]\`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (\`details.minimumExpiresInSeconds\`).${IDEMPOTENCY_NOTE}`,
         security: KEY_REQUIRED,
         parameters: [idempotencyKeyParam],
         requestBody: jsonBody("SessionCreateRequest"),
@@ -2050,7 +2126,7 @@ function paths(): JsonObject {
         operationId: "getSession",
         tags: ["Sessions"],
         summary: "Session view for the embed (public; the id is the capability)",
-        description: "Integrator identity, allowed origins, action labels, amount bounds, status and expiry. Never the key or the project.",
+        description: "Integrator identity, allowed origins, action labels, amount bounds, status and expiry, and `warnings` while a registration of the template is still pending. Never the key or the project.",
         parameters: [sessionIdParam],
         responses: { "200": ok("SessionResponse", "The session."), ...errors("404") },
       },
@@ -2164,12 +2240,12 @@ export function buildOpenApiDocument(): JsonObject {
       summary: "Non-custodial, chain-agnostic intents for EVM networks and Solana.",
       description:
         "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\n" +
-        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"?, "docs"? }, "requestId" }\` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept \`Idempotency-Key\`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (\`kl_agt_\`) are bound by their rule book chain.`,
+        `Tiers: public ${TIER_LIMITS.public}/min per IP, developer ${TIER_LIMITS.developer}/min per key, operator ${TIER_LIMITS.operator}/min per key. Errors are \`{ "error": { "code", "message", "issues"?, "hints"?, "details"?, "docs"? }, "requestId" }\` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept \`Idempotency-Key\`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (\`kl_agt_\`) are bound by their rule book chain. Developer and agent keys are server keys: sent from a browser on another origin they get 403 SECRET_KEY_FROM_BROWSER.`,
       license: { name: "MIT", identifier: "MIT" },
       contact: { name: "Kletia", url: "https://kletiaai.xyz" },
     },
     servers: [
-      { url: "https://api.kletiaai.xyz", description: "Production" },
+      { url: PRODUCTION_SERVER, description: "Production" },
       { url: "http://localhost:3001", description: "Local development" },
     ],
     security: [{}, { bearerAuth: [] }, { apiKeyHeader: [] }],
@@ -2304,13 +2380,13 @@ export function buildOpenApiDocument(): JsonObject {
       responses: {
         BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
-        Forbidden: errorResponse("Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
+        Forbidden: errorResponse("Not allowed (SECRET_KEY_FROM_BROWSER for a kl_dev_ or kl_agt_ key sent with a foreign Origin, KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
         NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, NOT_FOUND)."),
         Conflict: errorResponse("State conflict (STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN, POLICY_APPROVAL_EXPIRED, LINK_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),
         UnsupportedMediaType: errorResponse("Request body is not application/json."),
-        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
+        Unprocessable: errorResponse(`Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, ${[...REJECTION_CODES].join(", ")}, ...).`),
         TooManyRequests: {
           ...errorResponse("Rate limit exceeded (RATE_LIMITED, also for too many unrecognised API keys from one IP; TOO_MANY_STREAMS)."),
           headers: { "X-Request-Id": REQUEST_ID_HEADER, "Retry-After": { $ref: "#/components/headers/Retry-After" } },
@@ -2331,4 +2407,43 @@ let serialized: string | null = null;
 export function openApiJson(): string {
   serialized ??= JSON.stringify(buildOpenApiDocument());
   return serialized;
+}
+
+const PRODUCTION_SERVER = "https://api.kletiaai.xyz";
+/** KLETIA_API_ORIGIN as a bare origin (HTTPS, or localhost HTTP outside production); null when unset or invalid. */
+function deploymentOrigin(): string | null {
+  const raw = process.env.KLETIA_API_ORIGIN?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    const scheme = url.protocol === "https:" || (url.protocol === "http:" && local && process.env.NODE_ENV !== "production");
+    return scheme && url.pathname === "/" && !url.search && !url.hash && !url.username && !url.password ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+let served: { readonly origin: string | null; readonly json: string } | null = null;
+
+/**
+ * The document GET /v1/openapi.json serves: the exported document, plus this
+ * deployment's own origin as the first server when KLETIA_API_ORIGIN names one
+ * other than production (validated like the blink hrefs: HTTPS, or localhost
+ * HTTP outside production). Generated clients then default to the deployment
+ * that served them. The exported file (docs/platform/openapi.json) never
+ * changes with the environment.
+ */
+export function servedOpenApiJson(): string {
+  const origin = deploymentOrigin();
+  const own = origin === PRODUCTION_SERVER ? null : origin;
+  if (served?.origin === own) return served.json;
+  let json = openApiJson();
+  if (own) {
+    const document = JSON.parse(json) as { servers: { url: string; description: string }[] };
+    document.servers = [{ url: own, description: "This deployment" }, ...document.servers.filter((server) => server.url !== own)];
+    json = JSON.stringify(document);
+  }
+  served = { origin: own, json };
+  return json;
 }

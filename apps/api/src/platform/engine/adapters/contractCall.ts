@@ -26,6 +26,7 @@ import { decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, type Hex 
 import {
   CHAINS,
   CONTRACT_LIMITS,
+  REBASING_TOLERANCE_UNITS,
   eventTopic,
   abiItemSignature,
   fromBaseUnits,
@@ -189,6 +190,7 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
   if (amount !== null && amount <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `${label} would spend nothing.`, 422);
   const inputToken = input && !input.isNative && input.address ? getAddress(input.address) : null;
   const outputToken = output?.address ? getAddress(output.address) : null;
+  const rebasing = rebasingOutput(call);
   const value = callValue(snapshot.value, amount);
   const expiresAt = options.expiresAt ?? Math.floor(options.now / 1000) + PLAN_PAYLOAD_TTL_SECONDS;
   const declarations = call.registration?.definition.actions.find((entry) => entry.id === snapshot.entry)?.params ?? [];
@@ -324,7 +326,11 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
       if (before === null || after === null) throw refused("The declared output token's balance could not be read.");
       credit = after - before;
       if (credit <= 0n) throw refused(`The declared output ${output?.symbol ?? outputToken} is not credited to ${thirdParty ? "the recipient" : "the account"}.`);
-      if (logged !== credit) throw refused(`The output token reports ${logged} in Transfer events but the balance moved ${credit}; verification could not prove it.`);
+      if (!outputMatches(logged, credit, rebasing)) {
+        throw refused(`The output token reports ${logged} in Transfer events but the balance moved ${credit}; verification could not prove it.${rebasing ? ` A rebasing output may differ by at most ${REBASING_TOLERANCE_UNITS} base units.` : " If the output is a rebasing token, declare output.rebasing."}`);
+      }
+      // A rebasing output counts the smaller of the two amounts (the floor is derived from it).
+      if (logged < credit) credit = logged;
     }
     return { credit, flows, block: current.result.block };
   };
@@ -380,7 +386,10 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
     warnings.push(`Uses the existing ${input.symbol} allowance of exactly ${fromBaseUnits(existing, input.decimals)} for ${short(spender)}.`);
   }
   const at = new Date(options.now).toISOString();
-  const simulationWarnings = evaluated ? [] : [simulationNote ?? "Simulation was unavailable at planning."];
+  const simulationWarnings = [
+    ...(evaluated ? [] : [simulationNote ?? "Simulation was unavailable at planning."]),
+    ...(rebasing && outputToken ? [`Rebasing token: balance changes may differ by ${REBASING_TOLERANCE_UNITS} base units.`] : []),
+  ];
   const review = evmCallReview({
     snapshot,
     ...(call.registration ? { registration: call.registration } : {}),
@@ -416,9 +425,35 @@ async function runEvmCall(action: AdapterAction, options: { readonly now: number
     ...(feesUsd !== undefined ? { feesUsd } : {}),
     gas,
     review,
-    call: { ...rest, review },
+    call: { ...rest, review, ...(rebasing ? { rebasingOutput: true } : {}) },
     warnings,
   };
+}
+
+/**
+ * Whether the step's output is a rebasing token (`output.rebasing` of the
+ * entry): from the step's own snapshot (prepare, verify), or from the
+ * registration when it is exactly the revision the snapshot was taken from
+ * (plan, test). Anything else is strict.
+ */
+function rebasingOutput(call: Pick<ContractCallContext, "snapshot" | "registration">): boolean {
+  if (call.snapshot.rebasingOutput === true) return true;
+  const registration = call.registration;
+  if (!registration || registration.definitionHash !== call.snapshot.definitionHash || registration.definition.vm !== "evm") return false;
+  const entry = registration.definition.actions.find((candidate) => candidate.id === call.snapshot.entry);
+  return Boolean(entry && "output" in entry && (entry.output as { rebasing?: unknown } | undefined)?.rebasing === true);
+}
+
+/**
+ * The Transfer-log amount against the balance delta: equal, or for a
+ * rebasing output within REBASING_TOLERANCE_UNITS either way (index rounding
+ * of aToken-style balances goes in both directions: live Aave V3 on Arbitrum
+ * Sepolia showed both 25000000 logged / 24999999 moved and 25000000 logged /
+ * 25000001 moved). The caller counts the smaller amount.
+ */
+export function outputMatches(logged: bigint, delta: bigint, rebasing: boolean): boolean {
+  if (logged === delta) return true;
+  return rebasing && absDiff(logged, delta) <= REBASING_TOLERANCE_UNITS;
 }
 
 function stripUndefined<T extends object>(value: T): T {
@@ -532,13 +567,17 @@ async function verifyCall(context: Parameters<ContractProtocolAdapter["verify"]>
     if (refusal) return { failure: { code: "OUTCOME_NOT_PROVEN", message: refusal } };
     // 3. Declared output.
     if (outputToken && step.minimumOutput) {
-      const credit = creditsTo(logs, outputToken, recipient);
+      const logged = creditsTo(logs, outputToken, recipient);
+      // A rebasing output: the event and the Transfer logs may differ by index rounding (at most
+      // REBASING_TOLERANCE_UNITS); the smaller of the two counts, and the floor applies to it.
+      const rebasing = snapshot.rebasingOutput === true;
+      if (eventOutput !== null && eventOutput !== logged && !(rebasing && absDiff(eventOutput, logged) <= REBASING_TOLERANCE_UNITS)) {
+        return { failure: { code: "OUTCOME_NOT_PROVEN", message: "The declared event reports a different output than the token transfers." } };
+      }
+      const credit = rebasing && eventOutput !== null && eventOutput < logged ? eventOutput : logged;
       const floor = lowestPreparedFloor(step) ?? 1n;
       if (credit <= 0n || credit < floor) {
         return { failure: { code: "OUTCOME_NOT_PROVEN", message: `The call credited ${fromBaseUnits(credit, step.minimumOutput.decimals)} ${step.minimumOutput.symbol}, below the guaranteed ${fromBaseUnits(floor, step.minimumOutput.decimals)}.` } };
-      }
-      if (eventOutput !== null && eventOutput !== credit) {
-        return { failure: { code: "OUTCOME_NOT_PROVEN", message: "The declared event reports a different output than the token transfers." } };
       }
       observed.output = { asset: step.minimumOutput.asset, symbol: step.minimumOutput.symbol, decimals: step.minimumOutput.decimals, amount: credit.toString(), formatted: fromBaseUnits(credit, step.minimumOutput.decimals) };
     }
@@ -559,6 +598,10 @@ async function verifyCall(context: Parameters<ContractProtocolAdapter["verify"]>
   });
   if (result.status === "confirmed" && observed.output) return { ...result, actualOutput: observed.output };
   return result;
+}
+
+function absDiff(a: bigint, b: bigint): bigint {
+  return a > b ? a - b : b - a;
 }
 
 /* ---------------------------------------------------------------- adapter */

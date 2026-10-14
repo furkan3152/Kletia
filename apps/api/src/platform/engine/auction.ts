@@ -1,11 +1,14 @@
 /**
- * Multi-venue auction for cross-network steps. Every candidate venue plans
- * the same action in parallel (each with its own timeout); quotes are ranked
- * by net guaranteed output:
+ * Multi-venue auction for cross-network steps and same-network swaps with
+ * several candidate venues. Every candidate venue plans the same action in
+ * parallel (each with its own timeout); quotes are ranked by net guaranteed
+ * output:
  *
  *   net = minimumOutput - extraCosts (converted into output units)
  *
- * then by fewer estimated seconds, then by fewer wallet transactions, then by
+ * then by fewer estimated seconds, then by fewer wallet transactions, then
+ * by how the floor is enforced (`floor: "onchain"`, checked by the venue's
+ * own contracts, before `claimed`, a provider's promise), then by
  * preference order. A venue is not eligible when its quote is slower than
  * `maxSeconds`, delivers another asset than the route's output, or carries
  * extra costs that cannot be priced (never guessed). Preferred protocols
@@ -125,9 +128,15 @@ function preferenceIndex(prefer: readonly ProtocolId[], protocol: ProtocolId): n
   return index === -1 ? prefer.length : index;
 }
 
+/** 0 for a floor the venue's contracts enforce, 1 for a claimed or unstated one. */
+function floorRank(quote: VenueQuote): number {
+  return quote.planned.floor === "onchain" ? 0 : 1;
+}
+
 /**
  * Orders quotes best first: eligible before excluded, preferred tier first,
- * then net guaranteed output, seconds, transactions and candidate order.
+ * then net guaranteed output, seconds, transactions, on-chain floors before
+ * claimed ones, and candidate order.
  */
 export function compareQuotes(a: VenueQuote, b: VenueQuote, prefer: readonly ProtocolId[], order: readonly ProtocolAdapter[]): number {
   const eligible = Number(a.excluded !== undefined) - Number(b.excluded !== undefined);
@@ -139,6 +148,7 @@ export function compareQuotes(a: VenueQuote, b: VenueQuote, prefer: readonly Pro
   if (netA !== netB) return netA > netB ? -1 : 1;
   if (a.planned.estimatedSeconds !== b.planned.estimatedSeconds) return a.planned.estimatedSeconds - b.planned.estimatedSeconds;
   if (a.planned.transactionCount !== b.planned.transactionCount) return a.planned.transactionCount - b.planned.transactionCount;
+  if (floorRank(a) !== floorRank(b)) return floorRank(a) - floorRank(b);
   return order.indexOf(a.adapter) - order.indexOf(b.adapter);
 }
 

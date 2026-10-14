@@ -97,6 +97,7 @@ describe("POST /v1/sessions", () => {
     assert.equal(session.used, 0);
     assert.deepEqual(session.integrator, { name: "acme.example", domainVerified: false }, "without a contract step the identity is the first origin");
     assert.match(session.actions[0]?.label ?? "", /swap 1 SOL to USDC/u);
+    assert.equal(session.warnings, undefined, "warnings only for pending registrations");
     const text = JSON.stringify(reply.body);
     assert.ok(!text.includes(owner.id), "never the key id");
   });

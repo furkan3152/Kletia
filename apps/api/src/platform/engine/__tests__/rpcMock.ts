@@ -3,8 +3,15 @@
  * (viem), Solana JSON-RPC (@solana/kit) and the Relay HTTP API. Tests
  * register canned chain state; any request the mock does not know fails the
  * test loudly instead of reaching the network.
+ *
+ * Also the oracle seam of the swap price guards (`installSwapOracle`):
+ * Chainlink answers by feed, every L2 sequencer up, and wstETH's
+ * stEthPerToken(), served through the policy pricing transport (never fetch).
  */
+import { encodeFunctionResult, parseAbi, type Hex } from "viem";
 import type { IntentStep } from "@kletia/core";
+import { SEQUENCER_UPTIME_FEEDS, WSTETH_ETHEREUM, type ChainlinkFeed } from "../policy/feeds.js";
+import { configurePolicyPricing } from "../policy/pricing.js";
 
 export interface EvmTxFixture {
   readonly hash: string;
@@ -314,4 +321,67 @@ export function preparedStep(overrides: Partial<IntentStep> & Pick<IntentStep, "
     evidence: [],
     ...overrides,
   };
+}
+
+/* ------------------------------------------------------------ swap oracle */
+
+const ORACLE_ABI = parseAbi([
+  "function decimals() view returns (uint8)",
+  "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+  "function stEthPerToken() view returns (uint256)",
+]);
+
+export interface SwapOracle {
+  /** USD (or ETH ratio) answer per feed, keyed `${network}:${address lowercase}`; delete a key to make the feed unreadable. */
+  readonly answers: Map<string, number>;
+  /** wstETH.stEthPerToken() (18 decimals). */
+  stEthPerToken: bigint;
+  /** Unix ms of the pricer's clock. */
+  now: number;
+  set(feed: ChainlinkFeed, value: number): void;
+  restore(): void;
+}
+
+/**
+ * Prices the swap guard reads: each listed Chainlink feed answers `value`
+ * (8 decimals, fresh), every L2 sequencer reports up for two hours, Jupiter
+ * and the Solana slot are unavailable. Restored with `restore()`.
+ */
+export function installSwapOracle(feeds: readonly (readonly [ChainlinkFeed, number])[] = []): SwapOracle {
+  const key = (feed: { readonly network: string; readonly address: string }) => `${feed.network}:${feed.address.toLowerCase()}`;
+  const oracle: SwapOracle = {
+    answers: new Map(feeds.map(([feed, value]) => [key(feed), value])),
+    stEthPerToken: 1_200_000_000_000_000_000n,
+    now: Date.now(),
+    set(feed, value) {
+      oracle.answers.set(key(feed), value);
+    },
+    restore() {
+      configurePolicyPricing(null);
+    },
+  };
+  const sequencers = new Set(Object.values(SEQUENCER_UPTIME_FEEDS).map((feed) => key(feed)));
+  configurePolicyPricing({
+    ethCall: async (network, to, data) => {
+      const id = `${network}:${to.toLowerCase()}`;
+      const seconds = BigInt(Math.floor(oracle.now / 1000));
+      if (id === `ethereum:${WSTETH_ETHEREUM.toLowerCase()}`) {
+        return encodeFunctionResult({ abi: ORACLE_ABI, functionName: "stEthPerToken", result: oracle.stEthPerToken }) as Hex;
+      }
+      if (sequencers.has(id)) {
+        return encodeFunctionResult({ abi: ORACLE_ABI, functionName: "latestRoundData", result: [1n, 0n, seconds - 7_200n, seconds - 7_200n, 1n] }) as Hex;
+      }
+      const value = oracle.answers.get(id);
+      if (value === undefined) return null;
+      if (data.startsWith("0x313ce567")) return encodeFunctionResult({ abi: ORACLE_ABI, functionName: "decimals", result: 8 }) as Hex;
+      const answer = BigInt(Math.round(value * 1e8));
+      return encodeFunctionResult({ abi: ORACLE_ABI, functionName: "latestRoundData", result: [1n, answer, seconds - 30n, seconds - 30n, 1n] }) as Hex;
+    },
+    jupiterPrices: async () => ({}),
+    solanaSlot: async () => {
+      throw new Error("no Solana slot in swap tests");
+    },
+    now: () => oracle.now,
+  });
+  return oracle;
 }

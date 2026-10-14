@@ -534,7 +534,8 @@ describe("GET /v1/openapi.json", () => {
   it("names only catalogued error codes in its descriptions", () => {
     const text = JSON.stringify(document);
     const mentioned = new Set([...text.matchAll(/\b([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\b/gu)].map((match) => match[1] as string));
-    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS"]);
+    // Configuration variables the descriptions name (not error codes).
+    const ignored = new Set(["UPPER_SNAKE_CASE", "KLETIA_PLATFORM_SECRET", "KLETIA_OPERATOR_API_KEYS", "RENDER_GIT_COMMIT", "KLETIA_BUILD_COMMIT"]);
     const unknown = [...mentioned].filter((code) => !ignored.has(code) && !resolveErrorCode(code));
     assert.deepEqual(unknown, []);
   });
@@ -568,7 +569,7 @@ describe("authentication and tiers", () => {
     assert.match(String(reply.body.key.key), /^kl_dev_[0-9A-Za-z]{32}$/u);
     assert.match(String(reply.body.key.id), /^key_[0-9a-f]{24}$/u);
     assert.equal(reply.body.key.tier, "developer");
-    assert.deepEqual(Object.keys(reply.body.key).sort(), ["createdAt", "id", "key", "name", "tier"]);
+    assert.deepEqual(Object.keys(reply.body.key).sort(), ["createdAt", "id", "key", "lane", "name", "tier"]);
     assertError(await call(server, "POST", "/keys", { body: { name: "" } }), 400, "INVALID_REQUEST");
     assertError(await call(server, "POST", "/keys", { body: { name: "bad\u0000name" } }), 400, "INVALID_REQUEST");
   });

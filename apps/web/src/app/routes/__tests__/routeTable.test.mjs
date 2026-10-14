@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { matchRoute, PORTAL_RECIPES, PORTAL_ROUTES, PRERENDER_PATHS, ROUTES } from "../routeTable.ts";
+import { CONSOLE_VIEW_PATHS, consoleMetaFor, matchRoute, PORTAL_RECIPES, PORTAL_ROUTES, PRERENDER_PATHS, ROUTES } from "../routeTable.ts";
 
 const sitemap = readFileSync(new URL("../../../../public/sitemap.xml", import.meta.url), "utf8");
 const snippets = readFileSync(new URL("../../site/snippets.ts", import.meta.url), "utf8");
@@ -88,7 +88,7 @@ test("PRERENDER_PATHS covers /developers, every indexed portal page, each recipe
   for (const path of ["/developers/webhooks/new", "/developers/contracts/new", "/developers/links/new"]) {
     assert.equal(byPath.get(path)?.robots, "noindex,nofollow", path);
   }
-  for (const page of PRERENDER_PATHS) {
+  for (const page of PRERENDER_PATHS.filter((entry) => entry.path.startsWith("/developers"))) {
     // The guard write-route-pages.mjs applies before writing a file.
     assert.match(page.path, /^\/[a-z0-9][a-z0-9/_-]*$/u);
     assert.ok(!page.path.includes("//"));
@@ -99,7 +99,7 @@ test("PRERENDER_PATHS covers /developers, every indexed portal page, each recipe
 
 test("the sitemap lists exactly the indexed portal paths", () => {
   const listed = [...sitemap.matchAll(/<loc>https:\/\/kletiaai\.xyz(\/developers[^<]*)<\/loc>/gu)].map((match) => match[1]);
-  const indexed = PRERENDER_PATHS.filter((page) => (page.robots ?? "index,follow") === "index,follow").map((page) => page.path);
+  const indexed = PRERENDER_PATHS.filter((page) => page.path.startsWith("/developers") && (page.robots ?? "index,follow") === "index,follow").map((page) => page.path);
   assert.deepEqual([...listed].sort(), [...indexed].sort());
 });
 
@@ -110,4 +110,26 @@ test("recipe pages name recipes that exist in site/snippets.ts, with the same la
   const recipes = new Map([...body.matchAll(/\n {4}id: "([a-z0-9-]+)",\n {4}label: "([^"]+)",/gu)].map((match) => [match[1], match[2]]));
   assert.ok(recipes.size >= PORTAL_RECIPES.length);
   for (const recipe of PORTAL_RECIPES) assert.equal(recipes.get(recipe.id), recipe.label, recipe.id);
+});
+
+test("the desk's views are the console route, pre-rendered, canonical /app and not indexed", () => {
+  assert.deepEqual([...CONSOLE_VIEW_PATHS], ["/app/tasks", "/app/holdings", "/app/activity", "/app/tools"]);
+  for (const path of ["/app", ...CONSOLE_VIEW_PATHS, "/app/tools/x402"]) assert.equal(matchRoute(path).id, "console", path);
+  assert.equal(matchRoute("/app/classic").id, "console", "no classic route: the desk renders it");
+  assert.ok(!PRERENDER_PATHS.some((page) => page.path === "/app/classic"), "there is no /app/classic page");
+  const byPath = new Map(PRERENDER_PATHS.map((page) => [page.path, page]));
+  for (const path of CONSOLE_VIEW_PATHS) {
+    const page = byPath.get(path);
+    assert.ok(page, `${path} is pre-rendered`);
+    assert.match(page.path, /^\/[a-z0-9][a-z0-9/_-]*$/u);
+    assert.equal(page.title, "Kletia Console");
+    assert.equal(page.robots, "noindex,follow", path);
+    assert.ok(!sitemap.includes(`<loc>https://kletiaai.xyz${path}</loc>`), `${path} is not in the sitemap`);
+  }
+  assert.deepEqual(consoleMetaFor("/app"), { title: "Kletia Console", description: ROUTES.console.description, robots: "index,follow", canonical: "/app" });
+  assert.equal(consoleMetaFor("/app/holdings").canonical, "/app");
+  assert.equal(consoleMetaFor("/app/holdings").robots, "noindex,follow");
+  assert.equal(ROUTES.console.title, "Kletia Console");
+  assert.ok(ROUTES.console.description.length >= 50 && ROUTES.console.description.length <= 170);
+  assert.ok(/nine/u.test(ROUTES.console.description), "the console says it covers all nine networks");
 });

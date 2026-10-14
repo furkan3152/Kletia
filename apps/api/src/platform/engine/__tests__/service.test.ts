@@ -6,6 +6,7 @@ import { subscribeIntentEvents, type IntentEvent } from "../events.js";
 import {
   cancelIntent,
   createIntent,
+  createIntentDetailed,
   getIntent,
   prepareStep,
   refreshIntent,
@@ -424,6 +425,25 @@ describe("service lifecycle", () => {
     assert.notEqual(otherKey.id, first.id);
     const concurrent = await Promise.all([1, 2, 3].map(() => createIntent({ ...SWAP, clientReference: "order-43" }, { ownerKeyId: "key_a" })));
     assert.equal(new Set(concurrent.map((graph) => graph.id)).size, 1, "concurrent retries create one intent");
+  });
+
+  it("passes the clarify layer's interpretation through to the planned and stored intent", async () => {
+    const { intent } = await createIntentDetailed(
+      { ...SWAP, sourceNetwork: "base" },
+      {
+        ownerKeyId: "key_a",
+        interpretation: {
+          departure: { network: "solana", chosen: "text" },
+          assumptions: [{ field: "actions[0].network", label: "On Solana", source: "default", material: true }],
+          thread: { id: "thr_service", rev: 3 },
+        },
+      },
+    );
+    assert.deepEqual(intent.interpretation.departure, { network: "solana", chosen: "text" });
+    assert.equal(intent.interpretation.thread?.id, "thr_service");
+    assert.equal(intent.steps.length, 1, "the supplied departure is kept; sourceNetwork is not applied a second time");
+    const stored = await getIntent(intent.id);
+    assert.deepEqual(stored.interpretation, intent.interpretation);
   });
 
   it("serialises concurrent mutations of one intent", async () => {

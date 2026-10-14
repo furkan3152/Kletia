@@ -19,6 +19,12 @@
  *   uses, each intent's clientReference is `<clientReference>:<n>`, where n
  *   counts claimed uses and is never reused (a given-back use keeps its n).
  *
+ * Pending registrations (mainnet activation delay): the creation answers with
+ * `warnings: [{ code: "CONTRACT_PENDING", contract, activatesAt }]`, and so
+ * does GET while the registration is still pending; a session that would
+ * expire before a registration activates is refused (422
+ * SESSION_EXPIRES_BEFORE_ACTIVATION) instead of being created dead.
+ *
  * A leaked session id lets someone else run the same fixed actions with their
  * own funds and wallet, nothing more. Storage: memory (50,000 sessions) or
  * Postgres `kletia_sessions`.
@@ -41,6 +47,7 @@ import {
   type SessionActionView,
   type SessionAmountBounds,
   type SessionView,
+  type SessionWarning,
 } from "@kletia/core";
 import { PlatformError, isPlatformError } from "../errors.js";
 import { createIntentDetailed } from "../index.js";
@@ -389,7 +396,35 @@ function spentAsset(action: IntentActionSpec, contractInput: { symbol: string; d
 
 /* =============================================================== handlers */
 
-function sessionView(record: SessionRecord, now: number, withEmbed = false): SessionView {
+/**
+ * CONTRACT_PENDING warnings for the template's registrations that have no
+ * active revision yet and activate after `now`. Informational: a lookup that
+ * fails leaves the warning out (planning re-checks every registration anyway).
+ */
+async function pendingWarnings(template: SessionTemplate, now: number): Promise<SessionWarning[]> {
+  const ids = [...new Set(template.actions.filter((action) => CONTRACT_ACTION_KINDS.includes(action.kind) && action.contract).map((action) => action.contract as string))];
+  if (ids.length === 0 || !contractsEnabled()) return [];
+  const directory = createContractDirectory();
+  const warnings: SessionWarning[] = [];
+  for (const id of ids) {
+    try {
+      const registration = await directory.current(id);
+      if (registration) pendingWarning(registration, now, warnings);
+    } catch {
+      // Leave the warning out.
+    }
+  }
+  return warnings;
+}
+
+function pendingWarning(registration: { readonly id: string; readonly status: string; readonly activeRevision: number | null; readonly activatesAt: string | null }, now: number, into: SessionWarning[]): void {
+  const pending = registration.status === "pending" || registration.activeRevision === null;
+  if (!pending || !registration.activatesAt || Date.parse(registration.activatesAt) <= now) return;
+  if (into.some((warning) => warning.contract === registration.id)) return;
+  into.push({ code: "CONTRACT_PENDING", contract: registration.id, activatesAt: registration.activatesAt });
+}
+
+function sessionView(record: SessionRecord, now: number, withEmbed = false, warnings: readonly SessionWarning[] = []): SessionView {
   const { template } = record;
   const status = record.used >= record.maxIntents ? "used" : Date.parse(record.expiresAt) <= now ? "expired" : "active";
   const actions: SessionActionView[] = template.actions.map((action, index) => ({
@@ -425,6 +460,7 @@ function sessionView(record: SessionRecord, now: number, withEmbed = false): Ses
     maxIntents: record.maxIntents,
     used: record.used,
     ...(withEmbed ? { embedUrl: `${kletiaWebOrigin()}/embed#session=${record.id}` } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 
@@ -447,6 +483,8 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
   const labels: string[] = request.actions.map(actionLabel);
   const contractInputs: ({ symbol: string; decimals: number } | null)[] = request.actions.map(() => null);
   let integrator: SessionIntegrator | null = null;
+  const warnings: SessionWarning[] = [];
+  const now = contractNow();
   if (request.actions.some((action) => CONTRACT_ACTION_KINDS.includes(action.kind))) {
     if (!contractsEnabled()) throw new PlatformError("CONTRACTS_DISABLED", "Custom contracts are disabled on this deployment.", 503);
     const directory = createContractDirectory();
@@ -466,6 +504,7 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
       }
       labels[index] = entry.label;
       actions[index] = { ...action, contract: registration.id };
+      pendingWarning(registration, now, warnings);
       const input = entry.input ? resolveContractAsset(registration.definition.network, entry.input.token) : null;
       contractInputs[index] = input ? { symbol: input.symbol, decimals: input.decimals } : null;
       integrator ??= { ...registration.definition.integrator, domainVerified: registration.verification.domain.verified };
@@ -501,7 +540,23 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     if (isTemplateError(error)) throw error;
   }
 
-  const now = contractNow();
+  // A session that ends before one of its registrations activates could never be used: refuse it.
+  const expiresAt = now + (request.expiresInSeconds ?? CONTRACT_LIMITS.sessionDefaultTtlSeconds) * 1000;
+  const late = warnings.find((warning) => Date.parse(warning.activatesAt) >= expiresAt);
+  if (late) {
+    const needed = Math.ceil((Date.parse(late.activatesAt) - now) / 1000) + 60;
+    const remedy = needed <= CONTRACT_LIMITS.sessionMaxTtlSeconds
+      ? `Raise expiresInSeconds to at least ${needed}, or create the session after activation.`
+      : "Create the session after activation (it is further away than the longest session).";
+    throw new PlatformError(
+      "SESSION_EXPIRES_BEFORE_ACTIVATION",
+      `Contract ${late.contract} activates at ${late.activatesAt}, after this session would expire (${iso(expiresAt)}). ${remedy}`,
+      422,
+      [{ path: "expiresInSeconds", message: `Ends before ${late.contract} activates.` }],
+      undefined,
+      { contract: late.contract, activatesAt: late.activatesAt, expiresAt: iso(expiresAt), minimumExpiresInSeconds: needed },
+    );
+  }
   const record: SessionRecord = {
     id: `cs_${randomHex(16)}`,
     ownerKeyId,
@@ -518,11 +573,11 @@ export async function createSession(auth: AuthContext, body: unknown): Promise<S
     maxIntents: request.maxIntents ?? 1,
     used: 0,
     issued: 0,
-    expiresAt: iso(now + (request.expiresInSeconds ?? CONTRACT_LIMITS.sessionDefaultTtlSeconds) * 1000),
+    expiresAt: iso(expiresAt),
     createdAt: iso(now),
   };
   await sessionStore().create(record, CONTRACT_LIMITS.activeSessionsPerKey, iso(now));
-  return sessionView(record, now, true);
+  return sessionView(record, now, true, warnings);
 }
 
 async function liveSession(id: string): Promise<SessionRecord> {
@@ -534,7 +589,9 @@ async function liveSession(id: string): Promise<SessionRecord> {
 
 /** GET /v1/sessions/{id} (public). */
 export async function getSession(id: string): Promise<SessionView> {
-  return sessionView(await liveSession(id), contractNow());
+  const record = await liveSession(id);
+  const now = contractNow();
+  return sessionView(record, now, false, await pendingWarnings(record.template, now));
 }
 
 /**

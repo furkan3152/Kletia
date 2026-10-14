@@ -7,6 +7,13 @@
  * - POST /v1/keys with a developer key: a sibling key in the same project
  *   (at most 5 active project keys per project). Agent keys never issue
  *   project keys (AGENT_KEY_FORBIDDEN).
+ * - POST /v1/keys `{ name, sandbox: true }`: the key is issued with a
+ *   key-level rule book that keeps it on the testnet lane
+ *   (`networks.lanes: ["testnet"]`), written in the same request through the
+ *   policy store, so the Rule Book enforces it like any other rule book. If
+ *   that write fails the key is revoked again (never left unrestricted).
+ *   Every listed key shows its `lane` (testnet, production or any), derived
+ *   from the active rule books of its chain.
  * - POST /v1/keys/{id}/children: an agent key (`kl_agt_`) under `{id}` with
  *   its first rule book (a document, a template, or the observer), at most
  *   2 levels below a project key, 100 active per project, expiring in 1 h to
@@ -28,7 +35,7 @@
  * grace window authenticates but cannot manage keys (403 KEY_SECRET_ROTATED),
  * so a leaked secret cannot take a rotated key over.
  */
-import { POLICY_LIMITS, POLICY_TEMPLATES, policyFromTemplate, validatePolicy, type PolicyDocument, type PolicyTemplateId, type PolicyWarning } from "@kletia/core";
+import { CHAINS, POLICY_LANES, POLICY_LIMITS, POLICY_TEMPLATES, policyFromTemplate, validatePolicy, type PolicyDocument, type PolicyLane, type PolicyTemplateId, type PolicyWarning } from "@kletia/core";
 import { PlatformError } from "../errors.js";
 import {
   apiKeyStore,
@@ -82,8 +89,47 @@ export interface ApiKeyView {
   readonly policyVersion: number | null;
   /** Active descendants (agent keys below this key). */
   readonly descendants: number;
+  /** Lanes the key's active rule book chain allows: testnet only (a sandbox key), production only, or any. */
+  readonly lane: KeyLane;
   /** True for the key that made this request. */
   readonly current: boolean;
+}
+
+export type KeyLane = "testnet" | "production" | "any";
+
+/** An issued key with the lane its rule books allow (POST /v1/keys). */
+export interface IssuedProjectKey extends IssuedApiKey {
+  readonly lane: KeyLane;
+}
+
+/** The key-level rule book of a sandbox key (integrator design 4.5). */
+export const SANDBOX_POLICY: PolicyDocument = Object.freeze({
+  schema: "kletia.policy/v1",
+  label: "Sandbox",
+  networks: Object.freeze({ lanes: Object.freeze(["testnet"] as const) }),
+}) as unknown as PolicyDocument;
+
+/** Lanes one rule book allows: `networks.lanes`, narrowed by the lanes of `networks.allow`. */
+function lanesOf(document: PolicyDocument | null | undefined): ReadonlySet<PolicyLane> {
+  let lanes = new Set<PolicyLane>(document?.networks?.lanes ?? POLICY_LANES);
+  const allow = document?.networks?.allow;
+  if (allow) {
+    const allowed = new Set(allow.map((network) => CHAINS[network].lane as PolicyLane));
+    lanes = new Set([...lanes].filter((lane) => allowed.has(lane)));
+  }
+  return lanes;
+}
+
+/** The lane of a chain of rule books (project, ancestors, the key): what every level allows. */
+export function laneOfChain(documents: readonly (PolicyDocument | null | undefined)[]): KeyLane {
+  let lanes = new Set<PolicyLane>(POLICY_LANES);
+  for (const document of documents) {
+    const allowed = lanesOf(document);
+    lanes = new Set([...lanes].filter((lane) => allowed.has(lane)));
+  }
+  if (lanes.has("testnet") && lanes.has("production")) return "any";
+  // A chain that allows no lane at all plans nothing; it reads as production (nothing on the testnet lane either).
+  return lanes.has("testnet") ? "testnet" : "production";
 }
 
 export interface RotatedApiKey extends IssuedApiKey {
@@ -142,7 +188,7 @@ export function keyIdParam(value: string): string {
   return value;
 }
 
-function view(record: ApiKeyRecord, callerId: string, now: number, extra: { readonly policyVersion: number | null; readonly descendants: number }): ApiKeyView {
+function view(record: ApiKeyRecord, callerId: string, now: number, extra: { readonly policyVersion: number | null; readonly descendants: number; readonly lane: KeyLane }): ApiKeyView {
   const graceOpen = record.previousExpiresAt !== null && Date.parse(record.previousExpiresAt) > now;
   return {
     id: record.id,
@@ -160,6 +206,7 @@ function view(record: ApiKeyRecord, callerId: string, now: number, extra: { read
     expiresAt: record.expiresAt ?? null,
     policyVersion: extra.policyVersion,
     descendants: extra.descendants,
+    lane: extra.lane,
     current: record.id === callerId,
   };
 }
@@ -171,22 +218,69 @@ export async function listProjectKeys(auth: AuthContext): Promise<ApiKeyView[]> 
   const visible = caller.kind === "agent"
     ? all.filter((record) => record.id === caller.keyId || (record.lineage ?? []).includes(caller.keyId))
     : all;
-  const { active } = await policyStore().activeMany(visible.map((record) => ({ scope: "key" as const, subjectId: record.id, projectId: caller.projectId })), now);
+  const lineageIds = new Set(visible.flatMap((record) => [record.id, ...(record.lineage ?? [])]));
+  const { active } = await policyStore().activeMany(
+    [
+      { scope: "project" as const, subjectId: caller.projectId, projectId: caller.projectId },
+      ...[...lineageIds].map((id) => ({ scope: "key" as const, subjectId: id, projectId: caller.projectId })),
+    ],
+    now,
+  );
+  const projectDocument = active.get(subjectKey("project", caller.projectId))?.document ?? null;
   return visible.map((record) =>
     view(record, caller.keyId, now, {
       policyVersion: active.get(subjectKey("key", record.id))?.version ?? null,
       descendants: all.filter((candidate) => keyLive(candidate, now) && (candidate.lineage ?? []).includes(record.id)).length,
+      lane: laneOfChain([projectDocument, ...[...(record.lineage ?? []), record.id].map((id) => active.get(subjectKey("key", id))?.document ?? null)]),
     }));
 }
 
-/** POST /v1/keys: a new project without a key (or with an operator key), a sibling with a developer key. */
-export async function issueKey(auth: AuthContext, name: string): Promise<IssuedApiKey> {
-  if (auth.tier !== "developer") return issueDeveloperKey(name);
+/** The lane of one key's active chain (after issuance). */
+async function laneOfKey(keyId: string, projectId: string, now: number): Promise<KeyLane> {
+  const { active } = await policyStore().activeMany(
+    [
+      { scope: "project", subjectId: projectId, projectId },
+      { scope: "key", subjectId: keyId, projectId },
+    ],
+    now,
+  );
+  return laneOfChain([active.get(subjectKey("project", projectId))?.document ?? null, active.get(subjectKey("key", keyId))?.document ?? null]);
+}
+
+/** Writes the sandbox rule book of a just-issued key; on failure revokes the key so it never exists unrestricted. */
+async function restrictToSandbox(issued: IssuedApiKey, projectId: string, createdBy: string, now: number): Promise<void> {
+  try {
+    const written = await policyStore().write({ scope: "key", subjectId: issued.id, projectId, next: SANDBOX_POLICY, defaults: "project", createdBy, ifMatch: "none", now });
+    if (written.applied !== "now") throw new Error(`sandbox rule book ${written.applied}`);
+    await announceAmended(written.version, createdBy, now);
+  } catch (error) {
+    await apiKeyStore()
+      .revokeSubtree(issued.id, projectId, new Date(now).toISOString())
+      .catch((revokeError: unknown) => console.error("[platform] could not revoke a sandbox key whose rule book failed:", revokeError instanceof Error ? revokeError.message : revokeError));
+    forgetCachedKey(issued.id);
+    if (error instanceof PlatformError || error instanceof HttpError) throw error;
+    throw new PlatformError("STORE_UNAVAILABLE", "The sandbox rule book could not be written; no key was issued. Try again.", 503);
+  }
+}
+
+/**
+ * POST /v1/keys: a new project without a key (or with an operator key), a
+ * sibling with a developer key; `sandbox` keeps the key on the testnet lane.
+ */
+export async function issueKey(auth: AuthContext, name: string, options: { readonly sandbox?: boolean } = {}): Promise<IssuedProjectKey> {
+  const now = Date.now();
+  if (auth.tier !== "developer") {
+    const issued = await issueDeveloperKey(name);
+    // A new project: the key is its own project and writes its own first rule book.
+    if (options.sandbox) await restrictToSandbox(issued, issued.id, issued.id, now);
+    return { ...issued, lane: options.sandbox ? "testnet" : await laneOfKey(issued.id, issued.id, now) };
+  }
   const caller = manager(auth);
   if (caller.kind === "agent") throw agentForbidden("Agent keys never issue project keys. Create a child with POST /v1/keys/{id}/children if your rule book grants permissions.createChildKeys.");
   const issued = await issueDeveloperKey(name, { id: caller.projectId, maxActive: MAX_ACTIVE_KEYS_PER_PROJECT });
+  if (options.sandbox) await restrictToSandbox(issued, caller.projectId, caller.keyId, now);
   publishKeyEvent("key.created", { projectId: projectScope(caller.projectId), keyId: issued.id, kind: "project", parentId: null, expiresAt: null });
-  return issued;
+  return { ...issued, lane: await laneOfKey(issued.id, caller.projectId, now) };
 }
 
 export function parseRotateRequest(body: unknown): { graceSeconds: number } {
@@ -418,8 +512,10 @@ export async function patchKey(auth: AuthContext, id: string, patch: { readonly 
   if (!updated) throw keyNotFound();
   const { active } = await policyStore().activeMany([{ scope: "key", subjectId: id, projectId: caller.projectId }], now);
   const all = await apiKeyStore().listByProject(caller.projectId);
+  const chain = await readKeyChain(id, now);
   return view(updated, caller.keyId, now, {
     policyVersion: active.get(subjectKey("key", id))?.version ?? null,
     descendants: all.filter((candidate) => keyLive(candidate, now) && (candidate.lineage ?? []).includes(id)).length,
+    lane: laneOfChain((chain?.levels ?? []).map((level) => level.policy as PolicyDocument | null)),
   });
 }

@@ -40,9 +40,16 @@ export interface ResolvedAsset {
   readonly verified: boolean;
   readonly category?: AssetCategory;
   readonly group?: AssetDescriptor["group"];
+  /** Listed for balances and transfers only (no venue route may spend or deliver it), e.g. USDbC on Base. */
+  readonly transferOnly?: boolean;
 }
 
 const USD_STABLECOINS = new Set(["USDC", "USDT", "PYUSD", "DAI", "USDBC"]);
+
+/** A registry asset as a resolved asset (no lookups). */
+export function resolvedFromDescriptor(asset: AssetDescriptor): ResolvedAsset {
+  return fromDescriptor(asset);
+}
 
 function fromDescriptor(asset: AssetDescriptor): ResolvedAsset {
   return {
@@ -57,6 +64,7 @@ function fromDescriptor(asset: AssetDescriptor): ResolvedAsset {
     verified: true,
     category: asset.category,
     ...(asset.group ? { group: asset.group } : {}),
+    ...(asset.transferOnly ? { transferOnly: true } : {}),
   };
 }
 
@@ -107,7 +115,8 @@ async function resolveSolana(network: NetworkKey, input: string): Promise<Resolv
   if (!token.verified && !byMint) {
     throw new PlatformError(
       "TOKEN_UNVERIFIED",
-      `${token.symbol} is not on Jupiter's verified list. Use its mint address (${token.mint}) to proceed deliberately.`,
+      // No mint in the message: a look-alike token's mint must never be offered as the way forward.
+      `${token.symbol.slice(0, 16)} is not on Jupiter's verified list. Paste the mint address of the token you mean to use it deliberately.`,
       422,
     );
   }
@@ -186,6 +195,7 @@ export function assetFromRef(ref: AssetRef): ResolvedAsset {
     verified: canonical !== null,
     ...(canonical ? { category: canonical.category } : {}),
     ...(canonical?.group ? { group: canonical.group } : {}),
+    ...(canonical?.transferOnly ? { transferOnly: true } : {}),
   };
 }
 

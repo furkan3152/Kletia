@@ -52,6 +52,8 @@ export interface ErrorEnvelope {
     readonly message: string;
     readonly issues?: readonly { path: string; message: string }[];
     readonly hints?: readonly string[];
+    /** Structured context of some codes (SOURCE_REQUIRED, SESSION_EXPIRES_BEFORE_ACTIVATION, …). */
+    readonly details?: Readonly<Record<string, unknown>>;
     readonly docs?: string;
   };
   readonly requestId: string;

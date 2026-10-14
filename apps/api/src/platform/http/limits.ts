@@ -7,7 +7,9 @@
  * | developer | API key id     | 300/min      |
  * | operator  | API key id     | 1200/min     |
  *
- * POST /v1/keys is additionally limited to 5 per hour per IP. Requests with a
+ * POST /v1/keys is additionally limited to 5 issued keys per hour per IP: a
+ * request refused with a 4xx (an invalid body, a key limit, an agent key)
+ * gives its slot back, so typos do not lock issuance. Requests with a
  * rejected credential count against the caller's IP at the public limit, and
  * store lookups of uncached API keys are throttled per IP in auth.ts.
  *
@@ -17,7 +19,7 @@
  */
 import type { Request, RequestHandler } from "express";
 import { CONTRACT_LIMITS } from "@kletia/core";
-import { ipKeyGenerator, rateLimit, type RateLimitRequestHandler } from "express-rate-limit";
+import { ipKeyGenerator, MemoryStore, rateLimit, type RateLimitRequestHandler } from "express-rate-limit";
 import { authOf, HttpError, sendError, type ApiTier } from "./context.js";
 
 export const TIER_LIMITS: Readonly<Record<ApiTier, number>> = Object.freeze({
@@ -86,12 +88,22 @@ export function createTierLimiter(): RateLimitRequestHandler {
   });
 }
 
-/** POST /v1/keys: 5 developer keys per hour per IP. */
+/**
+ * POST /v1/keys: 5 developer keys per hour per IP. A request the limiter
+ * counted and that ends with a 4xx other than 429 is given back once the
+ * response finished. Unlike express-rate-limit's `skipFailedRequests`, a
+ * client that disconnects early is never given its slot back (the key may
+ * have been issued), and responses the limiter did not count (an idempotent
+ * replay answered before it) never decrement.
+ */
 export function createKeyIssuanceLimiter(): RequestHandler {
-  return rateLimit({
+  const store = new MemoryStore();
+  const keyOf = (req: Request) => `keys:${clientIp(req)}`;
+  const limiter = rateLimit({
     windowMs: 60 * 60_000,
     limit: KEY_ISSUANCE_LIMIT_PER_HOUR,
-    keyGenerator: (req) => `keys:${clientIp(req)}`,
+    store,
+    keyGenerator: keyOf,
     identifier: "key-issuance",
     standardHeaders: "draft-8",
     legacyHeaders: false,
@@ -106,6 +118,22 @@ export function createKeyIssuanceLimiter(): RequestHandler {
       );
     },
   });
+  return (req, res, next) => {
+    void limiter(req, res, (error?: unknown) => {
+      if (error) {
+        next(error);
+        return;
+      }
+      // Reached only when the limiter counted this request and let it through.
+      const key = keyOf(req);
+      res.once("finish", () => {
+        if (res.statusCode >= 400 && res.statusCode < 500 && res.statusCode !== 429) {
+          void store.decrement(key).catch(() => undefined);
+        }
+      });
+      next();
+    });
+  };
 }
 
 /* ------------------------------------------------------ contract limits */

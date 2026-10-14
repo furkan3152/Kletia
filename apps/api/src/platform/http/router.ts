@@ -78,7 +78,7 @@ import { issueKey, keyIdParam, listProjectKeys, parseRotateRequest, revokeKey, r
 import { contractTestLimiter, contractWriteLimiter, createKeyIssuanceLimiter, createTierLimiter } from "./limits.js";
 import { mcpOriginGuard } from "./mcp/origin.js";
 import { serveMcp } from "./mcp/server.js";
-import { openApiJson } from "./openapi.js";
+import { servedOpenApiJson } from "./openapi.js";
 import { rememberIntentOwner } from "./owners.js";
 import { assertNoPreviewBody, installPreviewStore, latestPreview, parsePrepareBody, parseQuotesQuery, PREVIEW_ACK_HEADER, recomputePreview, startPreviewPruner } from "./preview.js";
 import { startReceiptEventBuffer } from "./receipts/events.js";
@@ -379,7 +379,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     "get /openapi.json": [
       handle((_req, res) => {
         cachePublicly(res);
-        res.status(200).type("application/json").send(openApiJson());
+        res.status(200).type("application/json").send(servedOpenApiJson());
       }),
     ],
     "get /errors": [
@@ -410,9 +410,9 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
       idempotent({ route: "POST /keys", secret: true }),
       keyLimiter,
       handle(async (req, res) => {
-        const { name } = parseKeyRequest(req.body);
+        const { name, sandbox } = parseKeyRequest(req.body);
         // Without a key: a new project. With a developer key: a sibling in the caller's project.
-        sendJson(res, 201, { key: await issueKey(authOf(req), name) });
+        sendJson(res, 201, { key: await issueKey(authOf(req), name, { sandbox }) });
       }),
     ],
     "get /keys": [

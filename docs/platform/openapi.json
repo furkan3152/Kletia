@@ -5,7 +5,7 @@
     "title": "Kletia Platform API",
     "version": "1.0.0",
     "summary": "Non-custodial, chain-agnostic intents for EVM networks and Solana.",
-    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (`kl_agt_`) are bound by their rule book chain.",
+    "description": "Plan cross-network intents into a DAG of network-bound steps, get unsigned wallet-ready transactions, and verify execution from on-chain evidence. Kletia never holds keys. Networks are CAIP-2 ids, accounts CAIP-10, assets CAIP-19, amounts base-unit strings.\n\nTiers: public 30/min per IP, developer 300/min per key, operator 1200/min per key. Errors are `{ \"error\": { \"code\", \"message\", \"issues\"?, \"hints\"?, \"details\"?, \"docs\"? }, \"requestId\" }` with codes from the catalog at GET /v1/errors; every response carries X-Request-Id. Keyed POSTs that create or change state accept `Idempotency-Key`. Agents can use the MCP server at /v1/mcp (read-only tools, plus keyed creation of intents and links; nothing is ever signed). Agent keys (`kl_agt_`) are bound by their rule book chain. Developer and agent keys are server keys: sent from a browser on another origin they get 403 SECRET_KEY_FROM_BROWSER.",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -6007,7 +6007,7 @@
           "Keys"
         ],
         "summary": "Issue a developer key",
-        "description": "The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most 5 active keys, else 409 KEY_LIMIT_REACHED). Limited to 5 keys per hour per IP. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest.",
+        "description": "The key is shown once and stored only as a SHA-256 hash. Without a key this starts a new project; with a developer key the new key joins the caller's project (at most 5 active keys, else 409 KEY_LIMIT_REACHED). Limited to 5 keys per hour per IP; a request refused with a 4xx (an invalid body, a key limit) does not count. `sandbox: true` issues a key kept on the testnet lane by its own rule book. Body: `{ \"name\": \"acme-dev\", \"sandbox\": true }`. Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`. The stored response is encrypted at rest.",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -6667,7 +6667,7 @@
           "Contracts"
         ],
         "summary": "What registering an address or programs would pin and allow",
-        "description": "EVM (`network` + `address`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, and every function marked allowed or forbidden with the reason. Solana (`network` + `programs`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares 20 calls per minute per key with the test endpoint.",
+        "description": "EVM (`network` + `address`): deployment, EIP-7702 delegation, deny-list reason, pins with proxy detection, Sourcify status and ABI, every function marked allowed or forbidden with the reason, and `hints.erc4626` (`asset()` read once, with its registry symbol) when the ABI is an ERC-4626 vault. Solana (`network` + `programs`, comma separated): program pins, deny-list reasons and OtterSec status. Nothing is stored. Shares 20 calls per minute per key with the test endpoint.",
         "security": [
           {
             "bearerAuth": []
@@ -7269,7 +7269,7 @@
           "Sessions"
         ],
         "summary": "Create a session the embed turns into an intent for a visitor",
-        "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
+        "description": "A fixed template of structured actions (custom contract steps of the caller's registrations included), the origins allowed to embed it, an optional visitor-chosen amount within bounds, a TTL and a use count. The template is planned once as a dry run, so a broken template fails here. The response's `embedUrl` carries the id in the URL fragment. At most 1000 active sessions per key (429 RATE_LIMITED beyond). A registration that is still pending (mainnet activation delay) adds `warnings: [{ code: \"CONTRACT_PENDING\", contract, activatesAt }]`; a session that would expire before it activates is refused with 422 SESSION_EXPIRES_BEFORE_ACTIVATION (`details.minimumExpiresInSeconds`). Honours `Idempotency-Key` (with an API key): a retry with the same key and request replays the stored response with `Idempotent-Replayed: true`.",
         "security": [
           {
             "bearerAuth": []
@@ -7361,7 +7361,7 @@
           "Sessions"
         ],
         "summary": "Session view for the embed (public; the id is the capability)",
-        "description": "Integrator identity, allowed origins, action labels, amount bounds, status and expiry. Never the key or the project.",
+        "description": "Integrator identity, allowed origins, action labels, amount bounds, status and expiry, and `warnings` while a registration of the template is still pending. Never the key or the project.",
         "parameters": [
           {
             "name": "id",
@@ -8314,7 +8314,7 @@
         }
       },
       "Forbidden": {
-        "description": "Not allowed (KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy).",
+        "description": "Not allowed (SECRET_KEY_FROM_BROWSER for a kl_dev_ or kl_agt_ key sent with a foreign Origin, KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8404,7 +8404,7 @@
         }
       },
       "Unprocessable": {
-        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
+        "description": "Understood but not executable (INTENT_UNSUPPORTED, ROUTE_UNSUPPORTED, CAPITAL_LANE_MIXED, SELF_TRANSFER, FEE_LIMIT_EXCEEDED, INSUFFICIENT_BALANCE, WEBHOOK_URL_FORBIDDEN, IDEMPOTENCY_KEY_REUSED, CONTRACT_UNKNOWN, CONTRACT_DENIED, CONTRACT_FUNCTION_FORBIDDEN, CONTRACT_NOT_DEPLOYED, SIMULATION_ASSET_CHANGE_REFUSED, ACTION_TRANSACTION_REJECTED, RECEIPT_ANCHOR_INVALID, LINK_POLICY_CONFLICT, LINK_IMMUTABLE_FIELD, LINK_INPUT_OUT_OF_BOUNDS, LINK_SOURCE_NOT_ALLOWED, LINK_ACCOUNTS_REQUIRED, LINK_PUBLISHER_MISMATCH, LINK_NOT_BLINK_ELIGIBLE, SESSION_EXPIRES_BEFORE_ACTIVATION, SOURCE_REQUIRED, SOURCE_UNREACHABLE, REFERENCE_WRONG_SENDER, REFERENCE_WRONG_CHAIN, REFERENCE_MISMATCH, REFERENCE_STALE, REFERENCE_ALREADY_USED, ...).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -8712,6 +8712,11 @@
                 "format": "uri",
                 "description": "Documentation of the code: `https://kletiaai.xyz/developers#error-<CODE>`."
               },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Structured context of some codes (a JSON object of at most 4 KB), e.g. `SOURCE_REQUIRED` `{ asset, amount, toNetwork, candidates: [{ network, balance, enough }] }`, `SOURCE_UNREACHABLE` `{ sourceNetwork, actionNetwork, asset, kind }`, `SESSION_EXPIRES_BEFORE_ACTIVATION` `{ contract, activatesAt, expiresAt, minimumExpiresInSeconds }`. Clients must tolerate unknown keys."
+              },
               "policy": {
                 "$ref": "#/components/schemas/PolicyErrorDetails",
                 "description": "Rule Book refusals: every violated rule, the refusing key, when to retry and the approval to share."
@@ -8970,6 +8975,18 @@
           },
           "defaultNetwork": {
             "$ref": "#/components/schemas/NetworkKey"
+          },
+          "sourceNetwork": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              {
+                "type": "string",
+                "const": "auto"
+              }
+            ],
+            "description": "Where the money starts. A network key: the first action spends funds there, and when it runs on another network the planner adds a bridge from this one first (a transfer elsewhere, an input the network does not have, or another capital lane is 422 SOURCE_UNREACHABLE). `auto`: the planner picks a network whose accounts hold enough of the first action's input (422 SOURCE_REQUIRED with `details.candidates` when a bridge has no source and nobody holds enough). A sentence that names the network wins. A network key also serves as `defaultNetwork` when that is absent. Absent: unchanged behaviour. See `interpretation.departure`."
           },
           "constraints": {
             "$ref": "#/components/schemas/IntentConstraints"
@@ -9428,6 +9445,38 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "departure": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "$ref": "#/components/schemas/NetworkKey"
+                  },
+                  "chosen": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "request",
+                      "auto",
+                      "inferred"
+                    ],
+                    "description": "`text`: the sentence named it; `request`: sourceNetwork; `auto`: chosen by balance; `inferred`: no hint was given."
+                  },
+                  "bridged": {
+                    "type": "boolean",
+                    "description": "True when the planner added a bridge from `network` in front of the first action."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "description": "One sentence, e.g. \"Base holds 120.40 USDC; Solana 2.00\"."
+                  }
+                },
+                "required": [
+                  "network",
+                  "chosen"
+                ],
+                "description": "Where the money starts. Present when the request set `sourceNetwork` (or a clarify answer chose a departure); absent on older deployments."
               }
             },
             "required": [
@@ -10653,6 +10702,35 @@
           "version": {
             "type": "string"
           },
+          "build": {
+            "type": "object",
+            "properties": {
+              "commit": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[0-9a-f]{7,64}$",
+                "description": "Git commit this deployment runs (RENDER_GIT_COMMIT on Render, otherwise KLETIA_BUILD_COMMIT); null when unknown."
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "render",
+                  "env",
+                  null
+                ],
+                "description": "Where the commit came from."
+              }
+            },
+            "required": [
+              "commit",
+              "source"
+            ]
+          },
           "time": {
             "type": "string",
             "format": "date-time"
@@ -10986,6 +11064,7 @@
           "status",
           "api",
           "version",
+          "build",
           "time",
           "uptimeSeconds",
           "networks",
@@ -11133,6 +11212,11 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64
+          },
+          "sandbox": {
+            "type": "boolean",
+            "default": false,
+            "description": "Issue a sandbox key: a key-level rule book `{ networks: { lanes: [\"testnet\"] } }` is written with it, so it plans on Arbitrum Sepolia, Arc Testnet and Solana Devnet only (403 POLICY_VIOLATION networks.lanes elsewhere)."
           }
         },
         "required": [
@@ -11164,6 +11248,10 @@
             "type": "string",
             "pattern": "^kl_dev_[0-9A-Za-z]{32}$",
             "description": "The raw key. Shown once; only its SHA-256 hash is stored."
+          },
+          "lane": {
+            "$ref": "#/components/schemas/KeyLane",
+            "description": "Issuance response: the lanes the key's rule books allow (`testnet` for a sandbox key)."
           }
         },
         "required": [
@@ -11270,6 +11358,9 @@
             "minimum": 0,
             "description": "Active agent keys below this key."
           },
+          "lane": {
+            "$ref": "#/components/schemas/KeyLane"
+          },
           "last4": {
             "type": [
               "string",
@@ -11332,8 +11423,18 @@
           "expiresAt",
           "policyVersion",
           "descendants",
+          "lane",
           "current"
         ]
+      },
+      "KeyLane": {
+        "type": "string",
+        "enum": [
+          "testnet",
+          "production",
+          "any"
+        ],
+        "description": "Lanes the key's active rule book chain (project, ancestors, the key) allows through `networks.lanes` and `networks.allow`: `testnet` (a sandbox key), `production`, or `any`."
       },
       "WebhookDelivery": {
         "type": "object",
@@ -12233,6 +12334,11 @@
                 "minimum": 0,
                 "maximum": 100,
                 "default": 10
+              },
+              "rebasing": {
+                "type": "boolean",
+                "default": false,
+                "description": "The output token's balance is index-scaled (Aave aTokens and similar): simulation and landing accept a Transfer-log amount up to 2 base units away from the balance change (or the declared event), either way, and count the smaller amount. Part of definitionHash (a change is a new revision). Without it, amounts must match exactly."
               }
             },
             "required": [
@@ -14122,6 +14228,34 @@
             "items": {
               "$ref": "#/components/schemas/AbiFunctionClassification"
             }
+          },
+          "hints": {
+            "type": "object",
+            "properties": {
+              "erc4626": {
+                "type": "object",
+                "properties": {
+                  "asset": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$",
+                    "description": "The vault's `asset()`, read with one eth_call."
+                  },
+                  "registrySymbol": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Registry symbol of the asset on this network, null when Kletia does not list it."
+                  }
+                },
+                "required": [
+                  "asset",
+                  "registrySymbol"
+                ],
+                "description": "The verified ABI has `asset()`, `deposit(uint256,address)` and the ERC-4626 `Deposit` event. `kletia contracts init` and the portal wizard prefill the input, exact approval, output and event from it."
+              }
+            },
+            "description": "Registration hints derived from the verified ABI; absent when none applies."
           }
         },
         "required": [
@@ -14470,6 +14604,32 @@
             "type": "string",
             "format": "uri",
             "description": "Creation response only: the embed page with the id in the URL fragment."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "const": "CONTRACT_PENDING"
+                },
+                "contract": {
+                  "type": "string",
+                  "pattern": "^ct_[0-9a-f]{24}$"
+                },
+                "activatesAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "code",
+                "contract",
+                "activatesAt"
+              ]
+            },
+            "description": "A registration of the template is still pending (mainnet activation delay): intents of the session are refused with 409 CONTRACT_PENDING until `activatesAt`. Absent when nothing applies."
           }
         },
         "required": [

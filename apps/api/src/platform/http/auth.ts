@@ -23,6 +23,14 @@
  * `X-Kletia-Key: <key>`. No key means the public tier; a key that does not
  * authenticate is always 401 (never silently downgraded to public).
  *
+ * Developer and agent keys are server keys: a request that presents one with
+ * an `Origin` header outside the first-party origins (`allowedOrigins` of the
+ * CORS policy, which includes CORS_ORIGINS, plus KLETIA_WEB_ORIGIN) and the
+ * exceptions in KLETIA_SECRET_KEY_BROWSER_ORIGINS is refused with 403
+ * SECRET_KEY_FROM_BROWSER before the key is looked up. Server code sends no
+ * `Origin`, and the first-party portal stays allowed. `/v1/mcp` is left to
+ * its own Origin rule (mcp/origin.ts).
+ *
  * Verified keys are cached for 15 s per process: revocation and the end of a
  * grace window take effect immediately on the instance that handled them and
  * within 15 s everywhere else.
@@ -30,10 +38,12 @@
 import type { RequestHandler } from "express";
 import { AGENT_KEY_PATTERN, AGENT_KEY_PREFIX } from "@kletia/core";
 import { PlatformError } from "../errors.js";
+import { allowedOrigins } from "../../shared/http/cors.js";
 import { authOf, HttpError, invalidRequest, isRecord, sendError, setAuth, type ApiTier } from "./context.js";
 import { dbQuery, dbTransaction, platformDatabaseUrl } from "./db.js";
 import { clientIp, TIER_LIMITS } from "./limits.js";
 import { randomBase62, randomHex, sha256Hex } from "./secrets.js";
+import { kletiaWebOrigin } from "./webOrigin.js";
 
 export type KeyTier = Exclude<ApiTier, "public">;
 
@@ -593,14 +603,19 @@ export function loadOperatorKeys(): ReadonlyMap<string, OperatorKey> {
 
 /* ------------------------------------------------------------- issuance */
 
-export function parseKeyRequest(body: unknown): { name: string } {
+/** POST /v1/keys body: `{ name, sandbox? }` (sandbox: a key kept on the testnet lane by its rule book). */
+export function parseKeyRequest(body: unknown): { name: string; sandbox: boolean } {
   const name = isRecord(body) && typeof body.name === "string" ? body.name.trim() : "";
   if (!name || name.length > 64 || /[\p{Cc}\p{Cf}]/u.test(name)) {
-    throw invalidRequest("Provide { \"name\": \"…\" } with 1-64 printable characters.", [
+    throw invalidRequest("Provide { \"name\": \"…\", \"sandbox\"?: true } with a name of 1-64 printable characters.", [
       { path: "name", message: "Required, 1-64 printable characters." },
     ]);
   }
-  return { name };
+  const sandbox = isRecord(body) ? body.sandbox : undefined;
+  if (sandbox !== undefined && typeof sandbox !== "boolean") {
+    throw invalidRequest("sandbox must be true or false.", [{ path: "sandbox", message: "Expected a boolean." }]);
+  }
+  return { name, sandbox: sandbox === true };
 }
 
 /** A fresh developer secret and its stored forms. */
@@ -828,6 +843,51 @@ function presentedKey(authorization: string | undefined, headerKey: string | und
   return key;
 }
 
+/* -------------------------------------------------- server keys in browsers */
+
+let browserExceptions: { readonly raw: string; readonly origins: ReadonlySet<string> } | null = null;
+
+/** Exact http(s) origins of KLETIA_SECRET_KEY_BROWSER_ORIGINS (comma separated); invalid entries are ignored with a warning. */
+function secretKeyBrowserExceptions(): ReadonlySet<string> {
+  const raw = process.env.KLETIA_SECRET_KEY_BROWSER_ORIGINS ?? "";
+  if (browserExceptions?.raw === raw) return browserExceptions.origins;
+  const origins = new Set<string>();
+  let ignored = 0;
+  for (const entry of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
+    try {
+      const url = new URL(entry);
+      if ((url.protocol === "https:" || url.protocol === "http:") && url.origin === entry.replace(/\/$/u, "")) origins.add(url.origin);
+      else ignored += 1;
+    } catch {
+      ignored += 1;
+    }
+  }
+  if (ignored > 0) console.warn(`[platform] ignored ${ignored} KLETIA_SECRET_KEY_BROWSER_ORIGINS entr${ignored === 1 ? "y" : "ies"} (exact http(s) origins only).`);
+  browserExceptions = { raw, origins };
+  return origins;
+}
+
+/**
+ * Whether a server key may be used from this `Origin`: no Origin (server
+ * code), a first-party origin, or a configured exception. Origins that are
+ * not exact (such as `null` from sandboxed frames and files) are foreign.
+ */
+export function secretKeyOriginAllowed(origin: string | undefined): boolean {
+  if (origin === undefined) return true;
+  return allowedOrigins.includes(origin) || origin === kletiaWebOrigin() || secretKeyBrowserExceptions().has(origin);
+}
+
+/** The MCP endpoint (router-relative path), which enforces its own Origin rule for MCP clients. */
+const MCP_ROUTE = /^\/mcp\/?$/iu;
+
+function secretKeyFromBrowser(): PlatformError {
+  return new PlatformError(
+    "SECRET_KEY_FROM_BROWSER",
+    "This key is a server key. Call Kletia from your server, through createKletiaProxy, or use a publishable key in browsers.",
+    403,
+  );
+}
+
 /**
  * Resolves the caller's tier. Never responds itself: a failed credential is
  * recorded on the request and rejected by `enforceAuthentication` after the
@@ -849,6 +909,12 @@ export const authenticate: RequestHandler = (req, _res, next) => {
       const agentKey = AGENT_KEY_PATTERN.test(key);
       if (!DEVELOPER_KEY_PATTERN.test(key) && !agentKey) {
         setAuth(req, { tier: "public", rejection: invalidKey() });
+        return;
+      }
+      // A server key from a foreign browser origin: refused before any store lookup (validity is never
+      // revealed). /v1/mcp keeps its own Origin rule (MCP_ORIGIN_FORBIDDEN, KLETIA_MCP_ALLOWED_ORIGINS).
+      if (!MCP_ROUTE.test(req.path) && !secretKeyOriginAllowed(req.get("origin"))) {
+        setAuth(req, { tier: "public", rejection: secretKeyFromBrowser() });
         return;
       }
       const now = Date.now();

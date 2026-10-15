@@ -11,7 +11,9 @@
  * reader never plans a guess. Goal steps are off by default; package P5
  * turns them on with the solver (`configureGoalSteps`).
  */
-import { GOAL_LIMITS, type Goal, type ThreadCorrection } from "@kletia/core";
+import { GOAL_LIMITS, normalizeMessage, type Goal, type ThreadCorrection } from "@kletia/core";
+import { splitClauses } from "../grammar.js";
+import { spellNumbers } from "./amounts.js";
 import type { Slot, WorkStep } from "../clarify/types.js";
 import { splitGoalClauses } from "./clauses.js";
 import { readFrame, type ReadGoal } from "./frames.js";
@@ -130,4 +132,30 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
   if (group.length > 0) shareEllipsis(group);
   if (steps.length > GOAL_LIMITS.maxGoals) return null;
   return { steps, corrections, goals };
+}
+
+/**
+ * Every piece of a message read by the frames alone (no strict reader, no
+ * lowering): one ReadGoal per piece, or null for a piece the frames cannot
+ * read. For tests, the eval and the solver's thread memory.
+ */
+export function readGoals(message: string, previousExists = false): (ReadGoal | null)[] {
+  const out: (ReadGoal | null)[] = [];
+  let index = 0;
+  for (const clause of splitClauses(normalizeMessage(spellNumbers(message, 2)))) {
+    let verbWord: string | undefined;
+    for (const piece of splitGoalClauses(clause, GOAL_LIMITS.maxGoals) ?? []) {
+      let text = normalizeClause(piece.text);
+      if (!text) continue;
+      let tokens = lex(text);
+      if (piece.joinedBy === "and" && !VERB_START(tokens) && verbWord && tokens[0]?.t !== "WORK") {
+        text = `${verbWord} ${text}`;
+        tokens = lex(text);
+      }
+      verbWord = leadingVerb(text, tokens) ?? verbWord;
+      out.push(readFrame(tokens, { previousExists: previousExists || index > 0, index }));
+      index += 1;
+    }
+  }
+  return out;
 }

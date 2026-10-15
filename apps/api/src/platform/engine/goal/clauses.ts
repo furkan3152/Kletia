@@ -20,7 +20,8 @@ export interface ClausePiece {
 
 const SEQUENCE = /\s*(?:;|\.\s+|,?\s+(?:and\s+)?(?:after\s+that|afterwards|after\s+which|and\s+then|then)\s+)\s*/iu;
 const VERB_WORDS = new Set(Object.keys(VERB_LEXICON).map((phrase) => phrase.split(" ")[0] as string));
-const NUMBER_START = /^(?:\$?\d|\.\d|half\b|all\b|a\s+(?:third|quarter|half)\b|everything\b|max\b)/iu;
+/** An amount starting a piece ("5 USDC to B", "$5", ".5", "half"); never an address ("0x...", base58). */
+const NUMBER_START = /^(?:\$?(?:\d[\d,]*(?:\.\d+)?|\.\d+)(?:k|%)?(?:\s|$)|half\b|all\b|a\s+(?:third|quarter|half)\b|everything\b|max\b)/iu;
 const NUMBER_WORD = /^(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|hundred|thousand)$/iu;
 
 /** Splits on "and" when what follows starts a new clause (a verb, an amount, an earn marker). */

@@ -158,11 +158,12 @@ test("newer pins: staking tokens, pool mints and the Curve coins are the registr
   }
   assert.deepEqual(curvePoolsFor("ethereum", ["usdc", "USDT"]).map((pool) => pool.id), ["ethereum:curve:3pool"]);
   assert.deepEqual(curvePoolsFor("ethereum", ["USDC", "WETH"]), []);
-  // CCTP testnet contracts are held out of VENUE_CONTRACTS until the adapter's lane rule and sandbox Iris land (P6).
+  // CCTP testnet contracts are pinned (lane rule and sandbox Iris).
   for (const network of ["arc", "arbitrum-sepolia"]) {
     for (const role of ["token-messenger", "message-transmitter", "token-minter"]) {
       assert.equal(CCTP_V2_TESTNET_CONTRACTS.filter((row) => row.network === network && row.role === role).length, 1, `${network} ${role}`);
-      assert.deepEqual(venueContracts("cctp-v2", network, role), [], `${network} ${role} not pinned yet`);
+      const [row] = CCTP_V2_TESTNET_CONTRACTS.filter((entry) => entry.network === network && entry.role === role);
+      assert.deepEqual(venueContracts("cctp-v2", network, role), [row.address], `${network} ${role} pinned`);
     }
   }
   for (const row of CCTP_V2_TESTNET_CONTRACTS) {
@@ -195,7 +196,7 @@ test("capability index: coverage rows, tiers, testnets and explicit-only venues"
   assert.deepEqual(capableProtocols("stake", "solana-devnet"), ["solana-stake"]);
   assert.deepEqual(capableProtocols("stake", "base"), [], "no L2 staking venue");
   // Bridges: CCTP only where pinned (not the testnets yet), never from Solana (destination only); USDC only.
-  for (const network of ["arc", "arbitrum-sepolia"]) assert.ok(!has(network, "bridge", "cctp-v2", "USDC"), network);
+  for (const network of ["arc", "arbitrum-sepolia"]) assert.ok(has(network, "bridge", "cctp-v2", "USDC"), network);
   assert.ok(has("base", "bridge", "cctp-v2", "USDC"));
   assert.ok(!capabilityIndex("solana", "bridge").some((row) => row.protocol === "cctp-v2"));
   assert.ok(!capabilityIndex("solana-devnet", "bridge").some((row) => row.protocol === "cctp-v2"));

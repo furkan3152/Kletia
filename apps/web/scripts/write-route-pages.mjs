@@ -117,10 +117,10 @@ export function writeRoutePages(routes) {
 
   // Fixed paths: every route whose canonical URL is its own path, and any extra
   // fixed paths the route table lists (for example the portal's sub-pages).
-  // The operator panel (kind "admin") is never pre-rendered: robots.txt disallows it, its hosting headers say
-  // noindex and the SPA shell sets its own robots tag.
+  // The operator panel (kind "admin") gets its shell page too (static hosts without rewrites need admin.html),
+  // marked with its own robots tag (noindex,nofollow); robots.txt and the hosting headers also keep it unindexed.
   const pages = Object.values(ROUTES)
-    .filter((route) => route.path !== "/" && route.id !== "notFound" && !route.canonicalFromPath && route.kind !== "admin")
+    .filter((route) => route.path !== "/" && route.id !== "notFound" && !route.canonicalFromPath)
     .map((route) => ({ path: route.path, title: route.title, description: route.description, robots: robotsFor(route) }));
   for (const extra of PRERENDER_PATHS ?? []) pages.push({ robots: "index,follow", ...extra });
 

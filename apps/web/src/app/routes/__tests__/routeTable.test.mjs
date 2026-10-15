@@ -148,7 +148,7 @@ test("/app renders the desk, entered before the first paint; the classic shell i
   assert.ok(!/\^\\\/app/u.test(html), "the desk gets the site's font preloads");
 });
 
-test("/admin is the operator panel: one prefix route, never indexed, pre-rendered or in the sitemap", () => {
+test("/admin is the operator panel: one prefix route, never indexed or in the sitemap", () => {
   for (const path of ["/admin", "/admin/", "/admin/anything"]) assert.equal(matchRoute(path).id, "admin", path);
   for (const path of ["/adminx", "/administrator", "/x/admin"]) assert.equal(matchRoute(path).id, "notFound", path);
   assert.equal(ROUTES.admin.kind, "admin");
@@ -158,5 +158,6 @@ test("/admin is the operator panel: one prefix route, never indexed, pre-rendere
   assert.ok(!sitemap.includes("/admin"));
   assert.match(readFileSync(new URL("../../../../public/robots.txt", import.meta.url), "utf8"), /^Disallow: \/admin$/mu);
   const writer = readFileSync(new URL("../../../../scripts/write-route-pages.mjs", import.meta.url), "utf8");
-  assert.match(writer, /route\.kind !== "admin"/u);
+  // Static hosts without rewrites need admin.html; it carries the route's noindex,nofollow tag.
+  assert.doesNotMatch(writer, /route\.kind !== "admin"/u);
 });

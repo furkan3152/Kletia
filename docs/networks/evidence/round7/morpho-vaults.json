@@ -1,0 +1,374 @@
+{
+  "at": "2026-10-15T04:16:28.983Z",
+  "results": [
+    {
+      "network": "ethereum",
+      "label": "MetaMorpho factory isMetaMorpho(Steakhouse USDC)",
+      "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+      "size": 23911,
+      "codeHash": "0x948cb0a2bf347795e99af306e37423dacabb048db2c650b34cd800d1dffba283",
+      "eip7702OrProxyHint": "0x6080604081815260043610156200001557600080fd5b60",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "MetaMorpho factory isMetaMorpho(Steakhouse USDT)",
+      "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+      "size": 23911,
+      "codeHash": "0x948cb0a2bf347795e99af306e37423dacabb048db2c650b34cd800d1dffba283",
+      "eip7702OrProxyHint": "0x6080604081815260043610156200001557600080fd5b60",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0xbEef047a543E45807105E51A8BBEFCc5950fcfBa"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "MetaMorpho factory isMetaMorpho(Steakhouse ETH)",
+      "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+      "size": 23911,
+      "codeHash": "0x948cb0a2bf347795e99af306e37423dacabb048db2c650b34cd800d1dffba283",
+      "eip7702OrProxyHint": "0x6080604081815260043610156200001557600080fd5b60",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "vault Steakhouse USDC",
+      "address": "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB",
+      "size": 19340,
+      "codeHash": "0x178de337f452135bd08591e764910cb3ac423a6b26f72da7c1d09f15019bdd07",
+      "eip7702OrProxyHint": "0x6080604052600436101561001257600080fd5b60003560",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "66217182701775"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x827e86072B06674a077f592A531dcE4590aDeCdB"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "604800"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "vault Steakhouse USDT",
+      "address": "0xbEef047a543E45807105E51A8BBEFCc5950fcfBa",
+      "size": 19340,
+      "codeHash": "0xbcde0c8dc4ac23745e9761d395a9bf8320fa14a1633ad990546908a0fde5d4af",
+      "eip7702OrProxyHint": "0x6080604052600436101561001257600080fd5b60003560",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "expect": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "79868979434017"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x827e86072B06674a077f592A531dcE4590aDeCdB"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "604800"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "vault Steakhouse ETH",
+      "address": "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4",
+      "size": 19340,
+      "codeHash": "0xf4cb3f688d6ba9305bd548e6b65a9326f66590f099f8d40e49cb4b2e11fa66fe",
+      "eip7702OrProxyHint": "0x6080604052600436101561001257600080fd5b60003560",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "9706062474775793886935"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x827e86072B06674a077f592A531dcE4590aDeCdB"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "604800"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "optimism",
+      "label": "MetaMorpho factory isMetaMorpho(Gauntlet USDC Prime)",
+      "address": "0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a",
+      "size": 24400,
+      "codeHash": "0x43ac6b3770df8acac7ead8ac3cdefa37b2d95e314dbcd3e479122e066d9d7fc4",
+      "eip7702OrProxyHint": "0x6080806040526004361015610012575f80fd5b5f3560e0",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "optimism",
+      "label": "vault Gauntlet USDC Prime",
+      "address": "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59",
+      "size": 19689,
+      "codeHash": "0x575efa72ada031ab0dc59de5eed24bf9bc3d8c9e706a70a46ff434fabbb85892",
+      "eip7702OrProxyHint": "0x60806040526004361015610011575f80fd5b5f3560e01c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+          "expect": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "530602174722"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x9E33faAE38ff641094fa68c65c2cE600b3410585"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "259200"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "polygon",
+      "label": "MetaMorpho factory isMetaMorpho(Compound USDC)",
+      "address": "0xa9c87daB340631C34BB738625C70499e29ddDC98",
+      "size": 24400,
+      "codeHash": "0x840ab2dad21555c55346c7be5bf2f8eae3b7d4c6ba53776771be3b81fa0d78b5",
+      "eip7702OrProxyHint": "0x6080806040526004361015610012575f80fd5b5f3560e0",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0x781FB7F6d845E3bE129289833b04d43Aa8558c42"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "polygon",
+      "label": "MetaMorpho factory isMetaMorpho(Compound USDT)",
+      "address": "0xa9c87daB340631C34BB738625C70499e29ddDC98",
+      "size": 24400,
+      "codeHash": "0x840ab2dad21555c55346c7be5bf2f8eae3b7d4c6ba53776771be3b81fa0d78b5",
+      "eip7702OrProxyHint": "0x6080806040526004361015610012575f80fd5b5f3560e0",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0xfD06859A671C21497a2EB8C5E3fEA48De924D6c8"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "polygon",
+      "label": "vault Compound USDC",
+      "address": "0x781FB7F6d845E3bE129289833b04d43Aa8558c42",
+      "size": 19689,
+      "codeHash": "0x3319590c5e19daef9741d8077aac6b5ad79c3e3d7c5b716645d9f2d99a03ca8d",
+      "eip7702OrProxyHint": "0x60806040526004361015610011575f80fd5b5f3560e01c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+          "expect": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "456847392337"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x9E33faAE38ff641094fa68c65c2cE600b3410585"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "259200"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "polygon",
+      "label": "vault Compound USDT",
+      "address": "0xfD06859A671C21497a2EB8C5E3fEA48De924D6c8",
+      "size": 19689,
+      "codeHash": "0xc6171e4ff2b43a5a7442b2c3ea282763ece13f9dad31924d8c4d75abab411ccd",
+      "eip7702OrProxyHint": "0x60806040526004361015610011575f80fd5b5f3560e01c",
+      "calls": [
+        {
+          "call": "asset() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+          "expect": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+          "match": true
+        },
+        {
+          "call": "totalAssets() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "162313554333"
+        },
+        {
+          "call": "curator() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x9E33faAE38ff641094fa68c65c2cE600b3410585"
+        },
+        {
+          "call": "timelock() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "259200"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "MetaMorpho factory isMetaMorpho(Gauntlet USDC Core)",
+      "address": "0x878988f5f561081deEa117717052164ea1Ef0c82",
+      "size": 24400,
+      "codeHash": "0x5721aa606e7ea2b4ce0c2052205124b2c62f91a733a74148d9874466ab09e932",
+      "eip7702OrProxyHint": "0x6080806040526004361015610012575f80fd5b5f3560e0",
+      "calls": [
+        {
+          "call": "isMetaMorpho(address) view returns (bool)",
+          "args": [
+            "0x7e97fa6893871A2751B5fE961978DCCb2c201E65"
+          ],
+          "ok": true,
+          "value": true,
+          "expect": "true",
+          "match": true
+        }
+      ],
+      "verified": true
+    }
+  ]
+}

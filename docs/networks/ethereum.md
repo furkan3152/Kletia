@@ -63,3 +63,7 @@ address from those tables and never take one from a provider at runtime.
   a testnet (`CAPITAL_LANE_MIXED`).
 - Submitted transactions verify only when chain, sender, target, calldata and
   value reproduce a payload prepared for the step (quote binding).
+
+## Venues added on 2026-10-15
+
+The 2026-10-15 registry update added PancakeSwap V3 and Curve 3pool swaps; Aave V3 USDT, wstETH and cbBTC reserves; the Compound V3 wstETH comet; Morpho Steakhouse USDC, USDT and ETH (v1.0 factory `0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101`); Stader ETHx, Mantle mETH and Frax sfrxETH staking; and USDT, DAI, USDS, cbETH, ETHx, mETH and sfrxETH asset rows (Ethereum USDT resets a non-zero allowance before approving). The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).

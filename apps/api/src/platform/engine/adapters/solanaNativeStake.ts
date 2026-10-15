@@ -134,7 +134,11 @@ export function nativeStakeInstructions(network: SolanaNetworkKey, owner: string
 
 export async function stakeRentReserve(network: SolanaNetworkKey): Promise<bigint> {
   try {
-    const value = await solanaRpc(network).getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SPACE, { commitment: "confirmed" }).send({ abortSignal: rpcAbortSignal() });
+    // The account size goes over the wire as a JSON number. The HTTP app installs BigInt.prototype.toJSON
+    // (http/app.ts), which makes the RPC client send a bigint parameter as the string "200"; the RPC then
+    // refuses it ("expected usize") and native staking could never plan on a running API.
+    const space = Number(STAKE_ACCOUNT_SPACE) as unknown as bigint;
+    const value = await solanaRpc(network).getMinimumBalanceForRentExemption(space, { commitment: "confirmed" }).send({ abortSignal: rpcAbortSignal() });
     return BigInt(value);
   } catch {
     throw new PlatformError("SOLANA_RPC_UNAVAILABLE", "The Solana RPC could not report the stake account rent. Try again shortly.", 502);

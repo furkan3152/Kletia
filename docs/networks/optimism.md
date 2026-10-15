@@ -63,3 +63,7 @@ address from those tables and never take one from a provider at runtime.
   a testnet (`CAPITAL_LANE_MIXED`).
 - Submitted transactions verify only when chain, sender, target, calldata and
   value reproduce a payload prepared for the step (quote binding).
+
+## Venues added on 2026-10-15
+
+The 2026-10-15 registry update added Aave V3 USDT and wstETH reserves, the Compound V3 USDT comet, Morpho Gauntlet USDC Prime (v1.1 factory `0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a`), and USDT, wstETH and OP asset rows. "Stake ETH" here is refused with the ways that work (buy wstETH at market, when the price guard passes, or bridge and stake on Ethereum). The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).

@@ -204,6 +204,8 @@ export const PREVIEW_WARNING_CODES = Object.freeze({
   gasOnArrival: "PREVIEW_GAS_ON_ARRIVAL",
   unpriced: "PREVIEW_UNPRICED",
   stepQuoted: "PREVIEW_STEP_QUOTED",
+  /** A step runs on a testnet: test tokens without market value (testnet guard mode). */
+  testnet: "PREVIEW_TESTNET",
 } as const);
 
 /** Codes of `materialChange` issues (each one makes `PREVIEW_CHANGED` at prepare). */

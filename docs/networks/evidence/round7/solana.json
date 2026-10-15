@@ -1,0 +1,226 @@
+{
+  "results": [
+    {
+      "cluster": "mainnet",
+      "label": "Marinade program",
+      "address": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 65141464,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Marinade state",
+      "address": "8szGkuLTAux9XMgZ2vtY39jVSowEcpBfFfD8hXSEqdGC",
+      "exists": true,
+      "owner": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+      "executable": false,
+      "lamports": 23280517,
+      "dataLen": 2616
+    },
+    {
+      "cluster": "mainnet",
+      "label": "SPL stake pool program",
+      "address": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 153141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Sanctum SPL multi program",
+      "address": "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Jito stake pool",
+      "address": "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb",
+      "exists": true,
+      "owner": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+      "executable": false,
+      "lamports": 2060816388,
+      "dataLen": 611,
+      "pool": {
+        "accountType": 1,
+        "manager": "5eosrve6LktMZgVNszYzebgmmC7BjLK8NoWyRQtcmGTF",
+        "stakeDepositAuthority": "6hg6RMfjn3QSW6MdjH2Dg3dhF9XsVEE8CQXhjYwkRCiK",
+        "validatorList": "3R3nGZpQs2aZo5FDQvd2MUQ6R7KhAPainds6uT6uE2mn",
+        "reserveStake": "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL",
+        "poolMint": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+        "managerFeeAccount": "8yoigZfzZ1nNaadumY9uPVD118225UYHTDpmjpr2nrSa",
+        "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "totalLamports": 10469806423056601,
+        "poolTokenSupply": 8014100892659504,
+        "rate": 1.3064230864183897,
+        "lastUpdateEpoch": 1058,
+        "solDepositAuthority": null,
+        "solDepositFee": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "cluster": "mainnet",
+      "label": "JupSOL stake pool",
+      "address": "8VpRhuxa7sUUepdY3kQiTmX9rS5vx4WgaXiAnXq4KCtr",
+      "exists": true,
+      "owner": "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn",
+      "executable": false,
+      "lamports": 5168440,
+      "dataLen": 611,
+      "pool": {
+        "accountType": 1,
+        "manager": "8JS6XsMPo2u3EyeeY3p2jvzHEhdUtCKgarHpJ3PAonyv",
+        "stakeDepositAuthority": "HTKRKG472CK7RuoBBgMHGyDip8RHH8pk5ukSmfWTb4iM",
+        "validatorList": "AXL4v4bbzRkqwHmLc9A1YzHQmRhmG9Q93i1e6CPG2bEK",
+        "reserveStake": "FMAWbzuxsgbgndArunedwxXPA6sweaVUGGgadCpSxau2",
+        "poolMint": "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v",
+        "managerFeeAccount": "GbvFCpMqKX65gQ8KNeob9JUAL7vHCHFSg8YN5bnpPT8g",
+        "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "totalLamports": 5215621387911135,
+        "poolTokenSupply": 4294372851750225,
+        "rate": 1.2145245808792415,
+        "lastUpdateEpoch": 1058,
+        "solDepositAuthority": null,
+        "solDepositFee": [
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Stake program",
+      "address": "Stake11111111111111111111111111111111111111",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "marginfi program",
+      "address": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141459,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "marginfi main group",
+      "address": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+      "exists": true,
+      "owner": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+      "executable": false,
+      "lamports": 65312640,
+      "dataLen": 9256
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Save program",
+      "address": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141442,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Drift program",
+      "address": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 49155476,
+      "dataLen": 36
+    },
+    {
+      "cluster": "mainnet",
+      "label": "Sanctum router (S controller)",
+      "address": "5ocnV1qiCgaQR8Jb8xWnVbApfaygJ8tNoZfgPwsgx9kx",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "CCTP V2 TokenMessengerMinter (devnet)",
+      "address": "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "CCTP V2 MessageTransmitter (devnet)",
+      "address": "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1001141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "Stake program (devnet)",
+      "address": "Stake11111111111111111111111111111111111111",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "SPL stake pool program (devnet)",
+      "address": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 1141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "Marinade program (devnet)",
+      "address": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 10001141440,
+      "dataLen": 36
+    },
+    {
+      "cluster": "devnet",
+      "label": "Orca Whirlpool (devnet)",
+      "address": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+      "exists": true,
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "executable": true,
+      "lamports": 2141440,
+      "dataLen": 36
+    }
+  ],
+  "slot": {
+    "https://api.mainnet-beta.solana.com": 457102338,
+    "https://api.devnet.solana.com": 511226531
+  }
+}

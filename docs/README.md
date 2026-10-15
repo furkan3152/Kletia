@@ -20,6 +20,7 @@ This index separates current product truth from deployment procedure, network-sp
 | Work on Arbitrum | [Arbitrum workflow](networks/arbitrum-workflow.md) | [Architecture overview](architecture/overview.md) |
 | Work on Solana | [Solana network guide](networks/solana.md) | [Platform API v1](platform/api-v1.md) |
 | Work on Ethereum, OP Mainnet or Polygon | [Ethereum](networks/ethereum.md), [OP Mainnet](networks/optimism.md), [Polygon](networks/polygon.md) | [Cross-chain venues](networks/cross-chain-venues.md) |
+| See what each network can do | [Protocol coverage](networks/protocol-coverage.md) (cell by cell, offline and live gates) | [Platform API v1](platform/api-v1.md) |
 | Test a real-data release | [MVP live-test runbook](runbooks/mvp-live-test.md) | [Render runbook](deployment/render.md) |
 
 ## Canonical product documents

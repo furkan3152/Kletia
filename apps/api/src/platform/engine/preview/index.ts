@@ -477,7 +477,7 @@ async function finish(
     for (const fee of preview.fees) if (fee.asset) assets.add(fee.asset.asset);
   }
   const prices = await priceAssets(assets);
-  const notes = built.flatMap((entry) => entry.notes);
+  const notes = [...testnetTags(graph), ...built.flatMap((entry) => entry.notes)];
   const aggregated = aggregatePreview(graph, previews, prices, now, {
     stage,
     needs: [...built.flatMap((entry) => entry.needs), ...arrival.needs],
@@ -491,6 +491,17 @@ async function finish(
     warnings: [...notes, ...arrival.warnings, `${PREVIEW_WARNING_CODES.unpriced}: no price for ${aggregated.totals.unpriced.length} asset(s); totals that need them are null.`],
     ...(intentId ? { intentId } : {}),
   });
+}
+
+/**
+ * The testnet tag: an intent on a testnet carries `PREVIEW_TESTNET`, so
+ * every surface can label the preview as test money. Mainnet and testnet
+ * never share an intent (capital lanes).
+ */
+function testnetTags(graph: IntentGraph): string[] {
+  const networks = [...new Set(graph.steps.map((step) => step.network))].filter((network) => CHAINS[network].environment === "testnet");
+  if (networks.length === 0) return [];
+  return [`${PREVIEW_WARNING_CODES.testnet}: ${networks.map((network) => CHAINS[network].name).join(", ")} ${networks.length === 1 ? "is a testnet" : "are testnets"}; test tokens have no market value.`];
 }
 
 /* ------------------------------------------------------------- previews */

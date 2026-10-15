@@ -66,3 +66,7 @@ Solana is a first-class Kletia network. It is served by two layers:
 | POST | `/transfer/prepare` | Unsigned SOL / SPL transfer |
 | GET | `/tx/:signature?network=&signer=` | Confirmation evidence; with `signer`, stays `processed` until the fee payer can be checked |
 | GET | `/yields` | Kamino lending rates |
+
+## Venues added on 2026-10-15
+
+The 2026-10-15 registry update made the Jito and JupSOL stake pools (SPL stake pool program) and Marinade executable as direct deposits that compete with the Jupiter route in a stake auction, and added native SOL staking (`solana-stake`: a seed-derived stake account delegated to a validator, on Solana and Solana Devnet; "stake 2 SOL natively" or "... with validator <vote account>"). The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).

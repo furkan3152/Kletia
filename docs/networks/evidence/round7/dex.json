@@ -1,0 +1,758 @@
+{
+  "at": "2026-10-15T04:14:10.754Z",
+  "identity": [
+    {
+      "network": "ethereum",
+      "label": "PancakeSwap V3 factory",
+      "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+      "size": 5151,
+      "codeHash": "0x8191d3ab1d55d3da9822199f28865415c99566b6f1aee4a4b16713f57930678c",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "owner() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0C0388E4bbF121a06ea531D2244E93E044964879"
+        },
+        {
+          "call": "poolDeployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            2500
+          ],
+          "ok": true,
+          "value": 50
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "PancakeSwap SmartRouter",
+      "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+      "size": 24316,
+      "codeHash": "0xfa83427988025833b0c71629cd232e3e8c7bdcc4fe34a5419ccc79b42aa7a637",
+      "eip7702OrProxyHint": "0x60806040526004361061021c5760003560e01c806304e4",
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "expect": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "match": true
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "PancakeSwap QuoterV2",
+      "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+      "size": 8331,
+      "codeHash": "0x236f9c811f95d29670d777304ba6f074edc006c568917b48b33cd78abd736d7e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "base",
+      "label": "PancakeSwap V3 factory",
+      "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+      "size": 5151,
+      "codeHash": "0x8191d3ab1d55d3da9822199f28865415c99566b6f1aee4a4b16713f57930678c",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "owner() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0Eb5C70f0CbD990e111227Ce4dAFC31e036f7964"
+        },
+        {
+          "call": "poolDeployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            2500
+          ],
+          "ok": true,
+          "value": 50
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "base",
+      "label": "PancakeSwap SmartRouter",
+      "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+      "size": 5229,
+      "codeHash": "0xeba62752da21e8676f1c40f06d2b75405b1a1fcb401a4eacd6c2cd1730d04059",
+      "eip7702OrProxyHint": "0x7313f4ea83d0bd40e75c8222255bc855a974568dd43014",
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason.",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": false
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason."
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason.",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": false
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "base",
+      "label": "PancakeSwap QuoterV2",
+      "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+      "size": 8331,
+      "codeHash": "0x945e158b4d4b58c41ade0a10f7e6df0a3c631468fcd762eced1b3fe38fe1f812",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "PancakeSwap V3 factory",
+      "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+      "size": 5151,
+      "codeHash": "0x8191d3ab1d55d3da9822199f28865415c99566b6f1aee4a4b16713f57930678c",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "owner() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x40C79220A51Bcc879dD52A2fCd96F0Dba4D89540"
+        },
+        {
+          "call": "poolDeployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            2500
+          ],
+          "ok": true,
+          "value": 50
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "PancakeSwap SmartRouter",
+      "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+      "size": 0,
+      "codeHash": null,
+      "eip7702OrProxyHint": null,
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": false
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": false
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "arbitrum",
+      "label": "PancakeSwap QuoterV2",
+      "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+      "size": 8331,
+      "codeHash": "0xbedd804b81eed408834c1b1e4da7c49a8b35e9f1f9130b46ef7c6436264b05a4",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "Camelot V3 AlgebraFactory",
+      "address": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+      "size": 14031,
+      "codeHash": "0xd2e121b20e1ffe21cebd67e884032884c11425315d7d0f746673b246371558d3",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "owner() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xbA6A06f8517e271DB44540e68BA46BEB4Bc6155d"
+        },
+        {
+          "call": "poolDeployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x6Dd3FB9653B10e806650F107C3B5A0a6fF974F65"
+        },
+        {
+          "call": "poolByPair(address,address) view returns (address)",
+          "args": [
+            "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+          ],
+          "ok": true,
+          "value": "0xB1026b8e7276e7AC75410F1fcbbe21796e8f7526"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "Camelot V3 SwapRouter",
+      "address": "0x1F721E2E82F6676FCE4eA07A5958cF098D339e18",
+      "size": 12697,
+      "codeHash": "0x21a5c887c1cd1b7a53bfa17970153bbe38c428f8accf4e6c010cd371b6b3c7a6",
+      "eip7702OrProxyHint": "0x6080604052600436106101485760003560e01c8063bc65",
+      "calls": [
+        {
+          "call": "WNativeToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+          "expect": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "Camelot V3 Quoter",
+      "address": "0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E",
+      "size": 5112,
+      "codeHash": "0x0f9ba8ab527f7c6b6162fa4a42655acbdd57109f409e142d688dc4504e80443e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+          "expect": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Curve MetaRegistry",
+      "address": "0xF98B45FA17DE75FB1aD0e7aFD971b0ca00e379fC",
+      "size": 7596,
+      "codeHash": "0x6110f2aba179ac22c384acd7e02165ee753655d5b07aa096a63332257a27c413",
+      "eip7702OrProxyHint": "0x6003361161000c57611b27565b60003560e01c34611d9a",
+      "calls": [
+        {
+          "call": "find_pool_for_coins(address,address,uint256) view returns (address)",
+          "args": [
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "0"
+          ],
+          "ok": true,
+          "value": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
+        },
+        {
+          "call": "find_pool_for_coins(address,address,uint256) view returns (address)",
+          "args": [
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "1"
+          ],
+          "ok": true,
+          "value": "0xDeBF20617708857ebe4F679508E7b7863a8A8EeE"
+        },
+        {
+          "call": "pool_count() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "2490"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Curve 3pool",
+      "address": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+      "size": 21199,
+      "codeHash": "0x954a1e212c557c85043985931498ffa3e2fcbe7dfe9cd61513f36eb47d6f4dfc",
+      "eip7702OrProxyHint": "0x600436101561000d576152c9565b600035601c52740100",
+      "calls": [
+        {
+          "call": "coins(uint256) view returns (address)",
+          "args": [
+            "1"
+          ],
+          "ok": true,
+          "value": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "expect": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "match": true
+        },
+        {
+          "call": "coins(uint256) view returns (address)",
+          "args": [
+            "2"
+          ],
+          "ok": true,
+          "value": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "expect": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "match": true
+        },
+        {
+          "call": "balances(uint256) view returns (uint256)",
+          "args": [
+            "1"
+          ],
+          "ok": true,
+          "value": "21627631356958"
+        },
+        {
+          "call": "balances(uint256) view returns (uint256)",
+          "args": [
+            "2"
+          ],
+          "ok": true,
+          "value": "115178479499658"
+        },
+        {
+          "call": "get_dy(int128,int128,uint256) view returns (uint256)",
+          "args": [
+            "1",
+            "2",
+            "100000000000"
+          ],
+          "ok": true,
+          "value": "100116225363"
+        },
+        {
+          "call": "fee() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1500000"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "Uniswap V3 factory (Arb Sepolia)",
+      "address": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e",
+      "size": 24535,
+      "codeHash": "0x7e1ac1f0ac9876f7cb5d557153766c07f30efed60f4ad7f14ba34bdd27031124",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "owner() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x11014296ed71103be2d53d5391eD00A2A78A7C46"
+        },
+        {
+          "call": "feeAmountTickSpacing(uint24) view returns (int24)",
+          "args": [
+            3000
+          ],
+          "ok": true,
+          "value": 60
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "Uniswap SwapRouter02 (Arb Sepolia)",
+      "address": "0x101F443B4d1b059569D643917553c771E1b9663E",
+      "size": 24497,
+      "codeHash": "0xb7f0bed5258473e73513f604660efed135a05124470796b6b9fec9ca12e22367",
+      "eip7702OrProxyHint": "0x6080604052600436106102a45760003560e01c80639b2c",
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+          "expect": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+          "match": true
+        },
+        {
+          "call": "factoryV2() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "Uniswap QuoterV2 (Arb Sepolia)",
+      "address": "0x2779a0CC1c3e0E44D2542EC3e79e3864Ae93Ef0B",
+      "size": 8273,
+      "codeHash": "0xb906edfeaf29492e10fc571af73ce1baa5ae85accc925f8c5037808d6202ba0e",
+      "eip7702OrProxyHint": "0x608060405234801561001057600080fd5b506004361061",
+      "calls": [
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e",
+          "expect": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e",
+          "match": true
+        }
+      ],
+      "verified": true
+    }
+  ],
+  "pools": [
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "ethereum",
+      "fee": 100,
+      "pool": "0x1445F32D1A74872bA41f3D8cF4022E9996120b31",
+      "balA": "263726212060",
+      "balB": "127733796710637547834",
+      "quoteIn": "1000000000",
+      "quoteOut": "423240474613256735"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "ethereum",
+      "fee": 500,
+      "pool": "0x1ac1A8FEaAEa1900C4166dEeed0C11cC10669D36",
+      "balA": "116820559772",
+      "balB": "63478164425039417874",
+      "quoteIn": "1000000000",
+      "quoteOut": "422206079979090468"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "ethereum",
+      "fee": 2500,
+      "pool": "0x19ac5F80EC17497d0E585B953100e6d18c330040",
+      "balA": "1841120",
+      "balB": "127549026500710",
+      "quoteIn": "1000000000",
+      "quoteOut": "116854760014282"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "base",
+      "fee": 100,
+      "pool": "0x72AB388E2E2F6FaceF59E3C3FA2C4E29011c2D38",
+      "balA": "844136685178",
+      "balB": "1436656622312484787368",
+      "quoteIn": "1000000000",
+      "quoteOut": "423509041114532246"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "base",
+      "fee": 500,
+      "pool": "0xB775272E537cc670C65DC852908aD47015244EaF",
+      "balA": "281543825989",
+      "balB": "365411898555989405512",
+      "quoteIn": "1000000000",
+      "quoteOut": "423129119447280484"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "base",
+      "fee": 2500,
+      "pool": "0xE9d76696f8A35e2E2520e3125875C3af23f1E69c",
+      "balA": "4484197882",
+      "balB": "2688390053929217596",
+      "quoteIn": "1000000000",
+      "quoteOut": "412414364180016034"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "arbitrum",
+      "fee": 100,
+      "pool": "0x7fCDC35463E3770c2fB992716Cd070B63540b947",
+      "balA": "107790714290",
+      "balB": "133278864323309925110",
+      "quoteIn": "1000000000",
+      "quoteOut": "423143516669490388"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "arbitrum",
+      "fee": 500,
+      "pool": "0xd9e2a1a61B6E61b275cEc326465d417e52C1b95c",
+      "balA": "222406838066",
+      "balB": "228541654886837611146",
+      "quoteIn": "1000000000",
+      "quoteOut": "423029678888237756"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->WETH",
+      "n": "arbitrum",
+      "fee": 2500,
+      "pool": "0xb3d494d53aAC707c469318f15cFd5d7857a61388",
+      "balA": "39165413",
+      "balB": "11747761502555822",
+      "quoteIn": "1000000000",
+      "quoteOut": "3536359809306747"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "ethereum",
+      "fee": 100,
+      "pool": "0x3416cF6C708Da44DB2624D63ea0AAef7113527C6",
+      "balA": "5529721415056",
+      "balB": "28374470757247",
+      "quoteIn": "1000000000",
+      "quoteOut": "1001162024"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "ethereum",
+      "fee": 500,
+      "pool": "0x7858E59e0C01EA06Df3aF3D20aC7B0003275D4Bf",
+      "balA": "167174693825",
+      "balB": "330434778427",
+      "quoteIn": "1000000000",
+      "quoteOut": "1000243838"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "arbitrum",
+      "fee": 100,
+      "pool": "0xbE3aD6a5669Dc0B8b12FeBC03608860C31E2eef6",
+      "balA": "110586152878",
+      "balB": "1116155304869",
+      "quoteIn": "1000000000",
+      "quoteOut": "1001169097"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "arbitrum",
+      "fee": 500,
+      "pool": "0xbcE73c2e5A623054B0e8e2428E956f4b9d0412a5",
+      "balA": "1772617080",
+      "balB": "20032118460",
+      "quoteIn": "1000000000",
+      "quoteOut": "1000479604"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "optimism",
+      "fee": 100,
+      "pool": "0xA73C628eaf6e283E26A7b1f8001CF186aa4c0E8E",
+      "balA": "2185847743",
+      "balB": "48795222965",
+      "quoteIn": "1000000000",
+      "quoteOut": "1000970146"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "optimism",
+      "fee": 500,
+      "pool": "0x2926736C30EF3649F9e6b5c5918ea88871F79f2B",
+      "balA": "471675328",
+      "balB": "1291688653",
+      "quoteIn": "1000000000",
+      "quoteOut": "999472946"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "polygon",
+      "fee": 100,
+      "pool": "0x31083a78E11B18e450fd139F9ABEa98CD53181B7",
+      "balA": "29083205360",
+      "balB": "670300495042",
+      "quoteIn": "1000000000",
+      "quoteOut": "1001156655"
+    },
+    {
+      "label": "uniswap-v3 USDC->USDT",
+      "n": "polygon",
+      "fee": 500,
+      "pool": "0xEE95696f77693aF4F9B93850A9f48B4AD8E7a30A",
+      "balA": "600671050",
+      "balB": "11040623608",
+      "quoteIn": "1000000000",
+      "quoteOut": "1000482561"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->USDT",
+      "n": "ethereum",
+      "fee": 100,
+      "pool": "0x04c8577958CcC170EB3d2CCa76F9d51bc6E42D8f",
+      "balA": "8129062141540",
+      "balB": "9479943497010",
+      "quoteIn": "1000000000",
+      "quoteOut": "1001148580"
+    },
+    {
+      "label": "pancakeswap-v3 USDC->USDT",
+      "n": "arbitrum",
+      "fee": 100,
+      "pool": "0x7e928afb59f5dE9D2f4d162f754C6eB40c88aA8E",
+      "balA": "8774611831",
+      "balB": "128387832976",
+      "quoteIn": "1000000000",
+      "quoteOut": "1001150847"
+    },
+    {
+      "label": "uniswap-v3 USDC->WETH (arb sepolia)",
+      "n": "arbitrum-sepolia",
+      "fee": 500,
+      "pool": "0x6F112d524DC998381C09b4e53C7e5e2cc260f877",
+      "balA": "482834",
+      "balB": "18330454171510343",
+      "quoteIn": "1000000",
+      "quoteOut": "999499999999504"
+    },
+    {
+      "label": "uniswap-v3 USDC->WETH (arb sepolia)",
+      "n": "arbitrum-sepolia",
+      "fee": 3000,
+      "pool": "0x66EEAB70aC52459Dd74C6AD50D578Ef76a441bbf",
+      "balA": "8135396706",
+      "balB": "1079287981606971259",
+      "quoteIn": "1000000",
+      "quoteOut": "542974644098912"
+    },
+    {
+      "label": "uniswap-v3 USDC->WETH (arb sepolia)",
+      "n": "arbitrum-sepolia",
+      "fee": 10000,
+      "pool": "0x3eCedaB7E9479E29B694d8590dc34e0Ce6059868",
+      "balA": "105525345",
+      "balB": "124475375454577234",
+      "quoteIn": "1000000",
+      "quoteOut": "1073475245753192"
+    },
+    {
+      "label": "camelot-v3 USDC->WETH",
+      "n": "arbitrum",
+      "pool": "0xB1026b8e7276e7AC75410F1fcbbe21796e8f7526",
+      "balUSDC": "36537790729",
+      "balWETH": "86724750315144568432",
+      "quoteOut": [
+        "423282592274438804",
+        100
+      ]
+    }
+  ]
+}

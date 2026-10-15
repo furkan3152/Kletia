@@ -108,3 +108,42 @@ export function protocolHeadline(entries: readonly Countable[]): string {
   if (!ownContracts) return parts.join(", ");
   return executable !== null ? `${parts.join(", ")}, + your own contracts` : `${parts[0]} + your own contracts`;
 }
+
+/* ------------------------------------------------- the capability index */
+
+/** One row of @kletia/core `capabilityIndex()`: a protocol the registry pins as executing a kind on a network. */
+export interface CapabilityRowLike {
+  readonly network: string;
+  readonly kind: string;
+  readonly protocol: string;
+}
+
+export interface RouteCount {
+  /** Distinct protocols with at least one pinned route (what GET /v1/protocols reports executable when every adapter runs). */
+  readonly protocols: number;
+  /** Distinct protocols per network. */
+  readonly byNetwork: Readonly<Record<string, number>>;
+}
+
+/**
+ * Counts from the capability index (registry data, no deployment knowledge):
+ * the number the README and the site print as "executable through the API"
+ * when no live answer is at hand is this one, never typed.
+ */
+export function countRoutes(rows: readonly CapabilityRowLike[]): RouteCount {
+  const all = new Set<string>();
+  const byNetwork = new Map<string, Set<string>>();
+  for (const row of rows) {
+    all.add(row.protocol);
+    const set = byNetwork.get(row.network) ?? new Set<string>();
+    set.add(row.protocol);
+    byNetwork.set(row.network, set);
+  }
+  return { protocols: all.size, byNetwork: Object.fromEntries([...byNetwork].map(([network, set]) => [network, set.size])) };
+}
+
+/** "49 protocols, 38 of them executable through the API" (registry entries and capability index). */
+export function registryHeadline(entries: readonly Categorized[], rows: readonly CapabilityRowLike[]): string {
+  const { protocols } = countProtocols(entries as readonly Countable[]);
+  return `${protocolNoun(protocols)}, ${countRoutes(rows).protocols} of them executable through the API`;
+}

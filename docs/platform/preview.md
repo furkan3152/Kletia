@@ -141,6 +141,7 @@ Inside `PreviewIssue.code` (not API errors):
 | `PREVIEW_GAS_ON_ARRIVAL` | Your native balance on a network where a step needs your signature cannot pay that step's estimated network fees (the need is the shortfall) |
 | `PREVIEW_UNPRICED` | Some assets have no price; totals that need them are null |
 | `PREVIEW_STEP_QUOTED` | The step is quoted, not simulated |
+| `PREVIEW_TESTNET` | The intent runs on a testnet: test tokens have no market value, and test-token swaps are checked against the pool quote only (slippage capped at 1 %) |
 
 Issues may also carry catalogued codes such as `INSUFFICIENT_BALANCE`
 (severity `warn` at plan, `block` at prepare).

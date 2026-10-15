@@ -280,6 +280,7 @@ export const ERROR_CATALOG = {
   VENUE_UNKNOWN: intent("Unknown venue", "Use a venue listed for this network and protocol (see error.message for known ones)."),
   VENUE_UNSUPPORTED: intent("Venue not executable", "The venue is listed for discovery only. Choose an executable venue."),
   VENUE_ASSET_MISMATCH: intent("Venue holds another asset", "Choose a venue for the asset you are moving."),
+  APPROVAL_RESET_REQUIRED: intent("Allowance reset required", "This token (Ethereum USDT) refuses a new approval over a non-zero allowance. Revoke the current allowance in your wallet, then plan again."),
   VENUE_UNVERIFIED: intent("Venue failed verification", "The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue."),
   VENUE_ILLIQUID: intent("Venue lacks exit liquidity", "Borrowers hold the venue's funds right now. Withdraw less, use another venue, or retry later."),
   VENUE_BORROW_OPEN: intent("Open borrow on this market", "A supply would repay the account's borrow instead of earning. Repay it first or choose another venue."),

@@ -194,6 +194,19 @@ const PHRASES: readonly Phrase[] = (() => {
   return list.sort((a, b) => b.words.length - a.words.length || b.words.join(" ").length - a.words.join(" ").length);
 })();
 
+/** PHRASES by their first word (longest first within each), so the lexer tries only the phrases that can start here. */
+const PHRASES_BY_FIRST: ReadonlyMap<string, readonly Phrase[]> = (() => {
+  const map = new Map<string, Phrase[]>();
+  for (const phrase of PHRASES) {
+    const first = phrase.words[0] as string;
+    const list = map.get(first) ?? [];
+    list.push(phrase);
+    map.set(first, list);
+  }
+  return map;
+})();
+
+const PORTION_PHRASES: readonly (readonly string[])[] = Object.keys(PORTION_WORDS).map((phrase) => phrase.split(" ")).sort((a, b) => b.length - a.length);
 const CONNECTOR_SET: ReadonlySet<string> = new Set(CONNECTORS.filter((word) => !word.includes(" ")));
 const isNumberWord = (word: string) => Object.hasOwn(NUMBER_UNITS, word) || Object.hasOwn(NUMBER_TENS, word) || Object.hasOwn(NUMBER_SCALES, word);
 
@@ -294,6 +307,14 @@ export function lex(text: string): Token[] {
         continue;
       }
     }
+    // Portion words before numbers: "two thirds" is 6667 bps, not the number 2.
+    const portion = PORTION_PHRASES.find((phrase) => index + phrase.length <= words.length && words.slice(index, index + phrase.length).join(" ").toLowerCase() === phrase.join(" "));
+    if (portion) {
+      const raw = words.slice(index, index + portion.length).join(" ");
+      tokens.push({ t: "AMOUNT", sel: { t: "portion", bps: PORTION_WORDS[portion.join(" ")] as number }, raw, span: spanOf(cursor, index, index + portion.length) });
+      index += portion.length;
+      continue;
+    }
     const amount = readAmountAt(cursor, index);
     if (amount) {
       tokens.push(amount[0]);
@@ -301,7 +322,7 @@ export function lex(text: string): Token[] {
       continue;
     }
     let matched = false;
-    for (const phrase of PHRASES) {
+    for (const phrase of PHRASES_BY_FIRST.get((words[index] as string).toLowerCase()) ?? []) {
       const size = phrase.words.length;
       if (index + size > words.length) continue;
       const slice = words.slice(index, index + size);

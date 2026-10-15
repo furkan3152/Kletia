@@ -357,6 +357,7 @@ introduced.
 | <a id="error-VENUE_ILLIQUID"></a>`VENUE_ILLIQUID` | 422 | no | Venue lacks exit liquidity | Borrowers hold the venue's funds right now. Withdraw less, use another venue, or retry later. |
 | <a id="error-VENUE_UNKNOWN"></a>`VENUE_UNKNOWN` | 422 | no | Unknown venue | Use a venue listed for this network and protocol (see error.message for known ones). |
 | <a id="error-VENUE_UNSUPPORTED"></a>`VENUE_UNSUPPORTED` | 422 | no | Venue not executable | The venue is listed for discovery only. Choose an executable venue. |
+| <a id="error-APPROVAL_RESET_REQUIRED"></a>`APPROVAL_RESET_REQUIRED` | 422 | no | Allowance reset required | This token (Ethereum USDT) refuses a new approval over a non-zero allowance. Revoke the current allowance in your wallet, then plan again. |
 | <a id="error-VENUE_UNVERIFIED"></a>`VENUE_UNVERIFIED` | 422 | no | Venue failed verification | The venue's on-chain state no longer matches Kletia's pinned registry (factory, asset, comptroller, gates). Choose another venue. |
 | <a id="error-WEBHOOK_URL_FORBIDDEN"></a>`WEBHOOK_URL_FORBIDDEN` | 422 | no | Webhook URL refused | Use a public HTTPS endpoint on port 443 or 8443; private, loopback and metadata hosts are refused. |
 | <a id="error-WEBHOOK_URL_UNRESOLVABLE"></a>`WEBHOOK_URL_UNRESOLVABLE` | 422 | no | Webhook host does not resolve | Use a host name with public DNS records. |

@@ -92,6 +92,8 @@ function viaProtocol(goal: Goal, step: WorkStep): void {
 
 function lowerConvert(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   const { goal, notes } = read;
+  // A recipient is never dropped: a swap "to 0x..." is not a step the frames can say.
+  if (goal.holder.t !== "self") return null;
   if (goal.want.amount && !(goal.want.amount.t === "usd" && !goal.spend.amount)) return null;
   if (goal.spend.asset && "class" in goal.spend.asset && !isStableClass(goal.spend.asset)) return null;
   if (goal.spend.asset && isStableClass(goal.spend.asset) && goal.spend.amount && goal.spend.amount.t !== "exact" && goal.spend.amount.t !== "usd") return null;

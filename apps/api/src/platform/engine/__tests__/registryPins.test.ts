@@ -44,11 +44,6 @@ const SINGLE_ROLES = new Set([
  * Anything else missing a pin fails the test.
  */
 const LISTED_ONLY: Readonly<Partial<Record<ProtocolId, Readonly<Partial<Record<NetworkKey, string>>>>>> = {
-  "cctp-v2": {
-    arc: "testnet contracts held in CCTP_V2_TESTNET_CONTRACTS until the adapter's lane rule and sandbox Iris land (P6)",
-    "arbitrum-sepolia": "same as Arc",
-    "solana-devnet": "destination only, held with the testnet contracts (P6)",
-  },
   lifi: { solana: "LI.FI delivers to Solana; Solana-origin routes are not built" },
 };
 
@@ -101,13 +96,11 @@ describe("registry pins (round 7)", () => {
     for (const venue of YIELD_VENUES) assert.ok(getProtocol(venue.protocol)?.networks.includes(venue.network), venue.id);
   });
 
-  it("round-7 adapter slots are empty: no new protocol executes before its package lands", () => {
+  it("every round-7 protocol has a live adapter", () => {
     const live = new Set(ADAPTERS.flatMap((adapter) => adapter.protocols));
-    for (const id of ["pancakeswap-v3", "camelot", "curve", "stader", "mantle-lsp", "frax-ether", "solana-stake"] as const) {
-      assert.ok(!live.has(id), `${id} has no adapter yet`);
+    for (const id of ["pancakeswap-v3", "camelot", "curve", "stader", "mantle-lsp", "frax-ether", "solana-stake", "jito", "marinade", "sanctum"] as const) {
+      assert.ok(live.has(id), `${id} has an adapter`);
     }
-    // jito / marinade / sanctum stakes keep running through the Jupiter adapter.
-    for (const id of ["jito", "marinade", "sanctum"] as const) assert.ok(!live.has(id), id);
   });
 });
 

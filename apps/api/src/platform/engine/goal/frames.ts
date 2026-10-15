@@ -419,7 +419,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
 
   // F3: a lone "on/in NETWORK" fills whichever side is still open; for "get / want" verbs
   // it is where the money is wanted (the source stays open), for an exit where the position is.
-  if (place && object === "want" && !want.network) {
+  if (place && object === "want" && !want.network && !spend.asset) {
     want.network = place;
   } else if (place && verb?.kind === "exit" && !spend.network) {
     spend.network = place;

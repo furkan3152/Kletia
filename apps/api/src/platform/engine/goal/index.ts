@@ -79,7 +79,8 @@ function shareEllipsis(group: WorkStep[]): void {
 /**
  * One clause read by the Goal reader: its steps (strict pieces and lowered
  * goals, plus goal steps when they are on), or null when any piece cannot be
- * read (the caller refuses the clause, as today).
+ * read (the caller refuses the clause, as today). A clause of fillers only
+ * ("please") reads as no steps; the caller refuses a message with none.
  */
 export function readClause(clause: string, options: ReadClauseOptions): ClauseReading | null {
   const pieces = splitGoalClauses(clause, GOAL_LIMITS.maxGoals);
@@ -92,7 +93,8 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
   for (const piece of pieces) {
     const previousExists = options.previousExists || steps.length > 0;
     let text = normalizeClause(piece.text);
-    if (!text) return null;
+    // A piece of fillers only ("please," before the sentence) says nothing.
+    if (!text) continue;
     let tokens = lex(text);
     if (piece.joinedBy === "and" && !VERB_START(tokens) && verbWord && tokens[0]?.t !== "WORK") {
       text = `${verbWord} ${text}`;
@@ -126,6 +128,6 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
     group = [];
   }
   if (group.length > 0) shareEllipsis(group);
-  if (steps.length === 0 || steps.length > GOAL_LIMITS.maxGoals) return null;
+  if (steps.length > GOAL_LIMITS.maxGoals) return null;
   return { steps, corrections, goals };
 }

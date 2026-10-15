@@ -26,7 +26,7 @@ import { isSolanaNetworkKey, solanaRpc, type SolanaNetworkKey } from "../../../n
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef } from "../assets.js";
-import { buildSolanaTransaction, SOLANA_PROGRAM_IDS, type SolanaTransactionObservation } from "../chains/solana.js";
+import { buildSolanaTransaction, type SolanaTransactionObservation } from "../chains/solana.js";
 import { nativeUsdPrice } from "../prices.js";
 import type { AdapterAction, AdapterRoute, PreparedPayload, VerificationResult, VerifyContext } from "./types.js";
 import { effectiveSolDelta, lowestPreparedFloor, SOL_RENT_TOLERANCE_LAMPORTS, stepOwner, tokenDelta, verifySolanaReferences } from "./verification.js";
@@ -268,5 +268,3 @@ export async function verifyLiquidStake(
   return result;
 }
 
-/** The token program every LST mint here uses (classic SPL Token). */
-export const LST_TOKEN_PROGRAM = SOLANA_PROGRAM_IDS.token;

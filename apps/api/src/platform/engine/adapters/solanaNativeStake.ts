@@ -24,7 +24,7 @@
  *   stake account received.
  */
 import { randomBytes } from "node:crypto";
-import { isSolanaAddress, venueContracts, type AssetAmount, type IntentStep } from "@kletia/core";
+import { formatAmount, fromBaseUnits, isSolanaAddress, venueContracts, type AssetAmount, type IntentStep } from "@kletia/core";
 import { address as toAddress, createAddressWithSeed, createNoopSigner, getAddressEncoder, type Instruction } from "@solana/kit";
 import { getCreateAccountWithSeedInstruction } from "@solana-program/system";
 import { isSolanaNetworkKey, solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
@@ -44,7 +44,6 @@ import {
   readU64Le,
   stakeFeeUsd,
   stakePayload,
-  stakeTitle,
   STAKE_SYSVARS,
   u32Le,
 } from "./solanaStakeCommon.js";
@@ -195,6 +194,10 @@ function assertAction(action: AdapterAction): { network: SolanaNetworkKey; amoun
   return { network, amount };
 }
 
+function nativeTitle(amount: bigint, network: SolanaNetworkKey, vote: string): string {
+  return `Stake ${formatAmount(fromBaseUnits(amount, 9))} SOL natively with validator ${vote.slice(0, 4)}…${vote.slice(-4)} on ${network === "solana" ? "Solana" : "Solana Devnet"}`;
+}
+
 /** Named vote account carried in `provider` (a base58 address), if any. */
 function namedVote(action: Pick<AdapterAction, "provider">): string | undefined {
   return action.provider !== undefined && isSolanaAddress(action.provider) ? action.provider : undefined;
@@ -277,7 +280,7 @@ export const solanaNativeStakeAdapter: ProtocolAdapter | null = {
     const fees = await stakeFeeUsd(network);
     return {
       protocol: "solana-stake",
-      title: `${stakeTitle(amount, LABEL, null, network)} (validator ${status.vote.slice(0, 4)}…${status.vote.slice(-4)})`,
+      title: nativeTitle(amount, network, status.vote),
       mode: "wallet",
       ...(await amounts(action, network, amount, rent)),
       ...(fees !== undefined ? { feesUsd: fees } : {}),
@@ -302,7 +305,7 @@ export const solanaNativeStakeAdapter: ProtocolAdapter | null = {
     const built = await buildStakeTransaction(network, owner, nativeStakeInstructions(network, owner, stake, quote.seed, quote.vote, amount + rent), COMPUTE_UNITS, "stake delegation");
     const fees = await stakeFeeUsd(network);
     const { extraCosts, ...rest } = await amounts(action, network, amount, rent);
-    return stakePayload(network, owner, stakeProgram(network), built, `${stakeTitle(amount, LABEL, null, network)} (stake account ${stake})`, rest, {
+    return stakePayload(network, owner, stakeProgram(network), built, `${nativeTitle(amount, network, quote.vote)} from stake account ${stake}`, rest, {
       ...(fees !== undefined ? { feesUsd: fees } : {}),
       quoteId: encodeNativeStakeQuote(quote),
       extraCosts,

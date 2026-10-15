@@ -185,12 +185,14 @@ function installStakingMock(): StakingMock {
   const mock = Object.assign(base, { epoch: EPOCH, current: new Set<string>(), voteCommission: new Map<string, number>() }) as StakingMock;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const text = typeof init?.body === "string" ? init.body : "";
-    let body: { jsonrpc?: string; id?: unknown; method?: string; params?: unknown[] } | null = null;
-    try {
-      body = text ? (JSON.parse(text) as typeof body) : null;
-    } catch {
-      body = null;
-    }
+    type RpcBody = { jsonrpc?: string; id?: unknown; method?: string; params?: unknown[] };
+    const body: RpcBody | null = (() => {
+      try {
+        return text ? (JSON.parse(text) as RpcBody) : null;
+      } catch {
+        return null;
+      }
+    })();
     const reply = (result: unknown) =>
       new Response(JSON.stringify({ jsonrpc: "2.0", id: body?.id, result }), { status: 200, headers: { "content-type": "application/json" } });
     if (body?.jsonrpc === "2.0") {
@@ -219,7 +221,7 @@ function asset(network: "solana" | "solana-devnet", symbol: string): ResolvedAss
 }
 
 function stakeAction(symbol: string, amount: bigint, overrides: Partial<AdapterAction> = {}): AdapterAction {
-  const network = overrides.network ?? "solana";
+  const network = overrides.network === "solana-devnet" ? "solana-devnet" : "solana";
   const account = parseAccountId(network === "solana" ? ACCOUNTS[0] as string : DEVNET_ACCOUNT);
   assert.ok(account);
   return {

@@ -356,7 +356,14 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
           if (spend.venue || venue.best) return null;
           spend.venue = venue;
           spend.custody = positionCustody(venue);
-          possessive = false;
+          // "my aave USDC": the possessive carries over to the asset after the venue; "my aave position" is all of it.
+          if (tokens[index + 1]?.t !== "ASSET") {
+            if (possessive && !spend.amount) {
+              spend.amount = { t: "max" };
+              spend.possessive = true;
+            }
+            possessive = false;
+          }
         } else if (conn === undefined || conn === "into" || conn === "in" || conn === "to" || conn === "at" || conn === "on" || conn === "onto") {
           if (want.venue) return null;
           want.venue = venue;
@@ -406,10 +413,17 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
     if (!bindAmount(object, pending)) return null;
     pending = undefined;
   }
-  if (conn !== undefined && conn !== "of") return null;
+  // A dangling "to" ("swap 1 SOL to") leaves the wanted asset open: the policy asks for it.
+  const lastToken = tokens[tokens.length - 1];
+  if (conn !== undefined && conn !== "of" && !(TO_CONNECTORS.has(conn) && lastToken?.t === "CONN" && !want.asset && !want.network)) return null;
 
-  // F3: a lone "on/in NETWORK" fills whichever side is still open.
-  if (place) {
+  // F3: a lone "on/in NETWORK" fills whichever side is still open; for "get / want" verbs
+  // it is where the money is wanted (the source stays open), for an exit where the position is.
+  if (place && object === "want" && !want.network) {
+    want.network = place;
+  } else if (place && verb?.kind === "exit" && !spend.network) {
+    spend.network = place;
+  } else if (place) {
     if (spend.network && !want.network) want.network = place;
     else if (want.network && !spend.network) spend.network = place;
     else if (!spend.network && !want.network) {
@@ -418,7 +432,15 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
     } else if (spend.network !== place && want.network !== place) return null;
   }
 
-  const kind = goalKind(verb, spend, want, holderSaid, holder);
+  // F9 without a word: "..., bridge to base" / "and earn yield" after a step continues with its output.
+  const implicit = ctx.previousExists && object === "spend" && !spend.asset && !spend.amount && !spend.venue && verb !== undefined;
+  if (implicit) {
+    spend.amount = { t: "previous" };
+    spend.previous = true;
+  }
+  // "move everything to base": all of every asset, a sweep only the solver can plan.
+  const sweep = !spend.asset && !spend.venue && spend.amount?.t === "max" && !ctx.previousExists && (verb?.kind === "relocate" || verb?.kind === "deliver");
+  const kind = sweep ? "consolidate" : goalKind(verb, spend, want, holderSaid, holder);
   if (!kind) return null;
   if (verb?.whole && !spend.amount) spend.amount = { t: "max" };
   if (!spend.asset && !want.asset && !spend.venue && !want.venue && !holderSaid && !spend.previous && kind !== "consolidate") return null;
@@ -460,6 +482,8 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
 function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSaid: boolean, holder: Holder): GoalKind | null {
   const moves = spend.network !== undefined && want.network !== undefined && spend.network !== want.network;
   const sameAsset = !want.asset || !spend.asset || sameSel(spend.asset, want.asset);
+  // Money that sits in a venue position now leaves it first ("move my aave USDC to morpho").
+  if (spend.custody?.kind === "position" && (!verb || verb.kind !== "deliver")) return "exit";
   if (verb) {
     switch (verb.kind) {
       case "deliver":
@@ -481,7 +505,8 @@ function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSa
         if (want.custody?.kind === "venue") return "earn";
         return "convert";
       case "exit":
-        return spend.venue ? "exit" : null;
+        // "withdraw 50 USDC": the verb alone says exit; the venue is asked.
+        return spend.venue || verb.op === "withdraw" ? "exit" : null;
       default:
         return verb.kind;
     }

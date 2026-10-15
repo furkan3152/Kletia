@@ -584,8 +584,10 @@ async function readApy(venue: YieldVenue, now: number, deadlineAt: number): Prom
   const base = { venue: venue.id, network: venue.network, protocol: venue.protocol };
   try {
     const facts = await withDeadline(readers.venue(venue), Math.min(SNAPSHOT_LIMITS.apyReadMs, deadlineAt - Date.now()));
-    const apy = typeof facts.apy === "number" && Number.isFinite(facts.apy) ? facts.apy : null;
-    const value: SnapshotApy = { ...base, status: "known", apy, paused: facts.paused, frozen: facts.frozen, at: facts.at };
+    // A venue that cannot take a new deposit now (over 99% borrowed, cap full) reads as frozen: no rate wins it the pick.
+    const full = (typeof facts.utilization === "number" && facts.utilization >= 0.99) || facts.capRemaining === "0";
+    const apy = typeof facts.apy === "number" && Number.isFinite(facts.apy) && !full ? facts.apy : null;
+    const value: SnapshotApy = { ...base, status: "known", apy, paused: facts.paused, frozen: facts.frozen || full, at: facts.at };
     apyMemo.set(venue.id, { value, readAt: now });
     return value;
   } catch (error) {

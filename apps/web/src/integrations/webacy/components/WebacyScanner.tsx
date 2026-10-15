@@ -173,7 +173,7 @@ export function WebacyScanner({
             aria-describedby={hintId}
             aria-invalid={Boolean(error)}
             onChange={(e) => setAddress(e.target.value)}
-            className="flex-1 bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 text-base md:text-lg font-mono font-bold text-[#1A1A1A] dark:text-white outline-none focus:border-[#0052FF] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#0052FF]"
+            className="flex-1 bg-white dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-4 text-base md:text-lg font-mono font-bold text-[#1A1A1A] dark:text-white"
           />
           <button
             type="submit"

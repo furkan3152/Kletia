@@ -18,10 +18,11 @@ test("every network answering in time: all running", () => {
 });
 
 test("one slow network is named; several are counted", () => {
-  assert.deepEqual(statusHeadline(all({ solana: { latencyMs: 2400 } })), { text: "Solana is slow", tone: "slow" });
-  assert.equal(statusHeadline(all({ solana: { latencyMs: 2400 }, base: { latencyMs: 1600 } })).text, "2 networks are slow");
-  // The board's own threshold: 1500 ms is still running.
-  assert.equal(statusHeadline(all({ solana: { latencyMs: 1500 } })).text, "All 9 networks are running");
+  assert.deepEqual(statusHeadline(all({ solana: { latencyMs: 3400 } })), { text: "Solana is slow", tone: "slow" });
+  assert.equal(statusHeadline(all({ solana: { latencyMs: 3400 }, base: { latencyMs: 3100 } })).text, "2 networks are slow");
+  // The board's own threshold: 3000 ms is still running, and so is a cold-start 2.5 s read.
+  assert.equal(statusHeadline(all({ solana: { latencyMs: 3000 } })).text, "All 9 networks are running");
+  assert.equal(statusHeadline(all({ base: { latencyMs: 2365 }, ethereum: { latencyMs: 2495 } })).text, "All 9 networks are running");
 });
 
 test("networks not answering win over slow ones", () => {

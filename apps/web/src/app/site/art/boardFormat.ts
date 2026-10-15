@@ -28,8 +28,21 @@ export const NAME_WIDTH = 13;
 export const LATENCY_WIDTH = 6;
 export const STATUS_WIDTH = 10;
 
-/** A healthy RPC slower than this is shown as delayed. */
-export const DELAYED_ABOVE_MS = 1500;
+/**
+ * A healthy RPC slower than this is shown as delayed. The latency is the
+ * API's own read (`GET /v1/health` times one `eth_blockNumber` or Solana
+ * `getSlot` from the API server to the network's RPC), never a browser
+ * round trip. Measured 2026-10-15 against the hosted API: a warm instance
+ * reads every public RPC in 0.2-0.7 s; the first read after a cold start
+ * (fresh TLS sessions, a busy event loop at boot) takes 1.7-2.5 s on every
+ * EVM network at once, which is a slow start of ours, not a slow network.
+ * The old 1.5 s limit therefore showed "DELAYED" on the whole board after
+ * each cold start. 3 s keeps those readings "running" while a network that
+ * really lags still shows: past 3 s it is delayed, and the API's probe
+ * timeout (4 s EVM, 5 s Solana) turns a reading into not ok, which the
+ * board shows as suspended.
+ */
+export const DELAYED_ABOVE_MS = 3000;
 
 /** Characters on each flap drum, in the order the flaps turn. */
 export const DRUM = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-+:";

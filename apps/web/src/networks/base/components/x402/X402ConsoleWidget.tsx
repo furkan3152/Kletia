@@ -1173,7 +1173,7 @@ export const X402ConsoleWidget: React.FC = () => {
                     type="text"
                     value={contractLabel}
                     onChange={(e) => setContractLabel(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white outline-none focus:border-[#0052FF] transition-colors"
+                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white transition-shadow"
                   />
                 </div>
                 <div>
@@ -1186,7 +1186,7 @@ export const X402ConsoleWidget: React.FC = () => {
                     min="0.000001"
                     value={initialPrice}
                     onChange={(e) => setInitialPrice(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white outline-none focus:border-[#0052FF] transition-colors"
+                    className="w-full bg-gray-50 dark:bg-[#131E32] border-[3px] border-[#1A1A1A] dark:border-[#4B5563] p-3 font-bold text-[#1A1A1A] dark:text-white transition-shadow"
                   />
                 </div>
                 <button

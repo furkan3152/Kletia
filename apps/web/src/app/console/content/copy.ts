@@ -7,6 +7,8 @@
  * (`CHAINS[key].name` or `.shortName`) and are passed into the templates.
  */
 
+import { countWord, NETWORK_COUNT } from "../../site/networkCount.ts";
+
 const COPY = {
   page: {
     /** Unchanged, so every "Open the console" link still fits. */
@@ -51,7 +53,7 @@ const COPY = {
   empty: {
     kicker: "Platform 1 · Console",
     heading: "Where should the money go?",
-    lead: "One sentence on any of nine networks. Kletia plans it, shows the fare, and your wallet signs every step.",
+    lead: `One sentence on any of ${countWord(NETWORK_COUNT)} networks. Kletia plans it, shows the fare, and your wallet signs every step.`,
     statusBoard: "Departures · network status",
     statusBoardLabel: "Network status",
     testYard: "Test yard",

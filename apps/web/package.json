@@ -23,6 +23,7 @@
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/space-grotesk": "5.3.0",
     "@kletia/core": "0.1.0",
+    "@kletia/embed": "0.1.0",
     "@kletia/sdk": "0.1.0",
     "@kletia/widget": "0.1.0",
     "@noble/hashes": "1.8.0",

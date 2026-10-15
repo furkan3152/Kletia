@@ -64,7 +64,7 @@ test("the index keeps redacted titles only: the sentence, the question and the t
   assert.ok(!raw.includes("Which one?"), "questions stay in memory");
   assert.ok(!raw.includes("USDC on Base"), "answers stay in memory");
   const [entry] = parseTaskIndex(raw);
-  assert.equal(entry.title, "Send [[private amount]] USDC to [[private recipient]] on Base");
+  assert.equal(entry.title, "Send ••• USDC to ••• on Base");
   assert.deepEqual(Object.keys(entry).sort(), ["createdAt", "departure", "ends", "engine", "id", "intentId", "lane", "status", "title"]);
   assert.equal(JSON.parse(raw).v, 1);
 });
@@ -102,7 +102,7 @@ test("a stored index is parsed strictly: bad entries, duplicates and unknown ver
   });
   const entries = parseTaskIndex(raw);
   assert.deepEqual(entries.map((entry) => entry.id), ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000007"]);
-  assert.equal(entries[1].title, "send [[private amount]] USDC to [[private recipient]]");
+  assert.equal(entries[1].title, "send ••• USDC to •••");
   assert.equal(entries[1].origin, "studio");
   assert.deepEqual(entries[0].engine, { kind: "network", network: "arc", why: "tool" });
   for (const bad of [null, "", "{", JSON.stringify({ v: 2, tasks: [good] }), JSON.stringify({ v: 1, tasks: "no" }), JSON.stringify([good])]) {

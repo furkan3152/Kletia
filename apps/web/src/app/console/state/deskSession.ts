@@ -108,7 +108,8 @@ export function isResumable(entry: Pick<TaskIndexEntry, "status" | "intentId">):
 
 /** The persisted title: redacted like chat history, one line, bounded. */
 export function persistedTitle(title: string): string {
-  const redacted = redactIntentForPersistentHistory(title.replace(/\s+/gu, " "));
+  // Redacted parts read as "•••" in the task list, not as the history markers ("[[private amount]]").
+  const redacted = redactIntentForPersistentHistory(title.replace(/\s+/gu, " ")).replace(/\[\[private [a-z ]+\]\]/gu, "•••");
   return redacted.length > MAX_TITLE ? `${redacted.slice(0, MAX_TITLE - 1)}…` : redacted;
 }
 

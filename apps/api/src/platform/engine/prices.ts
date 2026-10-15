@@ -5,7 +5,7 @@
  * entries keep the time of their reading, so the journey can say where a
  * value comes from and when it was read (`nativeUsdQuote`, `solanaMintUsdQuote`).
  */
-import { assetsForNetwork, CHAINS, WRAPPED_SOL_MINT, type NetworkKey } from "@kletia/core";
+import { assetsForNetwork, CHAINS, findAssetByAddress, WRAPPED_SOL_MINT, type NetworkKey } from "@kletia/core";
 import { readSolanaPrices } from "../../networks/solana/index.js";
 
 /** Wormhole-bridged WETH on Solana; tracks ETH closely and is priced by Jupiter. */
@@ -31,6 +31,61 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<CacheEntry>>();
 
+/**
+ * Test seam: a price source that replaces the network reads (Jupiter, the
+ * Rule Book's oracles) for natives, Solana mints and the preview pricer's
+ * oracle-priced assets. The par and testnet rules still apply first. A
+ * reader that returns null leaves the asset unpriced; a reader that throws
+ * is treated as unpriced too.
+ */
+export interface PriceReader {
+  /** USD per whole token of `symbol` on `network`; null when unpriced. */
+  quote(symbol: string, network: NetworkKey): UsdQuote | null | Promise<UsdQuote | null>;
+}
+
+let priceReader: PriceReader | null = null;
+
+/** Installs a price reader (null restores the network reads) and forgets cached prices. */
+export function configurePriceReader(reader: PriceReader | null): void {
+  priceReader = reader;
+  resetPriceCache();
+}
+
+/** The installed price reader, if any (the preview pricer consults it). */
+export function activePriceReader(): PriceReader | null {
+  return priceReader;
+}
+
+/** A reader with fixed USD prices by symbol (case-insensitive), all read at `at` (Unix ms). */
+export function fixedPriceReader(prices: Readonly<Record<string, number>>, at: number, source: UsdQuote["source"] = "jupiter"): PriceReader {
+  const table = new Map(Object.entries(prices).map(([symbol, usd]) => [symbol.toUpperCase(), usd]));
+  return {
+    quote(symbol) {
+      const usd = table.get(symbol.toUpperCase());
+      return usd === undefined ? null : { usd, source, at };
+    },
+  };
+}
+
+async function readerEntry(symbol: string | null, network: NetworkKey, reader: PriceReader): Promise<CacheEntry> {
+  let quote: UsdQuote | null = null;
+  try {
+    quote = symbol ? await reader.quote(symbol, network) : null;
+  } catch {
+    quote = null;
+  }
+  const usable = quote && Number.isFinite(quote.usd) && quote.usd >= 0 ? quote : null;
+  // Not cached: a reader answers every time, so tests stay deterministic.
+  return { value: usable?.usd ?? null, expiresAt: 0, at: usable?.at ?? Date.now(), source: usable?.source ?? "jupiter" };
+}
+
+/** The symbol a Solana mint is priced as by a reader (the ETH proxy prices ETH). */
+function mintSymbol(mint: string): string | null {
+  if (mint === WRAPPED_SOL_MINT) return "SOL";
+  if (mint === ETH_PROXY_MINT) return "ETH";
+  return findAssetByAddress("solana", mint)?.symbol ?? null;
+}
+
 function remember(key: string, value: number | null, source: UsdQuote["source"], at = Date.now()): CacheEntry {
   const entry = { value, expiresAt: Date.now() + (value === null ? 10_000 : CACHE_TTL_MS), at, source };
   cache.set(key, entry);
@@ -38,6 +93,7 @@ function remember(key: string, value: number | null, source: UsdQuote["source"],
 }
 
 async function mintEntry(mint: string): Promise<CacheEntry> {
+  if (priceReader) return readerEntry(mintSymbol(mint), "solana", priceReader);
   const cached = cache.get(mint);
   if (cached && cached.expiresAt > Date.now()) return cached;
   const pending = inflight.get(mint);
@@ -67,6 +123,7 @@ function quoteOf(entry: CacheEntry): UsdQuote | null {
  * and `limits.maxFeeUsd` does not lock Polygon out.
  */
 async function oracleNativeEntry(network: NetworkKey): Promise<CacheEntry> {
+  if (priceReader) return readerEntry(CHAINS[network].nativeAsset.symbol, network, priceReader);
   const cached = cache.get(`oracle:${network}`);
   if (cached && cached.expiresAt > Date.now()) return cached;
   const native = assetsForNetwork(network).find((asset) => asset.address === null);

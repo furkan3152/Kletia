@@ -14,7 +14,10 @@
  */
 import { CHAINS, getAsset, parseAssetId, type AssetId, type JourneyValueSource, type PreviewPrices } from "@kletia/core";
 import { isUsdStablecoin, assetFromRef } from "../assets.js";
-import { nativeUsdQuote, solanaMintUsdQuote, type UsdQuote } from "../prices.js";
+import { activePriceReader, nativeUsdQuote, solanaMintUsdQuote, type UsdQuote } from "../prices.js";
+
+/** The price test seam is shared with engine/prices.ts: one reader serves both. */
+export { configurePriceReader, fixedPriceReader, type PriceReader } from "../prices.js";
 
 /** A price with where it comes from and when it was read (journey valuation). */
 export interface PriceQuoteView {
@@ -65,8 +68,11 @@ async function defaultQuote(asset: AssetId): Promise<PriceQuoteView | null> {
       return view(await nativeUsdQuote(ethereum));
     }
     if (chain.vm === "svm" && listed.address) return view(await solanaMintUsdQuote(listed.address));
-    // EVM liquid staking (wstETH, rETH, weETH): the Rule Book's conservative oracle.
-    if (listed.category === "liquid-staking") return policyQuote(listed.id, network, listed.symbol, listed.decimals);
+    // EVM liquid staking (wstETH, rETH, weETH): the Rule Book's conservative oracle (or the installed test reader).
+    if (listed.category === "liquid-staking") {
+      const reader = activePriceReader();
+      return reader ? view(await reader.quote(listed.symbol, network)) : policyQuote(listed.id, network, listed.symbol, listed.decimals);
+    }
     return null;
   }
   return null;

@@ -14,6 +14,7 @@ import { parseAccountId, sameAddressAccount, type AccountId } from "./caip.js";
 import { ASSETS } from "./assets.js";
 import type { IntentConstraints, IntentGraph } from "./intent.js";
 import type { IntentPreview } from "./preview.js";
+import { goalListIssues, type Goal } from "./goal.js";
 import type { ProtocolId } from "./protocols.js";
 import {
   MAX_INTENT_ACTIONS,
@@ -25,7 +26,7 @@ import {
 
 export const THREAD_SPEC = "kletia.thread/v1";
 /** Bumped whenever a policy rule changes what a turn returns; a thread written by an older policy is re-analysed. */
-export const CLARIFY_POLICY_VERSION = "2026-10.1";
+export const CLARIFY_POLICY_VERSION = "2026-11.1";
 
 export const THREAD_LIMITS = Object.freeze({
   /** Turn labels kept. */
@@ -90,6 +91,9 @@ export const CLARIFY_REASONS = Object.freeze([
   "RECIPIENT_NAME_MOVED", "RECIPIENT_NETWORK_MISMATCH", "RECIPIENT_CHECKSUM", "VERB_AMBIGUOUS",
   // follow-ups
   "EDIT_TARGET_AMBIGUOUS",
+  // the goal solver: a spend above the known balance, a possessive scope across
+  // networks, staking or lending, a misspelt symbol, a reading to confirm
+  "AMOUNT_EXCEEDS_BALANCE", "SCOPE_AMBIGUOUS", "EARN_KIND", "ASSET_TYPO", "INTERPRETATION_CONFIRM",
 ] as const);
 export type ClarifyReason = (typeof CLARIFY_REASONS)[number];
 
@@ -98,6 +102,8 @@ const MEANS_REASONS: readonly ClarifyReason[] = ["VENUE_MISSING", "NETWORK_AMBIG
 /** Reasons whose question may carry one suggested option. */
 const SUGGESTING_REASONS: readonly ClarifyReason[] = [
   "VENUE_MISSING", "VENUE_AMBIGUOUS", "FUNDS_ELSEWHERE", "ASSET_AMBIGUOUS", "ASSET_LOOKALIKE", "AMOUNT_FORMAT_AMBIGUOUS",
+  // the corrected symbol is the suggestion
+  "ASSET_TYPO",
 ];
 
 /** Only the person can answer these: agents relay them and never pick an option themselves. */
@@ -268,6 +274,8 @@ export interface ClarifyThread {
   /** Written by Kletia from what each turn changed ("Changed the amount to 2"); never the user's words. */
   readonly turns: readonly ThreadTurn[];
   readonly undo: readonly (readonly ThreadStep[])[];
+  /** The goals the steps were solved from: each turn re-solves from them and the current facts. */
+  readonly goals?: readonly Goal[];
 }
 
 export interface ThreadRef {
@@ -800,7 +808,7 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
     issues.push({ path, message: `A thread is at most ${THREAD_LIMITS.maxBytes} bytes.` });
     return;
   }
-  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo"], path, issues);
+  unknownKeys(input, ["spec", "id", "rev", "status", "policy", "steps", "open", "pendingEdit", "corrections", "turns", "undo", "goals"], path, issues);
   if (input.spec !== THREAD_SPEC) issues.push({ path: at("spec"), message: `Must be "${THREAD_SPEC}".` });
   if (!isThreadId(input.id)) issues.push({ path: at("id"), message: "Must be th_ followed by 24 base32 characters." });
   if (!Number.isSafeInteger(input.rev) || (input.rev as number) < 0) issues.push({ path: at("rev"), message: "Must be a non-negative integer." });
@@ -841,6 +849,7 @@ function threadIssues(input: unknown, path: string, issues: ValidationIssue[]): 
   } else {
     undo.forEach((snapshot, index) => validateSteps(snapshot, `${at("undo")}[${index}]`, issues));
   }
+  if (input.goals !== undefined) goalListIssues(input.goals, at("goals"), issues);
 }
 
 /** Shape, size and slot syntax of a client-held thread (`THREAD_INVALID` when it fails). */

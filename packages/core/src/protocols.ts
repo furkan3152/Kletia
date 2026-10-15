@@ -19,7 +19,7 @@
  * Pool, ether.fi, Raydium, Orca, Meteora, Across, CCTP V2 and Pyth) were read
  * back on 2026-10-14: docs/networks/evidence/protocols-2026-10-14.json.
  */
-import type { NetworkKey } from "./chains.js";
+import { CHAINS, type NetworkKey } from "./chains.js";
 import type { IntentActionKind } from "./intent.js";
 
 export type ProtocolCategory =
@@ -89,7 +89,23 @@ export type ProtocolId =
   | "orca"
   | "meteora"
   | "chainlink"
-  | "pyth";
+  | "pyth"
+  // added 2026-10-15
+  | "pancakeswap-v3"
+  | "camelot"
+  | "curve"
+  | "stader"
+  | "mantle-lsp"
+  | "frax-ether"
+  | "solana-stake";
+
+/**
+ * Intent-engine risk tier of a protocol: `core` venues are
+ * preferred, `curated` carry a small risk cost, `extended` a larger
+ * one. Capability rows on a testnet network report `testnet`
+ * whatever the protocol's tier.
+ */
+export type ProtocolTier = "core" | "curated" | "extended" | "testnet";
 
 export interface ProtocolDescriptor {
   readonly id: ProtocolId;
@@ -120,6 +136,16 @@ export interface ProtocolDescriptor {
    * `protocolDependencies`.
    */
   readonly routedVia?: readonly ProtocolId[];
+  /**
+   * Venue vocabulary (lower-case words and phrases) users name this protocol
+   * by. The grammar's generated venue lists, clarify's vocabulary and the
+   * solver's risk table read it; every word is a reserved contract phrase.
+   */
+  readonly words?: readonly string[];
+  /** Risk tier (absent: `extended`). See `protocolTier`. */
+  readonly tier?: Exclude<ProtocolTier, "testnet">;
+  /** The adapter serves a route only when the protocol is named ("via raydium"); route search never picks it alone. */
+  readonly explicitOnly?: true;
 }
 
 const EVM_PRODUCTION: readonly NetworkKey[] = ["base", "arbitrum", "ethereum", "optimism", "polygon"];
@@ -139,11 +165,13 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     id: "uniswap-v3",
     name: "Uniswap V3",
     category: "dex",
-    networks: EVM_PRODUCTION,
+    networks: [...EVM_PRODUCTION, "arbitrum-sepolia"],
     capabilities: ["execute", "quote"],
     website: "https://uniswap.org",
     summary: "Concentrated-liquidity AMM: exact-in swaps quoted by the pinned QuoterV2 and sent through the pinned SwapRouter02 with an on-chain minimum output.",
     kinds: ["swap"],
+    words: ["uniswap", "uniswap v3"],
+    tier: "core",
   },
   {
     id: "aerodrome",
@@ -154,6 +182,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://aerodrome.finance",
     summary: "Base liquidity hub: Slipstream pools quoted on-chain and swapped through pinned routers with an on-chain minimum output.",
     kinds: ["swap"],
+    words: ["aerodrome"],
+    tier: "curated",
   },
   {
     id: "velodrome",
@@ -164,6 +194,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://velodrome.finance",
     summary: "OP Mainnet liquidity hub: Slipstream pools quoted on-chain and swapped through pinned routers with an on-chain minimum output.",
     kinds: ["swap"],
+    words: ["velodrome"],
+    tier: "curated",
   },
   {
     id: "aave-v3",
@@ -174,16 +206,20 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://aave.com",
     summary: "Supply and withdraw (exact or full position); outcomes proven by Pool Supply/Withdraw events.",
     kinds: ["deposit", "withdraw"],
+    words: ["aave", "aave v3"],
+    tier: "core",
   },
   {
     id: "compound-v3",
     name: "Compound V3",
     category: "lending",
-    networks: ["base", "arbitrum", "ethereum", "optimism"],
+    networks: ["base", "arbitrum", "ethereum", "optimism", "polygon"],
     capabilities: ["execute", "discover"],
     website: "https://compound.finance",
-    summary: "Comet base-asset supply and withdraw (USDC, WETH); refuses accounts with an open borrow.",
+    summary: "Comet base-asset supply and withdraw (USDC, WETH, USDT, wstETH); refuses accounts with an open borrow.",
     kinds: ["deposit", "withdraw"],
+    words: ["compound", "compound v3", "comet"],
+    tier: "core",
   },
   {
     id: "moonwell",
@@ -194,16 +230,20 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://moonwell.fi",
     summary: "mToken supply and redeem; success requires Mint/Redeem events (error codes do not revert). WETH markets pay withdrawals out in native ETH.",
     kinds: ["deposit", "withdraw"],
+    words: ["moonwell"],
+    tier: "curated",
   },
   {
     id: "morpho",
     name: "Morpho Vaults",
     category: "yield",
-    networks: ["base", "arbitrum", "ethereum"],
+    networks: ["base", "arbitrum", "ethereum", "optimism", "polygon"],
     capabilities: ["execute", "discover"],
     website: "https://morpho.org",
     summary: "Allowlisted MetaMorpho and Vault V2 ERC-4626 vaults with factory-proven provenance.",
     kinds: ["deposit", "withdraw"],
+    words: ["morpho", "morpho vault", "morpho vaults"],
+    tier: "curated",
   },
   {
     id: "sparklend",
@@ -214,6 +254,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://spark.fi",
     summary: "Sky-backed money market (Aave V3 fork): supply and withdraw pinned reserves; outcomes proven by Pool Supply/Withdraw events.",
     kinds: ["deposit", "withdraw"],
+    words: ["sparklend", "spark lend"],
+    tier: "curated",
   },
   {
     id: "spark-savings",
@@ -224,6 +266,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://spark.fi",
     summary: "Savings vaults at the Sky Savings Rate: sUSDC on four networks, spUSDC and spETH on Ethereum; implementation-pinned ERC-4626.",
     kinds: ["deposit", "withdraw"],
+    words: ["spark savings", "spark"],
+    tier: "core",
   },
   {
     id: "fluid",
@@ -234,6 +278,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://fluid.io",
     summary: "fToken deposits and withdrawals with on-chain share and asset floors; fTokens proven by the Fluid LendingFactory.",
     kinds: ["deposit", "withdraw"],
+    words: ["fluid", "fluid lend", "fluid lending"],
+    tier: "curated",
   },
   {
     id: "yearn-v3",
@@ -244,6 +290,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://yearn.fi",
     summary: "Registry-endorsed V3 vaults (clones of the 3.0.2 vault); every exit passes an explicit loss limit.",
     kinds: ["deposit", "withdraw"],
+    words: ["yearn", "yearn v3"],
+    tier: "extended",
   },
   {
     id: "basenames",
@@ -293,6 +341,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Intent bridge: Kletia encodes the SpokePool deposit (exact output, fill deadline); fills are proven on the destination network.",
     crossChain: true,
     kinds: ["bridge"],
+    words: ["across"],
+    tier: "core",
   },
   {
     id: "cctp-v2",
@@ -304,6 +354,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Native USDC burn-and-mint (Fast Transfer) with Circle's Forwarding Service minting on the destination; the fee is capped on-chain by maxFee.",
     crossChain: true,
     kinds: ["bridge"],
+    words: ["cctp", "cctp v2"],
+    tier: "core",
   },
   {
     id: "relay",
@@ -315,6 +367,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Solver-filled cross-chain intents between EVM networks and Solana, including swap-and-bridge.",
     crossChain: true,
     kinds: ["bridge", "swap"],
+    words: ["relay"],
+    tier: "curated",
   },
   {
     id: "lifi",
@@ -326,6 +380,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Bridge aggregator; calls go only to the pinned LiFiDiamond with decoded, allowlisted bridge facets (LI.FI charges 0.25%).",
     crossChain: true,
     kinds: ["bridge"],
+    words: ["lifi", "li.fi"],
+    tier: "extended",
   },
   {
     id: "debridge-dln",
@@ -337,6 +393,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Solver-filled cross-chain orders paid with a fixed native fee; deposits proven by CreatedOrder events.",
     crossChain: true,
     kinds: ["bridge"],
+    words: ["debridge", "debridge dln", "dln"],
+    tier: "curated",
   },
   {
     id: "jupiter",
@@ -347,6 +405,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://jup.ag",
     summary: "Solana liquidity aggregator across Meteora, Raydium, Orca, Phoenix and more.",
     kinds: ["swap", "stake"],
+    words: ["jupiter", "jup"],
+    tier: "core",
   },
   {
     id: "raydium",
@@ -358,6 +418,9 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Swaps on one owner-checked Raydium AMM, CLMM or CPMM pool when named (\"via raydium\"), routed through the Jupiter program; every instruction is validated.",
     kinds: ["swap"],
     routedVia: ["jupiter"],
+    words: ["raydium"],
+    tier: "curated",
+    explicitOnly: true,
   },
   {
     id: "orca",
@@ -369,6 +432,9 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Swaps on one owner-checked Orca Whirlpool when named (\"via orca\"), routed through the Jupiter program; every instruction is validated.",
     kinds: ["swap"],
     routedVia: ["jupiter"],
+    words: ["orca"],
+    tier: "curated",
+    explicitOnly: true,
   },
   {
     id: "meteora",
@@ -380,6 +446,9 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     summary: "Swaps on one owner-checked Meteora DLMM or DAMM v2 pool when named (\"via meteora\"), routed through the Jupiter program; every instruction is validated.",
     kinds: ["swap"],
     routedVia: ["jupiter"],
+    words: ["meteora"],
+    tier: "curated",
+    explicitOnly: true,
   },
   {
     id: "jupiter-lend",
@@ -390,6 +459,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://jup.ag/lend",
     summary: "Jupiter Lend Earn deposits and withdrawals; the jlToken receipt lands in the wallet.",
     kinds: ["deposit", "withdraw"],
+    words: ["jupiter lend", "jupiter earn", "jup lend", "jup earn"],
+    tier: "curated",
   },
   {
     id: "kamino",
@@ -400,6 +471,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://kamino.finance",
     summary: "Main-market reserve deposits and withdrawals, pinned by reserve address (never by symbol).",
     kinds: ["deposit", "withdraw"],
+    words: ["kamino", "kamino lend"],
+    tier: "core",
   },
   {
     id: "jito",
@@ -408,7 +481,10 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["solana"],
     capabilities: ["execute", "quote"],
     website: "https://www.jito.network",
-    summary: "MEV-boosted liquid staking (JitoSOL), entered through Jupiter routes.",
+    summary: "MEV-boosted liquid staking (JitoSOL): minted by the pinned SPL stake pool, or bought through Jupiter routes.",
+    kinds: ["stake"],
+    words: ["jito", "jitosol"],
+    tier: "core",
   },
   {
     id: "marinade",
@@ -417,7 +493,10 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["solana"],
     capabilities: ["execute", "quote"],
     website: "https://marinade.finance",
-    summary: "Liquid staking (mSOL), entered through Jupiter routes.",
+    summary: "Liquid staking (mSOL): deposited through the pinned Marinade program, or bought through Jupiter routes.",
+    kinds: ["stake"],
+    words: ["marinade", "msol"],
+    tier: "curated",
   },
   {
     id: "sanctum",
@@ -426,7 +505,10 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     networks: ["solana"],
     capabilities: ["execute", "quote"],
     website: "https://sanctum.so",
-    summary: "JupSOL and the Sanctum LST family, entered through Jupiter routes.",
+    summary: "JupSOL and the Sanctum LST family: minted by the pinned Sanctum SPL stake pool, or bought through Jupiter routes.",
+    kinds: ["stake"],
+    words: ["sanctum", "jupsol"],
+    tier: "curated",
   },
   {
     id: "lido",
@@ -437,6 +519,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://lido.fi",
     summary: "Stake ETH for wstETH in one transaction; pause state and stake limit are read before every plan.",
     kinds: ["stake"],
+    words: ["lido", "steth", "wsteth"],
+    tier: "core",
   },
   {
     id: "rocket-pool",
@@ -447,6 +531,8 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://rocketpool.net",
     summary: "Stake ETH for rETH through the deposit pool resolved from RocketStorage; fee, minimum and capacity are checked.",
     kinds: ["stake"],
+    words: ["rocket pool", "rocketpool", "reth"],
+    tier: "curated",
   },
   {
     id: "etherfi",
@@ -457,6 +543,93 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://ether.fi",
     summary: "Stake ETH for weETH (restaked ETH, slashing risk) through the pinned DepositAdapter.",
     kinds: ["stake"],
+    words: ["ether.fi", "etherfi", "weeth", "eeth"],
+    tier: "extended",
+  },
+  // ---- added 2026-10-15
+  {
+    id: "pancakeswap-v3",
+    name: "PancakeSwap V3",
+    category: "dex",
+    networks: ["ethereum", "base", "arbitrum"],
+    capabilities: ["execute", "quote"],
+    website: "https://pancakeswap.finance",
+    summary: "Concentrated-liquidity AMM (Uniswap V3 interface): exact-in swaps quoted by the pinned QuoterV2 and sent through the pinned SmartRouter with an on-chain minimum output.",
+    kinds: ["swap"],
+    words: ["pancakeswap", "pancake", "pancakeswap v3", "pancake v3"],
+    tier: "curated",
+  },
+  {
+    id: "camelot",
+    name: "Camelot V3",
+    category: "dex",
+    networks: ["arbitrum"],
+    capabilities: ["execute", "quote"],
+    website: "https://camelot.exchange",
+    summary: "Arbitrum Algebra pools (one dynamic-fee pool per pair): quoted by the pinned quoter and swapped through the pinned router with an on-chain minimum output.",
+    kinds: ["swap"],
+    words: ["camelot", "camelot v3"],
+    tier: "extended",
+  },
+  {
+    id: "curve",
+    name: "Curve",
+    category: "dex",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://curve.fi",
+    summary: "Stablecoin swaps on pinned Curve pools (3pool): get_dy quotes and exchange with an on-chain min_dy.",
+    kinds: ["swap"],
+    words: ["curve", "curve finance", "3pool"],
+    tier: "curated",
+  },
+  {
+    id: "stader",
+    name: "Stader",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://www.staderlabs.com",
+    summary: "Stake ETH for ETHx through the pinned StaderStakePoolsManager; pause state and deposit limits are read before every plan.",
+    kinds: ["stake"],
+    words: ["stader", "ethx"],
+    tier: "extended",
+  },
+  {
+    id: "mantle-lsp",
+    name: "Mantle LSP",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://www.methprotocol.xyz",
+    summary: "Stake ETH for mETH through the pinned staking contract with an on-chain minimum mETH amount.",
+    kinds: ["stake"],
+    words: ["mantle", "meth", "mantle lsp"],
+    tier: "extended",
+  },
+  {
+    id: "frax-ether",
+    name: "Frax Ether",
+    category: "liquid-staking",
+    networks: ["ethereum"],
+    capabilities: ["execute", "quote"],
+    website: "https://frax.finance",
+    summary: "Stake ETH for sfrxETH (frxETH deposited into the staked vault) through the pinned frxETHMinter.",
+    kinds: ["stake"],
+    words: ["frax", "sfrxeth", "frxeth", "frax ether"],
+    tier: "extended",
+  },
+  {
+    id: "solana-stake",
+    name: "Native SOL staking",
+    category: "liquid-staking",
+    networks: ["solana", "solana-devnet"],
+    capabilities: ["execute"],
+    website: "https://solana.com/staking",
+    summary: "Delegate SOL to a validator from a new stake account the wallet owns (Stake program; activates next epoch).",
+    kinds: ["stake"],
+    words: ["native stake", "native staking", "natively", "validator"],
+    tier: "core",
   },
   {
     id: "spl-token",
@@ -595,6 +768,24 @@ export function protocolDependencies(id: ProtocolId): readonly ProtocolId[] {
 export function protocolExecutesKind(protocol: ProtocolId, kind: IntentActionKind): boolean {
   const descriptor = getProtocol(protocol);
   return descriptor !== null && descriptor.capabilities.includes("execute") && (descriptor.kinds ?? []).includes(kind);
+}
+
+/** Risk tier of `protocol` on `network`: `testnet` on a testnet network, else the registry tier (default `extended`). */
+export function protocolTier(protocol: ProtocolId, network?: NetworkKey): ProtocolTier {
+  if (network && CHAINS[network].environment === "testnet") return "testnet";
+  return getProtocol(protocol)?.tier ?? "extended";
+}
+
+/** The protocol a venue word or phrase names (descriptor `words`, case- and separator-insensitive), or null. */
+export function protocolByWord(word: string): ProtocolDescriptor | null {
+  const wanted = normalizeVenueWord(word);
+  if (!wanted) return null;
+  return PROTOCOLS.find((protocol) => (protocol.words ?? []).some((entry) => normalizeVenueWord(entry) === wanted)) ?? null;
+}
+
+/** Lower-case, single-spaced, hyphens read as spaces ("Pancake-Swap  V3" -> "pancake swap v3"). */
+export function normalizeVenueWord(word: string): string {
+  return word.trim().toLowerCase().replace(/[\s-]+/gu, " ");
 }
 
 /* ------------------------------------------------------------ yield venues */
@@ -766,9 +957,20 @@ export const MORPHO_FACTORIES: Readonly<Partial<Record<NetworkKey, Readonly<Reco
     "vault-v2": "0x6b46fa3cc9EBF8aB230aBAc664E37F2966Bf7971",
   },
   ethereum: {
-    "metamorpho-v1.0": null,
+    // the v1.0 factory (same address as Base's) confirms the Steakhouse vaults (isMetaMorpho, 2026-10-15)
+    "metamorpho-v1.0": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
     "metamorpho-v1.1": null,
     "vault-v2": "0xA1D94F746dEfa1928926b84fB2596c06926C0405",
+  },
+  optimism: {
+    "metamorpho-v1.0": null,
+    "metamorpho-v1.1": "0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a",
+    "vault-v2": null,
+  },
+  polygon: {
+    "metamorpho-v1.0": null,
+    "metamorpho-v1.1": "0xa9c87daB340631C34BB738625C70499e29ddDC98",
+    "vault-v2": null,
   },
 });
 
@@ -926,6 +1128,20 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   aave("optimism", L2_AAVE_POOL, L2_AAVE_DATA, "WETH", "0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8", 18),
   aave("polygon", L2_AAVE_POOL, L2_AAVE_DATA, "USDC", "0xA4D94019934D8333Ef880ABFFbF2FDd611C762BD", 6),
   aave("polygon", L2_AAVE_POOL, L2_AAVE_DATA, "WETH", "0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8", 18),
+  // reserves read back 2026-10-15: active, not frozen, not paused; existing defaults stay first
+  aave("ethereum", ETHEREUM_AAVE_POOL, ETHEREUM_AAVE_DATA, "USDT", "0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a", 6),
+  aave("ethereum", ETHEREUM_AAVE_POOL, ETHEREUM_AAVE_DATA, "wstETH", "0x0B925eD163218f6662a35e0f0371Ac234f9E9371", 18),
+  aave("ethereum", ETHEREUM_AAVE_POOL, ETHEREUM_AAVE_DATA, "cbBTC", "0x5c647cE0Ae10658ec44FA4E11A51c96e94efd1Dd", 8),
+  aave("arbitrum", L2_AAVE_POOL, L2_AAVE_DATA, "USDT0", "0x6ab707Aca953eDAeFBc4fD23bA73294241490620", 6),
+  aave("arbitrum", L2_AAVE_POOL, L2_AAVE_DATA, "wstETH", "0x513c7E3a9c69cA3e22550eF58AC1C0088e918FFf", 18),
+  aave("optimism", L2_AAVE_POOL, L2_AAVE_DATA, "USDT", "0x6ab707Aca953eDAeFBc4fD23bA73294241490620", 6),
+  aave("optimism", L2_AAVE_POOL, L2_AAVE_DATA, "wstETH", "0xc45A479877e1e9Dfe9FcD4056c699575a1045dAA", 18),
+  aave("polygon", L2_AAVE_POOL, L2_AAVE_DATA, "USDT0", "0x6ab707Aca953eDAeFBc4fD23bA73294241490620", 6),
+  aave("polygon", L2_AAVE_POOL, L2_AAVE_DATA, "wstETH", "0xf59036CAEBeA7dC4b86638DFA2E3C97dA9FcCd40", 18),
+  aave("base", BASE_AAVE_POOL, BASE_AAVE_DATA, "wstETH", "0x99CBC45ea5bb7eF3a5BC08FB1B7E56bB2442Ef0D", 18),
+  aave("base", BASE_AAVE_POOL, BASE_AAVE_DATA, "cbETH", "0xcf3D55c10DB69f28fD1A75Bd73f3D8A2d9c595ad", 18),
+  // Aave V3 Arbitrum Sepolia (testnet market; reserve #0 is Circle's test USDC)
+  aave("arbitrum-sepolia", "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff", "0x12373B5085e3b42D42C1D4ABF3B3Cf4Df0E0Fa01", "USDC", "0x460b97BD498E1157530AEb3086301d5225b91216", 6),
   // Compound V3 Comets (base asset only)
   comet("base", "0xb125E6687d4313864e53df431d5425969c15Eb2F", "USDC", 6),
   comet("base", "0x46e6b214b524310239732D51387075E0e70970bf", "WETH", 18),
@@ -935,6 +1151,11 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   comet("ethereum", "0xA17581A9E3356d9A858b789D68B4d866e593aE94", "WETH", 18),
   comet("optimism", "0x2e44e174f7D53F0212823acC11C01A11d58c5bCB", "USDC", 6),
   comet("optimism", "0xE36A30D249f7761327fd973001A32010b521b6Fd", "WETH", 18),
+  // USDT0 / USDT comets (baseToken read back) and the Ethereum wstETH comet
+  comet("arbitrum", "0xd98Be00b5D27fc98112BdE293e487f8D4cA57d07", "USDT0", 6),
+  comet("optimism", "0x995E394b8B2437aC8Ce61Ee0bC610D617962B214", "USDT", 6),
+  comet("polygon", "0xaeB318360f27748Acb200CE616E389A6C9409a07", "USDT0", 6),
+  comet("ethereum", "0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3", "wstETH", 18),
   // Moonwell mTokens (8-decimal receipts; recipient must be the account)
   mtoken("base", "0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22", "USDC", BASE_MOONWELL),
   mtoken("base", "0x628ff693426583D9a7FB391E54366292F509D457", "WETH", BASE_MOONWELL, {
@@ -957,6 +1178,13 @@ export const YIELD_VENUES: readonly YieldVenue[] = Object.freeze([
   vault("arbitrum", "bitget-steakhouse-usdc", "Bitget x Steakhouse USDC", "0xbeeff1D5dE8F79ff37a151681100B039661da518", "USDC", "vault-v2"),
   vault("ethereum", "steakhouse-prime-usdc", "Steakhouse Prime USDC", "0xbeef088055857739C12CD3765F20b7679Def0f51", "USDC", "vault-v2"),
   vault("ethereum", "gauntlet-usdc-prime", "Gauntlet USDC Prime", "0x8c106EEDAd96553e64287A5A6839c3Cc78afA3D0", "USDC", "vault-v2"),
+  // isMetaMorpho confirmed by the pinned factories on 2026-10-15
+  vault("ethereum", "steakhouse-usdc", "Steakhouse USDC", "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB", "USDC", "metamorpho-v1.0"),
+  vault("ethereum", "steakhouse-usdt", "Steakhouse USDT", "0xbEef047a543E45807105E51A8BBEFCc5950fcfBa", "USDT", "metamorpho-v1.0"),
+  vault("ethereum", "steakhouse-eth", "Steakhouse ETH", "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4", "WETH", "metamorpho-v1.0"),
+  vault("optimism", "gauntlet-usdc-prime", "Gauntlet USDC Prime", "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59", "USDC", "metamorpho-v1.1"),
+  vault("polygon", "compound-usdc", "Compound USDC", "0x781FB7F6d845E3bE129289833b04d43Aa8558c42", "USDC", "metamorpho-v1.1"),
+  vault("polygon", "compound-usdt", "Compound USDT", "0xfD06859A671C21497a2EB8C5E3fEA48De924D6c8", "USDT0", "metamorpho-v1.1"),
   // SparkLend reserves (Aave V3 fork: same venue kind, protocol "sparklend")
   aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "USDC", "0x377C3bd93f2a2984E1E7bE6A5C22c525eD4A4815", 6),
   aaveFamily("sparklend", "SparkLend", "ethereum", SPARKLEND_POOL, SPARKLEND_DATA, "WETH", "0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB", 18),
@@ -1071,7 +1299,26 @@ export type VenueContractRole =
   | "token-minter"
   | "token-messenger-minter"
   /** Data: Pyth's push-oracle receiver. */
-  | "receiver";
+  | "receiver"
+  // ---- added 2026-10-15
+  /** DEX: the pool deployer routers and quoters report (PancakeSwap `deployer()`, Algebra `poolDeployer()`). */
+  | "pool-deployer"
+  /** Curve: a pinned pool (call target and approval spender). */
+  | "curve-pool"
+  /** EVM liquid staking: a config contract the deposit target must report, and a pause switch. */
+  | "config"
+  | "pauser"
+  /** Solana stake pools: the pool account, its LST mint, reserve stake, manager fee account and validator list. */
+  | "stake-pool"
+  | "pool-mint"
+  | "reserve-stake"
+  | "fee-account"
+  | "validator-list"
+  /** Marinade: the program state account and its liquidity pool's mSOL leg. */
+  | "program-state"
+  | "liquidity-leg"
+  /** Native staking: default vote accounts (the user may name another active one). */
+  | "vote-account";
 
 export interface VenueContract {
   readonly protocol: ProtocolId;
@@ -1092,12 +1339,15 @@ function everyEvm(protocol: ProtocolId, role: VenueContractRole, address: string
 
 /* --------------------------------------------------------- DEX deployments */
 
-export type DexDialect = "uniswap-v3" | "slipstream" | "solidly-v2";
+export type DexDialect = "uniswap-v3" | "slipstream" | "solidly-v2" | "algebra";
+
+/** Protocols with pinned concentrated-liquidity (or classic) deployments in DEX_DEPLOYMENTS. */
+export type DexProtocolId = Extract<ProtocolId, "uniswap-v3" | "aerodrome" | "velodrome" | "pancakeswap-v3" | "camelot">;
 
 export interface DexDeployment {
   /** `${network}:${protocol}:${slug}`. */
   readonly id: string;
-  readonly protocol: Extract<ProtocolId, "uniswap-v3" | "aerodrome" | "velodrome">;
+  readonly protocol: DexProtocolId;
   readonly network: NetworkKey;
   readonly dialect: DexDialect;
   /** Pools are accepted only when this factory's getPool(...) returns them. */
@@ -1114,9 +1364,20 @@ export interface DexDeployment {
   readonly tickSpacings?: readonly number[];
   /** solidly-v2: FactoryRegistry.isPoolFactoryApproved(factory) must be true. */
   readonly factoryRegistry?: string;
+  /**
+   * Pool deployer the router and quoter must report (PancakeSwap V3
+   * `deployer()`; Algebra factory `poolDeployer()`).
+   */
+  readonly poolDeployer?: string;
+  /**
+   * A test deployment on a testnet network (test tokens, no oracle price).
+   * Never set on a mainnet network (registry test).
+   */
+  readonly testnet?: true;
 }
 
 const UNISWAP_FEE_TIERS: readonly number[] = Object.freeze([100, 500, 3000, 10000]);
+const PANCAKESWAP_FEE_TIERS: readonly number[] = Object.freeze([100, 500, 2500, 10000]);
 const SLIPSTREAM_TICK_SPACINGS: readonly number[] = Object.freeze([1, 50, 100, 200, 2000]);
 const WRAPPED_NATIVE: Readonly<Partial<Record<NetworkKey, string>>> = Object.freeze({
   ethereum: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
@@ -1124,6 +1385,7 @@ const WRAPPED_NATIVE: Readonly<Partial<Record<NetworkKey, string>>> = Object.fre
   optimism: "0x4200000000000000000000000000000000000006",
   polygon: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
   base: "0x4200000000000000000000000000000000000006",
+  "arbitrum-sepolia": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
 });
 
 function uniswapV3(network: NetworkKey, factory: string, router: string, quoter: string): DexDeployment {
@@ -1132,6 +1394,18 @@ function uniswapV3(network: NetworkKey, factory: string, router: string, quoter:
     wrappedNative: WRAPPED_NATIVE[network] as string, feeTiers: UNISWAP_FEE_TIERS,
   };
 }
+
+function pancakeswapV3(network: NetworkKey, router: string): DexDeployment {
+  return {
+    id: `${network}:pancakeswap-v3:v3`, protocol: "pancakeswap-v3", network, dialect: "uniswap-v3",
+    factory: PANCAKESWAP_FACTORY, router, quoter: PANCAKESWAP_QUOTER, wrappedNative: WRAPPED_NATIVE[network] as string,
+    feeTiers: PANCAKESWAP_FEE_TIERS, poolDeployer: PANCAKESWAP_POOL_DEPLOYER,
+  };
+}
+
+const PANCAKESWAP_FACTORY = "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865";
+const PANCAKESWAP_QUOTER = "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997";
+const PANCAKESWAP_POOL_DEPLOYER = "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9";
 
 function slipstream(protocol: "aerodrome" | "velodrome", network: NetworkKey, slug: string, factory: string, router: string, quoter: string): DexDeployment {
   return {
@@ -1161,6 +1435,23 @@ export const DEX_DEPLOYMENTS: readonly DexDeployment[] = Object.freeze([
   slipstream("aerodrome", "base", "cl-gauges-v3", "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef", "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F", "0x514c8B5f54112481E28028F1166Bd78501089259"),
   slipstream("velodrome", "optimism", "cl-initial", "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", "0x0792a633F0c19c351081CF4B211F68F79bCc9676", "0x89D8218ed5fF1e46d8dcd33fb0bbeE3be1621466"),
   slipstream("velodrome", "optimism", "cl-gauges-v2", "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879", "0xbA3aEe516399388C779463183d00bB579f5041Ca", "0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB"),
+  // ---- read back 2026-10-15: router WETH9/factory/deployer, quoter factory/deployer
+  // PancakeSwap V3: one factory and QuoterV2 on all three networks; the SmartRouter differs on the L2s.
+  pancakeswapV3("ethereum", "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4"),
+  pancakeswapV3("base", "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"),
+  pancakeswapV3("arbitrum", "0x32226588378236Fd0c7c4053999F88aC0e5cAc77"),
+  // Camelot V3 (Algebra): one dynamic-fee pool per pair, no tiers (router WNativeToken()/factory() read back).
+  {
+    id: "arbitrum:camelot:v3", protocol: "camelot", network: "arbitrum", dialect: "algebra",
+    factory: "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B", router: "0x1F721E2E82F6676FCE4eA07A5958cF098D339e18",
+    quoter: "0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E", wrappedNative: WRAPPED_NATIVE.arbitrum as string,
+    poolDeployer: "0x6Dd3FB9653B10e806650F107C3B5A0a6fF974F65",
+  },
+  // Uniswap V3 on Arbitrum Sepolia (test tokens: testnet guard mode, never on a mainnet network).
+  {
+    ...uniswapV3("arbitrum-sepolia", "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e", "0x101F443B4d1b059569D643917553c771E1b9663E", "0x2779a0CC1c3e0E44D2542EC3e79e3864Ae93Ef0B"),
+    testnet: true,
+  },
 ] satisfies readonly DexDeployment[]);
 
 export function dexDeploymentsFor(network: NetworkKey, protocol?: DexDeployment["protocol"]): DexDeployment[] {
@@ -1181,8 +1472,39 @@ export function dexContracts(deployments: readonly DexDeployment[]): VenueContra
     add(deployment, "swap-router", deployment.router);
     add(deployment, "quoter", deployment.quoter);
     add(deployment, "factory-registry", deployment.factoryRegistry);
+    add(deployment, "pool-deployer", deployment.poolDeployer);
   }
   return rows;
+}
+
+/* ------------------------------------------------------------- Curve pools */
+
+/**
+ * A pinned Curve pool. `coins[i]` are registry symbols on `network` in the
+ * pool's own coin order: `coins(i)` is re-read and must equal the asset's
+ * address before any quote (`get_dy(i, j, dx)`) or `exchange(i, j, dx, min_dy)`.
+ */
+export interface CurvePool {
+  /** `${network}:curve:<slug>`. */
+  readonly id: string;
+  readonly protocol: "curve";
+  readonly network: NetworkKey;
+  /** The pool: the only contract called and the only approval spender. */
+  readonly pool: string;
+  readonly coins: readonly string[];
+  /** Plain stable pool (int128 indices, no native ETH leg). */
+  readonly kind: "plain";
+}
+
+export const CURVE_POOLS: readonly CurvePool[] = Object.freeze([
+  // 3pool: coins(0..2) = DAI, USDC, USDT (read back 2026-10-15; MetaRegistry find_pool_for_coins(USDC, USDT) returns it)
+  { id: "ethereum:curve:3pool", protocol: "curve", network: "ethereum", pool: "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7", coins: ["DAI", "USDC", "USDT"], kind: "plain" },
+] satisfies readonly CurvePool[]);
+
+/** Pinned Curve pools on `network` (optionally the ones holding both symbols). */
+export function curvePoolsFor(network: NetworkKey, symbols?: readonly [string, string]): CurvePool[] {
+  return CURVE_POOLS.filter((entry) => entry.network === network && (!symbols || symbols.every((symbol) =>
+    entry.coins.some((coin) => coin.toUpperCase() === symbol.toUpperCase()))));
 }
 
 const ACROSS_SPOKE_POOLS: Readonly<Partial<Record<NetworkKey, string>>> = Object.freeze({
@@ -1265,6 +1587,65 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // Pyth (Solana push oracle and its receiver)
   { protocol: "pyth", network: "solana", role: "program", address: "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT" },
   { protocol: "pyth", network: "solana", role: "receiver", address: "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ" },
+  // ---- read back 2026-10-15: packages/core/test/fixtures/protocols-2026-10-15.json
+  // Curve pools (generated from CURVE_POOLS)
+  ...CURVE_POOLS.map((entry): VenueContract => ({ protocol: "curve", network: entry.network, role: "curve-pool", address: entry.pool })),
+  // EVM liquid staking (Ethereum): Stader, Mantle LSP, Frax Ether
+  { protocol: "stader", network: "ethereum", role: "deposit-target", address: "0xcf5EA1b38380f6aF39068375516Daf40Ed70D299" },
+  { protocol: "stader", network: "ethereum", role: "config", address: "0x4ABEF2263d5A5ED582FC9A9789a41D85b68d69DB" },
+  { protocol: "stader", network: "ethereum", role: "lst-token", address: "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b" },
+  { protocol: "mantle-lsp", network: "ethereum", role: "deposit-target", address: "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f" },
+  { protocol: "mantle-lsp", network: "ethereum", role: "lst-token", address: "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa" },
+  { protocol: "mantle-lsp", network: "ethereum", role: "pauser", address: "0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8" },
+  { protocol: "frax-ether", network: "ethereum", role: "deposit-target", address: "0xbAFA44EFE7901E04E39Dad13167D089C559c1138" },
+  { protocol: "frax-ether", network: "ethereum", role: "underlying-token", address: "0x5E8422345238F34275888049021821E8E08CAa1f" },
+  { protocol: "frax-ether", network: "ethereum", role: "lst-token", address: "0xac3E018457B222d93114458476f3E3416Abbe38F" },
+  // Solana SPL stake pools: Jito (SPL stake pool program) and JupSOL (Sanctum SPL multi program); pool fields decoded live
+  { protocol: "jito", network: "solana", role: "program", address: "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy" },
+  { protocol: "jito", network: "solana", role: "stake-pool", address: "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb" },
+  { protocol: "jito", network: "solana", role: "pool-mint", address: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn" },
+  { protocol: "jito", network: "solana", role: "reserve-stake", address: "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL" },
+  { protocol: "jito", network: "solana", role: "fee-account", address: "8yoigZfzZ1nNaadumY9uPVD118225UYHTDpmjpr2nrSa" },
+  { protocol: "jito", network: "solana", role: "validator-list", address: "3R3nGZpQs2aZo5FDQvd2MUQ6R7KhAPainds6uT6uE2mn" },
+  { protocol: "sanctum", network: "solana", role: "program", address: "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn" },
+  { protocol: "sanctum", network: "solana", role: "stake-pool", address: "8VpRhuxa7sUUepdY3kQiTmX9rS5vx4WgaXiAnXq4KCtr" },
+  { protocol: "sanctum", network: "solana", role: "pool-mint", address: "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v" },
+  { protocol: "sanctum", network: "solana", role: "reserve-stake", address: "FMAWbzuxsgbgndArunedwxXPA6sweaVUGGgadCpSxau2" },
+  { protocol: "sanctum", network: "solana", role: "fee-account", address: "GbvFCpMqKX65gQ8KNeob9JUAL7vHCHFSg8YN5bnpPT8g" },
+  { protocol: "sanctum", network: "solana", role: "validator-list", address: "AXL4v4bbzRkqwHmLc9A1YzHQmRhmG9Q93i1e6CPG2bEK" },
+  // Marinade: program, state (owned by the program), mSOL mint and the liquidity pool's mSOL leg (decoded from state)
+  { protocol: "marinade", network: "solana", role: "program", address: "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD" },
+  { protocol: "marinade", network: "solana", role: "program-state", address: "8szGkuLTAux9XMgZ2vtY39jVSowEcpBfFfD8hXSEqdGC" },
+  { protocol: "marinade", network: "solana", role: "pool-mint", address: "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So" },
+  { protocol: "marinade", network: "solana", role: "liquidity-leg", address: "7GgPYjS5Dza89wV6FpZ23kUJRG5vbQ1GM25ezspYFSoE" },
+  // Native SOL staking: the Stake program and default vote accounts (mainnet: the three highest-stake 0 % commission
+  // validators of vote-accounts-mainnet.json; devnet: the highest-stake devnet validator)
+  { protocol: "solana-stake", network: "solana", role: "program", address: "Stake11111111111111111111111111111111111111" },
+  { protocol: "solana-stake", network: "solana", role: "vote-account", address: "he1iusunGwqrNtafDtLdhsUQDFvo13z9sUa36PauBtk" },
+  { protocol: "solana-stake", network: "solana", role: "vote-account", address: "3N7s9zXMZ4QqvHQR15t5GNHyqc89KduzMP7423eWiD5g" },
+  { protocol: "solana-stake", network: "solana", role: "vote-account", address: "8GbwASqdpw4dVcwbWUxbHXMrjyQx2aKkoBR5H1GJF8iD" },
+  { protocol: "solana-stake", network: "solana-devnet", role: "program", address: "Stake11111111111111111111111111111111111111" },
+  { protocol: "solana-stake", network: "solana-devnet", role: "vote-account", address: "vgcDar2pryHvMgPkKaZfh8pQy4BJxv7SpwUG7zinWjG" },
+] satisfies readonly VenueContract[]);
+
+/**
+ * Circle CCTP V2 testnet contracts (read back 2026-10-15: TokenMessengerV2 reports the transmitter and minter;
+ * localDomain 26 on Arc, 3 on Arbitrum Sepolia; the Solana Devnet programs
+ * are executable). Held OUT of VENUE_CONTRACTS on purpose: the CCTP adapter
+ * serves every network whose contracts are pinned, and until it chooses the
+ * sandbox Iris URL per source network and asserts that source and
+ * destination share a capital lane (package P6), pinning these would let it
+ * accept testnet (and mixed-lane) routes. P6 adds `...CCTP_V2_TESTNET_CONTRACTS`
+ * to VENUE_CONTRACTS together with those checks.
+ */
+export const CCTP_V2_TESTNET_CONTRACTS: readonly VenueContract[] = Object.freeze([
+  ...(["arc", "arbitrum-sepolia"] as const).flatMap((network): VenueContract[] => [
+    { protocol: "cctp-v2", network, role: "token-messenger", address: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" },
+    { protocol: "cctp-v2", network, role: "message-transmitter", address: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" },
+    { protocol: "cctp-v2", network, role: "token-minter", address: "0xb43db544E2c27092c107639Ad201b3dEfAbcF192" },
+  ]),
+  { protocol: "cctp-v2", network: "solana-devnet", role: "token-messenger-minter", address: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe" },
+  { protocol: "cctp-v2", network: "solana-devnet", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
 ] satisfies readonly VenueContract[]);
 
 /** The Solana DEX venue behind a Jupiter route label ("Raydium CLMM" -> raydium), or null. */

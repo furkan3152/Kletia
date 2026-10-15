@@ -96,7 +96,7 @@ describe("planner: lending venues", () => {
     assert.match(swap.message, /params.venue applies to deposit and withdraw/u);
     const asset = await planError({ text: "deposit 1 ARB into aave on arbitrum", accounts: ACCOUNTS });
     assert.equal(asset.code, "INTENT_UNSUPPORTED");
-    assert.match(asset.message, /Aave V3 on Arbitrum One takes USDC, WETH; ARB is not available/u);
+    assert.match(asset.message, /Aave V3 on Arbitrum One takes USDC, WETH, USDT0, wstETH; ARB is not available/u);
     // Aave on Ethereum is in the registry, but the stub Aave adapter only serves Base and Arbitrum: fail closed.
     const noAdapter = await planError({ actions: [{ kind: "deposit", network: "ethereum", from: "USDC", amount: "1", protocol: "aave-v3" }], accounts: ACCOUNTS });
     assert.equal(noAdapter.code, "INTENT_UNSUPPORTED");

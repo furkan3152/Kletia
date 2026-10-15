@@ -1,0 +1,1460 @@
+{
+ "at": "2026-10-15",
+ "note": "Registry pins read back read-only on 2026-10-15. Generated; do not edit by hand.",
+ "entries": [
+  {
+   "network": "ethereum",
+   "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+   "label": "USDT",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USDT",
+   "decimals": 6
+  },
+  {
+   "network": "ethereum",
+   "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+   "label": "DAI",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "DAI",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+   "label": "USDS",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USDS",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704",
+   "label": "cbETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "cbETH",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+   "label": "ETHx",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "ETHx",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
+   "label": "mETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "mETH",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xac3E018457B222d93114458476f3E3416Abbe38F",
+   "label": "sfrxETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "sfrxETH",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+   "label": "swETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "swETH",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+   "label": "WBTC",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "WBTC",
+   "decimals": 8
+  },
+  {
+   "network": "ethereum",
+   "address": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+   "label": "cbBTC",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "cbBTC",
+   "decimals": 8
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+   "label": "USDT0",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USD\u20ae0",
+   "decimals": 6
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x5979D7b546E38E414F7E9822514be443A4800529",
+   "label": "wstETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "wstETH",
+   "decimals": 18
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+   "label": "WBTC",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "WBTC",
+   "decimals": 8
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+   "label": "DAI",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "DAI",
+   "decimals": 18
+  },
+  {
+   "network": "optimism",
+   "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+   "label": "USDT",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USDT",
+   "decimals": 6
+  },
+  {
+   "network": "optimism",
+   "address": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb",
+   "label": "wstETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "wstETH",
+   "decimals": 18
+  },
+  {
+   "network": "optimism",
+   "address": "0x4200000000000000000000000000000000000042",
+   "label": "OP",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "OP",
+   "decimals": 18
+  },
+  {
+   "network": "polygon",
+   "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+   "label": "USDT0",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USDT0",
+   "decimals": 6
+  },
+  {
+   "network": "polygon",
+   "address": "0x03b54A6e9a984069379fae1a4fC4dBAE93B3bCCD",
+   "label": "wstETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "wstETH",
+   "decimals": 18
+  },
+  {
+   "network": "polygon",
+   "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
+   "label": "DAI",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "DAI",
+   "decimals": 18
+  },
+  {
+   "network": "base",
+   "address": "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452",
+   "label": "wstETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "wstETH",
+   "decimals": 18
+  },
+  {
+   "network": "base",
+   "address": "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
+   "label": "cbETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "cbETH",
+   "decimals": 18
+  },
+  {
+   "network": "base",
+   "address": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A",
+   "label": "weETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "weETH",
+   "decimals": 18
+  },
+  {
+   "network": "base",
+   "address": "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
+   "label": "USDS",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "USDS",
+   "decimals": 18
+  },
+  {
+   "network": "arc",
+   "address": "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+   "label": "EURC",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "EURC",
+   "decimals": 6
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+   "label": "WETH",
+   "source": "tokens.json",
+   "verified": true,
+   "symbol": "WETH",
+   "decimals": 18
+  },
+  {
+   "network": "ethereum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap V3 factory",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x0C0388E4bbF121a06ea531D2244E93E044964879",
+   "label": "PancakeSwap V3 factory: owner()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap V3 factory: poolDeployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+   "label": "PancakeSwap SmartRouter",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+   "label": "PancakeSwap SmartRouter: WETH9()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap SmartRouter: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap SmartRouter: deployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+   "label": "PancakeSwap QuoterV2",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap QuoterV2: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap QuoterV2: deployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "base",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap V3 factory",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "base",
+   "address": "0x0Eb5C70f0CbD990e111227Ce4dAFC31e036f7964",
+   "label": "PancakeSwap V3 factory: owner()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "base",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap V3 factory: poolDeployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "base",
+   "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+   "label": "PancakeSwap SmartRouter",
+   "source": "dex.json",
+   "verified": false
+  },
+  {
+   "network": "base",
+   "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+   "label": "PancakeSwap QuoterV2",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "base",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap QuoterV2: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "base",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap QuoterV2: deployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap V3 factory",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x40C79220A51Bcc879dD52A2fCd96F0Dba4D89540",
+   "label": "PancakeSwap V3 factory: owner()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap V3 factory: poolDeployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
+   "label": "PancakeSwap SmartRouter",
+   "source": "dex.json",
+   "verified": false
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997",
+   "label": "PancakeSwap QuoterV2",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap QuoterV2: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap QuoterV2: deployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+   "label": "Camelot V3 AlgebraFactory",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xbA6A06f8517e271DB44540e68BA46BEB4Bc6155d",
+   "label": "Camelot V3 AlgebraFactory: owner()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x6Dd3FB9653B10e806650F107C3B5A0a6fF974F65",
+   "label": "Camelot V3 AlgebraFactory: poolDeployer()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xB1026b8e7276e7AC75410F1fcbbe21796e8f7526",
+   "label": "Camelot V3 AlgebraFactory: poolByPair(address,address)",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x1F721E2E82F6676FCE4eA07A5958cF098D339e18",
+   "label": "Camelot V3 SwapRouter",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+   "label": "Camelot V3 SwapRouter: WNativeToken()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x1F721E2E82F6676FCE4eA07A5958cF098D339e18"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+   "label": "Camelot V3 SwapRouter: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x1F721E2E82F6676FCE4eA07A5958cF098D339e18"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E",
+   "label": "Camelot V3 Quoter",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x1a3c9B1d2F0529D97f2afC5136Cc23e58f1FD35B",
+   "label": "Camelot V3 Quoter: factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x0Fc73040b26E9bC8514fA028D998E73A254Fa76E"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xF98B45FA17DE75FB1aD0e7aFD971b0ca00e379fC",
+   "label": "Curve MetaRegistry",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+   "label": "Curve MetaRegistry: find_pool_for_coins(address,address,uint256)",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xF98B45FA17DE75FB1aD0e7aFD971b0ca00e379fC"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xDeBF20617708857ebe4F679508E7b7863a8A8EeE",
+   "label": "Curve MetaRegistry: find_pool_for_coins(address,address,uint256)",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xF98B45FA17DE75FB1aD0e7aFD971b0ca00e379fC"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+   "label": "Curve 3pool",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+   "label": "Curve 3pool: coins(uint256)",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+   "label": "Curve 3pool: coins(uint256)",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e",
+   "label": "Uniswap V3 factory (Arb Sepolia)",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x11014296ed71103be2d53d5391eD00A2A78A7C46",
+   "label": "Uniswap V3 factory (Arb Sepolia): owner()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x101F443B4d1b059569D643917553c771E1b9663E",
+   "label": "Uniswap SwapRouter02 (Arb Sepolia)",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
+   "label": "Uniswap SwapRouter02 (Arb Sepolia): WETH9()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x101F443B4d1b059569D643917553c771E1b9663E"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x2779a0CC1c3e0E44D2542EC3e79e3864Ae93Ef0B",
+   "label": "Uniswap QuoterV2 (Arb Sepolia)",
+   "source": "dex.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e",
+   "label": "Uniswap QuoterV2 (Arb Sepolia): factory()",
+   "source": "dex.json",
+   "verified": true,
+   "reportedBy": "0x2779a0CC1c3e0E44D2542EC3e79e3864Ae93Ef0B"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x32226588378236Fd0c7c4053999F88aC0e5cAc77",
+   "label": "PancakeSwap SmartRouter (Arbitrum)",
+   "source": "lst-dex-followup.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+   "label": "PancakeSwap SmartRouter (Arbitrum): WETH9()",
+   "source": "lst-dex-followup.json",
+   "verified": true,
+   "reportedBy": "0x32226588378236Fd0c7c4053999F88aC0e5cAc77"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap SmartRouter (Arbitrum): factory()",
+   "source": "lst-dex-followup.json",
+   "verified": true,
+   "reportedBy": "0x32226588378236Fd0c7c4053999F88aC0e5cAc77"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap SmartRouter (Arbitrum): deployer()",
+   "source": "lst-dex-followup.json",
+   "verified": true,
+   "reportedBy": "0x32226588378236Fd0c7c4053999F88aC0e5cAc77"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8",
+   "label": "Mantle Pauser",
+   "source": "lst-dex-followup.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+   "label": "Swell swETH paused",
+   "source": "lst-dex-followup.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x625087d72c762254a72CB22cC2ECa40da6b95EAC",
+   "label": "Swell swETH paused: AccessControlManager()",
+   "source": "lst-dex-followup.json",
+   "verified": true,
+   "reportedBy": "0xf951E335afb289353dc249e82926178EaC7DEd78"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+   "label": "Curve 3pool get_dy 1000 USDC->USDT",
+   "source": "lst-dex-followup.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x4ABEF2263d5A5ED582FC9A9789a41D85b68d69DB",
+   "label": "Stader config",
+   "source": "lst-dex-followup.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+   "label": "Stader config: getETHxToken()",
+   "source": "lst-dex-followup.json",
+   "verified": true,
+   "reportedBy": "0x4ABEF2263d5A5ED582FC9A9789a41D85b68d69DB"
+  },
+  {
+   "network": "base",
+   "address": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86",
+   "label": "PancakeSwap SmartRouter (L2 address)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "base",
+   "address": "0x4200000000000000000000000000000000000006",
+   "label": "PancakeSwap SmartRouter (L2 address): WETH9()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"
+  },
+  {
+   "network": "base",
+   "address": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+   "label": "PancakeSwap SmartRouter (L2 address): factory()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"
+  },
+  {
+   "network": "base",
+   "address": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+   "label": "PancakeSwap SmartRouter (L2 address): deployer()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86",
+   "label": "PancakeSwap SmartRouter (L2 address)",
+   "source": "lending-lst-testnet.json",
+   "verified": false
+  },
+  {
+   "network": "ethereum",
+   "address": "0x3AfDc9Bca9213a35503b2b8b4B8Fa8c8b9F6f5E3",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": false
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xd98Be00b5D27fc98112BdE293e487f8D4cA57d07",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+   "label": "Compound V3 comet: baseToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xd98Be00b5D27fc98112BdE293e487f8D4cA57d07"
+  },
+  {
+   "network": "optimism",
+   "address": "0x995E394b8B2437aC8Ce61Ee0bC610D617962B214",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "optimism",
+   "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+   "label": "Compound V3 comet: baseToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x995E394b8B2437aC8Ce61Ee0bC610D617962B214"
+  },
+  {
+   "network": "polygon",
+   "address": "0xaeB318360f27748Acb200CE616E389A6C9409a07",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "polygon",
+   "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+   "label": "Compound V3 comet: baseToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xaeB318360f27748Acb200CE616E389A6C9409a07"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+   "label": "Compound V3 comet: baseToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xA5EDBDD9646f8dFF606d7448e414884C7d905dCA",
+   "label": "Compound V3 comet",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+   "label": "Compound V3 comet: baseToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xA5EDBDD9646f8dFF606d7448e414884C7d905dCA"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff",
+   "label": "Aave V3 Pool (Arb Sepolia)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0xB25a5D144626a0D488e52AE717A051a2E9997076",
+   "label": "Aave V3 Pool (Arb Sepolia): ADDRESSES_PROVIDER()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xcf5EA1b38380f6aF39068375516Daf40Ed70D299",
+   "label": "Stader StaderStakePoolsManager",
+   "source": "lending-lst-testnet.json",
+   "verified": false
+  },
+  {
+   "network": "ethereum",
+   "address": "0xcf5EA1b38380f6aF39068375516Daf40Ed70D299",
+   "label": "Stader deposit(receiver) simulation",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+   "label": "Mantle mETH Staking",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
+   "label": "Mantle mETH Staking: mETH()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8",
+   "label": "Mantle mETH Staking: pauser()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+   "label": "Mantle stake(min) simulation",
+   "source": "lending-lst-testnet.json",
+   "verified": false
+  },
+  {
+   "network": "ethereum",
+   "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+   "label": "Swell swETH",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+   "label": "Swell deposit() simulation",
+   "source": "lending-lst-testnet.json",
+   "verified": false
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138",
+   "label": "Frax frxETHMinter",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x5E8422345238F34275888049021821E8E08CAa1f",
+   "label": "Frax frxETHMinter: frxETHToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xac3E018457B222d93114458476f3E3416Abbe38F",
+   "label": "Frax frxETHMinter: sfrxETHToken()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138"
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138",
+   "label": "Frax submitAndDeposit simulation",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704",
+   "label": "Coinbase cbETH (mint gated)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x7Dd4aa646b2e2850f9D809F9299E8E87AC97b77a",
+   "label": "Coinbase cbETH (mint gated): masterMinter()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
+  },
+  {
+   "network": "arc",
+   "address": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+   "label": "CCTP V2 TokenMessengerV2 (testnet)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arc",
+   "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+   "label": "CCTP V2 TokenMessengerV2 (testnet): localMessageTransmitter()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+  },
+  {
+   "network": "arc",
+   "address": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+   "label": "CCTP V2 TokenMessengerV2 (testnet): localMinter()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+  },
+  {
+   "network": "arc",
+   "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+   "label": "CCTP V2 MessageTransmitterV2 (testnet)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+   "label": "CCTP V2 TokenMessengerV2 (testnet)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+   "label": "CCTP V2 TokenMessengerV2 (testnet): localMessageTransmitter()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+   "label": "CCTP V2 TokenMessengerV2 (testnet): localMinter()",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reportedBy": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+   "label": "CCTP V2 MessageTransmitterV2 (testnet)",
+   "source": "lending-lst-testnet.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a",
+   "label": "Aave V3 aUSDT (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x0B925eD163218f6662a35e0f0371Ac234f9E9371",
+   "label": "Aave V3 awstETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"
+  },
+  {
+   "network": "ethereum",
+   "address": "0x5c647cE0Ae10658ec44FA4E11A51c96e94efd1Dd",
+   "label": "Aave V3 acbBTC (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+   "label": "Aave V3 aUSDT (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x513c7E3a9c69cA3e22550eF58AC1C0088e918FFf",
+   "label": "Aave V3 awstETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x5979D7b546E38E414F7E9822514be443A4800529"
+  },
+  {
+   "network": "optimism",
+   "address": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+   "label": "Aave V3 aUSDT (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58"
+  },
+  {
+   "network": "optimism",
+   "address": "0xc45A479877e1e9Dfe9FcD4056c699575a1045dAA",
+   "label": "Aave V3 awstETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb"
+  },
+  {
+   "network": "polygon",
+   "address": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+   "label": "Aave V3 aUSDT (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+  },
+  {
+   "network": "polygon",
+   "address": "0xf59036CAEBeA7dC4b86638DFA2E3C97dA9FcCd40",
+   "label": "Aave V3 awstETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x03b54A6e9a984069379fae1a4fC4dBAE93B3bCCD"
+  },
+  {
+   "network": "base",
+   "address": "0x99CBC45ea5bb7eF3a5BC08FB1B7E56bB2442Ef0D",
+   "label": "Aave V3 awstETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452"
+  },
+  {
+   "network": "base",
+   "address": "0xcf3D55c10DB69f28fD1A75Bd73f3D8A2d9c595ad",
+   "label": "Aave V3 acbETH (getReserveTokensAddresses)",
+   "source": "lending-lst-testnet.json",
+   "verified": true,
+   "reserve": "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22"
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x12373B5085e3b42D42C1D4ABF3B3Cf4Df0E0Fa01",
+   "label": "Aave V3 data provider (Arb Sepolia)",
+   "source": "aave-arbitrum-sepolia.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum-sepolia",
+   "address": "0x460b97BD498E1157530AEb3086301d5225b91216",
+   "label": "Aave V3 aUSDC (Arb Sepolia)",
+   "source": "aave-arbitrum-sepolia.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+   "label": "MetaMorpho factory isMetaMorpho(Steakhouse USDC)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+   "label": "MetaMorpho factory isMetaMorpho(Steakhouse USDT)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xA9c3D3a366466Fa809d1Ae982Fb2c46E5fC41101",
+   "label": "MetaMorpho factory isMetaMorpho(Steakhouse ETH)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB",
+   "label": "vault Steakhouse USDC",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xbEef047a543E45807105E51A8BBEFCc5950fcfBa",
+   "label": "vault Steakhouse USDT",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "ethereum",
+   "address": "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4",
+   "label": "vault Steakhouse ETH",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "optimism",
+   "address": "0x3Bb6A6A0Bc85b367EFE0A5bAc81c5E52C892839a",
+   "label": "MetaMorpho factory isMetaMorpho(Gauntlet USDC Prime)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "optimism",
+   "address": "0xC30ce6A5758786e0F640cC5f881Dd96e9a1C5C59",
+   "label": "vault Gauntlet USDC Prime",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "polygon",
+   "address": "0xa9c87daB340631C34BB738625C70499e29ddDC98",
+   "label": "MetaMorpho factory isMetaMorpho(Compound USDC)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "polygon",
+   "address": "0xa9c87daB340631C34BB738625C70499e29ddDC98",
+   "label": "MetaMorpho factory isMetaMorpho(Compound USDT)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "polygon",
+   "address": "0x781FB7F6d845E3bE129289833b04d43Aa8558c42",
+   "label": "vault Compound USDC",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "polygon",
+   "address": "0xfD06859A671C21497a2EB8C5E3fEA48De924D6c8",
+   "label": "vault Compound USDT",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "arbitrum",
+   "address": "0x878988f5f561081deEa117717052164ea1Ef0c82",
+   "label": "MetaMorpho factory isMetaMorpho(Gauntlet USDC Core)",
+   "source": "morpho-vaults.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+   "label": "Marinade program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "8szGkuLTAux9XMgZ2vtY39jVSowEcpBfFfD8hXSEqdGC",
+   "label": "Marinade state",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD"
+  },
+  {
+   "network": "solana",
+   "address": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+   "label": "SPL stake pool program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn",
+   "label": "Sanctum SPL multi program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "Jito4APyf642JPZPx3hGc6WWJ8zPKtRbRs4P815Awbb",
+   "label": "Jito stake pool",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy"
+  },
+  {
+   "network": "solana",
+   "address": "3R3nGZpQs2aZo5FDQvd2MUQ6R7KhAPainds6uT6uE2mn",
+   "label": "Jito stake pool validatorList (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "BgKUXdS29YcHCFrPm5M8oLHiTzZaMDjsebggjoaQ6KFL",
+   "label": "Jito stake pool reserveStake (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+   "label": "Jito stake pool poolMint (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "8yoigZfzZ1nNaadumY9uPVD118225UYHTDpmjpr2nrSa",
+   "label": "Jito stake pool managerFeeAccount (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "8VpRhuxa7sUUepdY3kQiTmX9rS5vx4WgaXiAnXq4KCtr",
+   "label": "JupSOL stake pool",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "SPMBzsVUuoHA4Jm6KunbsotaahvVikZs1JyTW6iJvbn"
+  },
+  {
+   "network": "solana",
+   "address": "AXL4v4bbzRkqwHmLc9A1YzHQmRhmG9Q93i1e6CPG2bEK",
+   "label": "JupSOL stake pool validatorList (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "FMAWbzuxsgbgndArunedwxXPA6sweaVUGGgadCpSxau2",
+   "label": "JupSOL stake pool reserveStake (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v",
+   "label": "JupSOL stake pool poolMint (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "GbvFCpMqKX65gQ8KNeob9JUAL7vHCHFSg8YN5bnpPT8g",
+   "label": "JupSOL stake pool managerFeeAccount (decoded)",
+   "source": "solana.json",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "Stake11111111111111111111111111111111111111",
+   "label": "Stake program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
+   "label": "marginfi program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8",
+   "label": "marginfi main group",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA"
+  },
+  {
+   "network": "solana",
+   "address": "So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo",
+   "label": "Save program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",
+   "label": "Drift program",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "5ocnV1qiCgaQR8Jb8xWnVbApfaygJ8tNoZfgPwsgx9kx",
+   "label": "Sanctum router (S controller)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+   "label": "CCTP V2 TokenMessengerMinter (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",
+   "label": "CCTP V2 MessageTransmitter (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "Stake11111111111111111111111111111111111111",
+   "label": "Stake program (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "SPoo1Ku8WFXoNDMHPsrGSTSG1Y47rzgn41SLUNakuHy",
+   "label": "SPL stake pool program (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+   "label": "Marinade program (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana-devnet",
+   "address": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+   "label": "Orca Whirlpool (devnet)",
+   "source": "solana.json",
+   "verified": true,
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111"
+  },
+  {
+   "network": "solana",
+   "address": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+   "label": "Marinade state msol_mint (decoded)",
+   "source": "marinade-state-2026-10-15 (getAccountInfo 8szG...dGC)",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "7GgPYjS5Dza89wV6FpZ23kUJRG5vbQ1GM25ezspYFSoE",
+   "label": "Marinade state msol_leg (decoded)",
+   "source": "marinade-state-2026-10-15 (getAccountInfo 8szG...dGC)",
+   "verified": true
+  },
+  {
+   "network": "solana",
+   "address": "CcaHc2L43ZWjwCHART3oZoJvHLAe9hzT2DJNUpBzoTN1",
+   "label": "vote account (commission 7%)",
+   "source": "vote-accounts-mainnet.json",
+   "verified": true,
+   "commission": 7,
+   "stakeSOL": 17556680
+  },
+  {
+   "network": "solana",
+   "address": "he1iusunGwqrNtafDtLdhsUQDFvo13z9sUa36PauBtk",
+   "label": "vote account (commission 0%)",
+   "source": "vote-accounts-mainnet.json",
+   "verified": true,
+   "commission": 0,
+   "stakeSOL": 15475283
+  },
+  {
+   "network": "solana",
+   "address": "3N7s9zXMZ4QqvHQR15t5GNHyqc89KduzMP7423eWiD5g",
+   "label": "vote account (commission 0%)",
+   "source": "vote-accounts-mainnet.json",
+   "verified": true,
+   "commission": 0,
+   "stakeSOL": 12340405
+  },
+  {
+   "network": "solana",
+   "address": "8GbwASqdpw4dVcwbWUxbHXMrjyQx2aKkoBR5H1GJF8iD",
+   "label": "vote account (commission 0%)",
+   "source": "vote-accounts-mainnet.json",
+   "verified": true,
+   "commission": 0,
+   "stakeSOL": 11132168
+  },
+  {
+   "network": "solana",
+   "address": "CatzoSMUkTRidT5DwBxAC2pEtnwMBTpkCepHkFgZDiqb",
+   "label": "vote account (commission 5%)",
+   "source": "vote-accounts-mainnet.json",
+   "verified": true,
+   "commission": 5,
+   "stakeSOL": 10777828
+  },
+  {
+   "network": "solana-devnet",
+   "address": "vgcDar2pryHvMgPkKaZfh8pQy4BJxv7SpwUG7zinWjG",
+   "label": "vote account (commission 95%)",
+   "source": "vote-accounts-devnet.json",
+   "verified": true,
+   "commission": 95,
+   "stakeSOL": 38979557
+  },
+  {
+   "network": "solana-devnet",
+   "address": "i7NyKBMJCA9bLM2nsGyAGCKHECuR2L5eh4GqFciuwNT",
+   "label": "vote account (commission 95%)",
+   "source": "vote-accounts-devnet.json",
+   "verified": true,
+   "commission": 95,
+   "stakeSOL": 38977495
+  },
+  {
+   "network": "solana-devnet",
+   "address": "23AoPQc3EPkfLWb14cKiWNahh1H9rtb3UBk8gWseohjF",
+   "label": "vote account (commission 95%)",
+   "source": "vote-accounts-devnet.json",
+   "verified": true,
+   "commission": 95,
+   "stakeSOL": 38977201
+  },
+  {
+   "network": "solana-devnet",
+   "address": "5ZWgXcyqrrNpQHCme5SdC5hCeYb2o3fEJhF7Gok3bTVN",
+   "label": "vote account (commission 95%)",
+   "source": "vote-accounts-devnet.json",
+   "verified": true,
+   "commission": 95,
+   "stakeSOL": 38969671
+  },
+  {
+   "network": "solana-devnet",
+   "address": "7AETLyAGJWjp6AWzZqZcP362yv5LQ3nLEdwnXNjdNwwF",
+   "label": "vote account (commission 100%)",
+   "source": "vote-accounts-devnet.json",
+   "verified": true,
+   "commission": 100,
+   "stakeSOL": 3711061
+  },
+  {
+   "network": "ethereum",
+   "address": "0xF017fcB346A1885194689bA23Eff2fE6fA5C483b",
+   "label": "Chainlink CBETH / ETH (18 decimals, 1.14151)",
+   "source": "live eth_call 2026-10-15",
+   "verified": true
+  }
+ ]
+}

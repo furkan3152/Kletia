@@ -219,8 +219,9 @@ const ROUND6_PROTOCOLS = [
 ];
 
 test("round 6 registry: 44 entries, 42 real protocols, execution surfaces and routed venues", () => {
-  assert.equal(PROTOCOLS.length, 44);
-  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 42);
+  // Round 7 adds seven ids (protocols design 3.0): 51 entries, 49 real protocols.
+  assert.equal(PROTOCOLS.length, 51);
+  assert.equal(PROTOCOLS.filter((protocol) => protocol.category !== "custom").length, 49);
   for (const id of ROUND6_PROTOCOLS) assert.ok(getProtocol(id), id);
   assert.equal(getProtocol("spark"), null, "no bare spark id: Spark Savings and SparkLend are separate");
   assert.deepEqual(AMBIGUOUS_VENUE_WORDS.spark, ["spark-savings", "sparklend"]);
@@ -251,8 +252,9 @@ test("round 6 registry: 44 entries, 42 real protocols, execution surfaces and ro
 });
 
 test("round 6 DEX deployments: Uniswap V3 on five networks, Slipstream on Base and OP Mainnet, no classic pools", () => {
-  assert.equal(DEX_DEPLOYMENTS.length, 10);
-  assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "uniswap-v3").map((entry) => entry.network).sort(), ["arbitrum", "base", "ethereum", "optimism", "polygon"]);
+  // Round 7 adds PancakeSwap V3 (3), Camelot (1) and Uniswap V3 on Arbitrum Sepolia (testnet): 15.
+  assert.equal(DEX_DEPLOYMENTS.length, 15);
+  assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "uniswap-v3" && !entry.testnet).map((entry) => entry.network).sort(), ["arbitrum", "base", "ethereum", "optimism", "polygon"]);
   assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "aerodrome").map((entry) => entry.network), ["base", "base", "base"]);
   assert.deepEqual(DEX_DEPLOYMENTS.filter((entry) => entry.protocol === "velodrome").map((entry) => entry.network), ["optimism", "optimism"]);
   assert.ok(DEX_DEPLOYMENTS.every((entry) => entry.dialect !== "solidly-v2"), "no classic pools");
@@ -264,7 +266,9 @@ test("round 6 DEX deployments: Uniswap V3 on five networks, Slipstream on Base a
     const wrapped = ASSETS.find((asset) => asset.network === deployment.network && asset.address?.toLowerCase() === deployment.wrappedNative.toLowerCase());
     assert.ok(wrapped && wrapped.category === "wrapped", `${deployment.id} wraps ${wrapped?.symbol}`);
     assert.ok(getProtocol(deployment.protocol).networks.includes(deployment.network));
-    if (deployment.dialect === "uniswap-v3") assert.deepEqual(deployment.feeTiers, [100, 500, 3000, 10000]);
+    if (deployment.protocol === "pancakeswap-v3") assert.deepEqual(deployment.feeTiers, [100, 500, 2500, 10000]);
+    else if (deployment.dialect === "uniswap-v3") assert.deepEqual(deployment.feeTiers, [100, 500, 3000, 10000]);
+    else if (deployment.dialect === "algebra") assert.equal(deployment.feeTiers ?? deployment.tickSpacings, undefined, "Algebra: one pool per pair");
     else assert.deepEqual(deployment.tickSpacings, [1, 50, 100, 200, 2000]);
   }
   assert.equal(dexDeploymentsFor("base", "aerodrome").length, 3);
@@ -275,7 +279,7 @@ test("round 6 DEX deployments: Uniswap V3 on five networks, Slipstream on Base a
     assert.ok(isVenueContract(deployment.protocol, deployment.network, deployment.factory, "pool-factory"), deployment.id);
   }
   // Uniswap's shared addresses appear once per (network, role).
-  assert.equal(dexContracts(DEX_DEPLOYMENTS).length, 30);
+  assert.equal(dexContracts(DEX_DEPLOYMENTS.filter((entry) => ["uniswap-v3", "aerodrome", "velodrome"].includes(entry.protocol) && !entry.testnet)).length, 30);
 });
 
 test("round 6 venue contracts: unique labels keyed by Jupiter label; Solana DEX programs pinned", () => {
@@ -361,7 +365,8 @@ test("every round-6 pin is read back on-chain in docs/networks/evidence/protocol
   );
   const key = (network, address) => `${network}:${address.toLowerCase()}`;
   const round6 = new Set([...ROUND6_PROTOCOLS, "uniswap-v3", "aerodrome", "across", "cctp-v2"]);
-  for (const row of VENUE_CONTRACTS.filter((entry) => round6.has(entry.protocol))) {
+  // Round 7 rows (new networks of these protocols, all testnets) are checked against the round-7 evidence (round7.test.mjs).
+  for (const row of VENUE_CONTRACTS.filter((entry) => round6.has(entry.protocol) && CHAINS[entry.network].environment === "mainnet")) {
     assert.ok(verified.has(key(row.network, row.address)), `${row.protocol} ${row.role} ${row.network} ${row.address}`);
   }
   for (const venue of YIELD_VENUES.filter((entry) => round6.has(entry.protocol))) {

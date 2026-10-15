@@ -6,6 +6,9 @@ import { cctpV2Adapter } from "./cctpV2.js";
 import { contractCallAdapter } from "./contractCall.js";
 import { debridgeDlnAdapter } from "./debridge.js";
 import { aerodromeAdapter, velodromeAdapter } from "./dex/aerodrome.js";
+import { camelotAdapter } from "./dex/camelot.js";
+import { curveAdapter } from "./dex/curve.js";
+import { pancakeswapV3Adapter } from "./dex/pancakeswap.js";
 import { uniswapV3Adapter } from "./dex/uniswapV3.js";
 import { evmTransferAdapter } from "./evmTransfer.js";
 import { jupiterAdapter } from "./jupiter.js";
@@ -19,13 +22,19 @@ import { sparkSavingsAdapter } from "./lending/sparkSavings.js";
 import { sparklendAdapter } from "./lending/sparklend.js";
 import { yearnAdapter } from "./lending/yearn.js";
 import { lifiAdapter } from "./lifi.js";
+import { marinadeAdapter } from "./marinade.js";
 import { relayAdapter } from "./relay.js";
 import { solanaActionAdapter } from "./solanaAction.js";
 import { meteoraAdapter, orcaAdapter, raydiumAdapter } from "./solanaDex.js";
+import { solanaNativeStakeAdapter } from "./solanaNativeStake.js";
+import { jitoStakePoolAdapter, sanctumStakePoolAdapter } from "./solanaStakePool.js";
 import { solanaTransferAdapter } from "./solanaTransfer.js";
 import { etherfiAdapter } from "./staking/etherfi.js";
+import { fraxAdapter } from "./staking/frax.js";
 import { lidoAdapter } from "./staking/lido.js";
+import { mantleAdapter } from "./staking/mantle.js";
 import { rocketPoolAdapter } from "./staking/rocketPool.js";
+import { staderAdapter } from "./staking/stader.js";
 import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
 
 /**
@@ -37,9 +46,10 @@ import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./t
 export const CONTRACT_ADAPTERS: readonly ContractProtocolAdapter[] = Object.freeze([contractCallAdapter, solanaActionAdapter]);
 
 /**
- * Default preference order when several adapters can serve a route (the
- * final round-6 order). Venues whose package has not landed yet are `null`
- * placeholders and are skipped, so wiring a venue never reorders the list.
+ * Default preference order when several adapters can serve a route (round 6
+ * order, round 7 venues appended within their family). Venues whose package
+ * has not landed yet are `null` placeholders and are skipped, so wiring a
+ * venue never reorders the list.
  */
 export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
   [
@@ -47,11 +57,20 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     raydiumAdapter,
     orcaAdapter,
     meteoraAdapter,
+    // round 7: direct Solana staking (competes with the Jupiter route for the same LST)
+    jitoStakePoolAdapter,
+    sanctumStakePoolAdapter,
+    marinadeAdapter,
+    solanaNativeStakeAdapter,
     solanaTransferAdapter,
     evmTransferAdapter,
     uniswapV3Adapter,
     aerodromeAdapter,
     velodromeAdapter,
+    // round 7 EVM DEXs
+    pancakeswapV3Adapter,
+    camelotAdapter,
+    curveAdapter,
     relayAdapter,
     acrossAdapter,
     cctpV2Adapter,
@@ -70,6 +89,10 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     lidoAdapter,
     rocketPoolAdapter,
     etherfiAdapter,
+    // round 7 EVM liquid staking
+    staderAdapter,
+    mantleAdapter,
+    fraxAdapter,
     ...CONTRACT_ADAPTERS,
   ].filter((adapter): adapter is ProtocolAdapter => adapter !== null),
 );

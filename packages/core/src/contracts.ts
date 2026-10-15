@@ -1007,6 +1007,8 @@ const VENUE_WORDS: readonly string[] = [
   // round 6 (protocols design 4.1)
   "velodrome", "raydium", "meteora", "sparklend", "etherfi", "wsteth", "steth", "reth", "weeth", "eeth", "rocketpool",
   "yearn", "uniswap", "aerodrome",
+  // round 7 (protocols design 3.0): brand-unique words of the new venues
+  "pancakeswap", "camelot", "stader", "ethx", "sfrxeth", "frxeth",
 ];
 /**
  * Venue phrases and common English venue words: refused as a whole alias
@@ -1050,7 +1052,8 @@ const RESERVED_WHOLE = new Set<string>(
     ...NETWORK_KEYS,
     ...Object.values(CHAINS).flatMap((chain) => [chain.name, chain.shortName]),
     ...ASSETS.map((asset) => asset.symbol),
-    ...PROTOCOLS.flatMap((protocol) => [protocol.id, protocol.name]),
+    ...PROTOCOLS.flatMap((protocol) => [protocol.id, protocol.name, ...(protocol.words ?? [])]),
+    ...ASSETS.flatMap((asset) => asset.aliases ?? []),
     "solana mainnet", "solana devnet", "arbitrum one", "arbitrum sepolia", "arb sepolia", "arc testnet", "base mainnet",
     "ethereum mainnet", "op mainnet", "optimism mainnet", "polygon pos", "polygon mainnet",
   ].flatMap(phraseVariants),
@@ -1127,6 +1130,13 @@ export const RESERVED_INTEGRATOR_NAMES: readonly {
   { word: "yearn", hosts: ["yearn.fi"], match: "word" },
   { word: "chainlink", hosts: ["chain.link"], match: "substring" },
   { word: "pyth", hosts: ["pyth.network"], match: "word" },
+  // round 7 (protocols design 3.0)
+  { word: "pancakeswap", hosts: ["pancakeswap.finance"], match: "substring" },
+  { word: "camelot", hosts: ["camelot.exchange"], match: "word" },
+  { word: "curve", hosts: ["curve.fi", "curve.finance"], match: "word" },
+  { word: "stader", hosts: ["staderlabs.com"], match: "prefix" },
+  { word: "mantle", hosts: ["mantle.xyz", "methprotocol.xyz"], match: "word" },
+  { word: "frax", hosts: ["frax.finance", "frax.com"], match: "word" },
 ]);
 
 /** The reserved brand an integrator name uses (see RESERVED_INTEGRATOR_NAMES), or null. */

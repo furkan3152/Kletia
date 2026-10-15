@@ -76,7 +76,7 @@ describe("adapter registry order", () => {
       "meteora", "moonwell", "morpho", "orca", "raydium", "relay", "rocket-pool", "spark-savings", "sparklend", "spl-token", "system-transfer", "uniswap-v3", "velodrome",
       "yearn-v3",
     ]);
-    assert.equal(PROTOCOLS.length, 44);
+    assert.equal(PROTOCOLS.length, 51, "round 7 lists seven more ids; their adapter slots are null until their packages land");
   });
 });
 

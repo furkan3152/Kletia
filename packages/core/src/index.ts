@@ -24,3 +24,5 @@ export * from "./flow.js";
 export * from "./clarify.js";
 export * from "./appearance.js";
 export * from "./projects.js";
+export * from "./goal.js";
+export * from "./capabilities.js";

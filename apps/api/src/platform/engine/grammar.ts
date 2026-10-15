@@ -8,18 +8,22 @@
  */
 import {
   CHAINS,
+  findAssetByAddress,
   findAssetBySymbol,
   getProtocol,
   isEvmAddress,
   isSolanaAddress,
   MAX_INTENT_ACTIONS,
   parseAccountId,
+  PROTOCOLS,
   resolveChain,
+  venueContracts,
   YIELD_VENUES,
   type AccountId,
   type IntentActionKind,
   type IntentActionSpec,
   type NetworkKey,
+  type ProtocolDescriptor,
   type ProtocolId,
 } from "@kletia/core";
 import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
@@ -62,6 +66,34 @@ export interface VenueWord {
   readonly protocol: ProtocolId;
 }
 
+/* -------------------------------------------- venue words from the registry */
+
+/**
+ * Venue words of registry protocols the hand-written lists below do not
+ * cover yet (protocols design 3.0): generated from descriptor `words`, so a
+ * new venue needs no grammar edit. The hand-written patterns stay as they
+ * are (no behaviour change for existing venues); a generated word only adds
+ * a reading, and a protocol without a live adapter is refused by the planner
+ * as before.
+ */
+function escapeWord(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+/** Regex alternation of words (longest first, spaces and hyphens interchangeable). */
+function wordAlternation(words: readonly string[]): string {
+  return [...new Set(words)]
+    .sort((a, b) => b.length - a.length || a.localeCompare(b))
+    .map((word) => word.trim().toLowerCase().split(/[\s-]+/u).map(escapeWord).join("[\\s-]+"))
+    .join("|");
+}
+
+function generatedVenueWords(covered: readonly ProtocolId[], select: (protocol: ProtocolDescriptor) => boolean): VenueWord[] {
+  return PROTOCOLS
+    .filter((protocol) => !covered.includes(protocol.id) && (protocol.words ?? []).length > 0 && select(protocol))
+    .map((protocol) => ({ pattern: new RegExp(`^(?:${wordAlternation(protocol.words ?? [])})$`, "iu"), protocol: protocol.id }));
+}
+
 /** Lending and savings venue words -> protocol (bare "spark" is Spark Savings, with a warning naming SparkLend). */
 export const LENDING_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^aave(?:[\s-]*v3)?$/iu, protocol: "aave-v3" },
@@ -91,8 +123,7 @@ export const BRIDGE_VENUES: readonly VenueWord[] = Object.freeze([
 ]);
 export const BRIDGE_WORDS = "li\\.?fi|debridge(?:[\\s-]+dln)?|dln|relay|across|cctp(?:[\\s-]*v2)?";
 
-/** Same-network swap venue words -> protocol ("swap ... via orca"). */
-export const SWAP_VENUES: readonly VenueWord[] = Object.freeze([
+const BUILTIN_SWAP_VENUES: readonly VenueWord[] = [
   { pattern: /^(?:jupiter|jup)$/iu, protocol: "jupiter" },
   { pattern: /^raydium$/iu, protocol: "raydium" },
   { pattern: /^orca$/iu, protocol: "orca" },
@@ -100,8 +131,20 @@ export const SWAP_VENUES: readonly VenueWord[] = Object.freeze([
   { pattern: /^uniswap(?:[\s-]+v3)?$/iu, protocol: "uniswap-v3" },
   { pattern: /^aerodrome$/iu, protocol: "aerodrome" },
   { pattern: /^velodrome$/iu, protocol: "velodrome" },
+];
+/** Registry DEX protocols with words and no hand-written pattern (round 7: PancakeSwap V3, Camelot, Curve). */
+const GENERATED_SWAP_PROTOCOLS: readonly ProtocolDescriptor[] = PROTOCOLS.filter((protocol) =>
+  protocol.category === "dex" && (protocol.kinds ?? []).includes("swap") && (protocol.words ?? []).length > 0 &&
+  !BUILTIN_SWAP_VENUES.some((venue) => venue.protocol === protocol.id));
+/** Same-network swap venue words -> protocol ("swap ... via orca"). */
+export const SWAP_VENUES: readonly VenueWord[] = Object.freeze([
+  ...BUILTIN_SWAP_VENUES,
+  ...generatedVenueWords(BUILTIN_SWAP_VENUES.map((venue) => venue.protocol), (protocol) => GENERATED_SWAP_PROTOCOLS.includes(protocol)),
 ]);
-export const SWAP_VENUE_WORDS = "jupiter|jup|raydium|orca|meteora|uniswap(?:[\\s-]+v3)?|aerodrome|velodrome";
+export const SWAP_VENUE_WORDS = [
+  "jupiter|jup|raydium|orca|meteora|uniswap(?:[\\s-]+v3)?|aerodrome|velodrome",
+  ...(GENERATED_SWAP_PROTOCOLS.length > 0 ? [wordAlternation(GENERATED_SWAP_PROTOCOLS.flatMap((protocol) => protocol.words ?? []))] : []),
+].join("|");
 
 /** Liquid staking targets reachable through Jupiter routes. */
 export const LIQUID_STAKING_TOKENS: Readonly<Record<string, { symbol: string; provider: string }>> = Object.freeze({
@@ -126,9 +169,35 @@ export const EVM_STAKING_TOKENS: Readonly<Record<string, { symbol: string; provi
   etherfi: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
   weeth: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
   eeth: { symbol: "weETH", provider: "ether.fi", protocol: "etherfi" },
+  // Round 7: generated from the registry (descriptor words; the token is the protocol's pinned lst-token).
+  ...Object.fromEntries(generatedEvmStaking().map((entry) => [entry.word, { symbol: entry.symbol, provider: entry.provider, protocol: entry.protocol }])),
 });
+/** Words of the generated EVM staking entries (also stake-sentence LST words). */
+const GENERATED_EVM_STAKING_WORDS: readonly string[] = generatedEvmStaking().map((entry) => entry.word);
 /** The network EVM liquid staking runs on. */
 export const EVM_STAKING_NETWORK: NetworkKey = "ethereum";
+
+/**
+ * Ethereum liquid-staking protocols with words and no hand-written entry
+ * (round 7: Stader, Mantle LSP, Frax Ether): each word -> the asset of the
+ * protocol's pinned `lst-token` on Ethereum. A protocol without that pin, or
+ * whose token is not a registry asset, gets no words (nothing to mint).
+ */
+function generatedEvmStaking(): { word: string; symbol: string; provider: string; protocol: ProtocolId }[] {
+  const handWritten: readonly ProtocolId[] = ["lido", "rocket-pool", "etherfi"];
+  return PROTOCOLS.flatMap((protocol) => {
+    if (protocol.category !== "liquid-staking" || handWritten.includes(protocol.id) || !protocol.networks.includes("ethereum")) return [];
+    const [token] = venueContracts(protocol.id, "ethereum", "lst-token");
+    const asset = token ? findAssetByAddress("ethereum", token) : null;
+    if (!asset) return [];
+    return (protocol.words ?? []).map((word) => ({
+      word: word.trim().toLowerCase().replace(/[\s-]+/gu, " "),
+      symbol: asset.symbol,
+      provider: protocol.name,
+      protocol: protocol.id,
+    }));
+  });
+}
 
 function evmStakingToken(word: string | undefined) {
   if (!word) return undefined;
@@ -155,6 +224,8 @@ export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   "jup", "raydium", "orca", "meteora", "uniswap", "uniswap v3", "aerodrome", "velodrome",
   ...Object.keys(LIQUID_STAKING_TOKENS),
   ...Object.keys(EVM_STAKING_TOKENS),
+  // Round 7: generated swap venue words (generated staking words are EVM_STAKING_TOKENS keys above).
+  ...GENERATED_SWAP_PROTOCOLS.flatMap((protocol) => (protocol.words ?? []).map((word) => word.toLowerCase())),
 ]);
 
 /** True when `word` is a venue the built-in patterns match (drift test). */
@@ -249,6 +320,7 @@ export const VAULT = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|vau
 export const LST_WORDS = [
   ...Object.keys(LIQUID_STAKING_TOKENS),
   "lido", "wsteth", "steth", "rocket[\\s-]*pool", "reth", "ether\\.?fi", "weeth", "eeth",
+  ...(GENERATED_EVM_STAKING_WORDS.length > 0 ? [wordAlternation(GENERATED_EVM_STAKING_WORDS)] : []),
 ].join("|");
 /** "via raydium", "using orca", "through uniswap" after a swap. */
 const SWAP_VENUE_SUFFIX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))`;

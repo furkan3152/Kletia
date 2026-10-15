@@ -26,6 +26,7 @@ import {
 } from "viem";
 import {
   CHAINS,
+  findAssetByAddress,
   findAssetBySymbol,
   formatAmount,
   formatAssetId,
@@ -388,23 +389,86 @@ export function evmCall(
   };
 }
 
-/** Exact-amount ERC-20 approval of `spender`, or null when the allowance already covers `amount`. */
+/**
+ * True when `token` on `network` is a registry asset that reverts
+ * `approve(spender, x > 0)` over a non-zero allowance (`approvalReset`:
+ * Ethereum USDT).
+ */
+export function needsApprovalReset(network: NetworkKey, token: string): boolean {
+  return findAssetByAddress(network, token)?.approvalReset === true;
+}
+
+/** One approval call of an exact-approval sequence. */
+export interface ApprovalCall {
+  readonly data: Hex;
+  /** The allowance this call sets (0n for a reset). */
+  readonly amount: bigint;
+  readonly reset: boolean;
+}
+
+/**
+ * Calls that raise `spender`'s allowance of `token` to exactly `amount`
+ * (protocols design 3.1, shared by the lending adapters and the DEX
+ * adapters): none when `current` already covers it; `approve(spender, 0)`
+ * first when the token needs a reset (`approvalReset`) and `current` is
+ * non-zero; then `approve(spender, amount)`. Only the pinned spender is ever
+ * approved, and never for more than `amount`.
+ */
+export function exactApprovalCalls(network: NetworkKey, token: string, spender: string, amount: bigint, current: bigint): ApprovalCall[] {
+  if (current >= amount) return [];
+  const approve = (value: bigint): Hex => encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(spender), value] });
+  const calls: ApprovalCall[] = [];
+  if (current > 0n && needsApprovalReset(network, token)) calls.push({ data: approve(0n), amount: 0n, reset: true });
+  calls.push({ data: approve(amount), amount, reset: false });
+  return calls;
+}
+
+/**
+ * Exact-amount ERC-20 approval transactions of `spender` (empty when the
+ * allowance already covers `amount`; a reset to zero first for tokens that
+ * need it, see `exactApprovalCalls`).
+ */
+export async function exactApprovals(
+  context: LendingContext<EvmLendingVenue>,
+  spender: string,
+  amount: bigint,
+  allowance?: bigint,
+): Promise<EvmTransactionRequest[]> {
+  const current = allowance ?? (await readAllowance(context.network, context.token, context.owner, spender));
+  return exactApprovalCalls(context.network, context.token, spender, amount, current).map((call) => evmCall(
+    context,
+    context.token,
+    call.data,
+    0n,
+    APPROVE_GAS,
+    call.reset
+      ? `Reset the ${context.underlying.symbol} allowance for ${context.venue.name} to zero (${context.underlying.symbol} requires it before a new approval)`
+      : `Approve ${formatUnits(amount, context.underlying.decimals, context.underlying.symbol)} for ${context.venue.name}`,
+  ));
+}
+
+/**
+ * Exact-amount ERC-20 approval of `spender`, or null when the allowance
+ * already covers `amount`. A token that needs its non-zero allowance reset
+ * first (Ethereum USDT) needs two transactions: this single-transaction form
+ * refuses that case (fail closed: an approve over a non-zero allowance would
+ * revert) and adapters that list such a token call `exactApprovals` instead.
+ */
 export async function exactApproval(
   context: LendingContext<EvmLendingVenue>,
   spender: string,
   amount: bigint,
   allowance?: bigint,
 ): Promise<EvmTransactionRequest | null> {
-  const current = allowance ?? (await readAllowance(context.network, context.token, context.owner, spender));
-  if (current >= amount) return null;
-  return evmCall(
-    context,
-    context.token,
-    encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [getAddress(spender), amount] }),
-    0n,
-    APPROVE_GAS,
-    `Approve ${formatUnits(amount, context.underlying.decimals, context.underlying.symbol)} for ${context.venue.name}`,
-  );
+  const approvals = await exactApprovals(context, spender, amount, allowance);
+  if (approvals.length > 1) {
+    throw new PlatformError(
+      "APPROVAL_RESET_REQUIRED",
+      `${context.underlying.symbol} on ${CHAINS[context.network].name} must have its current allowance for ${context.venue.name} reset to zero before a new approval; revoke it in your wallet, then plan again.`,
+      422,
+    );
+  }
+  return approvals[0] ?? null;
 }
 
 /** Allowance the plan assumes (0 when unreadable, which only adds an approval to the estimate). */

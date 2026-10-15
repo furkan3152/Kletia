@@ -141,6 +141,13 @@ export const CHAINLINK_FEEDS = Object.freeze({
   stethUsdEthereum: chainlink("ethereum", "0xCfE54B5cD566aB89272946F602D76Ea879CAb4a8", "STETH / USD", 3_600),
   rethEthEthereum: chainlink("ethereum", "0x536218f9E9Eb48863970252233c8F271f554C2d0", "RETH / ETH", 86_400),
   weethEthEthereum: chainlink("ethereum", "0x5c9C449BbC9a6075A2c061dF312a35fd1E05fF22", "weETH / ETH", 86_400),
+  // Round 7 (read live 2026-10-15; heartbeats from Chainlink's reference data directory). The ETH ratios have 18
+  // decimals: CBETH / ETH 1.14151 (cbETH.exchangeRate() 1.14164), ETHx / ETH 1.09593, mETH / ETH 1.10191.
+  cbethEthEthereum: chainlink("ethereum", "0xF017fcB346A1885194689bA23Eff2fE6fA5C483b", "CBETH / ETH", 86_400),
+  ethxEthEthereum: chainlink("ethereum", "0xC5f8c4aB091Be1A899214c0C3636ca33DcA0C547", "ETHx / ETH", 86_400),
+  methEthEthereum: chainlink("ethereum", "0x5b563107C8666d2142C216114228443B94152362", "mETH / ETH", 86_400),
+  usdsUsdEthereum: chainlink("ethereum", "0xfF30586cD0F29eD462364C7e81375FC0C71219b1", "USDS / USD", 82_800),
+  opUsdOptimism: chainlink("optimism", "0x0D276FC14719f9292D5C1eA2198673d1f4269246", "OP / USD", 1_200),
 });
 
 const sequencer = (network: EvmNetworkKey, address: `0x${string}`): SequencerFeed =>
@@ -167,6 +174,10 @@ export const DERIVED_FEEDS = Object.freeze({
   }),
   rethUsd: derived("derived:rETH", [CHAINLINK_FEEDS.rethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
   weethUsd: derived("derived:weETH", [CHAINLINK_FEEDS.weethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
+  // Round 7: cbETH (Ethereum and Base), ETHx and mETH = X / ETH x ETH / USD.
+  cbethUsd: derived("derived:cbETH", [CHAINLINK_FEEDS.cbethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
+  ethxUsd: derived("derived:ETHx", [CHAINLINK_FEEDS.ethxEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
+  methUsd: derived("derived:mETH", [CHAINLINK_FEEDS.methEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
 });
 
 const pyth = (description: string, feedId: string, account: string): PythFeed => Object.freeze({ kind: "pyth", feedId, account, description });
@@ -215,6 +226,8 @@ const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   WPOL: [F.polUsdPolygon, F.polUsdArbitrum],
   USDC: [F.usdcUsdEthereum, F.usdcUsdBase, F.usdcUsdArbitrum, jupiter(J.usdc), P.usdcUsd],
   USDT: [F.usdtUsdEthereum, jupiter(J.usdt)],
+  // Round 7: USDT0 is Tether's USDT on Arbitrum and Polygon (same USD sources).
+  USDT0: [F.usdtUsdEthereum, jupiter(J.usdt)],
   DAI: [F.daiUsdEthereum],
   PYUSD: [jupiter(J.pyusd)],
   EURC: [F.eurcUsdBase, F.eurUsdEthereum],
@@ -231,6 +244,12 @@ const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   WSTETH: [DERIVED_FEEDS.wstethUsd],
   RETH: [DERIVED_FEEDS.rethUsd],
   WEETH: [DERIVED_FEEDS.weethUsd],
+  // Round 7 (sfrxETH has no Chainlink feed: see UNPRICED_ASSETS).
+  CBETH: [DERIVED_FEEDS.cbethUsd],
+  ETHX: [DERIVED_FEEDS.ethxUsd],
+  METH: [DERIVED_FEEDS.methUsd],
+  USDS: [F.usdsUsdEthereum],
+  OP: [F.opUsdOptimism],
 };
 
 /** CAIP-19 text with EVM token addresses lower-cased (registry lookups are case-insensitive). */
@@ -248,6 +267,16 @@ function sourcesForListed(symbol: string, network: string, group: string | undef
   return BY_SYMBOL[symbol.toUpperCase()] ?? [];
 }
 
+/**
+ * Mainnet registry assets with no verified price source (fail closed: no
+ * swap guard or USD rule can use them; staking that mints them still works,
+ * its USD value reads as unknown). sfrxETH: Chainlink lists no sfrxETH or
+ * frxETH feed, and the oracle's on-chain rate reader covers wstETH only.
+ */
+export const UNPRICED_SYMBOLS: Readonly<Partial<Record<EvmNetworkKey, readonly string[]>>> = Object.freeze({
+  ethereum: Object.freeze(["sfrxETH"]),
+});
+
 const LISTED: ReadonlyMap<string, AssetDescriptor> = new Map(ASSETS.map((asset) => [normalizeAssetKey(asset.id), asset]));
 
 /** The registry descriptor of an asset id (EVM addresses compared case-insensitively). */
@@ -257,7 +286,8 @@ export function listedAsset(asset: AssetId | string): AssetDescriptor | null {
 
 /** Price sources of every mainnet registry asset, keyed by normalised CAIP-19 id. */
 export const ASSET_PRICE_SOURCES: ReadonlyMap<string, readonly PriceSource[]> = new Map(
-  ASSETS.filter((asset) => CHAINS[asset.network].environment !== "testnet").map((asset) => [
+  ASSETS.filter((asset) => CHAINS[asset.network].environment !== "testnet" &&
+    !(UNPRICED_SYMBOLS[asset.network as EvmNetworkKey] ?? []).includes(asset.symbol)).map((asset) => [
     normalizeAssetKey(asset.id),
     Object.freeze([...sourcesForListed(asset.symbol, asset.network, asset.group)]),
   ]),

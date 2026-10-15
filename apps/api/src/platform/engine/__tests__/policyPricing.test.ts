@@ -20,6 +20,7 @@ import {
   PYTH_RECEIVER,
   SEQUENCER_GRACE_SECONDS,
   SEQUENCER_UPTIME_FEEDS,
+  UNPRICED_SYMBOLS,
   WSTETH_ETHEREUM,
 } from "../policy/feeds.js";
 import {
@@ -372,6 +373,11 @@ describe("policy pricing", () => {
       for (const descriptor of ASSETS) {
         const sources = priceSourcesFor(descriptor.id);
         if (descriptor.transferOnly) continue;
+        // Round 7: listed mainnet assets without a verified feed stay unpriced (fail closed), by name only.
+        if ((UNPRICED_SYMBOLS[descriptor.network as keyof typeof UNPRICED_SYMBOLS] ?? []).includes(descriptor.symbol)) {
+          assert.equal(sources.length, 0, `${descriptor.symbol} on ${descriptor.network} is unpriced`);
+          continue;
+        }
         if (CHAINS[descriptor.network].environment === "testnet") {
           assert.equal(ASSET_PRICE_SOURCES.has(normalizeAssetKey(descriptor.id)), false, `${descriptor.symbol} on ${descriptor.network}`);
         } else {

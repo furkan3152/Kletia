@@ -69,6 +69,7 @@ import {
   assertSimulation,
   callGas,
   eventEvidence,
+  exactApprovalCalls,
   landedCall,
   observed,
   outcomeFailure,
@@ -140,7 +141,6 @@ export const POOL_ABI = parseAbi([
   "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
 ]);
 
-const ERC20_APPROVE_ABI = parseAbi(["function approve(address spender, uint256 amount) returns (bool)"]);
 
 /* ------------------------------------------------------------------- routes */
 
@@ -583,24 +583,28 @@ export async function swapQuote(
   if (minimum <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `${units(amountIn, context.input)} buys too little ${context.output.symbol} to guarantee an output.`, 422);
   const router = getAddress(route.deployment.router);
   const transactions: EvmTransactionRequest[] = [];
-  let approved = true;
+  let approvals = 0;
   if (!context.nativeIn) {
     // Plan reads the allowance best-effort (an unreadable one only adds the approval); prepare must read it.
     const allowance = stage === "plan"
       ? await readAllowance(context.network, context.tokenIn, context.account, router).catch(() => 0n)
       : await readAllowance(context.network, context.tokenIn, context.account, router);
-    if (allowance < amountIn) {
-      approved = false;
+    // Exact approval of the router; tokens that revert approve() over a non-zero allowance (Ethereum USDT) are reset to zero first.
+    for (const call of exactApprovalCalls(context.network, context.tokenIn, router, amountIn, allowance)) {
+      approvals += 1;
       transactions.push(evmTransaction(
         context,
         context.tokenIn,
-        encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [router, amountIn] }),
+        call.data,
         0n,
         APPROVE_GAS,
-        `Approve ${units(amountIn, context.input)} for the ${context.label} router`,
+        call.reset
+          ? `Reset the ${context.input.symbol} allowance of the ${context.label} router to zero (${context.input.symbol} requires it before a new approval)`
+          : `Approve ${units(amountIn, context.input)} for the ${context.label} router`,
       ));
     }
   }
+  const approved = approvals === 0;
   const data = routerCall(context, route, amountIn, minimum, deadline);
   const value = context.nativeIn ? amountIn : 0n;
   const fallbackGas = route.gasEstimate > 0n && route.gasEstimate < 2_000_000n ? route.gasEstimate + ROUTER_OVERHEAD_GAS : FALLBACK_SWAP_GAS;
@@ -629,7 +633,7 @@ export async function swapQuote(
     amountIn,
     expected: route.amountOut,
     minimum,
-    gas: fallbackGas + (approved ? 0n : APPROVE_GAS),
+    gas: fallbackGas + BigInt(approvals) * APPROVE_GAS,
     slippageBps,
     warnings,
   };

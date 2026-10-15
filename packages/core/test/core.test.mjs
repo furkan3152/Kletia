@@ -264,5 +264,6 @@ test("round-6 registry assets: EVM liquid staking tokens without a group, USDbC 
   assert.equal(usdbc.decimals, 6);
   assert.equal(usdbc.transferOnly, true);
   assert.equal(usdbc.group, undefined, "USDbC is not USDC");
-  assert.deepEqual(ASSETS.filter((asset) => asset.transferOnly).map((asset) => asset.symbol), ["USDbC"]);
+  // Round 7 adds Base weETH as transfer-only (its pools trade far below fair value; protocols design 3.0).
+  assert.deepEqual(ASSETS.filter((asset) => asset.transferOnly).map((asset) => `${asset.network}:${asset.symbol}`), ["base:USDbC", "base:weETH"]);
 });

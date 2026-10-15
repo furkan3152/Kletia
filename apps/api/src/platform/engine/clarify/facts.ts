@@ -7,11 +7,37 @@
  * was skipped (preview accounts, no account of that family) or did not fit
  * the budget stays unknown. Nothing read here is stored in the thread.
  */
-import { fromBaseUnits, type AccountId, type NetworkKey } from "@kletia/core";
+import { findAssetBySymbol, fromBaseUnits, getProtocol, GOAL_LIMITS, YIELD_VENUES, type ProtocolId, type AccountId, type Goal, type NetworkKey } from "@kletia/core";
 import { FACTS_DEADLINE_MS, MAX_BALANCE_READS, MAX_NAME_READS, readFacts, type FactNeed } from "../holdings.js";
-import { positionAmount, type Snapshot } from "../solver/snapshot.js";
+import { quoteAsset } from "../preview/pricer.js";
+import { positionAmount, readSnapshot, readVenueApy, type Snapshot } from "../solver/snapshot.js";
 import { decimalsOf } from "./catalog.js";
-import type { FactsView } from "./types.js";
+import type { FactsView, UsdPrice } from "./types.js";
+
+/** At most this many position reads (one network and protocol each) per turn. */
+const MAX_POSITION_READS = 4;
+
+/** A snapshot that read nothing: every position of the network unknown. */
+const EMPTY_POSITIONS = (accounts: readonly AccountId[], _network: NetworkKey): Snapshot => ({
+  accounts, observedAt: new Date(0).toISOString(), holdings: [], positions: [], positionNetworks: [], prices: new Map(), apy: new Map(),
+  sweep: { status: "skipped", networks: [], failures: [], peakConcurrency: 0, ms: 0 },
+});
+
+/** At most this many price reads per turn (dollar amounts of a token, D11). */
+const MAX_PRICE_READS = 4;
+
+let clock: number | null = null;
+
+/**
+ * Fixes "now" for price ages (the snapshot's and D11's): tests and the
+ * offline eval, whose fixed prices carry a fixed reading time. Null restores
+ * the real clock.
+ */
+export function configureFactsClock(now: number | null): void {
+  clock = now;
+}
+
+const nowMs = () => clock ?? Date.now();
 
 type BalanceEntry = { readonly units: bigint; readonly decimals: number } | null;
 
@@ -32,6 +58,17 @@ export class TurnFacts implements FactsView {
   misses = 0;
   /** The solver's snapshot of this turn (positions), when goal steps had one read. */
   private snapshot: Snapshot | null = null;
+  /** Snapshots read this turn, by the goals they were read for. */
+  private readonly snapshots = new Map<string, Snapshot>();
+  private readonly wantedSnapshots = new Map<string, readonly Goal[]>();
+  private readonly prices = new Map<string, UsdPrice | null>();
+  private readonly wantedPrices = new Map<string, { network: NetworkKey; symbol: string }>();
+  private priceReads = 0;
+  private readonly apys = new Map<string, number | null>();
+  private readonly positionSnapshots = new Map<string, Snapshot>();
+  private readonly wantedPositions = new Map<string, { network: NetworkKey; protocol: ProtocolId }>();
+  private positionReads = 0;
+  private readonly wantedApys = new Set<string>();
 
   constructor(private readonly accounts: readonly AccountId[]) {}
 
@@ -71,10 +108,50 @@ export class TurnFacts implements FactsView {
    * the protocol stay undefined, so the policy asks instead of assuming.
    */
   position(network: NetworkKey, protocol: string, symbol: string): string | undefined {
-    if (!this.snapshot) return undefined;
-    const amount = positionAmount(this.snapshot, network, protocol, symbol);
+    // The solver's snapshot when it read this network's positions; else this turn's own read of them.
+    const key = `${network}|${protocol}`;
+    const source = this.snapshot?.positionNetworks.includes(network) ? this.snapshot : this.positionSnapshots.get(key);
+    if (!source) {
+      if (!protocol || !getProtocol(protocol as ProtocolId)) return undefined;
+      this.misses += 1;
+      if (!this.frozen) this.wantedPositions.set(key, { network, protocol: protocol as ProtocolId });
+      return undefined;
+    }
+    const amount = positionAmount(source, network, protocol, symbol);
     if (amount === undefined || !/^\d+(\.\d+)?$/u.test(amount) || !/[1-9]/u.test(amount)) return undefined;
     return amount;
+  }
+
+  /**
+   * The solver's snapshot for `goals`, or undefined until it is read. A
+   * frozen turn (option previews) reuses the last snapshot read for
+   * other goals rather than reading again.
+   */
+  goalSnapshot(goals: readonly Goal[]): Snapshot | undefined {
+    const key = JSON.stringify(goals);
+    const found = this.snapshots.get(key);
+    if (found) return found;
+    this.misses += 1;
+    if (this.frozen) return this.snapshot ?? undefined;
+    this.wantedSnapshots.set(key, goals);
+    return undefined;
+  }
+
+  /** The USD price of a listed token (D11), or undefined when unpriced or not read yet (never guessed). */
+  usdPrice(network: NetworkKey, symbol: string): UsdPrice | undefined {
+    const key = balanceKey(network, symbol);
+    if (this.prices.has(key)) return this.prices.get(key) ?? undefined;
+    this.misses += 1;
+    if (!this.frozen) this.wantedPrices.set(key, { network, symbol });
+    return undefined;
+  }
+
+  /** A venue's supply APY (fraction), null when it does not report one, undefined until read. */
+  venueApy(venueId: string): number | null | undefined {
+    if (this.apys.has(venueId)) return this.apys.get(venueId) ?? null;
+    this.misses += 1;
+    if (!this.frozen) this.wantedApys.add(venueId);
+    return undefined;
   }
 
   /** Attaches the solver's snapshot (positions); null detaches it. */
@@ -84,7 +161,7 @@ export class TurnFacts implements FactsView {
 
   /** True when the last policy run asked for facts that can still be read this turn. */
   get pending(): boolean {
-    return this.wanted.size > 0;
+    return this.wanted.size > 0 || this.wantedSnapshots.size > 0 || this.wantedPrices.size > 0 || this.wantedApys.size > 0 || this.wantedPositions.size > 0;
   }
 
   /**
@@ -95,6 +172,7 @@ export class TurnFacts implements FactsView {
     const needs = [...this.wanted.values()];
     this.wanted.clear();
     this.misses = 0;
+    await Promise.all([this.readSnapshots(), this.readPrices(), this.readApys(), this.readPositions()]);
     if (needs.length === 0) return;
     const balanceNeeds = needs.filter((need): need is Extract<FactNeed, { kind: "balance" }> => need.kind === "balance");
     const nameNeeds = needs.filter((need): need is Extract<FactNeed, { kind: "name" }> => need.kind === "name");
@@ -116,6 +194,73 @@ export class TurnFacts implements FactsView {
     // Charged conservatively (a holdings cache hit costs no network read but still counts here).
     this.balanceReads += Math.min(balanceNeeds.length, balanceBudget);
     this.nameReads += Math.min(nameNeeds.length, nameBudget);
+  }
+
+  /** The snapshots the last run asked for (the snapshot keeps its own read budget and deadline). */
+  private async readSnapshots(): Promise<void> {
+    const wanted = [...this.wantedSnapshots.entries()];
+    this.wantedSnapshots.clear();
+    for (const [key, goals] of wanted) {
+      const deadlineMs = Math.max(1, FACTS_DEADLINE_MS - (Date.now() - this.started));
+      const snapshot = await readSnapshot(this.accounts, goals, { deadlineMs, ...(clock !== null ? { now: clock } : {}) });
+      this.snapshots.set(key, snapshot);
+      this.snapshot = snapshot;
+    }
+  }
+
+  /**
+   * The venue positions the last run asked for (a withdrawal's network): one
+   * network and protocol per read, at most MAX_POSITION_READS a turn; the rest
+   * stay unknown.
+   */
+  private async readPositions(): Promise<void> {
+    const wanted = [...this.wantedPositions.entries()];
+    this.wantedPositions.clear();
+    await Promise.all(wanted.map(async ([key, need]) => {
+      if (this.positionReads >= MAX_POSITION_READS) return;
+      this.positionReads += 1;
+      const goal: Goal = {
+        kind: "exit", spend: { from: { network: need.network, custody: { kind: "position", protocol: need.protocol } } }, want: {}, holder: { t: "self" }, constraints: {}, confidence: "exact",
+      };
+      const deadlineMs = Math.max(1, FACTS_DEADLINE_MS - (Date.now() - this.started));
+      this.positionSnapshots.set(key, await readSnapshot(this.accounts, [goal], { deadlineMs, ...(clock !== null ? { now: clock } : {}) }));
+    }));
+    // Needs past the cap stay unknown: recorded as read so the policy stops asking for them.
+    for (const [key, need] of wanted) {
+      if (!this.positionSnapshots.has(key)) this.positionSnapshots.set(key, EMPTY_POSITIONS(this.accounts, need.network));
+    }
+  }
+
+  /** The venue APYs the last run asked for (at most 6 a turn, read in parallel). */
+  private async readApys(): Promise<void> {
+    const wanted = [...this.wantedApys];
+    this.wantedApys.clear();
+    await Promise.all(wanted.map(async (id, index) => {
+      const venue = YIELD_VENUES.find((entry) => entry.id === id);
+      this.apys.set(id, venue && index < 6 ? await readVenueApy(venue, nowMs()).catch(() => null) : null);
+    }));
+  }
+
+  /** The prices the last run asked for (at most MAX_PRICE_READS a turn; the rest stay unpriced). */
+  private async readPrices(): Promise<void> {
+    const wanted = [...this.wantedPrices.entries()];
+    this.wantedPrices.clear();
+    await Promise.all(wanted.map(async ([key, need]) => {
+      const asset = findAssetBySymbol(need.network, need.symbol);
+      if (!asset || this.priceReads >= MAX_PRICE_READS) {
+        this.prices.set(key, null);
+        return;
+      }
+      this.priceReads += 1;
+      const quote = await quoteAsset(asset.id).catch(() => null);
+      const parsed = quote ? Date.parse(quote.at) : NaN;
+      const at = Number.isFinite(parsed) ? parsed : nowMs();
+      // A market reading older than the goal limit is never used to convert an amount (oracles keep their heartbeat).
+      const stale = quote !== null && quote.source !== "chainlink" && nowMs() - at > GOAL_LIMITS.priceMaxAgeMs;
+      this.prices.set(key, quote && Number.isFinite(quote.usd) && quote.usd > 0 && quote.source !== "unpriced" && !stale
+        ? { usd: quote.usd, source: quote.source, at }
+        : null);
+    }));
   }
 }
 

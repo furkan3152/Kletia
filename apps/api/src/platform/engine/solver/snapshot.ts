@@ -695,3 +695,13 @@ export function positionAmount(snapshot: Snapshot, network: NetworkKey, protocol
   if (held.length > 1) return undefined;
   return held[0]?.formatted ?? "0";
 }
+
+/**
+ * One venue's supply APY outside a snapshot (the policy's venue-less
+ * deposit): the same reader, timeout and 60 s cache as
+ * the snapshot's earn candidates. Never throws: unknown is null.
+ */
+export async function readVenueApy(venue: YieldVenue, now = Date.now()): Promise<number | null> {
+  const value = await readApy(venue, now, Date.now() + SNAPSHOT_LIMITS.apyReadMs);
+  return value.status === "known" && !value.paused && !value.frozen ? value.apy : null;
+}

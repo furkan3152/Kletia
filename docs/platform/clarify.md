@@ -48,13 +48,16 @@ Rules apply in order; the first that decides a slot wins.
 |---|---|
 | A slot the person typed or answered | Final: never asked again, never overridden by a default. |
 | A purpose slot is missing (recipient, destination, output, input, amount, a transfer's network) | Derived when the sentence decides it (a `.base.eth` name lands on Base, a Solana address on Solana, the previous step's output); otherwise asked, with no suggested option. |
-| A means slot is missing (where a swap runs, vault, provider, bridge venue) | Assumed and shown: the only network that can run it, the integrator's `defaultNetwork`, the largest balance that covers the amount, else Kletia's default. A deposit with no venue asks `VENUE_MISSING` with Kletia's default suggested. |
+| A means slot is missing (where a swap runs, vault, provider, bridge venue) | Assumed and shown: the only network that can run it, the integrator's `defaultNetwork`, the largest balance that covers the amount, else Kletia's default. A deposit with no venue ranks the venues of its network (risk tier, then registry order, top four) with their live rates and picks the best rate for its risk among core and curated venues as a material chip; it asks `VENUE_MISSING` only when no rate can be read. |
 | A bridge with no source | The departure, the only network holding the asset, or the largest covering balance (material chip); none covering asks `SOURCE_MISSING`. |
-| Missing amount | `AMOUNT_MISSING` with All and Half from the balance (a gas asset keeps a fee reserve); free text only when the balance is unknown. "All my SOL" is computed (material chip); with an unknown balance it asks `AMOUNT_BALANCE_UNKNOWN`. An exact amount above the balance is never questioned: the fare shows the shortfall. |
+| Missing amount | `AMOUNT_MISSING` with All and Half from the balance (a gas asset keeps a fee reserve); free text only when the balance is unknown. "All my SOL" is computed (material chip); with an unknown balance it asks `AMOUNT_BALANCE_UNKNOWN`. A dollar amount of a token ("$10 of SOL") is priced at plan time with a material price chip, and asked when no fresh price can be read. |
+| An exact amount above the known balance (swap, bridge, deposit, stake) | `AMOUNT_EXCEEDS_BALANCE`: all of it, funds on another network that cover it (bridged first), or keep the amount as said (the fare shows the shortfall). An unknown balance never asks; with a `sourceNetwork` departure the departure rules fund the step. |
 | Asset words | Renames and wrappers are chips (MATIC means POL); "ETH" on Polygon asks `ASSET_AMBIGUOUS`; a held look-alike asks `ASSET_LOOKALIKE`; a symbol listed only elsewhere asks `ASSET_NOT_ON_NETWORK` and is never corrected. |
 | Recipients | Never assumed, completed, corrected or suggested. An unknown name asks `RECIPIENT_UNRESOLVED`; a broken EIP-55 checksum asks `RECIPIENT_CHECKSUM`; the sender itself is refused (`SELF_TRANSFER`). |
 | Money on the wrong network | A dependent transfer to the other network family asks `NETWORK_HANDOFF`; funds that sit where the step cannot run ask `FUNDS_ELSEWHERE` with the bridge spelled out. |
-| Typos | One close keyword is corrected with a chip ("swpa" read as swap); a tie asks; names and addresses are never corrected. |
+| Typos | One close keyword is corrected with a chip ("swpa" read as swap); a tie asks; names and addresses are never corrected. A short symbol one letter from a listed one ("SLO") asks `ASSET_TYPO` (the listed symbol suggested, or cancel). |
+| Goals instead of verbs | "put my USDC to work", "get me 0.01 ETH on arbitrum", "consolidate to base", "exit my aave position": read as a goal and solved from the wallet's holdings, positions, prices and rates. Kletia asks when the choice changes the result: which network's funds (`SCOPE_AMBIGUOUS`), staked or lent (`EARN_KIND`), which holding pays (`INPUT_ASSET_MISSING`), a reading from word order alone (`INTERPRETATION_CONFIRM`). Means (the venue by rate, the source network, a bridge) are chosen and shown as chips. |
+| Staking ETH where it does not run ("stake 1 ETH on base") | `VENUE_MISSING` with the ways that work: buy wstETH (or cbETH) there at market, or bridge to Ethereum and stake with Lido. |
 | Follow-ups on a task | "make it 50", "from arbitrum instead", "send it to vitalik.eth", "with marinade", "then stake it", "undo", "cancel". An unreadable follow-up is `EDIT_UNSUPPORTED` and changes nothing. |
 | How many at once | At most two questions per turn, the second only when independent of the first; at most three chips per plan. |
 | What a question cannot fix | Refused, never asked: mixed mainnet and testnet capital, unsupported routes, secrets, a missing account. |
@@ -64,6 +67,12 @@ reads at most 8 balances and 2 names; demo (preview) accounts are never read.
 
 Questions carry `purpose: true` when only the person can answer them (every
 reason except `VENUE_MISSING`, `VENUE_AMBIGUOUS` and `NETWORK_AMBIGUOUS`).
+
+A thread that came from a goal keeps it in `thread.goals` (a `kletia.goal/v1`
+object: what is spent and wanted, where and for whom, never the user's
+words) next to a step with no slots. Every turn solves it again from the
+current balances, prices and rates, so a chip never goes stale; answers and
+chip changes are kept on the goal. Undo does not go back past a goal turn.
 
 ## API
 
@@ -223,7 +232,7 @@ curl -s -X POST 'https://api.kletiaai.xyz/v1/intents?clarify=true&dryRun=true&pr
   ],
   "assumptions": [],
   "draft": { "summary": "Swap SOL to USDC on Solana", "sentence": null, "missing": ["actions[0].amount"], "steps": [ { "index": 0, "kind": "swap", "network": "solana", "from": "SOL", "to": "USDC" } ] },
-  "thread": { "spec": "kletia.thread/v1", "id": "th_…", "rev": 1, "status": "needs_input", "policy": "2026-10.1", "…": "…" }
+  "thread": { "spec": "kletia.thread/v1", "id": "th_…", "rev": 1, "status": "needs_input", "policy": "2026-11.1", "…": "…" }
 }
 ```
 

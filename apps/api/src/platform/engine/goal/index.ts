@@ -6,10 +6,10 @@
  * otherwise its Goal is lowered to slots when it maps one-to-one onto verb
  * steps (lower.ts).
  *
- * A Goal that only the solver can place (package P4) becomes a goal step
- * (`WorkStep.goal`) when goal steps are on, and is refused until then: the
- * reader never plans a guess. Goal steps are off by default; package P5
- * turns them on with the solver (`configureGoalSteps`).
+ * A Goal that only the solver can place becomes a goal step (`WorkStep.goal`),
+ * which the policy solves each turn (clarify/goals.ts). Goal steps are on by
+ * default; `configureGoalSteps(false)` turns them off (the clause is then
+ * refused: the reader never plans a guess).
  */
 import { GOAL_LIMITS, normalizeMessage, type Goal, type ThreadCorrection } from "@kletia/core";
 import { splitClauses } from "../grammar.js";
@@ -26,11 +26,11 @@ export { readFrame, type GoalNotes, type ReadGoal } from "./frames.js";
 export { lowerGoal } from "./lower.js";
 export { splitGoalClauses } from "./clauses.js";
 
-let goalStepsEnabled = false;
+let goalStepsEnabled = true;
 
-/** Whether unsolved goals become goal steps (true once the solver handles them, package P5). Tests pass `true`, then `null` to restore. */
+/** Whether unsolved goals become goal steps (on by default; tests pass `false`, then `null` to restore the default). */
 export function configureGoalSteps(enabled: boolean | null): void {
-  goalStepsEnabled = enabled ?? false;
+  goalStepsEnabled = enabled ?? true;
 }
 
 export function goalStepsOn(): boolean {

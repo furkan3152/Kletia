@@ -917,7 +917,7 @@
   {
    "id": "TER009",
    "family": "terse",
-   "say": "10 usdc arb\u2192base",
+   "say": "10 usdc arb→base",
    "wallet": "full",
    "accept": [
     "P:bridge@arbitrum->base 10 USDC"
@@ -1515,9 +1515,11 @@
    "wallet": "full",
    "accept": [
     "P:^swap@solana \\d+(\\.\\d+)? USDC->SOL",
-    "A:(from|network)"
+    "A:(from|network)",
+    "A:amount:AMOUNT_EXCEEDS_BALANCE"
    ],
-   "tags": []
+   "tags": [],
+   "why": "The full wallet holds 12 USDC on Solana, less than $20; the policy asks (all of it, the 120.40 USDC on Base bridged first, or keep) instead of a plan that cannot fund."
   },
   {
    "id": "AMO018",
@@ -1525,9 +1527,12 @@
    "say": "buy $20 of SOL with USDC",
    "wallet": "full",
    "accept": [
-    "P:^swap@solana 20 USDC->SOL"
+    "P:^swap@solana 20 USDC->SOL",
+    "A:network:FUNDS_ELSEWHERE",
+    "A:amount:AMOUNT_EXCEEDS_BALANCE"
    ],
-   "tags": []
+   "tags": [],
+   "why": "12 USDC on Solana does not cover $20; Base holds 120.40, so R7 offers to bridge it first (FUNDS_ELSEWHERE). The old expectation planned an unfunded swap."
   },
   {
    "id": "AMO019",
@@ -1885,10 +1890,10 @@
    "say": "earn on my SOL",
    "wallet": "full",
    "accept": [
-    "P:^stake@solana",
-    "A:(provider|amount)"
+    "A:kind:EARN_KIND"
    ],
-   "tags": []
+   "tags": [],
+   "why": "SOL can be staked (Jito) or lent (Kamino's SOL reserve); the policy asks staked or lent, a purpose choice with different risks, rather than picking staking."
   },
   {
    "id": "GOA008",
@@ -1896,10 +1901,10 @@
    "say": "make my SOL earn yield",
    "wallet": "full",
    "accept": [
-    "P:^stake@solana",
-    "A:(provider|amount)"
+    "A:kind:EARN_KIND"
    ],
-   "tags": []
+   "tags": [],
+   "why": "Same as GOA007; the policy asks EARN_KIND because Kamino lends SOL."
   },
   {
    "id": "GOA009",
@@ -2137,10 +2142,10 @@
    "say": "convert all my stablecoins to USDC",
    "wallet": "full",
    "accept": [
-    "P:swap@base [\\d.]+ USDbC->USDC",
-    "A:."
+    "R"
    ],
-   "tags": []
+   "tags": [],
+   "why": "The only other stablecoin held is USDbC on Base, which is listed for balances and transfers only (no venue swaps it); nothing can be converted, so a refusal is correct and a USDbC swap plan would be wrong."
   },
   {
    "id": "GOA031",
@@ -3171,10 +3176,10 @@
    "say": "deposit 100 USDC into aave on base",
    "wallet": "low_evm",
    "accept": [
-    "A:.*FUNDS_ELSEWHERE",
-    "P:^bridge@solana->base 100 USDC \\| deposit@base"
+    "A:amount:AMOUNT_EXCEEDS_BALANCE"
    ],
-   "tags": []
+   "tags": [],
+   "why": "A named network with too few funds asks AMOUNT_EXCEEDS_BALANCE, whose options include \"Use funds on Solana\" (the bridge-first plan of FUNDS_ELSEWHERE)."
   },
   {
    "id": "WAL008",

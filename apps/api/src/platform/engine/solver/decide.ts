@@ -158,8 +158,8 @@ export function exceedsQuestion(input: {
   }
   options.push(option("keep", `Keep ${amountLabel(input.need)} ${input.symbol}`, { amount: { t: "exact", value: input.need } }, "The plan will fail unless more arrives first"));
   return question(field(input.index, "amount"), "choice", "AMOUNT_EXCEEDS_BALANCE",
-    `You hold ${held} ${input.symbol} on ${networkLabel(network)}, less than ${amountLabel(input.need)}. How much should this use?`,
-    "Kletia checks the amount against your balance before planning.", options, true, `Amount in ${input.symbol}`);
+    `${amountLabel(input.need)} ${input.symbol} is more than you hold on ${networkLabel(network)}. How much should this use?`,
+    `You hold ${held} ${input.symbol} there; Kletia checks the amount against your balance before planning.`, options, true, `Amount in ${input.symbol}`);
 }
 
 /* ------------------------------------------------------------------ D4 */

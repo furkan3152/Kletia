@@ -22,21 +22,21 @@ import { compileIntentText } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
 import { configurePriceReader, fixedPriceReader, type PriceReader } from "../prices.js";
 import { STAKE_PROVIDERS } from "../clarify/catalog.js";
-import { contextFor, installWallet, loadCorpus, runTurn, shape, type Corpus, type CorpusCase } from "../clarify/corpusHarness.js";
+import { contextFor, CORPUS_PRICE_AT, CORPUS_PRICES, installWallet, loadCorpus, runTurn, shape, uninstallWallet, type Corpus, type CorpusCase } from "../clarify/corpusHarness.js";
 
 export const INTENT_EVAL_SPEC = "kletia.intent-eval/v1";
 
 /**
- * Report mode until package P5 turns the gates on: the test and the CLI
- * print the scoreboard and fail only on a broken corpus, a crash or
+ * The gates are enforced (goal steps are on by default): the test and the
+ * CLI fail when one does not hold, besides a broken corpus, a crash or
  * non-determinism.
  */
-export const INTENT_EVAL_ENFORCE = false;
+export const INTENT_EVAL_ENFORCE = true;
 
 /** The fixed prices of the offline eval: USD per whole token. */
-export const EVAL_PRICES: Readonly<Record<string, number>> = Object.freeze({ SOL: 151.02, ETH: 3412.5, POL: 0.51 });
+export const EVAL_PRICES: Readonly<Record<string, number>> = CORPUS_PRICES;
 /** The reading time of the fixed prices (Unix ms), so runs are byte-identical. */
-export const EVAL_PRICE_AT = Date.UTC(2026, 9, 1, 12, 4, 0);
+export const EVAL_PRICE_AT = CORPUS_PRICE_AT;
 
 export function evalPriceReader(): PriceReader {
   return fixedPriceReader(EVAL_PRICES, EVAL_PRICE_AT);
@@ -183,11 +183,15 @@ function caseOf(prompt: IntentEvalPrompt): CorpusCase {
   return { id: prompt.id, category: prompt.family, title: "", wallet: prompt.wallet ?? "full", turns: [], ...(prompt.request ? { request: prompt.request } : {}) };
 }
 
+/** A price reader the caller asked for instead of the corpus prices installWallet sets. */
+let pricesOverride: PriceReader | null = null;
+
 /** Runs one prompt offline (the caller installs the price reader). */
 export async function runPrompt(fixtures: Corpus, prompt: IntentEvalPrompt): Promise<EvalResult> {
   const entry = caseOf(prompt);
   try {
     installWallet(fixtures, entry.wallet);
+    if (pricesOverride) configurePriceReader(pricesOverride);
     const run = await runTurn(null, { text: prompt.say }, contextFor(fixtures, entry));
     if (run.error) return { id: prompt.id, say: prompt.say, status: "refused", error: run.error.code, message: run.error.message.slice(0, 200), questions: [], plan: null, assumptions: [] };
     const decision = run.decision;
@@ -215,6 +219,7 @@ export interface RunOptions {
 export async function runIntentEval(corpus: IntentEvalCorpus, fixtures: Corpus, options: RunOptions = {}): Promise<EvalResult[]> {
   const prices = options.prices === undefined ? evalPriceReader() : options.prices;
   if (prices) configurePriceReader(prices);
+  pricesOverride = options.prices === undefined ? null : options.prices;
   const out: EvalResult[] = [];
   try {
     for (const prompt of corpus.prompts) {
@@ -222,6 +227,8 @@ export async function runIntentEval(corpus: IntentEvalCorpus, fixtures: Corpus, 
       out.push(await runPrompt(fixtures, prompt));
     }
   } finally {
+    pricesOverride = null;
+    uninstallWallet();
     configureHoldingsReaders(null);
     if (prices) configurePriceReader(null);
   }

@@ -12,6 +12,8 @@ import {
   CLARIFY_POLICY_VERSION,
   CLARIFY_QUESTION_KINDS,
   CLARIFY_REASONS,
+  GOAL_LIMITS,
+  GOAL_SPEC,
   CLARIFY_STEP_KINDS,
   PURPOSE_REASONS,
   THREAD_ID_PATTERN,
@@ -175,6 +177,10 @@ export function clarifySchemas(): JsonObject {
           { maxItems: THREAD_LIMITS.storedTurns },
         ),
         undo: arrayOf(arrayOf(ref("ClarifyThreadStep")), { maxItems: THREAD_LIMITS.undoSnapshots }),
+        goals: arrayOf(
+          { type: "object", description: `A \`${GOAL_SPEC}\` Goal (what is spent, what is wanted and where, for whom), never the user's words.` },
+          { maxItems: GOAL_LIMITS.maxGoals, description: "The goals of the thread's goal steps (steps with no kind), in order: Kletia solves them again each turn from the current balances, prices and rates." },
+        ),
       },
       ["spec", "id", "rev", "status", "policy", "steps", "open", "corrections", "turns", "undo"],
       {

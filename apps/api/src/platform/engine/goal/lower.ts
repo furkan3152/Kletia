@@ -237,6 +237,8 @@ function lowerExit(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   const venue = notes.fromVenue;
   if (goal.holder.t !== "self") return null;
   if (!venue?.lending && !(goal.op === "withdraw" && !venue)) return null;
+  // "exit my aave position" names no asset: the solver reads the positions and withdraws what is there.
+  if (!goal.spend.asset) return null;
   const network = goal.spend.from?.network;
   const step: WorkStep = { kind: slot("withdraw") };
   if (venue?.lending) step.protocol = slot(venue.lending);

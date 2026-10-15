@@ -18,6 +18,7 @@ import type {
   ThreadTurn,
 } from "@kletia/core";
 import type { ContractPhrase } from "../contracts/directory.js";
+import type { Snapshot } from "../solver/snapshot.js";
 
 export type Kind = ClarifyStepKind;
 
@@ -48,6 +49,10 @@ export interface WorkStep {
   nickname?: boolean;
   /** Transient (this turn only): the sentence was "buy X". */
   buy?: boolean;
+  /** Transient (this turn only): the sentence was "sell X" (received in a dollar stablecoin unless named). */
+  sell?: boolean;
+  /** Pins of a goal step that are not part of its Goal (an amount answer, "all networks"); stored on its placeholder step. */
+  goalPins?: { amount?: ThreadAmount; scope?: "all" };
   /**
    * Transient (this turn only): the Goal this step stands for. A goal step the
    * reader could not lower has only this (and `goalRead`); the solver expands
@@ -151,6 +156,13 @@ export interface ResolvedAction {
   explicit?: boolean;
 }
 
+/** A USD price with its source and reading time (Unix ms). */
+export interface UsdPrice {
+  readonly usd: number;
+  readonly source: string;
+  readonly at: number;
+}
+
 /** Synchronous view of the wallet facts read for this turn (facts.ts). */
 export interface FactsView {
   /** Decimal balance of the request's own account, or undefined when unknown (never "0" for unknown). */
@@ -159,6 +171,12 @@ export interface FactsView {
   resolveName(name: string, network: NetworkKey): string | null;
   /** Supplied amount of a lending position; undefined when unknown (v1: positions are not read). */
   position(network: NetworkKey, protocol: string, symbol: string): string | undefined;
+  /** The solver's snapshot for these goals, or undefined until read (goal steps; absent: goal steps cannot be solved). */
+  goalSnapshot?(goals: readonly Goal[]): Snapshot | undefined;
+  /** A token's USD price (D11), or undefined when unpriced or not read yet. */
+  usdPrice?(network: NetworkKey, symbol: string): UsdPrice | undefined;
+  /** A venue's supply APY (fraction), null when unknown, undefined until read. */
+  venueApy?(venueId: string): number | null | undefined;
 }
 
 export interface TurnContext {
@@ -181,4 +199,12 @@ export interface Analysis {
   questions: Question[];
   assumptions: Assumption[];
   resolved: ResolvedAction[] | null;
+  /**
+   * Where each action index comes from when the thread has goal steps (they
+   * expand into several actions): question and chip fields are on action
+   * indices. Absent: action index = step index.
+   */
+  layout?: { readonly step: number; readonly part: number; readonly goal: boolean }[];
+  /** Goal steps wait for this turn's snapshot (the caller reads it and runs again). */
+  pending?: boolean;
 }

@@ -63,7 +63,10 @@ describe("clarify round trip", () => {
     for (const text of GRAMMAR_EXAMPLES) {
       installWallet(corpus, "full");
       const ctx = contextFor(corpus, entry);
-      const result = await runTurn(null, { text }, ctx);
+      let result = await runTurn(null, { text }, ctx);
+      // D2: an example amount above the fixture balance is asked first; kept, it plans as written.
+      const exceeds = result.decision?.questions[0];
+      if (exceeds?.reason === "AMOUNT_EXCEEDS_BALANCE") result = await runTurn(result.decision?.thread ?? null, { answer: { question: exceeds.id, option: "keep" } }, ctx);
       assert.equal(result.decision?.status, "ready", `${text}: ${result.error?.code ?? ""}`);
       const decision = result.decision as TurnDecision;
       assert.ok(decision.sentence, text);

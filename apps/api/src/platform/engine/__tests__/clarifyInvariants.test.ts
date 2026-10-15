@@ -63,7 +63,15 @@ const GAP = new Set(["AMOUNT_MISSING", "DESTINATION_MISSING", "OUTPUT_ASSET_MISS
 describe("clarify invariants", () => {
   it("every grammar example is ready with no question and the strict grammar's actions", async () => {
     for (const text of GRAMMAR_EXAMPLES) {
-      const decision = await first(text);
+      let decision = await first(text);
+      // D2 is a funds check, not a gap: an example amount above the fixture balance is asked, and kept it plans as written.
+      const exceeds = decision.questions[0];
+      if (exceeds?.reason === "AMOUNT_EXCEEDS_BALANCE" && decision.questions.length === 1) {
+        assert.ok(exceeds.options.some((option) => option.id === "keep"), text);
+        const kept = await runTurn(decision.thread, { answer: { question: exceeds.id, option: "keep" } }, contextFor(corpus, { id: "t", category: "test", title: "t", wallet: "full", turns: [] } as CorpusCase));
+        assert.ok(kept.decision, `${text}: ${kept.error?.code}`);
+        decision = kept.decision;
+      }
       assert.equal(decision.status, "ready", `${text}: ${JSON.stringify(decision.questions.map((q) => q.reason))}`);
       assert.equal(decision.questions.length, 0, text);
       const today = compileIntentText(text, { accounts: corpus.fixtures.wallets.full!.accounts as never }).actions;

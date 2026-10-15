@@ -10,6 +10,7 @@
  */
 import { fromBaseUnits, type AccountId, type NetworkKey } from "@kletia/core";
 import { FACTS_DEADLINE_MS, MAX_BALANCE_READS, MAX_NAME_READS, readFacts, type FactNeed } from "../holdings.js";
+import { positionAmount, type Snapshot } from "../solver/snapshot.js";
 import { decimalsOf } from "./catalog.js";
 import type { FactsView } from "./types.js";
 
@@ -30,6 +31,8 @@ export class TurnFacts implements FactsView {
   frozen = false;
   /** Lookups recorded since the last `read()` (or since freezing) that the snapshot could not answer. */
   misses = 0;
+  /** The solver's snapshot of this turn (positions), when goal steps had one read. */
+  private snapshot: Snapshot | null = null;
 
   constructor(private readonly accounts: readonly AccountId[]) {}
 
@@ -61,9 +64,23 @@ export class TurnFacts implements FactsView {
     return null;
   }
 
-  position(): string | undefined {
-    // v1: positions are read only by the planner (journey positions arrive in a later phase).
-    return undefined;
+  /**
+   * The supplied amount of a position, from the solver's snapshot when one
+   * was attached (`useSnapshot`); undefined without one (the planner reads
+   * positions itself). Only a positive, unambiguous amount is answered: no
+   * position, an unread or failed venue, or positions at several venues of
+   * the protocol stay undefined, so the policy asks instead of assuming.
+   */
+  position(network: NetworkKey, protocol: string, symbol: string): string | undefined {
+    if (!this.snapshot) return undefined;
+    const amount = positionAmount(this.snapshot, network, protocol, symbol);
+    if (amount === undefined || !/^\d+(\.\d+)?$/u.test(amount) || !/[1-9]/u.test(amount)) return undefined;
+    return amount;
+  }
+
+  /** Attaches the solver's snapshot (positions); null detaches it. */
+  useSnapshot(snapshot: Snapshot | null): void {
+    this.snapshot = snapshot;
   }
 
   /** True when the last policy run asked for facts that can still be read this turn. */

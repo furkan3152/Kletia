@@ -51,7 +51,7 @@ import {
   callGas,
   eventEvidence,
   evmCall,
-  exactApproval,
+  exactApprovals,
   formatUnits,
   landedCall,
   lendingContext,
@@ -203,8 +203,8 @@ async function supplyQuote(action: AdapterAction, context: CometContext, stage: 
   const allowance = stage === "plan" ? await plannedAllowance(context, comet) : undefined;
   const transactions: EvmTransactionRequest[] = [];
   if (context.native) transactions.push(wrapTransaction(context, amount));
-  const approval = await exactApproval(context, comet, amount, allowance);
-  if (approval) transactions.push(approval);
+  const approvals = await exactApprovals(context, comet, amount, allowance);
+  transactions.push(...approvals);
   const data = encodeFunctionData({ abi: COMET_ABI, functionName: "supply", args: [token, amount] });
   const warnings: string[] = [];
   let gas: bigint | string = SUPPLY_GAS;
@@ -224,7 +224,7 @@ async function supplyQuote(action: AdapterAction, context: CometContext, stage: 
     // Comet credits the present value of the rounded-down principal (amount - 1 wei).
     minimum: lessRounding(amount),
     output: receiptAsset(network, venue.receipt, symbol, `Compound V3 ${context.underlying.symbol}`),
-    gas: SUPPLY_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n),
+    gas: SUPPLY_GAS + APPROVE_GAS * BigInt(approvals.length) + (context.native ? WRAP_GAS : 0n),
     warnings: [...warnings, ...apyNote(apy === null ? null : { supplyApy: apy, apySource: "rate" })],
   };
 }

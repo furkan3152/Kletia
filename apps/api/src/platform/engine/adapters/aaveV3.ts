@@ -55,7 +55,7 @@ import {
   callGas,
   eventEvidence,
   evmCall,
-  exactApproval,
+  exactApprovals,
   formatUnits,
   landedCall,
   lendingContext,
@@ -308,8 +308,8 @@ async function supplyQuote(family: AaveFamily, action: AdapterAction, context: A
   const allowance = stage === "plan" ? await plannedAllowance(context, pool) : undefined;
   const transactions: EvmTransactionRequest[] = [];
   if (context.native) transactions.push(wrapTransaction(context, amount));
-  const approval = await exactApproval(context, pool, amount, allowance);
-  if (approval) transactions.push(approval);
+  const approvals = await exactApprovals(context, pool, amount, allowance);
+  transactions.push(...approvals);
   const data = encodeFunctionData({ abi: POOL_ABI, functionName: "supply", args: [token, amount, owner, 0] });
   const warnings: string[] = [];
   let gas: bigint | string = SUPPLY_GAS;
@@ -330,7 +330,7 @@ async function supplyQuote(family: AaveFamily, action: AdapterAction, context: A
     // The aToken mint rounds the scaled amount down (credits amount - 1 wei).
     minimum: lessRounding(amount),
     output: receiptAsset(network, venue.receipt, symbol, `${family === AAVE ? "Aave" : family.label} ${context.underlying.symbol}`),
-    gas: SUPPLY_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n),
+    gas: SUPPLY_GAS + APPROVE_GAS * BigInt(approvals.length) + (context.native ? WRAP_GAS : 0n),
     warnings: [...warnings, ...(stage === "plan" ? apyNote({ supplyApy: reserveApy(state), apySource: "rate" }) : [])],
   };
 }

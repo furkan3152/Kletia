@@ -1,28 +1,38 @@
 /**
- * Concentrated-liquidity swaps encoded by Kletia (protocols design 3.2, 3.3):
- * Uniswap V3 (SwapRouter02 + QuoterV2) and the Slipstream deployments of
- * Aerodrome (Base) and Velodrome (OP Mainnet). One adapter factory serves the
- * three protocols; the dialect of each pinned deployment decides the ABI.
+ * Concentrated-liquidity swaps encoded by Kletia (protocols design 3.2, 3.3;
+ * round 7 design 3.1): Uniswap V3 (SwapRouter02 + QuoterV2), PancakeSwap V3
+ * (SmartRouter + QuoterV2, the same `uniswap-v3` dialect), the Slipstream
+ * deployments of Aerodrome (Base) and Velodrome (OP Mainnet) and Camelot V3
+ * (`algebra` dialect: one dynamic-fee pool per pair). One adapter factory
+ * serves every protocol; the dialect of each pinned deployment decides the ABI.
  *
  * Every address comes from DEX_DEPLOYMENTS in @kletia/core:
  * - The router and quoter must report the pinned factory and the network's
- *   wrapped native token (`factory()`, `WETH9()`), read at plan and prepare.
- * - A pool is used only when the pinned factory's `getPool(...)` returns it
- *   and the pool's own `factory()` is that factory; any disagreement refuses
- *   the swap (VENUE_UNVERIFIED, fail closed).
- * - Quotes come from the pinned quoter by eth_call. Uniswap V3 tries every
- *   fee tier and, when no direct pool quotes, two hops through the wrapped
- *   native token or USDC; Slipstream tries every tick spacing of every pinned
- *   factory (Aerodrome has three) and keeps single pools. Classic (solidly)
- *   pools are not used.
+ *   wrapped native token (`factory()`, `WETH9()` / Algebra `WNativeToken()`),
+ *   and, when the deployment pins one, the pool deployer (PancakeSwap
+ *   `deployer()`, Algebra `poolDeployer()`; the factory's `poolDeployer()`
+ *   too), read at plan and prepare.
+ * - A pool is used only when the pinned factory's `getPool(...)` (Algebra
+ *   `poolByPair(...)`) returns it and the pool's own `factory()` is that
+ *   factory; any disagreement refuses the swap (VENUE_UNVERIFIED, fail closed).
+ * - Quotes come from the pinned quoter by eth_call. Uniswap V3 and PancakeSwap
+ *   try every fee tier and Camelot its single pool; when no direct pool
+ *   quotes, two hops through the wrapped native token or USDC. Slipstream
+ *   tries every tick spacing of every pinned factory (Aerodrome has three)
+ *   and keeps single pools. Classic (solidly) pools are not used.
  * - The best output wins and is held to the Chainlink band (oracleGuard).
  *   The minimum output is the quote less the slippage (at most 3 %) and is
  *   enforced on-chain by `amountOutMinimum` (floor "onchain").
+ * - Testnet guard mode (round 7 design 3.1): a deployment flagged `testnet`
+ *   on a testnet network trades test tokens without a market price. The
+ *   oracle band is replaced by a 1 % slippage cap and a mandatory warning
+ *   (dexPriceGuard); a `testnet` deployment on a mainnet network is refused.
  * - Transactions: an exact approval of the router that is called (and only
  *   that router) when the allowance is short, then one router multicall:
  *   exactInputSingle / exactInput to the account; native input sends value
- *   and refunds with refundETH(); native output swaps to the router and
- *   unwrapWETH9(minimum, account).
+ *   and refunds with refundETH() (Algebra refundNativeToken()); native output
+ *   swaps to the router and unwrapWETH9(minimum, account) (Algebra
+ *   unwrapWNativeToken).
  * - Verify: binding-matched receipts, a Swap event from every recorded pool
  *   (re-derived from the factory) and from no other address, and the output
  *   credited to the account (ERC-20 Transfer, or the wrapped native token's
@@ -82,7 +92,7 @@ import {
 } from "../lending/common.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, PreparedPayload, ProtocolAdapter } from "../types.js";
 import { evmEvents, lowestPreparedFloor, stepOwner, verifyEvmReceipts, type EvmOutcome, type LandedEvmReceipt } from "../verification.js";
-import { oracleGuard } from "./oracleGuard.js";
+import { dexPriceGuard, TESTNET_MAX_SLIPPAGE_BPS } from "./oracleGuard.js";
 
 export type DexProtocol = DexDeployment["protocol"];
 
@@ -105,10 +115,15 @@ const FALLBACK_SWAP_GAS = 300_000n;
 export const PINS_ABI = parseAbi([
   "function factory() view returns (address)",
   "function WETH9() view returns (address)",
+  "function WNativeToken() view returns (address)",
+  "function deployer() view returns (address)",
+  "function poolDeployer() view returns (address)",
 ]);
 
 export const UNISWAP_FACTORY_ABI = parseAbi(["function getPool(address tokenA, address tokenB, uint24 fee) view returns (address)"]);
 export const SLIPSTREAM_FACTORY_ABI = parseAbi(["function getPool(address tokenA, address tokenB, int24 tickSpacing) view returns (address)"]);
+/** Algebra factory: one pool per (unordered) pair. */
+export const ALGEBRA_FACTORY_ABI = parseAbi(["function poolByPair(address tokenA, address tokenB) view returns (address)"]);
 
 export const UNISWAP_QUOTER_ABI = parseAbi([
   "function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
@@ -116,6 +131,11 @@ export const UNISWAP_QUOTER_ABI = parseAbi([
 ]);
 export const SLIPSTREAM_QUOTER_ABI = parseAbi([
   "function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
+]);
+/** Algebra Quoter: the pool's current dynamic fee comes back with the output; no gas estimate. */
+export const ALGEBRA_QUOTER_ABI = parseAbi([
+  "function quoteExactInputSingle(address tokenIn, address tokenOut, uint256 amountIn, uint160 limitSqrtPrice) returns (uint256 amountOut, uint16 fee)",
+  "function quoteExactInput(bytes path, uint256 amountIn) returns (uint256 amountOut, uint16[] fees)",
 ]);
 
 /** SwapRouter02 (IV3SwapRouter + PeripheryPaymentsWithFeeExtended + MulticallExtended). */
@@ -135,16 +155,41 @@ export const SLIPSTREAM_ROUTER_ABI = parseAbi([
   "function refundETH() payable",
 ]);
 
-/** The pool Swap event (identical in Uniswap V3 and Slipstream pools). */
+/** Algebra SwapRouter (deadline in the params, 20-byte-only paths, native-token payment helpers). */
+export const ALGEBRA_ROUTER_ABI = parseAbi([
+  "function exactInputSingle((address tokenIn, address tokenOut, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 limitSqrtPrice) params) payable returns (uint256 amountOut)",
+  "function exactInput((bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum) params) payable returns (uint256 amountOut)",
+  "function multicall(bytes[] data) payable returns (bytes[] results)",
+  "function unwrapWNativeToken(uint256 amountMinimum, address recipient) payable",
+  "function refundNativeToken() payable",
+]);
+
+/** The pool Swap event (identical in Uniswap V3, Slipstream and Algebra pools). */
 export const POOL_ABI = parseAbi([
   "function factory() view returns (address)",
   "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
 ]);
 
+/** PancakeSwap V3 pools emit Swap with the protocol fees appended (a different topic). */
+export const PANCAKE_POOL_ABI = parseAbi([
+  "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint128 protocolFeesToken0, uint128 protocolFeesToken1)",
+]);
+
+/** The router ABI of a dialect (calldata, simulation and the proof's decode). */
+function routerAbi(deployment: DexDeployment) {
+  if (deployment.dialect === "uniswap-v3") return SWAP_ROUTER02_ABI;
+  if (deployment.dialect === "algebra") return ALGEBRA_ROUTER_ABI;
+  return SLIPSTREAM_ROUTER_ABI;
+}
+
+/** The only tier of an Algebra route: Algebra has one pool per pair, its fee is dynamic. */
+export const ALGEBRA_TIER = 0;
+const ALGEBRA_TIERS: readonly number[] = Object.freeze([ALGEBRA_TIER]);
+
 
 /* ------------------------------------------------------------------- routes */
 
-/** One pool of a route: tokens in order and the fee tier (Uniswap) or tick spacing (Slipstream). */
+/** One pool of a route: tokens in order and the fee tier (Uniswap, PancakeSwap), tick spacing (Slipstream) or ALGEBRA_TIER. */
 export interface Hop {
   readonly tokenIn: Address;
   readonly tokenOut: Address;
@@ -189,9 +234,8 @@ export function decodeRoute(protocol: DexProtocol, network: NetworkKey, value: s
   const deployment = dexDeploymentsFor(network, protocol).find((entry) => slugOf(entry) === match[1]);
   if (!deployment) return null;
   const tiers = [Number(match[2]), ...(match[4] ? [Number(match[4])] : [])];
-  const allowed = deployment.dialect === "uniswap-v3" ? deployment.feeTiers : deployment.tickSpacings;
-  if (!tiers.every((tier) => allowed?.includes(tier))) return null;
-  if (tiers.length === 2 && deployment.dialect !== "uniswap-v3") return null;
+  if (!tiers.every((tier) => tiersOf(deployment).includes(tier))) return null;
+  if (tiers.length === 2 && !multiHop(deployment)) return null;
   return { deployment, tiers, ...(match[3] ? { intermediate: match[3] as Intermediate } : {}) };
 }
 
@@ -223,30 +267,40 @@ function unverified(deployment: DexDeployment, what: string, actual: string | nu
   );
 }
 
-/** Router and quoter must report the pinned factory and wrapped native token (cached 10 minutes once confirmed). */
+/**
+ * Router and quoter must report the pinned factory, wrapped native token and
+ * (when pinned) pool deployer; the factory must report that pool deployer too.
+ * Cached 10 minutes once confirmed.
+ */
 export async function verifyDeployment(deployment: DexDeployment): Promise<void> {
   const confirmed = deploymentChecks.get(deployment.id);
   if (confirmed !== undefined && confirmed > Date.now()) return;
   const network = deployment.network as EvmNetworkKey;
-  const factoryCall = encodeFunctionData({ abi: PINS_ABI, functionName: "factory" });
-  const wethCall = encodeFunctionData({ abi: PINS_ABI, functionName: "WETH9" });
   const quoter = deployment.quoter;
   if (!quoter) throw unverified(deployment, "the deployment", null, "a quoter");
-  const [routerFactory, routerWeth, quoterFactory, quoterWeth] = await Promise.all([
-    call(network, deployment.router, factoryCall),
-    call(network, deployment.router, wethCall),
-    call(network, quoter, factoryCall),
-    call(network, quoter, wethCall),
-  ]);
-  const checks: [string, Address | null, string][] = [
-    ["the router's factory()", decodeAddress(routerFactory), deployment.factory],
-    ["the router's WETH9()", decodeAddress(routerWeth), deployment.wrappedNative],
-    ["the quoter's factory()", decodeAddress(quoterFactory), deployment.factory],
-    ["the quoter's WETH9()", decodeAddress(quoterWeth), deployment.wrappedNative],
+  const read = (to: string, functionName: "factory" | "WETH9" | "WNativeToken" | "deployer" | "poolDeployer") =>
+    call(network, to, encodeFunctionData({ abi: PINS_ABI, functionName }));
+  // Algebra names the wrapped native token WNativeToken() and its pool deployer poolDeployer(); PancakeSwap's periphery says deployer().
+  const wrapped = deployment.dialect === "algebra" ? "WNativeToken" : "WETH9";
+  const deployerCall = deployment.dialect === "algebra" ? "poolDeployer" : "deployer";
+  const wanted: [string, string, Promise<Hex | null>][] = [
+    ["the router's factory()", deployment.factory, read(deployment.router, "factory")],
+    [`the router's ${wrapped}()`, deployment.wrappedNative, read(deployment.router, wrapped)],
+    ["the quoter's factory()", deployment.factory, read(quoter, "factory")],
+    [`the quoter's ${wrapped}()`, deployment.wrappedNative, read(quoter, wrapped)],
   ];
-  for (const [what, actual, pinned] of checks) {
-    if (!sameAddress(actual, pinned)) throw unverified(deployment, what, actual, pinned);
+  if (deployment.poolDeployer) {
+    wanted.push(
+      [`the router's ${deployerCall}()`, deployment.poolDeployer, read(deployment.router, deployerCall)],
+      [`the quoter's ${deployerCall}()`, deployment.poolDeployer, read(quoter, deployerCall)],
+      ["the factory's poolDeployer()", deployment.poolDeployer, read(deployment.factory, "poolDeployer")],
+    );
   }
+  const actual = await Promise.all(wanted.map(([, , raw]) => raw));
+  wanted.forEach(([what, pinned], index) => {
+    const reported = decodeAddress(actual[index] ?? null);
+    if (!sameAddress(reported, pinned)) throw unverified(deployment, what, reported, pinned);
+  });
   deploymentChecks.set(deployment.id, Date.now() + DEPLOYMENT_TTL_MS);
 }
 
@@ -259,9 +313,12 @@ export async function poolFor(deployment: DexDeployment, hop: Hop): Promise<Addr
   const [a, b] = hop.tokenIn.toLowerCase() < hop.tokenOut.toLowerCase() ? [hop.tokenIn, hop.tokenOut] : [hop.tokenOut, hop.tokenIn];
   const key = `${deployment.id}:${a}:${b}:${hop.tier}`.toLowerCase();
   if (poolCache.has(key)) return poolCache.get(key) ?? null;
+  if (deployment.dialect === "algebra" && hop.tier !== ALGEBRA_TIER) return null;
   const data = deployment.dialect === "uniswap-v3"
     ? encodeFunctionData({ abi: UNISWAP_FACTORY_ABI, functionName: "getPool", args: [a, b, hop.tier] })
-    : encodeFunctionData({ abi: SLIPSTREAM_FACTORY_ABI, functionName: "getPool", args: [a, b, hop.tier] });
+    : deployment.dialect === "algebra"
+      ? encodeFunctionData({ abi: ALGEBRA_FACTORY_ABI, functionName: "poolByPair", args: [a, b] })
+      : encodeFunctionData({ abi: SLIPSTREAM_FACTORY_ABI, functionName: "getPool", args: [a, b, hop.tier] });
   const pool = decodeAddress(await call(network, deployment.factory, data));
   if (!pool || pool === zeroAddress) {
     // A missing pool can be created later: never cached.
@@ -292,6 +349,16 @@ async function quoteSingle(deployment: DexDeployment, hop: Hop, amountIn: bigint
     const [amountOut, , , gasEstimate] = decodeFunctionResult({ abi: UNISWAP_QUOTER_ABI, functionName: "quoteExactInputSingle", data: raw });
     return { amountOut, gasEstimate };
   }
+  if (deployment.dialect === "algebra") {
+    const raw = await call(network, quoter, encodeFunctionData({
+      abi: ALGEBRA_QUOTER_ABI,
+      functionName: "quoteExactInputSingle",
+      args: [hop.tokenIn, hop.tokenOut, amountIn, 0n],
+    }));
+    if (!raw || raw === "0x") return null;
+    const [amountOut] = decodeFunctionResult({ abi: ALGEBRA_QUOTER_ABI, functionName: "quoteExactInputSingle", data: raw });
+    return { amountOut, gasEstimate: 0n };
+  }
   const raw = await call(network, quoter, encodeFunctionData({
     abi: SLIPSTREAM_QUOTER_ABI,
     functionName: "quoteExactInputSingle",
@@ -302,19 +369,31 @@ async function quoteSingle(deployment: DexDeployment, hop: Hop, amountIn: bigint
   return { amountOut, gasEstimate };
 }
 
-/** Uniswap V3 path: token (20 bytes) | fee (3 bytes) | token ... */
-export function encodePath(hops: readonly Hop[]): Hex {
+/**
+ * Swap path: Uniswap V3 / PancakeSwap `token (20 bytes) | fee (3 bytes) | token ...`;
+ * Algebra `token | token ...` (20-byte tokens only, the pools' fees are dynamic).
+ */
+export function encodePath(hops: readonly Hop[], dialect: DexDeployment["dialect"] = "uniswap-v3"): Hex {
   const parts: Hex[] = [];
   hops.forEach((hop, index) => {
     if (index === 0) parts.push(hop.tokenIn.toLowerCase() as Hex);
-    parts.push(numberToHex(hop.tier, { size: 3 }), hop.tokenOut.toLowerCase() as Hex);
+    if (dialect !== "algebra") parts.push(numberToHex(hop.tier, { size: 3 }));
+    parts.push(hop.tokenOut.toLowerCase() as Hex);
   });
   return concatHex(parts);
 }
 
-/** Exact-in quote of a multi-pool Uniswap V3 path; null when the quoter reverts. */
+/** Exact-in quote of a multi-pool path (Uniswap V3 dialect or Algebra); null when the quoter reverts. */
 async function quotePath(deployment: DexDeployment, hops: readonly Hop[], amountIn: bigint): Promise<Quote | null> {
-  const raw = await call(deployment.network as EvmNetworkKey, deployment.quoter as string, encodeFunctionData({
+  const network = deployment.network as EvmNetworkKey;
+  const quoter = deployment.quoter as string;
+  if (deployment.dialect === "algebra") {
+    const raw = await call(network, quoter, encodeFunctionData({ abi: ALGEBRA_QUOTER_ABI, functionName: "quoteExactInput", args: [encodePath(hops, "algebra"), amountIn] }));
+    if (!raw || raw === "0x") return null;
+    const [amountOut] = decodeFunctionResult({ abi: ALGEBRA_QUOTER_ABI, functionName: "quoteExactInput", data: raw });
+    return { amountOut, gasEstimate: 0n };
+  }
+  const raw = await call(network, quoter, encodeFunctionData({
     abi: UNISWAP_QUOTER_ABI,
     functionName: "quoteExactInput",
     args: [encodePath(hops), amountIn],
@@ -325,7 +404,13 @@ async function quotePath(deployment: DexDeployment, hops: readonly Hop[], amount
 }
 
 function tiersOf(deployment: DexDeployment): readonly number[] {
+  if (deployment.dialect === "algebra") return ALGEBRA_TIERS;
   return (deployment.dialect === "uniswap-v3" ? deployment.feeTiers : deployment.tickSpacings) ?? [];
+}
+
+/** Dialects whose routers take a multi-pool path (Slipstream routes keep single pools). */
+function multiHop(deployment: DexDeployment): boolean {
+  return deployment.dialect === "uniswap-v3" || deployment.dialect === "algebra";
 }
 
 /** Best direct pool of one deployment: every tier, pools proven by the factory, quotes from the pinned quoter. */
@@ -357,7 +442,7 @@ function intermediateToken(deployment: DexDeployment, code: Intermediate): Addre
 }
 
 /**
- * Two hops through the wrapped native token or USDC (Uniswap V3 only): the
+ * Two hops through the wrapped native token or USDC (Uniswap V3 dialect and Algebra): the
  * best tier of each leg, then the exact path quoted as it will execute.
  */
 async function bestTwoHop(deployment: DexDeployment, tokenIn: Address, tokenOut: Address, amountIn: bigint): Promise<DexRoute | null> {
@@ -474,7 +559,7 @@ export async function bestRoute(context: SwapContext, amountIn: bigint): Promise
   for (const deployment of context.deployments) await verifyDeployment(deployment);
   const direct = pickBest(await Promise.all(context.deployments.map((deployment) => bestDirect(deployment, context.tokenIn, context.tokenOut, amountIn))));
   const route = direct ?? pickBest(await Promise.all(context.deployments
-    .filter((deployment) => deployment.dialect === "uniswap-v3")
+    .filter(multiHop)
     .map((deployment) => bestTwoHop(deployment, context.tokenIn, context.tokenOut, amountIn))));
   if (!route) {
     throw new PlatformError(
@@ -527,6 +612,21 @@ export function routerCall(context: SwapContext, route: DexRoute, amountIn: bigi
     if (context.nativeOut) calls.push(encodeFunctionData({ abi: SWAP_ROUTER02_ABI, functionName: "unwrapWETH9", args: [minimumOut, context.account] }));
     return encodeFunctionData({ abi: SWAP_ROUTER02_ABI, functionName: "multicall", args: [deadline, calls] });
   }
+  if (deployment.dialect === "algebra") {
+    // The Algebra router has no ADDRESS_THIS sentinel: native output is swapped to the router itself, then unwrapped to the account.
+    const recipient = context.nativeOut ? getAddress(deployment.router) : context.account;
+    const swap = hops.length === 1
+      ? encodeFunctionData({
+        abi: ALGEBRA_ROUTER_ABI,
+        functionName: "exactInputSingle",
+        args: [{ tokenIn: (hops[0] as Hop).tokenIn, tokenOut: (hops[0] as Hop).tokenOut, recipient, deadline, amountIn, amountOutMinimum: minimumOut, limitSqrtPrice: 0n }],
+      })
+      : encodeFunctionData({ abi: ALGEBRA_ROUTER_ABI, functionName: "exactInput", args: [{ path: encodePath(hops, "algebra"), recipient, deadline, amountIn, amountOutMinimum: minimumOut }] });
+    const calls: Hex[] = [swap];
+    if (context.nativeIn) calls.push(encodeFunctionData({ abi: ALGEBRA_ROUTER_ABI, functionName: "refundNativeToken" }));
+    if (context.nativeOut) calls.push(encodeFunctionData({ abi: ALGEBRA_ROUTER_ABI, functionName: "unwrapWNativeToken", args: [minimumOut, context.account] }));
+    return encodeFunctionData({ abi: ALGEBRA_ROUTER_ABI, functionName: "multicall", args: [calls] });
+  }
   const hop = hops[0] as Hop;
   if (hops.length !== 1) throw new PlatformError("PLAN_INVALID", "Slipstream swaps use one pool.", 422);
   // The Slipstream router keeps native output itself when it is the recipient (then unwraps to the account).
@@ -542,7 +642,8 @@ export function routerCall(context: SwapContext, route: DexRoute, amountIn: bigi
 }
 
 function describeRoute(context: SwapContext, route: DexRoute): string {
-  const tier = (value: number) => (route.deployment.dialect === "uniswap-v3" ? `${(value / 10_000).toString()} %` : `tick spacing ${value}`);
+  const dialect = route.deployment.dialect;
+  const tier = (value: number) => (dialect === "uniswap-v3" ? `${(value / 10_000).toString()} %` : dialect === "algebra" ? "dynamic-fee" : `tick spacing ${value}`);
   const middle = route.intermediate ? ` through ${route.intermediate === "W" ? (context.nativeIn || context.nativeOut ? `W${CHAINS[context.network].nativeAsset.symbol}` : "the wrapped native token") : "USDC"}` : "";
   return `Route: ${context.label} (${route.deployment.id}), ${route.hops.map((hop) => tier(hop.tier)).join(" then ")} pool${route.hops.length > 1 ? "s" : ""}${middle}, ${route.pools.join(", ")}.`;
 }
@@ -577,8 +678,10 @@ export async function swapQuote(
     await assertEvmBalance(context.network, context.account, context.nativeIn ? null : context.tokenIn, amountIn, context.input.symbol, context.input.decimals);
   }
   const route = recorded ? await quoteRecorded(recorded, context.tokenIn, context.tokenOut, amountIn) : await bestRoute(context, amountIn);
-  const guard = await oracleGuard(context.network, context.input, amountIn, context.output, route.amountOut);
-  const slippageBps = Math.min(Math.max(1, action.slippageBps), MAX_DEX_SLIPPAGE_BPS);
+  const guard = await dexPriceGuard(route.deployment, context.input, amountIn, context.output, route.amountOut);
+  // Test tokens have no market price: the quote itself is the only reference, so the slippage cap is tighter (design 3.1).
+  const maxSlippageBps = guard.testnet ? TESTNET_MAX_SLIPPAGE_BPS : MAX_DEX_SLIPPAGE_BPS;
+  const slippageBps = Math.min(Math.max(1, action.slippageBps), maxSlippageBps);
   const minimum = lessSlippage(route.amountOut, slippageBps);
   if (minimum <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `${units(amountIn, context.input)} buys too little ${context.output.symbol} to guarantee an output.`, 422);
   const router = getAddress(route.deployment.router);
@@ -609,12 +712,14 @@ export async function swapQuote(
   const value = context.nativeIn ? amountIn : 0n;
   const fallbackGas = route.gasEstimate > 0n && route.gasEstimate < 2_000_000n ? route.gasEstimate + ROUTER_OVERHEAD_GAS : FALLBACK_SWAP_GAS;
   const warnings = [...guard.warnings, describeRoute(context, route)];
-  if (action.slippageBps > MAX_DEX_SLIPPAGE_BPS) warnings.push(`Slippage capped at ${MAX_DEX_SLIPPAGE_BPS / 100} % for ${context.label} swaps.`);
+  if (action.slippageBps > maxSlippageBps) {
+    warnings.push(`Slippage capped at ${maxSlippageBps / 100} % for ${guard.testnet ? `${context.label} test-token` : context.label} swaps.`);
+  }
   let gas: bigint | string = fallbackGas;
   if (stage === "prepare" && approved) {
     // Only a swap that needs no approval first can be dry-run before signing.
     const request = { from: context.account, to: router, data, value: value.toString() };
-    const simulation = await simulate(context.network, request, [...(route.deployment.dialect === "uniswap-v3" ? SWAP_ROUTER02_ABI : SLIPSTREAM_ROUTER_ABI)]);
+    const simulation = await simulate(context.network, request, [...routerAbi(route.deployment)]);
     assertSimulation(simulation, `${context.label} swap`);
     if (simulation.status === "unavailable") warnings.push(SIMULATION_UNAVAILABLE);
     else gas = await callGas(context.network, request, fallbackGas);
@@ -642,7 +747,18 @@ export async function swapQuote(
 /* ------------------------------------------------------------- verification */
 
 const SWAP_EVENT = POOL_ABI.find((item) => item.type === "event" && item.name === "Swap");
-const ROUTER_DECODE_ABI = [...SWAP_ROUTER02_ABI, ...SLIPSTREAM_ROUTER_ABI];
+const PANCAKE_SWAP_EVENT = PANCAKE_POOL_ABI.find((item) => item.type === "event" && item.name === "Swap");
+
+/** Swap events of both shapes in the logs, each tagged with whether it is the shape `protocol`'s pools emit. */
+function swapEvents(protocol: DexProtocol, logs: LandedEvmReceipt["logs"]): { readonly address: Address; readonly expected: boolean }[] {
+  const pancake = protocol === "pancakeswap-v3";
+  const uniswapShaped = parseEventLogs({ abi: [SWAP_EVENT as NonNullable<typeof SWAP_EVENT>], logs: [...logs], eventName: "Swap", strict: true });
+  const pancakeShaped = parseEventLogs({ abi: [PANCAKE_SWAP_EVENT as NonNullable<typeof PANCAKE_SWAP_EVENT>], logs: [...logs], eventName: "Swap", strict: true });
+  return [
+    ...uniswapShaped.map((event) => ({ address: event.address, expected: !pancake })),
+    ...pancakeShaped.map((event) => ({ address: event.address, expected: pancake })),
+  ];
+}
 
 /**
  * Wrapped native the router unwrapped for the account: WETH9 `Withdrawal`
@@ -677,7 +793,7 @@ export async function proveSwap(
   const call = landedCall(receipts, deployment.router);
   if (!call) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `No landed transaction called the ${label} router.` });
   try {
-    decodeFunctionData({ abi: ROUTER_DECODE_ABI, data: call.input as Hex });
+    decodeFunctionData({ abi: routerAbi(deployment), data: call.input as Hex });
   } catch {
     return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `The ${label} router call is not a swap multicall.` });
   }
@@ -696,10 +812,11 @@ export async function proveSwap(
     if (!pool) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `The pinned factory has no pool for hop ${index + 1} of the route.` });
     pools.push(pool);
   }
-  const swaps = parseEventLogs({ abi: [SWAP_EVENT as NonNullable<typeof SWAP_EVENT>], logs: [...call.logs], eventName: "Swap", strict: true });
+  // Swap events of either shape from any other address refuse; each recorded pool must emit the shape its protocol's pools emit.
+  const swaps = swapEvents(protocol, call.logs);
   const foreign = swaps.find((event) => !pools.some((pool) => sameAddress(pool, event.address)));
   if (foreign) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `A Swap event came from ${foreign.address}, which is not a pool of the pinned factory on the recorded route.` });
-  const missing = pools.find((pool) => !swaps.some((event) => sameAddress(event.address, pool)));
+  const missing = pools.find((pool) => !swaps.some((event) => event.expected && sameAddress(event.address, pool)));
   if (missing) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: `The recorded pool ${missing} emitted no Swap event.` });
   const floor = lowestPreparedFloor(step);
   if (floor === null) return outcomeFailure({ code: "OUTCOME_NOT_PROVEN", message: "The step has no prepared output floor." });

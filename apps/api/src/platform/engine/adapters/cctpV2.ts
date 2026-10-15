@@ -1,8 +1,13 @@
 /**
  * Circle CCTP V2 adapter: native USDC burn-and-mint Fast Transfers with
- * Circle's Forwarding Service (protocols design 3.5), from an EVM production
- * network to another EVM production network or to Solana. Solana origins are
- * a follow-up (the burn there is an SVM instruction set).
+ * Circle's Forwarding Service (protocols design 3.5), from an EVM network to
+ * another EVM network or to Solana, on one capital lane: production (the five
+ * EVM mainnets and Solana) or testnet (Arc Testnet, Arbitrum Sepolia, and
+ * Solana Devnet as a destination). A network is served only where its CCTP
+ * contracts are pinned; a route whose ends sit on different lanes is refused
+ * (supports, plan, prepare and the burn proof), and testnet burns are quoted
+ * and attested by Circle's sandbox Iris. Solana origins are a follow-up (the
+ * burn there is an SVM instruction set).
  *
  * Kletia encodes `TokenMessengerV2.depositForBurnWithHook` itself: exact
  * amount, the destination domain from the chain registry, the recipient as
@@ -36,20 +41,21 @@ import {
   formatAmount,
   fromBaseUnits,
   parseAccountId,
+  sameCapitalLane,
   venueContracts,
   type IntentStep,
   type NetworkKey,
   type StepEvidence,
   type TransactionRequest,
 } from "@kletia/core";
-import { assertSolanaWalletRecipient, solanaRpc } from "../../../networks/solana/index.js";
+import { assertSolanaWalletRecipient, isSolanaNetworkKey, solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
 import { rpcAbortSignal } from "../../../networks/solana/rpc.js";
 import { PlatformError } from "../../errors.js";
 import { assetAmount, assetFromRef } from "../assets.js";
 import { evmChainId, evmClient, isEvmNetwork, observeEvmTransaction, readAllowance, type EvmNetworkKey } from "../chains/evm.js";
 import { isRecord } from "../util.js";
 import { isRegistryUsdc } from "./across.js";
-import { CCTP_FAST_FINALITY, cctpProtocolFee, fetchCctpFastFees, fetchCctpMessages, type CctpMessage } from "./cctpClient.js";
+import { assertCctpLane, CCTP_FAST_FINALITY, cctpProtocolFee, fetchCctpFastFees, fetchCctpMessages, type CctpEndpoint, type CctpMessage } from "./cctpClient.js";
 import { assertEvmBalance } from "./evmTransfer.js";
 import { accountBytes32 } from "./lifi.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
@@ -72,7 +78,7 @@ export const TOKEN_MESSENGER_V2_ABI = parseAbi([
 export const MESSAGE_TRANSMITTER_V2_ABI = parseAbi(["event MessageSent(bytes message)"]);
 const TOKEN_MINTER_V2_ABI = parseAbi(["function burnLimitsPerMessage(address token) view returns (uint256)"]);
 
-function pinned(network: NetworkKey, role: "token-messenger" | "message-transmitter" | "token-minter"): string | null {
+function pinned(network: NetworkKey, role: "token-messenger" | "message-transmitter" | "token-minter" | "token-messenger-minter"): string | null {
   const contracts = venueContracts("cctp-v2", network, role);
   return contracts.length === 1 ? (contracts[0] as string) : null;
 }
@@ -83,9 +89,17 @@ function cctpDomain(network: NetworkKey): number {
   return domain;
 }
 
-/** Destinations served: an EVM production network with the pinned TokenMessenger, or Solana mainnet. */
+function endpoint(network: NetworkKey): CctpEndpoint {
+  return { network, domain: cctpDomain(network) };
+}
+
+/**
+ * Destinations served: an EVM network with the pinned TokenMessenger, or a
+ * Solana network with the pinned TokenMessengerMinter program (Solana, and
+ * Solana Devnet where the Forwarding Service mints too).
+ */
 function servedDestination(network: NetworkKey): boolean {
-  if (network === "solana") return true;
+  if (isSolanaNetworkKey(network)) return pinned(network, "token-messenger-minter") !== null;
   return isEvmNetwork(network) && pinned(network, "token-messenger") !== null;
 }
 
@@ -107,12 +121,12 @@ export async function solanaUsdcAccount(owner: string, mint: string): Promise<st
  * a wallet and its USDC associated token account must exist, be owned by the
  * Token program, hold USDC for that wallet and be initialized (not frozen).
  */
-async function assertSolanaMintAccount(owner: string, mint: string): Promise<string> {
-  await assertSolanaWalletRecipient("solana", owner);
+async function assertSolanaMintAccount(network: SolanaNetworkKey, owner: string, mint: string): Promise<string> {
+  await assertSolanaWalletRecipient(network, owner);
   const ata = await solanaUsdcAccount(owner, mint);
   let value: unknown;
   try {
-    const info = await solanaRpc("solana")
+    const info = await solanaRpc(network)
       .getAccountInfo(solanaAddress(ata), { encoding: "jsonParsed", commitment: "confirmed" })
       .send({ abortSignal: rpcAbortSignal() });
     value = info.value;
@@ -139,7 +153,7 @@ async function assertSolanaMintAccount(owner: string, mint: string): Promise<str
 
 /** The bytes32 mint recipient for the step's recipient (Solana: its USDC token account, derived without I/O). */
 async function expectedMintRecipient(destination: NetworkKey, recipient: string, outputAddress: string): Promise<Hex> {
-  if (destination === "solana") return accountBytes32("solana", await solanaUsdcAccount(recipient, outputAddress));
+  if (isSolanaNetworkKey(destination)) return accountBytes32(destination, await solanaUsdcAccount(recipient, outputAddress));
   return accountBytes32(destination, recipient);
 }
 
@@ -182,8 +196,10 @@ interface CheckedBurn {
 }
 
 async function checkedBurn(action: AdapterAction, stage: "plan" | "prepare"): Promise<CheckedBurn> {
+  // Mixed lanes get their own explicit refusal before the general one.
+  assertCctpLane(action.network, action.destinationNetwork);
   if (!cctpV2Adapter.supports(action) || !isEvmNetwork(action.network)) {
-    throw new PlatformError("ROUTE_UNSUPPORTED", "Circle CCTP serves USDC from an EVM production network to another one or to Solana.", 422);
+    throw new PlatformError("ROUTE_UNSUPPORTED", "Circle CCTP serves USDC from an EVM network to another EVM network or to Solana, mainnet to mainnet or testnet to testnet.", 422);
   }
   const network: EvmNetworkKey = action.network;
   const messenger = pinned(network, "token-messenger") as string;
@@ -192,7 +208,7 @@ async function checkedBurn(action: AdapterAction, stage: "plan" | "prepare"): Pr
   if (action.recipient.chain.namespace !== CHAINS[destination].namespace) {
     throw new PlatformError("RECIPIENT_INVALID", `CCTP pays a recipient address on ${CHAINS[destination].name}.`, 422);
   }
-  const fees = await fetchCctpFastFees(cctpDomain(network), cctpDomain(destination));
+  const fees = await fetchCctpFastFees(endpoint(network), endpoint(destination));
   const protocolFee = cctpProtocolFee(amount, fees.protocolFeeCentiBps);
   const maxFee = protocolFee + fees.forwardFeeHigh;
   if (maxFee >= amount) {
@@ -212,9 +228,9 @@ async function checkedBurn(action: AdapterAction, stage: "plan" | "prepare"): Pr
   }
   let solanaAccount: string | null = null;
   let mintRecipient: Hex;
-  if (destination === "solana") {
-    solanaAccount = await assertSolanaMintAccount(action.recipient.address, action.output.address as string);
-    mintRecipient = accountBytes32("solana", solanaAccount);
+  if (isSolanaNetworkKey(destination)) {
+    solanaAccount = await assertSolanaMintAccount(destination, action.recipient.address, action.output.address as string);
+    mintRecipient = accountBytes32(destination, solanaAccount);
   } else {
     mintRecipient = accountBytes32(destination, action.recipient.address);
   }
@@ -317,6 +333,12 @@ function warnings(action: AdapterAction, burn: CheckedBurn): string[] {
   const own = action.destinationAccount?.address ?? action.account.address;
   if (action.recipient.address.toLowerCase() !== own.toLowerCase()) {
     notes.push(`Circle mints to ${action.recipient.address} on ${destination}, not to your own account.`);
+  }
+  if (CHAINS[action.network].environment === "testnet") {
+    notes.push("Testnet route: Circle's sandbox attestation service (Iris sandbox) quotes and attests this burn; testnet USDC has no value.");
+  }
+  if (action.network === "arc") {
+    notes.push("Arc Testnet pays gas in USDC from the same balance: keep some USDC beyond the bridged amount for the approval and burn.");
   }
   return notes;
 }
@@ -437,6 +459,7 @@ async function provenBurn(
   const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
   const landed = receipts[receipts.length - 1];
   if (!messenger || !transmitter || !destination || !recipient || !input?.address || !output?.address || !landed) return null;
+  if (!sameCapitalLane(step.network, destination) || !servedDestination(destination)) return null;
   if (!landed.to || landed.to.toLowerCase() !== messenger.toLowerCase()) return null;
   const burn = decodeBurn(landed.input);
   if (!burn) return null;
@@ -484,6 +507,8 @@ export const cctpV2Adapter: ProtocolAdapter = {
 
   supports(route: AdapterRoute) {
     if (route.kind !== "bridge" || route.network === route.destinationNetwork) return false;
+    // Production and testnet capital never mix (chains.ts); each lane has its own Iris.
+    if (!sameCapitalLane(route.network, route.destinationNetwork)) return false;
     if (!isEvmNetwork(route.network) || !pinned(route.network, "token-messenger") || !pinned(route.network, "message-transmitter") || !pinned(route.network, "token-minter")) return false;
     if (!servedDestination(route.destinationNetwork)) return false;
     if (CHAINS[route.network].settlement.cctpDomain === undefined || CHAINS[route.destinationNetwork].settlement.cctpDomain === undefined) return false;
@@ -563,7 +588,7 @@ export const cctpV2Adapter: ProtocolAdapter = {
     const reference = step.references?.[step.references.length - 1];
     const recipient = step.recipient ? parseAccountId(step.recipient) : null;
     const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
-    if (!destination || !reference || !recipient || !output || !isEvmNetwork(step.network)) {
+    if (!destination || !reference || !recipient || !output || !isEvmNetwork(step.network) || !sameCapitalLane(step.network, destination)) {
       return { status: "failed", evidence: [], failure: { code: "STEP_INVALID", message: "The bridge step lacks a burn, recipient or output." } };
     }
     const landed = await observeEvmTransaction(step.network, reference);
@@ -571,7 +596,7 @@ export const cctpV2Adapter: ProtocolAdapter = {
     const proven = await provenBurn(step, [landed]);
     if (!proven) return { status: "settling", evidence: [] };
     const messenger = pinned(step.network, "token-messenger") as string;
-    const messages: CctpMessage[] = await fetchCctpMessages(cctpDomain(step.network), reference);
+    const messages: CctpMessage[] = await fetchCctpMessages(endpoint(step.network), reference);
     let attested: { message: CctpMessage; fields: CctpMessageFields; hash: string } | null = null;
     for (const message of messages) {
       const fields = message.message ? decodeCctpMessage(message.message) : null;

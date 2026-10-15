@@ -24,6 +24,7 @@ import {
 } from "../grammar.js";
 import type { ContractPhrase } from "../contracts/directory.js";
 import { candidates } from "./fuzzy.js";
+import { readClause, spellNumbers, symbolTypoCandidates } from "../goal/index.js";
 import {
   bridgeProtocol,
   dexProtocol,
@@ -290,7 +291,12 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
           const protocol = lendingProtocol(g.venue);
           if (protocol) out.protocol = slot(protocol);
         }
-        if (g.vault) out.vault = slot(g.vault.toLowerCase());
+        if (g.vault) {
+          // "lend 100 USDC on aave base": a network word after the venue is the network, not a vault slug.
+          const vaultNetwork = network(g.vault);
+          if (vaultNetwork && !net) out.network = slot(vaultNetwork);
+          else out.vault = slot(g.vault.toLowerCase());
+        }
         break;
       }
     }
@@ -354,9 +360,40 @@ function notUnderstood(clause: string): PlatformError {
   );
 }
 
+/** ASSET_TYPO (D9): an unknown symbol within one edit of listed symbols ("SLO" for SOL), flagged for the policy. */
+function flagAssetTypo(step: WorkStep): void {
+  if (step.assetTypo) return;
+  for (const field of ["from", "to"] as const) {
+    const said = step[field];
+    if (!said || said.by !== "user") continue;
+    const found = symbolTypoCandidates(said.v);
+    if (found.length > 0) {
+      step.assetTypo = { field, raw: said.v.slice(0, 16), candidates: found };
+      return;
+    }
+  }
+}
+
+/** Step kinds that spend the previous step's output when their clause names neither an amount nor an asset. */
+const CHAINABLE: ReadonlySet<Kind> = new Set(["swap", "bridge", "transfer", "deposit", "stake"]);
+
+/**
+ * "swap 1 SOL to USDC, bridge to base, deposit into aave": a later clause with
+ * no amount and no asset continues with what the step before produced, as if
+ * it said "it" (F9). Stake's derived input (SOL) counts as unsaid.
+ */
+function chainImplicit(step: WorkStep, previous: boolean): void {
+  if (!previous || step.amount || step.usdFrom || step.contract || step.goal) return;
+  if (!step.kind || !CHAINABLE.has(step.kind.v)) return;
+  if (step.from && step.from.by === "user") return;
+  if (step.kind.v === "stake" && step.from) delete step.from;
+  step.amount = slot({ t: "previous", bps: 10_000 }, "derived");
+}
+
 /** A message as slots for every clause (1 to 8); unique keyword typos are corrected (R9, R10). */
 export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0): ParsedSentence {
-  const text = normalizeMessage(raw);
+  // Compound number words ("twenty five") become digits first; single ones are the core normaliser's.
+  const text = normalizeMessage(spellNumbers(raw, 2));
   if (!text) throw new PlatformError("INTENT_UNSUPPORTED", "The message is empty.", 422);
   const extraVerbs = phrases.flatMap((phrase) => phrase.verbs);
   const clauses = splitClauses(text, extraVerbs);
@@ -364,11 +401,12 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   const steps: WorkStep[] = [];
   const corrections: ThreadCorrection[] = [];
   clauses.forEach((clause, i) => {
-    const index = i + offset;
-    const previous = previousExists || i > 0;
+    const index = steps.length + offset;
+    const previous = previousExists || steps.length > 0;
     let parsed = parseContractClause(clause, phrases, index, previous) ?? parseClause(clause, previous);
+    let fixed: ReturnType<typeof correctClause> | undefined;
     if (!parsed) {
-      const fixed = correctClause(clause, index);
+      fixed = correctClause(clause, index);
       parsed = parseClause(fixed.text, previous);
       if (parsed) corrections.push(...fixed.corrections);
       if (!parsed && fixed.verbCandidates) {
@@ -387,12 +425,30 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
         }
       }
     }
-    if (!parsed) throw notUnderstood(clause);
-    const amount = parsed.amount?.v;
-    if (amount?.t === "exact" && amount.raw && /^\$?\d+,\d{1,2}$/u.test(amount.raw)) {
-      corrections.push({ field: `actions[${index}].amount`, from: amount.raw.slice(0, 16), to: amount.value, material: true });
+    let read: WorkStep[] = parsed ? [parsed] : [];
+    if (!parsed) {
+      // Intent engine v2 §3.4: the Goal reader, only when the strict reader (with typo correction) found nothing.
+      const options = { previousExists: previous, index, strict: (piece: string, before: boolean) => parseClause(piece, before) };
+      let reading = readClause(clause, options);
+      if (!reading && fixed && fixed.text !== clause) {
+        reading = readClause(fixed.text, options);
+        if (reading) corrections.push(...fixed.corrections);
+      }
+      if (!reading) throw notUnderstood(clause);
+      corrections.push(...reading.corrections);
+      read = reading.steps;
     }
-    steps.push(parsed);
+    read.forEach((step, position) => {
+      const at = index + position;
+      chainImplicit(step, previous || position > 0);
+      flagAssetTypo(step);
+      const amount = step.amount?.v;
+      if (amount?.t === "exact" && amount.raw && /^\$?\d+,\d{1,2}$/u.test(amount.raw)) {
+        corrections.push({ field: `actions[${at}].amount`, from: amount.raw.slice(0, 16), to: amount.value, material: true });
+      }
+      steps.push(step);
+    });
   });
+  if (steps.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
   return { steps, corrections };
 }

@@ -1515,6 +1515,26 @@ const ACROSS_SPOKE_POOLS: Readonly<Partial<Record<NetworkKey, string>>> = Object
   polygon: "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
 });
 
+/**
+ * Circle CCTP V2 testnet contracts (protocols design 3.5, read back
+ * 2026-10-15: TokenMessengerV2 reports the transmitter and minter;
+ * localDomain 26 on Arc, 3 on Arbitrum Sepolia; the Solana Devnet programs
+ * are executable). Pinned in VENUE_CONTRACTS (P6): the CCTP adapter serves
+ * every network whose contracts are pinned, reads testnet fees and messages
+ * from Circle's sandbox Iris (chosen from the source network) and refuses any
+ * route whose source and destination sit on different capital lanes.
+ * Declared before VENUE_CONTRACTS, which spreads it.
+ */
+export const CCTP_V2_TESTNET_CONTRACTS: readonly VenueContract[] = Object.freeze([
+  ...(["arc", "arbitrum-sepolia"] as const).flatMap((network): VenueContract[] => [
+    { protocol: "cctp-v2", network, role: "token-messenger", address: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" },
+    { protocol: "cctp-v2", network, role: "message-transmitter", address: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" },
+    { protocol: "cctp-v2", network, role: "token-minter", address: "0xb43db544E2c27092c107639Ad201b3dEfAbcF192" },
+  ]),
+  { protocol: "cctp-v2", network: "solana-devnet", role: "token-messenger-minter", address: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe" },
+  { protocol: "cctp-v2", network: "solana-devnet", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
+] satisfies readonly VenueContract[]);
+
 export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // Relay (GET /chains protocol.v2.depository and contracts.*; bytecode present on all five EVM networks)
   ...everyEvm("relay", "depository", "0x4cD00E387622C35bDDB9b4c962C136462338BC31"),
@@ -1584,6 +1604,8 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   ...everyEvm("cctp-v2", "token-minter", "0xfd78EE919681417d192449715b2594ab58f5D002"),
   { protocol: "cctp-v2", network: "solana", role: "token-messenger-minter", address: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe" },
   { protocol: "cctp-v2", network: "solana", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
+  // Circle CCTP V2 testnets (Arc Testnet, Arbitrum Sepolia, Solana Devnet): sandbox Iris, testnet lane only
+  ...CCTP_V2_TESTNET_CONTRACTS,
   // Pyth (Solana push oracle and its receiver)
   { protocol: "pyth", network: "solana", role: "program", address: "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT" },
   { protocol: "pyth", network: "solana", role: "receiver", address: "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ" },
@@ -1626,27 +1648,6 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   { protocol: "solana-stake", network: "solana", role: "vote-account", address: "8GbwASqdpw4dVcwbWUxbHXMrjyQx2aKkoBR5H1GJF8iD" },
   { protocol: "solana-stake", network: "solana-devnet", role: "program", address: "Stake11111111111111111111111111111111111111" },
   { protocol: "solana-stake", network: "solana-devnet", role: "vote-account", address: "vgcDar2pryHvMgPkKaZfh8pQy4BJxv7SpwUG7zinWjG" },
-] satisfies readonly VenueContract[]);
-
-/**
- * Circle CCTP V2 testnet contracts (protocols design 3.5, read back
- * 2026-10-15: TokenMessengerV2 reports the transmitter and minter;
- * localDomain 26 on Arc, 3 on Arbitrum Sepolia; the Solana Devnet programs
- * are executable). Held OUT of VENUE_CONTRACTS on purpose: the CCTP adapter
- * serves every network whose contracts are pinned, and until it chooses the
- * sandbox Iris URL per source network and asserts that source and
- * destination share a capital lane (package P6), pinning these would let it
- * accept testnet (and mixed-lane) routes. P6 adds `...CCTP_V2_TESTNET_CONTRACTS`
- * to VENUE_CONTRACTS together with those checks.
- */
-export const CCTP_V2_TESTNET_CONTRACTS: readonly VenueContract[] = Object.freeze([
-  ...(["arc", "arbitrum-sepolia"] as const).flatMap((network): VenueContract[] => [
-    { protocol: "cctp-v2", network, role: "token-messenger", address: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" },
-    { protocol: "cctp-v2", network, role: "message-transmitter", address: "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275" },
-    { protocol: "cctp-v2", network, role: "token-minter", address: "0xb43db544E2c27092c107639Ad201b3dEfAbcF192" },
-  ]),
-  { protocol: "cctp-v2", network: "solana-devnet", role: "token-messenger-minter", address: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe" },
-  { protocol: "cctp-v2", network: "solana-devnet", role: "message-transmitter", address: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC" },
 ] satisfies readonly VenueContract[]);
 
 /** The Solana DEX venue behind a Jupiter route label ("Raydium CLMM" -> raydium), or null. */

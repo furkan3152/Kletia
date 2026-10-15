@@ -48,7 +48,7 @@ import {
   callGas,
   eventEvidence,
   evmCall,
-  exactApproval,
+  exactApprovals,
   formatUnits,
   landedCall,
   lendingContext,
@@ -311,8 +311,8 @@ async function mintQuote(action: AdapterAction, context: MoonwellContext, stage:
   } else {
     if (context.native) transactions.push(wrapTransaction(context, amount));
     const allowance = stage === "plan" ? await plannedAllowance(context, venue.spender) : undefined;
-    const approval = await exactApproval(context, venue.spender, amount, allowance);
-    if (approval) transactions.push(approval);
+    const approvals = await exactApprovals(context, venue.spender, amount, allowance);
+    transactions.push(...approvals);
     const data = encodeFunctionData({ abi: MTOKEN_ABI, functionName: "mint", args: [amount] });
     let mintGas: bigint | string = MINT_GAS;
     if (stage === "prepare" && transactions.length === 0) {
@@ -323,7 +323,7 @@ async function mintQuote(action: AdapterAction, context: MoonwellContext, stage:
       mintGas = await callGas(network, request, MINT_GAS);
     }
     transactions.push(evmCall(context, venue.target, data, 0n, mintGas, title(context, amount, symbol, false)));
-    gas = MINT_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n);
+    gas = MINT_GAS + APPROVE_GAS * BigInt(approvals.length) + (context.native ? WRAP_GAS : 0n);
   }
   const receiptSymbol = await tokenSymbol(network, venue.receipt.address, `m${symbol}`);
   const utilization = ratio(state.borrows, total);

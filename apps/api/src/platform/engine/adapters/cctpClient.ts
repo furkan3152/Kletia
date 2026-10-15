@@ -5,7 +5,15 @@
  * message of a burn (`GET /v2/messages/{srcDomain}?transactionHash=`).
  * Keyless. Every field is validated here; the adapter decodes the message
  * bytes itself instead of trusting Iris's decoded view.
+ *
+ * Two Iris deployments serve two capital lanes (protocols design 3.5): the
+ * production API attests mainnet burns, the sandbox API testnet burns. The
+ * deployment is chosen from the SOURCE network's environment, and every
+ * request asserts that source and destination share that environment: CCTP
+ * domains repeat across lanes (3 is Arbitrum and Arbitrum Sepolia, 5 is
+ * Solana and Solana Devnet), so a domain pair alone never picks the lane.
  */
+import { CHAINS, sameCapitalLane, type NetworkKey } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { fetchProviderJson } from "../http.js";
 import { finiteNumber, isRecord } from "../util.js";
@@ -25,8 +33,30 @@ function readUrl(name: string, fallback: string): string {
   return raw.replace(/\/+$/u, "");
 }
 
+/** Production Iris (mainnet burns). */
 export const CCTP_IRIS_URL = readUrl("CCTP_IRIS_API_URL", "https://iris-api.circle.com");
+/** Sandbox Iris (testnet burns: Arc Testnet, Arbitrum Sepolia, Solana Devnet). */
+export const CCTP_IRIS_SANDBOX_URL = readUrl("CCTP_IRIS_SANDBOX_URL", "https://iris-api-sandbox.circle.com");
 const PROVIDER = "Circle";
+
+/**
+ * Refuses a CCTP route whose source and destination sit on different capital
+ * lanes: production and testnet capital never mix (chains.ts).
+ */
+export function assertCctpLane(source: NetworkKey, destination: NetworkKey): void {
+  if (!sameCapitalLane(source, destination)) {
+    throw new PlatformError(
+      "ROUTE_UNSUPPORTED",
+      `Circle CCTP does not connect ${CHAINS[source].name} (${CHAINS[source].environment}) with ${CHAINS[destination].name} (${CHAINS[destination].environment}): mainnet and testnet USDC never mix.`,
+      422,
+    );
+  }
+}
+
+/** The Iris deployment that attests burns from `source`: sandbox for testnet networks, production otherwise. */
+export function irisUrl(source: NetworkKey): string {
+  return CHAINS[source].environment === "testnet" ? CCTP_IRIS_SANDBOX_URL : CCTP_IRIS_URL;
+}
 
 /** Fast Transfer finality threshold (CCTP V2 "confirmed"); 2000 is Standard ("finalized"). */
 export const CCTP_FAST_FINALITY = 1000;
@@ -55,10 +85,21 @@ function units(value: unknown): bigint | null {
   return null;
 }
 
-/** Fast Transfer fees with forwarding, from the `finalityThreshold: 1000` row. */
-export async function fetchCctpFastFees(sourceDomain: number, destinationDomain: number): Promise<CctpFastFees> {
+/** A CCTP lane endpoint: the network and its CCTP domain. */
+export interface CctpEndpoint {
+  readonly network: NetworkKey;
+  readonly domain: number;
+}
+
+/**
+ * Fast Transfer fees with forwarding, from the `finalityThreshold: 1000` row,
+ * read from the Iris deployment of the source network's lane (refused when
+ * source and destination are on different lanes).
+ */
+export async function fetchCctpFastFees(source: CctpEndpoint, destination: CctpEndpoint): Promise<CctpFastFees> {
+  assertCctpLane(source.network, destination.network);
   const body = await fetchProviderJson(
-    `${CCTP_IRIS_URL}/v2/burn/USDC/fees/${domainPath(sourceDomain)}/${domainPath(destinationDomain)}?forward=true`,
+    `${irisUrl(source.network)}/v2/burn/USDC/fees/${domainPath(source.domain)}/${domainPath(destination.domain)}?forward=true`,
     { provider: PROVIDER },
   );
   if (!Array.isArray(body)) throw invalid("not a list");
@@ -96,11 +137,14 @@ const HEX = /^0x(?:[0-9a-fA-F]{2})+$/u;
 const EVM_HASH = /^0x[0-9a-fA-F]{64}$/u;
 const SOLANA_SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/u;
 
-/** Messages a burn transaction emitted, as Iris reports them; empty while not indexed (404). */
-export async function fetchCctpMessages(sourceDomain: number, transactionHash: string): Promise<CctpMessage[]> {
+/**
+ * Messages a burn transaction emitted, as the Iris deployment of the source
+ * network's lane reports them; empty while not indexed (404).
+ */
+export async function fetchCctpMessages(source: CctpEndpoint, transactionHash: string): Promise<CctpMessage[]> {
   if (!EVM_HASH.test(transactionHash)) return [];
   const body = await fetchProviderJson(
-    `${CCTP_IRIS_URL}/v2/messages/${domainPath(sourceDomain)}?transactionHash=${transactionHash}`,
+    `${irisUrl(source.network)}/v2/messages/${domainPath(source.domain)}?transactionHash=${transactionHash}`,
     { provider: PROVIDER, allowStatus: [404] },
   );
   if (!isRecord(body) || !Array.isArray(body.messages)) return [];

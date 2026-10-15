@@ -107,12 +107,20 @@ export const EXECUTABLE_PROTOCOLS: readonly ProtocolId[] = Object.freeze(
  * `configureAdapters`.
  */
 let activeAdapters: readonly ProtocolAdapter[] = ADAPTERS;
+/** Bumped by every `configureAdapters`, so derived structures (the solver's capability graph) rebuild. */
+let generation = 0;
 
 export function configureAdapters(adapters: readonly ProtocolAdapter[] | null): void {
   if (adapters !== null && adapters.length === 0) {
     throw new PlatformError("ADAPTERS_INVALID", "At least one protocol adapter is required.", 500);
   }
   activeAdapters = adapters === null ? ADAPTERS : Object.freeze([...adapters]);
+  generation += 1;
+}
+
+/** Identity of the active adapter set: changes whenever `configureAdapters` runs. */
+export function adapterGeneration(): number {
+  return generation;
 }
 
 export function activeProtocolAdapters(): readonly ProtocolAdapter[] {

@@ -16,6 +16,8 @@ import type { RequestHandler } from "express";
  * - Solana Actions (/v1/blinks/**): any origin, the method, request and
  *   exposed headers of `@solana/actions` 1.6.6 `ACTIONS_CORS_HEADERS`, so
  *   blink clients (wallets, Dialect) can call Kletia's action endpoints.
+ * - Admin API (/api/admin/**): the first-party policy plus PATCH and the
+ *   X-Kletia-Admin header.
  */
 
 const productionOrigins = [
@@ -107,6 +109,24 @@ export const apiCorsOptions: CorsOptions = {
   ],
 };
 
+/**
+ * Admin API policy (/api/admin/**): the first-party policy (same allowlisted
+ * origins, credentials) plus PATCH (PATCH /api/admin/deployments/{id}) and
+ * the mandatory X-Kletia-Admin header, whose preflight only allowlisted
+ * origins pass. The admin router then narrows origins further to the
+ * same-site admin origins.
+ */
+export const adminCorsOptions: CorsOptions = {
+  ...apiCorsOptions,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [...(apiCorsOptions.allowedHeaders as string[]), "X-Kletia-Admin"],
+};
+
+/** True for the admin API (case-insensitive, like Express routing). */
+export function isAdminApiPath(path: string): boolean {
+  return /^\/api\/admin(?:\/|$)/iu.test(path);
+}
+
 /** Path prefix of the public platform API. */
 export const PLATFORM_API_PREFIX = "/v1";
 
@@ -196,8 +216,11 @@ export function createCorsMiddleware(): RequestHandler {
   const platformCors = cors(platformCorsOptions);
   const mcpCors = cors(mcpCorsOptions);
   const actionsCors = cors(actionsCorsOptions);
+  const adminCors = cors(adminCorsOptions);
   return (req, res, next) =>
-    isMcpPath(req.path)
+    isAdminApiPath(req.path)
+      ? adminCors(req, res, next)
+      : isMcpPath(req.path)
       ? mcpCors(req, res, next)
       : isActionsPath(req.path)
         ? actionsCors(req, res, next)

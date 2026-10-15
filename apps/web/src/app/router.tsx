@@ -452,6 +452,7 @@ export function AppRouter() {
     [location, route, busy],
   );
 
+  // Admin pages render like the console: no site header or footer; the page draws its own shell.
   const content =
     CROSS_ORIGIN_FRAMED && route.kind !== "embed" ? (
       <FramedRouteNotice href={`${window.location.origin}${location.pathname}${location.search}`} />
@@ -478,7 +479,7 @@ export function AppRouter() {
       ) : null}
       <React.Suspense
         fallback={
-          route.kind === "console" ? (
+          route.kind === "console" || route.kind === "admin" ? (
             <ConsoleBootFallback />
           ) : route.kind === "embed" ? (
             <EmbedBootFallback />

@@ -83,6 +83,19 @@ test("/embed keeps its headers: framed by any site, no X-Frame-Options", async (
   assert.equal(home.headers["x-frame-options"], "SAMEORIGIN");
 });
 
+test("/admin is never framed, indexed or cached (same headers as render.yaml)", async () => {
+  for (const path of ["/admin", "/admin/deploy"]) {
+    const response = await get(path, { accept: "text/html" });
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers["x-frame-options"], "DENY", path);
+    assert.equal(response.headers["content-security-policy"], "frame-ancestors 'none'; object-src 'none'; base-uri 'none'", path);
+    assert.equal(response.headers["x-robots-tag"], "noindex, nofollow", path);
+    assert.equal(response.headers["cache-control"], "no-store", path);
+  }
+  const lookalike = await get("/administrator", { accept: "text/html" });
+  assert.equal(lookalike.headers["x-robots-tag"], undefined);
+});
+
 test("text is compressed with brotli, then gzip, with Vary; binaries and small files are not", async () => {
   const br = await get("/assets/app-abc123.js", { "accept-encoding": "gzip, deflate, br" });
   assert.equal(br.headers["content-encoding"], "br");

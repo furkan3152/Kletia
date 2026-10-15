@@ -45,6 +45,24 @@ code defaults or set on the services; this list is what only the operator can ad
 
 Never set `KLETIA_REQUIRE_ALL_FEATURES=true` unless every optional key above is present: the API then refuses to start.
 
+### Admin panel (`/admin`)
+
+The panel at `https://kletiaai.xyz/admin` signs in with an allowlisted admin wallet. See [admin.md](admin.md).
+
+| Variable | What to put | How |
+|---|---|---|
+| `KLETIA_ADMIN_ADDRESSES` | `0xff3a3cfc42d27e85dba9ea85f0bfec34bd632f9a` | already set in `render.yaml` (EVM wallets, comma separated) |
+| `KLETIA_ADMIN_SOLANA_ADDRESSES` | `D2Ts7yCiVjedo6uwqpkM44QA8J45NdVU1J3k5m6iWtvm` | already set in `render.yaml` (Solana wallets, comma separated) |
+| `RENDER_API_KEY` | a Render API key | Render → Account settings → API keys; add it on the API service, then redeploy (status and redeploy buttons) |
+| `KLETIA_ADMIN_ORIGINS` | optional exact origins | default `https://kletiaai.xyz,https://www.kletiaai.xyz` |
+| `KLETIA_RENDER_API_SERVICE_ID`, `KLETIA_RENDER_SITE_SERVICE_ID` | `srv-d7ccgk1kh4rs73cir6c0`, `srv-d7cd2mlckfvc7388hrmg` | already set in `render.yaml` |
+
+Either allowlist alone turns the panel on. Both unset, or any invalid entry in either list, turns it off (fail closed).
+The panel also needs `KLETIA_DATABASE_URL` in production. To let the Safe co-signer
+`0x8c5281055B197443fF01dbBDFBf29fD63946cA1E` sign Safe proposals or manage the Arc contracts it owns, append it to
+`KLETIA_ADMIN_ADDRESSES`. A Solana sign-in opens the same panel; on-chain EVM actions still need an EVM admin wallet
+connected to sign.
+
 ## Site service (`KletiaAi`, kletiaai.xyz)
 
 | Variable | What to put |

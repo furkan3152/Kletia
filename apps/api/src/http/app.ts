@@ -37,12 +37,14 @@ import {
   createPlatformRouter,
   platformErrorHandler,
 } from "../platform/http/index.js";
+import { createAdminRouter } from "../admin/http/router.js";
 
 /**
  * Express composition root. Order is part of the security contract:
  *   helmet -> CORS (path-switched: /v1 public, everything else allowlisted)
  *   -> /v1 platform API (own 64 KB JSON parser, keys, tier limits, errors)
- *   -> JSON body -> /api/ limiter -> /api routers.
+ *   -> JSON body -> /api/admin (own limits, session, audit) -> /api/ limiter
+ *   -> /api routers.
  */
 
 (BigInt.prototype as any).toJSON = function () {
@@ -61,6 +63,10 @@ app.use(createCorsMiddleware());
 app.use(PLATFORM_API_PREFIX, createPlatformRouter(), platformErrorHandler);
 
 app.use(express.json());
+
+// Wallet-gated operator API for /admin. Mounted before the /api/ limiter: it
+// brings its own limits, origin allowlist, header, cookie session and audit.
+app.use("/api/admin", createAdminRouter());
 
 app.use("/api/", apiLimiter);
 app.use("/api/premium", premiumLimiter, requireFixedBaseNetwork, premiumRoutes);

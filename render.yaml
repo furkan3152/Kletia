@@ -150,6 +150,26 @@ services:
         value: "0xCae3520A4348BEB2b74Ef52E8be2dE06f57fC0Bc"
       - key: X402_TREASURY_ADDRESS
         sync: false
+      # Admin panel (/admin): wallets allowed to sign in, comma separated.
+      # Either list alone enables the panel; an invalid entry in either list
+      # disables it (fail closed). EVM wallets sign EIP-4361 (EOA or
+      # ERC-1271); Solana wallets sign the Sign In With Solana text (ed25519).
+      - key: KLETIA_ADMIN_ADDRESSES
+        value: "0xff3a3cfc42d27e85dba9ea85f0bfec34bd632f9a"
+      - key: KLETIA_ADMIN_SOLANA_ADDRESSES
+        value: "D2Ts7yCiVjedo6uwqpkM44QA8J45NdVU1J3k5m6iWtvm"
+      # Optional exact admin origins (same-site with api.kletiaai.xyz); the
+      # default is https://kletiaai.xyz,https://www.kletiaai.xyz.
+      - key: KLETIA_ADMIN_ORIGINS
+        sync: false
+      # Render API key for the panel's status and redeploy buttons (account
+      # settings, API keys). The panel never edits env vars.
+      - key: RENDER_API_KEY
+        sync: false
+      - key: KLETIA_RENDER_API_SERVICE_ID
+        value: srv-d7ccgk1kh4rs73cir6c0
+      - key: KLETIA_RENDER_SITE_SERVICE_ID
+        value: srv-d7cd2mlckfvc7388hrmg
       # Token deployment is independent from swap routing. This exact
       # LaunchFactory deployment is live and revalidated at one
       # pinned Base block for every compiled deploy_token intent.
@@ -267,6 +287,31 @@ services:
       - path: /go/*
         name: Content-Security-Policy
         value: frame-ancestors 'none'
+      # Admin panel: never framed, never indexed, never cached.
+      - path: /admin
+        name: X-Frame-Options
+        value: DENY
+      - path: /admin
+        name: Content-Security-Policy
+        value: frame-ancestors 'none'; object-src 'none'; base-uri 'none'
+      - path: /admin
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /admin
+        name: Cache-Control
+        value: no-store
+      - path: /admin/*
+        name: X-Frame-Options
+        value: DENY
+      - path: /admin/*
+        name: Content-Security-Policy
+        value: frame-ancestors 'none'; object-src 'none'; base-uri 'none'
+      - path: /admin/*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /admin/*
+        name: Cache-Control
+        value: no-store
       # The embeddable widget is the only page other sites may frame.
       - path: /embed
         name: Content-Security-Policy

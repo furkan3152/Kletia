@@ -160,6 +160,42 @@ made; a deposit is bound only through the status of a request id quoted for
 the step, which fails closed (it waits, and goes to manual review after an
 hour if never attributed).
 
+## Circle CCTP V2 on testnets
+
+CCTP V2 also runs on the testnet lane, with the same burn-and-mint flow as on
+mainnet (exact `depositForBurnWithHook`, Fast finality, the Forwarding
+Service's static hook, `maxFee` = protocol fee rounded up plus
+`forwardFee.high`).
+
+| Network | CCTP domain | Contracts (pinned in `VENUE_CONTRACTS`) |
+|---|---|---|
+| Arc Testnet | 26 | TokenMessengerV2 `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`, MessageTransmitterV2 `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275`, TokenMinterV2 `0xb43db544E2c27092c107639Ad201b3dEfAbcF192` |
+| Arbitrum Sepolia | 3 | same three addresses |
+| Solana Devnet (destination only) | 5 | `CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe` (TokenMessengerMinter), `CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC` (MessageTransmitter) |
+
+Routes served: Arc Testnet to Arbitrum Sepolia and back, and Arc Testnet or
+Arbitrum Sepolia to Solana Devnet (minted into the recipient's existing devnet
+USDC token account, as on mainnet). Solana Devnet origins are not built.
+
+- **Sandbox Iris.** Fees and attested messages of a testnet burn come from
+  Circle's sandbox (`CCTP_IRIS_SANDBOX_URL`); the deployment is chosen from the
+  source network's environment. Production Iris is never asked about a testnet
+  burn, and the sandbox never about a mainnet one.
+- **One lane per route.** Source and destination must share an environment.
+  CCTP domains repeat across lanes (3 is Arbitrum and Arbitrum Sepolia, 5 is
+  Solana and Solana Devnet), so the network, never the domain, picks the lane.
+  A mixed route is refused when routes are listed, when quoting, when
+  preparing and when reading fees, and a burn proof or settlement poll whose
+  destination is on the other lane is never accepted.
+- **Arc USDC.** Arc's gas token is USDC (18 decimals natively); CCTP burns the
+  ERC-20 interface `0x3600000000000000000000000000000000000000`, which has 6
+  decimals, so amounts, approvals and the burn are in 6-decimal units. Gas on
+  Arc is paid from the same USDC balance, and the plan says so.
+- **Sandbox fees (2026-10-15).** Arc to Arbitrum Sepolia: 0 bps plus about
+  0.095 USDC forwarding gas; Arbitrum Sepolia to Arc: 1.3 bps plus about 0.022
+  USDC; to Solana Devnet: about 0.13 USDC forwarding. Testnet USDC has no
+  value.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -171,6 +207,8 @@ hour if never attributed).
 | `DEBRIDGE_ACCESS_TOKEN` | unset | deBridge access token (`accesstoken` query parameter). |
 | `DEBRIDGE_API_URL` | https://dln.debridge.finance/v1.0 | DLN order API. |
 | `DEBRIDGE_TRACKING_URL` | https://dln-api.debridge.finance | DLN order-tracking API (fill transaction of an order). |
+| `CCTP_IRIS_API_URL` | https://iris-api.circle.com | Circle Iris for mainnet CCTP burns (fees and attested messages). |
+| `CCTP_IRIS_SANDBOX_URL` | https://iris-api-sandbox.circle.com | Circle's sandbox Iris for testnet CCTP burns (Arc Testnet, Arbitrum Sepolia, Solana Devnet). |
 
 ## Known limits
 

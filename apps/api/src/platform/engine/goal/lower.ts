@@ -11,7 +11,7 @@
  * "all but 0.1", a whole-wallet sweep) is not lowered: null.
  */
 import type { AmountSel, AssetSel, Goal } from "@kletia/core";
-import { isUsdWord, providerFromWord, stakeProvider, USD_ORDER } from "../clarify/catalog.js";
+import { family, isUsdWord, lane, NETWORK_ORDER, providerFromWord, recipientFamily, stakeProvider, USD_ORDER } from "../clarify/catalog.js";
 import type { Kind, Slot, WorkStep } from "../clarify/types.js";
 import { toThreadAmount } from "./amounts.js";
 import { sameSel, type ReadGoal } from "./frames.js";
@@ -95,7 +95,7 @@ function lowerConvert(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   if (goal.want.amount && !(goal.want.amount.t === "usd" && !goal.spend.amount)) return null;
   if (goal.spend.asset && "class" in goal.spend.asset && !isStableClass(goal.spend.asset)) return null;
   if (goal.spend.asset && isStableClass(goal.spend.asset) && goal.spend.amount && goal.spend.amount.t !== "exact" && goal.spend.amount.t !== "usd") return null;
-  if (!goal.spend.asset && !notes.buy && !goal.spend.amount) return null;
+  if (!goal.spend.asset && !notes.buy && !goal.spend.amount && !goal.want.asset) return null;
   if (goal.want.asset && "class" in goal.want.asset && !isStableClass(goal.want.asset)) return null;
   if (goal.spend.asset && goal.want.asset && sameSel(goal.spend.asset, goal.want.asset)) return null;
   const source = goal.spend.from?.network;
@@ -159,9 +159,19 @@ function lowerDeliver(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   }
   switch (goal.holder.t) {
     case "address":
-    case "name":
+    case "name": {
       step.recipient = slot(goal.holder.value);
+      // A raw address of the other family than the network said ("on base to <Solana address>") is a bridge to the address's network.
+      const said = step.network?.v;
+      const recipientFamilyOf = goal.holder.t === "address" ? recipientFamily(goal.holder.value) : null;
+      if (step.kind?.v === "transfer" && said && recipientFamilyOf && recipientFamilyOf !== "caip" && recipientFamilyOf !== family(said)) {
+        const toNetwork = NETWORK_ORDER.find((network) => family(network) === recipientFamilyOf && lane(network) === lane(said));
+        if (!toNetwork) return null;
+        step.kind = slot("bridge");
+        step.toNetwork = slot(toNetwork, "derived");
+      }
       break;
+    }
     case "nickname":
       // The word itself is never kept: Kletia never looks up or completes a nickname.
       step.nickname = true;
@@ -206,6 +216,8 @@ function lowerEarn(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
     if (!putAmount(step, goal.spend.amount, read, ctx, shareOf(read))) return null;
   }
   if (kind === "stake") {
+    // Staking takes the native asset only; "stake my JitoSOL" is not a stake the frames can say.
+    if (spendSymbol && !native) return null;
     const provider = (venue?.provider ? stakeProvider(venue.provider) : undefined) ?? lstProvider;
     const input = spendSymbol?.toUpperCase();
     step.from = spendSymbol ? slot(input === "ETH" || input === "SOL" ? input : spendSymbol) : slot(provider?.input ?? "SOL", "derived");
@@ -221,9 +233,11 @@ function lowerEarn(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
 function lowerExit(read: ReadGoal, ctx: LowerContext): WorkStep[] | null {
   const { goal, notes } = read;
   const venue = notes.fromVenue;
-  if (!venue?.lending || goal.holder.t !== "self") return null;
+  if (goal.holder.t !== "self") return null;
+  if (!venue?.lending && !(goal.op === "withdraw" && !venue)) return null;
   const network = goal.spend.from?.network;
-  const step: WorkStep = { kind: slot("withdraw"), protocol: slot(venue.lending) };
+  const step: WorkStep = { kind: slot("withdraw") };
+  if (venue?.lending) step.protocol = slot(venue.lending);
   if (network) step.network = slot(network);
   if (!setFrom(step, goal.spend.asset)) return null;
   if (goal.spend.amount) {

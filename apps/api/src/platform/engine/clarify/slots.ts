@@ -430,7 +430,8 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
       // The Goal reader, only when the strict reader (with typo correction) found nothing.
       const options = { previousExists: previous, index, strict: (piece: string, before: boolean) => parseClause(piece, before) };
       let reading = readClause(clause, options);
-      if (!reading && fixed && fixed.text !== clause) {
+      // Keyword typos may help the Goal reader too, but never a corrected verb: "unstake" is not "stake".
+      if (!reading && fixed && fixed.text !== clause && !fixed.corrections.some((entry) => entry.field.endsWith(".kind")) && !fixed.verbCandidates) {
         reading = readClause(fixed.text, options);
         if (reading) corrections.push(...fixed.corrections);
       }
@@ -449,6 +450,7 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
       steps.push(step);
     });
   });
+  if (steps.length === 0) throw notUnderstood(text);
   if (steps.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
   return { steps, corrections };
 }

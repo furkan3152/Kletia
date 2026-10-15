@@ -16,6 +16,7 @@ import {
   type NetworkKey,
 } from "@kletia/core";
 
+import { DELAYED_ABOVE_MS } from "../../site/art/boardFormat.ts";
 import { DESK_COPY } from "../content/copy.ts";
 import { containsSensitivePromptMaterial } from "../../../shared/security/promptSecrets.ts";
 import { formatUsd, holdingLabels, type NetworkHoldings } from "./holdings.ts";
@@ -31,8 +32,8 @@ export const LEGACY_NETWORKS: readonly LegacyNetwork[] = Object.freeze(["base", 
 /** Per-browser departure choice; mirrored to `?from=`. */
 export const DEPARTURE_STORAGE_KEY = "kletia-desk-departure";
 
-/** Latency above which a running network is shown as delayed. */
-export const DELAYED_LATENCY_MS = 1500;
+/** Latency above which a running network is shown as delayed: the departure board's own limit (see boardFormat.ts for why 3 s). */
+export const DELAYED_LATENCY_MS = DELAYED_ABOVE_MS;
 
 export function isLegacyNetwork(value: unknown): value is LegacyNetwork {
   return typeof value === "string" && (LEGACY_NETWORKS as readonly string[]).includes(value);

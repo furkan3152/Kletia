@@ -4,7 +4,7 @@ import { Link } from "../../routes/Link";
 import { Icon } from "../../site/art/Icon";
 import { RouteMapCard } from "../../site/art/MapCard";
 import { Ticket } from "../../site/art/Ticket";
-import { countWord, listNames, PRODUCTION, YARD } from "../../site/registryCopy";
+import { countWord, listNames, NETWORK_COUNT, PRODUCTION, YARD } from "../../site/registryCopy";
 import { ButtonLink } from "../../site/ui/Button";
 import { CONTAINER, cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
 import { studioHref } from "../protocols/protocolExamples";
@@ -35,7 +35,8 @@ export interface HeroSectionProps {
  */
 export function HeroSection({ protocols }: HeroSectionProps) {
   // Neutral nine-network positioning: every network is named in registry order, none is "the" network.
-  const networks = PRODUCTION.length + YARD.length;
+  // The kicker and the headline print the same registry count (production and test networks together).
+  const networks = NETWORK_COUNT;
   const productionNames = listNames(PRODUCTION.map((line) => line.name));
   return (
     <section

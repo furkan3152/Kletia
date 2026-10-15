@@ -5,18 +5,7 @@
  */
 import { PRODUCTION_LINES, YARD_LINES, type Line } from "./art";
 
-const WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
-
-/** "six" for 6, digits from 13 up (headings read better with small numbers in words). */
-export function countWord(count: number): string {
-  return Number.isInteger(count) && count >= 0 && count < WORDS.length ? WORDS[count]! : String(count);
-}
-
-/** "Six", for the start of a sentence. */
-export function countWordTitle(count: number): string {
-  const word = countWord(count);
-  return word.charAt(0).toUpperCase() + word.slice(1);
-}
+export { countWord, countWordTitle, NETWORK_COUNT, PRODUCTION_NETWORK_COUNT, TEST_NETWORK_COUNT } from "./networkCount";
 
 /** "A, B and C". */
 export function listNames(names: readonly string[]): string {

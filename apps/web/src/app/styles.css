@@ -8,7 +8,8 @@
    names them (bg-paper, bg-surface, text-fg, text-muted, border-line,
    border-control, text-accent-text, bg-signal, outline-focus, StatusPill
    tones...), so a component states its role once and both themes follow.
-   Text pairs are at least 4.5:1, --kl-control and --kl-focus at least 3:1
+   Text pairs are at least 4.5:1; --kl-control, --kl-focus and
+   --kl-field-focus (the ink rule of a focused text box) at least 3:1
    on --kl-paper and --kl-surface in both themes
    (site/ui/__tests__/tokens.test.mjs). --kl-line is decorative only.
    The art (--kla-*), the network colours and the widget's --kw-* tokens
@@ -26,6 +27,7 @@
   --kl-accent-text: #0047e0;
   --kl-signal: #ffd60a;
   --kl-focus: #0052ff;
+  --kl-field-focus: #1a1a1a;
   --kl-placeholder: #6b7280;
   --kl-success: #0b5e3a;
   --kl-success-bg: #e6fff4;
@@ -50,6 +52,7 @@
   --kl-accent-text: #7ea6ff;
   --kl-signal: #ffd60a;
   --kl-focus: #ffd60a;
+  --kl-field-focus: #ffd60a;
   --kl-placeholder: #94a3b8;
   --kl-success: #5cf2b4;
   --kl-success-bg: #0e2a22;
@@ -387,4 +390,39 @@ html[data-motion="off"]::view-transition-new(*) {
 .kw-root[data-theme="dark"] .kw-brand b,
 .kw-root[data-theme="dark"] .kw-link {
   color: #7ea6ff;
+}
+
+/* =========================================================================
+   TEXT-BOX FOCUS
+   A focused text box keeps its ink border, gains a 2px inner ink rule and
+   steps its offset shadow out to 5px: the art direction's printed-ticket
+   look, not a browser-blue ring. Text fields match :focus-visible on mouse
+   clicks too (the caret needs it), so this one treatment serves mouse and
+   keyboard alike and stays clearly visible for WCAG 2.4.7: --kl-field-focus
+   is ink on paper by day (16:1) and the signal yellow at night (at least
+   3:1, site/ui/__tests__/tokens.test.mjs). Buttons, links and checkboxes
+   keep the --kl-focus outline. The transparent outline is what forced-colors
+   mode paints, where box shadows are dropped.
+   Specificity: `:root` plus the :is() argument (an element and an
+   attribute) plus :focus outranks the Tailwind focus utilities on these
+   fields (`.dark .dark\:focus\:shadow-[...]:focus` is 0,3,0), so no field
+   needs `!important` or a class change to drop the blue ring.
+   ========================================================================= */
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type="text"],
+    input[type="search"],
+    input[type="email"],
+    input[type="url"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"]
+  ):focus {
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow:
+    inset 0 0 0 2px var(--kl-field-focus),
+    5px 5px 0 var(--kl-shadow-ink);
 }

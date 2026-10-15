@@ -18,6 +18,7 @@ const TOKENS = [
   "accent-text",
   "signal",
   "focus",
+  "field-focus",
   "placeholder",
   "success",
   "success-bg",
@@ -94,7 +95,7 @@ test("every text pair reaches 4.5:1 in both themes", () => {
 
 test("controls and the focus outline reach 3:1 on the page and on panels in both themes", () => {
   for (const [theme, t] of Object.entries(THEMES)) {
-    for (const token of ["control", "focus"]) {
+    for (const token of ["control", "focus", "field-focus"]) {
       for (const background of ["paper", "surface"]) {
         const ratio = contrast(t[token], t[background]);
         assert.ok(ratio >= 3, `${theme}: --kl-${token} on --kl-${background} is ${ratio.toFixed(2)}:1`);

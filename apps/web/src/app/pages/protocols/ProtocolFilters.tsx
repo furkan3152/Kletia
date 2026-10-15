@@ -146,7 +146,7 @@ export function ProtocolFilters({ api, networks, categories, shown, total, loadi
             spellCheck={false}
             aria-keyshortcuts="/"
             className={cx(
-              "min-h-11 w-full border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-3 text-[15px] text-[#1A1A1A] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] focus:shadow-[3px_3px_0_#0052FF] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9] dark:placeholder:text-[#8B97A8] dark:focus:shadow-[3px_3px_0_#FFD60A] motion-reduce:transition-none sm:pr-9",
+              "min-h-11 w-full border-[3px] border-[#1A1A1A] bg-white py-2 pl-9 pr-3 text-[15px] text-[#1A1A1A] shadow-hard-sm transition-shadow duration-150 placeholder:text-[#6B7280] dark:border-[#4B5563] dark:bg-[#131E32] dark:text-[#F1F5F9] dark:placeholder:text-[#8B97A8] motion-reduce:transition-none sm:pr-9",
               FOCUS_RING,
             )}
           />

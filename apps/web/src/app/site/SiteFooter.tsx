@@ -1,4 +1,4 @@
-import { CHAINS, PROTOCOLS } from "@kletia/core";
+import { PROTOCOLS } from "@kletia/core";
 import { ArrowUpRight } from "lucide-react";
 
 import { BACKEND_URL } from "../../shared/config/runtime";
@@ -7,6 +7,7 @@ import { Icon } from "./art/Icon";
 import { LineRule } from "./art/Ornaments";
 import { KletiaMark } from "./KletiaMark";
 import { MotionToggle } from "./MotionToggle";
+import { NETWORK_COUNT, PRODUCTION_NETWORK_COUNT, TEST_NETWORK_COUNT } from "./networkCount";
 import { protocolCountLabel } from "./protocolCount";
 import {
   CONTRIBUTING_URL,
@@ -64,9 +65,6 @@ const LINK =
 /** The footer is always dark: a yellow focus ring in both themes. */
 const FOCUS_ON_INK =
   "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#FFD60A]";
-const CHAIN_LIST = Object.values(CHAINS);
-const PRODUCTION = CHAIN_LIST.filter((chain) => chain.lane !== "testnet").length;
-const TESTNETS = CHAIN_LIST.length - PRODUCTION;
 const PROTOCOL_COUNT = protocolCountLabel(PROTOCOLS);
 
 /** Site footer: product, developer and company links plus the custody statement. */
@@ -81,7 +79,7 @@ export function SiteFooter() {
               <span className="font-display text-2xl font-bold uppercase tracking-[-0.02em]">Kletia</span>
             </Link>
             <p className="mt-5 text-sm leading-relaxed text-white/75">
-              Intent routing across {CHAIN_LIST.length} networks, from one sentence: a console for people, and an API,
+              Intent routing across {NETWORK_COUNT} networks, from one sentence: a console for people, and an API,
               SDK and widget for teams who want routes inside their own product.
             </p>
             <p className="mt-6 inline-flex items-center gap-2.5 text-balance border-2 border-[#FFD60A] px-3 py-2 font-code text-xs font-bold uppercase tracking-[0.12em] text-[#FFD60A] [--kla-plate:#0052FF]">
@@ -125,7 +123,7 @@ export function SiteFooter() {
             . Kletia is in development and has not been audited.
           </p>
           <p className="font-code">
-            {PRODUCTION} production networks · {TESTNETS} testnets · {PROTOCOL_COUNT} in @kletia/core
+            {PRODUCTION_NETWORK_COUNT} production networks · {TEST_NETWORK_COUNT} test networks · {PROTOCOL_COUNT} in @kletia/core
           </p>
           {/* The footer is always ink: the switch reads night control tokens and a yellow focus ring here. */}
           <MotionToggle className="shrink-0 text-white [--kl-control:#94A3B8] [--kl-focus:#FFD60A] [--kl-muted:#CBD5E1] [--kl-surface:#0B1220]" />

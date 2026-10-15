@@ -95,8 +95,9 @@ test("a network the deployment does not offer is disabled; latency marks a runni
   const offered = offeredNetworks([{ key: "base" }, { key: "solana" }, { key: "not-a-network" }]);
   assert.deepEqual(offered, ["base", "solana"]);
   const health = healthReadings([
-    { network: "base", ok: true, latencyMs: 96 },
-    { network: "solana", ok: true, latencyMs: 2400 },
+    // A cold-started API reads public EVM RPCs in about 2.5 s: still running (3 s limit, boardFormat.ts).
+    { network: "base", ok: true, latencyMs: 2465 },
+    { network: "solana", ok: true, latencyMs: 3400 },
     { network: "ethereum", ok: false, latencyMs: 0 },
     { network: "nowhere", ok: true, latencyMs: 1 },
   ]);

@@ -170,13 +170,40 @@
   color: var(--kl-placeholder);
 }
 
-.kd-composer textarea:focus {
-  outline: none;
+/* The box, not the bare textarea, shows focus: the same ink treatment as every
+   text box (styles.css, TEXT-BOX FOCUS), one step deeper because the composer
+   is the desk's main object. Only the textarea counts: the departure chip and
+   the Plan button inside the box draw their own focus outline. */
+.kd-composer__box {
+  transition:
+    box-shadow 120ms ease-out,
+    transform 120ms ease-out;
 }
 
-.kd-composer__box:focus-within {
-  outline: 4px solid var(--kl-focus);
-  outline-offset: 2px;
+.kd-composer__box:has(textarea:focus) {
+  outline: 2px solid transparent;
+  box-shadow:
+    inset 0 0 0 2px var(--kl-field-focus),
+    6px 6px 0 #1a1a1a;
+  transform: translate(-1px, -1px);
+}
+
+.dark .kd-composer__box:has(textarea:focus) {
+  box-shadow:
+    inset 0 0 0 2px var(--kl-field-focus),
+    6px 6px 0 #475569;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kd-composer__box {
+    transition: none;
+  }
+}
+
+/* The textarea sits inside the box: the box draws its focus, the field draws none. */
+:root .kd-composer .kd-composer__box textarea:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 /* --- Departure chip ------------------------------------------------------- */

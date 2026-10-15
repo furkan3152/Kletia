@@ -12,6 +12,7 @@ import { CHAINS, NETWORK_KEYS, PROTOCOLS } from "@kletia/core";
 import {
   boardName,
   boardStatus,
+  DELAYED_ABOVE_MS,
   describeLatency,
   DRUM,
   flipsBetween,
@@ -123,8 +124,13 @@ test("boardStatus() maps health readings", () => {
   assert.equal(boardStatus({ ok: null }), "unknown");
   assert.equal(boardStatus({ ok: false, latencyMs: 20 }), "suspended");
   assert.equal(boardStatus({ ok: true, latencyMs: 96 }), "running");
-  assert.equal(boardStatus({ ok: true, latencyMs: 1840 }), "delayed");
-  assert.equal(boardStatus({ ok: true, latencyMs: 1840 }, { delayedAboveMs: 2000 }), "running");
+  // A cold-started API reads public EVM RPCs in 1.7-2.5 s: still running (boardFormat.ts).
+  assert.equal(DELAYED_ABOVE_MS, 3000);
+  assert.equal(boardStatus({ ok: true, latencyMs: 2495 }), "running");
+  assert.equal(boardStatus({ ok: true, latencyMs: 3000 }), "running");
+  assert.equal(boardStatus({ ok: true, latencyMs: 3001 }), "delayed");
+  assert.equal(boardStatus({ ok: true, latencyMs: 3840 }), "delayed");
+  assert.equal(boardStatus({ ok: true, latencyMs: 1840 }, { delayedAboveMs: 1500 }), "delayed");
   assert.equal(boardStatus({ ok: true }), "running");
 });
 

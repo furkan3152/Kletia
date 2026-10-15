@@ -635,7 +635,10 @@ function solveGoal(env: GoalEnv): Step {
       const sameOnly = all.every((route) => required.get(route)?.same === true);
       if (goal.spend.from?.network || pins?.source || goal.spend.asset || sameOnly) {
         const routeSources = [...new Map(all.map((route) => [route.source.node.id, route.source])).values()];
-        const exceeds = exceedsQuestion({ index: env.index, symbol: routeSources[0]?.node.symbol ?? symbol, need: target, sources: routeSources, elsewhere: [] });
+        // The shortfall is in what pays: the source amount the target needs, not the target itself (0.1 SOL paid in USDC).
+        const needs = all.map((route) => required.get(route)?.value).filter((value): value is string => value !== undefined);
+        const need = needs.length > 0 ? needs.reduce((low, value) => (cmp(value, low) < 0 ? value : low)) : target;
+        const exceeds = exceedsQuestion({ index: env.index, symbol: routeSources[0]?.node.symbol ?? symbol, need, sources: routeSources, elsewhere: [] });
         if (exceeds) return ask(exceeds);
       }
       const options: Option[] = [];

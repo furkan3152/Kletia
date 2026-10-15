@@ -45,6 +45,7 @@ import { createIntentDetailed } from "../service.js";
 import { networkName } from "./catalog.js";
 import { assumption, clip } from "./copy.js";
 import { TurnFacts } from "./facts.js";
+import { goalStepFrom, isGoalStep, isPlaceholder, placeholderOf, storedGoal } from "./goals.js";
 import { closestSentence, fromActionSpecs, render, toActionSpecs } from "./render.js";
 import { reduceTurn, type ReduceOutcome } from "./turn.js";
 import type { Assumption, EditOp, Option, Question, ResolvedAction, TurnContext, TurnInput, TurnKindName, WorkState, WorkStep } from "./types.js";
@@ -65,7 +66,9 @@ export function newThreadId(): string {
 
 const SLOT_KEYS = ["kind", "amount", "from", "to", "network", "toNetwork", "recipient", "protocol", "vault", "provider", "contract"] as const;
 
-function stepToThread(step: WorkStep): ThreadStep {
+function stepToThread(input: WorkStep): ThreadStep {
+  // A goal step is stored as a placeholder (no kind) plus its Goal in thread.goals.
+  const step = isGoalStep(input) ? placeholderOf(input) : input;
   const out: Record<string, unknown> = {};
   for (const key of SLOT_KEYS) {
     const slot = step[key];
@@ -118,16 +121,30 @@ export function stateFromThread(thread: ClarifyThread): WorkState {
   if (thread.status === "needs_input" && thread.open.includes("edit") && thread.pendingEdit === undefined) {
     throw new PlatformError("THREAD_INVALID", "The thread is not valid. Send it exactly as the last response returned it, or start a new one.", 400, [{ path: "thread.open", message: "An edit question without its edit." }]);
   }
+  // Goal steps: each placeholder step (no kind) takes the next stored Goal.
+  const goals = thread.goals ?? [];
+  const placeholders = thread.steps.filter((step) => isPlaceholder(step)).length;
+  if (placeholders !== goals.length) {
+    throw new PlatformError("THREAD_INVALID", "The thread is not valid. Send it exactly as the last response returned it, or start a new one.", 400, [{ path: "thread.goals", message: "One goal per goal step." }]);
+  }
+  let next = 0;
+  const steps = thread.steps.map((step) => {
+    const work = stepFromThread(step, current);
+    if (!isPlaceholder(step)) return work;
+    const goal = goals[next] as NonNullable<ClarifyThread["goals"]>[number];
+    next += 1;
+    return goalStepFrom(work, goal);
+  });
   return {
     id: thread.id,
     rev: thread.rev,
     status: thread.status,
-    steps: thread.steps.map((step) => stepFromThread(step, current)),
+    steps,
     open: [...thread.open],
     ...(thread.pendingEdit !== undefined && current ? { pendingEdit: thread.pendingEdit as WorkState["pendingEdit"] } : {}),
     corrections: thread.corrections.map((entry) => ({ ...entry })),
     turns: thread.turns.map((entry) => ({ ...entry })),
-    undo: thread.undo.map((snapshot) => snapshot.map((step) => stepFromThread(step, current))),
+    undo: thread.undo.filter((snapshot) => !snapshot.some((step) => isPlaceholder(step))).map((snapshot) => snapshot.map((step) => stepFromThread(step, current))),
   };
 }
 
@@ -137,6 +154,7 @@ function serialisedBytes(value: unknown): number {
 
 /** The thread blob of a state, within THREAD_LIMITS (older undo snapshots, then older turns, go first). */
 export function threadFromState(state: WorkState): ClarifyThread {
+  const goals = state.steps.filter(isGoalStep).map((step) => storedGoal(step));
   let thread: ClarifyThread = {
     spec: THREAD_SPEC,
     id: state.id,
@@ -148,7 +166,9 @@ export function threadFromState(state: WorkState): ClarifyThread {
     ...(state.pendingEdit ? { pendingEdit: state.pendingEdit } : {}),
     corrections: state.corrections.slice(0, THREAD_LIMITS.maxSteps * 4),
     turns: state.turns.slice(-THREAD_LIMITS.storedTurns),
-    undo: state.undo.slice(-THREAD_LIMITS.undoSnapshots).map((snapshot) => snapshot.map(stepToThread)),
+    // An undo snapshot with goal steps is not kept: its goals are not stored (undo then goes further back).
+    undo: state.undo.filter((snapshot) => !snapshot.some(isGoalStep)).slice(-THREAD_LIMITS.undoSnapshots).map((snapshot) => snapshot.map(stepToThread)),
+    ...(goals.length > 0 ? { goals } : {}),
   };
   while (serialisedBytes(thread) > THREAD_LIMITS.maxBytes && (thread.undo.length > 0 || thread.turns.length > 0)) {
     thread = thread.undo.length > 0 ? { ...thread, undo: thread.undo.slice(1) } : { ...thread, turns: thread.turns.slice(1) };
@@ -235,6 +255,9 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
     return { status: "cancelled", turn: "control", thread: next, questions: [], assumptions: [], optionSentences: new Map(), state: outcome.state };
   }
   const { analysis } = outcome;
+  if (analysis.pending) {
+    throw new PlatformError("INTENT_UNSUPPORTED", "Kletia could not read your holdings for this request right now. Try again, or name the asset, amount and network.", 422, [{ path: "text", message: "Holdings unavailable." }]);
+  }
   let assumptions = [...analysis.assumptions];
   if (outcome.status === "needs_input") {
     // Each option that makes the thread ready carries the sentence it leads to (no new reads for a preview).
@@ -343,7 +366,10 @@ const TITLE: Readonly<Record<string, string>> = {
 function draftOf(state: WorkState, missing: readonly string[], sentence: string | null): ClarifyDraft {
   const steps: ClarifyDraftStep[] = state.steps.map((step, index) => ({
     index,
-    ...(step.kind ? { kind: step.kind.v } : {}),
+    ...(step.kind ? { kind: step.kind.v } : step.goal?.op ? { kind: step.goal.op } : {}),
+    ...(isGoalStep(step) && step.goal.spend.asset && "symbol" in step.goal.spend.asset ? { from: step.goal.spend.asset.symbol } : {}),
+    ...(isGoalStep(step) && step.goal.want.asset && "symbol" in step.goal.want.asset ? { to: step.goal.want.asset.symbol } : {}),
+    ...(isGoalStep(step) && (step.goal.want.at?.network ?? step.goal.spend.from?.network) ? { network: (step.goal.want.at?.network ?? step.goal.spend.from?.network) as NetworkKey } : {}),
     ...(step.network ? { network: step.network.v } : {}),
     ...(step.toNetwork ? { toNetwork: step.toNetwork.v } : {}),
     ...(step.from ? { from: step.from.v } : {}),

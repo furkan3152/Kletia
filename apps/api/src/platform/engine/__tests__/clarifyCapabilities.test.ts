@@ -21,7 +21,7 @@ import {
 import { configureAdapters } from "../adapters/registry.js";
 import type { AdapterAction, PlannedStep, ProtocolAdapter } from "../adapters/types.js";
 import { assetAmount } from "../assets.js";
-import { BRIDGE_NETWORKS, OFFERED_KINDS, protocolWord, STAKE_PROVIDERS, SWAP_NETWORKS, VAULT_PROTOCOLS } from "../clarify/catalog.js";
+import { BRIDGE_NETWORKS, OFFERED_KINDS, protocolWord, STAKE_PROVIDERS, SWAP_NETWORKS, TESTNET_BRIDGE_NETWORKS, VAULT_PROTOCOLS } from "../clarify/catalog.js";
 import { installWallet, type Corpus } from "../clarify/corpusHarness.js";
 import { clarifyTurn } from "../clarify/index.js";
 import { configureHoldingsReaders } from "../holdings.js";
@@ -72,6 +72,7 @@ const ADAPTERS: ProtocolAdapter[] = [
   stubFor("relay", ["swap", "bridge"], { supports: (route) => route.kind === "bridge" || (route.kind === "swap" && route.network !== "solana") }),
   ...LENDING.map((id) => stubFor(id, ["deposit", "withdraw"])),
   ...["lido", "rocket-pool", "etherfi"].map((id) => stubFor(id as ProtocolId, ["stake"], { supports: (route) => route.kind === "stake" && route.network === "ethereum" })),
+  stubFor("solana-stake", ["stake"], { supports: (route) => route.kind === "stake" && (route.network === "solana" || route.network === "solana-devnet") }),
 ];
 
 /** A wallet that holds plenty of every listed asset on every network. */
@@ -96,14 +97,18 @@ const RICH: Corpus = {
 
 const ACCOUNTS = [EVM_ACCOUNT, SOL_ACCOUNT] as const;
 
-async function plan(text: string, extra: Record<string, unknown> = {}): Promise<IntentTurnResponse> {
+/** Testnet capital: the same addresses on Arbitrum Sepolia and Solana Devnet (accounts re-home within their lane). */
+const TESTNET_ACCOUNTS = [`eip155:421614:${EVM_ACCOUNT.split(":")[2]}`, `solana:${CHAINS["solana-devnet"].reference}:${SOL_ACCOUNT.split(":")[2]}`] as const;
+
+async function plan(text: string, extra: Record<string, unknown> = {}, accounts: readonly string[] = ACCOUNTS): Promise<IntentTurnResponse> {
   installWallet(RICH, "rich");
-  return clarifyTurn({ text, accounts: [...ACCOUNTS], ...extra } as never, { dryRun: true, thread: null });
+  return clarifyTurn({ text, accounts: [...accounts], ...extra } as never, { dryRun: true, thread: null });
 }
 
-async function assertPlans(text: string): Promise<void> {
-  const response = await plan(text);
+async function assertPlans(text: string, accounts: readonly string[] = ACCOUNTS): Promise<IntentTurnResponse> {
+  const response = await plan(text, {}, accounts);
   assert.equal(response.status, "planned", `${text}: ${response.status === "needs_input" ? JSON.stringify(response.questions.map((q) => q.reason)) : ""}`);
+  return response;
 }
 
 before(() => {
@@ -121,18 +126,34 @@ describe("clarify capabilities: every offered kind and network plans", () => {
     assert.deepEqual([...OFFERED_KINDS], ["swap", "bridge", "transfer", "stake", "deposit", "withdraw"]);
   });
 
-  it("swaps on every swap network", async () => {
+  it("swaps on every swap network of each lane", async () => {
     for (const network of SWAP_NETWORKS) {
+      const testnet = CHAINS[network].environment === "testnet";
       const native = CHAINS[network].nativeAsset.symbol;
-      await assertPlans(`swap 10 USDC to ${native} on ${network}`);
+      await assertPlans(`swap 10 USDC to ${native} on ${network}`, testnet ? TESTNET_ACCOUNTS : ACCOUNTS);
     }
+    assert.ok(SWAP_NETWORKS.includes("arbitrum-sepolia"), "testnet swaps (Uniswap V3 on Arbitrum Sepolia)");
   });
 
-  it("bridges USDC between every pair of bridge networks", async () => {
+  it("bridges USDC between every pair of bridge networks of the same lane, CCTP testnets included", async () => {
     assert.ok(BRIDGE_NETWORKS.length >= 6, BRIDGE_NETWORKS.join(","));
     for (const from of BRIDGE_NETWORKS) {
       for (const to of BRIDGE_NETWORKS) if (from !== to) await assertPlans(`bridge 10 USDC from ${from} to ${to}`);
     }
+    assert.deepEqual([...TESTNET_BRIDGE_NETWORKS], ["arc", "arbitrum-sepolia", "solana-devnet"]);
+    for (const from of TESTNET_BRIDGE_NETWORKS) {
+      for (const to of TESTNET_BRIDGE_NETWORKS) if (from !== to) await assertPlans(`bridge 10 USDC from ${from} to ${to}`, TESTNET_ACCOUNTS);
+    }
+  });
+
+  it("stakes testnet SOL natively on Solana Devnet by default, and reads 'natively' without 'with'", async () => {
+    for (const text of ["stake 2 SOL", "stake 2 SOL natively"]) {
+      const response = await assertPlans(text, TESTNET_ACCOUNTS);
+      if (response.status !== "planned") continue;
+      assert.deepEqual(response.intent.steps.map((step) => [step.kind, step.network]), [["stake", "solana-devnet"]], text);
+    }
+    const mainnet = await assertPlans("stake 2 SOL natively");
+    if (mainnet.status === "planned") assert.deepEqual(mainnet.intent.steps.map((step) => step.network), ["solana"]);
   });
 
   it("sends the native asset on every network", async () => {

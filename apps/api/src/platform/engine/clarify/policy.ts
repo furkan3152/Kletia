@@ -13,19 +13,23 @@
 import {
   CHAINS,
   evmChecksumState,
+  findAssetBySymbol,
+  protocolTier,
   NATIVE_FEE_RESERVE,
   parseAccountId,
   type AssumptionSource,
   type NetworkKey,
+  type ProtocolId,
   type ThreadAmount,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { matchContractPhrase } from "../grammar.js";
+import { matchContractPhrase, NATIVE_STAKE_PROTOCOL } from "../grammar.js";
 import {
   ALIASES,
   AMBIGUOUS_SYMBOLS,
   ambiguousVenue,
   BRIDGE_NETWORKS,
+  bridgeNetworksOf,
   canonicalOn,
   decimalsOf,
   defaultProvider,
@@ -35,6 +39,7 @@ import {
   hasAccount,
   isName,
   isUsdWord,
+  l2StakeOptions,
   lane,
   laneOf,
   lendingProtocols,
@@ -44,6 +49,7 @@ import {
   ownAddress,
   portable,
   protocolLabel,
+  rankedVenueOptions,
   recipientFamily,
   stakeProvider,
   STAKE_PROVIDERS,
@@ -54,7 +60,11 @@ import {
   venueNetworks,
   venuesOn,
 } from "./catalog.js";
-import { assumption, placeholderFor, question, reasonText, short, isReasonCode, type ReasonCode, type ReasonParams } from "./copy.js";
+import { assumption, placeholderFor, PROTOCOL_QUESTION_COPY, question, reasonText, short, isReasonCode, type ReasonCode, type ReasonParams } from "./copy.js";
+import { expandGoalSteps } from "./goals.js";
+import { symbolTypoCandidates } from "../goal/lexer.js";
+import { priceAmount, typoQuestion } from "../solver/decide.js";
+import { apyLabel, riskLabel } from "../solver/explain.js";
 import { cmp, formatDecimal, isPositive, parseDecimal, portion, sub, tidy } from "./decimal.js";
 import { field, pendingEditQuestion } from "./edits.js";
 import { candidates, distance } from "./fuzzy.js";
@@ -174,7 +184,9 @@ function amountPhrase(step: WorkStep, symbol?: string): string {
 function swapCandidates(env: Env, step: WorkStep, from = step.from?.v, to = step.to?.v): NetworkKey[] {
   const tokens = [from ?? (step.usdFrom ? "usd" : undefined), to ?? (step.usdTo ? "usd" : undefined)].filter((token): token is string => token !== undefined);
   const venue = dexNetworks(step.protocol?.v);
-  const pool = venue ? SWAP_NETWORKS.filter((network) => venue.includes(network)) : SWAP_NETWORKS;
+  const current = laneOf(env.ctx.accounts);
+  const lanePool = SWAP_NETWORKS.filter((network) => lane(network) === current);
+  const pool = venue ? lanePool.filter((network) => venue.includes(network)) : lanePool;
   const networks = pool.filter((network) => tokens.every((token) => symbolOnNetwork(env, network, token, false) !== null));
   const usable = networks.filter((network) => hasAccount(env.ctx.accounts, network));
   if (usable.length > 0) return usable;
@@ -364,8 +376,17 @@ function resolveAmount(env: Env, index: number, step: WorkStep, network: Network
     return { amount: value, assumption: assumption(path, `${amount.bps / 100}% of your position: ${value} ${from}`, { amount }, "position", `Your position is ${tidy(position)} ${from}.`, [], true) };
   }
   if (amount.t === "usd") {
-    // Dollar amounts of a non-stable token need a price at plan time (phase 2): say the token amount instead.
-    return { question: question(path, "amount", "AMOUNT_MISSING", `How much ${from}?`, "Kletia does not price a dollar amount of this token yet; say the amount in the token.", [], true, placeholderFor("amount", from)) };
+    // D11: a stablecoin counts at par; another token is priced (chip with the price), or asked without a usable price.
+    if (USD_ORDER.includes(from.toUpperCase()) || findAssetBySymbol(network, from)?.category === "stablecoin") return { amount: amount.value };
+    const price = env.facts.usdPrice?.(network, from);
+    const asset = findAssetBySymbol(network, from);
+    const priced = price && asset
+      ? priceAmount({ index, usd: amount.value, symbol: from, decimals, price: { asset: asset.id, usd: price.usd, source: price.source as never, at: price.at, readAt: price.at, stale: false } })
+      : null;
+    if (!priced) {
+      return { question: question(path, "amount", "AMOUNT_MISSING", `How much ${from}?`, `Kletia could not price ${from} right now; say the amount in ${from}.`, [], true, placeholderFor("amount", from)) };
+    }
+    return { amount: priced.value, assumption: { ...priced.assumption, source: "price" } };
   }
   const value = spendable(env, network, from, amount.bps);
   if (value === undefined) return { question: question(path, "amount", "AMOUNT_BALANCE_UNKNOWN", `How much ${from}?`, "Kletia cannot read your balance; say an exact amount.", [], true, placeholderFor("amount", from)) };
@@ -439,7 +460,7 @@ interface NetworkChoice {
 /** R7: the network (outside `networks`, same lane, input portable to one of them) holding the most of `raw`, if it covers `need`. */
 function holderFor(env: Env, raw: string, networks: readonly NetworkKey[], need: string, current: "mainnet" | "testnet"): NetworkKey | undefined {
   const balances = new Map<NetworkKey, string>();
-  for (const network of BRIDGE_NETWORKS) {
+  for (const network of bridgeNetworksOf(current)) {
     if (networks.includes(network) || lane(network) !== current || !hasAccount(env.ctx.accounts, network)) continue;
     const symbol = canonicalOn(network, raw);
     if (!symbol || !networks.some((target) => portable(raw, false, network, target))) continue;
@@ -531,6 +552,8 @@ function chooseNetwork(env: Env, index: number, step: WorkStep, prevDest: Networ
     const provider = stakeProvider(step.provider?.v);
     if (dependent && prevDest) return { network: prevDest };
     const input = provider?.input ?? (step.from?.v.toUpperCase() === "ETH" ? "ETH" : "SOL");
+    // Testnet capital stakes on Solana Devnet, where only native staking runs.
+    if (current === "testnet") return { network: input === "SOL" ? "solana-devnet" : provider?.network ?? defaultProvider(input).network };
     return { network: provider?.network ?? defaultProvider(input).network };
   }
   const pick = (network: NetworkKey, source: AssumptionSource, code: ReasonCode, pool: readonly NetworkKey[], balances: Map<NetworkKey, string>, extra: ReasonParams = {}): NetworkChoice => {
@@ -579,7 +602,7 @@ function chooseNetwork(env: Env, index: number, step: WorkStep, prevDest: Networ
   if (dependent && prevDest) return { network: prevDest };
   if (kind === "bridge") {
     if (departure) return { network: departure };
-    const networks = BRIDGE_NETWORKS.filter((network) => lane(network) === current && network !== step.toNetwork?.v && hasAccount(ctx.accounts, network) && symbolOn(network));
+    const networks = bridgeNetworksOf(current).filter((network) => network !== step.toNetwork?.v && hasAccount(ctx.accounts, network) && symbolOn(network));
     if (networks.length === 1) return { network: networks[0] as NetworkKey };
     const f = funding(env, networks, symbolOn, step.amount?.v);
     if (assumed && networks.includes(assumed) && (!f.known || f.covering.includes(assumed))) return pick(assumed, "context", "context.kept", networks, f.balances);
@@ -627,9 +650,10 @@ function chooseNetwork(env: Env, index: number, step: WorkStep, prevDest: Networ
       else positions.set(network, value);
     }
     const holding = [...positions.entries()].filter(([, value]) => isPositive(value)).map(([network]) => network);
-    if (known && holding.length === 1) {
+    if (holding.length === 1) {
+      // One position found: used and shown (when another network could not be read, the chip says so and offers it).
       const network = holding[0] as NetworkKey;
-      return pick(network, "position", "position.only", networks, positions, { protocol: protocolLabel(protocol) });
+      return pick(network, "position", known ? "position.only" : "position.found", networks, positions, { protocol: protocolLabel(protocol) });
     }
     if (known && holding.length === 0) {
       throw new PlatformError("POSITION_EMPTY", `You have no ${step.from?.v} supplied to ${protocolLabel(protocol)} on ${networks.map(networkName).join(", ")}.`, 422);
@@ -710,6 +734,100 @@ function analyzeContract(env: Env, index: number, step: WorkStep, prevDest: Netw
   };
 }
 
+/* ------------------------------------------------- engine v2 policy rules */
+
+/** The why code of a deposit venue Kletia picked by rate (D6); decided again each turn. */
+const VENUE_RATE_CODE = "venue.rate";
+/**
+ * Kinds whose exact amount is checked against the balance where the step runs
+ * (D2). A payment is not: its network is where the recipient receives, and the
+ * departure rules may still bridge to it.
+ */
+const SPENDING_KINDS: ReadonlySet<Kind> = new Set(["swap", "bridge", "deposit", "stake"]);
+
+/** D9: a typed symbol within one edit of listed ones and not itself listed ("SLO"), which the round-6 fuzzy reader leaves alone. */
+function typoOf(step: WorkStep): { side: "spend" | "want"; raw: string; candidates: string[] } | null {
+  if (step.contract) return null;
+  for (const name of ["from", "to"] as const) {
+    const said = step[name];
+    if (!said || said.by !== "user") continue;
+    const found = symbolTypoCandidates(said.v);
+    // The round-6 rules come first: a symbol the fuzzy reader matches (four letters and more) is corrected or asked as before.
+    if (found.length > 0 && candidates(said.v, found).length === 0) return { side: name === "from" ? "spend" : "want", raw: said.v.slice(0, 16), candidates: found };
+  }
+  return null;
+}
+
+/**
+ * D2 for every step: an exact amount above the known balance asks
+ * AMOUNT_EXCEEDS_BALANCE (all of it, funds on another network that cover it,
+ * or keep the amount as said). Unknown balances never ask.
+ */
+function exceedsBalance(env: Env, index: number, step: WorkStep, kind: Kind, network: NetworkKey, from: string, need: string): Question | null {
+  const balance = env.facts.balance(network, from);
+  if (balance === undefined || cmp(balance, need) >= 0) return null;
+  const current = laneOf(env.ctx.accounts);
+  const options: Option[] = [];
+  const all = spendable(env, network, from, 10_000);
+  const decimals = decimalsOf(network, from);
+  const shown = held(env, network, from) ?? tidy(balance);
+  if (all !== undefined && all > 0n) {
+    const native = CHAINS[network].nativeAsset.symbol === from;
+    options.push({ id: "all", label: `All · ${formatDecimal(all, decimals)} ${from}`, ...(native ? { detail: `Keeps ${NATIVE_FEE_RESERVE[network]} ${from} for network fees` } : { detail: `On ${networkName(network)}` }), value: { amount: { t: "balance", bps: 10_000 } } });
+  }
+  // Funds elsewhere: a bridge starts there instead (bridge), or bridges them here first (swap, deposit).
+  if (kind === "bridge" || kind === "swap" || kind === "deposit") {
+    for (const other of bridgeNetworksOf(current)) {
+      if (options.length >= 4 || other === network || (kind === "bridge" && other === step.toNetwork?.v) || !hasAccount(env.ctx.accounts, other)) continue;
+      const symbol = canonicalOn(other, from);
+      if (!symbol || (kind !== "bridge" && !portable(from, false, other, network))) continue;
+      const there = env.facts.balance(other, symbol);
+      if (there === undefined || cmp(there, need) < 0) continue;
+      options.push({ id: other, label: `Use funds on ${networkName(other)}`, detail: `You hold ${held(env, other, symbol)} ${symbol} there`, value: { source: other, network } });
+    }
+  }
+  options.push({ id: "keep", label: `Keep ${need} ${from}`, detail: "The plan will fail unless more arrives first", value: { amount: { t: "exact", value: need } } });
+  // Balances go in the why line only: the prompt becomes the thread's turn label, which never holds facts.
+  return question(field(index, "amount"), "choice", "AMOUNT_EXCEEDS_BALANCE", `${need} ${from} is more than you hold on ${networkName(network)}. How much should this use?`,
+    `You hold ${shown} ${from} there; Kletia checks the amount against your balance before planning.`, options, true, placeholderFor("amount", from));
+}
+
+/** The risk penalty of a tier in rate terms: a curated venue must pay 0.5 points more than a core one to be picked. */
+const TIER_PENALTY: Readonly<Record<string, number>> = { core: 0, curated: 0.005 };
+
+/** D6 for a venue-less deposit: the venue (picked by rate, a chip) or a VENUE_MISSING question. */
+function chooseVenue(env: Env, index: number, step: WorkStep, network: NetworkKey, from: string): { protocol?: string; vault?: string; assumption?: Assumption; question?: Question } {
+  const ranked = rankedVenueOptions(network, "deposit", from, 4);
+  if (ranked.length === 0) throw refuseUnsupported(`No lending venue takes ${from} on ${networkName(network)}.`);
+  const rated = ranked.map((venue) => ({ venue, apy: env.facts.venueApy?.(venue.id) ?? null, tier: protocolTier(venue.protocol as ProtocolId, network) }));
+  const scored = rated.filter((entry) => entry.apy !== null && entry.tier in TIER_PENALTY)
+    .sort((a, b) => ((b.apy as number) - TIER_PENALTY[b.tier]!) - ((a.apy as number) - TIER_PENALTY[a.tier]!));
+  const vaultOf = (venue: (typeof ranked)[number]) => (venuesOn(network, "deposit", venue.protocol, from).length > 1 ? venue.slug : undefined);
+  const best = scored[0];
+  if (!best) {
+    const options = rated.map((entry, i) => ({
+      id: entry.venue.protocol, label: protocolLabel(entry.venue.protocol), detail: `${entry.venue.name} · ${riskLabel(entry.tier as never)} · ${apyLabel(entry.apy)}`,
+      value: { protocol: entry.venue.protocol, ...(vaultOf(entry.venue) ? { venue: vaultOf(entry.venue) } : {}) }, ...(i === 0 ? { recommended: true as const } : {}),
+    }));
+    const copy = PROTOCOL_QUESTION_COPY.venueMissing(amountPhrase(step, from), networkName(network));
+    return { question: question(field(index, "protocol"), "choice", "VENUE_MISSING", copy.prompt, `${copy.why} Rates could not be read right now.`, options, false) };
+  }
+  const vault = vaultOf(best.venue);
+  step.protocol = { v: best.venue.protocol, by: "assumed", why: { source: "default", code: VENUE_RATE_CODE } };
+  if (vault) step.vault = { v: vault, by: "assumed", why: { source: "default", code: VENUE_RATE_CODE } };
+  else delete step.vault;
+  const alternatives = rated.filter((entry) => entry !== best).map((entry) => ({
+    id: entry.venue.protocol, label: `${protocolLabel(entry.venue.protocol)} · ${apyLabel(entry.apy)}`, detail: riskLabel(entry.tier as never),
+    value: { protocol: entry.venue.protocol, ...(vaultOf(entry.venue) ? { venue: vaultOf(entry.venue) } : {}) },
+  }));
+  return {
+    protocol: best.venue.protocol,
+    ...(vault ? { vault } : {}),
+    assumption: assumption(field(index, "protocol"), `${best.venue.name} · ${apyLabel(best.apy)}`, { protocol: best.venue.protocol, ...(vault ? { venue: vault } : {}) }, "default",
+      reasonText(VENUE_RATE_CODE, { protocol: protocolLabel(best.venue.protocol), kind: riskLabel(best.tier as never) }), alternatives, true),
+  };
+}
+
 /* ------------------------------------------------------------- analyze */
 
 function correctionAssumptions(state: WorkState): Assumption[] {
@@ -731,14 +849,18 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
   const env: Env = { ctx, facts };
   const pending = pendingEditQuestion(state);
   if (pending) return { questions: [pending], assumptions: [], resolved: null };
+  // Goal steps (intent engine v2): solved from their Goals and this turn's snapshot, expanded into ordinary steps.
+  const expansion = state.steps.some((step) => step.goal !== undefined && step.kind === undefined) ? expandGoalSteps(state, ctx, facts) : null;
+  if (expansion?.pending) return { questions: [], assumptions: [], resolved: null, pending: true, layout: expansion.layout };
+  const steps = expansion ? expansion.steps : state.steps;
   const questions: Question[] = [];
-  const assumptions: Assumption[] = correctionAssumptions(state);
+  const assumptions: Assumption[] = [...correctionAssumptions(state), ...(expansion?.assumptions ?? [])];
   const resolved: ResolvedAction[] = [];
   let prevDest: NetworkKey | undefined;
   let prevOut: string | undefined;
   const ask = (list: Question[]) => questions.push(...list);
-  for (let index = 0; index < state.steps.length; index += 1) {
-    const step = state.steps[index] as WorkStep;
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index] as WorkStep;
     if (!step.kind) {
       ask([question(field(index, "kind"), "choice", "VERB_AMBIGUOUS", "Which action did you mean?", "The first word is close to more than one action.",
         (step.kindCandidates ?? []).map((kind) => ({ id: kind, label: kind[0]!.toUpperCase() + kind.slice(1), value: { kind } })), false)]);
@@ -762,12 +884,20 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
       prevOut = action.from || prevOut;
       continue;
     }
+    // D9: a symbol within one edit of listed ones ("SLO") is asked, never corrected silently.
+    const typo = typoOf(step);
+    if (typo) {
+      ask([typoQuestion({ typo }, index) as Question]);
+      break;
+    }
+    // "sell 1 SOL": received in the network's most used dollar stablecoin unless named (a chip).
+    if (kind === "swap" && step.sell && !step.to && !step.usdTo) step.usdTo = true;
     let first: Question | null = null;
     if (kind === "transfer" || (kind === "bridge" && step.recipient)) first = recipientQuestion(env, index, step);
     if (!first && kind === "bridge" && !step.toNetwork) {
       const source = step.network?.v ?? (dependent ? prevDest : undefined);
       const current = laneOf(ctx.accounts);
-      const networks = BRIDGE_NETWORKS.filter((network) => lane(network) === current && network !== source && hasAccount(ctx.accounts, network) && (dependent || symbolOnNetwork(env, network, step.from?.v, step.usdFrom)));
+      const networks = bridgeNetworksOf(current).filter((network) => network !== source && hasAccount(ctx.accounts, network) && (dependent || symbolOnNetwork(env, network, step.from?.v, step.usdFrom)));
       first = question(field(index, "toNetwork"), "choice", "DESTINATION_MISSING", `Where should ${amountPhrase(step)} go?`, "The destination is where the money arrives.", networks.map((network) => networkOption(network)), true);
     }
     if (!first && kind === "swap" && !step.to && !step.usdTo) {
@@ -827,13 +957,14 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
       throw new PlatformError("CAPITAL_LANE_MIXED", `${networkName(other)} (${lane(other)}) cannot share an intent with ${networkName(base)} (${lane(base)}): mainnet and testnet capital never mix.`, 422);
     }
     if (kind === "swap" && !SWAP_NETWORKS.includes(network)) {
-      throw refuseUnsupported(`Swaps run on ${SWAP_NETWORKS.map(networkName).join(", ")}, not ${networkName(network)}.`);
+      throw refuseUnsupported(`Swaps run on ${SWAP_NETWORKS.filter((entry) => lane(entry) === lane(network)).map(networkName).join(", ")}, not ${networkName(network)}.`);
     }
     if (kind === "swap" && step.protocol && !(dexNetworks(step.protocol.v) ?? []).includes(network)) {
       throw refuseUnsupported(`${protocolLabel(step.protocol.v)} swaps run on ${(dexNetworks(step.protocol.v) ?? []).map(networkName).join(", ")}, not ${networkName(network)}.`);
     }
-    if (kind === "bridge" && (!BRIDGE_NETWORKS.includes(network) || (step.toNetwork && !BRIDGE_NETWORKS.includes(step.toNetwork.v)))) {
-      throw refuseUnsupported(`Bridges run between ${BRIDGE_NETWORKS.map(networkName).join(", ")}.`);
+    const bridgeable = bridgeNetworksOf(lane(network));
+    if (kind === "bridge" && (!bridgeable.includes(network) || (step.toNetwork && !bridgeable.includes(step.toNetwork.v)))) {
+      throw refuseUnsupported(`Bridges run between ${bridgeable.map(networkName).join(", ")}.`);
     }
     if ((kind === "transfer" || (kind === "bridge" && step.recipient)) && step.recipient && !isName(step.recipient.v) && ownAddress(ctx.accounts, step.recipient.v)) {
       throw new PlatformError("SELF_TRANSFER", "The recipient is the sending account; nothing would move.", 422);
@@ -932,11 +1063,34 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
       break;
     }
     if (amount.assumption && !departureAmount) assumptions.push(amount.assumption);
+    // D2: an exact amount the person typed above the known balance where the step spends it (unknown is never a shortfall).
+    // With a departure (sourceNetwork) the departure rules fund the step, so the balance where it runs says nothing.
+    if (!departureAmount && !dependent && !ctx.sourceNetwork && step.amount?.by === "user" && step.amount.v.t === "exact" && SPENDING_KINDS.has(kind)) {
+      const exceeds = exceedsBalance(env, index, step, kind, network, from, step.amount.v.value);
+      if (exceeds) {
+        ask([exceeds]);
+        break;
+      }
+    }
     // Venue, vault and provider.
-    const protocol = step.protocol?.v;
-    let vault = step.vault?.v;
+    // A venue Kletia picked by rate is decided again each turn (rates move); one the person chose stays.
+    const pickedByRate = step.protocol?.by === "assumed" && step.protocol.why?.code === VENUE_RATE_CODE;
+    let protocol = pickedByRate ? undefined : step.protocol?.v;
+    let vault = pickedByRate ? undefined : step.vault?.v;
     let provider = step.provider?.v;
     if (kind === "deposit" || kind === "withdraw") {
+      if (!protocol && kind === "deposit") {
+        // A venue-less deposit (protocols design 3.6, engine D6): the capability index's venues, ranked by tier, with live
+        // rates. The best risk-adjusted rate among core and curated venues is picked and shown; asked only without rates.
+        const pick = chooseVenue(env, index, step, network, from);
+        if (pick.question) {
+          ask([pick.question]);
+          break;
+        }
+        protocol = pick.protocol as string;
+        vault = pick.vault;
+        if (pick.assumption) assumptions.push(pick.assumption);
+      }
       if (!protocol) {
         const venues = lendingProtocols().map((id) => venuesOn(network, kind, id, from)[0]).filter((venue) => venue !== undefined);
         if (venues.length === 0) throw refuseUnsupported(`No lending venue takes ${from} on ${networkName(network)}.`);
@@ -955,10 +1109,22 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
           venues.slice(1).map((venue) => ({ id: venue.slug, label: venue.name, value: { venue: venue.slug } })), false));
       }
     }
+    if (kind === "stake" && !dependent && step.provider?.by !== "user" && step.provider?.by !== "answer") {
+      // Staking ETH where it does not run (protocols design 3.3): buy a liquid staking token there, or bridge and stake.
+      const etherIn = from.toUpperCase() === "ETH" || from.toUpperCase() === "WETH";
+      const options = etherIn && family(network) === "eip155" ? l2StakeOptions(network) : [];
+      if (options.length > 0) {
+        const copy = PROTOCOL_QUESTION_COPY.l2Stake(amountPhrase(step, from), networkName(network));
+        ask([question(field(index, "provider"), "choice", "VENUE_MISSING", copy.prompt, copy.why,
+          options.map((option) => ({ id: option.id, label: option.label, detail: option.detail, value: { target: option.id } })), false)]);
+        break;
+      }
+    }
     if (kind === "stake") {
       const input = stakeProvider(provider)?.input ?? (network === "ethereum" || from.toUpperCase() === "ETH" ? "ETH" : "SOL");
       if (!provider || step.provider?.by === "assumed") {
-        const chosen = stakeProvider(provider) ?? defaultProvider(input);
+        // Solana Devnet runs native staking only.
+        const chosen = stakeProvider(provider) ?? (network === "solana-devnet" ? stakeProvider(NATIVE_STAKE_PROTOCOL) as NonNullable<ReturnType<typeof stakeProvider>> : defaultProvider(input));
         provider = chosen.id;
         remember(step, "provider", provider, { source: "default", code: "default.provider" });
         assumptions.push(assumption(field(index, "provider"), chosen.label, { provider }, "default", reasonText("default.provider", { protocol: chosen.grammarProvider, symbol: input }),
@@ -966,7 +1132,7 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
       }
       const chosen = stakeProvider(provider) as ReturnType<typeof stakeProvider>;
       if (!chosen) throw refuseUnsupported("Unknown staking provider.");
-      if (chosen.network !== network) {
+      if (chosen.network !== network && !(chosen.id === NATIVE_STAKE_PROTOCOL && network === "solana-devnet")) {
         throw refuseUnsupported(`${chosen.grammarProvider} stakes ${chosen.input} on ${networkName(chosen.network)}, not on ${networkName(network)}.`);
       }
       if (!dependent && from.toUpperCase() !== chosen.input) throw refuseUnsupported(`${chosen.grammarProvider} stakes ${chosen.input}, not ${from}.`);
@@ -990,7 +1156,15 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
     prevDest = kind === "bridge" ? (step.toNetwork?.v as NetworkKey) : network;
     prevOut = kind === "swap" || kind === "bridge" || kind === "stake" ? (to ?? from) : from;
   }
-  return { questions: questions.slice(0, 2), assumptions: dedupe(assumptions), resolved: questions.length === 0 ? resolved : null };
+  // A goal that asks comes after every step before it was decided.
+  if (questions.length === 0 && expansion && expansion.questions.length > 0) questions.push(...expansion.questions);
+  if (questions.length === 0 && expansion?.blocked) throw expansion.blocked;
+  return {
+    questions: questions.slice(0, 2),
+    assumptions: dedupe(assumptions),
+    resolved: questions.length === 0 ? resolved : null,
+    ...(expansion ? { layout: expansion.layout } : {}),
+  };
 }
 
 function dedupe(list: Assumption[]): Assumption[] {

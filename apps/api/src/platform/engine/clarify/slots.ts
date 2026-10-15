@@ -21,6 +21,7 @@ import {
   SWAP_VENUE_WORDS,
   VAULT,
   VERBS,
+  NATIVE_STAKE_PROTOCOL,
 } from "../grammar.js";
 import type { ContractPhrase } from "../contracts/directory.js";
 import { candidates } from "./fuzzy.js";
@@ -32,6 +33,7 @@ import {
   knownSymbol,
   lendingProtocol,
   providerFromWord,
+  stakeProvider,
   USD_ORDER,
 } from "./catalog.js";
 import type { Kind, Slot, WorkStep } from "./types.js";
@@ -80,7 +82,7 @@ const SHAPES: readonly { shape: "usdSwap" | "earn" | "swap" | "buy" | "bridge" |
   },
   {
     shape: "stake",
-    regex: rx(`^stake(?:\\s+${AMT}${OF})?\\s*${MY}(?:(?<a>sol|eth))?(?:\\s+(?:with|via|on|using|into|to|as|at)\\s+(?<lst>${LST_WORDS}))?${ON}$`),
+    regex: rx(`^stake(?:\\s+${AMT}${OF})?\\s*${MY}(?:(?<a>sol|eth))?(?:\\s+(?<natively>natively)|\\s+(?:with|via|on|using|into|to|as|at)\\s+(?<lst>${LST_WORDS}))?${ON}$`),
   },
   {
     shape: "deposit",
@@ -223,6 +225,7 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
     switch (shape) {
       case "usdSwap":
         out.kind = slot("swap");
+        if (verb === "sell") out.sell = true;
         out.amount = slot({ t: "usd", value: (g.usd as string).replace(/[$,]/gu, "") });
         if (b.symbol) out.to = slot(b.symbol);
         if (b.usd) out.usdTo = true;
@@ -238,6 +241,7 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       case "swap":
         if (!g.amt && !g.a) continue;
         out.kind = slot("swap");
+        if (verb === "sell") out.sell = true;
         if (b.symbol) out.to = slot(b.symbol);
         if (b.usd) out.usdTo = true;
         break;
@@ -277,7 +281,8 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       }
       case "stake": {
         out.kind = slot("stake");
-        const provider = g.lst ? providerFromWord(g.lst) : undefined;
+        // "stake 2 SOL natively": native staking to a validator, read without a connector (grammar "native-stake").
+        const provider = g.natively ? stakeProvider(NATIVE_STAKE_PROTOCOL) : g.lst ? providerFromWord(g.lst) : undefined;
         const said = g.a?.toUpperCase();
         const input = said === "ETH" || said === "SOL" ? said : provider?.input ?? "SOL";
         out.from = slot(input, said ? "user" : "derived");
@@ -316,6 +321,9 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
   return null;
 }
 
+/** "swap 1 SOL too USDC", "fo USDC": slips of "to" and "for" (only tried when the clause does not read as typed). */
+const SHORT_CONNECTOR_SLIPS: Readonly<Record<string, string>> = Object.freeze({ too: "to", fo: "for" });
+
 function correctClause(clause: string, index: number): { text: string; corrections: ThreadCorrection[]; verbCandidates?: string[] } {
   const corrections: ThreadCorrection[] = [];
   let verbCandidates: string[] | undefined;
@@ -332,6 +340,12 @@ function correctClause(clause: string, index: number): { text: string; correctio
       }
       if (verbs.length > 1) verbCandidates = verbs;
       return token;
+    }
+    // Short connectors are too short for the edit-distance reader: a fixed list of their usual slips.
+    const connector = SHORT_CONNECTOR_SLIPS[lower];
+    if (connector) {
+      corrections.push({ field: `actions[${index}].text`, from: token.slice(0, 16), to: connector, material: false });
+      return connector;
     }
     const found = candidates(lower, [...CONNECTOR_VOCAB, ...NETWORK_VOCAB, ...VENUE_VOCAB]);
     if (found.length !== 1) return token;

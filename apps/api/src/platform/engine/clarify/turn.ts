@@ -22,6 +22,7 @@ import { PlatformError } from "../../errors.js";
 import { NAME, resolveNetworkName } from "../grammar.js";
 import { knownSymbol } from "./catalog.js";
 import { applyEdit, applyEditTo, editLabel, parseIndex, readFollowUp } from "./edits.js";
+import { applyGoalEdit, applyGoalOption, isGoalStep } from "./goals.js";
 import { analyze } from "./policy.js";
 import { parseAmountText, parseSentence } from "./slots.js";
 import type { Analysis, FactsView, Option, Question, TurnContext, TurnInput, TurnKindName, WorkState, WorkStep } from "./types.js";
@@ -66,7 +67,35 @@ export function applyOption(state: WorkState, q: { field: string; reason?: strin
   const { index, name } = parseIndex(q.field);
   const step = state.steps[index] as WorkStep;
   const value = option.value;
-  if (q.reason === "FUNDS_ELSEWHERE" && value.network && value.source) {
+  // AMOUNT_EXCEEDS_BALANCE (D2) "use funds on <network>": a bridge starts there instead; another step is bridged to first.
+  if (q.reason === "AMOUNT_EXCEEDS_BALANCE" && value.source && step.kind?.v === "bridge") {
+    step.network = { v: value.source, by: "answer" };
+    step.amount = { v: clone(step.amount?.v ?? { t: "balance", bps: 10_000 }), by: "answer" };
+    return;
+  }
+  // Staking ETH where it does not run (protocols design 3.3): buy the liquid staking token there, or bridge and stake.
+  if (value.target?.startsWith("buy:")) {
+    step.kind = { v: "swap", by: "answer" };
+    step.to = { v: value.target.slice(4), by: "answer" };
+    delete step.provider;
+    return;
+  }
+  if (value.target === "bridge-stake") {
+    const network = step.network?.v;
+    if (!network) return;
+    const bridge: WorkStep = {
+      kind: { v: "bridge", by: "answer" },
+      ...(step.amount ? { amount: clone(step.amount) } : {}),
+      from: { v: "ETH", by: "answer" },
+      network: { v: network, by: "answer" },
+      toNetwork: { v: "ethereum", by: "answer" },
+    };
+    step.network = { v: "ethereum", by: "answer" };
+    step.amount = { v: { t: "previous", bps: 10_000 }, by: "answer" };
+    state.steps.splice(index, 0, bridge);
+    return;
+  }
+  if ((q.reason === "FUNDS_ELSEWHERE" || q.reason === "AMOUNT_EXCEEDS_BALANCE") && value.network && value.source) {
     const bridge: WorkStep = {
       kind: { v: "bridge", by: "answer" },
       ...(step.amount ? { amount: clone(step.amount) } : {}),
@@ -112,6 +141,27 @@ export function applyOption(state: WorkState, q: { field: string; reason?: strin
   if (value.kind) step.kind = { v: value.kind, by: "answer" };
 }
 
+/** Where a question or chip field (an action index) points in the thread: a state step, and the part of a goal step. */
+function locate(analysis: Analysis | undefined, path: string): { step: number; part: number; goal: boolean; name: string } {
+  const { index, name } = parseIndex(path);
+  const origin = analysis?.layout?.[index];
+  return origin ? { ...origin, name } : { step: index, part: 0, goal: false, name };
+}
+
+/**
+ * Applies a chosen option to the thread: a goal step takes it as a pin (or a
+ * change of its Goal), any other step as its slot. "cancel" when the option
+ * cancels the task ("Neither, cancel").
+ */
+export function applyChoice(state: WorkState, analysis: Analysis | undefined, q: { field: string; reason?: string }, option: Option): "cancel" | void {
+  if (q.reason === "EDIT_TARGET_AMBIGUOUS") return applyOption(state, q, option);
+  if (option.value.target === "cancel") return "cancel";
+  const at = locate(analysis, q.field);
+  const step = state.steps[at.step];
+  if (at.goal && isGoalStep(step)) return applyGoalOption(step, at.name, at.part, option.value);
+  applyOption(state, { field: `actions[${at.step}].${at.name}`, ...(q.reason ? { reason: q.reason } : {}) }, option);
+}
+
 function amountAnswer(text: string, step: WorkStep): ThreadAmount | null {
   const match = /^(?<amt>\$?\d[\d,]*(?:\.\d+)?|\.\d+|\d{1,3}(?:\.\d{1,2})?%|all|max|everything|half)(?:\s+(?<unit>[a-z][a-z0-9]{1,9}))?$/iu.exec(text);
   if (!match?.groups?.amt) return null;
@@ -128,37 +178,33 @@ function amountAnswer(text: string, step: WorkStep): ThreadAmount | null {
   return plain;
 }
 
-/** Free text as the answer to one question; false when it does not fit. */
-function answerQuestionText(state: WorkState, q: Question, raw: string): boolean {
+/** Free text as the answer to one question; false when it does not fit, "cancel" when it chose to cancel. */
+function answerQuestionText(state: WorkState, analysis: Analysis | undefined, q: Question, raw: string): boolean | "cancel" {
+  const choose = (option: Option): true | "cancel" => (applyChoice(state, analysis, q, option) === "cancel" ? "cancel" : true);
   const text = normalizeMessage(raw)
     .replace(/^(?:make\s+it|actually|about|use|send\s+(?:it\s+)?to|to|from|on|via|with|its|it\s+is)\s+/iu, "")
     .replace(/\s+instead$/iu, "")
     .trim();
   if (!text) return false;
-  if (q.kind === "confirm" && CONFIRM_YES_PATTERN.test(text) && q.options[0]) {
-    applyOption(state, q, q.options[0]);
-    return true;
-  }
+  if (q.kind === "confirm" && CONFIRM_YES_PATTERN.test(text) && q.options[0]) return choose(q.options[0]);
   const lower = text.toLowerCase();
   const byOption = q.options.find((option) =>
     option.id.toLowerCase() === lower || option.label.toLowerCase() === lower ||
     (option.value.network !== undefined && resolveNetworkName(text) === option.value.network) ||
     (option.value.asset !== undefined && option.value.asset.toLowerCase() === lower));
-  if (byOption) {
-    applyOption(state, q, byOption);
-    return true;
-  }
-  const { index } = parseIndex(q.field);
-  const step = state.steps[index] as WorkStep | undefined;
+  if (byOption) return choose(byOption);
+  const at = locate(analysis, q.field);
+  const step = state.steps[at.step] as WorkStep | undefined;
   if (!step) return false;
-  if (q.kind === "amount") {
+  // Amount answers also fit choice questions that ask an amount (AMOUNT_EXCEEDS_BALANCE).
+  if (q.kind === "amount" || (q.kind === "choice" && q.allowsText && at.name === "amount")) {
     const amount = amountAnswer(text, step);
     if (!amount) return false;
-    step.amount = { v: amount, by: "answer" };
-    return true;
+    return choose({ id: "text", label: text, value: { amount } });
   }
   if (q.kind === "address") {
     if (!ADDRESS.test(text)) return false;
+    if (at.goal && isGoalStep(step)) return choose({ id: "text", label: text, value: { recipient: text } });
     step.recipient = { v: text, by: "answer" };
     delete step.nickname;
     if (step.network?.by === "assumed") delete step.network;
@@ -166,28 +212,30 @@ function answerQuestionText(state: WorkState, q: Question, raw: string): boolean
   }
   if (q.kind === "choice" && q.allowsText) {
     const network = resolveNetworkName(text);
-    if (network && /network/iu.test(q.field.split(".").pop() ?? "")) {
-      applyOption(state, q, { id: network, label: network, value: { network } });
-      return true;
-    }
+    if (network && /network/iu.test(q.field.split(".").pop() ?? "")) return choose({ id: network, label: network, value: { network } });
     if ((q.field.endsWith(".to") || q.field.endsWith(".from")) && /^[A-Za-z][\w.-]{1,15}$/u.test(text) && knownSymbol(text)) {
-      applyOption(state, q, { id: text, label: text, value: { asset: text } });
-      return true;
+      return choose({ id: text, label: text, value: { asset: text } });
     }
   }
   return false;
 }
 
 /** A message while questions are open: does it answer one of them (§4.1 step 2)? */
-function answerFromText(state: WorkState, analysis: Analysis, text: string): boolean {
+function answerFromText(state: WorkState, analysis: Analysis, text: string): boolean | "cancel" {
   for (const q of analysis.questions) {
     const trial = clone(state);
-    if (answerQuestionText(trial, q, text)) {
-      answerQuestionText(state, q, text);
-      return true;
-    }
+    if (answerQuestionText(trial, analysis, q, text)) return answerQuestionText(state, analysis, q, text);
   }
   return false;
+}
+
+function cancelled(state: WorkState, label: string): ReduceOutcome {
+  state.status = "cancelled";
+  state.open = [];
+  delete state.pendingEdit;
+  state.rev += 1;
+  pushTurn(state, "user", "control", label);
+  return { status: "cancelled", turn: "control", state, analysis: { questions: [], assumptions: [], resolved: null } };
 }
 
 function pushTurn(state: WorkState, role: "user" | "kletia", kind: string, label: string): void {
@@ -210,14 +258,8 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
   if ("text" in input) {
     const text = normalizeMessage(input.text);
     let label = "Started the task";
-    if (previous && CONTROL_CANCEL_PATTERN.test(text)) {
-      state.status = "cancelled";
-      state.open = [];
-      delete state.pendingEdit;
-      state.rev += 1;
-      pushTurn(state, "user", "control", "Cancelled the task");
-      return { status: "cancelled", turn: "control", state, analysis: { questions: [], assumptions: [], resolved: null } };
-    }
+    if (previous && CONTROL_CANCEL_PATTERN.test(text)) return cancelled(state, "Cancelled the task");
+    let answered: boolean | "cancel" = false;
     if (previous && CONTROL_UNDO_PATTERN.test(text)) {
       const last = state.undo.pop();
       if (!last) throw editUnsupported("There is nothing to undo.");
@@ -226,7 +268,8 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
       delete state.pendingEdit;
       turn = "control";
       label = "Undid the last change";
-    } else if (previous && previous.open.length > 0 && answerFromText(state, analyze(clone(state), ctx, facts), input.text)) {
+    } else if (previous && previous.open.length > 0 && (answered = answerFromText(state, analyze(clone(state), ctx, facts), input.text))) {
+      if (answered === "cancel") return cancelled(state, "Cancelled the task");
       snapshot(state, before);
       turn = "answer";
       label = "Answered the open question";
@@ -243,6 +286,9 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
           if (state.steps.length + added.length > THREAD_LIMITS.maxSteps) throw editUnsupported(`A task has at most ${THREAD_LIMITS.maxSteps} steps.`);
           state.steps = [...state.steps, ...added];
           turn = "append";
+        } else if (state.steps.some((step) => isGoalStep(step))) {
+          if (!applyGoalEdit(state, edit)) throw editUnsupported("That change does not fit this task.");
+          turn = "edit";
         } else {
           if (!applyEdit(state, edit)) throw editUnsupported("That change does not fit this task.");
           turn = "edit";
@@ -279,10 +325,12 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
     if (input.answer.option !== undefined) {
       const option = q.options.find((entry) => entry.id === input.answer.option);
       if (!option) throw answerInvalid("That option is not one of the question's choices.", "answer.option");
-      applyOption(state, q, option);
+      if (applyChoice(state, open, q, option) === "cancel") return cancelled(state, `Chose: ${option.label}`);
       label = `Chose: ${option.label}`;
-    } else if (input.answer.text === undefined || !answerQuestionText(state, q, input.answer.text)) {
-      throw answerInvalid(q.allowsText ? "That answer does not fit the question." : "Pick one of the question's options.", "answer.text");
+    } else {
+      const answered = input.answer.text === undefined ? false : answerQuestionText(state, open, q, input.answer.text);
+      if (answered === "cancel") return cancelled(state, "Cancelled the task");
+      if (!answered) throw answerInvalid(q.allowsText ? "That answer does not fit the question." : "Pick one of the question's options.", "answer.text");
     }
     snapshot(state, before);
     turn = "answer";
@@ -293,7 +341,7 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
     const chip = current.assumptions.find((entry) => entry.id === input.assumption.id);
     const option = chip?.alternatives.find((entry) => entry.id === input.assumption.option);
     if (!chip || !option) throw answerInvalid("That assumption or alternative is not offered on this thread.", "assumption");
-    applyOption(state, { field: chip.field }, option);
+    applyChoice(state, current, { field: chip.field }, option);
     snapshot(state, before);
     turn = "answer";
     pushTurn(state, "user", "answer", `Changed: ${chip.label} to ${option.label}`);
@@ -304,7 +352,7 @@ export function reduceTurn(previous: WorkState | null, input: TurnInput, ctx: Tu
   state.rev += 1;
   const analysis = analyze(state, ctx, facts);
   state.open = analysis.questions.map((entry) => entry.field);
-  state.status = analysis.questions.length > 0 ? "needs_input" : "ready";
+  state.status = analysis.questions.length > 0 || analysis.pending ? "needs_input" : "ready";
   pushTurn(state, "kletia", state.status === "ready" ? "plan" : "question", state.status === "ready" ? "Ready to plan" : analysis.questions[0]?.prompt ?? "Asked a question");
   return { status: state.status, turn, state, analysis };
 }

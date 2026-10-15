@@ -68,8 +68,17 @@ export type ReasonCode =
   | "default.provider"
   | "context.kept"
   | "position.only"
+  | "position.found"
+  | "venue.rate"
   | "departure.fixed"
-  | "departure.auto";
+  | "departure.auto"
+  // the goal solver's codes (intent engine v2 §4.4; solver/explain.ts SOLVER_CODES)
+  | "solver.source"
+  | "solver.venue-apy"
+  | "solver.bridge"
+  | "solver.scope"
+  | "solver.target-amount"
+  | "price.usd";
 
 const REASONS: Readonly<Record<ReasonCode, (p: ReasonParams) => string>> = {
   "balance.only": (p) => `The only network where you hold enough ${p.symbol ?? "of it"}.`,
@@ -80,7 +89,15 @@ const REASONS: Readonly<Record<ReasonCode, (p: ReasonParams) => string>> = {
   "default.provider": (p) => `${p.protocol ?? "This provider"} is Kletia's default liquid staking provider for ${p.symbol ?? "it"}.`,
   "context.kept": () => "Kept from earlier in this task.",
   "position.only": (p) => `Your only ${p.protocol ?? ""} ${p.symbol ?? ""} position.`.replace(/\s+/gu, " "),
+  "venue.rate": (p) => `${p.protocol ?? "This venue"} pays the best rate for its risk${p.kind ? ` (${p.kind})` : ""} among the venues Kletia lists here; rates are variable.`,
+  "position.found": (p) => `The ${p.protocol ?? ""} ${p.symbol ?? ""} position Kletia found; positions on some networks could not be read.`.replace(/\s+/gu, " "),
   "departure.fixed": (p) => `Your departure is ${p.departure ?? "fixed"}, and this ${p.kind ?? "step"} runs on ${p.targets ?? "another network"}.`,
+  "solver.source": (p) => `Kletia picked where the ${p.symbol ?? "money"} comes from${p.network ? ` (${p.network})` : ""}: the holding that covers it at the lowest cost.`,
+  "solver.venue-apy": (p) => `${p.protocol ?? "This venue"} pays the best rate for its risk${p.kind ? ` (${p.kind})` : ""}; rates are variable.`,
+  "solver.bridge": (p) => `A bridge${p.network ? ` to ${p.network}` : ""} is needed; the one with the best quote is picked at planning.`,
+  "solver.scope": (p) => `Only your ${p.symbol ?? "holding"}${p.network ? ` on ${p.network}` : ""} is used; the rest stays where it is.`,
+  "solver.target-amount": (p) => `The amount that delivers what you asked for${p.symbol ? ` in ${p.symbol}` : ""}, with fees and a 1% buffer.`,
+  "price.usd": (p) => `A dollar amount converted to ${p.symbol ?? "the token"} at the current price; the signed amount is in ${p.symbol ?? "the token"}.`,
   "departure.auto": (p) => `${p.holder ?? "Another network"} holds ${p.held ?? "enough"} ${p.symbol ?? ""}; no network where this runs holds enough.`.replace("  ", " "),
 };
 

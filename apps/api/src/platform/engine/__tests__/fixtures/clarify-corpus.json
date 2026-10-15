@@ -619,11 +619,29 @@
   {
    "id": "A08",
    "category": "complete",
-   "title": "An exact amount above the balance is not questioned (the fare shows the shortfall)",
+   "title": "An exact amount above the balance is asked (AMOUNT_EXCEEDS_BALANCE); kept, it plans and the fare shows the shortfall",
    "wallet": "full",
    "turns": [
     {
      "say": "bridge 100 USDC from ethereum to base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@ethereum->base 100 USDC",
@@ -636,7 +654,7 @@
     "code": "PLANNED",
     "probe": "C08"
    },
-   "why": "R0/R6g: never ask what the user already said; the preview's balance check reports it."
+   "why": "R0/R6g: never ask what the user already said; the preview's balance check reports it. Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "A09",
@@ -2507,8 +2525,7 @@
     "code": "POSITION_EMPTY",
     "probe": "N03"
    },
-   "phase": 2,
-   "why": "Needs position readers on every Aave network (phase 2); a v1 build without them behaves as E08."
+   "why": "Round 7 engine-P5: the policy reads venue positions for a withdrawal's network (TurnFacts.position, at most 4 networks a turn); the one position found is used and shown as a chip. Was phase 2."
   },
   {
    "id": "E08",
@@ -3010,6 +3027,24 @@
     {
      "say": "swap 100 USDC to ETH on base",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
       "plan": "swap@base 100 USDC->ETH",
       "assumptions": [],
@@ -3020,7 +3055,7 @@
    "today": {
     "code": "PLANNED"
    },
-   "why": "Round 6 build: USDbC is transfer-only, so it is never suggested for a swap (it would be refused); an exact amount above the balance is not questioned (R6)."
+   "why": "Round 6 build: USDbC is transfer-only, so it is never suggested for a swap (it would be refused); an exact amount above the balance is not questioned (R6). Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "F09",
@@ -4092,41 +4127,30 @@
   {
    "id": "I02",
    "category": "wording",
-   "title": "'earn yield on 100 USDC': network from the balance, then the venue (Aave V3 recommended, Kletia's default)",
+   "title": "'earn yield on 100 USDC': network from the balance, then the venue with the best rate for its risk (a chip), changed to Compound V3",
    "wallet": "full",
    "turns": [
     {
      "say": "earn yield on 100 USDC",
      "expect": {
-      "status": "needs_input",
-      "questions": [
-       {
-        "field": "actions[0].protocol",
-        "kind": "choice",
-        "reason": "VENUE_MISSING",
-        "options": [
-         "aave-v3",
-         "compound-v3",
-         "moonwell",
-         "morpho",
-         "spark-savings",
-         "fluid"
-        ],
-        "recommended": "aave-v3",
-        "allowsText": false
-       }
-      ],
+      "status": "ready",
+      "plan": "deposit@base 100 USDC [aave-v3]",
       "assumptions": [
        {
         "field": "actions[0].network",
         "source": "balance"
+       },
+       {
+        "field": "actions[0].protocol",
+        "source": "default",
+        "material": true
        }
       ]
      }
     },
     {
-     "answer": {
-      "question": "q.actions.0.protocol",
+     "assumption": {
+      "id": "a.actions.0.protocol",
       "option": "compound-v3"
      },
      "expect": {
@@ -4139,7 +4163,7 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "W08"
    },
-   "why": "Round 6 build: the venue options are every protocol with an executable USDC venue on Base, in registry order (Spark Savings and Fluid joined)."
+   "why": "Round 7 engine-P5 (design 7.4, D6; protocols design 3.6): a venue-less deposit ranks the capability index's venues (tier, then registry order, top 4) with live rates and picks the best risk-adjusted rate among core and curated venues as a material chip (offline rates: Aave V3 4.1%, Compound V3 3.8%); VENUE_MISSING is asked only when no rate can be read. The chip's alternatives replace the old question."
   },
   {
    "id": "I03",
@@ -4212,7 +4236,7 @@
      "say": "swap $10 of SOL to USDC",
      "expect": {
       "status": "ready",
-      "plan": "swap@solana 0.094966 SOL->USDC",
+      "plan": "swap@solana 0.066216 SOL->USDC",
       "assumptions": [
        {
         "field": "actions[0].amount",
@@ -4228,7 +4252,7 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "W04"
    },
-   "phase": 2
+   "why": "Round 7 engine-P5 (D11, design 7.4): the dollar amount is priced at plan time with the fixed corpus price (SOL $151.02, corpusHarness CORPUS_PRICES), shown as a material price chip; no longer phase 2."
   },
   {
    "id": "I07",
@@ -4390,6 +4414,24 @@
     {
      "say": "bridge 20 USDC from solana to base and deposit it into aave",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
       "plan": "bridge@solana->base 20 USDC | deposit@base max USDC [aave-v3]",
       "assumptions": [],
@@ -4400,7 +4442,8 @@
    "today": {
     "code": "PLANNED",
     "probe": "P03"
-   }
+   },
+   "why": "Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "J03",
@@ -4550,11 +4593,29 @@
   {
    "id": "K02",
    "category": "refusal",
-   "title": "ETH staking with Lido runs on Ethereum (wstETH); an exact amount above the balance is not questioned",
+   "title": "ETH staking with Lido runs on Ethereum (wstETH); an amount above the balance is asked, then kept",
    "wallet": "full",
    "turns": [
     {
      "say": "stake 1 ETH with lido",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
      "expect": {
       "status": "ready",
       "plan": "stake@ethereum 1 ETH->wstETH {lido}",
@@ -4567,7 +4628,7 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "U02"
    },
-   "why": "Capability comes from the engine: once D5 P4 (Lido on Ethereum) lands this case becomes ready (stake@ethereum 1 ETH->wstETH {lido}); the build updates it with D5. Round 6 build: Lido, Rocket Pool and ether.fi staking landed on Ethereum (evm-yield-and-staking), so the sentence is ready."
+   "why": "Capability comes from the engine: once D5 P4 (Lido on Ethereum) lands this case becomes ready (stake@ethereum 1 ETH->wstETH {lido}); the build updates it with D5. Round 6 build: Lido, Rocket Pool and ether.fi staking landed on Ethereum (evm-yield-and-staking), so the sentence is ready. Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "K03",
@@ -4637,6 +4698,24 @@
     {
      "say": "swap 10 USDC to ETH on optimism",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
       "plan": "swap@optimism 10 USDC->ETH",
       "assumptions": [],
@@ -4648,7 +4727,7 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "U05"
    },
-   "why": "Capability comes from the engine: once D5 P0 (Relay same-network swaps on OP Mainnet) lands this case becomes ready; the build updates it with D5. Round 6 build: same-network swaps landed on OP Mainnet (evm-swaps-and-feeds), so a typed OP Mainnet swap plans."
+   "why": "Capability comes from the engine: once D5 P0 (Relay same-network swaps on OP Mainnet) lands this case becomes ready; the build updates it with D5. Round 6 build: same-network swaps landed on OP Mainnet (evm-swaps-and-feeds), so a typed OP Mainnet swap plans. Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "K07",
@@ -4812,6 +4891,24 @@
     {
      "say": "bridge 25 USDC from solana to base then deposit it into acme vault",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
       "plan": "bridge@solana->base 25 USDC | call@base max USDC <acme-base#deposit>"
      }
@@ -4821,7 +4918,8 @@
     "code": "PLANNED",
     "note": "BYOC phrase"
    },
-   "phase": "byoc"
+   "phase": "byoc",
+   "why": "Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "L01",
@@ -5657,7 +5755,7 @@
   {
    "id": "L26",
    "category": "thread",
-   "title": "'on arbitrum instead' moves a deposit; an exact amount above the balance is not questioned",
+   "title": "'on arbitrum instead' moves a deposit; an amount above the balance is asked, then kept",
    "wallet": "full",
    "turns": [
     {
@@ -5670,15 +5768,34 @@
     {
      "say": "on arbitrum instead",
      "expect": {
-      "status": "ready",
-      "plan": "deposit@arbitrum 100 USDC [aave-v3]",
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ],
       "turn": "edit"
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@arbitrum 100 USDC [aave-v3]"
      }
     }
    ],
    "today": {
     "code": "new"
-   }
+   },
+   "why": "Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "L27",
@@ -5779,6 +5896,24 @@
     {
      "say": "make it 125",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "allowsText": true,
+        "recommended": null
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
       "plan": "swap@base 125 USDC->ETH",
       "assumptions": [
@@ -5793,7 +5928,7 @@
    "today": {
     "code": "new"
    },
-   "why": "125 exceeds every balance; the largest balance stays the default and the fare shows the shortfall."
+   "why": "125 exceeds every balance; the largest balance stays the default and the fare shows the shortfall. Round 7 engine-P5 review (intent engine v2 D2, design 7.4): an exact amount above the known balance where the step spends it now asks AMOUNT_EXCEEDS_BALANCE before planning; answering \"keep\" plans the amount as said (the fare still shows the shortfall)."
   },
   {
    "id": "L30",
@@ -5891,7 +6026,7 @@
   {
    "id": "N03",
    "category": "protocols",
-   "title": "'lend' without a venue on OP Mainnet asks among the five OP venues",
+   "title": "'lend' without a venue on OP Mainnet: no rate can be read offline, so Kletia asks among the top four OP venues by tier",
    "wallet": "wide",
    "turns": [
     {
@@ -5906,9 +6041,8 @@
         "options": [
          "aave-v3",
          "compound-v3",
-         "moonwell",
-         "morpho",
-         "spark-savings"
+         "spark-savings",
+         "moonwell"
         ],
         "recommended": "aave-v3",
         "allowsText": false
@@ -5917,7 +6051,7 @@
      }
     }
    ],
-   "why": "Round 7 protocols (P7): Morpho Gauntlet USDC Prime joined OP Mainnet (A13)."
+   "why": "Round 7 engine-P5 (protocols design 3.6): VENUE_MISSING options come from rankedVenueOptions (capability index, tier then registry order, top 4) with each venue's rate; offline no OP rate is read, so the question stays (Morpho, curated and fifth, is no longer listed)."
   },
   {
    "id": "N04",
@@ -6050,18 +6184,41 @@
   {
    "id": "N10",
    "category": "protocols",
-   "title": "Staking ETH on Base is refused by clarify for now; the planner refusal names both ways that work",
+   "title": "Staking ETH on Base asks how: buy wstETH or cbETH on Base at market, or bridge to Ethereum and stake with Lido",
    "wallet": "wide",
    "turns": [
     {
      "say": "stake 1 ETH on base",
      "expect": {
-      "status": "refused",
-      "error": "INTENT_UNSUPPORTED"
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].provider",
+        "kind": "choice",
+        "reason": "VENUE_MISSING",
+        "options": [
+         "buy:wstETH",
+         "buy:cbETH",
+         "bridge-stake"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.provider",
+      "option": "buy:wstETH"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@base 1 ETH->wstETH"
      }
     }
    ],
-   "why": "Round 7 protocols (P7): the L2 stake question (buy wstETH or cbETH on Base, or bridge and stake) has its options in clarify/catalog l2StakeOptions and its copy in clarify/copy; wiring it into the policy is engine-P5's (policy.ts). Until then this stays a refusal."
+   "why": "Round 7 engine-P5: the L2 stake question (protocols design 3.3) is wired into the policy's stake branch: options from clarify/catalog l2StakeOptions, copy from PROTOCOL_QUESTION_COPY.l2Stake; buying plans a swap (never titled Stake), bridge-stake plans a bridge then Lido."
   },
   {
    "id": "N11",

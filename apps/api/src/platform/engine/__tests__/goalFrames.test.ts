@@ -312,7 +312,8 @@ describe("goal lowering into clarify slots", () => {
     ["1 sol jito", ["stake exact:1 SOL {jito}"]],
     ["stake 1 SOL for JitoSOL", ["stake exact:1 SOL {jito}"]],
     ["take 50 USDC out of aave on base", ["withdraw @base exact:50 USDC [aave-v3]"]],
-    ["take everything out of aave", ["withdraw position:10000 [aave-v3]"]],
+    // No asset named: the solver reads the positions and withdraws what is there (a goal step since package P5).
+    ["take everything out of aave", ["goal:exit"]],
     ["put my USDC to work", ["deposit balance:10000 USDC"]],
     ["swap $50 of SOL to USDC", ["swap usd:50 SOL ->USDC"]],
     ["buy $20 of SOL", ["swap exact:20 $ ->SOL buy"]],
@@ -336,6 +337,7 @@ describe("goal lowering into clarify slots", () => {
   });
 
   it("refuses what only the solver can place while goal steps are off, and keeps it as a goal step when on", () => {
+    configureGoalSteps(false);
     for (const say of ["consolidate to Base", "get me 1 ETH on Base", "earn on my SOL", "swap all but 0.1 SOL to USDC", "I need gas on optimism"]) {
       assert.throws(() => parseSentence(say, []), (error: Error & { code?: string }) => error.code === "INTENT_UNSUPPORTED", say);
     }
@@ -356,12 +358,14 @@ describe("goal lowering into clarify slots", () => {
 
   it("never turns an unknown word, a negation or an unsupported action into steps", () => {
     for (const say of [
-      "don't swap 1 SOL to USDC", "borrow 100 USDC against my ETH", "swap 1 SOL to USDC with 10x leverage", "unstake my JitoSOL", "stake my JitoSOL",
+      "don't swap 1 SOL to USDC", "borrow 100 USDC against my ETH", "swap 1 SOL to USDC with 10x leverage", "unstake my JitoSOL",
       "send 5 USDC to vitalik.eth and 0x1111111111111111111111111111111111111111", "swap 1 SOL to USDC to 0x1111111111111111111111111111111111111111",
       "1 sol", "base to solana", "please", "hey", "yes", "undo", "swap 1 SOL 2 SOL to USDC", "swap five five USDC to SOL",
     ]) {
       assert.throws(() => parseSentence(say, []), (error: Error & { code?: string }) => error.code === "INTENT_UNSUPPORTED", say);
     }
+    // "stake my JitoSOL" reads as an earn goal; the solver finds no staking route for an LST and refuses it (clarifyGoals.test.ts).
+    assert.equal((parseSentence("stake my JitoSOL", []).steps[0] as WorkStep).goal?.kind, "earn");
   });
 
   it("flags an unknown symbol one edit from a listed one (ASSET_TYPO) and reports rewritten amounts", () => {

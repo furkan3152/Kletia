@@ -6,11 +6,25 @@
  * nothing here touches a network.
  */
 import { readFileSync } from "node:fs";
-import { CHAINS, findAssetByAddress, toBaseUnits, type IntentActionSpec, type NetworkKey } from "@kletia/core";
+import {
+  assetsForNetwork,
+  CHAINS,
+  findAssetByAddress,
+  findAssetBySymbol,
+  parseAccountId,
+  toBaseUnits,
+  YIELD_VENUES,
+  type AccountId,
+  type IntentActionSpec,
+  type NetworkKey,
+} from "@kletia/core";
 import { isPlatformError } from "../../errors.js";
 import type { ContractPhrase } from "../contracts/directory.js";
 import { compileIntentText } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
+import { configurePriceReader, fixedPriceReader } from "../prices.js";
+import { configureSnapshotReaders, resetSnapshotCaches } from "../solver/snapshot.js";
+import { configureFactsClock } from "./facts.js";
 import { decideTurn, type TurnDecision } from "./index.js";
 import { stakeProvider } from "./catalog.js";
 import type { ResolvedAction, TurnContext, TurnInput } from "./types.js";
@@ -103,7 +117,92 @@ export function installWallet(corpus: Corpus, walletId: string): { reads: { bala
       return { address, protocol: CHAINS[network].vm === "evm" ? (/\.base\.eth$/u.test(name) ? "basenames" : "ens") : "sns" } as never;
     },
   });
+  installSnapshot(wallet);
   return { reads: counter };
+}
+
+/** The fixed prices of the offline corpus and eval (intent engine v2 §6): USD per whole token; stablecoins at par. */
+export const CORPUS_PRICES: Readonly<Record<string, number>> = Object.freeze({ SOL: 151.02, ETH: 3412.5, POL: 0.51 });
+/** Their reading time (Unix ms); the turn's clock is fixed 30 s later so the prices are fresh and runs are identical. */
+export const CORPUS_PRICE_AT = Date.UTC(2026, 9, 1, 12, 4, 0);
+/** Supply APYs the offline venue reader reports (fraction); every other venue's rate is unknown. */
+export const CORPUS_APY: Readonly<Record<string, number>> = Object.freeze({
+  "base:aave-v3:usdc": 0.041,
+  "base:morpho:steakhouse-prime-usdc": 0.05,
+  "base:compound-v3:usdc": 0.038,
+});
+
+/**
+ * Installs a fixture wallet as the solver's snapshot readers (intent engine
+ * v2 §4.1): the portfolio sweep and the venue positions from the fixture,
+ * fixed APYs and prices. Offline: nothing reads a network.
+ */
+function installSnapshot(wallet: CorpusWallet): void {
+  const usdOf = (symbol: string, category: string | undefined): number | null => {
+    const fixed = Object.entries(CORPUS_PRICES).find(([name]) => name === symbol.toUpperCase() || (name === "ETH" && symbol.toUpperCase() === "WETH"));
+    if (fixed) return fixed[1];
+    return category === "stablecoin" ? 1 : null;
+  };
+  const observedAt = new Date(CORPUS_PRICE_AT).toISOString();
+  configureSnapshotReaders({
+    portfolio: async (account) => {
+      const parsed = parseAccountId(account);
+      const network = parsed?.chain.key as NetworkKey | undefined;
+      const row = network ? wallet.balances?.[network] : undefined;
+      // A network the fixture has no row for could not be read (unknown, never zero).
+      if (!parsed || !network || !row) throw new Error("offline");
+      const holdings = [CHAINS[network].nativeAsset.symbol, ...assetsForNetwork(network).map((asset) => asset.symbol)]
+        .filter((symbol, index, list) => list.indexOf(symbol) === index)
+        .flatMap((symbol) => {
+          const key = Object.keys(row).find((entry) => entry.toUpperCase() === symbol.toUpperCase());
+          const asset = findAssetBySymbol(network, symbol);
+          if (!key || !asset) return [];
+          const formatted = row[key] as string;
+          const price = usdOf(asset.symbol, asset.category);
+          return [{
+            asset: asset.id, symbol: asset.symbol, name: asset.symbol, decimals: asset.decimals, amount: toBaseUnits(formatted, asset.decimals), formatted,
+            usd: price === null ? null : Math.round(Number(formatted) * price * 100) / 100, verified: true, isNative: asset.symbol === CHAINS[network].nativeAsset.symbol,
+            priceSource: price === null ? "unpriced" : asset.category === "stablecoin" ? "usd-par" : "jupiter", pricedAt: price === null ? null : observedAt,
+          }];
+        });
+      return {
+        portfolios: [{ account: account as AccountId, network, holdings, totalUsd: holdings.reduce((sum, entry) => sum + (entry.usd ?? 0), 0), unpricedCount: 0, observedAt }],
+        failures: [],
+        observedAt,
+      } as never;
+    },
+    positions: async (account, network) => {
+      const positions = Object.entries(wallet.positions ?? {}).flatMap(([key, amount]) => {
+        const [where, protocol, symbol] = key.split("/") as [NetworkKey, string, string];
+        if (where !== network) return [];
+        const venue = YIELD_VENUES.find((entry) => entry.network === network && entry.protocol === protocol && entry.asset.toUpperCase() === symbol.toUpperCase());
+        const asset = findAssetBySymbol(network, symbol);
+        if (!venue || !asset) return [];
+        const underlying = { asset: asset.id, symbol: asset.symbol, decimals: asset.decimals, amount: toBaseUnits(amount, asset.decimals), formatted: amount };
+        return [{
+          venue: venue.id, network, protocol: venue.protocol, name: venue.name, receipt: underlying, underlying, rate: null,
+          usd: (usdOf(asset.symbol, asset.category) ?? 0) * Number(amount), apy: CORPUS_APY[venue.id] ?? null, withdrawableNow: null, observedAt,
+        }];
+      });
+      return { account, network, positions, unavailable: [], observedAt } as never;
+    },
+    venue: async (venue) => {
+      const apy = CORPUS_APY[venue.id];
+      if (apy === undefined) throw new Error("offline");
+      return { name: venue.name, apy, utilization: null, exitLiquidity: null, capRemaining: null, paused: false, frozen: false, shareRate: null, at: observedAt };
+    },
+  });
+  resetSnapshotCaches();
+  configurePriceReader(fixedPriceReader(CORPUS_PRICES, CORPUS_PRICE_AT));
+  configureFactsClock(CORPUS_PRICE_AT + 30_000);
+}
+
+/** Restores every reader installWallet replaced. */
+export function uninstallWallet(): void {
+  configureHoldingsReaders(null);
+  configureSnapshotReaders(null);
+  configurePriceReader(null);
+  configureFactsClock(null);
 }
 
 export function contextFor(corpus: Corpus, entry: CorpusCase): TurnContext {

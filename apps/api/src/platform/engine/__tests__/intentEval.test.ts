@@ -136,7 +136,7 @@ describe("intent eval harness", () => {
   });
 });
 
-describe("intent eval corpus (report mode)", () => {
+describe("intent eval corpus (gates enforced)", () => {
   it("runs every prompt twice with the same results, never crashes, and prints the scoreboard", async () => {
     const first = await runIntentEval(corpus, fixtures);
     const second = await runIntentEval(corpus, fixtures);

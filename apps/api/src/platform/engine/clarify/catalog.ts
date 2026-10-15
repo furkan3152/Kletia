@@ -36,7 +36,7 @@ import {
   NATIVE_STAKE_PROTOCOL,
   NATIVE_STAKE_PROVIDER,
   NATIVE_STAKE_WORDS,
-  SWAP_NETWORKS,
+  SWAP_NETWORKS as GRAMMAR_SWAP_NETWORKS,
   SWAP_VENUES,
   type VenueWord,
 } from "../grammar.js";
@@ -55,7 +55,25 @@ export const EVM_NETWORKS: readonly NetworkKey[] = NETWORK_ORDER.filter((network
 export const BRIDGE_NETWORKS: readonly NetworkKey[] = NETWORK_ORDER.filter((network) =>
   NETWORK_ORDER.some((other) => other !== network && portableSymbol(findAssetBySymbol(other, "USDC"), network, other) !== null));
 
-export { SWAP_NETWORKS };
+/** Bridge networks of a lane (mainnet: BRIDGE_NETWORKS; testnet: the CCTP V2 testnets). */
+export function bridgeNetworksOf(current: "mainnet" | "testnet"): readonly NetworkKey[] {
+  return current === "testnet" ? TESTNET_BRIDGE_NETWORKS : BRIDGE_NETWORKS.filter((network) => lane(network) === "mainnet");
+}
+
+/**
+ * Networks a swap can run on, both lanes: the grammar's mainnet swap networks
+ * plus testnets with a swap venue in the capability index (Uniswap V3 on
+ * Arbitrum Sepolia). Every list is filtered by the request's lane where used.
+ */
+export const SWAP_NETWORKS: readonly NetworkKey[] = Object.freeze([
+  ...GRAMMAR_SWAP_NETWORKS,
+  ...NETWORK_ORDER.filter((network) => lane(network) === "testnet" && capabilityIndex(network, "swap").length > 0),
+]);
+
+/** Bridge networks of the testnet lane: CCTP V2 testnets (a bridge venue there, or a Solana cluster CCTP mints on) that list USDC. */
+export const TESTNET_BRIDGE_NETWORKS: readonly NetworkKey[] = Object.freeze(NETWORK_ORDER.filter((network) =>
+  lane(network) === "testnet" && findAssetBySymbol(network, "USDC") !== null &&
+  (capabilityIndex(network, "bridge").length > 0 || (CHAINS[network].vm === "svm" && NETWORK_ORDER.some((other) => lane(other) === "testnet" && capabilityIndex(other, "bridge").some((row) => row.protocol === "cctp-v2"))))));
 
 /** 1:1 renames and identity aliases (R5). `silent`: no chip. */
 export const ALIASES: readonly { network: NetworkKey | "*"; from: string; to: string; silent?: boolean; material?: boolean; note: string }[] = [

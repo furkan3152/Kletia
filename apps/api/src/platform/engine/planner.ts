@@ -34,6 +34,7 @@ import {
   getAsset,
   getProtocol,
   getYieldVenue,
+  isSolanaAddress,
   CONTRACT_ID_PATTERN,
   INTENT_SPEC_VERSION,
   nativeAssetId,
@@ -86,7 +87,18 @@ import { DEFAULT_MAX_SECONDS, describeQuote, exclusionReason, runVenueAuction, t
 import { pickFundedSource, resolveDeparture, type DepartureBalanceReader } from "./departure.js";
 import { knownAmount, readFacts } from "./holdings.js";
 import { estimateStepFee, gasPriceFrom, rentFrom, SOLANA_WALLET_RENT_FALLBACK } from "./journey/fees.js";
-import { compileIntentText, EVM_STAKING_NETWORK, EVM_STAKING_TOKENS, GRAMMAR_EXAMPLES, LIQUID_STAKING_TOKENS, MissingSourceError, type GrammarResult } from "./grammar.js";
+import {
+  compileIntentText,
+  EVM_STAKING_NETWORK,
+  EVM_STAKING_TOKENS,
+  GRAMMAR_EXAMPLES,
+  l2StakeAlternatives,
+  LIQUID_STAKING_TOKENS,
+  MissingSourceError,
+  NATIVE_STAKE_PROTOCOL,
+  NATIVE_STAKE_PROVIDER,
+  type GrammarResult,
+} from "./grammar.js";
 import { looksLikeName, normalizeName, resolveRecipientName, type NameResolution } from "./names.js";
 import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef } from "./stepRef.js";
@@ -117,6 +129,44 @@ const EVM_STAKE_PROTOCOLS: Readonly<Partial<Record<ProtocolId, { readonly symbol
 );
 /** Networks liquid staking may plan on (the adapters decide what is live). */
 const STAKE_NETWORKS: readonly NetworkKey[] = ["solana", EVM_STAKING_NETWORK];
+/** Networks native SOL staking (a stake account delegated to a validator) may plan on. */
+const NATIVE_STAKE_NETWORKS: readonly NetworkKey[] = (getProtocol(NATIVE_STAKE_PROTOCOL)?.networks ?? []).filter((network) => CHAINS[network].vm === "svm");
+
+/** "Lido, Rocket Pool, ether.fi, Stader, Mantle LSP or Frax Ether" (every EVM staking protocol the grammar maps). */
+function evmStakeNames(): string {
+  return joinList(Object.keys(EVM_STAKE_PROTOCOLS).map((id) => getProtocol(id as ProtocolId)?.name ?? id), "or");
+}
+
+/** "wstETH (Lido), rETH (Rocket Pool), ... or sfrxETH (Frax Ether)". */
+function evmStakeTokens(): string {
+  return joinList(Object.values(EVM_STAKE_PROTOCOLS).map((entry) => `${entry?.symbol} (${entry?.provider})`), "or");
+}
+
+/**
+ * "stake ETH" on an EVM network without staking (protocols design 3.3): the
+ * refusal names the two ways that work, as sentences the grammar reads
+ * (buy a liquid staking token there at market, or bridge to Ethereum and
+ * stake). Never planned silently as a swap.
+ */
+function l2StakeRefusal(network: NetworkKey, amount: string | undefined, path: string): PlatformError {
+  const alternatives = l2StakeAlternatives(network);
+  const name = CHAINS[network].name;
+  const value = amount && amount !== "max" ? amount : "1";
+  const ways: string[] = [];
+  if (alternatives && alternatives.tokens.length > 0) {
+    const [first, ...rest] = alternatives.tokens;
+    ways.push(`buy ${joinList(alternatives.tokens, "or")} on ${name} at market ("swap ${value} ${alternatives.etherSymbol} to ${first} on ${network}"${rest.length > 0 ? `, or ${rest.join(", ")}` : ""})`);
+  }
+  if (alternatives && alternatives.etherSymbol.toUpperCase() === "ETH") {
+    ways.push(`bridge to Ethereum and stake there ("bridge ${value} ETH from ${network} to ethereum then stake it with lido")`);
+  }
+  const instead = ways.length > 0 ? ` On ${name} you can ${ways.join(", or ")}.` : "";
+  return unsupported(
+    `Staking ETH runs on ${CHAINS[EVM_STAKING_NETWORK].name} (${evmStakeNames()}), not on ${name}.${instead}`,
+    GRAMMAR_EXAMPLES,
+    issue(`${path}.network`, "No staking venue on this network."),
+  );
+}
 
 /**
  * - `exact`: a decimal amount of the input.
@@ -301,6 +351,10 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     let protocol = spec.protocol;
     let provider = typeof spec.params?.provider === "string" ? spec.params.provider.slice(0, 32) : undefined;
     let to = spec.to;
+    if (kind === "stake" && CHAINS[spec.network].vm === "evm" && spec.network !== EVM_STAKING_NETWORK && typeof request.text === "string") {
+      // A sentence gets sentences back; structured actions keep the live-venue refusal of draftStep.
+      throw l2StakeRefusal(spec.network, spec.amount, path);
+    }
     if (kind === "stake" && CHAINS[spec.network].vm === "evm") {
       // EVM liquid staking: the protocol comes from the request or from the token it mints (default Lido).
       const byTarget = to
@@ -308,13 +362,13 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
         : undefined;
       if (protocol && !EVM_STAKE_PROTOCOLS[protocol]) {
         throw unsupported(
-          `Liquid staking on ${CHAINS[spec.network].name} runs through Lido, Rocket Pool or ether.fi, not ${getProtocol(protocol)?.name ?? protocol}.`,
+          `Liquid staking on ${CHAINS[spec.network].name} runs through ${evmStakeNames()}, not ${getProtocol(protocol)?.name ?? protocol}.`,
           GRAMMAR_EXAMPLES,
           issue(`${path}.protocol`, "Unsupported."),
         );
       }
       if (to && !byTarget) {
-        throw unsupported(`Liquid staking on ${CHAINS[spec.network].name} mints wstETH (Lido), rETH (Rocket Pool) or weETH (ether.fi), not ${to}.`, GRAMMAR_EXAMPLES, issue(`${path}.to`, "Unsupported."));
+        throw unsupported(`Liquid staking on ${CHAINS[spec.network].name} mints ${evmStakeTokens()}, not ${to}.`, GRAMMAR_EXAMPLES, issue(`${path}.to`, "Unsupported."));
       }
       protocol = protocol ?? byTarget ?? "lido";
       const target = EVM_STAKE_PROTOCOLS[protocol] as { symbol: string; provider: string };
@@ -323,17 +377,35 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
       }
       to = target.symbol;
       provider = provider ?? target.provider;
+    } else if (kind === "stake" && isNativeStake(spec)) {
+      // Native staking: a stake account the wallet owns, delegated to a validator; the output is the delegated SOL.
+      if (!NATIVE_STAKE_NETWORKS.includes(spec.network)) {
+        throw unsupported(
+          `Native staking runs on ${joinList(NATIVE_STAKE_NETWORKS.map((network) => CHAINS[network].name), "and")}, not ${CHAINS[spec.network].name}.`,
+          GRAMMAR_EXAMPLES,
+          issue(`${path}.network`, "Unsupported."),
+        );
+      }
+      const native = CHAINS[spec.network].nativeAsset.symbol;
+      if (to && to.toUpperCase() !== native.toUpperCase()) {
+        throw unsupported(`Native staking keeps ${native} in a stake account; it does not mint ${to}.`, GRAMMAR_EXAMPLES, issue(`${path}.to`, "Mismatch."));
+      }
+      to = native;
+      protocol = NATIVE_STAKE_PROTOCOL;
+      // A named validator is its vote account (base58, up to 44 characters): kept whole, never cut.
+      const named = typeof spec.params?.provider === "string" ? spec.params.provider.trim() : undefined;
+      provider = named && isSolanaAddress(named) ? named : NATIVE_STAKE_PROVIDER;
     } else if (kind === "stake") {
       if (protocol && EVM_STAKE_PROTOCOLS[protocol]) {
         throw unsupported(
-          `${getProtocol(protocol)?.name ?? protocol} stakes ETH on Ethereum; SOL stakes with Jito, Marinade or Jupiter.`,
+          `${getProtocol(protocol)?.name ?? protocol} stakes ETH on Ethereum; SOL stakes with ${solanaStakeNames()}.`,
           GRAMMAR_EXAMPLES,
           issue(`${path}.protocol`, "Unsupported on this network."),
         );
       }
       const key = protocol ? STAKE_PROTOCOLS[protocol] : undefined;
       if (protocol && !key) {
-        throw unsupported(`Liquid staking runs through Jupiter routes, not ${protocol}.`, GRAMMAR_EXAMPLES, issue(`${path}.protocol`, "Unsupported."));
+        throw unsupported(`SOL liquid staking runs through ${solanaStakeNames()}, not ${getProtocol(protocol)?.name ?? protocol}.`, GRAMMAR_EXAMPLES, issue(`${path}.protocol`, "Unsupported."));
       }
       if (key && !to) to = LIQUID_STAKING_TOKENS[key]?.symbol;
       if (!provider) {
@@ -399,6 +471,24 @@ interface PreviousStep {
 
 function executableProtocols(): Set<ProtocolId> {
   return new Set(activeProtocolAdapters().flatMap((adapter) => adapter.protocols));
+}
+
+/**
+ * A Solana stake that is native staking: named by protocol, or (the clarify
+ * layer's structured fallback, which carries no stake protocol) the native
+ * asset as output with the native provider label or a vote account.
+ */
+function isNativeStake(spec: IntentActionSpec): boolean {
+  if (spec.protocol === NATIVE_STAKE_PROTOCOL) return true;
+  if (spec.protocol || !spec.to || spec.to.toUpperCase() !== CHAINS[spec.network].nativeAsset.symbol.toUpperCase()) return false;
+  const provider = typeof spec.params?.provider === "string" ? spec.params.provider.trim() : "";
+  return provider === NATIVE_STAKE_PROVIDER || isSolanaAddress(provider);
+}
+
+/** "Jito, Marinade, Jupiter / Sanctum LSTs or native staking" (Solana staking protocols of the grammar). */
+function solanaStakeNames(): string {
+  const ids = [...new Set(Object.keys(STAKE_PROTOCOLS).filter((id) => id !== "jupiter"))] as ProtocolId[];
+  return joinList([...ids.map((id) => getProtocol(id)?.name ?? id), "native staking"], "or");
 }
 
 /** Names of the registry protocols with a live adapter for `kind` (the lending list keeps its default order). */
@@ -469,7 +559,11 @@ function liveStakeText(): string {
     return eth && output && liveVenuesFor("stake", EVM_STAKING_NETWORK, eth, output).length > 0;
   });
   if (ethTargets.length > 0) parts.push(`${CHAINS[EVM_STAKING_NETWORK].name} (ETH → ${joinList([...new Set(ethTargets)], "or")})`);
-  return parts.length > 0 ? `Liquid staking runs on ${joinList(parts)}` : "No liquid staking venue is enabled on this deployment";
+  const native = executableProtocols().has(NATIVE_STAKE_PROTOCOL)
+    ? `; native SOL staking (say "natively") runs on ${joinList(NATIVE_STAKE_NETWORKS.map((network) => CHAINS[network].name), "and")}`
+    : "";
+  if (parts.length === 0) return native ? `No liquid staking venue is enabled on this deployment${native}` : "No liquid staking venue is enabled on this deployment";
+  return `Liquid staking runs on ${joinList(parts)}${native}`;
 }
 
 function unsupportedRoute(route: AdapterRoute): PlatformError {
@@ -735,7 +829,10 @@ async function planWithCandidates(
 ): Promise<CandidateSelection> {
   const crossNetwork = action.kind === "bridge" && action.network !== action.destinationNetwork;
   const swapAuction = action.kind === "swap" && action.network === action.destinationNetwork && candidates.length > 1;
-  if (crossNetwork || swapAuction) {
+  // Liquid staking with several venues minting the same token (a stake pool deposit and a Jupiter route to the
+  // same LST): the venue that guarantees more of it wins (protocols design 3.4).
+  const stakeAuction = action.kind === "stake" && action.network === action.destinationNetwork && candidates.length > 1;
+  if (crossNetwork || swapAuction || stakeAuction) {
     const maxSeconds = request.constraints?.maxSeconds;
     const auction = await runVenueAuction(candidates, action, {
       maxSeconds: maxSeconds ?? DEFAULT_MAX_SECONDS,
@@ -915,7 +1012,8 @@ async function draftStep(
   context: DraftContext = NO_DRAFT_CONTEXT,
 ): Promise<StepDraft> {
   if (CONTRACT_KINDS.includes(action.kind)) return draftContractStep(action, previous, accounts, request, ownerKeyId);
-  if (action.kind === "stake" && !STAKE_NETWORKS.includes(action.network)) {
+  const nativeStake = action.kind === "stake" && action.protocol === NATIVE_STAKE_PROTOCOL;
+  if (action.kind === "stake" && !(nativeStake ? NATIVE_STAKE_NETWORKS : STAKE_NETWORKS).includes(action.network)) {
     throw unsupported(`${liveStakeText()}, not ${CHAINS[action.network].name}.`, GRAMMAR_EXAMPLES);
   }
   const account = accountForNetwork(accounts, action.network);
@@ -929,7 +1027,8 @@ async function draftStep(
     );
   }
   const output = await resolveOutput(action, input);
-  if ((action.kind === "swap" || action.kind === "stake" || action.kind === "bridge") && sameAsset(input, output)) {
+  // Native staking keeps the native asset (delegated in a stake account): the one stake whose output is its input.
+  if ((action.kind === "swap" || (action.kind === "stake" && !nativeStake) || action.kind === "bridge") && sameAsset(input, output)) {
     throw new PlatformError("SWAP_SAME_ASSET", `Step ${action.index + 1} would swap ${input.symbol} into itself.`, 422);
   }
   const transferOnly = [input, output].find((asset) => asset.transferOnly);

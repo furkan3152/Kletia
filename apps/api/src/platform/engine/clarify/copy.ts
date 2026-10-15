@@ -99,3 +99,20 @@ export function placeholderFor(kind: ClarifyQuestionKind, symbol?: string, solan
   if (kind === "address") return solana ? "Solana address or name.sns" : "0x… or name.eth";
   return undefined;
 }
+
+/**
+ * Copy of the questions the protocol hooks add (protocols design 3.3, 3.6):
+ * staking ETH on a network without staking, and a deposit that names no
+ * venue. Prompts and why-lines only; the options come from the catalog
+ * (`l2StakeOptions`, `rankedVenueOptions`).
+ */
+export const PROTOCOL_QUESTION_COPY = Object.freeze({
+  l2Stake: (amount: string, network: string) => ({
+    prompt: `Staking ETH runs on Ethereum. How should ${amount} on ${network} earn staking yield?`,
+    why: `There is no staking contract on ${network}: Kletia can buy a liquid staking token there at market, or bridge to Ethereum and stake at the protocol rate.`,
+  }),
+  venueMissing: (amount: string, network: string) => ({
+    prompt: `Where should ${amount} earn yield on ${network}?`,
+    why: "Each venue has its own rate and risks; rates are variable.",
+  }),
+});

@@ -62,3 +62,7 @@ address from those tables and never take one from a provider at runtime.
   a testnet (`CAPITAL_LANE_MIXED`).
 - Submitted transactions verify only when chain, sender, target, calldata and
   value reproduce a payload prepared for the step (quote binding).
+
+## Round 7 coverage
+
+Round 7 added Aave V3 USDT0 and wstETH reserves, the Compound V3 USDT0 comet (the first Compound venue on Polygon PoS), Morpho Compound USDC and USDT vaults (v1.1 factory `0xa9c87daB340631C34BB738625C70499e29ddDC98`), and USDT0 (read for "USDT"), wstETH and DAI asset rows. "ETH" on Polygon PoS is WETH: the strict grammar reads it so with a note, the clarify layer asks. The cell-by-cell table, its offline and live gates and the on-chain evidence are in [protocol coverage](protocol-coverage.md).

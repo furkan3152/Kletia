@@ -1,0 +1,546 @@
+{
+  "at": "2026-10-15T06:07:08.070Z",
+  "api": "http://127.0.0.1:3151",
+  "results": [
+    {
+      "network": "ethereum",
+      "kind": "swap",
+      "text": "swap 100 USDC to ETH on ethereum",
+      "verdict": "plans",
+      "detail": "pancakeswap-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "swap-pancake",
+      "text": "swap 100 USDC to ETH via pancake on ethereum",
+      "verdict": "plans",
+      "detail": "pancakeswap-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "swap-curve",
+      "text": "swap 100 USDC to USDT via curve on ethereum",
+      "verdict": "plans",
+      "detail": "curve"
+    },
+    {
+      "network": "ethereum",
+      "kind": "swap-usdt",
+      "text": "swap 100 USDC to USDT on ethereum",
+      "verdict": "plans",
+      "detail": "pancakeswap-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-aave-usdt",
+      "text": "deposit 100 USDT into aave on ethereum",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-aave-cbbtc",
+      "text": "deposit 0.01 cbBTC into aave on ethereum",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-compound-wsteth",
+      "text": "deposit 1 wstETH into compound on ethereum",
+      "verdict": "plans",
+      "detail": "compound-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-morpho-usdt",
+      "text": "deposit 100 USDT into morpho on ethereum",
+      "verdict": "plans",
+      "detail": "morpho"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-morpho-steakhouse",
+      "text": "deposit 100 USDC into morpho steakhouse-usdc on ethereum",
+      "verdict": "plans",
+      "detail": "morpho"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-sparklend",
+      "text": "deposit 100 USDC into sparklend on ethereum",
+      "verdict": "plans",
+      "detail": "sparklend"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-yearn",
+      "text": "deposit 100 USDC into yearn on ethereum",
+      "verdict": "plans",
+      "detail": "yearn-v3"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-lido",
+      "text": "stake 1 ETH with lido",
+      "verdict": "plans",
+      "detail": "lido"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-rocket-pool",
+      "text": "stake 1 ETH with rocket pool",
+      "verdict": "plans",
+      "detail": "rocket-pool"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-etherfi",
+      "text": "stake 1 ETH with ether.fi",
+      "verdict": "plans",
+      "detail": "etherfi"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-stader",
+      "text": "stake 1 ETH with stader",
+      "verdict": "plans",
+      "detail": "stader"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-mantle",
+      "text": "stake 1 ETH with mantle",
+      "verdict": "plans",
+      "detail": "mantle-lsp"
+    },
+    {
+      "network": "ethereum",
+      "kind": "stake-frax",
+      "text": "stake 1 ETH with frax",
+      "verdict": "plans",
+      "detail": "frax-ether"
+    },
+    {
+      "network": "ethereum",
+      "kind": "bridge",
+      "text": "bridge 100 USDC from ethereum to base",
+      "verdict": "plans",
+      "detail": "across"
+    },
+    {
+      "network": "ethereum",
+      "kind": "deposit-venue-less",
+      "text": "deposit 100 USDC on ethereum",
+      "verdict": "guided",
+      "detail": "offers \"deposit 100 USDC into aave on ethereum\"",
+      "offered": [
+        {
+          "text": "deposit 100 USDC into aave on ethereum",
+          "verdict": "plans",
+          "detail": "aave-v3"
+        }
+      ]
+    },
+    {
+      "network": "ethereum",
+      "kind": "borrow",
+      "text": "borrow 100 USDC on ethereum",
+      "verdict": "guided",
+      "detail": "offers \"deposit 100 USDC into aave on base\"",
+      "offered": [
+        {
+          "text": "deposit 100 USDC into aave on base",
+          "verdict": "plans",
+          "detail": "aave-v3"
+        }
+      ]
+    },
+    {
+      "network": "base",
+      "kind": "swap",
+      "text": "swap 100 USDC to ETH on base",
+      "verdict": "plans",
+      "detail": "uniswap-v3"
+    },
+    {
+      "network": "base",
+      "kind": "swap-pancake",
+      "text": "swap 100 USDC to ETH via pancakeswap on base",
+      "verdict": "plans",
+      "detail": "pancakeswap-v3"
+    },
+    {
+      "network": "base",
+      "kind": "swap-aerodrome",
+      "text": "swap 100 USDC to ETH via aerodrome on base",
+      "verdict": "plans",
+      "detail": "aerodrome"
+    },
+    {
+      "network": "base",
+      "kind": "buy-cbeth",
+      "text": "swap 1 ETH to cbETH on base",
+      "verdict": "plans",
+      "detail": "aerodrome"
+    },
+    {
+      "network": "base",
+      "kind": "deposit-aave-wsteth",
+      "text": "deposit 1 wstETH into aave on base",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "base",
+      "kind": "deposit-aave-cbeth",
+      "text": "deposit 1 cbETH into aave on base",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "base",
+      "kind": "deposit-moonwell",
+      "text": "deposit 100 USDC into moonwell on base",
+      "verdict": "venue",
+      "detail": "VENUE_ILLIQUID: Moonwell USDC on Base has 0.000001 USDC of exit liquidity (over 99% borrowed); a new deposit could not be withdrawn until borrowers repay."
+    },
+    {
+      "network": "base",
+      "kind": "deposit-fluid",
+      "text": "deposit 100 USDC into fluid on base",
+      "verdict": "plans",
+      "detail": "fluid"
+    },
+    {
+      "network": "base",
+      "kind": "bridge-solana",
+      "text": "bridge 100 USDC from base to solana",
+      "verdict": "plans",
+      "detail": "cctp-v2"
+    },
+    {
+      "network": "base",
+      "kind": "stake",
+      "text": "stake 1 ETH on base",
+      "verdict": "guided",
+      "detail": "offers \"swap 1 ETH to wstETH on base\", \"bridge 1 ETH from base to ethereum then stake it with lido\"",
+      "offered": [
+        {
+          "text": "swap 1 ETH to wstETH on base",
+          "verdict": "plans",
+          "detail": "aerodrome"
+        },
+        {
+          "text": "bridge 1 ETH from base to ethereum then stake it with lido",
+          "verdict": "plans",
+          "detail": "relay"
+        }
+      ]
+    },
+    {
+      "network": "base",
+      "kind": "deposit-venue-less",
+      "text": "deposit 100 USDC on base",
+      "verdict": "guided",
+      "detail": "offers \"deposit 100 USDC into aave on base\"",
+      "offered": [
+        {
+          "text": "deposit 100 USDC into aave on base",
+          "verdict": "plans",
+          "detail": "aave-v3"
+        }
+      ]
+    },
+    {
+      "network": "arbitrum",
+      "kind": "swap",
+      "text": "swap 100 USDC to ETH on arbitrum",
+      "verdict": "plans",
+      "detail": "relay"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "swap-camelot",
+      "text": "swap 100 USDC to ETH via camelot on arbitrum",
+      "verdict": "plans",
+      "detail": "camelot"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "swap-usdt",
+      "text": "swap 100 USDC to USDT on arbitrum",
+      "verdict": "plans",
+      "detail": "relay"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "deposit-aave-usdt",
+      "text": "deposit 100 USDT into aave on arbitrum",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "deposit-compound-usdt",
+      "text": "deposit 100 USDT into compound on arbitrum",
+      "verdict": "plans",
+      "detail": "compound-v3"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "deposit-aave-wsteth",
+      "text": "deposit 1 wstETH into aave on arbitrum",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "arbitrum",
+      "kind": "stake",
+      "text": "stake 1 ETH on arbitrum",
+      "verdict": "guided",
+      "detail": "offers \"swap 1 ETH to wstETH on arbitrum\", \"bridge 1 ETH from arbitrum to ethereum then stake it with lido\"",
+      "offered": [
+        {
+          "text": "swap 1 ETH to wstETH on arbitrum",
+          "verdict": "plans",
+          "detail": "uniswap-v3"
+        },
+        {
+          "text": "bridge 1 ETH from arbitrum to ethereum then stake it with lido",
+          "verdict": "plans",
+          "detail": "relay"
+        }
+      ]
+    },
+    {
+      "network": "optimism",
+      "kind": "swap-velodrome",
+      "text": "swap 100 USDC to ETH via velodrome on optimism",
+      "verdict": "plans",
+      "detail": "velodrome"
+    },
+    {
+      "network": "optimism",
+      "kind": "deposit-morpho",
+      "text": "deposit 100 USDC into morpho on optimism",
+      "verdict": "plans",
+      "detail": "morpho"
+    },
+    {
+      "network": "optimism",
+      "kind": "deposit-compound-usdt",
+      "text": "deposit 100 USDT into compound on optimism",
+      "verdict": "plans",
+      "detail": "compound-v3"
+    },
+    {
+      "network": "optimism",
+      "kind": "deposit-aave-wsteth",
+      "text": "deposit 1 wstETH into aave on optimism",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "optimism",
+      "kind": "stake",
+      "text": "stake 1 ETH on optimism",
+      "verdict": "guided",
+      "detail": "offers \"swap 1 ETH to wstETH on optimism\", \"bridge 1 ETH from optimism to ethereum then stake it with lido\"",
+      "offered": [
+        {
+          "text": "swap 1 ETH to wstETH on optimism",
+          "verdict": "plans",
+          "detail": "velodrome"
+        },
+        {
+          "text": "bridge 1 ETH from optimism to ethereum then stake it with lido",
+          "verdict": "plans",
+          "detail": "relay"
+        }
+      ]
+    },
+    {
+      "network": "polygon",
+      "kind": "swap-eth",
+      "text": "swap 100 USDC to ETH on polygon",
+      "verdict": "plans",
+      "detail": "uniswap-v3"
+    },
+    {
+      "network": "polygon",
+      "kind": "deposit-compound-usdt",
+      "text": "deposit 100 USDT into compound on polygon",
+      "verdict": "plans",
+      "detail": "compound-v3"
+    },
+    {
+      "network": "polygon",
+      "kind": "deposit-morpho-usdc",
+      "text": "deposit 100 USDC into morpho on polygon",
+      "verdict": "venue",
+      "detail": "RESERVE_UNAVAILABLE: Compound USDC accepts at most 0 USDC more right now (its market caps are reached)."
+    },
+    {
+      "network": "polygon",
+      "kind": "deposit-morpho-usdt",
+      "text": "deposit 100 USDT into morpho on polygon",
+      "verdict": "venue",
+      "detail": "RESERVE_UNAVAILABLE: Compound USDT accepts at most 0 USDT0 more right now (its market caps are reached)."
+    },
+    {
+      "network": "polygon",
+      "kind": "stake",
+      "text": "stake 1 ETH on polygon",
+      "verdict": "guided",
+      "detail": "offers \"swap 1 WETH to wstETH on polygon\"",
+      "offered": [
+        {
+          "text": "swap 1 WETH to wstETH on polygon",
+          "verdict": "plans",
+          "detail": "uniswap-v3"
+        }
+      ]
+    },
+    {
+      "network": "solana",
+      "kind": "swap",
+      "text": "swap 1 SOL to USDC",
+      "verdict": "plans",
+      "detail": "jupiter"
+    },
+    {
+      "network": "solana",
+      "kind": "swap-orca",
+      "text": "swap 1 SOL to USDC via orca",
+      "verdict": "plans",
+      "detail": "orca"
+    },
+    {
+      "network": "solana",
+      "kind": "deposit-kamino",
+      "text": "deposit 10 USDC into kamino",
+      "verdict": "plans",
+      "detail": "kamino"
+    },
+    {
+      "network": "solana",
+      "kind": "deposit-jupiter-lend",
+      "text": "deposit 10 USDC into jupiter lend",
+      "verdict": "plans",
+      "detail": "jupiter-lend"
+    },
+    {
+      "network": "solana",
+      "kind": "stake-jito",
+      "text": "stake 1 SOL with jito",
+      "verdict": "plans",
+      "detail": "jito"
+    },
+    {
+      "network": "solana",
+      "kind": "stake-marinade",
+      "text": "stake 1 SOL with marinade",
+      "verdict": "plans",
+      "detail": "marinade"
+    },
+    {
+      "network": "solana",
+      "kind": "stake-sanctum",
+      "text": "stake 1 SOL with jupsol",
+      "verdict": "plans",
+      "detail": "sanctum"
+    },
+    {
+      "network": "solana",
+      "kind": "stake-native",
+      "text": "stake 2 SOL natively",
+      "verdict": "plans",
+      "detail": "solana-stake"
+    },
+    {
+      "network": "solana",
+      "kind": "stake-validator",
+      "text": "stake 2 SOL with validator he1iusunGwqrNtafDtLdhsUQDFvo13z9sUa36PauBtk",
+      "verdict": "plans",
+      "detail": "solana-stake"
+    },
+    {
+      "network": "solana",
+      "kind": "bridge",
+      "text": "bridge 25 USDC from solana to base",
+      "verdict": "plans",
+      "detail": "relay"
+    },
+    {
+      "network": "solana",
+      "kind": "transfer",
+      "text": "send 1 USDC to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
+      "verdict": "plans",
+      "detail": "spl-token"
+    },
+    {
+      "network": "arc",
+      "kind": "transfer",
+      "text": "send 1 USDC to 0x000000000000000000000000000000000000dEaD on arc",
+      "verdict": "plans",
+      "detail": "erc20-transfer"
+    },
+    {
+      "network": "arc",
+      "kind": "transfer-eurc",
+      "text": "send 1 EURC to 0x000000000000000000000000000000000000dEaD on arc",
+      "verdict": "plans",
+      "detail": "erc20-transfer"
+    },
+    {
+      "network": "arc",
+      "kind": "bridge",
+      "text": "bridge 1 USDC from arc to arbitrum sepolia",
+      "verdict": "plans",
+      "detail": "cctp-v2"
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "kind": "swap",
+      "text": "swap 1 USDC to ETH on arbitrum sepolia",
+      "verdict": "plans",
+      "detail": "uniswap-v3"
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "kind": "deposit",
+      "text": "deposit 1 USDC into aave on arbitrum sepolia",
+      "verdict": "plans",
+      "detail": "aave-v3"
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "kind": "bridge",
+      "text": "bridge 1 USDC from arbitrum sepolia to arc",
+      "verdict": "plans",
+      "detail": "cctp-v2"
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "kind": "bridge-solana-devnet",
+      "text": "bridge 1 USDC from arbitrum sepolia to solana devnet",
+      "verdict": "plans",
+      "detail": "cctp-v2"
+    },
+    {
+      "network": "solana-devnet",
+      "kind": "stake",
+      "text": "stake 1 SOL on solana devnet",
+      "verdict": "plans",
+      "detail": "solana-stake"
+    },
+    {
+      "network": "solana-devnet",
+      "kind": "transfer",
+      "text": "send 0.1 SOL to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1 on solana devnet",
+      "verdict": "plans",
+      "detail": "system-transfer"
+    }
+  ]
+}

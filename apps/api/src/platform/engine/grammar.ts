@@ -7,6 +7,9 @@
  * the clause is refused.
  */
 import {
+  ASSETS,
+  capabilityIndex,
+  capableProtocols,
   CHAINS,
   findAssetByAddress,
   findAssetBySymbol,
@@ -178,6 +181,50 @@ const GENERATED_EVM_STAKING_WORDS: readonly string[] = generatedEvmStaking().map
 export const EVM_STAKING_NETWORK: NetworkKey = "ethereum";
 
 /**
+ * Staking ETH on an EVM network other than Ethereum (protocols design 3.3):
+ * no staking contract runs there, so the alternatives are buying a listed
+ * liquid staking token at market on that network (a swap, never called a
+ * stake) or bridging to Ethereum and staking there. `etherSymbol` is what
+ * ether is called on the network (WETH on Polygon PoS); `tokens` the liquid
+ * staking tokens listed there that a swap venue can route (transfer-only
+ * rows excluded). Null on Ethereum, on non-EVM networks and on testnets.
+ */
+export interface L2StakeAlternatives {
+  readonly network: NetworkKey;
+  readonly etherSymbol: string;
+  readonly tokens: readonly string[];
+}
+
+export function l2StakeAlternatives(network: NetworkKey): L2StakeAlternatives | null {
+  const chain = CHAINS[network];
+  if (chain.vm !== "evm" || network === EVM_STAKING_NETWORK || chain.environment !== "mainnet") return null;
+  const etherSymbol = chain.nativeAsset.symbol.toUpperCase() === "ETH" ? chain.nativeAsset.symbol : findAssetBySymbol(network, "WETH")?.symbol;
+  if (!etherSymbol) return null;
+  const swappable = capabilityIndex(network, "swap").length > 0;
+  const tokens = swappable
+    ? ASSETS.filter((asset) => asset.network === network && asset.category === "liquid-staking" && !asset.transferOnly).map((asset) => asset.symbol)
+    : [];
+  return { network, etherSymbol, tokens };
+}
+
+/** The protocol of native SOL staking to a validator (stake account, no liquid token). */
+export const NATIVE_STAKE_PROTOCOL: ProtocolId = "solana-stake";
+/**
+ * Native staking words ("with native stake", "with validator <vote>") from the
+ * registry descriptor; "natively" is read without a connector ("stake 2 SOL
+ * natively"), so it is not a venue word after "with".
+ */
+export const NATIVE_STAKE_WORDS: readonly string[] = Object.freeze(
+  (getProtocol(NATIVE_STAKE_PROTOCOL)?.words ?? []).map((word) => word.trim().toLowerCase()).filter((word) => word !== "natively"),
+);
+/** Provider label the grammar writes for a native stake without a named validator. */
+export const NATIVE_STAKE_PROVIDER = getProtocol(NATIVE_STAKE_PROTOCOL)?.name ?? "Native SOL staking";
+
+function isNativeStakeWord(word: string | undefined): boolean {
+  return word !== undefined && NATIVE_STAKE_WORDS.includes(word.trim().toLowerCase().replace(/[\s-]+/gu, " "));
+}
+
+/**
  * Ethereum liquid-staking protocols with words and no hand-written entry
  * (round 7: Stader, Mantle LSP, Frax Ether): each word -> the asset of the
  * protocol's pinned `lst-token` on Ethereum. A protocol without that pin, or
@@ -226,12 +273,13 @@ export const GRAMMAR_VENUE_WORDS: readonly string[] = Object.freeze([
   ...Object.keys(EVM_STAKING_TOKENS),
   // Round 7: generated swap venue words (generated staking words are EVM_STAKING_TOKENS keys above).
   ...GENERATED_SWAP_PROTOCOLS.flatMap((protocol) => (protocol.words ?? []).map((word) => word.toLowerCase())),
+  ...NATIVE_STAKE_WORDS,
 ]);
 
 /** True when `word` is a venue the built-in patterns match (drift test). */
 export function isGrammarVenueWord(word: string): boolean {
   return [...LENDING_VENUES, ...BRIDGE_VENUES, ...SWAP_VENUES].some((venue) => venue.pattern.test(word)) ||
-    Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase()) || evmStakingToken(word) !== undefined;
+    Object.hasOwn(LIQUID_STAKING_TOKENS, word.toLowerCase()) || evmStakingToken(word) !== undefined || isNativeStakeWord(word);
 }
 
 export interface GrammarContext {
@@ -286,6 +334,8 @@ interface Draft {
   readonly toNetwork?: NetworkKey;
   readonly recipient?: string;
   readonly lst?: string;
+  /** Native SOL staking (stake account); `vote` is the validator the clause named. */
+  readonly native?: { readonly vote?: string };
   readonly protocol?: ProtocolId;
   /** Vault slug named in the clause (Morpho, Spark Savings, Yearn). */
   readonly venue?: string;
@@ -321,7 +371,10 @@ export const LST_WORDS = [
   ...Object.keys(LIQUID_STAKING_TOKENS),
   "lido", "wsteth", "steth", "rocket[\\s-]*pool", "reth", "ether\\.?fi", "weeth", "eeth",
   ...(GENERATED_EVM_STAKING_WORDS.length > 0 ? [wordAlternation(GENERATED_EVM_STAKING_WORDS)] : []),
+  ...(NATIVE_STAKE_WORDS.length > 0 ? [wordAlternation(NATIVE_STAKE_WORDS)] : []),
 ].join("|");
+/** A Solana vote account named after "validator" ("stake 2 SOL with validator <vote>"). */
+const VOTE_ACCOUNT = "(?<vote>[1-9A-HJ-NP-Za-km-z]{32,44})";
 /** "via raydium", "using orca", "through uniswap" after a swap. */
 const SWAP_VENUE_SUFFIX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))`;
 /** A swap names its network and venue in either order. */
@@ -345,7 +398,7 @@ export const SENTENCE_FRAGMENTS = Object.freeze({
   LST_WORDS,
 });
 
-const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"; regex: RegExp }[] = [
+const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer" | "native-stake"; regex: RegExp }[] = [
   ...SWAP_SUFFIXES.flatMap((suffix) => [
     {
       kind: "swap" as const,
@@ -370,6 +423,15 @@ const PATTERNS: readonly { kind: IntentActionKind | "buy" | "bridge-or-transfer"
   {
     kind: "transfer",
     regex: new RegExp(`^(?:send|transfer|pay)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?\\s+to\\s+${ADDRESS}${ON_NETWORK}?$`, "iu"),
+  },
+  {
+    // Native SOL staking: "stake 2 SOL natively", "stake 2 SOL with native staking", "stake 2 SOL with validator <vote>".
+    kind: "native-stake",
+    regex: new RegExp(
+      `^stake\\s+${AMOUNT}(?:\\s+(?<a>sol))?(?:\\s+natively|\\s+(?:with|via|using|to|at)\\s+(?:a\\s+|the\\s+)?(?<lst>${wordAlternation(NATIVE_STAKE_WORDS)})` +
+        `(?:\\s+${VOTE_ACCOUNT})?)${ON_NETWORK}?$`,
+      "iu",
+    ),
   },
   {
     kind: "stake",
@@ -528,7 +590,7 @@ function stakeDraft(clause: string, groups: Record<string, string | undefined>, 
     kind: "stake",
     amount,
     ...(asset ? { from: "SOL" } : {}),
-    lst: word ?? "jito",
+    ...(word ? { lst: word } : {}),
     ...(network ? { network } : {}),
     explicit: network !== undefined,
   };
@@ -581,6 +643,17 @@ function matchClause(clause: string): Draft {
         };
       case "stake":
         return stakeDraft(clause, groups, amount, network);
+      case "native-stake":
+        return {
+          clause,
+          kind: "stake",
+          amount,
+          ...(groups.a ? { from: "SOL" } : {}),
+          native: groups.vote ? { vote: groups.vote } : {},
+          protocol: NATIVE_STAKE_PROTOCOL,
+          ...(network ? { network } : {}),
+          explicit: network !== undefined,
+        };
       case "deposit":
       case "withdraw":
         return lendingDraft(clause, pattern.kind, groups, amount, network);
@@ -589,14 +662,76 @@ function matchClause(clause: string): Draft {
     }
   }
   const verb = clause.split(/\s+/u)[0]?.toLowerCase() ?? "";
+  if (BORROW_VERBS.includes(verb)) throw borrowRefusal(clause, verb);
+  const venueless = venuelessDeposit(clause);
+  if (venueless) throw venueless;
   const reason = VERBS.includes(verb)
     ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
     : `"${verb.slice(0, 32)}" is not a supported action.`;
   throw unsupported(
-    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL, or ETH on Ethereum), deposit/supply/lend into and withdraw from Aave, Compound, Morpho, Moonwell, SparkLend, Spark Savings, Fluid, Yearn V3, Jupiter Lend or Kamino.`,
+    `${reason} Supported actions: swap, buy, bridge/move, send/transfer/pay, stake (SOL, or ETH on Ethereum), deposit/supply/lend into and withdraw from ${LENDING_NAMES}.`,
     GRAMMAR_EXAMPLES,
     [{ path: "text", message: `Could not interpret "${clause.slice(0, 120)}".` }],
   );
+}
+
+/* ------------------------------------------- refusals that say what works */
+
+/** Lending and savings protocols of the capability index ("Aave V3, Compound V3, ... or Kamino"), for refusal texts. */
+const LENDING_NAMES: string = (() => {
+  const names = capableProtocols("deposit").map(protocolName);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}` : names[0] ?? "a lending venue";
+})();
+
+/** Verbs of lending actions Kletia does not run yet (`borrow` / `repay` exist in IntentActionKind, nothing executes them). */
+export const BORROW_VERBS: readonly string[] = Object.freeze(["borrow", "repay"]);
+
+/** "borrow ...": refused with what Kletia can do instead (never a silent failure). */
+function borrowRefusal(clause: string, verb: string): PlatformError {
+  const message = verb === "repay"
+    ? "Repaying a loan is not available yet (\"repay\" is not a supported action); Kletia does not open or manage loans."
+    : "Borrowing is not available yet (\"borrow\" is not a supported action); Kletia can deposit as collateral, e.g. \"deposit 100 USDC into aave on base\".";
+  return unsupported(message, GRAMMAR_EXAMPLES, [{ path: "text", message: `Could not interpret "${clause.slice(0, 120)}".` }]);
+}
+
+const VENUELESS_DEPOSIT = new RegExp(
+  `^(?:deposit|supply|lend)\\s+${AMOUNT}(?:\\s+${ASSET("a")})?${ON_NETWORK}?$`,
+  "iu",
+);
+
+/**
+ * A deposit that names no venue ("deposit 100 USDC on base"): the strict
+ * grammar never picks a venue for the user, so it refuses, naming the venues
+ * that take that asset on that network (capability index) and one sentence
+ * that works. The clarify layer asks the same as a VENUE_MISSING question.
+ */
+function venuelessDeposit(clause: string): PlatformError | null {
+  const match = VENUELESS_DEPOSIT.exec(clause);
+  if (!match?.groups) return null;
+  const asset = match.groups.a;
+  const network = match.groups.net ? resolveNetworkName(match.groups.net) : null;
+  // The registry symbol on that network (USDT is USDT0 on Arbitrum One and Polygon PoS).
+  const listed = (symbol: string | undefined) => (symbol && network ? findAssetBySymbol(network, symbol)?.symbol ?? symbol : symbol);
+  const lookup = (symbol: string | undefined) => capabilityIndex(network ?? undefined, "deposit", listed(symbol)).filter((row) => row.asset !== null);
+  // Ether is deposited as WETH on EVM venues.
+  const rows = lookup(asset).length > 0 || asset?.toUpperCase() !== "ETH" ? lookup(asset) : lookup("WETH");
+  const protocols = [...new Set(rows.map((row) => row.protocol))];
+  const where = network ? ` on ${CHAINS[network].name}` : "";
+  const what = asset ? `${asset} deposits` : "Deposits";
+  const verb = (clause.split(/\s+/u)[0] ?? "deposit").toLowerCase();
+  const first = rows[0];
+  const example = protocols[0] && first
+    ? ` e.g. "${verb} ${match.groups.amt ?? "100"} ${asset ?? first.asset} into ${venueWordOf(protocols[0])} on ${first.network}".`
+    : "";
+  const message = protocols.length > 0
+    ? `"${clause.slice(0, 120)}" does not match a supported "deposit" sentence: it names no venue. ${what}${where} run on ${protocols.map(protocolName).join(", ")}; say which one,${example}`
+    : `"${clause.slice(0, 120)}" does not match a supported "deposit" sentence: no lending venue takes ${asset ?? "that asset"}${where}.`;
+  return unsupported(message, GRAMMAR_EXAMPLES, [{ path: "text", message: "Name a venue (into <venue>)." }]);
+}
+
+/** The first grammar venue word of a protocol ("aave-v3" -> "aave"). */
+function venueWordOf(protocol: ProtocolId): string {
+  return GRAMMAR_VENUE_WORDS.find((word) => LENDING_VENUES.find((venue) => venue.pattern.test(word))?.protocol === protocol) ?? protocol;
 }
 
 /* ------------------------------------------------- contract clauses (BYOC) */
@@ -790,6 +925,13 @@ function inferSwapNetwork(draft: Draft, context: InferenceContext): NetworkKey {
   throw clauseError(draft.clause, `Cannot find one network that lists ${tokens.join(" and ")}. Add "on <network>".`);
 }
 
+/** The Solana cluster of the caller: Solana Devnet when the default or every Solana account is on devnet, else Solana. */
+function solanaCluster(context: InferenceContext): NetworkKey {
+  if (context.defaultNetwork === "solana" || context.defaultNetwork === "solana-devnet") return context.defaultNetwork;
+  const solanaAccounts = context.accountNetworks.filter((network) => CHAINS[network].namespace === "solana");
+  return solanaAccounts.length > 0 && solanaAccounts.every((network) => network === "solana-devnet") ? "solana-devnet" : "solana";
+}
+
 function inferTransferNetwork(draft: Draft, context: InferenceContext): NetworkKey {
   const recipient = draft.recipient ?? "";
   if (recipient.includes(":")) {
@@ -803,12 +945,7 @@ function inferTransferNetwork(draft: Draft, context: InferenceContext): NetworkK
     const pick = preferred(EVM_TRANSFER_NETWORKS, context);
     return pick ?? "base";
   }
-  if (isSolanaAddress(recipient) || /\.(?:sns|sol)$/iu.test(recipient)) {
-    if (context.defaultNetwork === "solana" || context.defaultNetwork === "solana-devnet") return context.defaultNetwork;
-    const solanaAccounts = context.accountNetworks.filter((network) => CHAINS[network].namespace === "solana");
-    if (solanaAccounts.length > 0 && solanaAccounts.every((network) => network === "solana-devnet")) return "solana-devnet";
-    return "solana";
-  }
+  if (isSolanaAddress(recipient) || /\.(?:sns|sol)$/iu.test(recipient)) return solanaCluster(context);
   throw clauseError(draft.clause, "The recipient is not a valid EVM or Solana address.");
 }
 
@@ -831,8 +968,8 @@ function inferNetwork(draft: Draft, previousDestination: NetworkKey | undefined,
       return byAddress;
     }
     case "stake":
-      // EVM liquid staking runs on Ethereum; SOL staking on Solana.
-      return previousDestination ?? (draft.protocol ? EVM_STAKING_NETWORK : "solana");
+      // EVM liquid staking runs on Ethereum; SOL staking on Solana (Solana Devnet for a caller on the testnet lane).
+      return previousDestination ?? (draft.protocol && !draft.native ? EVM_STAKING_NETWORK : solanaCluster(context));
     case "deposit":
     case "withdraw": {
       if (previousDestination) return previousDestination;
@@ -855,7 +992,24 @@ function inferNetwork(draft: Draft, previousDestination: NetworkKey | undefined,
   }
 }
 
-function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentActionSpec {
+/**
+ * "ETH" on an EVM network whose gas token is not ether (Polygon PoS: POL) and
+ * that lists no ETH token: ether there is WETH. Read so, with a one-line note;
+ * never POL. Only for swaps, deposits and withdrawals (a send keeps the
+ * symbol it was given and is refused if unknown).
+ */
+function etherAlias(network: NetworkKey, symbol: string | undefined, kind: IntentActionKind): string | null {
+  if (!symbol || symbol.toUpperCase() !== "ETH" || !["swap", "deposit", "withdraw"].includes(kind)) return null;
+  const chain = CHAINS[network];
+  if (chain.vm !== "evm" || chain.nativeAsset.symbol.toUpperCase() === "ETH" || findAssetBySymbol(network, "ETH")) return null;
+  return findAssetBySymbol(network, "WETH")?.symbol ?? null;
+}
+
+function etherNote(network: NetworkKey, weth: string): string {
+  return `On ${CHAINS[network].name}, "ETH" was read as ${weth} (bridged ether); ${CHAINS[network].nativeAsset.symbol} is the network's own gas token.`;
+}
+
+function toActionSpec(draft: Draft, network: NetworkKey, index: number, warnings: string[] = []): IntentActionSpec {
   const amount = draft.amount;
   if (draft.kind === "withdraw") {
     if (amount.type === "previous" && !amount.whole) {
@@ -875,11 +1029,32 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentA
     }
     from = from ?? "USDC";
   }
+  const fromAlias = etherAlias(network, from, draft.kind);
+  if (fromAlias) {
+    from = fromAlias;
+    warnings.push(etherNote(network, fromAlias));
+  }
   const params: Record<string, string | number | boolean> = {};
   if (amount.type === "previous" && amount.portionBps !== 10_000) params.portionBps = amount.portionBps;
   if (draft.venue) params.venue = draft.venue;
   let to = draft.to;
-  if (draft.kind === "stake") {
+  const toAlias = etherAlias(network, to, draft.kind);
+  if (toAlias) {
+    to = toAlias;
+    warnings.push(etherNote(network, toAlias));
+  }
+  let protocol = draft.protocol;
+  // Solana Devnet has no liquid staking pool: a stake there without a provider word is native staking.
+  const native = draft.native ?? (draft.kind === "stake" && !draft.protocol && !draft.lst && network === "solana-devnet" ? {} : undefined);
+  if (native) {
+    if (CHAINS[network].namespace !== "solana") {
+      throw clauseError(draft.clause, `Native staking stakes SOL on Solana or Solana Devnet, not on ${CHAINS[network].name}.`);
+    }
+    if (draft.from && draft.from.toUpperCase() !== "SOL") throw clauseError(draft.clause, `Native staking stakes SOL, not ${draft.from}.`);
+    to = CHAINS[network].nativeAsset.symbol;
+    protocol = NATIVE_STAKE_PROTOCOL;
+    params.provider = native.vote ?? NATIVE_STAKE_PROVIDER;
+  } else if (draft.kind === "stake") {
     const evm = draft.protocol ? evmStakingToken(draft.lst) ?? EVM_STAKING_TOKENS.lido : undefined;
     const target = evm ?? LIQUID_STAKING_TOKENS[draft.lst ?? "jito"] ?? LIQUID_STAKING_TOKENS.jito;
     to = target?.symbol ?? "JitoSOL";
@@ -898,7 +1073,7 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number): IntentA
     amount: amount.type === "exact" ? amount.value : "max",
     ...(draft.toNetwork ? { toNetwork: draft.toNetwork } : {}),
     ...(draft.recipient ? { recipient: draft.recipient } : {}),
-    ...(draft.protocol ? { protocol: draft.protocol } : {}),
+    ...(protocol ? { protocol } : {}),
     ...(Object.keys(params).length > 0 ? { params } : {}),
   };
 }
@@ -934,9 +1109,9 @@ export function compileIntentText(text: string, context: GrammarContext = {}): G
     } else {
       const draft = matchClause(clause);
       const network = inferNetwork(draft, previousDestination, inference);
-      action = toActionSpec(draft, network, index);
-      explicitNetwork.push(draft.explicit);
       warnings.push(...(draft.warnings ?? []));
+      action = toActionSpec(draft, network, index, warnings);
+      explicitNetwork.push(draft.explicit);
     }
     actions.push(action);
     previousDestination = action.toNetwork ?? action.network;

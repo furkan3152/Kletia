@@ -1,0 +1,37 @@
+[
+ {
+  "vote": "vgcDar2pryHvMgPkKaZfh8pQy4BJxv7SpwUG7zinWjG",
+  "node": "dv3qDFk1DTF36Z62bNvrCXe9sKATA6xvVy6A798xxAS",
+  "stakeSOL": 38979557,
+  "commission": 95,
+  "lastVote": 511226099
+ },
+ {
+  "vote": "i7NyKBMJCA9bLM2nsGyAGCKHECuR2L5eh4GqFciuwNT",
+  "node": "dv2eQHeP4RFrJZ6UeiZWoc3XTtmtZCUKxxCApCDcRNV",
+  "stakeSOL": 38977495,
+  "commission": 95,
+  "lastVote": 511226099
+ },
+ {
+  "vote": "23AoPQc3EPkfLWb14cKiWNahh1H9rtb3UBk8gWseohjF",
+  "node": "dv4ACNkpYPcE3aKmYDqZm9G5EB3J4MRoeE7WNDRBVJB",
+  "stakeSOL": 38977201,
+  "commission": 95,
+  "lastVote": 511226099
+ },
+ {
+  "vote": "5ZWgXcyqrrNpQHCme5SdC5hCeYb2o3fEJhF7Gok3bTVN",
+  "node": "dv1ZAGvdsz5hHLwWXsVnM94hWf1pjbKVau1QVkaMJ92",
+  "stakeSOL": 38969671,
+  "commission": 95,
+  "lastVote": 511226099
+ },
+ {
+  "vote": "7AETLyAGJWjp6AWzZqZcP362yv5LQ3nLEdwnXNjdNwwF",
+  "node": "Cw6X5R68muAyGRCb7W8ZSP2YbaRjwMs1t5sBEPkhdwbM",
+  "stakeSOL": 3711061,
+  "commission": 100,
+  "lastVote": 511226099
+ }
+]

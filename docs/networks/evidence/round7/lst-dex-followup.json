@@ -1,0 +1,138 @@
+{
+  "at": "2026-10-15T04:15:38.809Z",
+  "raw": [
+    {
+      "label": "mantle stake(0) 1 ETH",
+      "ok": true,
+      "data": "0x"
+    },
+    {
+      "label": "swell deposit() 1 ETH",
+      "ok": true,
+      "data": "0x"
+    }
+  ],
+  "identity": [
+    {
+      "network": "arbitrum",
+      "label": "PancakeSwap SmartRouter (Arbitrum)",
+      "address": "0x32226588378236Fd0c7c4053999F88aC0e5cAc77",
+      "size": 24316,
+      "codeHash": "0x2fd22bc2e3de02972638f30ef056b8a878ee364769c7c4df2b00ca1a18c69e44",
+      "eip7702OrProxyHint": "0x60806040526004361061021c5760003560e01c806304e4",
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": true
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Mantle Pauser",
+      "address": "0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8",
+      "size": 2882,
+      "codeHash": "0x81b5f43f59138521a694413f02c7f8b7112953a3745ab2d4168369e08ddd4be9",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "isStakingPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Swell swETH paused",
+      "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+      "size": 2112,
+      "codeHash": "0x6bec2bf64f7e824109f6ed55f77dd7665801d6195e461666ad6a5342a9f6daf5",
+      "eip7702OrProxyHint": "0x60806040526004361061004e5760003560e01c80633659",
+      "calls": [
+        {
+          "call": "AccessControlManager() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x625087d72c762254a72CB22cC2ECa40da6b95EAC"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Curve 3pool get_dy 1000 USDC->USDT",
+      "address": "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",
+      "size": 21199,
+      "codeHash": "0x954a1e212c557c85043985931498ffa3e2fcbe7dfe9cd61513f36eb47d6f4dfc",
+      "eip7702OrProxyHint": "0x600436101561000d576152c9565b600035601c52740100",
+      "calls": [
+        {
+          "call": "get_dy(int128,int128,uint256) view returns (uint256)",
+          "args": [
+            "1",
+            "2",
+            "1000000000"
+          ],
+          "ok": true,
+          "value": "1001168522"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Stader config",
+      "address": "0x4ABEF2263d5A5ED582FC9A9789a41D85b68d69DB",
+      "size": 2227,
+      "codeHash": "0x4d9be648c5bf39973670d9f8b481d5d0b971e6a2db2deccc6b98cde21c5dd83e",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "getETHxToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+          "expect": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+          "match": true
+        },
+        {
+          "call": "getMinDepositAmount() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "100000000000000"
+        },
+        {
+          "call": "getMaxDepositAmount() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "10000000000000000000000"
+        }
+      ],
+      "verified": true
+    }
+  ]
+}

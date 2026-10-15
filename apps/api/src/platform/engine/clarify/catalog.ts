@@ -9,6 +9,8 @@
 import {
   AMBIGUOUS_VENUE_WORDS,
   ASSETS,
+  capabilityIndex,
+  capableProtocols,
   CHAINS,
   findAssetBySymbol,
   getProtocol,
@@ -20,14 +22,20 @@ import {
   YIELD_VENUES,
   type NetworkKey,
   type ProtocolId,
+  type ProtocolTier,
+  type YieldVenue,
 } from "@kletia/core";
 import {
   BRIDGE_VENUES,
   EVM_STAKING_NETWORK,
   EVM_STAKING_TOKENS,
   GRAMMAR_VENUE_WORDS,
+  l2StakeAlternatives,
   LENDING_VENUES,
   LIQUID_STAKING_TOKENS,
+  NATIVE_STAKE_PROTOCOL,
+  NATIVE_STAKE_PROVIDER,
+  NATIVE_STAKE_WORDS,
   SWAP_NETWORKS,
   SWAP_VENUES,
   type VenueWord,
@@ -157,10 +165,40 @@ export function dexNetworks(protocol: string | undefined): readonly NetworkKey[]
   return getProtocol(protocol as ProtocolId)?.networks ?? [];
 }
 
-/** Lending and savings protocols in registry order (YIELD_VENUES). */
+/**
+ * Lending and savings protocols in registry order, from the capability index
+ * (deposit and withdraw rows): the options of a VENUE_MISSING question.
+ */
 export function lendingProtocols(): string[] {
-  return [...new Set(YIELD_VENUES.filter((venue) => venue.actions.length > 0).map((venue) => venue.protocol))];
+  return [...new Set([...capableProtocols("deposit"), ...capableProtocols("withdraw")])];
 }
+
+/**
+ * The venues a venue-less deposit can use on `network` for `symbol`
+ * (capability index), ranked by tier (core, curated, extended, testnet), then
+ * registry order; at most `limit`. The first is the suggestion. Ether counts
+ * as WETH (EVM venues take the wrapped token).
+ */
+export function rankedVenueOptions(network: NetworkKey, kind: "deposit" | "withdraw", symbol: string, limit = 4): YieldVenue[] {
+  const rank = (tier: ProtocolTier) => TIER_ORDER.indexOf(tier);
+  const rows = capabilityIndex(network, kind)
+    .filter((row) => row.asset !== null && venueMatches(row.asset, symbol) && row.venueId !== undefined)
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => rank(a.row.tier) - rank(b.row.tier) || a.index - b.index);
+  const seen = new Set<string>();
+  const out: YieldVenue[] = [];
+  for (const { row } of rows) {
+    if (seen.has(row.protocol)) continue;
+    const venue = YIELD_VENUES.find((entry) => entry.id === row.venueId);
+    if (!venue) continue;
+    seen.add(row.protocol);
+    out.push(venue);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+const TIER_ORDER: readonly ProtocolTier[] = ["core", "curated", "extended", "testnet"];
 
 function venueMatches(asset: string, symbol: string): boolean {
   return asset.toUpperCase() === symbol.toUpperCase() || (symbol.toUpperCase() === "ETH" && asset.toUpperCase() === "WETH");
@@ -201,7 +239,11 @@ export interface StakeProvider {
   readonly grammarProvider: string;
 }
 
-/** Staking providers by id (core STAKE_PROVIDER_WORDS), with the grammar's provider names. */
+/**
+ * Staking providers by id (core STAKE_PROVIDER_WORDS), with the grammar's
+ * provider names. The round-6 set; `REGISTRY_STAKE_PROVIDERS` adds the venues
+ * the registry names since (round 7), and every lookup reads both.
+ */
 export const STAKE_PROVIDERS: readonly StakeProvider[] = (() => {
   const seen = new Map<string, StakeProvider>();
   for (const [word, entry] of Object.entries(STAKE_PROVIDER_WORDS)) {
@@ -222,16 +264,97 @@ export const STAKE_PROVIDERS: readonly StakeProvider[] = (() => {
   return [...seen.values()];
 })();
 
+/**
+ * Staking providers the registry adds through descriptor words (round 7):
+ * the generated EVM liquid staking venues (Stader, Mantle LSP, Frax Ether;
+ * grammar EVM_STAKING_TOKENS) and native SOL staking. A word the grammar
+ * reads must never fall back to the default provider: "stake 1 ETH with
+ * stader" is Stader, not Lido.
+ */
+export const REGISTRY_STAKE_PROVIDERS: readonly StakeProvider[] = (() => {
+  const known = new Set(STAKE_PROVIDERS.map((provider) => provider.id));
+  const out = new Map<string, StakeProvider>();
+  for (const [word, entry] of Object.entries(EVM_STAKING_TOKENS)) {
+    if (known.has(entry.protocol) || out.has(entry.protocol)) continue;
+    out.set(entry.protocol, {
+      id: entry.protocol,
+      word,
+      symbol: entry.symbol,
+      label: `${entry.provider} (${entry.symbol})`,
+      network: EVM_STAKING_NETWORK,
+      input: "ETH",
+      grammarProvider: entry.provider,
+    });
+  }
+  const [nativeWord] = NATIVE_STAKE_WORDS;
+  if (nativeWord && !known.has(NATIVE_STAKE_PROTOCOL)) {
+    out.set(NATIVE_STAKE_PROTOCOL, {
+      id: NATIVE_STAKE_PROTOCOL,
+      word: nativeWord,
+      symbol: CHAINS.solana.nativeAsset.symbol,
+      label: "Native staking (stake account)",
+      network: "solana",
+      input: "SOL",
+      grammarProvider: NATIVE_STAKE_PROVIDER,
+    });
+  }
+  return [...out.values()];
+})();
+
 export function stakeProvider(id: string | undefined): StakeProvider | undefined {
-  return STAKE_PROVIDERS.find((provider) => provider.id === id);
+  return STAKE_PROVIDERS.find((provider) => provider.id === id) ?? REGISTRY_STAKE_PROVIDERS.find((provider) => provider.id === id);
 }
 
-/** The provider a staking word names (jito, marinade, lido, "rocket pool", ...). */
+/** The provider a staking word names (jito, marinade, lido, "rocket pool", stader, "native stake", ...). */
 export function providerFromWord(word: string): StakeProvider | undefined {
-  const entry = STAKE_PROVIDER_WORDS[word.toLowerCase().replace(/[\s-]+/gu, " ")] ??
+  const spaced = word.toLowerCase().replace(/[\s-]+/gu, " ");
+  const entry = STAKE_PROVIDER_WORDS[spaced] ??
     STAKE_PROVIDER_WORDS[word.toLowerCase().replace(/[\s-]+/gu, "")] ??
     (word.toLowerCase() === "jupiter" ? { provider: "jupiter" } : undefined);
-  return entry ? stakeProvider(entry.provider) : undefined;
+  if (entry) return stakeProvider(entry.provider);
+  const evm = EVM_STAKING_TOKENS[spaced];
+  if (evm) return stakeProvider(evm.protocol);
+  return NATIVE_STAKE_WORDS.includes(spaced) ? stakeProvider(NATIVE_STAKE_PROTOCOL) : undefined;
+}
+
+/* -------------------------------------------- staking ETH off Ethereum */
+
+/**
+ * The options of "stake ETH" on an EVM network without staking (protocols
+ * design 3.3): buy each listed liquid staking token there at market (a swap,
+ * titled "Buy", never "Stake"), or bridge to Ethereum and stake with the
+ * default provider (two steps). Empty on Ethereum and where no alternative
+ * exists. Option ids are stable: `buy:<symbol>`, `bridge-stake`.
+ */
+export interface L2StakeOption {
+  readonly id: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly actions: readonly { readonly kind: "swap" | "bridge" | "stake"; readonly network: NetworkKey; readonly from: string; readonly to?: string; readonly toNetwork?: NetworkKey; readonly provider?: string }[];
+}
+
+export function l2StakeOptions(network: NetworkKey): L2StakeOption[] {
+  const alternatives = l2StakeAlternatives(network);
+  if (!alternatives) return [];
+  const options: L2StakeOption[] = alternatives.tokens.map((symbol) => ({
+    id: `buy:${symbol}`,
+    label: `Buy ${symbol} on ${networkName(network)}`,
+    detail: "At market through a swap venue; the price guard checks the rate.",
+    actions: [{ kind: "swap", network, from: alternatives.etherSymbol, to: symbol }],
+  }));
+  if (alternatives.etherSymbol.toUpperCase() === "ETH") {
+    const lido = defaultProvider("ETH");
+    options.push({
+      id: "bridge-stake",
+      label: `Bridge to ${networkName(EVM_STAKING_NETWORK)}, stake with ${lido.grammarProvider}`,
+      detail: `Two steps: a bridge, then ${lido.grammarProvider} mints ${lido.symbol} at the protocol rate.`,
+      actions: [
+        { kind: "bridge", network, from: "ETH", toNetwork: EVM_STAKING_NETWORK },
+        { kind: "stake", network: EVM_STAKING_NETWORK, from: "ETH", to: lido.symbol, provider: lido.id },
+      ],
+    });
+  }
+  return options;
 }
 
 /** Kletia's default provider for an input (Jito for SOL, Lido for ETH). */

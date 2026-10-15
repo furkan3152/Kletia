@@ -1,0 +1,101 @@
+{
+  "at": "2026-10-15T04:19:23.934Z",
+  "rows": [
+    {
+      "n": "arbitrum",
+      "sym": "wstETH",
+      "fee": 100,
+      "pool": "0x35218a1cbaC5Bbc3E57fd9Bd38219D37571b3537",
+      "lstInPool": "58020146770910928096",
+      "out1WETH": "802478914908358148"
+    },
+    {
+      "n": "arbitrum",
+      "sym": "wstETH",
+      "fee": 500,
+      "pool": "0xb93F8a075509e71325c1c2fc8FA6a75f2d536A13",
+      "lstInPool": "2692116103429924",
+      "out1WETH": "2539948955407485"
+    },
+    {
+      "n": "optimism",
+      "sym": "wstETH",
+      "fee": 100,
+      "pool": "0x04F6C85A1B00F6D9B75f91FD23835974Cc07E65c",
+      "lstInPool": "4410905079720784004",
+      "out1WETH": "687621067998357712"
+    },
+    {
+      "n": "optimism",
+      "sym": "wstETH",
+      "fee": 500,
+      "pool": "0x4a5a2A152e985078e1A4AA9C3362c412B7dd0a86",
+      "lstInPool": "2252163344940597",
+      "out1WETH": "174478600232904"
+    },
+    {
+      "n": "polygon",
+      "sym": "wstETH",
+      "fee": 100,
+      "pool": "0xff69201019E25E3f8f3180faBdb58d60AFeD9A1D",
+      "lstInPool": "44668762682039947",
+      "out1WETH": "40577743931853661"
+    },
+    {
+      "n": "polygon",
+      "sym": "wstETH",
+      "fee": 500,
+      "pool": "0x993dEfDE3E6eF50610eB6D994823dc82565Ad3Ba",
+      "lstInPool": "10050052100801911025",
+      "out1WETH": "802834651666567765"
+    },
+    {
+      "n": "base",
+      "sym": "wstETH",
+      "fee": 100,
+      "pool": "0x20E068D76f9E90b90604500B84c7e19dCB923e7e",
+      "lstInPool": "10740749695840501577",
+      "out1WETH": "802290313696206404"
+    },
+    {
+      "n": "base",
+      "sym": "wstETH",
+      "fee": 500,
+      "pool": "0x6f4482cBF7b43599078fcb012732e20480015644",
+      "lstInPool": "181724390690028761",
+      "out1WETH": "178488781984333646"
+    },
+    {
+      "n": "base",
+      "sym": "cbETH",
+      "fee": 100,
+      "pool": "0xA9DaFa443a02FBc907Cb0093276B3E6F4ef02A46",
+      "lstInPool": "3757903803510671938",
+      "out1WETH": "875615532189897804"
+    },
+    {
+      "n": "base",
+      "sym": "cbETH",
+      "fee": 500,
+      "pool": "0x10648BA41B8565907Cfa1496765fA4D95390aa0d",
+      "lstInPool": "4064292864086862715",
+      "out1WETH": "872951601209926671"
+    },
+    {
+      "n": "base",
+      "sym": "weETH",
+      "fee": 100,
+      "pool": "0xB1419a7f9e8c6e434B1D05377e0Dbc4154E3DE78",
+      "lstInPool": "3394510709749598224",
+      "out1WETH": "751636429672782735"
+    },
+    {
+      "n": "base",
+      "sym": "weETH",
+      "fee": 500,
+      "pool": "0x33dfD66802CC936a58a0B25B5E4F792c1CA2312E",
+      "lstInPool": "14",
+      "out1WETH": "Execution reverted with reason: SPL."
+    }
+  ]
+}

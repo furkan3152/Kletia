@@ -24,6 +24,7 @@
     "verify:intent-schema-planner": "tsx src/scripts/verifyIntentSchemaPlanner.ts",
     "verify:intent-network-matrix": "tsx src/scripts/verifyIntentNetworkMatrix.ts",
     "eval:intents": "tsx src/scripts/intentEval.ts",
+    "verify:coverage": "tsx src/scripts/verifyCoverageMatrix.ts",
     "typecheck": "tsc -p tsconfig.api.json"
   },
   "keywords": [

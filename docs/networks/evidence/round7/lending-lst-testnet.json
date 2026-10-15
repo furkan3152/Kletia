@@ -1,0 +1,890 @@
+{
+  "at": "2026-10-15T04:15:02.744Z",
+  "identity": [
+    {
+      "network": "base",
+      "label": "PancakeSwap SmartRouter (L2 address)",
+      "address": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86",
+      "size": 24316,
+      "codeHash": "0x507ee9a03347da689bb73439e40c475d9581bf9a99c0a5d1bdb780a18652b8c9",
+      "eip7702OrProxyHint": "0x60806040526004361061021c5760003560e01c806304e4",
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x4200000000000000000000000000000000000006",
+          "expect": "0x4200000000000000000000000000000000000006",
+          "match": true
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "PancakeSwap SmartRouter (L2 address)",
+      "address": "0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86",
+      "size": 0,
+      "codeHash": null,
+      "eip7702OrProxyHint": null,
+      "calls": [
+        {
+          "call": "WETH9() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          "match": false
+        },
+        {
+          "call": "factory() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "deployer() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "0x41ff9AA7e16B8B1a8a8dc4f0eFacd93D02d071c9",
+          "match": false
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "ethereum",
+      "label": "Compound V3 comet",
+      "address": "0x3AfDc9Bca9213a35503b2b8b4B8Fa8c8b9F6f5E3",
+      "size": 0,
+      "codeHash": null,
+      "eip7702OrProxyHint": null,
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "false",
+          "match": false
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')",
+          "expect": "false",
+          "match": false
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "arbitrum",
+      "label": "Compound V3 comet",
+      "address": "0xd98Be00b5D27fc98112BdE293e487f8D4cA57d07",
+      "size": 1878,
+      "codeHash": "0x64952234eab8f3aed74355c49119f627965640b1efeb6b28430b5a31b0d3b192",
+      "eip7702OrProxyHint": "0x6080604052600436101561002c575b361561001f575b61",
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "14764242758405"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "9634234995904"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "652537472640042012"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "optimism",
+      "label": "Compound V3 comet",
+      "address": "0x995E394b8B2437aC8Ce61Ee0bC610D617962B214",
+      "size": 1878,
+      "codeHash": "0x64952234eab8f3aed74355c49119f627965640b1efeb6b28430b5a31b0d3b192",
+      "eip7702OrProxyHint": "0x6080604052600436101561002c575b361561001f575b61",
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1465456471960"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1290010868396"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "880278767416282990"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "polygon",
+      "label": "Compound V3 comet",
+      "address": "0xaeB318360f27748Acb200CE616E389A6C9409a07",
+      "size": 1878,
+      "codeHash": "0x64952234eab8f3aed74355c49119f627965640b1efeb6b28430b5a31b0d3b192",
+      "eip7702OrProxyHint": "0x6080604052600436101561002c575b361561001f575b61",
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "575366519843"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "342313665224"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "594924158822107155"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Compound V3 comet",
+      "address": "0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3",
+      "size": 1878,
+      "codeHash": "0x64952234eab8f3aed74355c49119f627965640b1efeb6b28430b5a31b0d3b192",
+      "eip7702OrProxyHint": "0x6080604052600436101561002c575b361561001f575b61",
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "162455488124375962302"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "2230505857426744693"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "13729353616761939"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum",
+      "label": "Compound V3 comet",
+      "address": "0xA5EDBDD9646f8dFF606d7448e414884C7d905dCA",
+      "size": 1878,
+      "codeHash": "0x64952234eab8f3aed74355c49119f627965640b1efeb6b28430b5a31b0d3b192",
+      "eip7702OrProxyHint": "0x6080604052600436101561002c575b361561001f575b61",
+      "calls": [
+        {
+          "call": "baseToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+        },
+        {
+          "call": "totalSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "470185358156"
+        },
+        {
+          "call": "totalBorrow() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "207547850036"
+        },
+        {
+          "call": "getUtilization() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "441411697879363627"
+        },
+        {
+          "call": "isSupplyPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        },
+        {
+          "call": "isWithdrawPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false,
+          "expect": "false",
+          "match": true
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "Aave V3 Pool (Arb Sepolia)",
+      "address": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff",
+      "size": 1892,
+      "codeHash": "0xd75b4365d675956c42b20584bb92e557c2a0cd1b692d8c0c2b4fea848bc9a44e",
+      "eip7702OrProxyHint": "0x60806040526004361061004a5760003560e01c80633659",
+      "calls": [
+        {
+          "call": "getReservesList() view returns (address[])",
+          "args": [],
+          "ok": true,
+          "value": [
+            "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+            "0x1dF462e2712496373A347f8ad10802a5E95f053D"
+          ]
+        },
+        {
+          "call": "ADDRESSES_PROVIDER() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xB25a5D144626a0D488e52AE717A051a2E9997076"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Stader StaderStakePoolsManager",
+      "address": "0xcf5EA1b38380f6aF39068375516Daf40Ed70D299",
+      "size": 2227,
+      "codeHash": "0x4d9be648c5bf39973670d9f8b481d5d0b971e6a2db2deccc6b98cde21c5dd83e",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "proxy": {
+        "implementation": "0x716DF97EBC05CCb2745Bf04CD67df75cf2d11ee9",
+        "admin": "0x67B12264Ca3e0037Fc7E22F2457b42643a04C86e"
+      },
+      "calls": [
+        {
+          "call": "ethX() view returns (address)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason.",
+          "expect": "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+          "match": false
+        },
+        {
+          "call": "paused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false
+        },
+        {
+          "call": "getExchangeRate() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1099297050128149507"
+        },
+        {
+          "call": "minDepositAmount() view returns (uint256)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason."
+        },
+        {
+          "call": "maxDepositAmount() view returns (uint256)",
+          "args": [],
+          "ok": false,
+          "error": "Execution reverted for an unknown reason."
+        },
+        {
+          "call": "isVaultHealthy() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": true
+        },
+        {
+          "call": "previewDeposit(uint256) view returns (uint256)",
+          "args": [
+            "1000000000000000000"
+          ],
+          "ok": true,
+          "value": "909672230889208655"
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "ethereum",
+      "label": "Stader deposit(receiver) simulation",
+      "address": "0xcf5EA1b38380f6aF39068375516Daf40Ed70D299",
+      "size": 2227,
+      "codeHash": "0x4d9be648c5bf39973670d9f8b481d5d0b971e6a2db2deccc6b98cde21c5dd83e",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "deposit(address) payable returns (uint256)",
+          "args": [
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+          ],
+          "ok": true,
+          "value": "909672230889208655"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Mantle mETH Staking",
+      "address": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+      "size": 2882,
+      "codeHash": "0x81b5f43f59138521a694413f02c7f8b7112953a3745ab2d4168369e08ddd4be9",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "proxy": {
+        "implementation": "0x01a360392c74b5b8bF4973F438FF3983507a06a2",
+        "admin": "0xc26016f1166bE7b6c5611AAB104122E0f6c2aCE2"
+      },
+      "calls": [
+        {
+          "call": "mETH() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
+          "expect": "0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa",
+          "match": true
+        },
+        {
+          "call": "ethToMETH(uint256) view returns (uint256)",
+          "args": [
+            "1000000000000000000"
+          ],
+          "ok": true,
+          "value": "908141287312911477"
+        },
+        {
+          "call": "minimumStakeBound() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "20000000000000000"
+        },
+        {
+          "call": "maximumMETHSupply() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "3000000000000000000000000"
+        },
+        {
+          "call": "pauser() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Mantle stake(min) simulation",
+      "address": "0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f",
+      "size": 2882,
+      "codeHash": "0x81b5f43f59138521a694413f02c7f8b7112953a3745ab2d4168369e08ddd4be9",
+      "eip7702OrProxyHint": "0x60806040523661001357610011610017565b005b610011",
+      "calls": [
+        {
+          "call": "stake(uint256) payable",
+          "args": [
+            "0"
+          ],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "ethereum",
+      "label": "Swell swETH",
+      "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+      "size": 2112,
+      "codeHash": "0x6bec2bf64f7e824109f6ed55f77dd7665801d6195e461666ad6a5342a9f6daf5",
+      "eip7702OrProxyHint": "0x60806040526004361061004e5760003560e01c80633659",
+      "proxy": {
+        "implementation": "0xce95ba824ae9A4Df9B303C0bbf4D605BA2aFfbfC",
+        "admin": "0x25EAf579cA2255fAA5463c635eec28697b5b8846"
+      },
+      "calls": [
+        {
+          "call": "ethToSwETHRate() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "883554455417302486"
+        },
+        {
+          "call": "totalETHDeposited() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "290806266926668096865073"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Swell deposit() simulation",
+      "address": "0xf951E335afb289353dc249e82926178EaC7DEd78",
+      "size": 2112,
+      "codeHash": "0x6bec2bf64f7e824109f6ed55f77dd7665801d6195e461666ad6a5342a9f6daf5",
+      "eip7702OrProxyHint": "0x60806040526004361061004e5760003560e01c80633659",
+      "calls": [
+        {
+          "call": "deposit() payable",
+          "args": [],
+          "ok": false,
+          "error": "Cannot read properties of undefined (reading 'buffer')"
+        }
+      ],
+      "verified": false
+    },
+    {
+      "network": "ethereum",
+      "label": "Frax frxETHMinter",
+      "address": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138",
+      "size": 12312,
+      "codeHash": "0xd5517d3be0b131ef314cd993db76434f602e97c316599bdfbc224d1f9683d24c",
+      "eip7702OrProxyHint": "0x6080604052600436106102135760003560e01c8063a3f3",
+      "calls": [
+        {
+          "call": "submitPaused() view returns (bool)",
+          "args": [],
+          "ok": true,
+          "value": false
+        },
+        {
+          "call": "frxETHToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x5E8422345238F34275888049021821E8E08CAa1f"
+        },
+        {
+          "call": "sfrxETHToken() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xac3E018457B222d93114458476f3E3416Abbe38F"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Frax submitAndDeposit simulation",
+      "address": "0xbAFA44EFE7901E04E39Dad13167D089C559c1138",
+      "size": 12312,
+      "codeHash": "0xd5517d3be0b131ef314cd993db76434f602e97c316599bdfbc224d1f9683d24c",
+      "eip7702OrProxyHint": "0x6080604052600436106102135760003560e01c8063a3f3",
+      "calls": [
+        {
+          "call": "submitAndDeposit(address) payable returns (uint256)",
+          "args": [
+            "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+          ],
+          "ok": true,
+          "value": "853400717420905448"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "ethereum",
+      "label": "Coinbase cbETH (mint gated)",
+      "address": "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704",
+      "size": 1852,
+      "codeHash": "0xaee43571f51ad4922c41ab126fb98a76934d579c76f54b9e393ade09aad21646",
+      "eip7702OrProxyHint": "0x60806040526004361061005a5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "exchangeRate() view returns (uint256)",
+          "args": [],
+          "ok": true,
+          "value": "1141640441769055706"
+        },
+        {
+          "call": "masterMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0x7Dd4aa646b2e2850f9D809F9299E8E87AC97b77a"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arc",
+      "label": "CCTP V2 TokenMessengerV2 (testnet)",
+      "address": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+          "expect": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+          "expect": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+          "match": true
+        },
+        {
+          "call": "messageBodyVersion() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 1
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arc",
+      "label": "CCTP V2 MessageTransmitterV2 (testnet)",
+      "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 26
+        },
+        {
+          "call": "version() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 1
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "CCTP V2 TokenMessengerV2 (testnet)",
+      "address": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localMessageTransmitter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+          "expect": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+          "match": true
+        },
+        {
+          "call": "localMinter() view returns (address)",
+          "args": [],
+          "ok": true,
+          "value": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+          "expect": "0xb43db544E2c27092c107639Ad201b3dEfAbcF192",
+          "match": true
+        },
+        {
+          "call": "messageBodyVersion() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 1
+        }
+      ],
+      "verified": true
+    },
+    {
+      "network": "arbitrum-sepolia",
+      "label": "CCTP V2 MessageTransmitterV2 (testnet)",
+      "address": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275",
+      "size": 2175,
+      "codeHash": "0xd2c8d48075d832fb7d07f6db5545a1bee37fdf886325c441a8dd1cef4c9dae99",
+      "eip7702OrProxyHint": "0x60806040526004361061005e5760003560e01c80635c60",
+      "calls": [
+        {
+          "call": "localDomain() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 3
+        },
+        {
+          "call": "version() view returns (uint32)",
+          "args": [],
+          "ok": true,
+          "value": 1
+        }
+      ],
+      "verified": true
+    }
+  ],
+  "aave": [
+    {
+      "n": "ethereum",
+      "sym": "USDT",
+      "asset": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "aToken": "0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "2785996828318721"
+    },
+    {
+      "n": "ethereum",
+      "sym": "wstETH",
+      "asset": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+      "aToken": "0x0B925eD163218f6662a35e0f0371Ac234f9E9371",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "782280012131000824868072"
+    },
+    {
+      "n": "ethereum",
+      "sym": "cbBTC",
+      "asset": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "aToken": "0x5c647cE0Ae10658ec44FA4E11A51c96e94efd1Dd",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "1732747422353"
+    },
+    {
+      "n": "arbitrum",
+      "sym": "USDT",
+      "asset": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+      "aToken": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "45822490654756"
+    },
+    {
+      "n": "arbitrum",
+      "sym": "wstETH",
+      "asset": "0x5979D7b546E38E414F7E9822514be443A4800529",
+      "aToken": "0x513c7E3a9c69cA3e22550eF58AC1C0088e918FFf",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "19187364304399333080978"
+    },
+    {
+      "n": "optimism",
+      "sym": "USDT",
+      "asset": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "aToken": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "3923763384973"
+    },
+    {
+      "n": "optimism",
+      "sym": "wstETH",
+      "asset": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb",
+      "aToken": "0xc45A479877e1e9Dfe9FcD4056c699575a1045dAA",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "8649365742092417723449"
+    },
+    {
+      "n": "polygon",
+      "sym": "USDT",
+      "asset": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+      "aToken": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "30653713203157"
+    },
+    {
+      "n": "polygon",
+      "sym": "wstETH",
+      "asset": "0x03b54A6e9a984069379fae1a4fC4dBAE93B3bCCD",
+      "aToken": "0xf59036CAEBeA7dC4b86638DFA2E3C97dA9FcCd40",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "3889568924420614228340"
+    },
+    {
+      "n": "base",
+      "sym": "wstETH",
+      "asset": "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452",
+      "aToken": "0x99CBC45ea5bb7eF3a5BC08FB1B7E56bB2442Ef0D",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "8196468950496320424135"
+    },
+    {
+      "n": "base",
+      "sym": "cbETH",
+      "asset": "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
+      "aToken": "0xcf3D55c10DB69f28fD1A75Bd73f3D8A2d9c595ad",
+      "active": true,
+      "frozen": false,
+      "paused": false,
+      "aSupply": "52768979134443528951460"
+    }
+  ]
+}

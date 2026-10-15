@@ -30,6 +30,7 @@ function graph({ studioPanel = false, homeStatic = none, consoleStatic = ["src/a
       { id: "link", kind: "site", module: "src/app/pages/link/LinkPage.tsx", static: none, dynamic: [{ entry: "src/app/pages/link/LinkSignPanel.tsx", ...wallet }] },
       { id: "approve", kind: "site", module: "src/app/pages/approve/ApprovePage.tsx", static: none, dynamic: [{ entry: "src/app/pages/approve/ApproveSignPanel.tsx", ...wallet }] },
       { id: "embed", kind: "embed", module: "src/app/pages/embed/EmbedPage.tsx", static: none, dynamic: [{ entry: "src/app/pages/embed/EmbedWalletBar.tsx", ...wallet }] },
+      { id: "admin", kind: "admin", module: "src/app/pages/admin/AdminPage.tsx", static: { modules: ["src/app/pages/admin/AdminPage.tsx", "src/app/pages/admin/api/adminClient.ts"], packages: ["react"] }, dynamic: [{ entry: "src/app/pages/admin/AdminConsole.tsx", ...wallet }] },
       { id: "console", kind: "console", module: "src/app/routes/ConsoleRoute.tsx", static: { modules: consoleStatic, packages: ["wagmi"] }, dynamic: [] },
     ],
   };
@@ -41,9 +42,20 @@ test("the build before the Studio hand-off fails: /studio reaches the wallet pro
   assert.match(problems[0], /^studio \(site\) reaches wallet code through src\/app\/pages\/studio\/StudioExecutionPanel\.tsx: wagmi, @rainbow-me\/rainbowkit, @solana\/kit, src\/app\/providers\.tsx\.$/u);
 });
 
-test("after the hand-off every rule holds: only /go, /approve and /embed reach wallet code, through their panels", () => {
+test("after the hand-off every rule holds: only /go, /approve, /embed and /admin reach wallet code, through their panels", () => {
   assert.deepEqual(checkRouteGraph(graph()), []);
-  assert.deepEqual(Object.keys(WALLET_PANELS).sort(), ["approve", "embed", "link"]);
+  assert.deepEqual(Object.keys(WALLET_PANELS).sort(), ["admin", "approve", "embed", "link"]);
+});
+
+test("the admin page is wallet-free: wallet code arrives only through AdminConsole", () => {
+  const admin = (routeGraph) => routeGraph.routes.find((route) => route.id === "admin");
+  const eager = graph();
+  admin(eager).static = { modules: ["src/app/pages/admin/AdminPage.tsx", "src/app/providers.tsx"], packages: ["wagmi"] };
+  assert.deepEqual(checkRouteGraph(eager), ["admin (admin) statically reaches wallet code: wagmi, src/app/providers.tsx."]);
+  const otherPanel = graph();
+  admin(otherPanel).dynamic = [{ entry: "src/app/pages/admin/sections/Deploy.tsx", ...wallet }];
+  assert.equal(checkRouteGraph(otherPanel).length, 1);
+  assert.match(checkRouteGraph(otherPanel)[0], /^admin \(admin\) reaches wallet code through src\/app\/pages\/admin\/sections\/Deploy\.tsx/u);
 });
 
 test("a site route that imports wallet code statically fails, whatever the route", () => {

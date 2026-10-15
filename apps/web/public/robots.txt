@@ -4,5 +4,7 @@ Allow: /
 # Intent links (/go/) stay crawlable so link previews can read their tags.
 Disallow: /r/
 Disallow: /approve
+# The operator panel.
+Disallow: /admin
 
 Sitemap: https://kletiaai.xyz/sitemap.xml

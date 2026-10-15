@@ -71,12 +71,21 @@ const LINK_CARD = /^\/go\/(lk_[0-9a-f]{24})\/card\.png$/u;
 const ACTIONS_JSON = "/actions.json";
 const RECEIPT_KEYS = "/.well-known/kletia-receipt-keys.json";
 
+// The operator panel (/admin, /admin/*): never framed, indexed or cached
+// (the same rules render.yaml and vercel.json give it).
+const ADMIN_PATH = /^\/admin(?:\/|$)/u;
+
 // Only the embeddable widget page may be framed by other sites; intent link
-// pages may not be framed at all.
+// pages and the admin panel may not be framed at all.
 const frameHeaders = (pathname) =>
   /^\/embed(?:\/|$)/u.test(pathname)
     ? { "Content-Security-Policy": "frame-ancestors *" }
-    : /^\/go(?:\/|$)/u.test(pathname)
+    : ADMIN_PATH.test(pathname)
+      ? {
+          "X-Frame-Options": "DENY",
+          "Content-Security-Policy": "frame-ancestors 'none'; object-src 'none'; base-uri 'none'",
+        }
+      : /^\/go(?:\/|$)/u.test(pathname)
       ? {
           "X-Frame-Options": "DENY",
           "Content-Security-Policy": "frame-ancestors 'none'",
@@ -89,7 +98,7 @@ const frameHeaders = (pathname) =>
 // Receipts, approvals and intent link pages carry user content: never
 // indexed. (A link's share card, /go/<id>/card.png, is served without it.)
 const robotsHeaders = (pathname) =>
-  /^\/(?:r|go|approve)(?:\/|$)/u.test(pathname) && !LINK_CARD.test(pathname)
+  (/^\/(?:r|go|approve)(?:\/|$)/u.test(pathname) && !LINK_CARD.test(pathname)) || ADMIN_PATH.test(pathname)
     ? { "X-Robots-Tag": "noindex, nofollow" }
     : {};
 
@@ -412,7 +421,7 @@ export function createFrontendServer({ distRoot = resolve(serviceRoot, "dist"), 
       ...commonHeaders,
       ...frameHeaders(url.pathname),
       ...robotsHeaders(url.pathname),
-      "Cache-Control": status === 404 ? "no-cache" : cacheControlFor(url.pathname, path, distRoot),
+      "Cache-Control": ADMIN_PATH.test(url.pathname) ? "no-store" : status === 404 ? "no-cache" : cacheControlFor(url.pathname, path, distRoot),
       ...(cors ?? {}),
     });
   });

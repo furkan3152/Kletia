@@ -9,6 +9,10 @@
  * `kind: "embed"` renders without the site shell so it can live in a
  * third-party iframe (see EmbedPage for the parameters it accepts).
  *
+ * `kind: "admin"` is the operator panel at /admin: no site shell, never
+ * indexed, never pre-rendered or listed in the sitemap. Its page is
+ * wallet-free; wallet code arrives only through its lazily loaded console.
+ *
  * Public pages for one object (`/r/<receiptId>`, `/go/<linkId>`, `/approve`)
  * are `site` routes matched by pattern. They carry user content, so they are
  * never indexed (`robots`), never listed in the sitemap, and their canonical
@@ -38,6 +42,7 @@ export type RouteId =
   | "link"
   | "approve"
   | "changelog"
+  | "admin"
   | "notFound";
 
 type PageModule = { default: ComponentType };
@@ -55,7 +60,7 @@ export interface RouteDefinition {
   readonly id: RouteId;
   /** Canonical path (used for sitemap, canonical URL and active-link state). */
   readonly path: string;
-  readonly kind: "site" | "console" | "embed";
+  readonly kind: "site" | "console" | "embed" | "admin";
   readonly title: string;
   readonly description: string;
   /** Robots directive; default "index,follow" (embed and 404 pages set their own in the router). */
@@ -195,6 +200,15 @@ export const ROUTES: Readonly<Record<RouteId, RouteDefinition>> = Object.freeze(
       "Every Kletia release, newest first: what was added, changed, fixed and secured in the API, SDK, widget, console and site, from CHANGELOG.md.",
     load: () => import("../pages/changelog/ChangelogPage"),
   },
+  admin: {
+    id: "admin",
+    path: "/admin",
+    kind: "admin",
+    title: "Kletia admin",
+    description: "Kletia operator panel.",
+    robots: PRIVATE_PAGE_ROBOTS,
+    load: () => import("../pages/admin/AdminPage"),
+  },
   notFound: {
     id: "notFound",
     path: "/404",
@@ -215,6 +229,7 @@ const EXACT: Readonly<Record<string, RouteId>> = Object.freeze({
   "/app": "console",
   "/approve": "approve",
   "/changelog": "changelog",
+  "/admin": "admin",
 });
 
 /** `/r/<receiptId>` (receipt ids: `rcpt_` + 32 hex). */
@@ -226,6 +241,8 @@ export function matchRoute(pathname: string): RouteDefinition {
   const exact = EXACT[pathname];
   if (exact) return ROUTES[exact];
   if (pathname.startsWith("/app/")) return ROUTES.console;
+  // One HTML entry for the operator panel: its sections live in `?section=`, never in sub-paths.
+  if (pathname.startsWith("/admin/")) return ROUTES.admin;
   // Every portal page, known or not: the shell renders its own "No page here" state.
   if (pathname.startsWith("/developers/")) return ROUTES.developers;
   if (RECEIPT_PATH_PATTERN.test(pathname)) return ROUTES.receipt;

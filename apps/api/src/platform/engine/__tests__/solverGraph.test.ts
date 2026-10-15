@@ -156,8 +156,9 @@ describe("capability graph: default registry", () => {
 
   it("builds well under the latency budget", () => {
     buildGraph(ADAPTERS);
-    const graph = buildGraph(ADAPTERS);
-    assert.ok(graph.buildMs < 300, `build took ${graph.buildMs.toFixed(0)} ms`);
+    // The fastest of five builds: one build can be slowed by a busy machine, a regression slows them all.
+    const fastest = Math.min(...Array.from({ length: 5 }, () => buildGraph(ADAPTERS).buildMs));
+    assert.ok(fastest < 300, `build took ${fastest.toFixed(0)} ms`);
   });
 });
 

@@ -139,6 +139,16 @@ Keep the Render subdomains available until custom-domain DNS, TLS, CORS and wall
 
 `/api` accepts browser requests only from the committed origins and `CORS_ORIGINS`. `/v1` accepts any origin without credentials, because integrators authenticate with API keys rather than cookies.
 
+## Admin panel
+
+`/admin` on the static site is the wallet-gated operator panel; its API lives under `/api/admin` on `kletia-backend`.
+Sign-in accepts the EVM wallet in `KLETIA_ADMIN_ADDRESSES` (EIP-4361) or the Solana wallet in
+`KLETIA_ADMIN_SOLANA_ADDRESSES` (Sign In With Solana); both are committed values in `render.yaml`. The session is a
+host-only `__Host-` cookie on `api.kletiaai.xyz`, which works because `kletiaai.xyz` and `api.kletiaai.xyz` are the
+same site; the panel therefore refuses `kletia-frontend.onrender.com`. The site serves `/admin` with
+`X-Frame-Options: DENY`, `frame-ancestors 'none'`, `noindex` and `no-store`. Add `RENDER_API_KEY` on the API service
+to enable the status and redeploy buttons. Details: [admin.md](admin.md).
+
 ## Server-only environment
 
 These values belong only to the API service:

@@ -1,0 +1,149 @@
+/* Admin panel (kl-admin-*): layout pieces the shared recipes do not cover.
+   Colours come from the site tokens (styles.css); no new palette. */
+
+.kl-admin {
+  min-height: 100dvh;
+  background-color: var(--kl-paper, #f4f1ea);
+}
+
+/* The top bar: the site's ink rule along the bottom, sticky over the content. */
+.kl-admin__bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 3px solid #1a1a1a;
+  background-color: var(--kl-paper, #f4f1ea);
+}
+.dark .kl-admin__bar {
+  border-bottom-color: #4b5563;
+}
+
+/* "ADMIN" plate next to the mark: a rubber-stamp box in signal yellow. */
+.kl-admin__plate {
+  display: inline-flex;
+  align-items: center;
+  border: 3px solid #1a1a1a;
+  background: #ffd60a;
+  color: #1a1a1a;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+  box-shadow: 2px 2px 0 #1a1a1a;
+}
+
+/* Section tabs under 1024 px: one scrolling row, no page scroll sideways. */
+.kl-admin__tabs {
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.kl-admin__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Matrix cells: one letter on a tile, the state readable without colour. */
+.kl-admin__cell {
+  display: inline-flex;
+  min-width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid currentColor;
+  font-family: var(--font-code, "JetBrains Mono Variable", ui-monospace, monospace);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.kl-admin__cell[data-cell="P"] {
+  background: #e6fff4;
+  color: #0b5e3a;
+}
+.kl-admin__cell[data-cell="V"] {
+  background: #ffd60a;
+  color: #1a1a1a;
+  border-color: #1a1a1a;
+}
+.kl-admin__cell[data-cell="D"] {
+  background: #e8efff;
+  color: #0047e0;
+}
+.kl-admin__cell[data-cell="Q"] {
+  background: #ffe4e4;
+  color: #9b1c1c;
+}
+.kl-admin__cell[data-cell="L"] {
+  background: #f1f1ec;
+  color: #4b5563;
+}
+.kl-admin__cell[data-cell="-"] {
+  border-style: dashed;
+  color: #6b7280;
+  opacity: 0.7;
+}
+.dark .kl-admin__cell[data-cell="P"] {
+  background: #0e2a22;
+  color: #5cf2b4;
+}
+.dark .kl-admin__cell[data-cell="D"] {
+  background: #13213d;
+  color: #7ea6ff;
+}
+.dark .kl-admin__cell[data-cell="Q"] {
+  background: #2a1215;
+  color: #fca5a5;
+}
+.dark .kl-admin__cell[data-cell="L"] {
+  background: #1a2433;
+  color: #cbd5e1;
+}
+.dark .kl-admin__cell[data-cell="-"] {
+  color: #94a3b8;
+}
+
+/* The checklist rail: a track line joining the steps, like the route map. */
+.kl-admin__steps {
+  position: relative;
+}
+.kl-admin__steps::before {
+  content: "";
+  position: absolute;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  left: 1.375rem;
+  width: 4px;
+  background: repeating-linear-gradient(to bottom, #1a1a1a 0 10px, transparent 10px 16px);
+  opacity: 0.25;
+}
+.dark .kl-admin__steps::before {
+  background: repeating-linear-gradient(to bottom, #94a3b8 0 10px, transparent 10px 16px);
+}
+.kl-admin__step-dot {
+  position: relative;
+  z-index: 1;
+}
+
+/* Signature progress pips on a Safe proposal. */
+.kl-admin__pip {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid currentColor;
+}
+.kl-admin__pip[data-on] {
+  background: currentColor;
+}
+
+/* The exact sign-in message: printed like a ticket's small print, never reflowed. */
+.kl-admin__message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-code, "JetBrains Mono Variable", ui-monospace, monospace);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kl-admin__plate {
+    transform: none;
+  }
+}

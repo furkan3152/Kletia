@@ -147,3 +147,16 @@ test("/app renders the desk, entered before the first paint; the classic shell i
   assert.match(html, /interactive-widget=resizes-content/u, "the sticky composer stays above the phone keyboard");
   assert.ok(!/\^\\\/app/u.test(html), "the desk gets the site's font preloads");
 });
+
+test("/admin is the operator panel: one prefix route, never indexed, pre-rendered or in the sitemap", () => {
+  for (const path of ["/admin", "/admin/", "/admin/anything"]) assert.equal(matchRoute(path).id, "admin", path);
+  for (const path of ["/adminx", "/administrator", "/x/admin"]) assert.equal(matchRoute(path).id, "notFound", path);
+  assert.equal(ROUTES.admin.kind, "admin");
+  assert.equal(ROUTES.admin.robots, "noindex,nofollow");
+  assert.equal(ROUTES.admin.title, "Kletia admin");
+  assert.ok(!PRERENDER_PATHS.some((page) => page.path.startsWith("/admin")));
+  assert.ok(!sitemap.includes("/admin"));
+  assert.match(readFileSync(new URL("../../../../public/robots.txt", import.meta.url), "utf8"), /^Disallow: \/admin$/mu);
+  const writer = readFileSync(new URL("../../../../scripts/write-route-pages.mjs", import.meta.url), "utf8");
+  assert.match(writer, /route\.kind !== "admin"/u);
+});

@@ -4,12 +4,13 @@
 // import closure and each dynamic import it reaches with that import's own
 // closure. Rules:
 //
-// 1. No `site` or `embed` route reaches wallet code (wagmi, RainbowKit,
+// 1. No `site`, `embed` or `admin` route reaches wallet code (wagmi, RainbowKit,
 //    WalletConnect, Wallet Standard, @solana/kit, src/app/providers.tsx) in
 //    its static closure.
-// 2. A site or embed route reaches wallet code through a dynamic import only
-//    through its allowed panel: /go LinkSignPanel, /approve ApproveSignPanel,
-//    /embed EmbedWalletBar. Studio and every other site page reach none.
+// 2. A site, embed or admin route reaches wallet code through a dynamic
+//    import only through its allowed panel: /go LinkSignPanel, /approve
+//    ApproveSignPanel, /embed EmbedWalletBar, /admin AdminConsole. Studio and
+//    every other site page reach none.
 // 3. The console route reaches the network engines (console/legacy) and the
 //    tool components only through dynamic imports.
 //
@@ -31,6 +32,7 @@ export const WALLET_PANELS = Object.freeze({
   link: ["src/app/pages/link/LinkSignPanel.tsx"],
   approve: ["src/app/pages/approve/ApproveSignPanel.tsx"],
   embed: ["src/app/pages/embed/EmbedWalletBar.tsx"],
+  admin: ["src/app/pages/admin/AdminConsole.tsx"],
 });
 
 /** Modules the console route must load lazily: the network engines and the tool components. */
@@ -57,7 +59,7 @@ export function checkRouteGraph(graph, { toolModules = [] } = {}) {
       problems.push(`${route.id}: its page module is not in the build graph.`);
       continue;
     }
-    if (route.kind === "site" || route.kind === "embed") {
+    if (route.kind === "site" || route.kind === "embed" || route.kind === "admin") {
       const hits = walletHits(route.static);
       if (hits.length > 0) problems.push(`${route.id} (${route.kind}) statically reaches wallet code: ${hits.join(", ")}.`);
       const allowed = WALLET_PANELS[route.id] ?? [];

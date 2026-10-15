@@ -1,0 +1,362 @@
+/**
+ * Server-side verification of a browser deploy (design §C.2). The client
+ * never marks a record verified: every check reads the chain.
+ */
+import type {
+  AdminConstructorInput,
+  AdminContractId,
+  AdminContractSpec,
+  AdminDeployTarget,
+  AdminDeploymentRecord,
+  AdminEvmNetwork,
+  AdminVerificationCheck,
+} from "@kletia/core";
+import {
+  encodeAbiParameters,
+  getAddress,
+  isAddress,
+  keccak256,
+  type AbiParameter,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from "viem";
+import { randomHex } from "../../platform/http/secrets.js";
+import {
+  chainIdOf,
+  dependencyCandidates,
+  networkConstant,
+  specOf,
+  targetById,
+  targetSatisfied,
+} from "../catalog.js";
+import { getArtifact, isDeployable, type DeployableArtifact } from "../contract-artifacts/index.js";
+import type { AdminDeps, AdminSessionContext } from "../deps.js";
+import { AdminHttpError, invalidRequest } from "../http/errors.js";
+import type { AdminStore } from "../store/types.js";
+import { EMPTY_CODEHASH, hasFunction, ownerKindOf, receiptOrPending, rpc, transactionOrPending, tryRead, ZERO_ADDRESS } from "./chain.js";
+import { maskedRuntimeHash } from "./mask.js";
+
+export interface RecordRequestBody {
+  readonly targetId: string;
+  readonly txHash: string;
+  readonly constructorArgs: Readonly<Record<string, string>>;
+  readonly notes?: string;
+  readonly import?: boolean;
+}
+
+type CheckId = AdminVerificationCheck["id"];
+
+class Checks {
+  readonly list: AdminVerificationCheck[] = [];
+  add(id: CheckId, ok: boolean, detail: string): void {
+    this.list.push({ id, ok, detail });
+  }
+  get ok(): boolean {
+    return this.list.every((check) => check.ok);
+  }
+}
+
+const MIN_CONFIRMATIONS: Partial<Record<AdminEvmNetwork, bigint>> = { ethereum: 2n };
+
+function constructorInputsOf(artifact: DeployableArtifact): readonly AbiParameter[] {
+  const constructor = artifact.abi.find((item) => item.type === "constructor");
+  return constructor && constructor.type === "constructor" ? constructor.inputs : [];
+}
+
+/** Normalized constructor args (checksummed addresses, decimal integers) by ABI input name. */
+export function normalizeConstructorArgs(inputs: readonly AbiParameter[], raw: Readonly<Record<string, string>>): { values: unknown[]; normalized: Record<string, string> } {
+  const names = inputs.map((input) => input.name ?? "");
+  const extra = Object.keys(raw).filter((key) => !names.includes(key));
+  if (extra.length > 0) throw invalidRequest(`Unknown constructor arguments: ${extra.join(", ")}.`);
+  const values: unknown[] = [];
+  const normalized: Record<string, string> = {};
+  for (const input of inputs) {
+    const name = input.name ?? "";
+    const value = raw[name];
+    if (typeof value !== "string") throw invalidRequest(`Constructor argument ${name} is missing.`);
+    if (input.type === "address") {
+      if (!isAddress(value, { strict: false })) throw invalidRequest(`Constructor argument ${name} must be an address.`);
+      const address = getAddress(value);
+      values.push(address);
+      normalized[name] = address;
+    } else if (/^uint(\d+)$/u.test(input.type)) {
+      if (!/^(0|[1-9]\d{0,77})$/u.test(value)) throw invalidRequest(`Constructor argument ${name} must be a decimal integer.`);
+      const bits = Number(/^uint(\d+)$/u.exec(input.type)?.[1] ?? "256");
+      const parsed = BigInt(value);
+      if (parsed >= 1n << BigInt(bits)) throw invalidRequest(`Constructor argument ${name} does not fit ${input.type}.`);
+      values.push(parsed);
+      normalized[name] = parsed.toString();
+    } else if (input.type === "string") {
+      if (value.length > 200) throw invalidRequest(`Constructor argument ${name} is too long.`);
+      values.push(value);
+      normalized[name] = value;
+    } else {
+      throw invalidRequest(`Constructor argument type ${input.type} is not supported by the panel.`);
+    }
+  }
+  return { values, normalized };
+}
+
+/** Catalog rules on args: constants, dependencies, literal bounds, session address. Returns problems (empty when fine). */
+async function argRuleProblems(
+  store: AdminStore, network: AdminEvmNetwork, specInputs: readonly AdminConstructorInput[], args: Readonly<Record<string, string>>,
+  session: AdminSessionContext,
+): Promise<string[]> {
+  const problems: string[] = [];
+  for (const input of specInputs) {
+    const value = args[input.name];
+    if (value === undefined) {
+      problems.push(`${input.name} is not a constructor input of the artifact.`);
+      continue;
+    }
+    const source = input.source;
+    switch (source.kind) {
+      case "network-constant": {
+        const expected = networkConstant(network, source.key);
+        if (!expected || expected.toLowerCase() !== value.toLowerCase()) problems.push(`${input.name} must be the pinned ${source.key} ${expected ?? "(none on this network)"}.`);
+        break;
+      }
+      case "dependency": {
+        const candidates = await dependencyCandidates(store, network, source.contractId, source.instance);
+        if (!candidates.some((candidate) => candidate.toLowerCase() === value.toLowerCase())) {
+          problems.push(`${input.name} must be a pinned or verified ${source.contractId} on ${network}.`);
+        }
+        break;
+      }
+      case "literal": {
+        if (!source.editable && value !== source.value) problems.push(`${input.name} must be ${source.value}.`);
+        if (input.type !== "string" && input.type !== "address") {
+          const parsed = BigInt(value);
+          if (source.min !== undefined && parsed < BigInt(source.min)) problems.push(`${input.name} must be at least ${source.min}.`);
+          if (source.max !== undefined && parsed > BigInt(source.max)) problems.push(`${input.name} must be at most ${source.max}.`);
+        }
+        break;
+      }
+      case "session-address": {
+        // Not relaxed by import (design C.1: only the deployer may differ). The
+        // address is an owner/creator role (KletiaToken is Ownable(creator)), so
+        // an import naming a stranger here must not become "verified".
+        if (!session.actors.some((actor) => actor.toLowerCase() === value.toLowerCase())) {
+          problems.push(`${input.name} must be an admin EVM wallet.`);
+        }
+        break;
+      }
+      case "role": {
+        if (value.toLowerCase() === ZERO_ADDRESS) problems.push(`${input.name} must not be the zero address.`);
+        break;
+      }
+    }
+  }
+  return problems;
+}
+
+type ExpectedRead = readonly [fn: string, args: readonly unknown[], expected: string | boolean];
+
+function roleReadsFor(contractId: AdminContractId, args: Readonly<Record<string, string>>): ExpectedRead[] {
+  const forwarder = args.trustedForwarder;
+  const trusted: ExpectedRead[] = forwarder ? [["isTrustedForwarder", [forwarder], true]] : [];
+  switch (contractId) {
+    case "intent-router-v2":
+      return [
+        ["guardian", [], args.initialGuardian ?? ""], ["treasury", [], args.initialTreasury ?? ""],
+        ["wrappedNative", [], args.wrappedNative_ ?? ""], ["feeBps", [], args.initialFeeBps ?? ""], ["paused", [], false],
+      ];
+    case "launch-factory-v2":
+      return [["treasury", [], args.initialTreasury ?? ""], ["deploymentFee", [], "0"]];
+    case "x402-attestation-registry-v1":
+      return [["guardian", [], args.initialGuardian ?? ""]];
+    case "uniswap-v2-adapter":
+      return [["target", [], args.router_ ?? ""], ["factory", [], args.factory_ ?? ""], ["wrappedNative", [], args.wrappedNative_ ?? ""]];
+    case "arc-vault-v2":
+      return [["guardian", [], args.initialGuardian ?? ""], ["apyBps", [], args.initialApyBps ?? ""], ...trusted];
+    case "arc-staking":
+      return [["aprBps", [], args._aprBps ?? ""], ["cooldownPeriod", [], args._cooldownPeriod ?? ""], ...trusted];
+    case "arc-batch-pay":
+      return [["maxRecipientsPerBatch", [], args._maxRecipients ?? ""], ...trusted];
+    case "arc-swap":
+      return [["token", [], args._token ?? ""], ...trusted];
+    case "arc-lending":
+      return [["kletToken", [], args._kletToken ?? ""], ["swapPool", [], args._swapPool ?? ""], ...trusted];
+    case "arc-memo-transfer":
+    case "arc-agent-registry":
+      return trusted;
+    default:
+      return [];
+  }
+}
+
+function sameValue(actual: unknown, expected: string | boolean): boolean {
+  if (typeof expected === "boolean") return actual === expected;
+  if (typeof actual === "string" && /^0x[0-9a-fA-F]{40}$/u.test(actual)) return actual.toLowerCase() === expected.toLowerCase();
+  if (typeof actual === "bigint" || typeof actual === "number") return actual.toString() === expected;
+  return String(actual) === expected;
+}
+
+/** Owner argument for constructor-role contracts: the input whose source is role owner. */
+function ownerArgOf(spec: AdminContractSpec, args: Readonly<Record<string, string>>): string | null {
+  const input = spec.constructorInputs.find((entry) => entry.source.kind === "role" && entry.source.role === "owner");
+  return input ? (args[input.name] ?? null) : null;
+}
+
+export interface PostDeployResult {
+  readonly checks: AdminVerificationCheck[];
+  readonly onchainCodehash: string;
+  readonly ownerKind: AdminDeploymentRecord["ownerKind"];
+  readonly expectedOwner: string | null;
+}
+
+/** Checks 7-10 (runtime code, owner, role reads, owner kind) at the latest block. Shared with reverify. */
+export async function postDeployChecks(
+  client: PublicClient, network: AdminEvmNetwork, spec: AdminContractSpec, artifact: DeployableArtifact,
+  address: string, args: Readonly<Record<string, string>>, deployer: string,
+): Promise<PostDeployResult> {
+  const checks = new Checks();
+  const code = await rpc(network, () => client.getCode({ address: address as Address }));
+  const runtime = (code ?? "0x") as Hex;
+  const onchainCodehash = runtime === "0x" ? EMPTY_CODEHASH : keccak256(runtime);
+  const masked = runtime === "0x" ? null : maskedRuntimeHash(runtime, artifact.immutableReferences);
+  checks.add("runtime_code", masked === artifact.maskedRuntimeHash,
+    masked === artifact.maskedRuntimeHash ? "Runtime code equals the artifact (immutables masked)." : runtime === "0x" ? "No code at the address." : "Runtime code differs from the artifact.");
+
+  let expectedOwner: string | null = null;
+  if (spec.ownerSource === "none") {
+    checks.add("owner", true, "This contract has no owner check.");
+  } else {
+    expectedOwner = spec.ownerSource === "deployer" ? getAddress(deployer) : ownerArgOf(spec, args);
+    const owner = await tryRead(client, network, address, artifact.abi, "owner");
+    const ownerOk = owner.ok && typeof owner.value === "string" && expectedOwner !== null && owner.value.toLowerCase() === expectedOwner.toLowerCase();
+    let pendingOk = true;
+    if (hasFunction(artifact.abi, "pendingOwner")) {
+      const pending = await tryRead(client, network, address, artifact.abi, "pendingOwner");
+      pendingOk = pending.ok && typeof pending.value === "string" && pending.value.toLowerCase() === ZERO_ADDRESS;
+    }
+    checks.add("owner", ownerOk && pendingOk,
+      !ownerOk ? `owner() is ${owner.ok ? String(owner.value) : "unreadable"}, expected ${expectedOwner ?? "unknown"}.` : !pendingOk ? "pendingOwner() is set." : `owner() is ${expectedOwner}.`);
+  }
+
+  const expectations = roleReadsFor(spec.id, args);
+  const failures: string[] = [];
+  for (const [fn, fnArgs, expected] of expectations) {
+    const result = await tryRead(client, network, address, artifact.abi, fn, fnArgs);
+    if (!result.ok || !sameValue(result.value, expected)) failures.push(`${fn}() is ${result.ok ? String(result.value) : "unreadable"}, expected ${String(expected)}`);
+  }
+  checks.add("role_reads", failures.length === 0, failures.length === 0 ? (expectations.length === 0 ? "No role reads for this contract." : `${expectations.length} role reads match.`) : `${failures.join("; ")}.`);
+
+  let ownerKind: AdminDeploymentRecord["ownerKind"] = "none";
+  if (expectedOwner) ownerKind = (await ownerKindOf(client, network, expectedOwner)).kind;
+  return { checks: checks.list, onchainCodehash, ownerKind, expectedOwner };
+}
+
+function deployableArtifactOf(spec: AdminContractSpec): DeployableArtifact {
+  const artifact = getArtifact(spec.artifactId);
+  if (!isDeployable(artifact)) throw new AdminHttpError(422, "ADMIN_TARGET_NOT_DEPLOYABLE", `${spec.name} has no deployable artifact.`);
+  return artifact;
+}
+
+export interface RecordOutcome {
+  readonly record: AdminDeploymentRecord;
+  readonly created: boolean;
+}
+
+/** POST /deployments: verifies the creation transaction and stores the record (verified or verification_failed). */
+export async function recordDeployment(deps: AdminDeps, session: AdminSessionContext, body: RecordRequestBody): Promise<RecordOutcome> {
+  const store = deps.store();
+  const target: AdminDeployTarget | null = targetById(body.targetId);
+  if (!target) throw new AdminHttpError(404, "ADMIN_NOT_FOUND", `Unknown target ${body.targetId}.`);
+  if (target.status === "quarantined" || target.status === "legacy" || target.status === "not-applicable") {
+    throw new AdminHttpError(422, "ADMIN_TARGET_NOT_DEPLOYABLE", `${target.id} is ${target.status}: ${target.reason}`);
+  }
+  const spec = specOf(target.contractId);
+  const artifact = deployableArtifactOf(spec);
+  const network = target.network;
+  const chainId = chainIdOf(network);
+  const txHash = body.txHash.toLowerCase() as Hex;
+
+  const existing = await store.findDeploymentByTx(chainId, txHash);
+  if (existing) {
+    if (existing.targetId !== target.id) throw new AdminHttpError(409, "ADMIN_RECORD_CONFLICT", "This transaction is recorded for another target.");
+    return { record: existing, created: false };
+  }
+  for (const dependency of target.dependsOn) {
+    if (!(await targetSatisfied(store, dependency))) {
+      throw new AdminHttpError(409, "ADMIN_DEPENDENCY_MISSING", `Deploy and verify ${dependency} first.`, { dependency });
+    }
+  }
+  const { values, normalized } = normalizeConstructorArgs(constructorInputsOf(artifact), body.constructorArgs);
+
+  const client = deps.client(network);
+  const checks = new Checks();
+  const rpcChainId = await rpc(network, () => client.getChainId());
+  if (rpcChainId !== chainId) {
+    throw new AdminHttpError(502, "ADMIN_RPC_UNAVAILABLE", `The ${network} RPC answers chain id ${rpcChainId}, expected ${chainId}.`, { network });
+  }
+  checks.add("chain", true, `Chain id ${chainId}.`);
+  const receipt = await receiptOrPending(client, network, txHash);
+  const tip = await rpc(network, () => client.getBlockNumber());
+  const needed = MIN_CONFIRMATIONS[network] ?? 1n;
+  if (tip - receipt.blockNumber < needed) {
+    throw new AdminHttpError(409, "ADMIN_TX_PENDING", "Waiting for confirmations. Retry in a moment.", { txHash, block: receipt.blockNumber.toString() });
+  }
+  if (receipt.status !== "success") {
+    checks.add("tx_success", false, "The transaction reverted.");
+    throw new AdminHttpError(422, "ADMIN_INVALID_REQUEST", "The deployment transaction reverted; nothing was recorded.", { checks: checks.list });
+  }
+  checks.add("tx_success", true, `Mined in block ${receipt.blockNumber}.`);
+  checks.add("confirmations", true, `${(tip - receipt.blockNumber + 1n).toString()} confirmations.`);
+  const tx = await transactionOrPending(client, network, txHash);
+  if (tx.to !== null || !receipt.contractAddress) {
+    checks.add("creation", false, "Not a contract creation (to is set).");
+    throw new AdminHttpError(422, "ADMIN_INVALID_REQUEST", "Only a direct contract creation from a wallet can be recorded.", { checks: checks.list });
+  }
+  const address = getAddress(receipt.contractAddress);
+  checks.add("creation", true, `Created ${address}.`);
+
+  const clash = await store.findDeploymentByAddress(chainId, address);
+  if (clash) throw new AdminHttpError(409, "ADMIN_RECORD_CONFLICT", "This address is already recorded with another transaction.");
+
+  const deployer = getAddress(tx.from);
+  const deployerOk = body.import === true || session.actors.some((actor) => actor.toLowerCase() === deployer.toLowerCase());
+  checks.add("deployer", deployerOk, deployerOk
+    ? `Deployed by ${deployer}${body.import ? " (import)" : ""}.`
+    : `Deployed by ${deployer}, not by ${session.record.walletKind === "solana" ? "an admin EVM wallet" : "the signed-in wallet"}. Use import for deploys made outside the panel.`);
+
+  const input = tx.input.toLowerCase();
+  const bytecode = artifact.bytecode.toLowerCase();
+  checks.add("init_code", input.startsWith(bytecode), input.startsWith(bytecode) ? "Init code equals the artifact." : "Init code differs from the artifact.");
+  const encoded = encodeAbiParameters(constructorInputsOf(artifact), values).toLowerCase();
+  const tail = input.startsWith(bytecode) ? `0x${input.slice(bytecode.length)}` : null;
+  const ruleProblems = await argRuleProblems(store, network, spec.constructorInputs, normalized, session);
+  const argsOk = tail === encoded && ruleProblems.length === 0;
+  checks.add("constructor_args", argsOk, tail !== encoded ? "Encoded constructor arguments differ from the request." : ruleProblems.length > 0 ? ruleProblems.join(" ") : "Constructor arguments match.");
+
+  const post = await postDeployChecks(client, network, spec, artifact, address, normalized, deployer);
+  const all = [...checks.list, ...post.checks];
+  const now = deps.now().toISOString();
+  const record: AdminDeploymentRecord = {
+    id: `dep_${randomHex(12)}`, targetId: target.id, network, chainId, contractId: target.contractId,
+    ...(target.instance ? { instance: target.instance } : {}),
+    address, txHash, block: receipt.blockNumber.toString(), deployer, constructorArgs: normalized,
+    ownerKind: post.ownerKind, expectedOwner: post.expectedOwner, artifactId: spec.artifactId,
+    artifactMaskedRuntimeHash: artifact.maskedRuntimeHash, onchainCodehash: post.onchainCodehash, checks: all,
+    status: all.every((check) => check.ok) ? "verified" : "verification_failed", wired: false,
+    notes: (body.notes ?? "").slice(0, 500), createdBy: session.actor, createdAt: now, updatedAt: now,
+  };
+  await store.insertDeployment(record);
+  return { record, created: true };
+}
+
+/** POST /deployments/:id/reverify: reruns checks 7-10 against the latest block. */
+export async function reverifyDeployment(deps: AdminDeps, record: AdminDeploymentRecord): Promise<AdminDeploymentRecord> {
+  const spec = specOf(record.contractId);
+  const artifact = deployableArtifactOf(spec);
+  const post = await postDeployChecks(deps.client(record.network), record.network, spec, artifact, record.address, record.constructorArgs, record.deployer);
+  const replaced = new Set(post.checks.map((check) => check.id));
+  const checks = [...record.checks.filter((check) => !replaced.has(check.id)), ...post.checks];
+  const verified = checks.every((check) => check.ok);
+  const status = record.status === "archived" || record.status === "superseded" ? record.status : verified ? "verified" : "verification_failed";
+  return {
+    ...record, checks, status, onchainCodehash: post.onchainCodehash, ownerKind: post.ownerKind, expectedOwner: post.expectedOwner,
+    updatedAt: deps.now().toISOString(),
+  };
+}

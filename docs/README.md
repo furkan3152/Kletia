@@ -62,6 +62,7 @@ This index separates current product truth from deployment procedure, network-sp
 ## Deployment and operations
 
 - [Render Blueprint runbook](deployment/render.md) — canonical public deployment topology.
+- [Environment checklist](deployment/env-checklist.md) — every secret and setting the hosted services need, in one pass.
 - [Vercel deployment constraints](deployment/vercel.md) — supported frontend/API alternative and state limitations.
 - [Self-hosting](deployment/self-hosting.md) — Docker Compose, the GHCR images (provenance and SBOM) and a public deployment checklist.
 - [Real-data MVP test](runbooks/mvp-live-test.md) — evidence ladder and user-signed smoke procedure.

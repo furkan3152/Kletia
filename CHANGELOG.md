@@ -4,6 +4,28 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+Round 7: an intent engine that solves goals from what you hold, and ten more
+executable protocols. The registry now lists 49 protocols, 38 of them
+executable through the API. Nothing here signs or holds funds, and none of it
+has had an external audit.
+
+### Added
+
+- Intent engine v2, on by default: a sentence is read into a typed goal (lexer, frames, amounts), and a solver searches a capability graph of every network, venue and holding for routes to it, ranked by fees, time, risk and yield. Goal sentences ("put my USDC to work", "get me 0.01 ETH on arbitrum", "consolidate to base", "exit my aave position") are solved from real holdings, positions, prices and rates, and kept as goals in the thread.
+- A decision table asks only when the choice changes the result: `AMOUNT_EXCEEDS_BALANCE`, `ASSET_TYPO`, `EARN_KIND`, `SCOPE_AMBIGUOUS`, `INTERPRETATION_CONFIRM`. Everything else is chosen and shown as a chip (source, venue and rate, bridge, priced and back-solved amounts). A missing price is always asked, never guessed.
+- A deposit with no venue picks the best rate for its risk; "stake ETH on base" offers buying an LST there or bridging and staking with Lido. "Borrow" and "repay" get a clear "not available yet".
+- Venues: PancakeSwap V3 (Ethereum, Base, Arbitrum) and Camelot (Algebra, Arbitrum), Uniswap V3 on Arbitrum Sepolia with a testnet price guard, Curve 3pool on Ethereum, Stader, Mantle LSP and Frax Ether on Ethereum, SPL stake pools (Jito, Sanctum), Marinade and native SOL staking (also on Solana Devnet), and Circle CCTP V2 on the test networks. Solana liquid staking auctions the stake pool against the Jupiter route.
+- Ethereum USDT approvals reset the allowance to zero first (`APPROVAL_RESET_REQUIRED` where a single transaction is needed).
+- `PREVIEW_TESTNET` preview tag; clarify supports testnet swaps, CCTP testnet bridges and devnet staking.
+- Gates: the intent eval (338 prompts, 95.9% correct, 0 wrong plans) is enforced in the test suite; a protocol coverage matrix (68 cells) runs offline and live (`npm run verify:coverage -w @kletia/api`). Site and README protocol counts come from the registry and a test fails on drift.
+
+### Fixed
+
+- Clarify no longer replaces a named staking provider (Stader, Mantle, Frax, native) with Lido.
+- Native SOL staking sent the rent account size as a string on a running API.
+
+## Round 6
+
 Round 6: one desk for nine networks, a journey that says where the money is
 after every step, clarifying questions instead of refusals, new
 venues, and a project setup that lets a static site run Kletia with a

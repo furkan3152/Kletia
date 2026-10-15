@@ -1,7 +1,7 @@
 # Kletia handoff
 
 For the owner: what exists after round 6, how to run it, what only you can do,
-and what is known to be missing. Branch `ccr-cc3fa951-22gm0c`, 2026-10-14.
+and what is known to be missing. Branch `ccr-cc3fa951-22gm0c`, 2026-10-15 (round 7).
 
 ## What exists
 
@@ -9,13 +9,25 @@ and what is known to be missing. Branch `ccr-cc3fa951-22gm0c`, 2026-10-14.
 Polygon PoS and Solana. Testnet: Arc Testnet, Arbitrum Sepolia and Solana
 Devnet. Production and testnet money never share one intent.
 
-**Protocols.** `GET /v1/protocols` lists 42 protocols, 28 of them executable
+**Protocols.** `GET /v1/protocols` lists 49 protocols, 38 of them executable
 through the API, plus two own-contract slots (EVM contract calls and Solana
-Actions). The other 14 are naming (ENS, Basenames, SNS), data (Chainlink,
-Pyth, Allora, Webacy), payments (x402), console-only suites, or Solana liquid
-staking entries reached through Jupiter. The site computes these numbers from
+Actions). The others are naming (ENS, Basenames, SNS), data (Chainlink,
+Pyth, Allora, Webacy), payments (x402) or console-only suites. The site computes these numbers from
 the same registry (`apps/web/src/app/site/protocolCount.ts`), so they cannot
 drift from the code.
+
+**Round 7 added:**
+
+- **Intent engine v2.** Sentences become typed goals; a solver searches every
+  network, venue and holding for routes and ranks them. It asks only when the
+  answer changes the result (amount above balance, which network, stake or
+  lend, which asset pays, a misspelt token) and shows every other choice as a
+  chip. Eval: 338 prompts, 95.9% correct, 0 wrong plans, enforced in tests.
+- **Ten more executable protocols.** PancakeSwap V3, Camelot, Curve, Stader,
+  Mantle LSP, Frax Ether, Jito and Sanctum stake pools, Marinade and native SOL
+  staking; CCTP V2 on the test networks; USDT allowance resets.
+- **Coverage gate.** `npm run verify:coverage -w @kletia/api -- --api <url>`
+  plans 68 network and protocol cells as dry runs.
 
 **Round 6 added:**
 
@@ -126,6 +138,9 @@ Docker Compose (PostgreSQL, API and site) and the GHCR images are described in
    as needing configuration.
 
 ## Known limits
+
+- The live intent eval now depends on wallet
+  balances; use a funded read-only preview wallet or compare by class.
 
 - Nothing here has had an external security audit. Nothing in the project
   signs or sends transactions, and it should stay that way.

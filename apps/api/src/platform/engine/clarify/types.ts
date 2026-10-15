@@ -6,6 +6,7 @@
  */
 import type {
   AssumptionSource,
+  Goal,
   ClarifyQuestionKind,
   ClarifyReason,
   ClarifyStepKind,
@@ -47,6 +48,16 @@ export interface WorkStep {
   nickname?: boolean;
   /** Transient (this turn only): the sentence was "buy X". */
   buy?: boolean;
+  /**
+   * Transient (this turn only): the Goal this step stands for. A goal step the
+   * reader could not lower has only this (and `goalRead`); the solver expands
+   * it into ordinary slots.
+   */
+  goal?: Goal;
+  /** Transient (this turn only): how the Goal reader read the step (orderOnly: a role filled by word order alone, D12). */
+  goalRead?: { lowered: boolean; orderOnly?: true; possessive?: true };
+  /** Transient (this turn only): an unknown symbol within one edit of listed symbols ("SLO"), for ASSET_TYPO (D9). */
+  assetTypo?: { field: "from" | "to"; raw: string; candidates: string[] };
 }
 
 /** A follow-up waiting for EDIT_TARGET_AMBIGUOUS (thread.pendingEdit). */

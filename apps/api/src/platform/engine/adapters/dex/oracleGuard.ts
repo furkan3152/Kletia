@@ -11,8 +11,15 @@
  *
  * The band bounds pool manipulation and thin pools; the on-chain
  * `amountOutMinimum` bounds what can happen between quote and execution.
+ *
+ * Testnet guard mode (`dexPriceGuard`): only a DEX deployment flagged
+ * `testnet` on a network whose environment is "testnet" skips the band (test
+ * tokens have no market price); the swap then carries a mandatory "Test
+ * tokens" warning and the caller caps slippage at 1 %. A `testnet`
+ * deployment on a mainnet network is refused outright, and every other
+ * deployment goes through the oracle band.
  */
-import { CHAINS, type NetworkKey } from "@kletia/core";
+import { CHAINS, type DexDeployment, type NetworkKey } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
 import type { ResolvedAsset } from "../../assets.js";
 import { policyPrices } from "../../policy/pricing.js";
@@ -77,4 +84,50 @@ export async function oracleGuard(
     ? [`Price impact: the quote is ${percent(shortfallBps)} below the Chainlink oracle price (pool fee and depth included).`]
     : [];
   return { impliedOutput, shortfallBps, warnings };
+}
+
+/** Slippage cap of a test-token swap (testnet guard mode), in bps. */
+export const TESTNET_MAX_SLIPPAGE_BPS = 100;
+/** Mandatory warning of a test-token swap (testnet guard mode). */
+export const TESTNET_PRICE_WARNING =
+  "Test tokens: no market price (testnet). The pool quote is the only reference, so the output floor is the quote less at most 1 %.";
+
+/**
+ * True only for a deployment flagged `testnet` on a testnet network. Throws
+ * VENUE_UNVERIFIED for a `testnet` deployment on a mainnet network: the
+ * registry must never carry one, and the price band is never skipped there.
+ */
+export function testnetPriceMode(deployment: Pick<DexDeployment, "id" | "network" | "testnet">): boolean {
+  if (deployment.testnet !== true) return false;
+  if (CHAINS[deployment.network].environment !== "testnet") {
+    throw new PlatformError(
+      "VENUE_UNVERIFIED",
+      `${deployment.id} is a test deployment pinned on ${CHAINS[deployment.network].name}, a mainnet network. Kletia will not swap there without a price guard.`,
+      422,
+    );
+  }
+  return true;
+}
+
+export interface DexPriceCheck extends OracleCheck {
+  /** The band was skipped for test tokens (testnet guard mode). */
+  readonly testnet: boolean;
+}
+
+/**
+ * The price guard of a swap through `deployment`: the oracle band
+ * (oracleGuard) everywhere except testnet guard mode, which returns no
+ * implied output and the mandatory testnet warning.
+ */
+export async function dexPriceGuard(
+  deployment: Pick<DexDeployment, "id" | "network" | "testnet">,
+  input: ResolvedAsset,
+  amountIn: bigint,
+  output: ResolvedAsset,
+  quotedOutput: bigint,
+): Promise<DexPriceCheck> {
+  if (testnetPriceMode(deployment)) {
+    return { impliedOutput: 0n, shortfallBps: 0n, warnings: [TESTNET_PRICE_WARNING], testnet: true };
+  }
+  return { ...(await oracleGuard(deployment.network, input, amountIn, output, quotedOutput)), testnet: false };
 }

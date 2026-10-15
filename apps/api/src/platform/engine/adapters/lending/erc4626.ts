@@ -56,7 +56,7 @@ import {
   CAPACITY_PROBE,
   eventEvidence,
   evmCall,
-  exactApproval,
+  exactApprovals,
   formatUnits,
   landedCall,
   lendingContext,
@@ -459,8 +459,8 @@ async function depositQuote<V extends VaultVenue>(family: VaultFamily<V>, action
   const allowance = stage === "plan" ? await plannedAllowance(context, vault) : undefined;
   const transactions: EvmTransactionRequest[] = [];
   if (context.native) transactions.push(wrapTransaction(context, amount));
-  const approval = await exactApproval(context, vault, amount, allowance);
-  if (approval) transactions.push(approval);
+  const approvals = await exactApprovals(context, vault, amount, allowance);
+  transactions.push(...approvals);
   const data = await family.encodeDeposit(context, amount, minimum);
   const warnings: string[] = [];
   let gas: bigint | string = DEPOSIT_GAS;
@@ -483,7 +483,7 @@ async function depositQuote<V extends VaultVenue>(family: VaultFamily<V>, action
     expected: shares,
     minimum,
     output: receiptAsset(network, venue.receipt, symbol, venue.name),
-    gas: DEPOSIT_GAS + (approval ? APPROVE_GAS : 0n) + (context.native ? WRAP_GAS : 0n),
+    gas: DEPOSIT_GAS + APPROVE_GAS * BigInt(approvals.length) + (context.native ? WRAP_GAS : 0n),
     warnings: [...warnings, ...apyWarnings(apy)],
   };
 }

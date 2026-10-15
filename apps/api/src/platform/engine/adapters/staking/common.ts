@@ -2,7 +2,8 @@
  * EVM liquid staking skeleton: native ETH in, one liquid-staking token
  * out, on Ethereum, in one wallet transaction.
  *
- * Each protocol (lido.ts, rocketPool.ts, etherfi.ts) supplies a `StakingVenue`:
+ * Each protocol (lido.ts, rocketPool.ts, etherfi.ts, stader.ts, mantle.ts,
+ * frax.ts) supplies a `StakingVenue`: the token it mints, its pinned
  * contracts, a quote (provenance, pause and limit reads, the expected
  * output) and an outcome proof from receipt logs. The skeleton enforces the
  * shared rules:
@@ -10,8 +11,11 @@
  * - only native ETH on Ethereum stakes, into the protocol's pinned token, for
  *   the acting account itself (the token is minted to the sender);
  * - the guaranteed output is the expected amount less STAKE_TOLERANCE_BPS;
- *   the protocols take no on-chain minimum, so verification holds the minted
- *   amount to it and reports what arrived as the step's actual output;
+ *   verification holds the minted amount to it and reports what arrived as
+ *   the step's actual output. Most protocols take no on-chain minimum
+ *   (`floor: "claimed"`); a venue whose call encodes exactly that minimum
+ *   (Mantle's `stake(minMETHAmount)`) returns it as `onchainMinimum` and the
+ *   step is `floor: "onchain"`;
  * - prepare re-reads everything, checks the balance and dry-runs the exact
  *   transaction from the account (a revert refuses the payload);
  * - every step warns that Kletia does not unstake and names the way out
@@ -35,6 +39,7 @@ import {
   type VenuePosition,
 } from "@kletia/core";
 import { PlatformError } from "../../../errors.js";
+import { UNPRICED_SYMBOLS } from "../../policy/feeds.js";
 import { assetAmount } from "../../assets.js";
 import { estimateEvmFeeUsd, evmChainId, evmClient } from "../../chains/evm.js";
 import { assertEvmBalance } from "../evmTransfer.js";
@@ -77,19 +82,27 @@ export interface StakeQuote {
   /** Tokens the stake mints now, before the tolerance. */
   readonly expected: bigint;
   readonly warnings: readonly string[];
+  /**
+   * The minimum the call itself enforces (it reverts below it), when the
+   * protocol takes one. It must equal `lessBps(expected, STAKE_TOLERANCE_BPS)`
+   * (the skeleton refuses otherwise) and makes the step `floor: "onchain"`.
+   */
+  readonly onchainMinimum?: bigint;
 }
 
 /** One liquid-staking protocol on Ethereum. */
 export interface StakingVenue {
-  readonly protocol: Extract<ProtocolId, "lido" | "rocket-pool" | "etherfi">;
+  readonly protocol: Extract<ProtocolId, "lido" | "rocket-pool" | "etherfi" | "stader" | "mantle-lsp" | "frax-ether">;
   /** "Lido". */
   readonly label: string;
   /** The minted token's symbol in ASSETS ("wstETH"). */
   readonly symbol: string;
   /** VENUE_CONTRACTS role of the minted token's pin. */
   readonly tokenRole: VenueContractRole;
-  /** How the token is valued in ETH: `function(uint256) view returns (uint256)` on the token. */
+  /** How the token is valued in ETH: `function(uint256) view returns (uint256)` on the token (or on `rateRole`'s pin). */
   readonly rateFunction: string;
+  /** VENUE_CONTRACTS role of the contract that answers `rateFunction` when it is not the token (Stader, Mantle: the staking contract). */
+  readonly rateRole?: VenueContractRole;
   /** Provenance, pause and limit reads, and the expected output; throws to refuse. */
   quote(context: StakeContext): Promise<StakeQuote>;
   /** Extra prepare-time check of the dry run (ether.fi: the returned weETH). */
@@ -115,6 +128,10 @@ export function client() {
 
 /** The no-unstake warning every staking step carries, with the exit sentence. */
 export function noUnstakeWarning(venue: Pick<StakingVenue, "label" | "symbol">): string {
+  // A token with no price source cannot be swapped by Kletia (the oracle guard refuses it): never offer that exit.
+  if ((UNPRICED_SYMBOLS[STAKING_NETWORK] ?? []).includes(venue.symbol)) {
+    return `Kletia does not unstake ${venue.symbol}: ${venue.label} withdrawals go through its own queue, and Kletia cannot swap ${venue.symbol} back yet (no price feed for it). Exit through ${venue.label}'s own redemption.`;
+  }
   return `Kletia does not unstake ${venue.symbol}: ${venue.label} withdrawals go through its own queue. To exit, swap it back (for example "swap 1 ${venue.symbol} to ETH on ethereum"); the swap rate can sit below the staking rate.`;
 }
 
@@ -155,6 +172,7 @@ interface Built {
   readonly minimum: bigint;
   readonly gas: bigint;
   readonly warnings: string[];
+  readonly floor: "onchain" | "claimed";
 }
 
 function stakeTransaction(venue: StakingVenue, context: StakeContext, quoted: StakeQuote, gas: bigint | string) {
@@ -179,6 +197,9 @@ async function build(venue: StakingVenue, action: AdapterAction, stage: "plan" |
   const quoted = await venue.quote(context);
   if (quoted.expected <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `${formatAmount(fromBaseUnits(context.amount, 18))} ETH mints no ${venue.symbol}.`, 422);
   const minimum = lessBps(quoted.expected, STAKE_TOLERANCE_BPS);
+  if (quoted.onchainMinimum !== undefined && quoted.onchainMinimum !== minimum) {
+    throw new PlatformError("VENUE_INVALID", `The ${venue.label} call encodes a minimum other than the guaranteed ${venue.symbol} amount.`, 500);
+  }
   const warnings = [...quoted.warnings];
   let gas: bigint | string = STAKE_GAS;
   if (stage === "prepare") {
@@ -190,7 +211,14 @@ async function build(venue: StakingVenue, action: AdapterAction, stage: "plan" |
     gas = await callGas(STAKING_NETWORK, request, STAKE_GAS);
   }
   warnings.push(noUnstakeWarning(venue));
-  return { transaction: stakeTransaction(venue, context, quoted, gas), expected: quoted.expected, minimum, gas: STAKE_GAS, warnings };
+  return {
+    transaction: stakeTransaction(venue, context, quoted, gas),
+    expected: quoted.expected,
+    minimum,
+    gas: STAKE_GAS,
+    warnings,
+    floor: quoted.onchainMinimum !== undefined ? "onchain" : "claimed",
+  };
 }
 
 /** The adapter of one EVM liquid-staking protocol. */
@@ -220,8 +248,8 @@ export function createStakingAdapter(venue: StakingVenue): ProtocolAdapter {
         warnings: built.warnings,
         transactionCount: 1,
         slippageBps: Number(STAKE_TOLERANCE_BPS),
-        // The minimum is held by Kletia's proof, not by the protocol contract.
-        floor: "claimed",
+        // "claimed": the minimum is held by Kletia's proof only; "onchain": the call also reverts below it.
+        floor: built.floor,
         preview: { transactions: [built.transaction], expiresAt: Math.floor(Date.now() / 1000) + PREVIEW_TTL_SECONDS },
       };
     },
@@ -288,7 +316,8 @@ export async function readStakingPositions(venues: readonly StakingVenue[], owne
     const balance = await withTimeout(client().readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account] }));
     if (balance === 0n) return null;
     const rateAbi = parseAbi([`function ${venue.rateFunction}(uint256) view returns (uint256)`]);
-    const read = (units: bigint) => withTimeout(client().readContract({ address: token, abi: rateAbi, functionName: venue.rateFunction, args: [units] } as never)) as Promise<bigint>;
+    const rateSource = venue.rateRole ? pinned(venue.protocol, venue.rateRole) : token;
+    const read = (units: bigint) => withTimeout(client().readContract({ address: rateSource, abi: rateAbi, functionName: venue.rateFunction, args: [units] } as never)) as Promise<bigint>;
     const [value, perToken] = await Promise.all([read(balance), read(10n ** 18n)]);
     const position: VenuePosition = {
       venue: `${STAKING_NETWORK}:${venue.protocol}:${venue.symbol}`,

@@ -4,13 +4,17 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { Stamp } from "../art/Stamp";
 import { Button } from "../ui/Button";
 import { cx, INK_BORDER, LABEL } from "../ui/styles";
+import { formatUtcMinutes } from "../format/utcTime";
 
-const timeFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const dayFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
+/** "Oct 22, 20:11 UTC": every clock on the desk is UTC, 24 h. */
 function timeText(iso: string | null): string | null {
   if (!iso) return null;
   const time = Date.parse(iso);
-  return Number.isFinite(time) ? timeFormatter.format(new Date(time)) : null;
+  if (!Number.isFinite(time)) return null;
+  const clock = formatUtcMinutes(time);
+  return clock ? `${dayFormatter.format(new Date(time))}, ${clock}` : null;
 }
 
 export interface PolicyNoticeProps {

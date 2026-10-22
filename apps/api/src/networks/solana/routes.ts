@@ -19,6 +19,7 @@ router.use(rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyH
 
 function sendError(res: express.Response, error: unknown) {
   if (error instanceof SolanaProviderError) {
+    if (error.retryAfterSeconds !== undefined) res.setHeader("Retry-After", String(error.retryAfterSeconds));
     return res.status(error.status).json({ success: false, code: error.code, message: error.message });
   }
   console.error("[solana]", error instanceof Error ? error.message : error);

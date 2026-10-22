@@ -63,10 +63,10 @@ function Amount({ value }: { readonly value: FareMoney }) {
   );
 }
 
-function MoneyRow({ row, kind }: { readonly row: FareRow; readonly kind: "pay" | "get" }) {
+function MoneyRow({ row, kind, demo }: { readonly row: FareRow; readonly kind: "pay" | "get"; readonly demo: boolean }) {
   return (
     <li className="klf__row">
-      <Network network={row.network} name={row.networkName} account={row.account} accountLabel={row.accountLabel} />
+      <Network network={row.network} name={row.networkName} account={row.account} accountLabel={demo ? "demo account" : row.accountLabel} />
       <span className="klf__val">
         <Amount value={row.expected} />
         {kind === "get" ? <span className="klf__note">expected</span> : null}
@@ -110,6 +110,12 @@ export interface FareTableProps {
   /** The fare the user approved before: printed struck through, with what got worse. */
   readonly previous?: IntentPreview | null;
   readonly changes?: readonly PreviewIssue[];
+  /**
+   * A preview planned with demo accounts (no wallet connected yet): their
+   * rows say "demo account" and balances read there are the demo account's,
+   * never "you have".
+   */
+  readonly isDemoAccount?: (account: string) => boolean;
   readonly className?: string;
 }
 
@@ -121,8 +127,12 @@ export interface FareTableProps {
  * Every number carries how it was obtained, by shape and in words.
  * Presentational: it renders `IntentPreview` from `@kletia/core` as given.
  */
-export function FareTable({ preview, intent, previous, changes, className }: FareTableProps) {
+export function FareTable({ preview, intent, previous, changes, isDemoAccount, className }: FareTableProps) {
   const fare = fareModel(preview, intent);
+  const demoRow = (row: FareRow) => Boolean(isDemoAccount?.(row.account));
+  const demo = [...fare.youPay, ...fare.youGet].some(demoRow);
+  // A fee that rounds to nothing still costs something: never "cost $0.00" next to a network fee.
+  const cost = fare.totals.cost === "$0.00" && fare.fees.length > 0 ? "<$0.01" : fare.totals.cost;
   const before = previous ? fareModel(previous, intent) : null;
   const changeLines = fareChangeLines(changes);
   const id = useId().replace(/:/gu, "");
@@ -139,7 +149,7 @@ export function FareTable({ preview, intent, previous, changes, className }: Far
         <span>
           {fare.legs} leg{fare.legs === 1 ? "" : "s"}
           {fare.networkChanges > 0 ? ` · ${fare.networkChanges} network change${fare.networkChanges === 1 ? "" : "s"}` : ""}
-          {fare.totals.cost ? ` · cost ${fare.totals.cost}` : ""}
+          {cost ? ` · cost ${cost}` : ""}
         </span>
       </div>
       <div className="klf__body">
@@ -166,14 +176,14 @@ export function FareTable({ preview, intent, previous, changes, className }: Far
         {fare.youPay.length > 0 ? (
           <Section label="You pay" id={`${id}-pay`}>
             {fare.youPay.map((row) => (
-              <MoneyRow key={row.key} row={row} kind="pay" />
+              <MoneyRow key={row.key} row={row} kind="pay" demo={demoRow(row)} />
             ))}
           </Section>
         ) : null}
         {fare.youGet.length > 0 ? (
           <Section label="You get" id={`${id}-get`}>
             {fare.youGet.map((row) => (
-              <MoneyRow key={row.key} row={row} kind="get" />
+              <MoneyRow key={row.key} row={row} kind="get" demo={demoRow(row)} />
             ))}
           </Section>
         ) : null}
@@ -262,7 +272,7 @@ export function FareTable({ preview, intent, previous, changes, className }: Far
                 <span>
                   {need.reason === "gas-on-arrival" ? <span aria-hidden="true">⚠ </span> : null}
                   {need.text}
-                  {need.have ? ` (you have ${need.have})` : ""}.
+                  {need.have ? (demo ? ` (the demo account has ${need.have})` : ` (you have ${need.have})`) : ""}.
                 </span>
               </li>
             ))}

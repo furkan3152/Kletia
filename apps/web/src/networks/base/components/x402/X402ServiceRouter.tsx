@@ -252,14 +252,22 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
                 <Sparkles className="text-[#0052FF]" />
                 x402 Service Router
               </h1>
+              <p className="mt-2 max-w-3xl text-base font-bold text-[#1A1A1A] dark:text-white">
+                Some services charge a few cents per request instead of a
+                subscription. x402 is how they ask for that payment: your
+                wallet pays a small amount of USDC on Base for one answer, with
+                no account to create.
+              </p>
               <p className="mt-2 max-w-3xl text-sm font-bold text-gray-600 dark:text-slate-300">
-                Find useful paid APIs through Coinbase CDP Bazaar, enforce a
-                Base USDC ceiling, then turn one result into a normal Kletia
-                sentence. Discovery never spends funds.
+                Search for such services below and set the most you would pay
+                for one request. Searching is free and never spends anything.
+                Pick a result and Kletia writes it as a normal sentence; a
+                payment only ever happens when you approve it in your wallet.
+                Results come from Coinbase&apos;s CDP Bazaar directory.
               </p>
             </div>
             <span className="w-fit border-[3px] border-[#1A1A1A] bg-[#86EFAC] px-3 py-1 text-[10px] font-black uppercase text-[#1A1A1A]">
-              Buyer mode / read only
+              Search only · spends nothing
             </span>
           </div>
 
@@ -278,7 +286,7 @@ export function X402ServiceRouter({ onIntentTemplate }: Props) {
             </label>
             <label className="block">
               <span className="mb-1 block text-[10px] font-black uppercase text-gray-500">
-                Max USDC / call
+                Most you would pay per request (USDC)
               </span>
               <input
                 value={maxPayment}

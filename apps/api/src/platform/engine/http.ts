@@ -1,4 +1,5 @@
-import { PlatformError } from "../errors.js";
+import { clientRetryAfterSeconds, fetchWithRateLimitRetry } from "../../shared/http/providerRetry.js";
+import { PlatformError, providerRateLimited } from "../errors.js";
 import { isRecord } from "./util.js";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
@@ -53,7 +54,9 @@ async function readBounded(response: Response, provider: string): Promise<string
 export async function fetchProviderJson(url: string, request: ProviderRequest): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(url, {
+    // A 429 is retried briefly (bounded) before it is reported as PROVIDER_RATE_LIMITED,
+    // unless the caller handles 429 itself (allowStatus).
+    const send = () => fetch(url, {
       method: request.method ?? "GET",
       headers: {
         accept: "application/json",
@@ -63,12 +66,17 @@ export async function fetchProviderJson(url: string, request: ProviderRequest): 
       ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
       signal: AbortSignal.timeout(request.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
+    response = request.allowStatus?.includes(429) ? await send() : await fetchWithRateLimitRetry(send);
   } catch {
     throw new PlatformError(
       providerCode(request.provider, "UNAVAILABLE"),
       `${request.provider} is temporarily unreachable. Try again shortly.`,
       502,
     );
+  }
+  if (response.status === 429 && !request.allowStatus?.includes(429)) {
+    await response.body?.cancel().catch(() => undefined);
+    throw providerRateLimited(request.provider, clientRetryAfterSeconds(response));
   }
   const text = await readBounded(response, request.provider);
   if (request.allowStatus?.includes(response.status)) return null;
@@ -79,7 +87,7 @@ export async function fetchProviderJson(url: string, request: ProviderRequest): 
     throw new PlatformError("PROVIDER_INVALID_JSON", `${request.provider} returned an invalid response.`, 502);
   }
   if (!response.ok) {
-    if (response.status >= 500 || response.status === 401 || response.status === 403 || response.status === 429) {
+    if (response.status >= 500 || response.status === 401 || response.status === 403) {
       throw new PlatformError(
         providerCode(request.provider, "UNAVAILABLE"),
         `${request.provider} is temporarily unavailable. Try again shortly.`,

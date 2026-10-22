@@ -1,6 +1,6 @@
 # Vercel deployment (optional alternative)
 
-Production runs on Render: `render.yaml` is the canonical topology for
+Production runs on Render: `render.yaml` is the reference topology for
 `kletiaai.xyz` and `api.kletiaai.xyz` (see the [Render runbook](render.md)).
 Vercel is a supported alternative for previews or a separate deployment; the
 `vercel.json` manifests in `apps/web` and `apps/api` exist for that purpose.

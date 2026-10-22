@@ -251,20 +251,41 @@ export function networksNamedIn(text: string): NetworkKey[] {
   const found: NetworkKey[] = [];
   for (const match of text.matchAll(NETWORK_WORD)) {
     const word = (match[1] ?? "").replace(/\s+/gu, " ").toLowerCase();
-    const chain = resolveChain(word) ?? (word === "eth" ? CHAINS.ethereum : null);
+    // "arbitrum sepolia" is registered as "arbitrum-sepolia": try the hyphenated form as well.
+    const chain = resolveChain(word) ?? resolveChain(word.replace(/ /gu, "-")) ?? (word === "eth" ? CHAINS.ethereum : null);
     if (chain && !found.includes(chain.key)) found.push(chain.key);
   }
   return found;
 }
 
+/** Words that ask about rates, not for a transaction. */
+const RATE_WORD = /\b(?:rates?|yields?|apys?|aprs?|interest)\b/iu;
+/** How a read-only question starts ("compare yield", "show live Aave rates", "what is the best USDC rate"). */
+const QUESTION_START = /^(?:please\s+)?(?:compare|show|list|what(?:'s| is| are)?|which|where|check|find|see|get|tell me)\b/iu;
+/** An action with an amount ("supply 10 USDC ... after checking the rate") is a transaction, not a question. */
+const ACTION_WITH_AMOUNT = /\b(?:swap|bridge|send|deposit|supply|lend|stake|withdraw|buy|sell|borrow|repay|move|put)\s+(?:\$?\d|all\b|half\b|my\b)/iu;
+
+/**
+ * A read-only rate question: lending rates are read from `GET /v1/venues`
+ * without a wallet, nothing is planned and nothing can be signed.
+ */
+export function isRateQuestion(text: string): boolean {
+  const sentence = text.trim();
+  if (!RATE_WORD.test(sentence) || ACTION_WITH_AMOUNT.test(sentence)) return false;
+  return QUESTION_START.test(sentence) || /\bwithout preparing a transaction\b/iu.test(sentence);
+}
+
 export type SubmissionRoute =
   | { readonly engine: "platform" }
+  /** A read-only rate question: answered from Kletia's venue list, no wallet needed. */
+  | { readonly engine: "rates" }
   | { readonly engine: "network"; readonly network: LegacyNetwork; readonly why: "tool" | "fallback" }
   | { readonly engine: "offer"; readonly networks: readonly LegacyNetwork[] }
   | { readonly engine: "none"; readonly why: "refused" | "solana" | "network-without-engine" };
 
 /**
- * Where a submission goes. Platform first; a network engine only when the
+ * Where a submission goes. A read-only rate question is answered from the
+ * venue list; everything else goes to the platform first; a network engine only when the
  * platform said INTENT_UNSUPPORTED and the sentence (or the departure) names
  * Base, Arbitrum One or Arc, or a tool pinned the engine. Every other refusal
  * is final: it is a safety or input check, not a grammar gap.
@@ -280,6 +301,8 @@ export function routeSubmission({
   readonly enginePin?: LegacyNetwork | null;
   readonly platformError?: string | null;
 }): SubmissionRoute {
+  // Reading rates needs no wallet and no network engine, whoever pinned one.
+  if (!platformError && isRateQuestion(text)) return { engine: "rates" };
   if (enginePin) return { engine: "network", network: enginePin, why: "tool" };
   if (!platformError) return { engine: "platform" };
   if (platformError !== "INTENT_UNSUPPORTED") return { engine: "none", why: "refused" };

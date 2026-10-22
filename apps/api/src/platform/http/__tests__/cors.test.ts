@@ -74,4 +74,33 @@ describe("browser access to PATCH /v1/contracts/{id}", () => {
     const foreign = await fetch(`${base}/api/anything`, { method: "OPTIONS", headers: { origin: "https://integrator.example", "access-control-request-method": "GET" } });
     assert.equal(foreign.headers.get("access-control-allow-origin"), null);
   });
+
+  it("answers a foreign origin with 403 CORS_ORIGIN_FORBIDDEN, never a server error", async () => {
+    // No error handler of its own: a refusal passed to Express as an error would answer 500 here.
+    const bare = express();
+    bare.use(createCorsMiddleware());
+    bare.post("/api/intent", (_req, res) => {
+      res.json({ ok: true });
+    });
+    const plain = await new Promise<Server>((resolve) => {
+      const listening = bare.listen(0, "127.0.0.1", () => resolve(listening));
+    });
+    const url = `http://127.0.0.1:${(plain.address() as AddressInfo).port}/api/intent`;
+    try {
+      for (const method of ["OPTIONS", "POST"]) {
+        const response = await fetch(url, { method, headers: { origin: "https://evil.example", "access-control-request-method": "POST", "content-type": "application/json" }, ...(method === "POST" ? { body: "{}" } : {}) });
+        assert.equal(response.status, 403, method);
+        assert.equal(response.headers.get("access-control-allow-origin"), null);
+        assert.equal(response.headers.get("vary"), "Origin");
+        assert.equal(((await response.json()) as { code: string }).code, "CORS_ORIGIN_FORBIDDEN");
+      }
+      const allowed = await fetch(url, { method: "POST", headers: { origin: "https://kletiaai.xyz", "content-type": "application/json" }, body: "{}" });
+      assert.equal(allowed.status, 200);
+      assert.equal(allowed.headers.get("access-control-allow-origin"), "https://kletiaai.xyz");
+      const serverToServer = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      assert.equal(serverToServer.status, 200, "no Origin header: not a browser, nothing to refuse");
+    } finally {
+      await new Promise<void>((resolve) => plain.close(() => resolve()));
+    }
+  });
 });

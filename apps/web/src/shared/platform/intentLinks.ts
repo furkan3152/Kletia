@@ -19,20 +19,31 @@ export function httpsUrl(value: string | undefined): string | undefined {
   }
 }
 
-/** Evidence observed on the step's own network (the user's transaction), newest first. */
-export function sourceEvidence(step: IntentStep): StepEvidence | undefined {
-  return [...step.evidence]
-    .reverse()
-    .find((item) => item.network === step.network && (item.reference || item.url));
-}
-
 export interface StepLink {
   readonly label: string;
   readonly url: string;
   readonly network: NetworkKey;
 }
 
-/** Explorer links for a step: evidence URLs first, then submitted references. */
+/**
+ * Evidence kinds that stand for something on-chain. Quote, balance and note
+ * evidence carry provider quote ids, quote bindings and the like in
+ * `reference`: those are not transactions, so they never become explorer
+ * links (a "View on Basescan" button before anything was signed).
+ */
+const ON_CHAIN_EVIDENCE: ReadonlySet<StepEvidence["kind"]> = new Set(["transaction", "receipt", "settlement"]);
+
+/** On-chain evidence observed on the step's own network (the user's transaction), newest first. */
+export function sourceEvidence(step: IntentStep): StepEvidence | undefined {
+  return [...step.evidence]
+    .reverse()
+    .find((item) => ON_CHAIN_EVIDENCE.has(item.kind) && item.network === step.network && (item.reference || item.url));
+}
+
+/**
+ * Explorer links for a step: on-chain evidence first, then the references
+ * the wallet submitted. Empty until a transaction exists.
+ */
 export function stepExplorerLinks(step: IntentStep): StepLink[] {
   const links: StepLink[] = [];
   const seen = new Set<string>();
@@ -43,7 +54,7 @@ export function stepExplorerLinks(step: IntentStep): StepLink[] {
     links.push({ network, url: safe, label: label ?? `View on ${CHAINS[network]?.explorer.name ?? "explorer"}` });
   };
   for (const evidence of step.evidence) {
-    if (!CHAINS[evidence.network]) continue;
+    if (!CHAINS[evidence.network] || !ON_CHAIN_EVIDENCE.has(evidence.kind)) continue;
     const url =
       evidence.url ??
       (isStepReference(evidence.reference) ? explorerTxUrl(evidence.network, evidence.reference) : undefined);

@@ -32,6 +32,14 @@ const COPY = {
     tasksView: (count: number) => `Tasks ${count}`,
     skipToComposer: "Skip to the composer",
     skipToContent: "Skip to content",
+    siteMenu: {
+      button: "Menu",
+      label: "Kletia site",
+      home: "Home",
+      studio: "Studio",
+      developers: "Developers",
+      help: "Help",
+    },
     themeToDark: "Use dark theme",
     themeToLight: "Use light theme",
   },
@@ -54,7 +62,7 @@ const COPY = {
     kicker: "Platform 1 · Console",
     heading: "Where should the money go?",
     lead: `One sentence on any of ${countWord(NETWORK_COUNT)} networks. Kletia plans it, shows the fare, and your wallet signs every step.`,
-    statusBoard: "Departures · network status",
+    statusBoard: "Departures",
     statusBoardLabel: "Network status",
     testYard: "Test yard",
     tryOne: "Try one",
@@ -70,6 +78,7 @@ const COPY = {
     send: "Plan",
     sendLabel: "Plan this sentence",
     sendAnswer: "Send answer",
+    choseOption: (label: string) => `Answered: ${label}`,
     enterHint: "Enter plans",
     newLineHint: "Shift and Enter add a line",
     examples: "Examples",
@@ -159,7 +168,8 @@ const COPY = {
       request: (network: string) => `Departs ${network}, as you chose`,
       requestBridged: (network: string, destination: string) =>
         `Departs ${network}, as you chose · Kletia adds a bridge to ${destination} first`,
-      text: (network: string, chosen: string) => `Departs ${network} · your sentence names it (the departure said ${chosen})`,
+      text: (network: string, chosen: string) =>
+        `Departs ${network} · your sentence names it, so the departure ${chosen} was not used. To start from ${chosen}, add "from ${chosen}" to the sentence.`,
       inferred: (network: string) => `Departs ${network}`,
       mismatch: (network: string, chosen: string) => `This plan starts on ${network}, not ${chosen}.`,
       startFromInstead: (network: string) => `Start from ${network} instead`,
@@ -187,15 +197,21 @@ const COPY = {
       completed: "Settled",
       failed: "Failed",
       cancelled: "Cancelled",
-      unsupported: "Not supported",
+      unsupported: "Can't do that yet",
       engine: "Network engine",
     },
+    /** A task that is executing before any signature exists (the fare or a review waits for the user). */
+    awaitingApproval: "Awaiting approval",
+    /** A task whose wallet is showing a request, or whose request has no known outcome yet. */
+    inWallet: "In your wallet",
     stub: (serial: string, title: string, route: string, status: string, time: string) =>
       [serial, title, route, `${status} ${time}`.trim()].filter((part) => part.length > 0).join(" · "),
     route: (from: string, to: string) => (from === to ? from : `${from} to ${to}`),
     planning: "Planning with your accounts.",
     planningPreview: "Planning a preview with demo accounts.",
     signingLocked: "Another task is signing. Finish or stop it first.",
+    venueChanged: (now: string, was: string) =>
+      `Planned again for signing with fresh quotes: it now uses ${now} instead of ${was}, so the ticket number changed too. Check the review before you confirm.`,
     routeMap: "Route map",
     openInStudio: "Open in Studio",
     planAgain: "Plan again",
@@ -221,7 +237,10 @@ const COPY = {
   },
 
   unsupported: {
-    heading: "Kletia's planner does not cover this yet",
+    heading: "Kletia can't do that yet",
+    lead: "Nothing was planned and nothing was signed. Try a sentence like one of these.",
+    understoodHeading: "Kletia found no route for this",
+    connectLead: "Kletia plans this from what your wallets hold. Connect one so it can read your balances; nothing is signed without your approval.",
     hintsLabel: "Sentences Kletia plans today",
     hintChipLabel: (sentence: string) => `Put "${sentence}" in the composer`,
     offerLead: "A network engine may still plan it on its own network:",
@@ -259,6 +278,26 @@ const COPY = {
     switching: "Switching networks in your wallet.",
     switchFailed: "The wallet did not switch networks. Nothing was signed.",
     loading: "Loading the network engine.",
+  },
+
+  rates: {
+    reading: "Reading rates",
+    readOnly: "Read only",
+    heading: "Lending rates right now",
+    lead: "Read from Kletia's venue list. Read only: nothing is planned, nothing can be signed and no wallet is needed.",
+    loading: "Reading the venues' rates.",
+    failed: "The rates could not be read right now.",
+    retry: "Read again",
+    none: "No venue in Kletia's list matches this question.",
+    readAt: (time: string) => `Read ${time}. Rates are variable and change with every block.`,
+    columns: { venue: "Venue", network: "Network", apy: "Supply APY", supplied: "Supplied", exit: "Available to withdraw" },
+    planDeposit: "Plan a deposit",
+    planDepositLabel: (sentence: string) => `Put "${sentence}" in the composer`,
+    borrowNote: "Borrow rates are not in Kletia's venue list yet; these are supply rates.",
+    borrowEngine: (network: string) => `The ${network} engine reads borrow rates once an EVM wallet is connected.`,
+    askEngine: (network: string) => `Ask the ${network} engine`,
+    solanaNote: "Solana lending venues are not in this list: plan a deposit on Solana to see their rate in the plan.",
+    sentenceForgotten: "The rates of this task were not kept after the page reloaded. Ask again for fresh ones.",
   },
 
   holdings: {
@@ -307,13 +346,18 @@ const COPY = {
     open: "Open",
     back: "All tools",
     noMatch: "No tool matches these filters.",
+    /** A network filter that leaves only the tools for every network (Ethereum, OP Mainnet, Polygon today). */
+    networkGeneralOnly: (network: string) =>
+      `No tool is built for ${network} yet. Swaps, bridges, sends and deposits on ${network} work from the composer; the tools below work on every network.`,
+    networkNone: (network: string) => `No tool is built for ${network} yet. Swaps, bridges, sends and deposits on ${network} work from the composer.`,
     loading: "Loading the tool.",
     needs: {
       evm: "EVM wallet",
       solana: "Solana wallet",
       none: "No wallet",
     },
-    needsOn: (wallet: string, network: string) => `Needs an ${wallet} on ${network}`,
+    /** "Needs an EVM wallet on Base", "Needs a Solana wallet on Solana" (EVM is spelled out: "an"). */
+    needsOn: (wallet: string, network: string) => `Needs ${/^(?:EVM|[AEIOU])/u.test(wallet) ? "an" : "a"} ${wallet} on ${network}`,
     kinds: {
       panel: "Panel",
       form: "Form",

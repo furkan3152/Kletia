@@ -124,25 +124,41 @@ Docker Compose (PostgreSQL, API and site) and the GHCR images are described in
      3. `/*` to `/index.html`
    - Static site, Headers: copy the `headers` of `kletia-frontend` from
      `render.yaml` (framing, `X-Robots-Tag`, CORS for `actions.json` and the
-     receipt key mirror).
+     receipt key mirror). Include the `/sdk/embed/*/*.js`,
+     `/sdk/embed/manifest.json`, `/sdk/kletia-sdk-*.js` and `/sdk/manifest.json`
+     rules (`Access-Control-Allow-Origin: *`, `Cross-Origin-Resource-Policy:
+     cross-origin`): without them browsers block the embed snippet and the SDK
+     file on every other site, and the `Public smoke` workflow fails.
+   - Do not apply `render.yaml` as a Blueprint to this account: the live
+     services were created in the dashboard under other names, so a Blueprint
+     would create a second API and site.
 4. **npm packages.** Create the `@kletia` npm org and add an automation token
-   as the `NPM_TOKEN` repository secret. Then run
+   as the `NPM_TOKEN` repository secret (environment `npm`). Then run
    `npm run bump:packages -- 0.2.0`, commit the bump, and push the tag
-   `packages-v0.2.0`. `.github/workflows/release-packages.yml` checks the tag
-   against the versions and publishes all five packages with provenance. They
-   are at `0.1.0` and not on npm yet, so the docs pin `0.1.0`.
+   `packages-v0.2.0` (not `v0.2.0`). `.github/workflows/release-packages.yml`
+   checks the tag against the versions, attaches the `npm pack` tarballs to the
+   GitHub release and publishes all five packages with provenance. They are at
+   `0.1.0` and not on npm yet, so the docs pin `0.1.0`. Before npm, run the
+   workflow by hand (Actions, Release packages, Run workflow) to publish the
+   `packages-v0.1.0` release with its tarballs only; the site also serves the
+   SDK as one file at `/sdk/kletia-sdk-0.1.0.js` (`docs/platform/quickstart.md`,
+   "Install without npm").
 5. **Optional provider keys.** Everything read-only works without them:
    - `RELAY_API_KEY`: higher Relay limits.
    - `JUPITER_API_KEY`: the paid Jupiter tier.
    - `ACROSS_API_KEY`, `ACROSS_INTEGRATOR_ID` and `ACROSS_MAX_RELAY_FEE_BPS`:
-     Across quotes, which are left out of the auction without them.
+     integrator attribution and the fee cap for Across. The v1 bridge auction
+     already quotes Across without them.
    - `LIFI_API_KEY` and `DEBRIDGE_ACCESS_TOKEN`.
    - Private RPC URLs (`ETHEREUM_RPC_URL`, `BASE_RPC_URL`, …).
-   - `X402_TREASURY_ADDRESS`: without it the paid routes answer 503.
+   - `X402_TREASURY_ADDRESS`: who receives x402 payments. It takes precedence
+     over `KLETIA_FEE_RECIPIENT`; with neither set the paid routes answer 503.
+     Set it to the treasury Safe to send x402 income there.
 
-   The hosted API sets `KLETIA_REQUIRE_ALL_FEATURES=true` and refuses to start
-   without its integration keys. Unset it to run with those features reported
-   as needing configuration.
+   The hosted API does not set `KLETIA_REQUIRE_ALL_FEATURES`, and neither does
+   `render.yaml`: keep it that way. With it set, the API refuses to start while
+   any of these keys (Webacy and Allora included) is missing; without it, those
+   features are reported as needing configuration.
 
 ## Known limits
 

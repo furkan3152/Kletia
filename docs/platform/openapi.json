@@ -72,6 +72,10 @@
       "description": "Issue, list, rotate and revoke the API keys of your project."
     },
     {
+      "name": "Accounts",
+      "description": "Developer accounts: sign in with a wallet from the developer portal, list the projects it owns and issue, rotate and revoke their keys, also after every key was lost."
+    },
+    {
       "name": "Usage",
       "description": "Per-key request counts and rate-limit state."
     },
@@ -6868,6 +6872,909 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/nonce": {
+      "post": {
+        "operationId": "createAccountSignInMessage",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Get a sign-in message for a wallet",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). The message names the calling origin's host, the address, a single-use nonce and an expiry 5 minutes away. Signing it moves no funds. At most 10 per minute per address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountNonceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The message to sign.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountNonceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/session": {
+      "post": {
+        "operationId": "signInAccount",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Sign in with the signed message",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). The nonce is used up by the first attempt, valid or not (401 ACCOUNT_NONCE_INVALID for an unknown, used, expired or altered message; 401 ACCOUNT_SIGNATURE_INVALID for a wrong signature; 502 RPC_UNAVAILABLE when a smart-wallet signature could not be checked). The session ends 8 h after sign-in or after 60 minutes without a request. Signing in again on any device recovers the same projects. At most 10 attempts per minute per address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountSignInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The session token, shown once.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSignInResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getAccountSession",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "The current session",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin).",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "signOutAccount",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Sign out (end the session)",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin).",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/activity": {
+      "get": {
+        "operationId": "listAccountActivity",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "The wallet's recent account activity",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). The newest 50 audit rows of the signed-in wallet: sign-ins, sign-outs, project creations and claims, key issues, rotations and revocations, with their outcome.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountActivityList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/projects": {
+      "get": {
+        "operationId": "listAccountProjects",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Projects the signed-in wallet owns",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Also the projects whose keys were all lost or revoked: issue a new key to get back in.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Oldest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProjectList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAccountProject",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Create a project owned by the wallet, with its first key",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same body as POST /v1/keys without a key. A wallet owns at most 20 projects (409 PROJECT_LIMIT_REACHED) and creates at most 5 an hour.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The project and its first key (shown once).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProjectCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/projects/claim": {
+      "post": {
+        "operationId": "claimAccountProject",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Link an existing project to the wallet",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Also send a project key (kl_dev_) of the project with its current secret: the key proves control of the project. A project has one owner for good: a project another wallet owns is 409 PROJECT_ALREADY_OWNED. 201 when this call linked it, 200 when the wallet already owned it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The wallet already owned the project.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProjectClaimed"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The project is now the wallet's.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProjectClaimed"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/projects/{projectId}/keys": {
+      "get": {
+        "operationId": "listAccountProjectKeys",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Keys of an owned project",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Every key of the project, revoked ones included (never secrets; `last4` only). A project the wallet does not own is 404 PROJECT_NOT_FOUND.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^prj_key_[0-9a-f]{24}$",
+              "examples": [
+                "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountKeyList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "issueAccountProjectKey",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Issue a project key in an owned project",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Works when every key of the project was lost or revoked: this is how access comes back. At most 5 active project keys (409 KEY_LIMIT_REACHED).",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^prj_key_[0-9a-f]{24}$",
+              "examples": [
+                "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new key, shown once.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/projects/{projectId}/keys/{keyId}/rotate": {
+      "post": {
+        "operationId": "rotateAccountProjectKey",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Replace a key's secret (same id)",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same rules as POST /v1/keys/{id}/rotate: the previous secret keeps authenticating for `graceSeconds` but cannot manage keys.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^prj_key_[0-9a-f]{24}$",
+              "examples": [
+                "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+              ]
+            }
+          },
+          {
+            "name": "keyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyRotateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The key with its new secret, shown once.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotatedApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/accounts/projects/{projectId}/keys/{keyId}": {
+      "delete": {
+        "operationId": "revokeAccountProjectKey",
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Revoke a key and its subtree",
+        "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same effect as DELETE /v1/keys/{id}. The project stays the wallet's even with no key left.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": true,
+            "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^prj_key_[0-9a-f]{24}$",
+              "examples": [
+                "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+              ]
+            }
+          },
+          {
+            "name": "keyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^key_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -22191,7 +23098,8 @@
             "type": [
               "object",
               "null"
-            ]
+            ],
+            "description": "Merged into defaults. `lane` takes production, testnet, or any (or null) for both lanes, the name key lists use; \"any\" is stored as no lane."
           },
           "flows": {
             "oneOf": [
@@ -22455,8 +23363,10 @@
             "type": "string",
             "enum": [
               "production",
-              "testnet"
-            ]
+              "testnet",
+              "any"
+            ],
+            "description": "The project's default lane; `any` when it sets none (both lanes), as key lists name it."
           },
           "defaults": {
             "type": "object",
@@ -22635,6 +23545,429 @@
         ],
         "additionalProperties": false,
         "description": "With a publishable key: a single-use session (600 s) from a stored flow, owned by the publishable key; its call / action steps use the registrations of the key that saved the flow."
+      },
+      "AccountNonceRequest": {
+        "type": "object",
+        "properties": {
+          "walletKind": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "solana"
+            ]
+          },
+          "address": {
+            "type": "string",
+            "description": "EVM address (0x…) or base58 Solana address."
+          },
+          "chainId": {
+            "type": "integer",
+            "enum": [
+              8453,
+              1,
+              42161,
+              10,
+              137
+            ],
+            "description": "EVM only: the chain the message names. Smart-contract wallets (ERC-1271 / ERC-6492) are checked on it."
+          }
+        },
+        "required": [
+          "walletKind",
+          "address"
+        ]
+      },
+      "AccountNonceResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The exact text to sign: EIP-4361 for EVM wallets, the Sign In With Solana text for Solana wallets. Statement: \"Sign in to the Kletia developer portal to manage your projects. This signature does not move funds or approve a transaction.\""
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "walletKind": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "solana"
+            ]
+          }
+        },
+        "required": [
+          "message",
+          "nonce",
+          "expiresAt",
+          "walletKind"
+        ]
+      },
+      "AccountSignInRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "EVM: 0x hex. Solana: base58 or base64 of the 64-byte ed25519 signature."
+          }
+        },
+        "required": [
+          "message",
+          "signature"
+        ]
+      },
+      "AccountSession": {
+        "type": "object",
+        "properties": {
+          "walletKind": {
+            "type": "string",
+            "enum": [
+              "evm",
+              "solana"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idleExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "walletKind",
+          "address",
+          "chainId",
+          "expiresAt",
+          "idleExpiresAt"
+        ]
+      },
+      "AccountSessionResponse": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/AccountSession"
+          }
+        },
+        "required": [
+          "session"
+        ]
+      },
+      "AccountSignInResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$",
+            "description": "Shown once; only its SHA-256 is stored."
+          },
+          "session": {
+            "$ref": "#/components/schemas/AccountSession"
+          }
+        },
+        "required": [
+          "token",
+          "session"
+        ]
+      },
+      "AccountProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^prj_key_[0-9a-f]{24}$",
+            "examples": [
+              "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+            ]
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "The project's brand name, when set."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "created",
+              "claimed"
+            ]
+          },
+          "ownedSince": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activeKeys": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activeChildKeys": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active agent and publishable keys."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "source",
+          "ownedSince",
+          "activeKeys",
+          "activeChildKeys"
+        ]
+      },
+      "AccountProjectList": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountProject"
+            }
+          }
+        },
+        "required": [
+          "projects"
+        ]
+      },
+      "AccountProjectCreated": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/AccountProject"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ApiKey"
+          }
+        },
+        "required": [
+          "project",
+          "key"
+        ]
+      },
+      "AccountProjectClaimed": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/AccountProject"
+          },
+          "claimed": {
+            "type": "boolean",
+            "description": "False when the wallet already owned the project."
+          }
+        },
+        "required": [
+          "project",
+          "claimed"
+        ]
+      },
+      "AccountKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^key_[0-9a-f]{24}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "agent",
+              "publishable"
+            ]
+          },
+          "parentId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last4": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "rotatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "previousExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "parentId",
+          "last4",
+          "createdAt",
+          "lastUsedAt",
+          "rotatedAt",
+          "previousExpiresAt",
+          "revokedAt",
+          "expiresAt"
+        ]
+      },
+      "AccountKeyList": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountKey"
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      },
+      "AccountActivity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "account.sign_in",
+              "account.sign_out",
+              "account.project.create",
+              "account.project.claim",
+              "account.key.issue",
+              "account.key.rotate",
+              "account.key.revoke"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "denied",
+              "error"
+            ]
+          },
+          "projectId": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^prj_key_[0-9a-f]{24}$",
+                "examples": [
+                  "prj_key_2dce0f6a1b2c3d4e5f6a7b8c"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keyId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "action",
+          "outcome",
+          "projectId",
+          "keyId"
+        ]
+      },
+      "AccountActivityList": {
+        "type": "object",
+        "properties": {
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountActivity"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "activity"
+        ]
       },
       "StepFunding": {
         "type": "object",

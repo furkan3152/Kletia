@@ -15,7 +15,7 @@ import { GRAMMAR_EXAMPLES, compileIntentText } from "../grammar.js";
 import { configureHoldingsReaders } from "../holdings.js";
 import { contextFor, installWallet, loadCorpus, runTurn, turnInputOf, type Corpus, type CorpusCase } from "../clarify/corpusHarness.js";
 import { clarifyTurn, decideTurn, publicQuestion, type TurnDecision } from "../clarify/index.js";
-import { isPlatformError } from "../../errors.js";
+import { isPlatformError, PlatformError } from "../../errors.js";
 
 const corpus = loadCorpus(fileURLToPath(new URL("./fixtures/clarify-corpus.json", import.meta.url)));
 const runnable = corpus.cases.filter((entry) => entry.phase !== 2);
@@ -59,6 +59,29 @@ async function refusal(promise: Promise<unknown>): Promise<string> {
 }
 
 const GAP = new Set(["AMOUNT_MISSING", "DESTINATION_MISSING", "OUTPUT_ASSET_MISSING", "INPUT_ASSET_MISSING", "RECIPIENT_MISSING", "SOURCE_MISSING", "TRANSFER_NETWORK", "NETWORK_AMBIGUOUS", "NETWORK_HANDOFF", "VENUE_MISSING", "COUNTERPART_MISSING", "FUNDS_ELSEWHERE"]);
+
+describe("clarify recipient names", () => {
+  it("does not say a name has no address when its records could not be read in time; the planner resolves it", async () => {
+    const ctx = contextFor(corpus, { id: "t", category: "test", title: "t", wallet: "full", turns: [] } as CorpusCase);
+    installWallet(corpus, "full", {
+      resolveName: async () => {
+        throw new PlatformError("NAME_RESOLUTION_UNAVAILABLE", "The ens records could not be read.", 503);
+      },
+    });
+    const slow = await runTurn(null, { text: "send 5 USDC to vitalik.eth on optimism" }, ctx);
+    assert.ok(slow.decision, `${slow.error?.code} ${slow.error?.message}`);
+    assert.ok(!slow.decision.questions.some((q) => q.reason === "RECIPIENT_UNRESOLVED"), JSON.stringify(slow.decision.questions.map((q) => q.prompt)));
+    // A name that resolves to nothing is still asked about.
+    installWallet(corpus, "full", {
+      resolveName: async () => {
+        throw new PlatformError("RECIPIENT_NAME_UNRESOLVED", "no address", 422);
+      },
+    });
+    const missing = await runTurn(null, { text: "send 5 USDC to nobody.eth on optimism" }, ctx);
+    assert.equal(missing.decision?.questions[0]?.reason, "RECIPIENT_UNRESOLVED");
+    assert.match(missing.decision?.questions[0]?.prompt ?? "", /nobody\.eth has no OP Mainnet address/u);
+  });
+});
 
 describe("clarify invariants", () => {
   it("every grammar example is ready with no question and the strict grammar's actions", async () => {

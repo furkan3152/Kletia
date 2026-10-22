@@ -19,7 +19,8 @@ import { KeyGate } from "../shell/KeyGate";
 import { PortalPageHeader } from "../shell/PortalPageHeader";
 import { DeliveriesTable } from "./DeliveriesTable";
 import { forgetWebhookSecret, peekWebhookSecret, useWebhookGrant, useWebhookList } from "./webhookData";
-import { deliveryRowModel, filterDeliveries, scopeLabel, utcStamp, webhookPermissions, type DeliveryFilter } from "./webhookModel";
+import { deliveryRowModel, filterDeliveries, scopeLabel, utcStamp, webhookPermissions, webhooksNotConfigured, type DeliveryFilter } from "./webhookModel";
+import { WebhooksNotConfigured } from "./WebhooksNotConfigured";
 
 /** The new endpoint's signing secret, shown once (it is never readable again). */
 function SecretOnce({ secret, onDone }: { readonly secret: string; readonly onDone: () => void }) {
@@ -77,7 +78,11 @@ function WebhookDetail({ webhookId }: { readonly webhookId: string }) {
     return (
       <>
         <PortalPageHeader title="Webhook" back={{ label: "Webhooks", to: "/developers/webhooks" }} />
-        <ApiErrorPanel error={list.error} title="Could not read the webhooks of this key" onRetry={list.reload} />
+        {webhooksNotConfigured(list.error) ? (
+          <WebhooksNotConfigured onRetry={list.reload} />
+        ) : (
+          <ApiErrorPanel error={list.error} title="Could not read the webhooks of this key" onRetry={list.reload} />
+        )}
       </>
     );
   }

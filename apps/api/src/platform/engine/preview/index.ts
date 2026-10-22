@@ -712,9 +712,42 @@ function withoutNetworkFees(preview: IntentPreview, graph: IntentGraph): IntentP
   return { ...preview, rows };
 }
 
-/** Core `materialChange` with network fees judged by the fee rule only (see withoutNetworkFees). */
+/** Largest network-fee drift on a native row that is never "materially worse" (USD, when the row is priced). */
+export const FEE_DRIFT_TOLERANCE_USD = 0.01;
+/** The same for an unpriced Solana native row: two base fees (lamports). EVM rows carry their gas as fee lines. */
+export const SOLANA_FEE_DRIFT_TOLERANCE_LAMPORTS = 10_000n;
+
+/**
+ * Native rows whose worst case moved by less than a cent (or, unpriced on
+ * Solana, by at most two base fees) keep the acknowledged amounts: the
+ * fee a simulation includes in the SOL balance change (priority fee, a
+ * fee the simulation does not report as a fee line) moves every slot, and
+ * such drift is not a material change (asset-preview design §7.2 fee rule).
+ */
+function withoutFeeDrift(before: IntentPreview, after: IntentPreview): IntentPreview {
+  const key = (row: IntentPreview["rows"][number]) => `${row.network}|${row.account.toLowerCase()}|${row.asset.toLowerCase()}`;
+  const previous = new Map(before.rows.map((row) => [key(row), row]));
+  const rows = after.rows.map((row) => {
+    if (parseAssetId(row.asset)?.isNative !== true) return row;
+    const earlier = previous.get(key(row));
+    if (!earlier) return row;
+    const drift = BigInt(earlier.worst.amount) - BigInt(row.worst.amount);
+    if (drift <= 0n) return row;
+    const units = BigInt(row.worst.amount);
+    const usd = row.worst.usd ?? earlier.worst.usd;
+    const magnitude = units < 0n ? -units : units;
+    const tolerated = usd !== undefined && magnitude > 0n
+      ? (Math.abs(usd) * Number(drift)) / Number(magnitude) < FEE_DRIFT_TOLERANCE_USD
+      : isSolanaNetworkKey(row.network) && drift <= SOLANA_FEE_DRIFT_TOLERANCE_LAMPORTS;
+    return tolerated ? { ...row, expected: { ...row.expected, amount: earlier.expected.amount }, worst: { ...row.worst, amount: earlier.worst.amount } } : row;
+  });
+  return { ...after, rows };
+}
+
+/** Core `materialChange` with network fees judged by the fee rule only (see withoutNetworkFees, withoutFeeDrift). */
 export function materialPreviewChanges(before: IntentPreview, after: IntentPreview, graph: IntentGraph): readonly PreviewIssue[] {
-  return materialChange(withoutNetworkFees(before, graph), withoutNetworkFees(after, graph));
+  const earlier = withoutNetworkFees(before, graph);
+  return materialChange(earlier, withoutFeeDrift(earlier, withoutNetworkFees(after, graph)));
 }
 
 /** PREVIEW_CHANGED (409): `error.preview` carries the fresh preview, `error.changes` (and `issues`) what got worse. */

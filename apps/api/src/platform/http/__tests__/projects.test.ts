@@ -148,6 +148,22 @@ describe("project settings", () => {
     assert.deepEqual((await read(owner.key)).settings.allowedOrigins, ["https://shop.example", "http://localhost:5173"]);
   });
 
+  it("accepts lane \"any\" (both lanes) and names lanes as key lists do", async () => {
+    const owner = await projectKey("lanes");
+    const sandbox = await settle(owner.key, { allowedOrigins: ["https://shop.example"], defaults: { lane: "testnet" } });
+    assert.equal(sandbox.settings.defaults?.lane, "testnet");
+    const any = await patch(owner.key, { defaults: { lane: "any" } }, sandbox.hash);
+    assert.equal(any.status, 200, JSON.stringify(any.body));
+    assert.equal(any.body.project.settings.defaults?.lane, undefined, "any is stored as no lane");
+    assertError(await patch(owner.key, { defaults: { lane: "mainnet" } }, any.body.project.hash), 400, "PROJECT_SETTINGS_INVALID");
+    const pub = await call<{ key: { id: string; key: string } }>(server, "POST", "/projects/current/publishable-keys", { key: owner.key, body: { label: "site" } });
+    assert.equal(pub.status, 201, JSON.stringify(pub.body));
+    const profile = await call<{ profile: ProjectProfile }>(server, "GET", "/publishable/profile", { key: pub.body.key.key, headers: { origin: "https://shop.example" } });
+    assert.equal(profile.body.profile.lane, "any");
+    const keys = await call<{ keys: { id: string; lane: string }[] }>(server, "GET", "/keys", { key: owner.key });
+    assert.equal(keys.body.keys.find((key) => key.id === pub.body.key.id)?.lane, profile.body.profile.lane, "the key list and the profile agree");
+  });
+
   it("answers 409 PROJECT_CONFLICT on a stale hash and 400 without If-Match", async () => {
     const owner = await projectKey("conflict");
     const first = await read(owner.key);

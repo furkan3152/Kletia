@@ -31,6 +31,7 @@ import {
 } from "@kletia/core";
 import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
 import type { ContractPhrase } from "./contracts/directory.js";
+import { readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
 
 export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "swap 1 SOL to USDC",
@@ -665,6 +666,8 @@ function matchClause(clause: string): Draft {
   if (BORROW_VERBS.includes(verb)) throw borrowRefusal(clause, verb);
   const venueless = venuelessDeposit(clause);
   if (venueless) throw venueless;
+  const rates = readOnlyRates(clause);
+  if (rates) throw readOnlyRatesRefusal(rates, GRAMMAR_EXAMPLES);
   const reason = VERBS.includes(verb)
     ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
     : `"${verb.slice(0, 32)}" is not a supported action.`;
@@ -687,7 +690,7 @@ const LENDING_NAMES: string = (() => {
 export const BORROW_VERBS: readonly string[] = Object.freeze(["borrow", "repay"]);
 
 /** "borrow ...": refused with what Kletia can do instead (never a silent failure). */
-function borrowRefusal(clause: string, verb: string): PlatformError {
+export function borrowRefusal(clause: string, verb: string): PlatformError {
   const message = verb === "repay"
     ? "Repaying a loan is not available yet (\"repay\" is not a supported action); Kletia does not open or manage loans."
     : "Borrowing is not available yet (\"borrow\" is not a supported action); Kletia can deposit as collateral, e.g. \"deposit 100 USDC into aave on base\".";

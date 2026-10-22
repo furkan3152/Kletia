@@ -3507,7 +3507,7 @@
   {
    "id": "G08",
    "category": "recipient",
-   "title": ".sol names moved to .sns: confirm the .sns name with its resolved address",
+   "title": "paused .sol names: confirm the matching .sns name with its resolved address",
    "wallet": "full",
    "turns": [
     {

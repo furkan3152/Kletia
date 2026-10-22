@@ -114,6 +114,11 @@ function Stop({ stop }: { readonly stop: JourneyStopView }) {
             {holding.basis ? <span className="kw-jr-role">{holding.basis}</span> : null}
           </div>
         ))}
+        {stop.total ? (
+          <span className="kw-jr-amt" aria-hidden="true">
+            Total {stop.total}
+          </span>
+        ) : null}
         <span className="kw-jr-custody" aria-hidden="true">
           {stop.custodyLabel}
           {stop.eta ? ` · ${stop.eta}` : ""}

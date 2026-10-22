@@ -2133,6 +2133,446 @@
       ]
     },
     {
+      "id": "31061119-6ccb-5407-b09e-ae425468b4bd",
+      "name": "Accounts",
+      "description": "Developer accounts: sign in with a wallet from the developer portal, list the projects it owns and issue, rotate and revoke their keys, also after every key was lost.",
+      "item": [
+        {
+          "id": "c4df1c5c-e2d9-5cfa-8187-d7ba207ac7af",
+          "name": "Get a sign-in message for a wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletKind\": \"evm\",\n  \"address\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/nonce",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "nonce"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). The message names the calling origin's host, the address, a single-use nonce and an expiry 5 minutes away. Signing it moves no funds. At most 10 per minute per address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/accounts/nonce` · operationId `createAccountSignInMessage` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "c969585e-26e8-52d3-859b-93a68f59e57b",
+          "name": "The current session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "session"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/accounts/session` · operationId `getAccountSession` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "6f1f0976-5ef5-57eb-a283-408a238e689c",
+          "name": "Sign in with the signed message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"\",\n  \"signature\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "session"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). The nonce is used up by the first attempt, valid or not (401 ACCOUNT_NONCE_INVALID for an unknown, used, expired or altered message; 401 ACCOUNT_SIGNATURE_INVALID for a wrong signature; 502 RPC_UNAVAILABLE when a smart-wallet signature could not be checked). The session ends 8 h after sign-in or after 60 minutes without a request. Signing in again on any device recovers the same projects. At most 10 attempts per minute per address.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/accounts/session` · operationId `signInAccount` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "7f6a8904-fee6-5367-b60f-39bc2849e2e1",
+          "name": "The wallet's recent account activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "activity"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). The newest 50 audit rows of the signed-in wallet: sign-ins, sign-outs, project creations and claims, key issues, rotations and revocations, with their outcome.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/accounts/activity` · operationId `listAccountActivity` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "ce55a317-5217-5826-8086-ac6adef9e867",
+          "name": "Projects the signed-in wallet owns",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Also the projects whose keys were all lost or revoked: issue a new key to get back in.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/accounts/projects` · operationId `listAccountProjects` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "f7b13c72-d583-5ef6-a053-21d063d86b2a",
+          "name": "Create a project owned by the wallet, with its first key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same body as POST /v1/keys without a key. A wallet owns at most 20 projects (409 PROJECT_LIMIT_REACHED) and creates at most 5 an hour.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/accounts/projects` · operationId `createAccountProject` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "2ac26e3f-24de-5d42-97cc-3012038d3776",
+          "name": "Link an existing project to the wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects/claim",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects",
+                "claim"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Also send a project key (kl_dev_) of the project with its current secret: the key proves control of the project. A project has one owner for good: a project another wallet owns is 409 PROJECT_ALREADY_OWNED. 201 when this call linked it, 200 when the wallet already owned it.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/accounts/projects/claim` · operationId `claimAccountProject` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "a11f7444-8ff6-5993-8191-70da6cb14a7f",
+          "name": "Keys of an owned project",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects/:projectId/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects",
+                ":projectId",
+                "keys"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}"
+                }
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Every key of the project, revoked ones included (never secrets; `last4` only). A project the wallet does not own is 404 PROJECT_NOT_FOUND.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/accounts/projects/{projectId}/keys` · operationId `listAccountProjectKeys` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "212aa9f5-badd-5460-9e33-5eb653139815",
+          "name": "Issue a project key in an owned project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects/:projectId/keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects",
+                ":projectId",
+                "keys"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}"
+                }
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Works when every key of the project was lost or revoked: this is how access comes back. At most 5 active project keys (409 KEY_LIMIT_REACHED).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/accounts/projects/{projectId}/keys` · operationId `issueAccountProjectKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "fe81d6cf-edb3-5d51-a4ab-dbc7ed87923a",
+          "name": "Replace a key's secret (same id)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects/:projectId/keys/:keyId/rotate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects",
+                ":projectId",
+                "keys",
+                ":keyId",
+                "rotate"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}"
+                },
+                {
+                  "key": "keyId",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same rules as POST /v1/keys/{id}/rotate: the previous secret keeps authenticating for `graceSeconds` but cannot manage keys.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/accounts/projects/{projectId}/keys/{keyId}/rotate` · operationId `rotateAccountProjectKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "638381e4-7522-53e4-b449-b1f2f0eff83b",
+          "name": "Sign out (end the session)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/session",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "session"
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`DELETE /v1/accounts/session` · operationId `signOutAccount` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "42c0ee27-da45-56a5-926b-96515e8e07a1",
+          "name": "Revoke a key and its subtree",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Kletia-Account-Session",
+                "value": "",
+                "description": "The token from POST /v1/accounts/session, from the origin that signed in.",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/accounts/projects/:projectId/keys/:keyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "accounts",
+                "projects",
+                ":projectId",
+                "keys",
+                ":keyId"
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "{{projectId}}"
+                },
+                {
+                  "key": "keyId",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Only from the Kletia developer portal: a first-party `Origin` is required (403 ACCOUNT_ORIGIN_FORBIDDEN otherwise). Send the session in `Kletia-Account-Session` (401 ACCOUNT_SESSION_REQUIRED when it is missing, expired or from another origin). Same effect as DELETE /v1/keys/{id}. The project stays the wallet's even with no key left.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`DELETE /v1/accounts/projects/{projectId}/keys/{keyId}` · operationId `revokeAccountProjectKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "id": "b3b30e2e-bd7f-5db6-bbb6-b97aa5d46bdb",
       "name": "Usage",
       "description": "Per-key request counts and rate-limit state.",

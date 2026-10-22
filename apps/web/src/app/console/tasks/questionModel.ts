@@ -176,3 +176,19 @@ export function editsTask(
   const kind = classifyMessage(text, { hasOpenQuestion: false, hasTask: true });
   return kind === "edit" || kind === "append" || kind === "control";
 }
+
+/**
+ * The chip a digit typed into an empty composer chooses (the card's "1-9
+ * choose" works while focus is in the composer): the same numbering as the
+ * card. Null when the digit is text: an amount question (typing "5" means 5),
+ * a card with two questions, a number past the chips, or "Other…" (which only
+ * expands the card).
+ */
+export function composerChoice(question: DeskQuestion, digit: number): { readonly optionId: string; readonly label: string } | null {
+  if (!Number.isInteger(digit) || digit < 1 || digit > 9) return null;
+  if ((question.questions?.length ?? 0) > 1) return null;
+  if (question.questions?.some((entry) => entry.kind === "amount")) return null;
+  const option = questionCard(question, false).options[digit - 1];
+  if (!option || option.id === OTHER_OPTION_ID) return null;
+  return { optionId: option.id, label: option.label };
+}

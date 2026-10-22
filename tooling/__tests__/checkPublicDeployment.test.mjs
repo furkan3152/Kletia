@@ -16,6 +16,9 @@ const run = promisify(execFile);
 const script = resolve(import.meta.dirname, "../check-public-deployment.mjs");
 const SCRIPT_BODY = "/* kletia embed */ customElements.define('kletia-intent', class extends HTMLElement {});";
 const INTEGRITY = `sha384-${createHash("sha384").update(SCRIPT_BODY).digest("base64")}`;
+const SDK_BODY = "/*! @kletia/sdk 0.2.0 */ export const SDK_VERSION = \"0.2.0\";";
+const SDK_INTEGRITY = `sha384-${createHash("sha384").update(SDK_BODY).digest("base64")}`;
+const CORS = { "access-control-allow-origin": "*", "cross-origin-resource-policy": "cross-origin" };
 
 /** A local HTTP server answering from a route table ("METHOD path" → handler). */
 async function stub(routes) {
@@ -50,18 +53,33 @@ function healthyApi(overrides = {}) {
   };
 }
 
-function healthyWeb({ integrity = INTEGRITY, ancestors = "frame-ancestors *" } = {}) {
+function healthyWeb({ integrity = INTEGRITY, ancestors = "frame-ancestors *", manifestCors = CORS, scriptCors = CORS, sdkCors = CORS } = {}) {
   return {
     "/developers": sendHtml({ "content-security-policy": "frame-ancestors 'self'" }),
     "/embed": sendHtml({ "content-security-policy": `default-src 'self'; ${ancestors}` }),
-    "/sdk/embed/manifest.json": sendJson({
-      schema: "kletia.embed-manifest/v1",
-      version: "0.2.0",
-      files: { "kletia-embed.min.js": { path: "/sdk/embed/0.2.0/kletia-embed.min.js", integrity, bytes: SCRIPT_BODY.length } },
-    }),
+    "/sdk/embed/manifest.json": sendJson(
+      {
+        schema: "kletia.embed-manifest/v1",
+        version: "0.2.0",
+        files: { "kletia-embed.min.js": { path: "/sdk/embed/0.2.0/kletia-embed.min.js", integrity, bytes: SCRIPT_BODY.length } },
+      },
+      manifestCors,
+    ),
     "/sdk/embed/0.2.0/kletia-embed.min.js": (res) => {
-      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", ...scriptCors });
       res.end(SCRIPT_BODY);
+    },
+    "/sdk/manifest.json": sendJson(
+      {
+        schema: "kletia.sdk-manifest/v1",
+        version: "0.2.0",
+        files: { "kletia-sdk.js": { path: "/sdk/kletia-sdk-0.2.0.js", integrity: SDK_INTEGRITY, bytes: SDK_BODY.length } },
+      },
+      CORS,
+    ),
+    "/sdk/kletia-sdk-0.2.0.js": (res) => {
+      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", ...sdkCors });
+      res.end(SDK_BODY);
     },
   };
 }
@@ -83,7 +101,7 @@ test("exits 1 against the stale pre-v1 deployment (Cannot GET /v1/health)", asyn
     assert.equal(result.code, 1);
     assert.match(result.stdout, /FAIL\s+api-health .*HTTP 404 \(Cannot GET \/v1\/health\)/u);
     assert.match(result.stdout, /FAIL\s+web-developers/u);
-    assert.match(result.stdout, /5 probe\(s\) failed/u);
+    assert.match(result.stdout, /6 probe\(s\) failed/u);
   } finally {
     await Promise.all([api.close(), web.close()]);
   }
@@ -95,7 +113,7 @@ test("exits 0 when every probe is right", async () => {
   try {
     const result = await cli(api.origin, web.origin, "--timeout", "5000");
     assert.equal(result.code, 0, result.stdout);
-    assert.equal(result.stdout.match(/^PASS/gmu)?.length, 5);
+    assert.equal(result.stdout.match(/^PASS/gmu)?.length, 6);
     assert.match(result.stdout, /commit 6a3bc27f0e1d \(render\)/u);
     assert.match(result.stdout, /All probes passed\./u);
   } finally {
@@ -110,6 +128,12 @@ test("fails each probe on its own defect", async () => {
     { api: { ...healthyApi(), "/v1/openapi.json": sendJson({ swagger: "2.0" }) }, web: healthyWeb(), probe: "api-openapi", detail: /not an OpenAPI 3\.1/u },
     { api: healthyApi(), web: healthyWeb({ ancestors: "frame-ancestors 'none'" }), probe: "web-embed", detail: /expected \*/u },
     { api: healthyApi(), web: healthyWeb({ integrity: `sha384-${"A".repeat(64)}` }), probe: "embed-script", detail: /do not match the manifest integrity/u },
+    // The hosted static site served the files without CORS headers (2026-10-22): third-party pages could not load them.
+    { api: healthyApi(), web: healthyWeb({ manifestCors: {} }), probe: "embed-script", detail: /manifest\.json: Access-Control-Allow-Origin is missing/u },
+    { api: healthyApi(), web: healthyWeb({ scriptCors: {} }), probe: "embed-script", detail: /kletia-embed\.min\.js: Access-Control-Allow-Origin is missing/u },
+    { api: healthyApi(), web: healthyWeb({ scriptCors: { "access-control-allow-origin": "https://kletiaai.xyz" } }), probe: "embed-script", detail: /expected \*/u },
+    { api: healthyApi(), web: healthyWeb({ sdkCors: {} }), probe: "sdk-script", detail: /kletia-sdk-0\.2\.0\.js: Access-Control-Allow-Origin is missing/u },
+    { api: healthyApi(), web: { ...healthyWeb(), "/sdk/manifest.json": undefined }, probe: "sdk-script", detail: /manifest: HTTP 404/u },
   ];
   for (const entry of cases) {
     const api = await stub(entry.api);

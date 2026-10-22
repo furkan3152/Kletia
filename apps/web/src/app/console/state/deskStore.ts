@@ -49,6 +49,8 @@ import {
 
 export type TaskEngine =
   | { readonly kind: "platform" }
+  /** A read-only rate question answered from `GET /v1/venues` (nothing is planned or signed). */
+  | { readonly kind: "rates" }
   | { readonly kind: "network"; readonly network: LegacyNetwork; readonly why: "tool" | "fallback" | "offer" };
 
 export type TaskStatus =
@@ -63,6 +65,14 @@ export type TaskStatus =
   | "cancelled"
   | "unsupported"
   | "engine";
+
+/**
+ * What is known about the wallet's signatures for a task's intent (memory
+ * only): "signed" once a wallet returned a reference, "unknown" while a
+ * request is open or its outcome never came back, "none" when nothing was
+ * signed. Only "signed" may be shown as signed.
+ */
+export type SignatureState = "none" | "unknown" | "signed";
 
 /** One open question on a task (console design 3.11, widened by the clarify design 8.1). */
 export interface DeskQuestion {
@@ -132,6 +142,8 @@ export interface TaskRecord {
    * another task, gone after a reload (open questions are then cleared).
    */
   readonly thread?: ClarifyThread | null;
+  /** The signature state of the task's intent while it signs (absent: not known, treated as "unknown"). */
+  readonly signature?: SignatureState;
 }
 
 export interface NewTask {
@@ -142,7 +154,7 @@ export interface NewTask {
   readonly status?: TaskStatus;
 }
 
-export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane" | "thread">> & {
+export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane" | "thread" | "signature">> & {
   /** Appended to the task's turns. */
   readonly turn?: TaskTurn;
 };

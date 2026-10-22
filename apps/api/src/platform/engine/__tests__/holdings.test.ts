@@ -16,6 +16,7 @@ import {
   type FactNeed,
   type HoldingsReaders,
 } from "../holdings.js";
+import { PlatformError } from "../../errors.js";
 import { installRpcMock } from "./rpcMock.js";
 import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS, SOL_ADDRESS } from "./helpers.js";
 
@@ -172,6 +173,28 @@ describe("holdings: budgets, deadline and cache", () => {
       assert.equal(fact.amount, undefined);
       assert.equal(knownAmount(fact), null);
     }
+  });
+
+  it("tells a name with no address apart from records that could not be read in time", async () => {
+    let late: ((value: { address: string; protocol: "ens" }) => void) | undefined;
+    configureHoldingsReaders(spy({
+      resolveName: async (name) => {
+        if (name === "nobody.eth") throw new PlatformError("RECIPIENT_NAME_UNRESOLVED", "no address", 422);
+        if (name === "down.eth") throw new PlatformError("NAME_RESOLUTION_UNAVAILABLE", "unreadable", 503);
+        return new Promise((resolve) => { late = resolve; });
+      },
+    }).readers);
+    const facts = await readFacts(accounts, [
+      { kind: "name", name: "nobody.eth", network: "optimism" },
+      { kind: "name", name: "down.eth", network: "optimism" },
+    ], { deadlineMs: 100, names: 2 });
+    assert.deepEqual(facts.names.map((fact) => [fact.name, fact.status, fact.unavailable ?? false]), [["nobody.eth", "unknown", false], ["down.eth", "unknown", true]]);
+    const slow = await readFacts(accounts, [{ kind: "name", name: "slow.eth", network: "optimism" }], { deadlineMs: 100 });
+    assert.equal(slow.names[0]?.unavailable, true, "a read past the deadline is unavailable, not 'no address'");
+    late?.({ address: OTHER_EVM_ADDRESS, protocol: "ens" });
+    await new Promise((resolve) => setImmediate(resolve));
+    const next = await readFacts(accounts, [{ kind: "name", name: "slow.eth", network: "optimism" }], { names: 0 });
+    assert.equal(next.names[0]?.address, OTHER_EVM_ADDRESS, "the late answer fills the cache for the next turn");
   });
 
   it("never caps the deadline above 3 s", async () => {

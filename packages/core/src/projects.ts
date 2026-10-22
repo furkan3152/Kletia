@@ -135,7 +135,8 @@ export interface ProjectProfile {
     readonly logo?: ProjectLogoView | null;
   } | null;
   readonly allowedOrigins: readonly string[];
-  readonly lane: ProjectLane;
+  /** The default lane; `any` when the project sets none (both lanes), as key lists name it. */
+  readonly lane: ProjectLane | "any";
   readonly defaults: Omit<ProjectDefaults, "lane">;
   readonly flows: readonly { readonly id: string; readonly label: string; readonly networks: readonly NetworkKey[] }[];
 }

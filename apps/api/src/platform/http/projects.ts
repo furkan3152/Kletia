@@ -399,9 +399,18 @@ export function projectView(record: ProjectRecord): ProjectView {
   };
 }
 
-/** The lane a project runs on: its default lane, else production. */
-function laneOf(settings: StoredSettings): "production" | "testnet" {
-  return settings.defaults?.lane ?? "production";
+/** The lane a project runs on: its default lane, else `any` (both lanes; the name key lists use). */
+function laneOf(settings: StoredSettings): ProjectProfile["lane"] {
+  return settings.defaults?.lane ?? "any";
+}
+
+/**
+ * `defaults.lane: "any"` (the name key lists and the profile use for both
+ * lanes) is accepted in a patch and stored as no lane (merge patch null).
+ */
+function normalizeLanePatch(body: unknown): unknown {
+  if (!isRecord(body) || !isRecord(body.defaults) || body.defaults.lane !== "any") return body;
+  return { ...body, defaults: { ...body.defaults, lane: null } };
 }
 
 /** What a publishable key reveals (GET /v1/publishable/profile): never keys, flow contents or who saved them. */
@@ -514,7 +523,7 @@ export async function patchProject(auth: AuthContext, ifMatchHeader: string | un
   }
   const current = (await projectStore().get(caller.projectId)) ?? emptyRecord(caller.projectId);
   if (projectSettingsHash(current.settings) !== ifMatch) throw projectConflict();
-  const merged = mergeProjectPatch(current.version === 0 ? null : current.settings, body);
+  const merged = mergeProjectPatch(current.version === 0 ? null : current.settings, normalizeLanePatch(body));
   if (!merged.ok) throw settingsInvalid(merged.issues);
   const next = merged.value;
   // Flows: unchanged ones keep their saver; new or changed ones are dry-run and saved by the caller.

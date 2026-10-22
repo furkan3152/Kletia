@@ -38,6 +38,7 @@ import { SOLANA_RPC_URLS } from "../../networks/solana/index.js";
 import { accountForNetwork } from "./accounts.js";
 import { evmClient, isEvmNetwork, readEvmBalance } from "./chains/evm.js";
 import { jsonRpc } from "./contracts/simulationRpc.js";
+import { PlatformError } from "../errors.js";
 import { resolveRecipientName } from "./names.js";
 
 /** Largest number of balance and token-account reads one call may make. */
@@ -122,6 +123,12 @@ export interface NameFact {
   readonly address?: string;
   readonly protocol?: ProtocolId;
   readonly reason?: string;
+  /**
+   * Unknown because the records could not be read (deadline, read budget,
+   * resolver unavailable), not because the name has no address: callers
+   * must not report "no address" for it.
+   */
+  readonly unavailable?: true;
 }
 
 export interface WalletFacts {
@@ -448,13 +455,19 @@ async function nameFact(need: Extract<FactNeed, { kind: "name" }>, budget: Budge
   const key = `${need.network}|${name}`;
   const cached = recall(nameCache, key, NAME_TTL_MS);
   if (cached) return { ...base, status: "known", address: cached.address, protocol: cached.protocol };
-  if (!budget.take("names")) return { ...base, status: "unknown", reason: "Read budget exhausted." };
+  if (!budget.take("names")) return { ...base, status: "unknown", reason: "Read budget exhausted.", unavailable: true };
+  const read = readers.resolveName(name, need.network);
+  // A read that outlives this turn's deadline still fills the cache for the next one.
+  read.then((resolved) => remember(nameCache, key, resolved), () => undefined);
   try {
-    const resolved = await beforeDeadline(readers.resolveName(name, need.network), budget.deadline);
-    remember(nameCache, key, resolved);
+    const resolved = await beforeDeadline(read, budget.deadline);
     return { ...base, status: "known", address: resolved.address, protocol: resolved.protocol };
-  } catch {
-    return { ...base, status: "unknown", reason: "The name could not be resolved." };
+  } catch (error) {
+    // The resolver said the name has no address (a 4xx), or the records could not be read in time.
+    const definite = error instanceof PlatformError ? error.status < 500 : !(error instanceof Error && error.message === "deadline");
+    return definite
+      ? { ...base, status: "unknown", reason: "The name could not be resolved." }
+      : { ...base, status: "unknown", reason: "The name records could not be read in time.", unavailable: true };
   }
 }
 

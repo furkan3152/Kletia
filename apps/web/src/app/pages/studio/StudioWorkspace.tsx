@@ -477,7 +477,13 @@ export function StudioWorkspace({ initialText = "", renderActions, executionNote
             {response?.status === "planned" && response.journey && response.journey.intentId === plan.data.id ? (
               <JourneyPanel journey={response.journey} phase="review" headingLevel={3} />
             ) : null}
-            <IntentGraphView intent={plan.data} actions={renderActions?.(plan.data)} entrance />
+            {/*
+              The card drops in, but its counts are printed as they are: an animated count starts at 0 and
+              waits until it is scrolled into view, so a plan below the fold read "Steps 0 · Signatures 0".
+            */}
+            <div className="kl-drop min-w-0">
+              <IntentGraphView intent={plan.data} actions={renderActions?.(plan.data)} />
+            </div>
             <ExchangePanel exchanges={studio.exchanges} />
             <details className={cx("kl-details group", INK_BORDER, SURFACE)}>
               <summary

@@ -184,7 +184,31 @@ describe("ENS resolver", () => {
     assert.equal((await resolver.resolve("chainaware.eth", "base"))?.address, JESSE);
     const everywhere = await resolver.resolve("everywhere.eth", "optimism");
     assert.equal(everywhere?.address, JESSE);
-    assert.equal(everywhere?.warnings, undefined);
+    assert.match(everywhere?.warnings?.[0] ?? "", /no OP Mainnet-specific address; using its default EVM address, .*ENSIP-19/u, "the default EVM record is disclosed");
+    assert.match(everywhere?.detail ?? "", /default EVM coin type/u);
+  });
+
+  it("reads the records it may need in one round, still preferring them in order", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const slow = fakeChain({ ens });
+    const request = slow.client.request.bind(slow.client);
+    (slow.client as { request: typeof request }).request = (async (args: Parameters<typeof request>[0]) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        return await request(args);
+      } finally {
+        inFlight -= 1;
+      }
+    }) as typeof request;
+    const parallel = createEnsResolver(evmDependencies({ ethereum: slow, optimism: target }));
+    const eoa = await parallel.resolve("vitalik.eth", "optimism");
+    assert.equal(eoa?.address, VITALIK);
+    assert.ok(peak >= 3, `the three coin-type records were read together (peak ${peak})`);
+    // Nothing set for the network, the default EVM record or ETH: still refused.
+    assert.equal(await parallel.resolve("nobody.eth", "optimism"), null);
   });
 
   it("falls back to the ETH record only for accounts a key controls on both chains or contracts deployed on the target", async () => {

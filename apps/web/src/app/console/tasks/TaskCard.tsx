@@ -23,10 +23,11 @@ import { getDeskStore, isEditable, useDeskStore, type TaskRecord, type TaskTurn 
 import { useDeskSlots } from "../hooks/useDeskSlots";
 import { EngineTaskBody } from "./EngineTaskBody";
 import { PlatformTaskBody } from "./PlatformTaskBody";
+import { RatesTaskBody } from "./RatesTaskBody";
 import { answerLabel, turnAnswer } from "./questionModel";
 import { registerDeskTaskSlots } from "./registerSlots";
 import { isDeskQuestion } from "./slots";
-import { clockOf, serialOf } from "./taskModel";
+import { clockOf, serialOf, taskStatusLabel } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
@@ -60,10 +61,12 @@ function TaskMemory({ task }: { readonly task: TaskRecord }) {
   const editable = isEditable(task) && task.status !== "question";
   const canUndo = editable && (task.thread?.undo.length ?? 0) > 0;
   if (lines.length < 2 && !editable) return null;
+  // A turn is what the user said (the sentence, an answer, an edit): Kletia's replies are not counted.
+  const turns = lines.filter((line) => line.who === "you").length;
   return (
     <details className="border-2 border-dashed border-control bg-surface-2">
       <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-xs font-black uppercase tracking-wider text-fg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)]">
-        This task, {lines.length} turn{lines.length === 1 ? "" : "s"}
+        This task, {turns} turn{turns === 1 ? "" : "s"}
       </summary>
       <div className="flex flex-col gap-3 px-3 pb-3">
         <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -142,7 +145,7 @@ export function TaskCard({ task, newest }: TaskCardProps) {
         >
           {task.ends ? <LineBullet line={LINES[task.ends.from]} decorative /> : null}
           <span className="min-w-0 flex-1 truncate">
-            {copy.stub(serial, task.title, route, copy.status[task.status], clockOf(task.createdAt))}
+            {copy.stub(serial, task.title, route, taskStatusLabel(task), clockOf(task.createdAt))}
           </span>
           <span className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-wider">
             {collapsed ? copy.open : copy.collapse}
@@ -182,7 +185,13 @@ export function TaskCard({ task, newest }: TaskCardProps) {
             }}
           />
         ) : null}
-        {task.engine.kind === "network" ? <EngineTaskBody task={task} /> : <PlatformTaskBody task={task} />}
+        {task.engine.kind === "network" ? (
+          <EngineTaskBody task={task} />
+        ) : task.engine.kind === "rates" ? (
+          <RatesTaskBody task={task} />
+        ) : (
+          <PlatformTaskBody task={task} />
+        )}
         {task.engine.kind === "platform" ? <TaskMemory task={task} /> : null}
       </div>
     </article>

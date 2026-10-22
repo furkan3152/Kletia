@@ -2,7 +2,7 @@
  * CHANGELOG.md as data for /changelog. The Markdown is read when the site is
  * built (bundled as text, see ChangelogPage) and parsed here into releases,
  * sections and items. Only the subset the changelog uses is understood:
- * `## [Version] - date` releases, `### Section` headings, paragraphs and `-`
+ * `## [Version] - date` and plain `## Round 7` releases, `### Section` headings, paragraphs and `-`
  * bullets with links, inline code and bold. Nothing is rendered as HTML: the
  * page prints text nodes, and links keep only https targets or repository
  * paths (resolved against the GitHub tree). Pure, so `node --test` loads it.
@@ -25,8 +25,10 @@ export interface ChangelogSection {
 }
 
 export interface ChangelogRelease {
-  /** "2.0.0", "Unreleased", "Unreleased before 2.0.0". */
+  /** "2.0.0", "Unreleased", "Round 7", "Unreleased before 2.0.0": the heading as the file writes it. */
   readonly version: string;
+  /** "Round 8" when the release's first note starts "Round 8: …" and the heading does not say so already. */
+  readonly round: string | null;
   /** ISO day when the heading carries one. */
   readonly date: string | null;
   /** The anchor: "v2-0-0", "unreleased". Unique on the page. */
@@ -41,7 +43,9 @@ export interface Changelog {
   readonly releases: readonly ChangelogRelease[];
 }
 
-const RELEASE = /^##\s+\[([^\]]+)\](?:\s+-\s+(\d{4}-\d{2}-\d{2}))?\s*$/u;
+// `## [2.0.0] - 2026-10-08`, `## [Unreleased]`, or a plain `## Round 7` (optionally with ` - date`).
+const RELEASE = /^##\s+(?:\[([^\]]+)\]|([^[\s].*?))(?:\s+-\s+(\d{4}-\d{2}-\d{2}))?\s*$/u;
+const ROUND_NOTE = /^(Round \d+(?: and \d+)?):/u;
 const SECTION = /^###\s+(.+?)\s*$/u;
 const BULLET = /^[-*]\s+(.*)$/u;
 
@@ -101,6 +105,21 @@ interface DraftSection {
   blocks: ChangelogBlock[];
 }
 
+/** "Round 8" from a release's opening note ("Round 8: a wallet-gated admin panel…"), unless the heading already names a round. */
+function releaseRound(version: string, sections: readonly DraftSection[]): string | null {
+  if (/^Round\b/iu.test(version)) return null;
+  const first = sections[0];
+  const block = first && first.title === null ? first.blocks[0] : undefined;
+  if (block?.kind !== "paragraph") return null;
+  const text = block.inline.map((part) => part.text).join("");
+  return ROUND_NOTE.exec(text)?.[1] ?? null;
+}
+
+/** The release's name in the page's navigation: "Unreleased · Round 8", "Round 7", "2.0.0". */
+export function releaseNavLabel(release: Pick<ChangelogRelease, "version" | "round">): string {
+  return release.round ? `${release.version} · ${release.round}` : release.version;
+}
+
 /** Parses the changelog. Releases keep the file's order, which Keep a Changelog writes newest first. */
 export function parseChangelog(markdown: string): Changelog {
   const intro: ChangelogBlock[] = [];
@@ -140,10 +159,11 @@ export function parseChangelog(markdown: string): Changelog {
     const release = RELEASE.exec(line);
     if (release) {
       flush();
-      let id = releaseAnchor(release[1]!);
-      for (let suffix = 2; used.has(id); suffix += 1) id = `${releaseAnchor(release[1]!)}-${suffix}`;
+      const version = (release[1] ?? release[2]!).trim();
+      let id = releaseAnchor(version);
+      for (let suffix = 2; used.has(id); suffix += 1) id = `${releaseAnchor(version)}-${suffix}`;
       used.add(id);
-      releases.push({ version: release[1]!.trim(), date: release[2] ?? null, id, sections: [] });
+      releases.push({ version, date: release[3] ?? null, id, sections: [] });
       continue;
     }
     const section = SECTION.exec(line);
@@ -181,6 +201,7 @@ export function parseChangelog(markdown: string): Changelog {
     intro,
     releases: releases.map((release) => ({
       version: release.version,
+      round: releaseRound(release.version, release.sections),
       date: release.date,
       id: release.id,
       sections: release.sections.filter((section) => section.blocks.length > 0 || section.title !== null),

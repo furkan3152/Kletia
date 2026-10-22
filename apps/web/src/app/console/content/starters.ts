@@ -194,3 +194,21 @@ export function startersFor({
     return true;
   });
 }
+
+const ADDRESS_SLOT = /<address>/u;
+
+/**
+ * A starter sentence ready for the composer: `<address>` becomes the
+ * connected wallet's own address on that namespace (a test-yard send to
+ * yourself), or, without one, " to <address>" is dropped so Kletia asks who
+ * receives it. A literal placeholder never reaches the composer.
+ */
+export function fillStarterAddress(
+  sentence: string,
+  wallets: { readonly evm: string | null; readonly solana: string | null },
+): string {
+  if (!ADDRESS_SLOT.test(sentence)) return sentence;
+  const solana = /\bon solana(?: devnet)?\b/iu.test(sentence);
+  const own = solana ? wallets.solana : wallets.evm;
+  return own ? sentence.replace(ADDRESS_SLOT, own) : sentence.replace(/\s+to\s+<address>/u, "").replace(ADDRESS_SLOT, "").replace(/\s{2,}/gu, " ").trim();
+}

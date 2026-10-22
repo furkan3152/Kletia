@@ -1,5 +1,6 @@
 import type { WebhookDelivery } from "@kletia/sdk";
 import { Plus, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { sdkSignal } from "../../../../shared/platform/kletiaClient";
 import { useApiResource } from "../../../../shared/platform/useApiResource";
@@ -18,7 +19,16 @@ import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
 import { KeyGate } from "../shell/KeyGate";
 import { PortalPageHeader } from "../shell/PortalPageHeader";
 import { useWebhookGrant, useWebhookList, type ListedWebhook } from "./webhookData";
-import { eventsSummary, lastDeliverySummary, scopeLabel, utcStamp, WEBHOOK_LIMIT_PER_KEY, webhookPermissions } from "./webhookModel";
+import { WebhooksNotConfigured } from "./WebhooksNotConfigured";
+import {
+  eventsSummary,
+  lastDeliverySummary,
+  scopeLabel,
+  utcStamp,
+  WEBHOOK_LIMIT_PER_KEY,
+  webhookPermissions,
+  webhooksNotConfigured,
+} from "./webhookModel";
 
 const INTRO = "Signed POSTs to your server when intents, keys, contracts, links and rule books change. Kletia retries failed deliveries and keeps a delivery log per endpoint.";
 
@@ -41,12 +51,14 @@ function useLastDeliveries(apiKey: string, webhooks: readonly ListedWebhook[] | 
   });
 }
 
-function WebhookList() {
+function WebhookList({ onNotConfigured }: { readonly onNotConfigured: (value: boolean) => void }) {
   const { key } = useSessionKey();
   const permissions = webhookPermissions(portalKeyKind(key), useWebhookGrant(key));
   const list = useWebhookList(key);
   const last = useLastDeliveries(key, list.data);
   const webhooks = list.data ?? [];
+  const notConfigured = list.status === "error" && webhooksNotConfigured(list.error);
+  useEffect(() => onNotConfigured(notConfigured), [notConfigured, onNotConfigured]);
 
   return (
     <section aria-labelledby="webhooks-list" className="flex min-w-0 flex-col gap-4">
@@ -68,8 +80,10 @@ function WebhookList() {
           Reload
         </Button>
       </div>
-      {!permissions.create ? <p className={cx("text-sm", TEXT_MUTED)}>{permissions.summary}</p> : null}
-      {list.status === "loading" && !list.data ? (
+      {!permissions.create && !notConfigured ? <p className={cx("text-sm", TEXT_MUTED)}>{permissions.summary}</p> : null}
+      {notConfigured ? (
+        <WebhooksNotConfigured onRetry={list.reload} />
+      ) : list.status === "loading" && !list.data ? (
         <SkeletonGroup label="Loading webhooks" className="flex flex-col gap-2">
           <Skeleton surface="card" className="h-12" />
           <Skeleton surface="card" className="h-12" />
@@ -136,7 +150,9 @@ function WebhookList() {
 /** Webhooks (`/developers/webhooks`): the key's endpoints with their last delivery, and how to verify deliveries. */
 export function WebhooksListPage() {
   const { key } = useSessionKey();
-  const canCreate = webhookPermissions(portalKeyKind(key), useWebhookGrant(key)).create;
+  const [notConfigured, setNotConfigured] = useState(false);
+  // No "Add endpoint" on a deployment that cannot hold webhooks: the form could only fail.
+  const canCreate = webhookPermissions(portalKeyKind(key), useWebhookGrant(key)).create && !notConfigured;
   return (
     <>
       <PortalPageHeader
@@ -152,7 +168,7 @@ export function WebhooksListPage() {
         }
       />
       <KeyGate purpose="add, test and delete webhook endpoints and read their delivery logs" agentKeys>
-        <WebhookList />
+        <WebhookList onNotConfigured={setNotConfigured} />
       </KeyGate>
       <p className={cx("pt-6 text-sm", TEXT_MUTED)}>
         Developing locally? <code className="font-code">kletia webhooks forward --intent &lt;id&gt;</code> signs one intent&apos;s events for your

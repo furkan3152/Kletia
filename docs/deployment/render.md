@@ -1,12 +1,15 @@
 # Render deployment
 
-`render.yaml` is the canonical public topology:
+`render.yaml` is the reference topology:
 
 - `kletia-backend` (Web Service): the Kletia API — console routes under `/api` and the public Platform API under `/v1`.
 - `kletia-frontend` (Static Site): the web app — home, console, Studio, developer portal and network status.
-- `kletia-stellar-event-archive` (PostgreSQL): durable store for platform intents, developer keys and webhooks (`KLETIA_DATABASE_URL`). The resource keeps its original name so the existing instance is reused instead of a new one being provisioned.
+
+No database is declared. The API takes a PostgreSQL URL in `KLETIA_DATABASE_URL` for keys, projects, links, intents, threads, rule books, receipts and webhooks; create it separately (a paid Render PostgreSQL, or a free Neon or Supabase database with a pooled `postgres://…?sslmode=require` URL). A free Render account has a single free database slot, and the hosted account already uses it for another project, so a Blueprint that declared a second free database could not be applied there.
 
 Both services deploy from `main` only after CI passes (`autoDeployTrigger: checksPass`).
+
+**The hosted services do not read this file.** The live API (dashboard name "Kletia", `api.kletiaai.xyz`) and site ("KletiaAi", `kletiaai.xyz`) were created in the dashboard, so their settings live there and are copied from `render.yaml` by hand; see [Services created in the dashboard](#services-created-in-the-dashboard). Applying `render.yaml` as a Blueprint on that account would create a second API and site next to them.
 
 ## What the Blueprint enables
 
@@ -17,7 +20,7 @@ Both services deploy from `main` only after CI passes (`autoDeployTrigger: check
 - Solana: Jupiter swaps, liquid staking, transfers, Kamino discovery and Relay settlement to and from Base and Arbitrum.
 - Platform API v1 with durable storage, developer keys, SSE and signed webhooks.
 
-Public, identity-pinned deployment identities (Intent Router V2, LaunchFactory V2, Arc Vault V2) are also applied as code defaults when unset; every request re-validates them on-chain. The hosted service sets `KLETIA_REQUIRE_ALL_FEATURES=true`, so it refuses to start without its integration keys; self-hosted deployments may omit optional keys and run with those features reported as `needs_configuration` by `GET /api/capabilities`.
+Public, identity-pinned deployment identities (Intent Router V2, LaunchFactory V2, Arc Vault V2) are also applied as code defaults when unset; every request re-validates them on-chain. Neither `render.yaml` nor the hosted API sets `KLETIA_REQUIRE_ALL_FEATURES`: with it the API refuses to start while any optional integration key (Webacy, Allora, Relay, …) is missing. Without it, a missing key turns its feature off and `GET /api/capabilities` reports it as `needs_configuration`.
 
 ## Build commands
 
@@ -53,8 +56,8 @@ The hosted services were created in the dashboard before the repository became a
 Three things only the dashboard can set on these services (a Blueprint sets them from `render.yaml`):
 
 1. **Static site → Redirects/Rewrites**, in this order (the `routes` of `kletia-frontend`): `/go/:id/card.png` → `https://api.kletiaai.xyz/v1/links/:id/card.png`, `/go/:id` → `https://api.kletiaai.xyz/v1/links/:id/page`, `/*` → `/index.html`, all three as Rewrite. Without them receipt pages (`/r/<id>`), link pages (`/go/<id>`) and other deep links answer 404.
-2. **Static site → Headers**: the `headers` of `kletia-frontend` in `render.yaml` (framing, `X-Robots-Tag`, CORS for `actions.json` and the receipt key mirror). The app refuses to render outside `/embed` inside a cross-origin frame even without them.
-3. **API → Environment**: `NODE_ENV=production`, `KLETIA_WEB_ORIGIN=https://kletiaai.xyz`, `WORKFLOW_SIGNING_SECRET` (32+ random characters), and for durable keys, intents and webhooks a PostgreSQL `KLETIA_DATABASE_URL` with `KLETIA_PLATFORM_SECRET` (32+ characters). Without a database the API keeps everything in memory, and a free instance that sleeps loses it. The free plan also sleeps after 15 idle minutes, so the first request after that waits about a minute; integrators need an always-on instance.
+2. **Static site → Headers**: the `headers` of `kletia-frontend` in `render.yaml` (framing, `X-Robots-Tag`, CORS for `actions.json`, the receipt key mirror, the embed script under `/sdk/embed/` and the SDK build under `/sdk/`). Without `Access-Control-Allow-Origin: *` on `/sdk/embed/*/*.js`, `/sdk/embed/manifest.json`, `/sdk/kletia-sdk-*.js` and `/sdk/manifest.json`, browsers refuse the embed snippet and the SDK file on every other site (the `Public smoke` workflow's `embed-script` and `sdk-script` probes fail). The app refuses to render outside `/embed` inside a cross-origin frame even without the framing rules.
+3. **API → Environment**: `NODE_ENV=production`, `KLETIA_WEB_ORIGIN=https://kletiaai.xyz`, `WORKFLOW_SIGNING_SECRET` (32+ random characters), and for durable keys, intents and webhooks a PostgreSQL `KLETIA_DATABASE_URL` with `KLETIA_PLATFORM_SECRET` (32+ characters). Without a database the API keeps everything in memory, and a free instance that sleeps loses it. The free plan also sleeps after 15 idle minutes, so the first request after that waits 65 to 75 seconds (longer than the SDK's 20-second timeout per attempt); integrators need an always-on instance (Starter).
 
 ## Public pages and files on the static site
 
@@ -71,6 +74,8 @@ rules live in `render.yaml` (`routes` and `headers` of `kletia-frontend`):
 | `/.well-known/kletia-receipt-keys.json` | File, generated by the build (`scripts/write-receipt-keys.mjs`) | The second origin of the receipt key set: verifiers trust a key only when the API (`GET /v1/receipts/keys`) and this file both list it. `Access-Control-Allow-Origin: *`, `application/json`, one hour of cache. See [The receipt key mirror](#the-receipt-key-mirror). |
 | `/sdk/embed/<version>/kletia-embed.min.js`, `…/index.js` | Files, copied from `packages/embed/dist` by the build (`scripts/emit-embed-script.mjs`) | The embed script partners load with an SRI hash: `Access-Control-Allow-Origin: *`, `Cross-Origin-Resource-Policy: cross-origin`, `text/javascript`, `public, max-age=31536000, immutable` (rules `/sdk/embed/*/*.js`). |
 | `/sdk/embed/manifest.json` | File, written by the same build step | The current version and the SHA-384 `integrity` of each file. `no-cache`, `Access-Control-Allow-Origin: *`. |
+| `/sdk/kletia-sdk-<version>.js` | File, bundled from `packages/sdk/dist` (with `@kletia/core`) by the same build step (`scripts/emit-sdk-script.mjs`) | The SDK as one ES module for browsers (import map with `integrity`) and Node (downloaded, then imported by path). Same headers as the embed script (rules `/sdk/kletia-sdk-*.js`). |
+| `/sdk/manifest.json` | File, written by the same build step | The current SDK version, its path and SHA-384 `integrity`. `no-cache`, `Access-Control-Allow-Origin: *`. |
 | `/go-shell.html` | File | The shell the API reads for link pages (`KLETIA_WEB_ORIGIN/go-shell.html`); it loads the current entry, styles and fonts from this origin's `/index.html`, so it never goes stale after a release. `no-cache`. |
 
 Render applies a rewrite only when no file exists at the path, and a rewrite

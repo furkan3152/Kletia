@@ -2,7 +2,9 @@ name: Public smoke
 
 # Read-only smoke check of the hosted deployment (tooling/check-public-deployment.mjs):
 # API health with build.commit, the served OpenAPI document, /developers, /embed
-# with frame-ancestors *, and the embed script manifest's integrity. It fails
+# with frame-ancestors *, and the embed script and SDK build manifests: every
+# listed file matches its integrity and answers Access-Control-Allow-Origin: *
+# (without it other sites cannot load the snippet). It fails
 # loudly until the hosted services run this repository's code (see
 # docs/platform/status.md). Nothing is created, signed or sent. Runs hourly and
 # on demand; `npm run verify` never calls these hosts.

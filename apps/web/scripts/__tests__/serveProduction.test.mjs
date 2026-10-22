@@ -11,7 +11,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 
-import { createFrontendServer, negotiateEncoding, routeStatus } from "../serve-production.mjs";
+import { cacheControlFor, createFrontendServer, negotiateEncoding, routeStatus } from "../serve-production.mjs";
 import { loadRoutes, routeManifest } from "../write-route-pages.mjs";
 
 const routes = await loadRoutes();
@@ -32,6 +32,8 @@ function fixtureDist() {
   write("assets/logo.png", Buffer.alloc(2048, 1));
   write("sdk/embed/0.1.0/kletia-embed.min.js", SCRIPT);
   write("sdk/embed/manifest.json", JSON.stringify({ schema: "kletia.embed-manifest/v1", version: "0.1.0", files: {} }));
+  write("sdk/kletia-sdk-0.1.0.js", SCRIPT);
+  write("sdk/manifest.json", JSON.stringify({ schema: "kletia.sdk-manifest/v1", version: "0.1.0", files: {} }));
   write("route-manifest.json", JSON.stringify(manifest));
   return dist;
 }
@@ -72,6 +74,20 @@ test("the embed script answers every origin, may be loaded cross-origin, never c
   const missing = await get("/sdk/embed/9.9.9/kletia-embed.min.js", { accept: "text/html" });
   assert.equal(missing.status, 404);
   assert.doesNotMatch(missing.body.toString("utf8"), /<!doctype/u, "a missing script is never answered with the app shell");
+});
+
+test("the SDK build answers every origin and never changes; its manifest is revalidated", async () => {
+  const response = await get("/sdk/kletia-sdk-0.1.0.js");
+  assert.equal(response.status, 200);
+  assert.equal(response.headers["access-control-allow-origin"], "*");
+  assert.equal(response.headers["cross-origin-resource-policy"], "cross-origin");
+  assert.equal(response.headers["cache-control"], "public, max-age=31536000, immutable");
+  assert.equal(response.headers["content-type"], "text/javascript; charset=utf-8");
+  const manifestResponse = await get("/sdk/manifest.json");
+  assert.equal(manifestResponse.status, 200);
+  assert.equal(manifestResponse.headers["cache-control"], "no-cache");
+  assert.equal(manifestResponse.headers["access-control-allow-origin"], "*");
+  assert.equal(cacheControlFor("/sdk/embed/manifest.json", join(dist, "sdk/embed/manifest.json"), dist), "no-cache");
 });
 
 test("/embed keeps its headers: framed by any site, no X-Frame-Options", async () => {

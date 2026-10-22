@@ -230,6 +230,12 @@ export interface IntentExecution extends ConnectedIntentSigners {
   readonly pauseReason: string | null;
   /** Steps that need an explicit "sign again" confirmation to continue. */
   readonly reconfirmStepIds: readonly string[];
+  /**
+   * Steps of the current intent whose signature request went to the wallet
+   * without a known outcome (still open, or it failed in a way that does not
+   * prove nothing was sent). A view never claims these were not signed.
+   */
+  readonly signatureUnknownStepIds: readonly string[];
   /** True while the live event stream is connected. */
   readonly streaming: boolean;
   /** Intent stored by a previous page load of this tab, if not yet resumed. */
@@ -583,6 +589,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
   const [stepPhases, setStepPhases] = useState<Readonly<Record<string, LocalStepPhase>>>({});
   const [pauseReason, setPauseReason] = useState<string | null>(null);
   const [reconfirmStepIds, setReconfirmStepIds] = useState<readonly string[]>([]);
+  const [requestedStepIds, setRequestedStepIds] = useState<readonly string[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [resumableIntentId, setResumableIntentId] = useState<string | null>(() =>
     sessionKey ? readIntentSession(sessionKey)?.intentId ?? null : null,
@@ -691,6 +698,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           marksRef.current.delete(`${next.id}:${stepId}`);
           referencesRef.current.delete(`${next.id}:${stepId}`);
         }
+        setRequestedStepIds((current) => (current.some((stepId) => accepted.includes(stepId)) ? current.filter((stepId) => !accepted.includes(stepId)) : current));
         const phases = phasesRef.current;
         if (accepted.some((stepId) => phases[stepId])) {
           const remaining = Object.fromEntries(
@@ -816,6 +824,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setError(null);
       setPauseReason(null);
       setReconfirmStepIds([]);
+      setRequestedStepIds([]);
       setPolicyHold(null);
       resolveGate(false);
       let accounts: readonly AccountId[];
@@ -864,6 +873,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setError(null);
       setPauseReason(null);
       setReconfirmStepIds([]);
+      setRequestedStepIds([]);
       setPolicyHold(null);
       resolveGate(false);
       clearPhases();
@@ -943,6 +953,8 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
       setError(null);
       setPauseReason(null);
       setReconfirmStepIds([]);
+      // Requests of another intent say nothing about this one.
+      if (intentRef.current?.id !== graph.id) setRequestedStepIds([]);
       setResumableIntentId(null);
       setPolicyHold(null);
       resolveGate(false);
@@ -1012,7 +1024,10 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           allowResignRef.current.delete(markKey(step.id));
           marksRef.current.set(markKey(step.id), "requested");
           if (sessionKey) markStepSigning(sessionKey, intentId, step.id, "requested");
-          if (isCurrent()) setPhase(step.id, "signing");
+          if (isCurrent()) {
+            setRequestedStepIds((current) => (current.includes(step.id) ? current : [...current, step.id]));
+            setPhase(step.id, "signing");
+          }
         },
         onReference: (reference) => {
           const step = runStep;
@@ -1031,6 +1046,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
           if (isNothingSentError(rejection)) {
             marksRef.current.set(markKey(step.id), "rejected");
             if (sessionKey) markStepSigning(sessionKey, intentId, step.id, "rejected");
+            if (isCurrent()) setRequestedStepIds((current) => current.filter((stepId) => stepId !== step.id));
           }
           if (isCurrent()) setPhase(step.id, null);
         },
@@ -1331,6 +1347,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     setError(null);
     setPauseReason(null);
     setReconfirmStepIds([]);
+    setRequestedStepIds([]);
   }, [clearPhases, resolveGate, sessionKey, setJourney, setPreview, stopStream]);
 
   const stop = useCallback(async (): Promise<IntentGraph | null> => {
@@ -1424,6 +1441,11 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     [accountsForBinding, intent],
   );
 
+  const signatureUnknownStepIds = useMemo(
+    () => [...new Set([...requestedStepIds, ...reconfirmStepIds])],
+    [reconfirmStepIds, requestedStepIds],
+  );
+
   const forgetResumable = useCallback(() => {
     if (sessionKey) clearIntentSession(sessionKey);
     setResumableIntentId(null);
@@ -1438,6 +1460,7 @@ export function useIntentExecution(options: UseIntentExecutionOptions = {}): Int
     stepPhases,
     pauseReason,
     reconfirmStepIds,
+    signatureUnknownStepIds,
     streaming,
     resumableIntentId,
     preview,

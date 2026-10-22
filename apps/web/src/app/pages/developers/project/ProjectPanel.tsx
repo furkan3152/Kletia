@@ -13,6 +13,7 @@ import { SelectField, TextAreaField, TextField } from "../../../site/ui/Field";
 import { Skeleton, SkeletonGroup } from "../../../site/ui/Skeleton";
 import { StatusEntryPill } from "../../../site/ui/StatusPill";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../../../site/ui/styles";
+import { AccountPanel } from "../keys/AccountPanel";
 import { keyedClient } from "../keys/keyClient";
 import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
 import { utcStamp } from "../webhooks/webhookModel";
@@ -630,6 +631,7 @@ export function ProjectPanel() {
       <Region id="project-logo" title="Logo">
         <LogoUpload apiKey={key} view={view} readOnly={readOnly} onView={setView} />
       </Region>
+      {readOnly ? null : <AccountPanel variant="project" currentProjectId={view.id} />}
     </div>
   );
 }

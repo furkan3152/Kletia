@@ -12,7 +12,7 @@ import { LINES } from "../../site/art/tokens";
 import { DESK_COPY } from "../content/copy";
 import { isFinishedStatus } from "../state/deskSession";
 import { getDeskStore, tasksNewestFirst, useDeskStore } from "../state/deskStore";
-import { clockOf, serialOf } from "./taskModel";
+import { clockOf, serialOf, taskStatusLabel } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
@@ -66,7 +66,7 @@ export function TaskList({ onOpenTask, onNewTask, headingLevel = 2 }: TaskListPr
                     </>
                   ) : null}
                   <span>
-                    {copy.status[task.status]} {clockOf(task.createdAt)}
+                    {taskStatusLabel(task)} {clockOf(task.createdAt)}
                   </span>
                 </span>
               </button>

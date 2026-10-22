@@ -71,8 +71,12 @@ always signed in the user's own wallet.
 | [Self-hosting](docs/deployment/self-hosting.md) | Docker Compose with PostgreSQL, and API and web images on GHCR with provenance and an SBOM. |
 
 The npm packages are released together from a `packages-v*` tag
-([release workflow](.github/workflows/release-packages.yml)); until the first
-release is on npm, use them from this workspace (`npm ci` builds them).
+([release workflow](.github/workflows/release-packages.yml)), which also
+attaches their `npm pack` tarballs to the GitHub release. Until the first
+release is on npm, install those tarballs, load the SDK as one ES module file
+from `https://kletiaai.xyz/sdk/kletia-sdk-<version>.js` (SHA-384 in
+`/sdk/manifest.json`), or use them from this workspace (`npm ci` builds them).
+See [Install without npm](docs/platform/quickstart.md#install-without-npm).
 
 ### REST
 

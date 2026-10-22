@@ -10,9 +10,13 @@ import {
   envLine,
   firstCallCurl,
   firstCallPlan,
+  installScript,
   issueKeyBody,
   issueLimitMessage,
   keyNameError,
+  LANE_CHOICES,
+  PACKAGES_ON_NPM,
+  releaseTarballUrl,
   shipFiles,
   START_SURFACES,
   summarizeRun,
@@ -90,9 +94,46 @@ test("files use this deployment's origins and the embed script of the package ve
   const node = shipFiles({ surface: "node", apiOrigin: API, webOrigin: WEB, embedVersion: "0.1.0", account: ACCOUNT });
   assert.match(node[0].code, /process\.env\.KLETIA_API_KEY/u);
   assert.ok(node[0].code.includes(`baseUrl: "${API}"`));
-  assert.deepEqual(node.map((file) => file.filename), ["plan.mjs", ".env"]);
+  assert.deepEqual(node.map((file) => file.filename), ["plan.mjs", ".env", "install.sh"]);
   const rest = shipFiles({ surface: "rest", apiOrigin: API, webOrigin: WEB, embedVersion: "0.1.0", account: ACCOUNT });
   assert.match(rest[0].code, /set -a; \. \.\/\.env; set \+a/u);
+});
+
+test("the Ship it snippet carries the served script's integrity inline once the manifest answers", () => {
+  const integrity = `sha384-${"Ab+/".repeat(16)}`;
+  const [html] = shipFiles({ surface: "embed", apiOrigin: API, webOrigin: WEB, embedVersion: "0.2.0", embedIntegrity: integrity, account: ACCOUNT });
+  assert.ok(html.code.includes(`<script src="${WEB}/sdk/embed/0.2.0/kletia-embed.min.js" integrity="${integrity}" crossorigin="anonymous"></script>`));
+  assert.doesNotMatch(html.code, /Add integrity=/u);
+  // Anything that is not a SHA-384 SRI value is never written into the tag.
+  for (const bad of [null, "sha256-abc", `sha384-${"A".repeat(10)}`, `sha384-${"A".repeat(64)}" onload="x`]) {
+    const [plain] = shipFiles({ surface: "embed", apiOrigin: API, webOrigin: WEB, embedVersion: "0.2.0", embedIntegrity: bad, account: ACCOUNT });
+    assert.doesNotMatch(plain.code, /<script src="[^"]*" integrity=/u, String(bad));
+    assert.match(plain.code, /Add integrity="sha384-…" for 0\.2\.0 from .*\/sdk\/embed\/manifest\.json/u);
+  }
+});
+
+test("install lines work without npm: release tarballs (core first), the served SDK file, and npm for later", () => {
+  assert.equal(releaseTarballUrl("sdk", "0.2.0"), "https://github.com/furkan3152/Kletia/releases/download/packages-v0.2.0/kletia-sdk-0.2.0.tgz");
+  const node = shipFiles({ surface: "node", apiOrigin: API, webOrigin: WEB, embedVersion: "0.1.0", sdkVersion: "0.2.0", account: ACCOUNT });
+  const install = node.find((file) => file.id === "install").code;
+  const core = install.indexOf("kletia-core-0.2.0.tgz");
+  const sdk = install.indexOf("kletia-sdk-0.2.0.tgz");
+  assert.ok(core > 0 && sdk > core, "core is installed before the SDK that depends on it");
+  assert.ok(install.includes(`curl -fsSLO ${WEB}/sdk/kletia-sdk-0.2.0.js`));
+  assert.ok(install.includes(`${WEB}/sdk/manifest.json`));
+  assert.match(install, /npm install @kletia\/sdk/u);
+  if (!PACKAGES_ON_NPM) assert.match(install, /not on the npm registry yet/u);
+  // Continued lines end with a backslash, the last tarball line does not.
+  const lines = install.split("\n");
+  const first = lines.findIndex((line) => line === "npm install \\");
+  assert.ok(first >= 0);
+  assert.match(lines[first + 1], /kletia-core-0\.2\.0\.tgz \\$/u);
+  assert.match(lines[first + 2], /kletia-sdk-0\.2\.0\.tgz$/u);
+  const react = shipFiles({ surface: "react", apiOrigin: API, webOrigin: WEB, embedVersion: "0.1.0", sdkVersion: "0.2.0", account: ACCOUNT });
+  const reactInstall = react.find((file) => file.id === "install").code;
+  for (const name of ["core", "sdk", "widget"]) assert.ok(reactInstall.includes(`kletia-${name}-0.2.0.tgz`), name);
+  assert.doesNotMatch(reactInstall, /curl/u);
+  assert.doesNotMatch(installScript({ packages: ["embed"], version: "0.2.0", webOrigin: WEB }), /kletia-core/u, "the embed has no dependencies");
 });
 
 test("Run's summary: status, time, steps, the first step and what arrives; errors show their code", () => {
@@ -121,4 +162,11 @@ test("the issuance limit counts down from Retry-After", () => {
   assert.match(issueLimitMessage(720, since + 61_000, since), /try again in 11 min\.$/u);
   assert.match(issueLimitMessage(30, since + 31_000, since), /try again now/u);
   assert.match(issueLimitMessage(null, since, since), /5 per hour/u);
+});
+
+test("the sandbox blurb names every test network and what a sandbox key plans there", () => {
+  const sandbox = LANE_CHOICES.find((choice) => choice.value === "sandbox");
+  assert.equal(LANE_CHOICES[0], sandbox, "sandbox first");
+  for (const name of ["Arbitrum Sepolia", "Arc Testnet", "Solana Devnet"]) assert.ok(sandbox.detail.includes(name), name);
+  for (const action of ["swaps", "stakes", "bridges"]) assert.ok(sandbox.detail.includes(action), action);
 });

@@ -381,3 +381,23 @@ export function webhookPermissions(kind: "developer" | "agent" | null, grant: bo
 
 /** Webhook ids as the API issues them (`wh_` and 24 hex characters). */
 export const WEBHOOK_ID = /^wh_[0-9a-f]{24}$/u;
+
+/* ---------------------------------------------------- not configured (503) */
+
+/**
+ * True for the API's `503 WEBHOOKS_NOT_CONFIGURED`: the deployment has no
+ * platform secret to seal endpoint secrets with, so no endpoint can be
+ * listed, added or tested there. The pages then explain it and hide
+ * "Add endpoint" instead of showing a generic error.
+ */
+export function webhooksNotConfigured(error: { readonly code: string } | null | undefined): boolean {
+  return error?.code === "WEBHOOKS_NOT_CONFIGURED";
+}
+
+/** What the Webhooks pages say on such a deployment. */
+export const WEBHOOKS_NOT_CONFIGURED_COPY = Object.freeze({
+  title: "Webhooks are not configured on this deployment",
+  body: "Its operator has not set the platform secret Kletia seals each endpoint's signing secret with, so endpoints cannot be added here yet. Your keys and intents work as usual.",
+  alternative: "To see events now, follow an intent over Server-Sent Events: GET /v1/events with your key, or kletia listen from the CLI.",
+  operator: "Running this deployment? Set KLETIA_PLATFORM_SECRET (32 or more random characters, never changed afterwards) and restart the API.",
+});

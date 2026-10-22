@@ -64,7 +64,10 @@ test("the copy the design prints is there, word for word", () => {
   assert.equal(DESK_COPY.departure.disabledNoService, "No service: the network's RPC is not answering.");
   assert.equal(DESK_COPY.departure.disabledNotOffered, "Not available on this deployment.");
   assert.equal(DESK_COPY.engine.wrongChain("OP Mainnet", "Base"), "Your EVM wallet is on OP Mainnet. This task signs on Base.");
-  assert.equal(DESK_COPY.ticket.lines.text("Base", "Arbitrum"), "Departs Base · your sentence names it (the departure said Arbitrum)");
+  assert.equal(
+    DESK_COPY.ticket.lines.text("Base", "Arbitrum"),
+    'Departs Base · your sentence names it, so the departure Arbitrum was not used. To start from Arbitrum, add "from Arbitrum" to the sentence.',
+  );
   assert.equal(DESK_COPY.tasks.announcements.question("Swap SOL to USDC"), "Kletia has a question about Swap SOL to USDC");
   assert.equal(DESK_COPY.source.question("25", "USDC"), "Where should the 25 USDC come from?");
   assert.equal(DESK_COPY.wallets.evmConnected("Rabby", "0x4f18…807D"), "EVM wallet Rabby 0x4f18…807D, open account options");
@@ -122,4 +125,9 @@ test("starters are filtered by what the deployment offers and re-phrased from th
   assert.ok(!startersFor({ actions }).some((starter) => starter.networks.includes("arbitrum-sepolia")), "a network the API does not list is never offered");
   assert.equal(rephraseStarter("lend", "solana", actions).sentence, "deposit 10 USDC into jupiter lend");
   assert.equal(rephraseStarter("stake", "base", actions), null);
+});
+
+test("the tools say 'a Solana wallet' and 'an EVM wallet'", () => {
+  assert.equal(DESK_COPY.tools.needsOn(DESK_COPY.tools.needs.solana, "Solana"), "Needs a Solana wallet on Solana");
+  assert.equal(DESK_COPY.tools.needsOn(DESK_COPY.tools.needs.evm, "Base"), "Needs an EVM wallet on Base");
 });

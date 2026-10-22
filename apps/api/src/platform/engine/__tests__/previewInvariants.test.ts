@@ -211,4 +211,21 @@ describe("material change at prepare", () => {
     ])], {}, 0);
     assert.deepEqual(materialPreviewChanges(before, worse, graph).map((change) => change.code), ["PREVIEW_WORSE_AMOUNT"]);
   });
+
+  it("never calls sub-cent network-fee drift on the SOL row a material change", () => {
+    // A small swap: 10 bps of 0.001 SOL is 1,000 lamports; a priority fee the simulation leaves in the SOL row is more.
+    const before = aggregatePreview(graph, [step(-1_000_000n, [])], {}, 0);
+    const drifted = aggregatePreview(graph, [step(-1_006_400n, [])], {}, 0);
+    assert.deepEqual(materialPreviewChanges(before, drifted, graph), [], "unpriced: at most two base fees of drift");
+    const priced = (sol: bigint, usd: number): StepPreview => {
+      const preview = step(sol, []);
+      const row = preview.deltas[0] as StepPreview["deltas"][number];
+      return { ...preview, deltas: [{ ...row, expected: { ...row.expected, usd }, worst: { ...row.worst, usd } }] };
+    };
+    const pricedBefore = aggregatePreview(graph, [priced(-10_000_000n, -1.03)], {}, 0);
+    assert.deepEqual(materialPreviewChanges(pricedBefore, aggregatePreview(graph, [priced(-10_006_400n, -1.0307)], {}, 0), graph), [], "priced: $0.0007 of drift");
+    // More than a cent, or more than two base fees unpriced, is still judged by the amount rule.
+    assert.deepEqual(materialPreviewChanges(pricedBefore, aggregatePreview(graph, [priced(-10_200_000n, -1.0506)], {}, 0), graph).map((change) => change.code), ["PREVIEW_WORSE_AMOUNT"]);
+    assert.deepEqual(materialPreviewChanges(before, aggregatePreview(graph, [step(-1_020_000n, [])], {}, 0), graph).map((change) => change.code), ["PREVIEW_WORSE_AMOUNT"]);
+  });
 });

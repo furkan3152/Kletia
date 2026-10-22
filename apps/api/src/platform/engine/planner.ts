@@ -231,6 +231,12 @@ export interface PlanOptions {
   readonly interpretation?: PlanInterpretation;
   /** Balance reader of the departure step (tests); default: holdings.ts. */
   readonly readBalance?: DepartureBalanceReader;
+  /**
+   * Called with each action's networks once the request is
+   * understood and before any provider is quoted (the Rule Book's network
+   * rules refuse here, so a provider failure never masks a policy refusal).
+   */
+  readonly beforeQuote?: (legs: readonly { readonly network: NetworkKey; readonly destinationNetwork: NetworkKey }[]) => Promise<void>;
 }
 
 /** What the clarify layer adds to `graph.interpretation`. */
@@ -316,7 +322,7 @@ export function normalizeActions(actions: readonly IntentActionSpec[], request: 
     let kind = spec.kind;
     if (!SUPPORTED_KINDS.includes(kind)) {
       throw unsupported(
-        `"${kind}" intents are not executable yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit and withdraw (lending venues), and call / action steps of registered contracts.`,
+        `${kind === "borrow" ? "Borrowing is" : kind === "repay" ? "Repaying a loan is" : `"${kind}" is`} not available yet. Supported: swap, transfer, bridge, stake (SOL liquid staking), deposit and withdraw (lending venues), and call / action steps of registered contracts.`,
         GRAMMAR_EXAMPLES,
         issue(`${path}.kind`, "Unsupported action kind."),
       );
@@ -1682,6 +1688,7 @@ export async function planIntentWithPreviews(input: unknown, options: PlanOption
     plannerWarnings.push(...resolved.warnings);
   }
   const actions = normalizeActions(specs, request);
+  await options.beforeQuote?.(actions.map((action) => ({ network: action.network, destinationNetwork: action.destinationNetwork })));
   // Registrations resolve against the contract authority (a flow's saver) when one is given.
   const contractKeyId = options.contractAuthorityKeyId ?? options.ownerKeyId;
 

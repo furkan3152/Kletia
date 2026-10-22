@@ -51,6 +51,8 @@ export interface WorkStep {
   buy?: boolean;
   /** Transient (this turn only): the sentence was "sell X" (received in a dollar stablecoin unless named). */
   sell?: boolean;
+  /** Transient (this turn only): the clause named the action but nothing it acts on ("swap some tokens"). */
+  vague?: boolean;
   /** Transient (this turn only): "stake my SOL", "earn yield on my USDC": all of the holding when one network holds it. */
   possessive?: boolean;
   /** Pins of a goal step that are not part of its Goal (an amount answer, "all networks"); stored on its placeholder step. */
@@ -169,8 +171,12 @@ export interface UsdPrice {
 export interface FactsView {
   /** Decimal balance of the request's own account, or undefined when unknown (never "0" for unknown). */
   balance(network: NetworkKey, symbol: string): string | undefined;
-  /** A name's address on a network; null when it cannot be resolved (or the read failed). */
-  resolveName(name: string, network: NetworkKey): string | null;
+  /**
+   * A name's address on a network; null when it does not resolve (or was not
+   * read); undefined when its records could not be read in time this turn
+   * (the planner resolves it then, and fails closed if it cannot).
+   */
+  resolveName(name: string, network: NetworkKey): string | null | undefined;
   /** Supplied amount of a lending position; undefined when unknown (v1: positions are not read). */
   position(network: NetworkKey, protocol: string, symbol: string): string | undefined;
   /**

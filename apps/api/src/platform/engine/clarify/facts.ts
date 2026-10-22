@@ -48,7 +48,8 @@ const nameKey = (name: string, network: NetworkKey) => `${network}|${name.toLowe
 /** The facts of one turn: answers from what was read, records what was not. */
 export class TurnFacts implements FactsView {
   private readonly balances = new Map<string, BalanceEntry>();
-  private readonly names = new Map<string, string | null>();
+  /** Address, null (no address), or undefined when the records could not be read this turn. */
+  private readonly names = new Map<string, string | null | undefined>();
   private readonly wanted = new Map<string, FactNeed>();
   private balanceReads = 0;
   private nameReads = 0;
@@ -79,6 +80,9 @@ export class TurnFacts implements FactsView {
       const entry = this.balances.get(key) ?? null;
       return entry ? fromBaseUnits(entry.units, entry.decimals) : undefined;
     }
+    // A goal turn's snapshot already read this balance (its chips show it): answered from it, no second read.
+    const held = this.snapshotHolding(network, symbol);
+    if (held !== undefined) return held;
     this.misses += 1;
     if (!this.frozen) this.wanted.set(`b|${key}`, { kind: "balance", network, asset: symbol });
     return undefined;
@@ -93,9 +97,19 @@ export class TurnFacts implements FactsView {
     return null;
   }
 
-  resolveName(name: string, network: NetworkKey): string | null {
+  /** A known balance of the snapshots read this turn (decimal), or undefined. */
+  private snapshotHolding(network: NetworkKey, symbol: string): string | undefined {
+    const upper = symbol.toUpperCase();
+    for (const snapshot of [this.snapshot, ...this.snapshots.values()]) {
+      const holding = snapshot?.holdings.find((entry) => entry.network === network && entry.symbol.toUpperCase() === upper && entry.status === "known" && entry.formatted !== undefined);
+      if (holding?.formatted !== undefined) return holding.formatted;
+    }
+    return undefined;
+  }
+
+  resolveName(name: string, network: NetworkKey): string | null | undefined {
     const key = nameKey(name, network);
-    if (this.names.has(key)) return this.names.get(key) ?? null;
+    if (this.names.has(key)) return this.names.get(key);
     this.misses += 1;
     if (!this.frozen) this.wanted.set(`n|${key}`, { kind: "name", name, network });
     return null;
@@ -211,7 +225,7 @@ export class TurnFacts implements FactsView {
     });
     facts.names.forEach((fact, index) => {
       const need = nameNeeds[index] as Extract<FactNeed, { kind: "name" }>;
-      this.names.set(nameKey(need.name, need.network), fact.status === "known" && fact.address ? fact.address : null);
+      this.names.set(nameKey(need.name, need.network), fact.status === "known" && fact.address ? fact.address : fact.unavailable ? undefined : null);
     });
     // Charged conservatively (a holdings cache hit costs no network read but still counts here).
     this.balanceReads += Math.min(balanceNeeds.length, balanceBudget);

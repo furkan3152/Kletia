@@ -18,8 +18,9 @@ deployment you opened it on).
 ## 1. Get a sandbox key (1 minute)
 
 A sandbox key carries a rule book that keeps it on testnets (Arc Testnet,
-Arbitrum Sepolia, Solana Devnet): it can store intents and register your own
-contracts there, and every production network refuses it. Start with one;
+Arbitrum Sepolia, Solana Devnet): it plans sends, swaps, bridges and stakes
+there, stores intents and registers your own contracts, and every production
+network refuses it. Start with one;
 issue a live key when you go to production.
 
 In the browser: open [/developers](https://kletiaai.xyz/developers), choose
@@ -77,7 +78,10 @@ you have a key.
    ```
 
    Pin the version in the script URL and add its `integrity` hash from
-   `https://kletiaai.xyz/sdk/embed/manifest.json`.
+   `https://kletiaai.xyz/sdk/embed/manifest.json`
+   (`curl -s https://kletiaai.xyz/sdk/embed/manifest.json`). The portal's
+   **Start here**, step 4 **Ship it**, prints this file with the
+   `integrity` attribute already filled in.
 
 2. Serve it over http or https. A page opened as `file://` has no origin, so
    the widget cannot connect to it:
@@ -138,13 +142,20 @@ Details, limits and errors: [projects.md](projects.md).
 
 ## Server: plan with your key
 
-1. Install the SDK (Node 18.17 or later):
+1. Install the SDK (Node 18.17 or later). The `@kletia` packages are not on
+   the npm registry yet, so install them from the GitHub release
+   ([Install without npm](#install-without-npm) has the other ways):
 
    ```bash
    mkdir kletia-quickstart && cd kletia-quickstart
    npm init -y && npm pkg set type=module
-   npm install @kletia/sdk
+   V=0.1.0
+   npm install \
+     https://github.com/furkan3152/Kletia/releases/download/packages-v$V/kletia-core-$V.tgz \
+     https://github.com/furkan3152/Kletia/releases/download/packages-v$V/kletia-sdk-$V.tgz
    ```
+
+   Once the packages are published, `npm install @kletia/sdk` does the same.
 
 2. Save this as `quickstart.mjs`. It runs as pasted: without
    `KLETIA_API_KEY` it uses the public tier, and the plan is a dry run, so
@@ -180,10 +191,10 @@ Details, limits and errors: [projects.md](projects.md).
    Ethereum: swap, transfer, bridge, stake, deposit, withdraw, call
    OP Mainnet: swap, transfer, bridge, deposit, withdraw, call
    Polygon PoS: swap, transfer, bridge, deposit, withdraw, call
-   Arc Testnet: transfer, call
-   Arbitrum Sepolia: transfer, call
+   Arc Testnet: transfer, bridge, call
+   Arbitrum Sepolia: swap, transfer, bridge, deposit, withdraw, call
    Solana: swap, transfer, bridge, stake, deposit, withdraw, action
-   Solana Devnet: transfer, action
+   Solana Devnet: transfer, stake, action
    Swap 1 SOL for USDC on Solana 104.740058 USDC
    ```
 
@@ -210,10 +221,63 @@ Details, limits and errors: [projects.md](projects.md).
 
    Expected: `200` with `{ "intent": { "status": "planned", "steps": [ … ] } }`.
 
-Next: store intents (drop `dryRun`), follow them with webhooks
-([recipes](https://kletiaai.xyz/developers/recipes/nextjs)), show where the
+Next: store intents (drop `dryRun`) and watch their events arrive on the
+key's event stream, `GET /v1/events` (Server-Sent Events; `kletia listen`
+from the CLI, `kletia.events.stream()` in the SDK, [events](https://kletiaai.xyz/developers/events)).
+Webhooks deliver the same events to your server where the deployment has
+them configured ([recipes](https://kletiaai.xyz/developers/recipes/nextjs);
+a `503 WEBHOOKS_NOT_CONFIGURED` means it does not). Then show where the
 money is after every step with the [journey](journey.md), and let users
 execute in their own wallets with `executeIntent`.
+
+### Install without npm
+
+Until the `@kletia` packages are on the npm registry, two ways work without
+it:
+
+- **Release tarballs.** Every `packages-v<version>` release on
+  [GitHub](https://github.com/furkan3152/Kletia/releases) carries the
+  `npm pack` tarballs of core, sdk, widget, embed and cli, and a
+  `SHA256SUMS` file. Install core first, since the others depend on it:
+
+  ```bash
+  V=0.1.0
+  BASE=https://github.com/furkan3152/Kletia/releases/download/packages-v$V
+  npm install $BASE/kletia-core-$V.tgz $BASE/kletia-sdk-$V.tgz                 # the SDK
+  npm install $BASE/kletia-core-$V.tgz $BASE/kletia-sdk-$V.tgz $BASE/kletia-widget-$V.tgz   # the React widget
+  npm install --global $BASE/kletia-core-$V.tgz $BASE/kletia-sdk-$V.tgz $BASE/kletia-cli-$V.tgz   # the CLI
+  ```
+
+- **One ES module file from the site.** `https://kletiaai.xyz/sdk/kletia-sdk-<version>.js`
+  is the whole SDK (core included) as one file, served with
+  `Access-Control-Allow-Origin: *`; `https://kletiaai.xyz/sdk/manifest.json`
+  names the current version and its SHA-384 `integrity`. In a page, pin it
+  with an import map so the browser checks the hash:
+
+  ```html
+  <script type="importmap">
+    {
+      "imports": { "@kletia/sdk": "https://kletiaai.xyz/sdk/kletia-sdk-0.1.0.js" },
+      "integrity": { "https://kletiaai.xyz/sdk/kletia-sdk-0.1.0.js": "sha384-…from /sdk/manifest.json…" }
+    }
+  </script>
+  <script type="module">
+    import { KletiaClient } from "@kletia/sdk";
+    const kletia = new KletiaClient(); // the public tier: never a kl_dev_ key in a page
+  </script>
+  ```
+
+  In Node, download the file once, compare its hash with the manifest, and
+  import it by path:
+
+  ```bash
+  curl -fsSLO https://kletiaai.xyz/sdk/kletia-sdk-0.1.0.js
+  echo "sha384-$(openssl dgst -sha384 -binary kletia-sdk-0.1.0.js | openssl base64 -A)"   # must equal the manifest's integrity
+  ```
+
+  ```js
+  import { KletiaClient } from "./kletia-sdk-0.1.0.js";
+  ```
 
 ## Agent: MCP under a rule book
 

@@ -13,6 +13,7 @@ import { portalKeyKind, useSessionKey } from "../keys/sessionKey";
 import { KeyGate } from "../shell/KeyGate";
 import { PortalPageHeader } from "../shell/PortalPageHeader";
 import { holdWebhookSecret, useWebhookGrant, type ListedWebhook } from "./webhookData";
+import { WebhooksNotConfigured } from "./WebhooksNotConfigured";
 import {
   buildEvents,
   checkWebhookUrl,
@@ -21,6 +22,7 @@ import {
   toggleGroup,
   WEBHOOK_EVENT_GROUPS,
   webhookPermissions,
+  webhooksNotConfigured,
   type EventMode,
   type WebhookScope,
 } from "./webhookModel";
@@ -193,7 +195,15 @@ function NewWebhookForm() {
       <p className={cx("text-xs", TEXT_MUTED)}>
         The signing secret (whsec_…) is shown once, on the next page. At most 10 endpoints per key.
       </p>
-      <div aria-live="polite">{create.status === "error" && create.error ? <ApiErrorPanel error={create.error} title="The endpoint was not added" /> : null}</div>
+      <div aria-live="polite">
+        {create.status === "error" && create.error ? (
+          webhooksNotConfigured(create.error) ? (
+            <WebhooksNotConfigured />
+          ) : (
+            <ApiErrorPanel error={create.error} title="The endpoint was not added" />
+          )
+        ) : null}
+      </div>
     </form>
   );
 }

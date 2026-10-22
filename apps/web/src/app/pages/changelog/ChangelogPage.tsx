@@ -6,7 +6,7 @@ import changelogSource from "../../../../../../CHANGELOG.md?raw";
 import { PlatformNumber } from "../../site/art/Ornaments";
 import { GITHUB_URL } from "../../site/siteLinks";
 import { CONTAINER, cx, FOCUS_RING, TEXT_MUTED } from "../../site/ui/styles";
-import { parseChangelog, type ChangelogBlock, type ChangelogRelease, type Inline } from "./changelogModel";
+import { parseChangelog, releaseNavLabel, type ChangelogBlock, type ChangelogRelease, type Inline } from "./changelogModel";
 
 const CHANGELOG = parseChangelog(changelogSource);
 const SOURCE_URL = `${GITHUB_URL}/blob/main/CHANGELOG.md`;
@@ -78,6 +78,7 @@ function Release({ release }: { readonly release: ChangelogRelease }) {
         <a href={`#${release.id}`} className={cx("hover:underline", FOCUS_RING)}>
           {release.version}
         </a>
+        {release.round ? <span className={cx("font-code text-sm font-semibold tracking-normal", TEXT_MUTED)}>{release.round}</span> : null}
         {release.date ? (
           <time dateTime={release.date} className={cx("font-code text-sm font-semibold tracking-normal", TEXT_MUTED)}>
             {formatDay(release.date)}
@@ -129,7 +130,7 @@ export default function ChangelogPage() {
                     FOCUS_RING,
                   )}
                 >
-                  {release.version}
+                  {releaseNavLabel(release)}
                 </a>
               </li>
             ))}

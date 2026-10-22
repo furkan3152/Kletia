@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 
 // @ts-expect-error The emitter is a plain Node script without type declarations.
 import { embedDevFile } from "./scripts/emit-embed-script.mjs";
+import { walletConnectBuildWarning } from "./src/shared/platform/walletConnectProjectId.ts";
 
 const webRoot = dirname(fileURLToPath(import.meta.url));
 const ROUTE_TABLE = resolve(webRoot, "src/app/routes/routeTable.ts");
@@ -123,8 +124,23 @@ function embedScript(): Plugin {
   };
 }
 
+/**
+ * Warns when VITE_WALLETCONNECT_PROJECT_ID is set to something that cannot be
+ * a Reown project id (a template placeholder, a URL): the app hides
+ * WalletConnect then (providers.tsx), and the build log says why.
+ */
+function walletConnectCheck(): Plugin {
+  return {
+    name: "kletia-walletconnect-check",
+    configResolved(config) {
+      const warning = walletConnectBuildWarning(config.env.VITE_WALLETCONNECT_PROJECT_ID);
+      if (warning) config.logger.warn(`\n${warning}\n`);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), routeGraph(), embedScript()],
+  plugins: [react(), routeGraph(), embedScript(), walletConnectCheck()],
   resolve: {
     // Workspace packages (@kletia/widget) must share the app's React instance.
     dedupe: ["react", "react-dom"],

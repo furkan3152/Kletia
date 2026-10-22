@@ -20,6 +20,7 @@ import { useDeskActions } from "../shell/deskContext";
 import { getTool, TOOLS, type DeskTool, type ToolKind } from "./catalogue";
 import { ToolPanel } from "./ToolPanel";
 import { ToolSign } from "./ToolSign";
+import { filterTools, networkToolNote } from "./toolsFilter";
 
 const copy = DESK_COPY.tools;
 const KINDS: readonly ToolKind[] = ["panel", "form", "read-only", "prompt", "link"];
@@ -86,15 +87,8 @@ export function ToolsView({ toolId }: ToolsViewProps) {
   const [query, setQuery] = useState("");
   const open = toolId ? getTool(toolId) : null;
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return TOOLS.filter(
-      (tool) =>
-        (network === "all" || tool.networks.length === 0 || tool.networks.includes(network)) &&
-        (kind === "all" || tool.kind === kind) &&
-        (!needle || `${tool.title} ${tool.summary}`.toLowerCase().includes(needle)),
-    );
-  }, [kind, network, query]);
+  const visible = useMemo(() => filterTools(TOOLS, { network, kind, query }), [kind, network, query]);
+  const note = networkToolNote(visible, { network, kind, query });
 
   const openTool = (tool: DeskTool) => {
     // The Coinbase onramp needs a session token first: it opens as a panel that runs that flow.
@@ -149,8 +143,14 @@ export function ToolsView({ toolId }: ToolsViewProps) {
           </button>
         ))}
       </div>
+      {note && network !== "all" ? (
+        // Honest note: the network works from the composer even when no tool is built for it.
+        <p role="status" className="text-sm font-semibold">
+          {note === "general" ? copy.networkGeneralOnly(CHAINS[network].name) : copy.networkNone(CHAINS[network].name)}
+        </p>
+      ) : null}
       {visible.length === 0 ? (
-        <p className="text-sm font-semibold">{copy.noMatch}</p>
+        note ? null : <p className="text-sm font-semibold">{copy.noMatch}</p>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((tool) => (

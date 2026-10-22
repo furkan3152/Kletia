@@ -142,10 +142,14 @@ export const ERROR_CATALOG = {
   API_KEY_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "API key required", remedy: "Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>." },
   INVALID_API_KEY: { status: 401, category: "authentication", retryable: false, title: "Invalid or revoked API key", remedy: "Check the key, or issue a new one. Revoked and expired rotated keys stop working within 15 seconds." },
   INVALID_AUTHORIZATION: { status: 401, category: "authentication", retryable: false, title: "Malformed credentials", remedy: "Send Authorization: Bearer <key> or X-Kletia-Key: <key>, not both with different keys." },
+  ACCOUNT_SESSION_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "Account session required", remedy: "Sign in with your wallet in the developer portal (POST /v1/accounts/session) and send the token as Kletia-Account-Session from the same origin." },
+  ACCOUNT_NONCE_INVALID: { status: 401, category: "authentication", retryable: false, title: "Sign-in message invalid", remedy: "The sign-in message is unknown, used, expired or altered. Request a new one with POST /v1/accounts/nonce and sign it unchanged." },
+  ACCOUNT_SIGNATURE_INVALID: { status: 401, category: "authentication", retryable: false, title: "Sign-in signature invalid", remedy: "Sign the exact message with the wallet it names, then request a new message: each one works once." },
   KEY_SECRET_ROTATED: { status: 403, category: "permission", retryable: false, title: "Rotated key secret", remedy: "This secret still authenticates during its grace window but cannot manage keys. Use the current secret." },
   MCP_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for MCP", remedy: "Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin." },
   CONTRACT_DENIED: { status: 422, category: "permission", retryable: false, title: "Contract not allowed", remedy: "Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action." },
   SESSION_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for this session", remedy: "Embed the session only on one of its allowedOrigins, or create a session that lists this origin." },
+  ACCOUNT_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for developer accounts", remedy: "Developer accounts are used from the Kletia developer portal only. Manage keys from servers with a project key and /v1/keys." },
   POLICY_VIOLATION: { status: 403, category: "permission", retryable: false, title: "Refused by the rule book", remedy: "error.policy lists every violated rule id, the key whose rule book refused, the observed value and the limit. Change the request; splitting it or adding accounts does not help." },
   POLICY_SPEND_LIMIT: { status: 403, category: "permission", retryable: true, title: "Spend cap reached", remedy: "A rolling 24 h or 7 d USD cap of the key, an ancestor or the project is used up. Retry after Retry-After (error.policy.retryAt), or ask a project key to raise the cap." },
   POLICY_SCHEDULE_CLOSED: { status: 403, category: "permission", retryable: true, title: "Outside the rule book's timetable", remedy: "Payloads are prepared only inside the timetable's windows. Retry after Retry-After seconds, when the next window opens." },
@@ -162,6 +166,7 @@ export const ERROR_CATALOG = {
 
   /* ---------------------------------------------------------------- keys */
   KEY_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "API key not found", remedy: "List your project's keys with GET /v1/keys; only active keys of your own project can be managed." },
+  PROJECT_NOT_FOUND: { status: 404, category: "not_found", retryable: false, title: "Project not found", remedy: "List the signed-in wallet's projects with GET /v1/accounts/projects; claim a project with one of its project keys first." },
   KEY_NOT_MANAGEABLE: conflict("Operator keys are immutable", "Operator keys come from server configuration; change KLETIA_OPERATOR_API_KEYS instead."),
   KEY_LIMIT_REACHED: conflict("Too many active keys", "A project holds at most 5 active keys. Revoke one with DELETE /v1/keys/{id} first."),
   KEY_COLLISION: conflict("Key generation collided", "Send the request again.", true),
@@ -231,6 +236,8 @@ export const ERROR_CATALOG = {
   THREAD_CONFLICT: conflict("Thread changed", "Another turn changed this thread. Read it again and resend."),
   THREAD_CLOSED: conflict("Thread closed", "The task was cancelled or reached 50 turns. Start a new thread."),
   PROJECT_CONFLICT: conflict("Project settings changed", "The If-Match hash is not the current version. Read the project again and resend the change."),
+  PROJECT_ALREADY_OWNED: conflict("Project owned by another wallet", "A project has one owner wallet for good. Sign in with that wallet to manage it."),
+  PROJECT_LIMIT_REACHED: conflict("Too many projects", "A wallet owns at most 20 projects. Manage keys of an existing project instead."),
 
   /* ------------------------------------------------------------- expired */
   INTENT_EXPIRED: { status: 410, category: "expired", retryable: false, title: "Intent expired", remedy: "The plan expired before execution started. Create a new intent to re-quote." },
@@ -358,6 +365,7 @@ export const ERROR_CATALOG = {
     otherStatuses: [502],
     retryable: false,
   }),
+  PROVIDER_RATE_LIMITED: upstream("Provider rate limit", "A routing or data provider (for example Jupiter) is limiting requests right now and Kletia's short retries did not get through. Nothing is wrong with the request: wait for Retry-After seconds and send it again.", 503),
   PROVIDER_INVALID_JSON: upstream("Invalid provider response", "Retry shortly."),
   PROVIDER_RESPONSE_TOO_LARGE: upstream("Provider response too large", "Retry shortly."),
   PROVIDER_TRANSACTION_INVALID: upstream("Provider transaction refused", "The provider's transaction failed Kletia's safety checks and was not returned. Retry, or try another route.", 502, { retryable: false }),

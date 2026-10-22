@@ -23,6 +23,7 @@ import {
 } from "./format";
 import { edgeBuildDelay, graphBuildDuration, nodeBuildDelay, stepDepths } from "./graphDepth";
 import { StepNode } from "./StepNode";
+import type { StepDisplayPhase } from "./stepPhase";
 import { useGraphBuild } from "./useGraphBuild";
 
 export interface IntentGraphViewProps {
@@ -36,7 +37,12 @@ export interface IntentGraphViewProps {
    * doing). Turns on phase visuals in the nodes and packets on active edges.
    */
   readonly phases?: Readonly<Record<string, LocalStepPhase>>;
-  /** Dry-run preview entrance: the summary card drops in and the step and signature counts count up. */
+  /** The phase each node shows when the caller knows better than the step's API status (a stopped run). */
+  readonly phaseOf?: (step: IntentStep) => StepDisplayPhase;
+  /**
+   * Dry-run preview entrance: the summary card drops in and the step and signature counts count up
+   * at once (never waiting to scroll into view, which printed "Steps 0" on a card out of view, GAPS 3.11).
+   */
   readonly entrance?: boolean;
   readonly className?: string;
 }
@@ -68,7 +74,7 @@ function SummaryItem({ label, value }: { label: string; value: React.ReactNode }
  * the steps as nodes grouped into network lanes with dependency edges.
  * Read-only; pass `actions` to attach controls (e.g. wallet execution).
  */
-export function IntentGraphView({ intent, actions, stepFooter, phases, entrance = false, className }: IntentGraphViewProps) {
+export function IntentGraphView({ intent, actions, stepFooter, phases, phaseOf, entrance = false, className }: IntentGraphViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef(new Map<string, HTMLElement>());
   const [paths, setPaths] = useState<EdgePath[]>([]);
@@ -168,11 +174,11 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-[2px] bg-[#1A1A1A] dark:bg-[#4B5563] sm:grid-cols-3 [&>div]:bg-white dark:[&>div]:bg-[#131E32]">
-          <SummaryItem label="Steps" value={entrance ? <AnimatedNumber value={intent.steps.length} duration={600} /> : intent.steps.length} />
+          <SummaryItem label="Steps" value={entrance ? <AnimatedNumber value={intent.steps.length} duration={600} startOnView={false} /> : intent.steps.length} />
           <SummaryItem label="Networks" value={summary.networks.map(networkName).join(" → ") || "—"} />
           <SummaryItem
             label="Signatures"
-            value={entrance ? <AnimatedNumber value={summary.signaturesRequired} duration={600} /> : summary.signaturesRequired}
+            value={entrance ? <AnimatedNumber value={summary.signaturesRequired} duration={600} startOnView={false} /> : summary.signaturesRequired}
           />
           <SummaryItem label="Est. fees" value={fees ?? "—"} />
           <SummaryItem label="Est. time" value={eta ?? "—"} />
@@ -325,6 +331,7 @@ export function IntentGraphView({ intent, actions, stepFooter, phases, entrance 
                 step={step}
                 live={live}
                 {...(phases?.[step.id] ? { localPhase: phases[step.id] } : {})}
+                {...(phaseOf ? { phase: phaseOf(step) } : {})}
                 footer={stepFooter?.(step)}
                 ref={(element) => {
                   if (element) nodeRefs.current.set(step.id, element);

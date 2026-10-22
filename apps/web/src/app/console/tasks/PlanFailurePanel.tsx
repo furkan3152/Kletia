@@ -12,7 +12,7 @@ import { DESK_COPY } from "../content/copy";
 import { DESK_MORE_COPY } from "../shell/deskCopy";
 import type { DeskPlanFailure } from "../hooks/planPreview";
 import type { LegacyNetwork } from "../state/deskModel";
-import type { PlanFailureRoute } from "./taskModel";
+import type { PlanFailureRoute, WalletNamespace } from "./taskModel";
 import { UnsupportedTaskBody } from "./UnsupportedTaskBody";
 
 export interface PlanFailurePanelProps {
@@ -22,6 +22,9 @@ export interface PlanFailurePanelProps {
   readonly onRetry: () => void;
   readonly onAskEngine: (network: LegacyNetwork) => void;
   readonly onHint: (sentence: string) => void;
+  /** Wallets to connect when a plan made from holdings found no route and none is connected. */
+  readonly connect?: readonly WalletNamespace[];
+  readonly onConnect?: (namespace: WalletNamespace) => void;
 }
 
 function platformErrorOf(failure: DeskPlanFailure): PlatformError {
@@ -36,7 +39,7 @@ function platformErrorOf(failure: DeskPlanFailure): PlatformError {
   };
 }
 
-export function PlanFailurePanel({ failure, route, sourceChips, onRetry, onAskEngine, onHint }: PlanFailurePanelProps) {
+export function PlanFailurePanel({ failure, route, sourceChips, onRetry, onAskEngine, onHint, connect = [], onConnect }: PlanFailurePanelProps) {
   if (route.kind === "source") {
     return (
       <div className="flex flex-col gap-3">
@@ -49,6 +52,19 @@ export function PlanFailurePanel({ failure, route, sourceChips, onRetry, onAskEn
   }
   if (route.kind === "unsupported") {
     return <UnsupportedTaskBody message={failure.message} hints={failure.hints} route={route.route} onHint={onHint} onAskEngine={onAskEngine} />;
+  }
+  if (route.kind === "understood") {
+    return (
+      <UnsupportedTaskBody
+        message={failure.message}
+        hints={failure.hints}
+        route={null}
+        onHint={onHint}
+        onAskEngine={onAskEngine}
+        connect={connect}
+        {...(onConnect ? { onConnect } : {})}
+      />
+    );
   }
   const title =
     route.kind === "unreachable" ? DESK_COPY.source.unreachable : route.kind === "retry" ? DESK_COPY.errors.generic : DESK_MORE_COPY.failure.refusedTitle;

@@ -15,7 +15,7 @@ const COLUMNS: readonly { key: SortKey; label: string }[] = [
   { key: "totalSupplyUsd", label: "TVL" },
 ];
 
-/** Kamino lending rates (desk tool 07, read only); no wallet needed. */
+/** Kamino lending rates (desk tool 07, read only; Jupiter Lend rates appear in a deposit plan); no wallet needed. */
 export function SolanaYields() {
   const yields = useSolanaResource(solanaPaths.yields(), parseYields);
   const [sortKey, setSortKey] = React.useState<SortKey>("supplyApy");
@@ -27,10 +27,16 @@ export function SolanaYields() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <p className="max-w-2xl text-sm text-muted">
-          Live lending rates from Kamino's main market. Read only: rates move with utilization and are not guaranteed.
-          Reserves under $250k supplied are hidden.
-        </p>
+        <div className="flex max-w-2xl flex-col gap-1.5 text-sm text-muted">
+          <p>
+            Live lending rates from Kamino's main market. Read only: rates move with utilization and are not guaranteed.
+            Reserves under $250k supplied are hidden.
+          </p>
+          <p>
+            Jupiter Lend is not in this table yet: plan a deposit on Solana in the console and the plan shows the rate of the
+            venue it picks, Jupiter Lend or Kamino.
+          </p>
+        </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <button
             type="button"

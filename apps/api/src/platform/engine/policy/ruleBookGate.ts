@@ -64,7 +64,7 @@ import { policyError, type PolicyApprovalReference } from "./errors.js";
 import { publishPolicyEvent } from "./events.js";
 import { exclusiveKeyNonce } from "./execution.js";
 import { policyFactsDetailed, policyNeedsPricing, stepExposureUsdMicros } from "./facts.js";
-import type { ExposureHandle, PayloadClearanceInput, PlanGuard, PolicyGate, VerificationReconcileInput } from "./gate.js";
+import type { ExposureHandle, PayloadClearanceInput, PlanGuard, PolicyGate, QuoteLeg, VerificationReconcileInput } from "./gate.js";
 import type {
   ApproverRequirement,
   ExposureRecord,
@@ -389,6 +389,49 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
     const guard: PlanGuard = { ...base, request: narrowConstraints(documentsOf(snapshot.levels), input.request), governed: true };
     states.set(guard, { snapshot, own: ownWindows(snapshot, input as ExposureScopeHint) });
     return guard;
+  }
+
+  /**
+   * After the request is understood, before any provider is asked for a
+   * quote: the networks the plan would touch against `networks.allow` and
+   * `networks.lanes` of every rule book in the chain. A sandbox key (testnet
+   * lane) asking for a mainnet route is refused with POLICY_VIOLATION here,
+   * so no provider failure (a rate limit, a refusal) can mask the policy.
+   * afterPlan stays authoritative for everything else.
+   */
+  async function beforeQuote(guard: PlanGuard, legs: readonly QuoteLeg[]): Promise<void> {
+    if (!guard.governed || !guard.ownerKeyId) return;
+    const state = states.get(guard);
+    if (!state) return;
+    const { snapshot } = state;
+    // The same paths the evaluator reports after planning (one step per action until legs merge).
+    const entries = legs.flatMap((leg, index) => [
+      { network: leg.network, path: `steps[${index}].network` },
+      ...(leg.destinationNetwork !== leg.network ? [{ network: leg.destinationNetwork, path: `steps[${index}].destinationNetwork` }] : []),
+    ]).filter((entry) => CHAINS[entry.network] !== undefined);
+    const violations: PolicyViolation[] = [];
+    for (const level of snapshot.levels) {
+      const document = documentsOf([level])[0] ?? null;
+      const tag = { scope: level.scope, keyId: level.id };
+      const allow = document?.networks?.allow;
+      const lanes = document?.networks?.lanes as readonly string[] | undefined;
+      for (const { network, path } of entries) {
+        const chain = CHAINS[network];
+        if (allow && !allow.includes(network)) {
+          violations.push({ rule: "networks.allow", ...tag, path, message: `${chain.name} is not an allowed network.`, observed: network, limit: allow.join(", ") });
+        }
+        if (lanes && !lanes.includes(chain.lane)) {
+          violations.push({ rule: "networks.lanes", ...tag, path, message: `${chain.name} is on the ${chain.lane} lane; this key may use the ${lanes.join(", ")} lane only.`, observed: chain.lane, limit: lanes.join(", ") });
+        }
+      }
+    }
+    if (violations.length === 0) return;
+    const decision = await record(draftOf(snapshot, {
+      at: new Date(clock()).toISOString(), stage: "plan", outcome: "deny", actorKeyId: guard.actorKeyId ?? null, dryRun: guard.dryRun,
+      violations, triggers: [], warnings: [], requestDigest: requestDigest(guard.request),
+    }));
+    announceViolation(snapshot, decision, violations);
+    throw policyError("POLICY_VIOLATION", { decisionId: decision.id, stage: "plan", outcome: "deny", keyId: violations[0]?.keyId ?? guard.ownerKeyId, violations, retryAt: null });
   }
 
   async function afterPlan(guard: PlanGuard, graph: IntentGraph): Promise<{ stamp: IntentPolicyStamp | null; ttlMs?: number }> {
@@ -883,6 +926,7 @@ export function createRuleBookGate(options: RuleBookGateOptions): RuleBookGate {
 
   return {
     beforePlan,
+    beforeQuote,
     afterPlan,
     afterCreate,
     beforePayload: (input) => clear(input, 1),

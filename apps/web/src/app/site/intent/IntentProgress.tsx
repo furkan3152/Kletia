@@ -14,9 +14,9 @@ import { useChangeKey } from "../motion/useChangeKey";
 import { Badge } from "../ui/Badge";
 import { cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
 import { toast } from "../ui/toast";
-import { formatAmount, humanize, networkColor, networkName, STATUS_TONE } from "./format";
+import { formatAmount, humanize, networkColor, networkName } from "./format";
 import { nudgePen, useBoundedLoop } from "./phaseMotion";
-import { PHASE_PRESENTATION, stepDisplayPhase, type StepDisplayPhase } from "./stepPhase";
+import { PHASE_PRESENTATION, progressBadge, progressStepPhase, type FlowStatus, type StepDisplayPhase } from "./stepPhase";
 import { StepProgressBar } from "./StepProgressBar";
 
 export interface IntentProgressProps {
@@ -34,6 +34,14 @@ export interface IntentProgressProps {
    * of view (the polite announcement below still does the speaking).
    */
   readonly notifySettled?: boolean;
+  /**
+   * The run's status (the execution hook's). When the run stopped (failed,
+   * paused, cancelled) the badge says so and steps the wallet never signed
+   * read "Not signed", so the panel agrees with the task's header.
+   */
+  readonly flowStatus?: FlowStatus;
+  /** Steps whose signature request has no known outcome: shown as "Check your wallet", never as not signed. */
+  readonly signatureUnknownStepIds?: readonly string[];
   readonly className?: string;
 }
 
@@ -195,15 +203,20 @@ export function IntentProgress({
   walletFor,
   running = true,
   notifySettled = false,
+  flowStatus,
+  signatureUnknownStepIds = [],
   className,
 }: IntentProgressProps) {
   const steps = [...intent.steps].sort((a, b) => a.index - b.index);
+  const phaseOf = (step: IntentStep) =>
+    progressStepPhase(step, phases[step.id], { running, signatureUnknown: signatureUnknownStepIds.includes(step.id) });
+  const badge = progressBadge(intent, flowStatus ?? (running ? "executing" : "paused"));
   const active = steps.find((step) => step.id === activeStepId) ?? null;
-  const activePhase = active ? stepDisplayPhase(active, phases[active.id]) : null;
+  const activePhase = active ? phaseOf(active) : null;
   const wallet = active && walletFor ? walletFor(active) : null;
   const announcement = active && activePhase
     ? `Step ${active.index + 1}, ${active.title}: ${PHASE_PRESENTATION[activePhase].label}.`
-    : `Intent ${humanize(intent.status)}.`;
+    : `Intent ${badge.label.toLowerCase()}.`;
   const sectionRef = useRef<HTMLElement | null>(null);
   const { ref: pauseRef } = useAutoPause<HTMLElement>();
   const setSection = useCallback(
@@ -224,16 +237,16 @@ export function IntentProgress({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className={LABEL}>Progress</p>
         <div className="flex flex-wrap items-center gap-2">
-          {streaming ? (
+          {streaming && running ? (
             <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#047857] dark:text-[#4ADE80]">
               <Radio className="h-3.5 w-3.5" aria-hidden="true" />
               Live
             </span>
           ) : null}
-          <Badge tone={STATUS_TONE[intent.status] ?? "neutral"}>{humanize(intent.status)}</Badge>
+          <Badge tone={badge.tone}>{badge.label}</Badge>
         </div>
       </div>
-      <StepProgressBar intent={intent} phases={phases} running={running} />
+      <StepProgressBar intent={intent} phases={phases} running={running} phaseOf={phaseOf} />
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
@@ -247,7 +260,7 @@ export function IntentProgress({
           <ProgressRow
             key={step.id}
             step={step}
-            phase={stepDisplayPhase(step, phases[step.id])}
+            phase={phaseOf(step)}
             active={step.id === activeStepId}
             running={running}
           />

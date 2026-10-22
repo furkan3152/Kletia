@@ -110,6 +110,7 @@ import { policyHandlers } from "./policies/handlers.js";
 import { installPolicyGate, startPolicyBackground } from "./policies/install.js";
 import { parseUsageScope, subtreeUsage } from "./policies/usage.js";
 import { linkHandlers } from "./links/handlers.js";
+import { accountHandlers } from "./accounts/handlers.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
@@ -255,6 +256,20 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "delete", path: "/projects/current/logo", auth: "key" },
   { method: "get", path: "/projects/:projectId/logo/:file", auth: "public", publishable: true },
   { method: "get", path: "/publishable/profile", auth: "key", publishable: true },
+  // Developer accounts (accounts/): wallet sign-in, then the wallet's projects and their keys (Kletia-Account-Session).
+  { method: "post", path: "/accounts/nonce", auth: "public" },
+  { method: "post", path: "/accounts/session", auth: "public" },
+  { method: "get", path: "/accounts/session", auth: "public" },
+  { method: "delete", path: "/accounts/session", auth: "public" },
+  { method: "get", path: "/accounts/activity", auth: "public" },
+  { method: "get", path: "/accounts/projects", auth: "public" },
+  { method: "post", path: "/accounts/projects", auth: "public" },
+  // The presented project key (X-Kletia-Key) proves control of its project.
+  { method: "post", path: "/accounts/projects/claim", auth: "key" },
+  { method: "get", path: "/accounts/projects/:projectId/keys", auth: "public" },
+  { method: "post", path: "/accounts/projects/:projectId/keys", auth: "public" },
+  { method: "post", path: "/accounts/projects/:projectId/keys/:keyId/rotate", auth: "public" },
+  { method: "delete", path: "/accounts/projects/:projectId/keys/:keyId", auth: "public" },
   { method: "get", path: "/errors", auth: "public", publishable: true },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public", publishable: true },
@@ -866,6 +881,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...receiptHandlers(),
     ...policyHandlers(),
     ...linkHandlers(),
+    ...accountHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),

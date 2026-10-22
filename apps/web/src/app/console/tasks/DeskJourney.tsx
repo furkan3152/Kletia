@@ -4,9 +4,11 @@
  * where `IntentExecutionFlow` renders the journey itself.
  */
 import { JourneyPanel } from "../../site/intent/JourneyPanel";
+import { labelDemoJourney } from "./demoAccounts";
 import type { JourneySlotProps } from "./slots";
 
 export function DeskJourney({ journey, intent }: JourneySlotProps) {
   if (!journey || journey.intentId !== intent.id) return null;
-  return <JourneyPanel journey={journey} phase="review" />;
+  // Before a wallet is connected the plan uses demo accounts: they are labelled as such, never "Your wallet".
+  return <JourneyPanel journey={labelDemoJourney(journey)} phase="review" />;
 }

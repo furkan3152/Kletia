@@ -43,7 +43,10 @@ twice; see [api-v1.md](api-v1.md#idempotency).
 Provider failures carry the provider in the code: `RELAY_UNAVAILABLE`,
 `JUPITER_REJECTED`, `LI_FI_UNAVAILABLE`, … Any `<PROVIDER>_UNAVAILABLE` code
 means `PROVIDER_UNAVAILABLE` and any `<PROVIDER>_REJECTED` code means
-`PROVIDER_REJECTED`.
+`PROVIDER_REJECTED`. A provider that is rate-limiting Kletia (HTTP 429
+upstream) is retried briefly; if it still refuses, the answer is
+`PROVIDER_RATE_LIMITED` (503, retry: yes) with a `Retry-After` header,
+never a `<PROVIDER>_REJECTED` code.
 
 `ACTION_ENDPOINT_UNAVAILABLE` (an integrator's Solana Action server) and
 `SIMULATION_UNAVAILABLE` are catalog entries of their own, not provider
@@ -162,6 +165,9 @@ introduced.
 | <a id="error-API_KEY_REQUIRED"></a>`API_KEY_REQUIRED` | 401 | no | API key required | Issue a key with POST /v1/keys and send it as Authorization: Bearer <key>. |
 | <a id="error-INVALID_API_KEY"></a>`INVALID_API_KEY` | 401 | no | Invalid or revoked API key | Check the key, or issue a new one. Revoked and expired rotated keys stop working within 15 seconds. |
 | <a id="error-INVALID_AUTHORIZATION"></a>`INVALID_AUTHORIZATION` | 401 | no | Malformed credentials | Send Authorization: Bearer <key> or X-Kletia-Key: <key>, not both with different keys. |
+| <a id="error-ACCOUNT_SESSION_REQUIRED"></a>`ACCOUNT_SESSION_REQUIRED` | 401 | no | Account session required | Sign in with your wallet in the developer portal (POST /v1/accounts/session) and send the token as Kletia-Account-Session from the same origin. |
+| <a id="error-ACCOUNT_NONCE_INVALID"></a>`ACCOUNT_NONCE_INVALID` | 401 | no | Sign-in message invalid | The sign-in message is unknown, used, expired or altered. Request a new one with POST /v1/accounts/nonce and sign it unchanged. |
+| <a id="error-ACCOUNT_SIGNATURE_INVALID"></a>`ACCOUNT_SIGNATURE_INVALID` | 401 | no | Sign-in signature invalid | Sign the exact message with the wallet it names, then request a new message: each one works once. |
 
 ### Permission
 
@@ -184,6 +190,7 @@ introduced.
 | <a id="error-PUBLISHABLE_ORIGIN_FORBIDDEN"></a>`PUBLISHABLE_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this project | Call from a page origin listed in the project's allowedOrigins, or add the origin with PATCH /v1/projects/current. |
 | <a id="error-SECRET_KEY_FROM_BROWSER"></a>`SECRET_KEY_FROM_BROWSER` | 403 | no | Server key sent from a browser | This key is a server key. Call Kletia from your server, through createKletiaProxy, or use a publishable key in browsers. |
 | <a id="error-SESSION_ORIGIN_FORBIDDEN"></a>`SESSION_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this session | Embed the session only on one of its allowedOrigins, or create a session that lists this origin. |
+| <a id="error-ACCOUNT_ORIGIN_FORBIDDEN"></a>`ACCOUNT_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for developer accounts | Developer accounts are used from the Kletia developer portal only. Manage keys from servers with a project key and /v1/keys. |
 
 ### Not found
 
@@ -194,6 +201,7 @@ introduced.
 | <a id="error-FLOW_UNKNOWN"></a>`FLOW_UNKNOWN` | 404 | no | Flow not found | Use the id of a flow stored in the project's settings; GET /v1/publishable/profile lists them. |
 | <a id="error-INTENT_NOT_FOUND"></a>`INTENT_NOT_FOUND` | 404 | no | Intent not found | Check the intent id. Dry runs are never stored. |
 | <a id="error-KEY_NOT_FOUND"></a>`KEY_NOT_FOUND` | 404 | no | API key not found | List your project's keys with GET /v1/keys; only active keys of your own project can be managed. |
+| <a id="error-PROJECT_NOT_FOUND"></a>`PROJECT_NOT_FOUND` | 404 | no | Project not found | List the signed-in wallet's projects with GET /v1/accounts/projects; claim a project with one of its project keys first. |
 | <a id="error-LINK_NOT_FOUND"></a>`LINK_NOT_FOUND` | 404 | no | Link not found | Check the link id (lk_ + 24 hex). A key lists its own links with GET /v1/links. |
 | <a id="error-NOT_FOUND"></a>`NOT_FOUND` | 404 | no | Unknown route | Check the path against GET /v1/openapi.json. |
 | <a id="error-POLICY_NOT_FOUND"></a>`POLICY_NOT_FOUND` | 404 | no | Rule book not found | This key or project has no rule book (or no pending amendment to cancel). Create one with PUT /v1/keys/{id}/policy. |
@@ -245,6 +253,8 @@ introduced.
 | <a id="error-PREVIEW_CHANGED"></a>`PREVIEW_CHANGED` | 409 | no | Preview changed | The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest. |
 | <a id="error-PROGRAM_CHANGED"></a>`PROGRAM_CHANGED` | 409 | no | Program changed | An allowlisted program was redeployed or changed upgrade authority, so the registration is suspended until the integrator calls reverify. |
 | <a id="error-PROJECT_CONFLICT"></a>`PROJECT_CONFLICT` | 409 | no | Project settings changed | The If-Match hash is not the current version. Read the project again and resend the change. |
+| <a id="error-PROJECT_ALREADY_OWNED"></a>`PROJECT_ALREADY_OWNED` | 409 | no | Project owned by another wallet | A project has one owner wallet for good. Sign in with that wallet to manage it. |
+| <a id="error-PROJECT_LIMIT_REACHED"></a>`PROJECT_LIMIT_REACHED` | 409 | no | Too many projects | A wallet owns at most 20 projects. Manage keys of an existing project instead. |
 | <a id="error-QUESTION_NOT_OPEN"></a>`QUESTION_NOT_OPEN` | 409 | no | Question not open | Read the thread again and answer one of its open questions. |
 | <a id="error-QUOTE_MOVED"></a>`QUOTE_MOVED` | 409 | no | Price moved | The price moved beyond the slippage limit since planning. Create a new intent to re-quote. |
 | <a id="error-RECEIPT_ANCHOR_EXISTS"></a>`RECEIPT_ANCHOR_EXISTS` | 409 | no | Batch already anchored | This log batch already has an anchoring transaction on record. |
@@ -409,6 +419,7 @@ introduced.
 | <a id="error-LINK_DELIVERY_UNQUOTABLE"></a>`LINK_DELIVERY_UNQUOTABLE` | 502 | yes | Delivery could not be sized | No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network. |
 | <a id="error-PAYLOAD_INVALID"></a>`PAYLOAD_INVALID` | 502 | yes | Prepared payload refused | The prepared transactions failed Kletia's safety checks and were not returned. Retry shortly. |
 | <a id="error-PROVIDER_INVALID_JSON"></a>`PROVIDER_INVALID_JSON` | 502 | yes | Invalid provider response | Retry shortly. |
+| <a id="error-PROVIDER_RATE_LIMITED"></a>`PROVIDER_RATE_LIMITED` | 503 | yes | Provider rate limit | A routing or data provider (for example Jupiter) is limiting requests right now and Kletia's short retries did not get through. Nothing is wrong with the request: wait for Retry-After seconds and send it again. |
 | <a id="error-PROVIDER_REJECTED"></a>`PROVIDER_REJECTED` | 422 / 502 | no | Provider rejected the request | The provider refused this request (422) or failed (502). Also returned as <PROVIDER>_REJECTED, e.g. JUPITER_REJECTED. |
 | <a id="error-PROVIDER_RESPONSE_TOO_LARGE"></a>`PROVIDER_RESPONSE_TOO_LARGE` | 502 | yes | Provider response too large | Retry shortly. |
 | <a id="error-PROVIDER_TRANSACTION_INVALID"></a>`PROVIDER_TRANSACTION_INVALID` | 502 | no | Provider transaction refused | The provider's transaction failed Kletia's safety checks and was not returned. Retry, or try another route. |

@@ -5,10 +5,12 @@
  * stamp, and how an execution status maps onto the task. No React, no
  * storage: node --test loads it.
  */
-import { CHAINS, NETWORK_KEYS, isNetworkKey, type NetworkKey } from "@kletia/core";
+import { CHAINS, NETWORK_KEYS, getProtocol, isNetworkKey, type NetworkKey } from "@kletia/core";
 
+import { formatUtcMinutes } from "../../site/format/utcTime.ts";
+import { DESK_COPY } from "../content/copy.ts";
 import { routeSubmission, type Departure, type Lane, type SubmissionRoute } from "../state/deskModel.ts";
-import type { TaskStatus } from "../state/deskStore.ts";
+import type { SignatureState, TaskStatus } from "../state/deskStore.ts";
 import type { HoldingsSnapshot } from "../state/holdings.ts";
 
 export type WalletNamespace = "eip155" | "solana";
@@ -58,14 +60,54 @@ export function serialOf(id: string): string {
   return `${chars.slice(0, 4)}-${chars.slice(4)}`;
 }
 
-/** The stamp a ticket carries for a task state (art system stamps). */
-export function stampFor(status: TaskStatus): "planned" | "signed" | "settled" | "held" | "failed" {
+/**
+ * What is known about the wallet's signatures for a task's intent:
+ * "signed" once a wallet returned a reference (or the API moved a step past
+ * signing), "unknown" while a request was sent to the wallet and no outcome
+ * came back (it may still be open, or it may have been sent), "none" when
+ * nothing was ever signed. Only "signed" may be printed as signed.
+ */
+export type { SignatureState };
+
+interface SignedStepLike {
+  readonly id: string;
+  readonly status: string;
+  readonly references?: readonly string[] | null;
+}
+
+/** API step statuses that only exist after a wallet produced a reference. */
+const PAST_SIGNING = new Set(["submitted", "confirmed", "settling", "settled", "indeterminate"]);
+
+/**
+ * The signature state of an intent from the API's steps, the browser's
+ * local phases (`confirming`: the wallet returned a reference) and the steps
+ * whose signature request has no known outcome yet.
+ */
+export function signatureStateOf(
+  intent: { readonly steps: readonly SignedStepLike[] } | null,
+  phases: Readonly<Record<string, string>> = {},
+  unknownStepIds: readonly string[] = [],
+): SignatureState {
+  if (!intent) return "none";
+  const signed = intent.steps.some(
+    (step) => (step.references?.length ?? 0) > 0 || PAST_SIGNING.has(step.status) || phases[step.id] === "confirming",
+  );
+  if (signed) return "signed";
+  const pending = intent.steps.some((step) => phases[step.id] === "signing" || unknownStepIds.includes(step.id));
+  return pending ? "unknown" : "none";
+}
+
+type StampWord = "planned" | "signed" | "settled" | "held" | "failed";
+
+/** The stamp a ticket carries for a task state (art system stamps). Never "signed" without a signature. */
+export function stampFor(status: TaskStatus, signature: SignatureState = "unknown"): StampWord {
   switch (status) {
     case "executing":
-      return "signed";
+      return signature === "signed" ? "signed" : "planned";
     case "completed":
       return "settled";
     case "paused":
+      return signature === "none" ? "planned" : "held";
     case "question":
       return "held";
     case "failed":
@@ -77,6 +119,71 @@ export function stampFor(status: TaskStatus): "planned" | "signed" | "settled" |
   }
 }
 
+export interface TicketStamp {
+  readonly state: StampWord;
+  readonly detail?: string;
+  /** The visually hidden sentence printed next to the stamp. */
+  readonly sentence: string;
+}
+
+const STAMP_SENTENCE: Readonly<Record<StampWord, string>> = {
+  planned: "Planned. Nothing has been signed.",
+  signed: "Signed in the user's wallet. Waiting for on-chain evidence.",
+  settled: "Settled. Every leg was seen on-chain.",
+  held: "Held. The outcome is unknown and will be recovered by transaction hash.",
+  failed: "Failed. The route stopped before every leg settled.",
+};
+
+/**
+ * The stamp of a task's ticket, or null when there is no outcome to stamp:
+ * an open question, a sentence Kletia cannot plan yet (a neutral note, not a
+ * failure) and a network engine task (the engine shows its own state).
+ * A task whose intent was never signed never reads "signed" or "held".
+ */
+export function ticketStampOf(task: {
+  readonly status: TaskStatus;
+  readonly intentId: string | null;
+  readonly signature?: SignatureState;
+  readonly engine?: { readonly kind: string };
+}): TicketStamp | null {
+  if (task.engine?.kind === "rates") return null;
+  if (task.status === "question" || task.status === "unsupported" || task.status === "engine") return null;
+  const signature = task.signature ?? "unknown";
+  const state = stampFor(task.status, signature);
+  if (task.status === "executing" && state === "planned") {
+    return { state, detail: "NOT SIGNED YET", sentence: "Waiting for your approval. Nothing has been signed." };
+  }
+  if (task.status === "paused" && state === "planned") {
+    return { state, detail: "NOT SIGNED YET", sentence: "Paused. Nothing has been signed." };
+  }
+  if (task.status === "cancelled" && signature === "none") return { state, detail: "CANCELLED", sentence: "Cancelled. Nothing was signed." };
+  if (state === "failed" && task.intentId === null) return { state, detail: "NOT PLANNED", sentence: "Not planned. Nothing was signed." };
+  if (state === "failed" && signature === "none") return { state, detail: "NOTHING SIGNED", sentence: "Stopped. Nothing was signed." };
+  return { state, sentence: STAMP_SENTENCE[state] };
+}
+
+/** What the ticket says (visually hidden) when it carries no stamp. */
+export function unstampedSentence(status: TaskStatus, engine?: { readonly kind: string }): string {
+  if (engine?.kind === "rates") return "Read only. Nothing was planned and nothing can be signed.";
+  if (status === "unsupported") return "Kletia can't do that yet. Nothing was planned or signed.";
+  if (status === "engine") return "Handed to a network engine. Nothing has been signed.";
+  return "Waiting for your answer. Nothing has been signed.";
+}
+
+/** The status word of a task row and ticket stub: "Signing" only while a signature exists or a wallet is asking. */
+export function taskStatusLabel(task: {
+  readonly status: TaskStatus;
+  readonly signature?: SignatureState;
+  readonly engine?: { readonly kind: string };
+}): string {
+  if (task.engine?.kind === "rates") {
+    return task.status === "planning" ? DESK_COPY.rates.reading : task.status === "failed" ? DESK_COPY.tasks.status.failed : DESK_COPY.rates.readOnly;
+  }
+  if (task.status === "executing" && task.signature === "none") return DESK_COPY.tasks.awaitingApproval;
+  if (task.status === "executing" && task.signature === "unknown") return DESK_COPY.tasks.inWallet;
+  return DESK_COPY.tasks.status[task.status];
+}
+
 /** Execution statuses of `useIntentExecution`, mirrored without importing it (it needs React). */
 export type ExecutionStatus = "idle" | "planning" | "review" | "executing" | "paused" | "completed" | "failed" | "cancelled";
 
@@ -86,6 +193,13 @@ export function taskStatusOf(status: ExecutionStatus): TaskStatus | null {
 }
 
 // --- Plan failures ------------------------------------------------------------
+
+/**
+ * Issue messages of an INTENT_UNSUPPORTED the planner gives for a sentence it
+ * understood: no route with the holdings it read, holdings it could not
+ * read, an ambiguous reference, too many steps.
+ */
+const UNDERSTOOD_ISSUE = /^(?:No route|Holdings unavailable|Ambiguous reference|Too many steps)\.$/u;
 
 /** What the grammar says when a bridge has no source (older APIs answer INTENT_UNSUPPORTED with it). */
 const MISSING_SOURCE_ISSUE = /say where the funds come from/iu;
@@ -108,6 +222,13 @@ export type PlanFailureRoute =
   | { readonly kind: "needs-wallet" }
   /** INTENT_UNSUPPORTED: a network engine, the engine offer, or the "not supported" panel. */
   | { readonly kind: "unsupported"; readonly route: SubmissionRoute }
+  /**
+   * INTENT_UNSUPPORTED for a sentence the planner understood (a goal with no
+   * route from the holdings it could read, holdings it could not read, an
+   * ambiguous "it"): a network engine would not do better, so the task
+   * explains, and asks for a wallet when none is connected.
+   */
+  | { readonly kind: "understood" }
   /** The API could not answer (offline, rate limit, 5xx): retry the same plan. */
   | { readonly kind: "retry" }
   /** Any other refusal: a safety or input check, shown as is and never retried elsewhere. */
@@ -115,9 +236,10 @@ export type PlanFailureRoute =
 
 /**
  * Where a failed plan goes (console design 3.6). Platform first; a network
- * engine only on INTENT_UNSUPPORTED for a sentence that names Base, Arbitrum
- * One or Arc (or with one of them as the departure). A missing source is a
- * question, never a refusal.
+ * engine only on INTENT_UNSUPPORTED for a sentence the planner cannot express
+ * that names Base, Arbitrum One or Arc (or with one of them as the
+ * departure). A sentence it understood but could not route never goes to an
+ * engine. A missing source is a question, never a refusal.
  */
 export function routePlanFailure(
   failure: PlanFailureLike,
@@ -127,6 +249,9 @@ export function routePlanFailure(
   if (failure.code === "SOURCE_UNREACHABLE") return { kind: "unreachable" };
   if (failure.code === "INTENT_UNSUPPORTED" && (failure.issues ?? []).some((issue) => MISSING_SOURCE_ISSUE.test(issue.message))) {
     return { kind: "source" };
+  }
+  if (failure.code === "INTENT_UNSUPPORTED" && (failure.issues ?? []).some((issue) => UNDERSTOOD_ISSUE.test(issue.message))) {
+    return { kind: "understood" };
   }
   if (failure.code === "INTENT_UNSUPPORTED") {
     return { kind: "unsupported", route: routeSubmission({ text, departure, platformError: failure.code }) };
@@ -215,10 +340,40 @@ export function fundSentence(from: NetworkKey, to: NetworkKey): string {
   return `bridge 25 USDC from ${word(from)} to ${word(to)}`;
 }
 
-/** Time of day for task rows and holdings ("12:44"), in the visitor's locale (24 h). */
+/** Time of day for task rows and holdings ("12:44 UTC"): every clock on the desk is UTC, 24 h. */
 export function clockOf(at: number | string | null | undefined): string {
   const time = typeof at === "string" ? Date.parse(at) : at;
   if (typeof time !== "number" || !Number.isFinite(time)) return "";
-  const date = new Date(time);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return formatUtcMinutes(time) ?? "";
+}
+
+// --- Review and sign ----------------------------------------------------------
+
+interface VenueStepLike {
+  readonly index: number;
+  readonly protocol: string;
+}
+
+/** Protocol names of a plan, step by step ("Uniswap V3", "Aerodrome"). */
+function venuesOf(intent: { readonly steps: readonly VenueStepLike[] }): string[] {
+  return [...intent.steps].sort((a, b) => a.index - b.index).map((step) => getProtocol(step.protocol)?.name ?? step.protocol);
+}
+
+/**
+ * The note shown when "Review and sign" planned the task again on another
+ * venue than the preview showed (the stored plan is quoted afresh): what
+ * changed, and that the ticket number changed with it. Null when the venues
+ * are the same.
+ */
+export function venueChangeNote(
+  before: { readonly steps: readonly VenueStepLike[] } | null,
+  after: { readonly steps: readonly VenueStepLike[] },
+): string | null {
+  if (!before) return null;
+  const was = venuesOf(before);
+  const now = venuesOf(after);
+  if (was.length === now.length && was.every((name, index) => name === now[index])) return null;
+  const changed = now.filter((name, index) => name !== was[index]);
+  const previous = was.filter((name, index) => name !== now[index]);
+  return DESK_COPY.tasks.venueChanged(changed.join(", ") || now.join(", "), previous.join(", ") || was.join(", "));
 }

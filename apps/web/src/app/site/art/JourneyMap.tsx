@@ -111,6 +111,7 @@ function Station({ stop, leavesBy, headingLevel, column }: { readonly stop: Jour
             {holding.basis ? <p className="kla-jm__role">{holding.basis}</p> : null}
           </div>
         ))}
+        {stop.total ? <p className="kla-jm__amt">Total {stop.total}</p> : null}
         <p className="kla-jm__stamps">
           <span className="kla-jm__stamp" data-custody={stop.custody}>
             {custodyStamp(stop.custody, stop.custody === "venue" ? stop.holderLabel : null)}

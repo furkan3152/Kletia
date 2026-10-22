@@ -190,7 +190,7 @@ test("the ticket prints the departure the plan actually uses, for every chosen v
   assert.equal(departureLine({ requested: "base", intent: { steps: [swap], interpretation: { departure: { network: "solana", chosen: "request" } } } }).text, "Departs Solana, as you chose");
   assert.equal(departureLine({ requested: "base", intent: plan({ network: "base", chosen: "request", bridged: true }) }).text, "Departs Base, as you chose · Kletia adds a bridge to Solana first");
   assert.deepEqual(departureLine({ requested: "arbitrum", intent: plan({ network: "base", chosen: "text" }) }), {
-    text: "Departs Base · your sentence names it (the departure said Arbitrum)",
+    text: 'Departs Base · your sentence names it, so the departure Arbitrum was not used. To start from Arbitrum, add "from Arbitrum" to the sentence.',
     tone: "notice",
     action: null,
   });

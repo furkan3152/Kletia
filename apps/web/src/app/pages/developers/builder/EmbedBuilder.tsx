@@ -226,7 +226,8 @@ export function EmbedBuilder() {
               hint={
                 <>
                   Browser-safe keys of your project, from <Link to="/developers/project" className="underline">Project settings</Link>. The preview
-                  frames this site, so it runs only when the project allows this origin.
+                  runs on <span className="font-code">{webOrigin}</span>: add that origin to the project&apos;s allowed origins to preview with the
+                  key, next to your own site&apos;s origin.
                 </>
               }
               onChange={(event) => set("publishableKey", event.target.value)}
@@ -372,7 +373,7 @@ export function EmbedBuilder() {
               </div>
             </div>
           </div>
-          <BuilderPreview options={preview} width={width} pageColor={pageColor} height={state.height} />
+          <BuilderPreview options={preview} width={width} pageColor={pageColor} height={state.height} webOrigin={webOrigin} />
           <p className={cx("text-xs", TEXT_MUTED)}>The preview is this site&apos;s own /embed, framed the way your page will frame it. Nothing is signed here.</p>
         </section>
 

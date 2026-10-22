@@ -1,6 +1,12 @@
+import { clientRetryAfterSeconds, fetchWithRateLimitRetry, PROVIDER_RATE_LIMITED } from "../../shared/http/providerRetry.js";
 import { SOLANA_HTTP_TIMEOUT_MS } from "./config.js";
 
 export class SolanaProviderError extends Error {
+  /** Provider name, set on PROVIDER_RATE_LIMITED (safe to show). */
+  provider?: string;
+  /** Seconds after which a retry may succeed (PROVIDER_RATE_LIMITED). */
+  retryAfterSeconds?: number;
+
   constructor(
     message: string,
     readonly code: string,
@@ -8,6 +14,18 @@ export class SolanaProviderError extends Error {
   ) {
     super(message);
     this.name = "SolanaProviderError";
+  }
+}
+
+/**
+ * A provider still answering 429 after the bounded retries: retryable, with
+ * a Retry-After. toPlatformError turns it into PROVIDER_RATE_LIMITED (503).
+ */
+export class SolanaProviderRateLimit extends SolanaProviderError {
+  constructor(provider: string, retryAfterSeconds: number) {
+    super(`${provider} is rate-limiting requests. Try again in ${retryAfterSeconds} s.`, PROVIDER_RATE_LIMITED, 503);
+    this.provider = provider;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -54,16 +72,21 @@ export async function fetchProviderJson<T = unknown>(
   const { provider, maxBytes = 2_000_000, ...requestInit } = init;
   let response: Response;
   try {
-    response = await fetch(url, {
+    // A 429 is retried briefly (bounded) before it is reported as PROVIDER_RATE_LIMITED.
+    response = await fetchWithRateLimitRetry(() => fetch(url, {
       ...requestInit,
       headers: { accept: "application/json", ...(requestInit.headers ?? {}) },
       signal: AbortSignal.timeout(SOLANA_HTTP_TIMEOUT_MS),
-    });
+    }));
   } catch (error) {
     throw new SolanaProviderError(
       `${provider} is unreachable: ${(error as Error).name === "TimeoutError" ? "timeout" : "network error"}.`,
       providerCode(provider, "UNAVAILABLE"),
     );
+  }
+  if (response.status === 429) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new SolanaProviderRateLimit(provider, clientRetryAfterSeconds(response));
   }
   const text = await readBounded(response, provider, maxBytes);
   let body: unknown;

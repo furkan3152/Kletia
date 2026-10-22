@@ -283,3 +283,13 @@ test("round-6 codes (protocols, departure, journey, clarify, integrator, project
   assert.match(ERROR_CATALOG.SETTLEMENT_MISMATCH.remedy, /observedCredit/u);
   assert.equal(ERROR_CATALOG.SETTLEMENT_MISMATCH.step, true);
 });
+
+test("an upstream rate limit is retryable with its own docs anchor, never a provider rejection", () => {
+  const entry = describeError("PROVIDER_RATE_LIMITED");
+  assert.equal(entry?.code, "PROVIDER_RATE_LIMITED");
+  assert.equal(entry?.status, 503);
+  assert.equal(entry?.category, "upstream");
+  assert.equal(entry?.retryable, true);
+  assert.equal(isRetryableError("PROVIDER_RATE_LIMITED", 503), true);
+  assert.equal(errorDocsUrl("PROVIDER_RATE_LIMITED", "https://kletiaai.xyz"), "https://kletiaai.xyz/developers#error-PROVIDER_RATE_LIMITED");
+});

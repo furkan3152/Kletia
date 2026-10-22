@@ -18,7 +18,7 @@ import {
   STATUS_TONE,
 } from "./format";
 import { nudgePen, pulseText, useBoundedLoop } from "./phaseMotion";
-import { PHASE_PRESENTATION, stepDisplayPhase } from "./stepPhase";
+import { PHASE_PRESENTATION, stepDisplayPhase, type StepDisplayPhase } from "./stepPhase";
 
 const MODE_LABEL: Record<IntentStep["mode"], { label: string; icon: React.ReactNode }> = {
   wallet: { label: "Wallet signs", icon: <PenLine className="h-3.5 w-3.5" aria-hidden="true" /> },
@@ -64,11 +64,13 @@ export interface StepNodeProps {
   readonly live?: boolean;
   /** What the browser is doing for this step right now (execution only). */
   readonly localPhase?: LocalStepPhase;
+  /** The display phase, when the caller derived it (a stopped run); default: from the step and `localPhase`. */
+  readonly phase?: StepDisplayPhase;
 }
 
 /** One intent step: network, protocol, amounts, fees, timing and warnings. */
 export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function StepNode(
-  { step, footer, className, style, live = false, localPhase },
+  { step, footer, className, style, live = false, localPhase, phase: shownPhase },
   ref,
 ) {
   const color = networkColor(step.network);
@@ -77,7 +79,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
   const eta = formatSeconds(step.estimatedSeconds ?? step.settlement?.expectedSeconds);
   const crossNetwork = step.settlement?.kind === "cross-network";
 
-  const phase = stepDisplayPhase(step, localPhase);
+  const phase = shownPhase ?? stepDisplayPhase(step, localPhase);
   // One-shot effects play only for changes this view observed, never for a
   // step that mounted already settled or failed (resume, reload).
   const phaseKey = useChangeKey(phase);
@@ -190,7 +192,7 @@ export const StepNode = React.forwardRef<HTMLElement, StepNodeProps>(function St
           ) : null}
         </p>
         <dl className="text-[#1A1A1A] dark:text-[#E2E8F0]">
-          {step.input ? <Row label="Input" value={formatAmount(step.input)} strong /> : null}
+          {step.input ? <Row label="Input" value={formatAmount(step.input, "up")} strong /> : null}
           {step.expectedOutput ? <Row label="Expected" value={formatAmount(step.expectedOutput)} strong /> : null}
           {step.minimumOutput ? <Row label="Minimum" value={formatAmount(step.minimumOutput)} /> : null}
           {fees ? <Row label="Fees" value={fees} /> : null}

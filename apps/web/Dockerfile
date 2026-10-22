@@ -35,13 +35,13 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN --mount=type=secret,id=npm_ca,required=false \
   NODE_EXTRA_CA_CERTS=/run/secrets/npm_ca npm ci --include=dev --ignore-scripts \
-  --workspace @kletia/core --workspace @kletia/sdk --workspace @kletia/widget --workspace @kletia/web
+  --workspace @kletia/core --workspace @kletia/sdk --workspace @kletia/widget --workspace @kletia/embed --workspace @kletia/web
 
 COPY packages packages
 COPY apps/web apps/web
-# Only the packages the web app imports; @kletia/embed and @kletia/cli are not installed here.
+# Only the packages the web app imports (the Embed Builder imports @kletia/embed); @kletia/cli is not installed here.
 RUN npm run build -w @kletia/core && npm run build -w @kletia/sdk && npm run build -w @kletia/widget \
-  && npm run build -w @kletia/web
+  && npm run build -w @kletia/embed && npm run build -w @kletia/web
 
 FROM node:22.23.1-alpine3.24 AS runtime
 

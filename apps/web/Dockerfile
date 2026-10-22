@@ -37,6 +37,7 @@ RUN --mount=type=secret,id=npm_ca,required=false \
   NODE_EXTRA_CA_CERTS=/run/secrets/npm_ca npm ci --include=dev --ignore-scripts \
   --workspace @kletia/core --workspace @kletia/sdk --workspace @kletia/widget --workspace @kletia/embed --workspace @kletia/web
 
+COPY CHANGELOG.md ./
 COPY packages packages
 COPY apps/web apps/web
 # Only the packages the web app imports (the Embed Builder imports @kletia/embed); @kletia/cli is not installed here.

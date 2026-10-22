@@ -56,32 +56,23 @@ const requiredFiles = [
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
   "render.yaml",
-  "attachments/GASOK_Team_Archial.md",
   "attachments/Kletia_Arc_Submission.pdf",
   "attachments/Kletia_Programmable_Money_Submission.pdf",
-  "attachments/genctek.jpg",
   "attachments/one_pager.html",
-  "attachments/pitch.html",
   "attachments/pitch_deck.html",
 ];
 
 const attachmentHashes = {
   "apps/web/public/kletia-logo.png":
     "92f2fb8f246c003d9af59a8d56beae66ae2791499a8b3f0427089bf46887b2fd",
-  "attachments/GASOK_Team_Archial.md":
-    "bd2764f97861dc91e82ef89eacf19cd0bdd93813f76b8bf0813f97afc3941ea5",
   "attachments/Kletia_Arc_Submission.pdf":
     "df6e24a60d775856f42bf6c7f5994203f6106d604d25dc37fa1deef27398cd34",
   "attachments/Kletia_Programmable_Money_Submission.pdf":
     "8a0c168c3d70ffef712ca3bd7ed34b826466cf65d2b8c91587a7d635e9d9ea4f",
-  "attachments/genctek.jpg":
-    "f14abe63deb26436b136a1c4bd236356f5e2a5b7b5a2a19f646cd07af9aacab9",
   "attachments/one_pager.html":
     "7eb6edcc6e96a393bdfa600c64726d98360b8996fd719dd92f24ecb3143f2325",
-  "attachments/pitch.html":
-    "dae4a6d7b77448d69a5a18ae4bb992d368f06dccef7aeaef013c215897058ae5",
   "attachments/pitch_deck.html":
-    "d31379d26865ea464eb3ec9654ed5939ff6560013f641fb797e78f4ab7d1e934",
+    "e5dc1712dee95bba501ce28ee43f5d9951706eddd070e253f5736b4538c589f2",
 };
 
 for (const file of requiredFiles) {

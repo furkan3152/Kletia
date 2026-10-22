@@ -7,7 +7,9 @@ import {
   Database,
   Fingerprint,
   RefreshCw,
+  RotateCcw,
   Search,
+  TriangleAlert,
   Wallet,
 } from "lucide-react";
 import {
@@ -19,6 +21,7 @@ import {
   type Address,
 } from "viem";
 import { NETWORKS } from "../../../shared/config/networks";
+import { INVALID_ADDRESS_FAILURE, scanFailure, type ScanFailure } from "./airdropScan";
 
 const publicClient = createPublicClient({
   chain: NETWORKS.base.chain,
@@ -78,20 +81,6 @@ interface AirdropResult {
 
 function isProviderRecord(value: unknown): value is ProviderRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function safeProviderErrorMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof Error)) return fallback;
-  const sanitized = error.message
-    .replace(/https?:\/\/[^\s"'<>]+/giu, "[redacted-url]")
-    .replace(
-      /\b(?:authorization|signature|api[-_ ]?key)\b\s*[:=]\s*[^\s,;]+/giu,
-      "[redacted-credential]",
-    )
-    .replace(/\b0x[a-f\d]{96,}\b/giu, "[redacted-payload]")
-    .replace(/\b[A-Za-z\d+/_-]{80,}={0,2}\b/gu, "[redacted-payload]")
-    .trim();
-  return sanitized || fallback;
 }
 
 function asFiniteProviderNumber(value: unknown): number | null {
@@ -377,6 +366,7 @@ export const AirdropSimulator: React.FC = () => {
   const [inputAddress, setInputAddress] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<AirdropResult | null>(null);
+  const [failure, setFailure] = useState<ScanFailure | null>(null);
   const scanRevision = useRef(0);
 
   const normalizedInputAddress = normalizeInputAddress(inputAddress);
@@ -391,13 +381,14 @@ export const AirdropSimulator: React.FC = () => {
     scanRevision.current += 1;
     setInputAddress(value);
     setResult(null);
+    setFailure(null);
     setIsScanning(false);
   };
 
   const handleScan = async () => {
     const address = normalizeInputAddress(inputAddress);
     if (!address) {
-      alert("Please enter a valid EVM wallet address.");
+      setFailure(INVALID_ADDRESS_FAILURE);
       return;
     }
 
@@ -406,6 +397,7 @@ export const AirdropSimulator: React.FC = () => {
     setInputAddress(address);
     setIsScanning(true);
     setResult(null);
+    setFailure(null);
 
     try {
       let nomisScore: number | null = null;
@@ -755,11 +747,7 @@ export const AirdropSimulator: React.FC = () => {
     } catch (error) {
       console.error("Live Base analysis failed.");
       if (scanRevision.current === revision) {
-        const message = safeProviderErrorMessage(
-          error,
-          "An unknown live provider error occurred.",
-        );
-        alert(`Live Base analysis could not be completed: ${message}`);
+        setFailure(scanFailure(error));
       }
     } finally {
       if (scanRevision.current === revision) {
@@ -796,7 +784,7 @@ export const AirdropSimulator: React.FC = () => {
             />
           </div>
           <button
-            onClick={handleScan}
+            onClick={() => void handleScan()}
             disabled={isScanning || !normalizedInputAddress}
             className="shrink-0 bg-[#0052FF] hover:bg-blue-700 disabled:bg-gray-400 text-white font-black px-8 py-4 border-[4px] border-[#1A1A1A] dark:border-[#4B5563] shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569] active:translate-y-1 active:shadow-none transition-all flex items-center gap-2 justify-center uppercase"
           >
@@ -804,6 +792,30 @@ export const AirdropSimulator: React.FC = () => {
             {isScanning ? "Reading Live APIs..." : "Analyze Live Activity"}
           </button>
         </div>
+
+        {failure && !isScanning ? (
+          <div
+            role="alert"
+            className="flex flex-col items-start gap-3 border-[3px] border-[#1A1A1A] bg-[#FEF3C7] p-5 text-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] dark:border-[#4B5563] dark:bg-[#422006] dark:text-amber-100 dark:shadow-[4px_4px_0_#475569]"
+          >
+            <p className="flex items-center gap-2 font-black uppercase">
+              <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+              {failure.title}
+            </p>
+            <p className="text-sm font-bold break-words">{failure.detail}</p>
+            <p className="text-sm">{failure.hint}</p>
+            {failure.retryable && normalizedInputAddress ? (
+              <button
+                type="button"
+                onClick={() => void handleScan()}
+                className="inline-flex min-h-11 items-center gap-2 border-[3px] border-[#1A1A1A] bg-white px-4 py-2 text-xs font-black uppercase text-[#1A1A1A] shadow-[3px_3px_0_#1A1A1A] active:translate-y-0.5 active:shadow-none dark:border-[#4B5563]"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {visibleResult && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">

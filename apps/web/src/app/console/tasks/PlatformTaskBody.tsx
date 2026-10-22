@@ -46,7 +46,9 @@ import { sameOwner } from "../../../shared/platform/intentBinding";
 import { useIntentExecution, type IntentExecutionError } from "../../../shared/platform/useIntentExecution";
 import { shortenAddress } from "../../../shared/wallet/types";
 import { IntentExecutionFlow } from "../../site/intent/IntentExecutionFlow";
+import { displayDecimal } from "../../site/intent/format";
 import { IntentGraphView } from "../../site/intent/IntentGraphView";
+import { runPhaseOf } from "../../site/intent/stepPhase";
 import { Button, ButtonLink } from "../../site/ui/Button";
 import { DESK_COPY } from "../content/copy";
 import { failureFromBody, type DeskPlanFailure } from "../hooks/planPreview";
@@ -71,7 +73,7 @@ import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnCo
 import type { DeskQuestion } from "./slots";
 import { SourceChips } from "./SourceChips";
 import { TaskTicket } from "./TaskTicket";
-import { missingWallets, routePlanFailure, taskStatusOf } from "./taskModel";
+import { missingWallets, routePlanFailure, signatureStateOf, taskStatusOf, venueChangeNote } from "./taskModel";
 
 const copy = DESK_COPY.tasks;
 
@@ -141,6 +143,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   });
   const [options, setOptions] = useState<PlanOptions>({ departure: task.departure, defaultOnly: null });
   const [dry, setDry] = useState<DryPlan | null>(null);
+  const [venueNote, setVenueNote] = useState<string | null>(null);
   const [failure, setFailure] = useState<DeskPlanFailure | null>(null);
   const [turnError, setTurnError] = useState<DeskPlanFailure | null>(null);
   const [turning, setTurning] = useState(false);
@@ -156,12 +159,16 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   /** The open question a typed answer (composer Answering chip) is for. */
   const questionRef = useRef<DeskQuestion | null>(null);
   const handledTurnsRef = useRef(task.turns.length);
+  /** The last first turn ran with demo accounts only (no wallet connected). */
+  const plannedWithoutWallet = useRef(false);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const optionsRef = useRef(options);
   const executionRef = useRef(execution);
+  const dryRef = useRef(dry);
   useEffect(() => {
     optionsRef.current = options;
     executionRef.current = execution;
+    dryRef.current = dry;
   });
 
   const patch = useCallback((next: TaskPatch) => getDeskStore().getState().patchTask(task.id, next), [task.id]);
@@ -236,10 +243,8 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           patch({ status: "failed", question: null, thread: threadRef.current, turn });
           return;
         }
+        // One answer field: the card's own (the composer is not armed as a second one; 1-9 still chooses from it).
         patch({ status: "question", question, thread: threadRef.current, turn });
-        // Typing answers it (the composer's Answering chip) when the question takes text and this task is in focus.
-        const store = getDeskStore().getState();
-        if (question.allowsText && (store.focusedTaskId === task.id || store.focusedTaskId === null) && store.editing === null) store.answer(task.id);
         return;
       }
       if (response.status === "cancelled") {
@@ -255,6 +260,10 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       if (mode === "commit") {
         const adopted = executionRef.current.adopt(intent, preview, journey);
         if (adopted) {
+          // The stored plan is quoted afresh: say so when it moved to another venue (never silently).
+          const note = venueChangeNote(dryRef.current?.intent ?? null, intent);
+          setVenueNote(note);
+          if (note) patch({ turn: { kind: "note", at: Date.now(), text: note } });
           setDry(null);
           patch({ question: null, intentId: intent.id, title: intent.summary.title, ends: journeyEnds(intent), thread: threadRef.current });
         }
@@ -263,7 +272,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       setDry({ intent, preview, journey, assumptions: response.assumptions ?? [] });
       patch({ status: "preview", question: null, title: intent.summary.title, ends: journeyEnds(intent), thread: threadRef.current, turn });
     },
-    [patch, task.id],
+    [patch],
   );
 
   /** Routes a failed first turn. */
@@ -274,6 +283,11 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         case "source":
           setFailure(planFailure);
           patch({ status: "question" });
+          return;
+        case "understood":
+          // Understood but not routable: a neutral note (and a wallet to connect), never a network engine.
+          setFailure(planFailure);
+          patch({ status: "unsupported" });
           return;
         case "unsupported":
           if (route.route.engine === "network") {
@@ -307,10 +321,12 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         setTurnError(null);
         setChanging(false);
         setDry(null);
+        setVenueNote(null);
         handledErrorRef.current = null;
         threadRef.current = null;
         setTurning(true);
         patch({ status: "planning", question: null, thread: null });
+        plannedWithoutWallet.current = plannerFor(plan.departure).length === 0;
         const outcome = await sendTurn({ kind: "text", text: task.sentence }, plan, "dry");
         if (!aliveRef.current) return;
         setTurning(false);
@@ -318,7 +334,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         else handleFailure(outcome.failure, plan);
       });
     },
-    [apply, enqueue, handleFailure, patch, sendTurn, task.sentence],
+    [apply, enqueue, handleFailure, patch, plannerFor, sendTurn, task.sentence],
   );
 
   /** A stored plan that was never signed is cancelled before the task plans again. */
@@ -423,16 +439,18 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     handleFailure(toDeskFailure(error), options);
   }, [execution.error, execution.intent, execution.status, handleFailure, options]);
 
-  // The task follows its execution (status, intent, title, where it starts and ends).
+  // The task follows its execution (status, intent, title, where it starts and ends, and
+  // whether anything was signed: the ticket never reads "signed" before a signature exists).
   const intentId = execution.intent?.id ?? null;
   const intentTitle = execution.intent?.summary.title ?? null;
+  const signature = signatureStateOf(execution.intent, execution.stepPhases, execution.signatureUnknownStepIds);
   useEffect(() => {
     const status = taskStatusOf(execution.status);
     if (!status || (status === "failed" && !intentId)) return;
     const intent = execution.intent;
-    patch({ status, ...(intent ? { intentId: intent.id, title: intent.summary.title, ends: journeyEnds(intent) } : {}) });
+    patch({ status, signature, ...(intent ? { intentId: intent.id, title: intent.summary.title, ends: journeyEnds(intent) } : {}) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the intent's identity and title are the dependencies
-  }, [execution.status, intentId, intentTitle, patch]);
+  }, [execution.status, intentId, intentTitle, patch, signature]);
 
   // A dry plan made with demo accounts: plan the same thread again once every wallet it needs is connected.
   const connectedKey = `${evmAddress ?? ""}|${solanaAddress ?? ""}`;
@@ -445,6 +463,17 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     followUp({ kind: "none" }, null);
   }, [actions.accounts.connected, connectedKey, dry, execution.intent, followUp, options.departure, turning]);
 
+  // A sentence understood but not routable from demo accounts: plan it again once a wallet is connected.
+  const anyWallet = actions.accounts.connected.evm || actions.accounts.connected.solana;
+  const understoodRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!failure || turning || !anyWallet) return;
+    if (routePlanFailure(failure, { text: task.sentence, departure: options.departure }).kind !== "understood") return;
+    if (understoodRef.current === connectedKey) return;
+    understoodRef.current = connectedKey;
+    if (failure.status !== 0 && plannedWithoutWallet.current) run(options);
+  }, [anyWallet, connectedKey, failure, options, run, task.sentence, turning]);
+
   const shown: IntentGraph | null = execution.intent ?? dry?.intent ?? null;
   const line = useMemo(() => {
     if (!shown) return null;
@@ -452,7 +481,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     const network = shown.interpretation?.departure?.network ?? first?.network;
     const symbol = first?.input?.symbol;
     const holding = network && symbol ? actions.holdings?.byNetwork[network]?.top.find((entry) => entry.symbol === symbol) : undefined;
-    return departureLine({ requested: options.departure, intent: shown, holding: holding ? `${holding.formatted} ${holding.symbol}` : null });
+    return departureLine({ requested: options.departure, intent: shown, holding: holding ? `${displayDecimal(holding.formatted)} ${holding.symbol}` : null });
   }, [actions.holdings, options.departure, shown]);
 
   const replannable = !turning && (execution.status === "idle" || execution.status === "review" || execution.status === "failed");
@@ -569,6 +598,8 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         onRetry={replan}
         onAskEngine={(network) => patch({ engine: { kind: "network", network, why: "offer" }, status: "engine" })}
         onHint={(hint) => actions.fill(hint)}
+        connect={anyWallet ? [] : ["eip155", "solana"]}
+        onConnect={actions.openWallet}
       />
     );
   } else if (execution.intent) {
@@ -576,6 +607,11 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       <>
         {changing ? sourceChips(null) : null}
         {turnErrorPanel}
+        {venueNote && execution.status === "review" ? (
+          <p role="status" className="border-l-4 border-[var(--kl-warning)] bg-[var(--kl-warning-bg)] px-3 py-2 text-sm font-bold text-fg">
+            {venueNote}
+          </p>
+        ) : null}
         <IntentExecutionFlow
           execution={execution}
           describeAccount={describeAccount}
@@ -594,7 +630,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           </summary>
           {mapOpen ? (
             <div className="overflow-x-auto p-3">
-              <IntentGraphView intent={execution.intent} phases={execution.stepPhases} />
+              <IntentGraphView intent={execution.intent} phases={execution.stepPhases} phaseOf={runPhaseOf(execution)} />
             </div>
           ) : null}
         </details>

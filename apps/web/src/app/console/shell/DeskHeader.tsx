@@ -1,6 +1,7 @@
 /**
  * The desk's sticky header: the Kletia mark and "Console", a site menu
- * "Console", the view nav (Desk, Tools, Activity) from 1024 px, a "Tasks (n)"
+ * (Home, Studio, Developers), the view nav (Desk, Tools, Activity) from
+ * 1024 px, a "Tasks (n)" popover between 1024 and 1279 px (the left rail
  * shows the list wider than that), both wallets and the site theme
  * toggle.
  */
@@ -13,6 +14,7 @@ import type { SiteTheme } from "../../site/theme";
 import { DESK_COPY } from "../content/copy";
 import type { DeskView } from "../state/deskModel";
 import { TaskList } from "../tasks/TaskList";
+import { DeskSiteMenu } from "./DeskSiteMenu";
 import { WalletBar } from "./WalletBar";
 
 const copy = DESK_COPY.header;
@@ -91,6 +93,7 @@ export function DeskHeader({ view, onView, taskCount, onOpenTask, onNewTask, the
           <span className="hidden font-display text-lg font-bold uppercase tracking-[0.08em] sm:inline">{copy.brand}</span>
         </Link>
         <span className="hidden border-l-[3px] border-[var(--kl-line)] pl-2 text-xs font-black uppercase tracking-[0.16em] sm:inline">{copy.product}</span>
+        <DeskSiteMenu />
         <nav aria-label={copy.navLabel} className="ml-2 hidden items-center lg:flex">
           {item("desk", copy.views.desk)}
           {item("tools", copy.views.tools)}

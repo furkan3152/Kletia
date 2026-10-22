@@ -16,6 +16,7 @@ import { getKletiaClient } from "../../../shared/platform/kletiaClient";
 import { Button } from "../ui/Button";
 import { CopyButton } from "../ui/CopyButton";
 import { cx, INK_BORDER, LABEL, SURFACE, TEXT_MUTED } from "../ui/styles";
+import { formatUtcMinutes } from "../format/utcTime";
 
 type ReceiptState =
   | { readonly status: "checking" }
@@ -42,8 +43,7 @@ const EXPIRY_OPTIONS: readonly { readonly label: string; readonly seconds: numbe
   { label: "Never", seconds: null },
 ];
 
-const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" });
-const dayFormatter = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric" });
+const dayFormatter = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 function receiptNumber(receiptId: string): string {
   const hex = receiptId.replace(/^rcpt_/u, "").toUpperCase();
@@ -144,7 +144,7 @@ export function ReceiptPanel({ intentId, intentStatus, className }: { readonly i
     );
   }
   if (state.status === "pending") {
-    const by = state.expectedBy && Number.isFinite(Date.parse(state.expectedBy)) ? timeFormatter.format(new Date(state.expectedBy)) : null;
+    const by = state.expectedBy && Number.isFinite(Date.parse(state.expectedBy)) ? formatUtcMinutes(state.expectedBy) : null;
     return (
       <section aria-label="Receipt" className={shell}>
         <p className={LABEL}>Receipt</p>

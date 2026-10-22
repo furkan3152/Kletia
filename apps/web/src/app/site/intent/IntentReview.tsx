@@ -24,6 +24,7 @@ import { FareTable } from "./FareTable";
 import { popOut } from "./phaseMotion";
 import { PolicyNotice } from "./PolicyNotice";
 import { holdOf } from "./policyView";
+import { formatUtcTime } from "../format/utcTime";
 
 export interface IntentReviewProps {
   /** A persisted intent planned with the user's own accounts. */
@@ -58,11 +59,9 @@ export interface IntentReviewProps {
   readonly className?: string;
 }
 
-const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-
+/** "20:23:53 UTC": every clock on the desk is UTC, 24 h. */
 function formatTime(iso: string): string | null {
-  const time = Date.parse(iso);
-  return Number.isFinite(time) ? timeFormatter.format(new Date(time)) : null;
+  return formatUtcTime(iso);
 }
 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
@@ -106,7 +105,7 @@ function ReviewStep({
       </div>
       <p className="font-display text-base font-bold leading-snug">{step.title}</p>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-        <Cell label="You pay">{formatAmount(step.input) ?? "—"}</Cell>
+        <Cell label="You pay">{formatAmount(step.input, "up") ?? "—"}</Cell>
         <Cell label="Expected">{formatAmount(step.expectedOutput) ?? "—"}</Cell>
         <Cell label="Minimum">{formatAmount(step.minimumOutput) ?? "—"}</Cell>
         <Cell label="Fees">{fees ?? "—"}</Cell>
@@ -115,7 +114,8 @@ function ReviewStep({
         <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
         {signer ? (
           <>
-            Signed by <span className="font-code" title={step.account}>{signer}</span>
+            {/* Before any signature: who will sign, never "Signed". */}
+            Signs with <span className="font-code" title={step.account}>{signer}</span>
           </>
         ) : step.mode === "settlement" ? (
           "Completed by the settlement network (no signature)"

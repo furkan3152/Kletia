@@ -11,6 +11,7 @@ import { cx, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
 import { useNow } from "../portal/useNow";
 import { KeyGate } from "../shell/KeyGate";
 import { PortalPageHeader } from "../shell/PortalPageHeader";
+import { AccountPanel } from "./AccountPanel";
 import { AuthTable } from "./AuthTable";
 import { IssueKeySheet } from "./IssueKeySheet";
 import { keyedClient } from "./keyClient";
@@ -63,7 +64,8 @@ function ProjectKeys() {
  * status and lane, "Issue a key" in a sheet (sandbox or live), the usage
  * of the key in this tab by route, and the authentication reference.
  * Issuing works without a key: this is where a first key comes from.
- * from.
+ * Above them, wallet sign-in lists the projects a wallet owns and manages
+ * their keys, so a lost key never means a lost project.
  */
 export function KeysPage() {
   const { key } = useSessionKey();
@@ -92,6 +94,7 @@ export function KeysPage() {
             this tab&apos;s memory; reloading forgets it.
           </p>
         </div>
+        <AccountPanel />
         <KeyGate purpose="list, rotate and revoke the keys of your project and read their usage" agentKeys>
           <div key={generation} className="flex min-w-0 flex-col gap-10">
             <ProjectKeys />

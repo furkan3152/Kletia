@@ -10,11 +10,13 @@ import { useAdminQuery } from "../api/useAdmin";
 import { AdminError } from "../components/AdminError";
 import { Panel, SectionHeader } from "../components/SectionHeader";
 import type { AdminEnvItem } from "../model/types";
+import { walletConnectProjectId } from "../../../../shared/platform/walletConnectProjectId";
 
 /** The site's build env, as presence only. */
 const SITE_ENV: readonly { readonly name: string; readonly set: boolean; readonly required: boolean }[] = [
   { name: "VITE_BACKEND_URL", set: Boolean(import.meta.env.VITE_BACKEND_URL), required: true },
-  { name: "VITE_WALLETCONNECT_PROJECT_ID", set: Boolean(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID), required: false },
+  // A placeholder or malformed id counts as not set: the build hides WalletConnect then.
+  { name: "VITE_WALLETCONNECT_PROJECT_ID", set: walletConnectProjectId(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) !== null, required: false },
   { name: "VITE_BASE_RPC_URL", set: Boolean(import.meta.env.VITE_BASE_RPC_URL), required: false },
   { name: "VITE_ARBITRUM_RPC_URL", set: Boolean(import.meta.env.VITE_ARBITRUM_RPC_URL), required: false },
   { name: "VITE_ARC_RPC_URL", set: Boolean(import.meta.env.VITE_ARC_RPC_URL), required: false },

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { after, afterEach, before, beforeEach, describe, it } from "node:test";
 import { configurePlatform } from "../../index.js";
-import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS, resetEngine } from "../../engine/__tests__/helpers.js";
+import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS, resetEngine, SOL_ACCOUNT } from "../../engine/__tests__/helpers.js";
 import { assertError, call, OPERATOR_KEY, serve, useTestEnvironment, type TestServer } from "./support.js";
 
 useTestEnvironment();
@@ -353,6 +353,35 @@ describe("sandbox keys", () => {
     assert.equal(policy.body.policy.status, "active");
     assert.deepEqual(policy.body.policy.document.networks.lanes, ["testnet"]);
     assert.equal(policy.body.policy.document.label, "Sandbox");
+  });
+
+  it("refuses a mainnet route of a sandbox key before any provider is quoted", async () => {
+    const reply = await call<{ key: IssuedKey & { lane: string } }>(server, "POST", "/keys", { body: { name: "sandbox-quote", sandbox: true } });
+    assert.equal(reply.status, 201, JSON.stringify(reply.body));
+    const previous = globalThis.fetch;
+    const upstream: string[] = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (/jup\.ag|jupiter/iu.test(url)) {
+        upstream.push(url);
+        return new Response(JSON.stringify({ message: "Too many requests" }), { status: 429 });
+      }
+      return previous(input, init);
+    }) as typeof fetch;
+    try {
+      for (const dryRun of [true, false]) {
+        const refused = assertError(
+          await call(server, "POST", dryRun ? "/intents?dryRun=true" : "/intents", { key: reply.body.key.key, body: { text: "swap 1 SOL to USDC", accounts: [SOL_ACCOUNT] } }),
+          403,
+          "POLICY_VIOLATION",
+        );
+        assert.match(JSON.stringify(refused), /Solana is on the production lane; this key may use the testnet lane only/u);
+        assert.equal(refused.error.issues?.[0]?.path, "steps[0].network");
+      }
+    } finally {
+      globalThis.fetch = previous;
+    }
+    assert.deepEqual(upstream, [], "no provider was asked for a route the rule book refuses");
   });
 
   it("lists each key's lane, also for a sandbox sibling", async () => {

@@ -262,6 +262,29 @@ function checkAsset(env: Env, index: number, name: "from" | "to", network: Netwo
     }
     if (family(network) !== "solana") throw new PlatformError("TOKEN_UNKNOWN", `${raw.slice(0, 16)} is not listed on ${networkName(network)}.`, 422, [{ path, message: "Not listed on this network." }]);
   }
+  // R5 across lanes: a real token listed only on the other lane (USDT on a testnet) is never read as a near
+  // symbol of this network (USDT is one letter from USDC); say it is not available here instead.
+  const otherLane = elsewhere.length === 0 ? NETWORK_ORDER.filter((other) => lane(other) !== lane(network) && canonicalOn(other, raw)) : [];
+  if (otherLane.length > 0) {
+    const symbol = raw.slice(0, 16);
+    const here = symbolsOn(network).filter((listed) => !transferOnly(network, listed)).slice(0, 6);
+    const where = lane(network) === "testnet" ? `${networkName(network)} (a testnet)` : networkName(network);
+    const listedOn = `${symbol} is listed on ${lane(otherLane[0] as NetworkKey) === "testnet" ? "testnets" : "mainnet networks"} only (${otherLane.slice(0, 3).map(networkName).join(", ")}).`;
+    if (side === "spend") {
+      const stable = USD_ORDER.find((candidate) => canonicalOn(network, candidate) && !transferOnly(network, candidate));
+      const amount = stable ? held(env, network, stable) : undefined;
+      const options: Option[] = stable && USD_ORDER.includes(upper)
+        ? [{ id: stable, label: stable, detail: `Listed on ${networkName(network)}${amount !== undefined ? `; you hold ${amount}` : ""}`, value: { asset: stable } }]
+        : [];
+      return { question: question(path, "choice", "ASSET_NOT_ON_NETWORK", `${symbol} is not available on ${where}. What should this use?`, listedOn, options, true) };
+    }
+    throw new PlatformError(
+      "TOKEN_UNKNOWN",
+      `${symbol} is not available on ${where}. ${listedOn}${here.length > 0 ? ` On ${networkName(network)} Kletia lists ${here.join(", ")}.` : ""}`,
+      422,
+      [{ path, message: `${symbol} is not available on this network.` }],
+    );
+  }
   const listed = symbolsOn(network).filter((symbol) => !transferOnly(network, symbol));
   const near = candidates(raw, listed);
   if (family(network) === "solana") {
@@ -424,11 +447,11 @@ function recipientQuestion(env: Env, index: number, step: WorkStep): Question | 
     const moved = recipient.replace(/\.sol$/iu, ".sns");
     const address = env.facts.resolveName(moved, "solana");
     if (address) {
-      return question(path, "confirm", "RECIPIENT_NAME_MOVED", `.sol names moved to .sns. Send to ${moved} (${short(address)})?`, "SNS paused .sol names while it moves them to its new registry.", [
+      return question(path, "confirm", "RECIPIENT_NAME_MOVED", `Send to ${moved} (${short(address)})? SNS has paused .sol names during its registry move, and ${recipient} now resolves as ${moved}.`, "Each existing .sol name has a matching .sns name. Kletia shows the address it resolves to; check it before you sign.", [
         { id: moved, label: `Send to ${moved}`.slice(0, 48), detail: `Resolves to ${short(address)}`, value: { recipient: moved } },
       ], true, placeholderFor("address", undefined, true));
     }
-    return question(path, "address", "RECIPIENT_UNRESOLVED", `${recipient} cannot be used right now. Who should receive ${what}?`, "SNS paused .sol names.", [], true, placeholderFor("address", undefined, true));
+    return question(path, "address", "RECIPIENT_UNRESOLVED", `Who should receive ${what}? ${recipient} cannot be used: SNS has paused .sol names during its registry move, and ${moved} did not resolve.`, "Paste the recipient's Solana address, or use their .sns name.", [], true, placeholderFor("address", undefined, true));
   }
   if (network && kind && kind !== "caip" && kind !== family(network)) {
     const evm = EVM_NETWORKS.filter((candidate) => lane(candidate) === "mainnet").filter((candidate) => {
@@ -942,17 +965,21 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
     if (!first && kind === "bridge" && !step.toNetwork) {
       const source = step.network?.v ?? (dependent ? prevDest : undefined);
       const current = laneOf(ctx.accounts);
-      const networks = bridgeNetworksOf(current).filter((network) => network !== source && hasAccount(ctx.accounts, network) && (dependent || symbolOnNetwork(env, network, step.from?.v, step.usdFrom)));
+      const networks = bridgeNetworksOf(current).filter((network) => network !== source && hasAccount(ctx.accounts, network) && (dependent || (step.vague === true && !step.from) || symbolOnNetwork(env, network, step.from?.v, step.usdFrom)));
       first = question(field(index, "toNetwork"), "choice", "DESTINATION_MISSING", `Where should ${amountPhrase(step)} go?`, "The destination is where the money arrives.", networks.map((network) => networkOption(network)), true);
     }
-    if (!first && kind === "swap" && !step.to && !step.usdTo) {
+    // "swap some tokens": what to spend comes first; "buy something": what to buy comes first.
+    const vagueSwap = kind === "swap" && step.vague === true && !step.from && !step.usdFrom && !dependent;
+    if (!first && kind === "swap" && !step.to && !step.usdTo && (!vagueSwap || step.buy)) {
       const network = step.network?.v ?? swapCandidates(env, step, step.from?.v, undefined)[0] ?? "base";
       const from = (step.from?.v ?? "").toUpperCase();
       const options = symbolsOn(network)
         .filter((symbol) => symbol.toUpperCase() !== from && !transferOnly(network, symbol))
         .slice(0, 5)
         .map((symbol) => ({ id: symbol, label: symbol, value: { asset: symbol } }));
-      first = question(field(index, "to"), "choice", "OUTPUT_ASSET_MISSING", `Swap ${amountPhrase(step)} for what?`, "Name the token you want to receive.", options, true);
+      first = vagueSwap
+        ? question(field(index, "to"), "choice", "OUTPUT_ASSET_MISSING", "What should Kletia buy?", "Name the token you want to receive.", options, true)
+        : question(field(index, "to"), "choice", "OUTPUT_ASSET_MISSING", `Swap ${amountPhrase(step)} for what?`, "Name the token you want to receive.", options, true);
     }
     if (!first && kind === "withdraw" && !step.usdFrom && !dependent && (!step.from || (step.from.by === "assumed" && step.from.why?.code === "position.only"))) {
       const only = onlyPosition(env, index, step);
@@ -963,6 +990,11 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
         delete step.from;
       }
     }
+    if (!first && kind === "stake" && step.vague === true && !step.from && !dependent && !step.provider) {
+      const stakeable = (["SOL", "ETH"] as const).filter((symbol) => NETWORK_ORDER.some((network) => lane(network) === laneOf(ctx.accounts) && hasAccount(ctx.accounts, network) && isPositive(facts.balance(network, symbol))));
+      const options = (stakeable.length > 0 ? stakeable : (["SOL", "ETH"] as const)).map((symbol) => ({ id: symbol, label: symbol, value: { asset: symbol } }));
+      first = question(field(index, "from"), "choice", "INPUT_ASSET_MISSING", "What should Kletia stake?", "Kletia stakes SOL, or ETH on Ethereum, into a liquid staking token.", options, true);
+    }
     if (!first && !step.from && !step.usdFrom && !dependent && kind !== "stake") {
       const network = step.network?.v ?? (kind === "swap" ? swapCandidates(env, step, undefined, step.to?.v)[0] : undefined) ?? "base";
       const symbols = symbolsOn(network).filter((symbol) => symbol !== step.to?.v && !(kind !== "transfer" && transferOnly(network, symbol)));
@@ -972,7 +1004,10 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
         const amount = held(env, network, symbol);
         return { id: symbol, label: symbol, ...(amount !== undefined ? { detail: `You hold ${amount}` } : {}), value: { asset: symbol } };
       });
-      first = question(field(index, "from"), "choice", "INPUT_ASSET_MISSING", step.buy ? `Buy ${step.to?.v ?? "it"} with what?` : "Which token should this use?", "Kletia plans with the amount you spend.", options, true);
+      const prompt = step.buy
+        ? `Buy ${step.to?.v ?? "it"} with what?`
+        : step.vague && kind === "swap" ? `What should Kletia ${step.sell ? "sell" : "swap"}?` : "Which token should this use?";
+      first = question(field(index, "from"), "choice", "INPUT_ASSET_MISSING", prompt, "Kletia plans with the amount you spend.", options, true);
     }
     if (first) {
       ask(withIndependent(env, index, step, first));

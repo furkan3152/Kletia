@@ -23,15 +23,13 @@ import {
   OFFICIAL_BASE_PUBLIC_RPC_URL,
   SUPPORTED_CHAINS,
 } from "../shared/config/networks";
+import { walletConnectProjectId as walletConnectProjectIdOf } from "../shared/platform/walletConnectProjectId";
 import { readStorage, removeStorage, writeStorage } from "../shared/state/safeStorage";
 import { WalletSyncBridge } from "../shared/sync/WalletSyncBridge";
 import { SolanaWalletProvider } from "../shared/wallet/solana/SolanaWalletProvider";
 
-const walletConnectProjectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as
-  string | undefined;
-const hasWalletConnectProjectId =
-  Boolean(walletConnectProjectId) &&
-  !walletConnectProjectId!.toLowerCase().startsWith("your_");
+// A placeholder, empty or malformed id hides WalletConnect instead of showing a button that cannot connect.
+const walletConnectProjectId = walletConnectProjectIdOf(import.meta.env.VITE_WALLETCONNECT_PROJECT_ID);
 
 const connectors = connectorsForWallets(
   [
@@ -40,13 +38,13 @@ const connectors = connectorsForWallets(
       wallets: [
         injectedWallet,
         baseWallet,
-        ...(hasWalletConnectProjectId ? [walletConnectWallet] : []),
+        ...(walletConnectProjectId ? [walletConnectWallet] : []),
       ],
     },
   ],
   {
     appName: "Kletia",
-    projectId: hasWalletConnectProjectId ? walletConnectProjectId! : "",
+    projectId: walletConnectProjectId ?? "",
   },
 );
 

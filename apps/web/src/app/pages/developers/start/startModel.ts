@@ -21,6 +21,16 @@ export const START_SURFACES: readonly { readonly id: StartSurface; readonly labe
   { id: "rest", label: "REST", minutes: 2, blurb: "Plain HTTP from any language." },
 ];
 
+/** The two lanes a new key can take, as Station one offers them (sandbox first). */
+export const LANE_CHOICES: readonly { readonly value: KeyLaneChoice; readonly title: string; readonly detail: string }[] = [
+  {
+    value: "sandbox",
+    title: "Sandbox",
+    detail: "Test networks only (Arbitrum Sepolia, Arc Testnet, Solana Devnet): sends, swaps, bridges, stakes and your own contracts there, with test tokens.",
+  },
+  { value: "live", title: "Live", detail: "Every network. Dry runs move no money; stored intents still need the user's wallet." },
+];
+
 /** Same rule as the API (1-64 printable characters); the form only checks the common shape. */
 export const KEY_NAME_PATTERN = /^[\w .:-]{1,64}$/u;
 
@@ -167,15 +177,78 @@ export interface ShipInput {
   readonly apiOrigin: string;
   readonly webOrigin: string;
   readonly embedVersion: string;
+  /** The script's `sha384-…` from this deployment's /sdk/embed/manifest.json; null while unknown or unavailable. */
+  readonly embedIntegrity?: string | null;
+  /** The @kletia/* package version the install lines name (SDK_VERSION). */
+  readonly sdkVersion?: string;
   readonly account: string;
+}
+
+/**
+ * False until the @kletia packages are on the npm registry: the install
+ * lines then lead with the GitHub release tarballs and this site's SDK
+ * build, and name npm as the later way.
+ */
+export const PACKAGES_ON_NPM = false;
+
+/** The repository's GitHub releases (release-packages.yml attaches the `npm pack` tarballs there). */
+export const RELEASES_URL = "https://github.com/furkan3152/Kletia/releases";
+
+export type KletiaPackage = "core" | "sdk" | "widget" | "embed" | "cli";
+
+/** `https://github.com/…/releases/download/packages-v0.1.0/kletia-sdk-0.1.0.tgz`. */
+export function releaseTarballUrl(name: KletiaPackage, version: string): string {
+  return `${RELEASES_URL}/download/packages-v${version}/kletia-${name}-${version}.tgz`;
+}
+
+const SRI = /^sha384-[A-Za-z0-9+/]{64}$/u;
+
+/**
+ * How to install `packages` (dependencies first: the SDK needs core) with
+ * and without the npm registry. With `sdkFile`, it also shows the
+ * single-file SDK build this site serves, checked against its manifest.
+ */
+export function installScript({ packages, version, webOrigin, sdkFile = false }: { readonly packages: readonly KletiaPackage[]; readonly version: string; readonly webOrigin: string; readonly sdkFile?: boolean }): string {
+  const order: readonly KletiaPackage[] = ["core", "sdk", "widget", "embed", "cli"];
+  // Every package but the embed depends on @kletia/core, so its tarball goes first.
+  const wanted = order.filter((name) => packages.includes(name) || (name === "core" && packages.some((item) => item !== "embed")));
+  const npm = `npm install ${packages.map((name) => `@kletia/${name}`).join(" ")}`;
+  const tarballs = ["npm install \\", ...wanted.map((name, index) => `  ${releaseTarballUrl(name, version)}${index === wanted.length - 1 ? "" : " \\"}`)];
+  const lines = PACKAGES_ON_NPM
+    ? ["# From npm:", npm, "", `# Or from the GitHub release (${RELEASES_URL}):`, ...tarballs]
+    : [
+        "# The packages are not on the npm registry yet. Install them from the GitHub release",
+        `# (${RELEASES_URL}); core comes first because the others depend on it:`,
+        ...tarballs,
+        "",
+        "# Once they are on npm:",
+        `# ${npm}`,
+      ];
+  if (sdkFile) {
+    const file = `kletia-sdk-${version}.js`;
+    lines.push(
+      "",
+      `# Or the SDK as one ES module file from ${webOrigin} (no install). Check it against the`,
+      `# "integrity" of ${webOrigin}/sdk/manifest.json before you use it, then import "./${file}":`,
+      `curl -fsSLO ${webOrigin}/sdk/${file}`,
+      `echo "sha384-$(openssl dgst -sha384 -binary ${file} | openssl base64 -A)"`,
+    );
+  }
+  return lines.join("\n");
 }
 
 /**
  * Complete files for the chosen surface, on this deployment's own origins.
  * There is no key parameter on purpose: nothing here can contain one.
  */
-export function shipFiles({ surface, apiOrigin, webOrigin, embedVersion, account }: ShipInput): readonly ShipFile[] {
+export function shipFiles({ surface, apiOrigin, webOrigin, embedVersion, embedIntegrity = null, sdkVersion = "0.1.0", account }: ShipInput): readonly ShipFile[] {
   const script = `${webOrigin}/sdk/embed/${embedVersion}/kletia-embed.min.js`;
+  const pinned = embedIntegrity !== null && SRI.test(embedIntegrity);
+  const scriptTag = pinned
+    ? `<!-- The browser refuses the script if its bytes ever differ from this hash (${webOrigin}/sdk/embed/manifest.json). -->
+<script src="${script}" integrity="${embedIntegrity}" crossorigin="anonymous"></script>`
+    : `<!-- Add integrity="sha384-…" for ${embedVersion} from ${webOrigin}/sdk/embed/manifest.json -->
+<script src="${script}" crossorigin="anonymous"></script>`;
   if (surface === "embed") {
     return [
       {
@@ -187,8 +260,7 @@ export function shipFiles({ surface, apiOrigin, webOrigin, embedVersion, account
 <meta charset="utf-8" />
 <title>Checkout</title>
 <!-- Serve this page over http(s): a file:// page has no origin, so the widget cannot connect. -->
-<!-- Add integrity="sha384-…" for ${embedVersion} from ${webOrigin}/sdk/embed/manifest.json -->
-<script src="${script}" crossorigin="anonymous"></script>
+${scriptTag}
 
 <kletia-intent text="${FIRST_CALL_TEXT}"${webOrigin === "https://kletiaai.xyz" ? "" : ` origin="${webOrigin}"`}></kletia-intent>
 
@@ -208,7 +280,7 @@ export function shipFiles({ surface, apiOrigin, webOrigin, embedVersion, account
         label: "App.tsx",
         filename: "src/App.tsx",
         language: "tsx",
-        code: `// npm install @kletia/widget @kletia/sdk
+        code: `// Install with install.sh (npm, or the GitHub release tarballs until the packages are on npm).
 import { KletiaIntentWidget } from "@kletia/widget";
 
 // The browser uses the public tier: never put a kl_dev_ key in browser code.
@@ -223,6 +295,7 @@ export function App() {
   );
 }`,
       },
+      { id: "install", label: "install.sh", filename: "install.sh", language: "bash", code: installScript({ packages: ["widget", "sdk"], version: sdkVersion, webOrigin }) },
     ];
   }
   if (surface === "node") {
@@ -232,7 +305,8 @@ export function App() {
         label: "plan.mjs",
         filename: "plan.mjs",
         language: "ts",
-        code: `// Node 20.6 or later: npm install @kletia/sdk, then node --env-file=.env plan.mjs
+        code: `// Node 20.6 or later: install @kletia/sdk (install.sh), then node --env-file=.env plan.mjs
+// With the single-file build instead, import from "./kletia-sdk-${sdkVersion}.js".
 import { KletiaClient } from "@kletia/sdk";
 
 const kletia = new KletiaClient({ baseUrl: "${apiOrigin}", apiKey: process.env.KLETIA_API_KEY });
@@ -243,6 +317,7 @@ const intent = await kletia.intents.create(
 console.log(intent.steps.map((step) => step.title));`,
       },
       { id: "env", label: ".env", filename: ".env", language: "bash", code: ENV_FILE },
+      { id: "install", label: "install.sh", filename: "install.sh", language: "bash", code: installScript({ packages: ["sdk"], version: sdkVersion, webOrigin, sdkFile: true }) },
     ];
   }
   return [

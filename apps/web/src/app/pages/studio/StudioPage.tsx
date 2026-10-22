@@ -7,7 +7,7 @@ import { deskHandoffHref, DESK_ENTRY } from "../../console/tools/deskHandoff";
 import { Link } from "../../routes/Link";
 import { useRoute } from "../../routes/useRoute";
 import { PlatformNumber } from "../../site/art/Ornaments";
-import { buttonClasses, CONTAINER, cx, HARD_SHADOW, INK_BORDER, TEXT_MUTED } from "../../site/ui/styles";
+import { buttonClasses, CONTAINER, cx, FOCUS_RING, HARD_SHADOW, INK_BORDER, TEXT_MUTED } from "../../site/ui/styles";
 import { StudioWorkspace } from "./StudioWorkspace";
 
 function readPromptParam(search: string): string {
@@ -96,7 +96,10 @@ export default function StudioPage() {
           executionNote={
             <p>
               <strong>A dry run plans and quotes.</strong> Running it in the console plans again with the wallets you
-              connect and asks before every signature.
+              connect and asks before every signature.{" "}
+              <Link to="/help#preview" className={cx("font-semibold underline decoration-2 underline-offset-2", FOCUS_RING)}>
+                What a preview is
+              </Link>
             </p>
           }
         />

@@ -52,7 +52,7 @@ import { journeyFor } from "./journey/index.js";
 import { resolveRecipientName } from "./names.js";
 import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl, type PlanInterpretation } from "./planner.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
-import { policyGate, policyGateActive, type ExposureHandle } from "./policy/gate.js";
+import { policyGate, policyGateActive, type ExposureHandle, type QuoteLeg } from "./policy/gate.js";
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
 import { screenIntentRequest } from "./secretScreen.js";
 import { decodeStepRef, encodeStepRef, MAX_PREPARED_FLOORS } from "./stepRef.js";
@@ -344,6 +344,7 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
         ...(options.contractAuthorityKeyId ? { contractAuthorityKeyId: options.contractAuthorityKeyId } : {}),
         ...(options.interpretation ? { interpretation: options.interpretation } : {}),
+        ...(gate.beforeQuote ? { beforeQuote: (legs: readonly QuoteLeg[]) => gate.beforeQuote?.(guard, legs) ?? Promise.resolve() } : {}),
       });
       const previews = planned.previews;
       await options.verifyPlan?.(planned.graph);

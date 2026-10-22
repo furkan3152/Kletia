@@ -19,6 +19,8 @@ import {
   toggleGroup,
   utcStamp,
   webhookPermissions,
+  webhooksNotConfigured,
+  WEBHOOKS_NOT_CONFIGURED_COPY,
   WEBHOOK_EVENT_GROUPS,
   WEBHOOK_EVENT_TYPES,
   WEBHOOK_MAX_ATTEMPTS,
@@ -141,4 +143,14 @@ test("scope labels and what each key may do", () => {
   const granted = webhookPermissions("agent", true);
   assert.deepEqual([granted.read, granted.create, granted.test, granted.remove], [true, true, true, true]);
   assert.equal(webhookPermissions(null).read, false);
+});
+
+test("503 WEBHOOKS_NOT_CONFIGURED is told apart from other errors and points to the event stream", () => {
+  assert.equal(webhooksNotConfigured({ code: "WEBHOOKS_NOT_CONFIGURED", status: 503 }), true);
+  for (const error of [null, undefined, { code: "STORE_UNAVAILABLE" }, { code: "UNAUTHORIZED" }, { code: "REQUEST_TIMEOUT" }]) {
+    assert.equal(webhooksNotConfigured(error), false, String(error?.code));
+  }
+  assert.match(WEBHOOKS_NOT_CONFIGURED_COPY.title, /not configured on this deployment/u);
+  assert.match(WEBHOOKS_NOT_CONFIGURED_COPY.alternative, /GET \/v1\/events/u);
+  assert.match(WEBHOOKS_NOT_CONFIGURED_COPY.operator, /KLETIA_PLATFORM_SECRET/u);
 });

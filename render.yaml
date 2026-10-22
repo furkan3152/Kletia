@@ -1,4 +1,18 @@
 # yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+#
+# The reference topology of a Kletia deployment on Render. The hosted
+# services (API "Kletia" and static site "KletiaAi") were created in the
+# Render dashboard and do not read this file: their settings, environment
+# variables, headers and rewrites are kept in the dashboard by hand, copied
+# from the blocks below (docs/deployment/render.md, "Services created in the
+# dashboard"). Do not apply this file as a Blueprint to that account without
+# reading that section first: the service names differ, so a Blueprint would
+# create a second API and site next to the live ones.
+#
+# No database is declared here. A free Render account has one free PostgreSQL
+# slot (already in use on the hosted account), so the API takes the URL of a
+# database created separately (Render paid plan, Neon or Supabase) through
+# KLETIA_DATABASE_URL.
 services:
   # Kletia API: app routes (/api) and the public platform API (/v1)
   - type: web
@@ -26,10 +40,10 @@ services:
         value: "10000"
       - key: NODE_ENV
         value: production
-      # The hosted deployment promises every integration; self-hosted
-      # deployments may omit optional keys and run in degraded mode.
-      - key: KLETIA_REQUIRE_ALL_FEATURES
-        value: "true"
+      # KLETIA_REQUIRE_ALL_FEATURES is deliberately not set: with it the API
+      # refuses to start while any optional integration key (Webacy, Allora,
+      # Relay, ...) is missing. Missing keys show as needs_configuration in
+      # GET /api/capabilities instead.
       - key: CORS_ORIGINS
         value: https://kletiaai.xyz,https://www.kletiaai.xyz,https://kletia-frontend.onrender.com
       - key: BASE_RPC_URL
@@ -54,13 +68,12 @@ services:
         value: https://api.devnet.solana.com
       - key: JUPITER_API_KEY
         sync: false
-      # Durable store for platform intents, API keys and webhooks. The
-      # database keeps its original resource name so the existing instance
-      # is reused instead of provisioning a new one.
+      # Durable store for keys, projects, links, intents, threads, rule books,
+      # receipts and webhooks: a PostgreSQL URL (postgres://…?sslmode=require
+      # for Neon or Supabase). Unset keeps everything in memory, lost when
+      # the instance restarts or sleeps.
       - key: KLETIA_DATABASE_URL
-        fromDatabase:
-          name: kletia-stellar-event-archive
-          property: connectionString
+        sync: false
       - key: KLETIA_PLATFORM_SECRET
         generateValue: true
       - key: KLETIA_OPERATOR_API_KEYS
@@ -346,6 +359,29 @@ services:
       - path: /sdk/embed/manifest.json
         name: Cross-Origin-Resource-Policy
         value: cross-origin
+      # The SDK build (install without npm): one ESM file per version, loaded
+      # by other sites through an import map with its SHA-384 integrity.
+      - path: /sdk/kletia-sdk-*.js
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /sdk/kletia-sdk-*.js
+        name: Content-Type
+        value: text/javascript; charset=utf-8
+      - path: /sdk/kletia-sdk-*.js
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /sdk/kletia-sdk-*.js
+        name: Cross-Origin-Resource-Policy
+        value: cross-origin
+      - path: /sdk/manifest.json
+        name: Cache-Control
+        value: no-cache
+      - path: /sdk/manifest.json
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /sdk/manifest.json
+        name: Cross-Origin-Resource-Policy
+        value: cross-origin
       - path: /index.html
         name: Cache-Control
         value: no-cache
@@ -421,11 +457,3 @@ services:
         value: "false"
       - key: VITE_WALLETCONNECT_PROJECT_ID
         sync: false
-
-databases:
-  - name: kletia-stellar-event-archive
-    plan: free
-    region: frankfurt
-    databaseName: kletia_stellar_events
-    user: kletia_stellar_archive
-    ipAllowList: []

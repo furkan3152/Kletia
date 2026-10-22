@@ -11,8 +11,9 @@ import { LineBullet } from "../../site/art/LineBullet";
 import { boardStatus, formatBoardClock } from "../../site/art/boardFormat";
 import { LINES } from "../../site/art/tokens";
 import { DESK_COPY } from "../content/copy";
-import { STARTER_CAPABILITIES, startersFor, type NetworkActions } from "../content/starters";
+import { fillStarterAddress, STARTER_CAPABILITIES, startersFor, type NetworkActions } from "../content/starters";
 import type { Departure, HealthReading } from "../state/deskModel";
+import { useDeskActions } from "./deskContext";
 
 const copy = DESK_COPY.empty;
 
@@ -31,6 +32,9 @@ export function DeskEmptyState({ departure, actions, health, healthAt, onPick }:
     status: boardStatus(health[key] ?? null, { loading: healthAt === null }),
   }));
   const starters = startersFor({ departure, actions, featuredOnly: true });
+  // A test-yard `<address>` is the connected wallet's own address, or left for Kletia to ask: never inserted as is.
+  const { accounts } = useDeskActions();
+  const sentenceOf = (sentence: string) => fillStarterAddress(sentence, { evm: accounts.evm?.address ?? null, solana: accounts.solana?.address ?? null });
   const label = (capability: string) => STARTER_CAPABILITIES.find((entry) => entry.id === capability)?.label ?? capability;
   return (
     <div className="flex flex-col gap-8 pb-8 pt-2">
@@ -57,13 +61,13 @@ export function DeskEmptyState({ departure, actions, health, healthAt, onPick }:
             <li key={starter.id}>
               <button
                 type="button"
-                onClick={() => onPick(starter.sentence)}
+                onClick={() => onPick(sentenceOf(starter.sentence))}
                 className="flex min-h-12 w-full flex-wrap items-center gap-3 border-2 border-control bg-surface px-3 py-2 text-left text-fg hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--kl-focus)] motion-reduce:hover:translate-y-0"
               >
                 <span className="inline-flex min-w-16 justify-center border-2 border-[#1A1A1A] bg-[#FFD60A] px-2 py-0.5 text-[11px] font-black uppercase tracking-wider text-[#1A1A1A]">
                   {label(starter.capability)}
                 </span>
-                <span className="min-w-0 flex-1 break-words font-code text-sm">{starter.sentence}</span>
+                <span className="min-w-0 flex-1 break-words font-code text-sm">{sentenceOf(starter.sentence)}</span>
                 <span className="flex shrink-0 items-center gap-1">
                   {starter.networks.map((network) => (
                     <LineBullet key={network} line={LINES[network]} />

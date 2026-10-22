@@ -14,7 +14,7 @@ import { IntentReview } from "./IntentReview";
 import { PolicyNotice } from "./PolicyNotice";
 import { outcomeOf } from "./policyView";
 import { ReceiptPanel } from "./ReceiptPanel";
-import { withLocalPhases } from "./stepPhase";
+import { runPhaseOf, withLocalPhases } from "./stepPhase";
 
 /** An execution or planning failure, with a retry when it can help. */
 export function ExecutionErrorPanel({
@@ -291,6 +291,8 @@ export function IntentExecutionFlow({
             activeStepId={execution.activeStepId}
             streaming={execution.streaming}
             running={status === "executing"}
+            flowStatus={status}
+            signatureUnknownStepIds={execution.signatureUnknownStepIds}
             notifySettled={notifyProgress}
             {...(walletFor ? { walletFor } : {})}
           />
@@ -312,7 +314,7 @@ export function IntentExecutionFlow({
       ) : null}
 
       {showGraph ? (
-        <IntentGraphView intent={live} phases={execution.stepPhases} stepFooter={(step) => <StepLinks step={step} />} />
+        <IntentGraphView intent={live} phases={execution.stepPhases} phaseOf={runPhaseOf(execution)} stepFooter={(step) => <StepLinks step={step} />} />
       ) : null}
     </div>
   );

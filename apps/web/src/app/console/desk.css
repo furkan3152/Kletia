@@ -170,6 +170,13 @@
   color: var(--kl-placeholder);
 }
 
+/* An empty composer is one line tall: a long placeholder ends in an ellipsis instead of wrapping. */
+.kd-composer textarea:placeholder-shown {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* The box, not the bare textarea, shows focus: the same ink treatment as every
    text box (styles.css, TEXT-BOX FOCUS), one step deeper because the composer
    is the desk's main object. Only the textarea counts: the departure chip and
@@ -432,8 +439,9 @@
 /* The board never grows past the space between the sticky header and the docked composer: its rows scroll. */
 .kd-picker[data-mode="popover"] .kd-board {
   display: flex;
-  max-height: min(640px, calc(100dvh - var(--kd-header) - var(--kd-nav) - 200px));
-  min-height: 240px;
+  /* --kd-picker-room: the space between the chip and the sticky header, measured when it opens. */
+  max-height: min(640px, var(--kd-picker-room, calc(100dvh - var(--kd-header) - var(--kd-nav) - 280px)));
+  min-height: min(240px, var(--kd-picker-room, 240px));
   flex-direction: column;
   box-shadow: 6px 6px 0 #1a1a1a;
 }

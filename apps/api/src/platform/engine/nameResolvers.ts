@@ -10,7 +10,7 @@
  *   (OffchainLookup) resolver is refused instead of followed.
  * - Coin types: an Ethereum recipient uses the ETH record (coin type 60). A
  *   recipient on another EVM network uses that chain's ENSIP-11 record, then
- *   the ENSIP-19 default-EVM record; the ETH record is a fallback only when
+ *   the ENSIP-19 default-EVM record (disclosed as a warning); the ETH record is a fallback only when
  *   the address is an externally owned account (no code, or only an EIP-7702
  *   delegation, on Ethereum and on the target) or a contract deployed on the
  *   target network, and the fallback is disclosed as a warning. A contract that exists only on Ethereum is
@@ -109,14 +109,25 @@ async function chooseAddress(
   record: (coinType: bigint) => Promise<Address | null>,
   dependencies: EvmNameDependencies,
 ): Promise<CoinTypeChoice | null> {
-  for (const coinType of preferredCoinTypes(network)) {
-    const address = await record(coinType);
-    if (address) return { address, coinType, warnings: [] };
+  // Every record the policy may need is read at once (one round trip, not three in a row);
+  // they are still taken strictly in policy order.
+  const order = network === "ethereum" ? preferredCoinTypes(network) : [...preferredCoinTypes(network), ETH_COIN_TYPE];
+  const reads = order.map((coinType) => record(coinType));
+  for (const read of reads) read.catch(() => undefined);
+  const chain = CHAINS[network].name;
+  for (const [index, coinType] of order.entries()) {
+    if (coinType === ETH_COIN_TYPE && network !== "ethereum") break;
+    const address = await (reads[index] as Promise<Address | null>);
+    if (!address) continue;
+    // ENSIP-19: the owner set one address for every EVM network; disclosed, because it is not specific to this one.
+    const warnings = coinType === DEFAULT_EVM_COIN_TYPE
+      ? [`${name} has no ${chain}-specific address; using its default EVM address, which its owner set for every EVM network (ENSIP-19).`]
+      : [];
+    return { address, coinType, warnings };
   }
   if (network === "ethereum") return null;
-  const address = await record(ETH_COIN_TYPE);
+  const address = await (reads[order.length - 1] as Promise<Address | null>);
   if (!address || !isEvmNetwork(network)) return null;
-  const chain = CHAINS[network].name;
   const [onTarget, onEthereum] = await Promise.all([
     accountKind(dependencies.client(network), address),
     accountKind(dependencies.client("ethereum"), address),
@@ -387,7 +398,7 @@ export function createSnsResolver(dependencies: SnsDependencies = defaultSnsDepe
       if (name.endsWith(".sol")) {
         throw new PlatformError(
           "RECIPIENT_NAME_UNSUPPORTED",
-          `.sol names are paused by SNS while it moves them to its new registry. Use the same name with .sns (${name.slice(0, -4)}.sns) or the recipient's address.`,
+          `SNS has paused .sol names during its registry move; each existing .sol name has a matching .sns name. Use ${name.slice(0, -4)}.sns or the recipient's address.`,
           422,
           [{ path: "recipient", message: ".sol resolution is paused." }],
         );

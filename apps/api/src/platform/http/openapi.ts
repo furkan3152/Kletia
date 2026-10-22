@@ -49,6 +49,7 @@ import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
 import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openapi.js";
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
+import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1628,6 +1629,7 @@ function schemas(): JsonObject {
     ...policySchemas(),
     ...linkSchemas(),
     ...projectSchemas(),
+    ...accountSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2030,6 +2032,7 @@ function paths(): JsonObject {
     ...policyPaths(),
     ...linkPaths(),
     ...projectPaths(),
+    ...accountPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2396,6 +2399,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Receipts", description: "Signed, privacy-preserving receipts of finished intents, verifiable offline and re-checkable on-chain; shares, keys and the transparency log." },
       { name: "Webhooks", description: "Signed event deliveries to your HTTPS endpoints, test deliveries and delivery logs." },
       { name: "Keys", description: "Issue, list, rotate and revoke the API keys of your project." },
+      { name: "Accounts", description: "Developer accounts: sign in with a wallet from the developer portal, list the projects it owns and issue, rotate and revoke their keys, also after every key was lost." },
       { name: "Usage", description: "Per-key request counts and rate-limit state." },
       { name: "Contracts", description: "Register your own EVM contracts and Solana Actions so your key's intents can call them: pinned, simulated, verified, never audited by Kletia." },
       { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow)." },

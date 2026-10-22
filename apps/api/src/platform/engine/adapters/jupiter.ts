@@ -45,12 +45,14 @@ function assertStakeShape(action: Pick<AdapterAction, "kind" | "input" | "output
   }
 }
 
-async function quote(action: Pick<AdapterAction, "input" | "output" | "amount">, slippageBps: number): Promise<JupiterQuote> {
+/** Plans may reuse a quote seconds old; a quote that becomes a transaction to sign is always `fresh`. */
+async function quote(action: Pick<AdapterAction, "input" | "output" | "amount">, slippageBps: number, fresh = false): Promise<JupiterQuote> {
   return quoteJupiterSwap({
     inputMint: jupiterMint(action.input),
     outputMint: jupiterMint(action.output),
     amount: action.amount,
     slippageBps,
+    ...(fresh ? { fresh } : {}),
   });
 }
 
@@ -154,7 +156,7 @@ export const jupiterAdapter: ProtocolAdapter = {
     assertStakeShape(action);
     const warnings: string[] = [];
     const slippageBps = clampSlippage(decodeStepRef(step.quoteRef)?.slippageBps ?? action.slippageBps, warnings);
-    const result = await quote(action, slippageBps);
+    const result = await quote(action, slippageBps, true);
     impactWarnings(result, warnings);
     const built = await buildJupiterSwapTransaction(result, action.account.address);
     const info = assertSolanaTransactionOwner(built.transaction, action.account.address);

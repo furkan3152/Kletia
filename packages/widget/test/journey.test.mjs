@@ -15,6 +15,7 @@ import {
   consequenceFactsKey,
   journeyModel,
   journeyPromptView,
+  sumDecimalAmounts,
   validJourneyAnswers,
 } from "../dist/review.js";
 
@@ -257,4 +258,30 @@ test("JourneyRoute: an ordered list of stops with spoken headings, signs with wo
   assert.ok(over.includes("Your money is here"));
   assert.ok(over.includes("observed on-chain"));
   assert.ok(over.includes('<rect x="1.5" y="1.5" width="9" height="9"'));
+});
+
+test("journeyModel: a stop with two amounts of one token names each by role and gives the total", () => {
+  const journey = fine();
+  const arrival = journey.stops.find((stop) => stop.id === "out:s1");
+  const half = { ...arrival.holdings[0].expected, amount: "24889700", formatted: "24.8897" };
+  const split = {
+    ...journey,
+    stops: journey.stops.map((stop) =>
+      stop.id === "out:s1"
+        ? { ...stop, holdings: [{ ...stop.holdings[0], expected: half, atLeast: half }, { ...stop.holdings[0], expected: half, atLeast: half, role: "kept", next: undefined }] }
+        : stop,
+    ),
+  };
+  const view = journeyModel(split).stops.find((stop) => stop.id === "out:s1");
+  assert.equal(view.total, "49.7794 USDC");
+  assert.match(view.heading, /Spent by leg 2: 24\.8897 USDC, [^;]+; Stays with you: 24\.8897 USDC, [^,]+, total 49\.7794 USDC, In your wallet/u);
+  assert.equal(journeyModel(journey).stops.find((stop) => stop.id === "out:s1").total, null, "one amount: no total");
+});
+
+test("sumDecimalAmounts adds exactly and refuses anything but plain amounts", () => {
+  assert.equal(sumDecimalAmounts(["24.8897", "24.8897"]), "49.7794");
+  assert.equal(sumDecimalAmounts(["0.1", "0.2"]), "0.3");
+  assert.equal(sumDecimalAmounts(["1.50", "2.5"]), "4");
+  assert.equal(sumDecimalAmounts(["1", "x"]), null);
+  assert.equal(sumDecimalAmounts(["-1", "2"]), null);
 });

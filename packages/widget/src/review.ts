@@ -1255,7 +1255,9 @@ export interface JourneyStopView {
   readonly eta: string | null;
   readonly reachedAt: string | null;
   readonly evidenceUrl: string | null;
-  /** The stop in words for screen readers: kind, network, holder, amounts, custody. */
+  /** "49.7794 USDC" when the stop holds two or more amounts of one token; null otherwise. */
+  readonly total: string | null;
+  /** The stop in words for screen readers: kind, network, holder, amounts (each with its role when there are several), total, custody. */
   readonly heading: string;
 }
 
@@ -1388,6 +1390,35 @@ function holdingView(holding: JourneyHolding, legNumber: (legId: string) => numb
   };
 }
 
+/** Exact sum of decimal amount strings ("24.8897" + "24.8897" = "49.7794"); null when one is not a plain amount. */
+export function sumDecimalAmounts(amounts: readonly string[]): string | null {
+  let scale = 0;
+  for (const amount of amounts) {
+    if (!/^\d{1,60}(?:\.\d{1,40})?$/u.test(amount)) return null;
+    scale = Math.max(scale, amount.split(".")[1]?.length ?? 0);
+  }
+  let total = 0n;
+  for (const amount of amounts) {
+    const [whole, fraction = ""] = amount.split(".");
+    total += BigInt(`${whole}${fraction.padEnd(scale, "0")}`);
+  }
+  const digits = total.toString().padStart(scale + 1, "0");
+  const whole = digits.slice(0, digits.length - scale);
+  const fraction = scale > 0 ? digits.slice(digits.length - scale).replace(/0+$/u, "") : "";
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
+/** "49.7794 USDC" when a stop holds two or more amounts of one token; null otherwise. */
+function stopTotal(stop: JourneyStop): string | null {
+  const holdings = (stop.holdings ?? []).filter((holding) => typeof holding.expected?.formatted === "string");
+  if (holdings.length < 2) return null;
+  const symbols = new Set(holdings.map((holding) => cleanText(holding.asset?.symbol, 16) || "tokens"));
+  const assets = new Set(holdings.map((holding) => holding.asset?.asset));
+  if (symbols.size !== 1 || assets.size !== 1) return null;
+  const sum = sumDecimalAmounts(holdings.map((holding) => String(holding.expected.formatted).replace(/^\+/u, "")));
+  return sum ? `${unsignedAmount(sum)} ${[...symbols][0]}` : null;
+}
+
 function stopView(stop: JourneyStop, here: boolean, legNumber: (legId: string) => number | null): JourneyStopView {
   const network = stop.network;
   const networkName = networkLabel(network);
@@ -1401,8 +1432,13 @@ function stopView(stop: JourneyStop, here: boolean, legNumber: (legId: string) =
     else if (stop.state === "upcoming" && stop.eta.afterFirstSignatureSeconds > 0) eta = `${durationText(stop.eta.afterFirstSignatureSeconds)} after your first signature`;
   }
   const kindLabel = STOP_KIND_LABEL[stop.kind] ?? "Stop";
-  const amounts = holdings.map((holding) => `${holding.expected}, ${holding.certaintyInfo.spoken}${holding.atLeast ? `, at least ${holding.atLeast}` : ""}`).join("; ");
-  const heading = [`${kindLabel}: ${networkName}`, holderLabel, amounts, label, here ? "you are here" : ""].filter(Boolean).join(", ");
+  // Several amounts at one stop are each named by their role, and one token's amounts get a total.
+  const labelled = holdings.length > 1;
+  const amounts = holdings
+    .map((holding) => `${labelled && holding.roleText ? `${holding.roleText}: ` : ""}${holding.expected}, ${holding.certaintyInfo.spoken}${holding.atLeast ? `, at least ${holding.atLeast}` : ""}`)
+    .join("; ");
+  const total = stopTotal(stop);
+  const heading = [`${kindLabel}: ${networkName}`, holderLabel, amounts, total ? `total ${total}` : "", label, here ? "you are here" : ""].filter(Boolean).join(", ");
   return {
     id: stop.id,
     index: stop.index,
@@ -1422,6 +1458,7 @@ function stopView(stop: JourneyStop, here: boolean, legNumber: (legId: string) =
     eta,
     reachedAt: clockText(stop.reachedAt),
     evidenceUrl: httpsUrl(stop.evidence?.url)?.href ?? null,
+    total,
     heading,
   };
 }

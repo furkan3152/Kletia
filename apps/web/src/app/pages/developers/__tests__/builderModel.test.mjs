@@ -13,6 +13,8 @@ import {
   elementAttributes,
   escapeAttribute,
   parseEmbedManifest,
+  PREVIEW_SANDBOX_NOTE,
+  previewErrorHint,
   previewOptions,
 } from "../builder/builderModel.ts";
 
@@ -114,6 +116,7 @@ export function Checkout({ accounts, signers }) {
   );
 }`,
   iframe: String.raw`<!-- A plain frame reports no events; use <kletia-intent> for kletia:* events and auto-resize. -->
+<!-- allow-scripts with allow-same-origin lets the widget keep wallet state and call the API. Browsers may log a warning about the pair; it matters only for a frame of your own origin, and /embed is Kletia's. -->
 <iframe
   src="https://kletiaai.xyz/embed?text=swap+1+SOL+to+%22USDC%22+%3Cnow%3E+%26+go&amp;examples=swap+1+SOL+to+USDC%2Cbridge+25+USDC+from+base+to+solana&amp;networks=base%2Csolana&amp;source=base&amp;actions=swap%2Cbridge&amp;accent=0F766E&amp;radius=8&amp;font=system&amp;density=compact"
   title="Kletia intent widget"
@@ -205,4 +208,13 @@ test("contrast warnings come from the frame's resolver with a one-click fix", ()
   assert.ok(notes.length > 0);
   assert.ok(notes.some((note) => note.color === "surface" || note.color === "ink"));
   assert.deepEqual(contrastNotes({ ...DEFAULT_BUILDER_STATE }), []);
+});
+
+test("the preview explains PUBLISHABLE_ORIGIN_FORBIDDEN with this site's origin, and only that refusal", () => {
+  const hint = previewErrorHint("PUBLISHABLE_ORIGIN_FORBIDDEN", "https://kletiaai.xyz");
+  assert.match(hint, /runs on https:\/\/kletiaai\.xyz/u);
+  assert.match(hint, /allowed origins in Project settings/u);
+  assert.match(hint, /public tier/u);
+  for (const code of ["RATE_LIMITED", "EMBED_ORIGIN_INVALID", "INTENT_UNSUPPORTED"]) assert.equal(previewErrorHint(code, "https://kletiaai.xyz"), null, code);
+  assert.match(PREVIEW_SANDBOX_NOTE, /allow-scripts and allow-same-origin/u);
 });

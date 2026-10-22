@@ -182,6 +182,33 @@ function networkOf(action: Pick<AdapterAction, "network">): SolanaNetworkKey {
   return action.network;
 }
 
+/**
+ * A delegation below the network's minimum: on Solana the liquid staking
+ * route (no minimum) is offered as example sentences; Solana Devnet has no
+ * liquid staking, so the minimum is stated plainly.
+ */
+export function belowNativeMinimum(network: SolanaNetworkKey, amount: bigint, minimum: bigint): PlatformError {
+  const asked = formatAmount(fromBaseUnits(amount, 9));
+  const floor = formatAmount(fromBaseUnits(minimum, 9));
+  const issues = [{ path: "amount", message: `At least ${floor} SOL for native staking.` }];
+  if (network === "solana") {
+    return new PlatformError(
+      "AMOUNT_TOO_SMALL",
+      `Native staking delegates at least ${floor} SOL on Solana, so ${asked} SOL is too little. Liquid staking has no such minimum: stake ${asked} SOL with Jito, Marinade or Jupiter instead.`,
+      422,
+      issues,
+      [`stake ${asked} SOL with jito`, `stake ${asked} SOL with marinade`, `stake ${asked} SOL with jupiter`],
+    );
+  }
+  return new PlatformError(
+    "AMOUNT_TOO_SMALL",
+    `Native staking delegates at least ${floor} SOL on Solana Devnet, so ${asked} SOL is too little. Liquid staking is not available on devnet; stake ${floor} SOL or more.`,
+    422,
+    issues,
+    [`stake ${floor} SOL on solana devnet`],
+  );
+}
+
 function assertAction(action: AdapterAction): { network: SolanaNetworkKey; amount: bigint } {
   const network = networkOf(action);
   if (action.kind !== "stake" || action.destinationNetwork !== network || !action.input.isNative || !action.output.isNative) {
@@ -192,9 +219,7 @@ function assertAction(action: AdapterAction): { network: SolanaNetworkKey; amoun
   }
   const amount = /^\d+$/u.test(action.amount) ? BigInt(action.amount) : 0n;
   const minimum = NATIVE_STAKE_MINIMUM[network];
-  if (amount < minimum) {
-    throw new PlatformError("AMOUNT_TOO_SMALL", `Native staking delegates at least ${Number(minimum) / 1e9} SOL on ${network === "solana" ? "Solana" : "Solana Devnet"}.`, 422);
-  }
+  if (amount < minimum) throw belowNativeMinimum(network, amount, minimum);
   return { network, amount };
 }
 

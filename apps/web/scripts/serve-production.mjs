@@ -118,11 +118,13 @@ const receiptKeysHeaders = {
   "Cache-Control": "public, max-age=3600",
 };
 
-// The embed script (integrator 4.1): any page may load it, with
-// `crossorigin="anonymous"` and an SRI hash, so it answers every origin and
-// may be embedded cross-origin. Versioned files never change.
+// The embed script and the SDK build (/sdk/kletia-sdk-<version>.js): any
+// page may load them, with `crossorigin="anonymous"` and an SRI hash, so
+// they answer every origin and may be embedded cross-origin. Versioned files
+// never change; the manifests (/sdk/manifest.json, /sdk/embed/manifest.json)
+// name the current version and are revalidated.
 const SDK_PREFIX = "/sdk/";
-const SDK_MANIFEST = /^\/sdk\/[a-z0-9-]+\/manifest\.json$/u;
+const SDK_MANIFEST = /^\/sdk\/(?:[a-z0-9-]+\/)?manifest\.json$/u;
 const sdkCorsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",

@@ -73,7 +73,7 @@ flowchart TB
 - `apps/api/src/networks/*` own network primitives (RPC, assets, builders, verification) and the console's network engines. A network module never imports another network's targets or builders.
 - `apps/web` owns presentation, wallet sessions (EVM and Solana), the cross-feature event bus, final review and the user's approval.
 - `contracts/base` and `contracts/arc` own independent compiler and deployment boundaries.
-- `render.yaml` is the canonical public-service topology.
+- `render.yaml` is the reference public-service topology; the hosted services were created in the Render dashboard and copy its settings by hand (docs/deployment/render.md).
 
 ## Intent graph lifecycle
 

@@ -118,9 +118,11 @@ export function readFeatureCapabilities(): {
       "base.paymaster",
       "base",
       "Sponsored gas (CDP Paymaster)",
-      process.env.PAYMASTER_PROXY_ENABLED === "true" && has("CDP_PAYMASTER_POLICY_ID"),
+      // The proxy reaches CDP through CDP_PAYMASTER_URL or, without it, the URL derived from CDP_API_KEY_ID
+      // (networks/base/routes/paymaster.ts): either one, never both, is needed.
+      process.env.PAYMASTER_PROXY_ENABLED === "true" && has("CDP_PAYMASTER_POLICY_ID") && (has("CDP_PAYMASTER_URL") || has("CDP_API_KEY_ID")),
       "Policy-scoped CDP paymaster proxy.",
-      ["PAYMASTER_PROXY_ENABLED=true", "CDP_PAYMASTER_POLICY_ID", "CDP_PAYMASTER_URL"],
+      ["PAYMASTER_PROXY_ENABLED=true", "CDP_PAYMASTER_POLICY_ID", "CDP_API_KEY_ID (or CDP_PAYMASTER_URL)"],
     ),
     feature(
       "base.onramp",

@@ -7,7 +7,7 @@ import type { RequestHandler } from "express";
  * - First-party application API (everything except /v1): an exact origin
  *   allowlist with credentials. Built-in origins plus CORS_ORIGINS; local
  *   development origins only outside production. A disallowed origin is
- *   rejected with an error.
+ *   refused with 403 CORS_ORIGIN_FORBIDDEN and no CORS headers.
  * - Public platform API (/v1): any origin, never credentials. Integrators
  *   authenticate with an API key header, so the browser origin is not a
  *   trust signal there. The MCP endpoint (/v1/mcp) reflects the requested
@@ -148,6 +148,8 @@ export const platformCorsOptions: CorsOptions = {
     "If-Match",
     // The /embed frame sends the bridge-proven host page origin with a publishable key (integrator 4.8).
     "Kletia-Host-Origin",
+    // Developer accounts (accounts/): the wallet session of the developer portal.
+    "Kletia-Account-Session",
   ],
   exposedHeaders: [
     "X-Request-Id",
@@ -217,14 +219,25 @@ export function createCorsMiddleware(): RequestHandler {
   const mcpCors = cors(mcpCorsOptions);
   const actionsCors = cors(actionsCorsOptions);
   const adminCors = cors(adminCorsOptions);
-  return (req, res, next) =>
-    isAdminApiPath(req.path)
-      ? adminCors(req, res, next)
-      : isMcpPath(req.path)
-      ? mcpCors(req, res, next)
-      : isActionsPath(req.path)
-        ? actionsCors(req, res, next)
-        : isPlatformApiPath(req.path)
-          ? platformCors(req, res, next)
-          : apiCors(req, res, next);
+  return (req, res, next) => {
+    if (isMcpPath(req.path)) return mcpCors(req, res, next);
+    if (isActionsPath(req.path)) return actionsCors(req, res, next);
+    if (isPlatformApiPath(req.path)) return platformCors(req, res, next);
+    // First-party and admin API: a foreign origin is refused here with 403 and no CORS headers
+    // (preflight and request alike), never passed on as an error that would answer 500.
+    const origin = req.headers.origin;
+    if (typeof origin === "string" && !allowedOrigins.includes(origin)) return refuseOrigin(res);
+    return isAdminApiPath(req.path) ? adminCors(req, res, next) : apiCors(req, res, next);
+  };
+}
+
+/** 403 for a browser origin outside the allowlist (Vary: Origin, so caches keep answers apart). */
+function refuseOrigin(res: Parameters<RequestHandler>[1]): void {
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(403).json({
+    success: false,
+    code: "CORS_ORIGIN_FORBIDDEN",
+    message: "This origin may not call the Kletia application API. Integrations use the public API under /v1.",
+  });
 }

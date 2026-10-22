@@ -10,19 +10,23 @@
 //   web-developers GET <web>/developers: 200 HTML
 //   web-embed      GET <web>/embed: 200 with Content-Security-Policy frame-ancestors *
 //   embed-script   GET <web>/sdk/embed/manifest.json, then every file it lists: the served
-//                  bytes hash to the manifest's sha384 integrity
+//                  bytes hash to the manifest's sha384 integrity, and the manifest and
+//                  every file answer Access-Control-Allow-Origin: * (other sites load them
+//                  with crossorigin="anonymous": without the header the browser blocks them)
+//   sdk-script     GET <web>/sdk/manifest.json, then the SDK build it lists: the same
+//                  integrity and CORS checks for the ESM build of @kletia/sdk
 //
 // Prints one line per probe and exits 1 when any probe fails (2 on usage
 // errors). `--skip <probe>` leaves a probe out (for example embed-script on a
 // deployment that predates the script delivery). The first request to a cold
-// free-tier instance can take about 50 s, so the default timeout is 60 s.
+// free-tier instance can take 65-75 s; the workflow passes --timeout 90000.
 // .github/workflows/public-smoke.yml runs this hourly; `npm run verify` never
 // does (its tests serve local stubs).
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-export const PROBES = Object.freeze(["api-health", "api-openapi", "web-developers", "web-embed", "embed-script"]);
-const DEFAULT_TIMEOUT_MS = 60_000;
+export const PROBES = Object.freeze(["api-health", "api-openapi", "web-developers", "web-embed", "embed-script", "sdk-script"]);
+const DEFAULT_TIMEOUT_MS = 90_000;
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const COMMIT = /^[0-9a-f]{7,64}$/u;
 const INTEGRITY = /^sha384-[A-Za-z0-9+/]{64}$/u;
@@ -124,20 +128,35 @@ async function probeEmbed(web, timeoutMs, fetchImpl) {
   return { ok: true, detail: "frame-ancestors *", ms: reply.ms };
 }
 
-async function probeEmbedScript(web, timeoutMs, fetchImpl) {
-  const reply = await get(`${web}/sdk/embed/manifest.json`, timeoutMs, fetchImpl);
+/** The failure when a cross-origin script answer lacks `Access-Control-Allow-Origin: *`, else null. */
+function corsFailure(reply) {
+  const allow = reply.headers.get("access-control-allow-origin");
+  if (allow === null) return "Access-Control-Allow-Origin is missing (other sites cannot load it)";
+  if (allow.trim() !== "*") return `Access-Control-Allow-Origin is "${allow}", expected *`;
+  return null;
+}
+
+/**
+ * A script manifest (`{ schema, version, files: { name: { path, integrity } } }`)
+ * and every file it lists: 200, CORS for every origin, and served bytes that
+ * hash to the listed SHA-384 integrity.
+ */
+async function probeScriptManifest({ web, manifestPath, schema, pathPrefix }, timeoutMs, fetchImpl) {
+  const reply = await get(`${web}${manifestPath}`, timeoutMs, fetchImpl);
   const failure = statusFailure(reply);
   if (failure) return { ok: false, detail: `manifest: ${failure}`, ms: reply.ms };
   const manifest = json(reply.body);
-  if (!manifest || manifest.schema !== "kletia.embed-manifest/v1" || typeof manifest.files !== "object" || manifest.files === null) {
-    return { ok: false, detail: "manifest is not kletia.embed-manifest/v1", ms: reply.ms };
+  if (!manifest || manifest.schema !== schema || typeof manifest.files !== "object" || manifest.files === null) {
+    return { ok: false, detail: `manifest is not ${schema}`, ms: reply.ms };
   }
+  const manifestCors = corsFailure(reply);
+  if (manifestCors) return { ok: false, detail: `${manifestPath}: ${manifestCors}`, ms: reply.ms };
   const entries = Object.entries(manifest.files);
   if (entries.length === 0) return { ok: false, detail: "manifest lists no files", ms: reply.ms };
   let ms = reply.ms;
   for (const [name, file] of entries) {
     const path = file?.path;
-    if (typeof path !== "string" || !path.startsWith("/sdk/embed/") || path.includes("..") || !INTEGRITY.test(file?.integrity ?? "")) {
+    if (typeof path !== "string" || !path.startsWith(pathPrefix) || path.includes("..") || !INTEGRITY.test(file?.integrity ?? "")) {
       return { ok: false, detail: `manifest entry ${name} is malformed`, ms };
     }
     const script = await get(`${web}${path}`, timeoutMs, fetchImpl);
@@ -146,9 +165,17 @@ async function probeEmbedScript(web, timeoutMs, fetchImpl) {
     if (scriptFailure) return { ok: false, detail: `${path}: ${scriptFailure}`, ms };
     const integrity = `sha384-${createHash("sha384").update(script.body).digest("base64")}`;
     if (integrity !== file.integrity) return { ok: false, detail: `${path}: served bytes do not match the manifest integrity`, ms };
+    const scriptCors = corsFailure(script);
+    if (scriptCors) return { ok: false, detail: `${path}: ${scriptCors}`, ms };
   }
-  return { ok: true, detail: `version ${String(manifest.version)}, ${entries.length} file(s) match their integrity`, ms };
+  return { ok: true, detail: `version ${String(manifest.version)}, ${entries.length} file(s) match their integrity, CORS *`, ms };
 }
+
+const probeEmbedScript = (web, timeoutMs, fetchImpl) =>
+  probeScriptManifest({ web, manifestPath: "/sdk/embed/manifest.json", schema: "kletia.embed-manifest/v1", pathPrefix: "/sdk/embed/" }, timeoutMs, fetchImpl);
+
+const probeSdkScript = (web, timeoutMs, fetchImpl) =>
+  probeScriptManifest({ web, manifestPath: "/sdk/manifest.json", schema: "kletia.sdk-manifest/v1", pathPrefix: "/sdk/kletia-sdk-" }, timeoutMs, fetchImpl);
 
 const RUNNERS = {
   "api-health": (origins, timeoutMs, fetchImpl) => probeApiHealth(origins.api, timeoutMs, fetchImpl),
@@ -156,6 +183,7 @@ const RUNNERS = {
   "web-developers": (origins, timeoutMs, fetchImpl) => probeDevelopers(origins.web, timeoutMs, fetchImpl),
   "web-embed": (origins, timeoutMs, fetchImpl) => probeEmbed(origins.web, timeoutMs, fetchImpl),
   "embed-script": (origins, timeoutMs, fetchImpl) => probeEmbedScript(origins.web, timeoutMs, fetchImpl),
+  "sdk-script": (origins, timeoutMs, fetchImpl) => probeSdkScript(origins.web, timeoutMs, fetchImpl),
 };
 
 /**

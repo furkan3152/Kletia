@@ -1,12 +1,29 @@
 name: Release packages
 
-# Publishes @kletia/core, @kletia/sdk, @kletia/widget, @kletia/embed and @kletia/cli
-# to npm with provenance when a tag such as `packages-v0.2.0` is pushed. The tag
-# version must equal the version in every package manifest (bump them together
-# with `npm run bump:packages -- <version>`). Versions that are already on npm
-# are skipped, so a failed run can be re-run safely.
+# Releases @kletia/core, @kletia/sdk, @kletia/widget, @kletia/embed and
+# @kletia/cli together. Two jobs:
 #
-# Authentication: npm trusted publishing (OIDC, `id-token: write`) once a
+# - tarballs: builds the five packages, runs their tests and tarball checks,
+#   then attaches the `npm pack` tarballs and a SHA256SUMS file to the GitHub
+#   release of the tag. This works without npm: anyone can install from the
+#   release assets (docs/platform/quickstart.md, "Install without npm").
+# - publish: publishes the same versions to npm with provenance.
+#
+# Triggers:
+# - pushing a tag such as `packages-v0.2.0` runs both jobs. The tag version
+#   must equal the version in every package manifest (bump them together with
+#   `npm run bump:packages -- <version>`).
+# - a manual run (workflow_dispatch) runs the tarballs job for `tag`, or for
+#   `packages-v<manifest version>` when `tag` is empty. An existing tag is
+#   checked out and built as tagged; a missing one is created on the commit
+#   the run was started from. Tags created by this workflow do not start
+#   another run, so npm publishing then happens only when `publish_npm` is
+#   checked.
+#
+# Versions that are already on npm are skipped, and release assets are
+# replaced, so a failed run can be re-run safely.
+#
+# npm authentication: npm trusted publishing (OIDC, `id-token: write`) once a
 # trusted publisher is configured for each package (this repository, workflow
 # `release-packages.yml`, environment `npm`); until then, and for the first
 # publish of a new package, the NPM_TOKEN repository secret.
@@ -14,6 +31,17 @@ on:
   push:
     tags:
       - "packages-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (packages-v<version>); empty uses the package manifests' version
+        required: false
+        default: ""
+      publish_npm:
+        description: Also publish this version to npm (needs the npm scope and NPM_TOKEN or trusted publishing)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -23,8 +51,146 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve the release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      exists: ${{ steps.tag.outputs.exists }}
+    steps:
+      - name: Check out repository
+        # actions/checkout v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve tag and version
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSHED_TAG: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            tag="$PUSHED_TAG"
+          elif [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="packages-v$(node -p "require('./packages/sdk/package.json').version")"
+          fi
+          case "$tag" in
+            packages-v[0-9]*) ;;
+            *) echo "The tag must look like packages-v<version>, got '$tag'." >&2; exit 1 ;;
+          esac
+          if ! printf '%s' "$tag" | grep -Eq '^packages-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "The tag must be packages-v followed by a semver version, got '$tag'." >&2
+            exit 1
+          fi
+          exists=false
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then exists=true; fi
+          {
+            echo "tag=$tag"
+            echo "version=${tag#packages-v}"
+            echo "exists=$exists"
+          } >> "$GITHUB_OUTPUT"
+
+  tarballs:
+    name: Attach package tarballs to the GitHub release
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        # actions/checkout v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          # An existing tag is built as tagged; a new tag is created on the commit this run started from.
+          ref: ${{ needs.resolve.outputs.exists == 'true' && format('refs/tags/{0}', needs.resolve.outputs.tag) || github.sha }}
+
+      - name: Set up Node.js
+        # actions/setup-node v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.1
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Check tag matches package versions
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          for name in core sdk widget embed cli; do
+            actual=$(node -p "require('./packages/$name/package.json').version")
+            if [ "$actual" != "$VERSION" ]; then
+              echo "packages/$name is $actual but the release is $VERSION" >&2
+              exit 1
+            fi
+          done
+
+      - name: Build, test and verify package contents
+        run: |
+          npm run build:packages
+          npm run test:packages
+          npm run check:packages
+
+      - name: Pack tarballs
+        run: |
+          mkdir -p release-assets
+          for name in core sdk widget embed cli; do
+            npm pack --workspace "@kletia/$name" --pack-destination release-assets
+          done
+          cd release-assets
+          sha256sum ./*.tgz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET: ${{ github.sha }}
+        run: |
+          base="https://github.com/$REPOSITORY/releases/download/$TAG"
+          cat > release-notes.md <<EOF
+          Package tarballs of @kletia/core, @kletia/sdk, @kletia/widget, @kletia/embed and @kletia/cli $VERSION, built and tested by this workflow. SHA256SUMS lists their hashes.
+
+          Install the SDK without the npm registry (core first: the SDK depends on it):
+
+          \`\`\`bash
+          npm install $base/kletia-core-$VERSION.tgz $base/kletia-sdk-$VERSION.tgz
+          \`\`\`
+
+          The CLI:
+
+          \`\`\`bash
+          npm install --global $base/kletia-core-$VERSION.tgz $base/kletia-sdk-$VERSION.tgz $base/kletia-cli-$VERSION.tgz
+          \`\`\`
+          EOF
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/*.tgz release-assets/SHA256SUMS --repo "$REPOSITORY" --clobber
+          else
+            # --target only applies when the tag does not exist yet (manual runs).
+            gh release create "$TAG" release-assets/*.tgz release-assets/SHA256SUMS \
+              --repo "$REPOSITORY" --target "$TARGET" --title "Kletia packages $VERSION" \
+              --notes-file release-notes.md $prerelease
+          fi
+
   publish:
-    name: Publish @kletia packages
+    name: Publish @kletia packages to npm
+    needs: [resolve, tarballs]
+    if: github.event_name == 'push' || inputs.publish_npm
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: npm
@@ -37,6 +203,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: refs/tags/${{ needs.resolve.outputs.tag }}
 
       - name: Set up Node.js
         # actions/setup-node v4.4.0
@@ -56,13 +223,12 @@ jobs:
 
       - name: Check tag matches package versions
         env:
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          expected="${TAG#packages-v}"
           for name in core sdk widget embed cli; do
             actual=$(node -p "require('./packages/$name/package.json').version")
-            if [ "$actual" != "$expected" ]; then
-              echo "packages/$name is $actual but the tag is $expected" >&2
+            if [ "$actual" != "$VERSION" ]; then
+              echo "packages/$name is $actual but the tag is $VERSION" >&2
               exit 1
             fi
           done
@@ -75,15 +241,14 @@ jobs:
       - name: Publish in dependency order
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          version="${TAG#packages-v}"
           # Prereleases (0.3.0-rc.1) go to the `next` dist-tag, never `latest`.
           dist_tag=latest
-          case "$version" in *-*) dist_tag=next ;; esac
+          case "$VERSION" in *-*) dist_tag=next ;; esac
           for name in core sdk widget embed cli; do
-            if npm view "@kletia/$name@$version" version >/dev/null 2>&1; then
-              echo "@kletia/$name@$version is already published; skipping"
+            if npm view "@kletia/$name@$VERSION" version >/dev/null 2>&1; then
+              echo "@kletia/$name@$VERSION is already published; skipping"
               continue
             fi
             npm publish --workspace "@kletia/$name" --access public --provenance --tag "$dist_tag"

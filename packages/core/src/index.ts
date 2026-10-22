@@ -27,3 +27,4 @@ export * from "./projects.js";
 export * from "./goal.js";
 export * from "./capabilities.js";
 export * from "./admin.js";
+export * from "./accounts.js";

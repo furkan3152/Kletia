@@ -6,6 +6,7 @@
 import { isSolanaError } from "@solana/kit";
 import { BaseError as ViemBaseError } from "viem";
 import { SolanaProviderError } from "../networks/solana/index.js";
+import { DEFAULT_PROVIDER_RETRY_AFTER_SECONDS, MAX_PROVIDER_RETRY_AFTER_SECONDS, PROVIDER_RATE_LIMITED } from "../shared/http/providerRetry.js";
 
 export interface PlatformIssue {
   readonly path: string;
@@ -89,6 +90,25 @@ export class PlatformError extends Error {
   }
 }
 
+/**
+ * A provider still rate-limiting after the bounded in-request retries:
+ * PROVIDER_RATE_LIMITED (503, retryable) with `retryAfterSeconds` (sent as
+ * Retry-After). The message names the provider only.
+ */
+export function providerRateLimited(provider: string, retryAfterSeconds: number = DEFAULT_PROVIDER_RETRY_AFTER_SECONDS): PlatformError & { readonly retryAfterSeconds: number } {
+  const seconds = Number.isFinite(retryAfterSeconds)
+    ? Math.min(MAX_PROVIDER_RETRY_AFTER_SECONDS, Math.max(1, Math.ceil(retryAfterSeconds)))
+    : DEFAULT_PROVIDER_RETRY_AFTER_SECONDS;
+  const name = provider.replace(/[^\w .-]+/gu, "").slice(0, 40) || "A provider";
+  const error = new PlatformError(
+    "PROVIDER_RATE_LIMITED",
+    `${name} is limiting requests right now. This is temporary: try again in ${seconds} s.`,
+    503,
+  );
+  Object.defineProperty(error, "retryAfterSeconds", { value: seconds, enumerable: false });
+  return error as PlatformError & { readonly retryAfterSeconds: number };
+}
+
 export function isPlatformError(error: unknown): error is PlatformError {
   return error instanceof PlatformError;
 }
@@ -141,6 +161,7 @@ function logUpstream(family: "evm" | "solana", error: unknown): void {
 export function toPlatformError(error: unknown): PlatformError {
   if (error instanceof PlatformError) return error;
   if (error instanceof SolanaProviderError) {
+    if (error.code === PROVIDER_RATE_LIMITED) return providerRateLimited(error.provider ?? "A Solana provider", error.retryAfterSeconds);
     const status = normalizeStatus(error.status);
     if (status >= 500) {
       logUpstream("solana", error);

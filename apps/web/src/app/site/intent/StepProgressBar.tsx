@@ -1,4 +1,4 @@
-import type { IntentGraph } from "@kletia/core";
+import type { IntentGraph, IntentStep } from "@kletia/core";
 
 import type { LocalStepPhase } from "../../../shared/platform/useIntentExecution";
 import { cx } from "../ui/styles";
@@ -12,6 +12,8 @@ const SEGMENT: Readonly<Record<StepDisplayPhase, { fill: number; color: string; 
   preparing: { fill: 0.15, color: "#0052FF" },
   awaiting_signature: { fill: 0.35, color: "#FFD60A", hatch: true },
   unconfirmed: { fill: 0.35, color: "#FFD60A", hatch: true },
+  not_signed: { fill: 0, color: "#94A3B8" },
+  signature_unknown: { fill: 0.35, color: "#FFD60A" },
   submitted: { fill: 0.6, color: "#6D28D9", hatch: true },
   settling: { fill: 0.8, color: "#6D28D9", hatch: true },
   settled: { fill: 1, color: "#4ADE80" },
@@ -23,6 +25,8 @@ export interface StepProgressBarProps {
   readonly phases?: Readonly<Record<string, LocalStepPhase>>;
   /** False while paused or stopped: in-flight segments keep their fill but stop moving. */
   readonly running?: boolean;
+  /** The phase each segment shows (default: `stepDisplayPhase` with the local phases). */
+  readonly phaseOf?: (step: IntentStep) => StepDisplayPhase;
   readonly className?: string;
 }
 
@@ -31,9 +35,10 @@ export interface StepProgressBarProps {
  * progressbar of settled steps; it is not a live region, so the progress
  * list's polite announcement stays the single source of speech.
  */
-export function StepProgressBar({ intent, phases = {}, running = true, className }: StepProgressBarProps) {
+export function StepProgressBar({ intent, phases = {}, running = true, phaseOf, className }: StepProgressBarProps) {
   const steps = [...intent.steps].sort((a, b) => a.index - b.index);
-  const settled = steps.filter((step) => stepDisplayPhase(step, phases[step.id]) === "settled").length;
+  const phaseFor = phaseOf ?? ((step: IntentStep) => stepDisplayPhase(step, phases[step.id]));
+  const settled = steps.filter((step) => phaseFor(step) === "settled").length;
   return (
     <div
       role="progressbar"
@@ -48,7 +53,7 @@ export function StepProgressBar({ intent, phases = {}, running = true, className
       )}
     >
       {steps.map((step) => {
-        const phase = stepDisplayPhase(step, phases[step.id]);
+        const phase = phaseFor(step);
         const segment = SEGMENT[phase];
         return (
           <span

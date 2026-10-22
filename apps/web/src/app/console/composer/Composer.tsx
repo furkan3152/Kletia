@@ -22,7 +22,8 @@ import { DESK_COPY } from "../content/copy";
 import type { NetworkActions } from "../content/starters";
 import { COMPOSER_LIMIT, composerVerdict, laneOf, type Departure, type DeskView, type LegacyNetwork } from "../state/deskModel";
 import { getDeskStore, useDeskStore } from "../state/deskStore";
-import { editsTask } from "../tasks/questionModel";
+import { composerChoice, editsTask, turnAnswer } from "../tasks/questionModel";
+import { isDeskQuestion } from "../tasks/slots";
 import { DepartureChip } from "./DepartureChip";
 import { StarterMenu } from "./StarterMenu";
 
@@ -141,12 +142,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Grow with the text, up to the CSS max height.
+  // Grow with the text, up to the CSS max height. Empty, it stays one line (a long placeholder is cut, not wrapped).
   useEffect(() => {
     const box = textareaRef.current;
     if (!box) return;
     box.style.height = "auto";
-    box.style.height = `${box.scrollHeight}px`;
+    if (text) box.style.height = `${box.scrollHeight}px`;
   }, [text]);
 
   const submit = () => {
@@ -197,6 +198,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     }
   };
 
+  /** Answers the open question of the task the composer is about (answering, focused, or the only one asking). */
+  const chooseByDigit = (digit: number): boolean => {
+    const store = getDeskStore().getState();
+    const asking = store.tasks.filter((task) => task.question !== null && task.status === "question");
+    const target =
+      asking.find((task) => task.id === store.answering) ??
+      asking.find((task) => task.id === store.focusedTaskId) ??
+      (asking.length === 1 ? asking[0] : undefined);
+    const question = target?.question;
+    if (!target || !question || !isDeskQuestion(question)) return false;
+    const choice = composerChoice(question, digit);
+    if (!choice) return false;
+    const answer = turnAnswer(question, { optionId: choice.optionId });
+    if (!answer) return false;
+    store.patchTask(target.id, { turn: { kind: "answer", at: Date.now(), label: choice.label, answer } });
+    setNotice(copy.choseOption(choice.label));
+    return true;
+  };
+
+  const pickStarter = (sentence: string) => {
+    setText(sentence);
+    setError(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   const yard = laneOf(departure) === "testnet";
   const pinName = enginePin ? CHAINS[enginePin].shortName : null;
 
@@ -214,6 +240,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         >
           <div className="flex flex-wrap items-center gap-2">
             <DepartureChip ref={chipRef} departure={departure} caption={departureCaption} expanded={boardOpen} onOpen={onOpenBoard} />
+            {/* Phones: "Examples" shares the chip row, so the docked composer stays two rows tall. */}
+            <StarterMenu departure={departure} actions={actions} onPick={pickStarter} variant="inline" className="ml-auto md:hidden" />
             {yard ? (
               <span className="kd-yard-ribbon inline-flex min-h-8 items-center px-2 text-[11px] font-black uppercase tracking-wider text-fg">
                 {copy.testYardBadge}
@@ -270,6 +298,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 if (!event.target.value) setDeclined(null);
               }}
               onKeyDown={(event) => {
+                // "1-9 choose" on an open question card works from the empty composer too.
+                if (!text && /^[1-9]$/u.test(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey && chooseByDigit(Number(event.key))) {
+                  event.preventDefault();
+                  return;
+                }
                 if (event.key !== "Enter" || event.shiftKey) return;
                 if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 event.preventDefault();
@@ -302,11 +335,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </p>
           ) : null}
         </form>
-        <StarterMenu departure={departure} actions={actions} onPick={(sentence) => {
-          setText(sentence);
-          setError(null);
-          requestAnimationFrame(() => textareaRef.current?.focus());
-        }} />
+        <StarterMenu departure={departure} actions={actions} onPick={pickStarter} className="hidden md:flex" />
       </div>
     </div>
   );

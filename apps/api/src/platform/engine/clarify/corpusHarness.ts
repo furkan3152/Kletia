@@ -81,7 +81,11 @@ export function corpusPhrases(corpus: Corpus): ContractPhrase[] {
 }
 
 /** Installs a fixture wallet as the holdings readers (clears every holdings cache). */
-export function installWallet(corpus: Corpus, walletId: string): { reads: { balances: number; names: number } } {
+export function installWallet(
+  corpus: Corpus,
+  walletId: string,
+  options: { readonly resolveName?: (name: string, network: NetworkKey) => Promise<never> } = {},
+): { reads: { balances: number; names: number } } {
   const wallet = corpus.fixtures.wallets[walletId];
   if (!wallet) throw new Error(`unknown wallet ${walletId}`);
   const counter = { balances: 0, names: 0 };
@@ -111,6 +115,7 @@ export function installWallet(corpus: Corpus, walletId: string): { reads: { bala
     },
     resolveName: async (name, network) => {
       counter.names += 1;
+      if (options.resolveName) return options.resolveName(name, network);
       const entry = corpus.fixtures.names[name.toLowerCase()];
       const address = entry ? entry[network] ?? (CHAINS[network].vm === "evm" ? entry.evm : undefined) : undefined;
       if (!address) throw new Error("name not found");

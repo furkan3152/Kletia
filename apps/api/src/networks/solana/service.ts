@@ -50,6 +50,8 @@ export async function quoteSolanaSwap(input: {
   to: string;
   amount: string;
   slippageBps?: number;
+  /** Skip the quote cache (the quote becomes a transaction to sign). */
+  fresh?: boolean;
 }): Promise<SolanaSwapQuoteSummary> {
   const [fromToken, toToken] = await Promise.all([
     requireSolanaToken("solana", input.from),
@@ -61,6 +63,7 @@ export async function quoteSolanaSwap(input: {
     outputMint: toToken.mint,
     amount,
     ...(input.slippageBps !== undefined ? { slippageBps: input.slippageBps } : {}),
+    ...(input.fresh ? { fresh: true } : {}),
   });
   const warnings: string[] = [];
   if (!toToken.verified) warnings.push(`${toToken.symbol} is not on Jupiter's verified list.`);
@@ -90,7 +93,7 @@ export async function prepareSolanaSwap(input: {
   amount: string;
   slippageBps?: number;
 }) {
-  const summary = await quoteSolanaSwap(input);
+  const summary = await quoteSolanaSwap({ ...input, fresh: true });
   if (summary.priceImpactPct > 0.05) {
     throw new SolanaProviderError("Price impact above 5% is refused.", "SOLANA_PRICE_IMPACT_TOO_HIGH", 422);
   }

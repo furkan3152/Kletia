@@ -94,6 +94,26 @@ export function DeparturePicker({
     checked?.focus({ preventScroll: true });
   }, [open]);
 
+  // The popover opens upward from the chip: it never grows past the sticky header (its title stays visible).
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || !open || mode !== "popover") return undefined;
+    const fit = () => {
+      const anchor = anchorRef.current?.getBoundingClientRect();
+      const header = document.querySelector(".kd-header")?.getBoundingClientRect().bottom ?? 0;
+      if (!anchor) return;
+      // 10 px between the chip and the board (desk.css), 12 px under the header.
+      dialog.style.setProperty("--kd-picker-room", `${Math.max(160, Math.floor(anchor.top - header - 22))}px`);
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("scroll", fit, { passive: true });
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("scroll", fit);
+    };
+  }, [anchorRef, mode, open]);
+
   // Esc closes (the sheet's cancel event, the popover's keydown) and restores the previous choice.
   useEffect(() => {
     const dialog = dialogRef.current;

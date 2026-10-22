@@ -9,14 +9,13 @@ import { CHAINS, type NetworkKey } from "@kletia/core";
 
 import { LineBullet } from "../../site/art/LineBullet";
 import { Stamp } from "../../site/art/Stamp";
-import { STAMP_SENTENCES, type StampState } from "../../site/art/stampText";
 import { TicketHead, TicketShell } from "../../site/art/TicketShell";
 import { LINES } from "../../site/art/tokens";
 import { DESK_COPY } from "../content/copy";
 import type { DepartureLine } from "../state/deskModel";
 import type { TaskRecord } from "../state/deskStore";
 import { DepartureNotice } from "./DepartureNotice";
-import { serialOf, stampFor } from "./taskModel";
+import { serialOf, taskStatusLabel, ticketStampOf, unstampedSentence } from "./taskModel";
 
 const copy = DESK_COPY.ticket;
 
@@ -34,8 +33,9 @@ export interface TaskTicketProps {
 
 export function TaskTicket({ task, ends, departureLine, lineAction, children, animateStamp = false }: TaskTicketProps) {
   const serial = serialOf(task.intentId ?? task.id);
-  const state = stampFor(task.status);
-  const stamp = ticketStamp(task, state);
+  const stamp = ticketStampOf(task);
+  // The ticket's data-state follows the stamp it prints ("none" without one).
+  const state = stamp?.state ?? "none";
   const route = ends ?? task.ends;
   const yard = task.lane === "testnet";
   const sentence = task.sentence || task.title;
@@ -82,31 +82,17 @@ export function TaskTicket({ task, ends, departureLine, lineAction, children, an
       }
       stub={
         <>
-          <p className="kla-ticket__stub-k">{DESK_COPY.tasks.status[task.status]}</p>
+          <p className="kla-ticket__stub-k">{taskStatusLabel(task)}</p>
           {stamp ? (
             <>
               <p className="kla-sr">{stamp.sentence}</p>
               <Stamp state={stamp.state} detail={stamp.detail} animate={animateStamp} className="kla-ticket__stamp" />
             </>
           ) : (
-            <p className="kla-sr">{UNSTAMPED_SENTENCE}</p>
+            <p className="kla-sr">{unstampedSentence(task.status, task.engine)}</p>
           )}
         </>
       }
     />
   );
-}
-
-/** An open question has no outcome to stamp yet. */
-const UNSTAMPED_SENTENCE = "Waiting for your answer. Nothing has been signed.";
-
-/**
- * The stamp a task's ticket carries. A question gets none; a task that ended
- * before any plan was stored (a refusal, a cancelled question) was never a
- * route, so it reads "Not planned" rather than "not settled".
- */
-function ticketStamp(task: TaskTicketProps["task"], state: StampState): { state: StampState; detail?: string; sentence: string } | null {
-  if (task.status === "question") return null;
-  if (state === "failed" && task.intentId === null) return { state, detail: "NOT PLANNED", sentence: "Not planned. Nothing was signed." };
-  return { state, sentence: STAMP_SENTENCES[state] };
 }

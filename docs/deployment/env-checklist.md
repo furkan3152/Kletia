@@ -78,4 +78,4 @@ connected to sign.
 
 - Site → Redirects/Rewrites and Headers: see [render.md](render.md#services-created-in-the-dashboard).
 - API → plan: the free plan sleeps after 15 idle minutes; integrators need an always-on instance.
-- GitHub → repository secret `NPM_TOKEN`, then push a `v*` tag to publish the `@kletia/*` packages (`.github/workflows/release-packages.yml`).
+- GitHub → repository secret `NPM_TOKEN` and environment `npm`, then push a `packages-v<version>` tag (for example `packages-v0.2.0`, after `npm run bump:packages -- 0.2.0`) to publish the `@kletia/*` packages (`.github/workflows/release-packages.yml`). A plain `v*` tag does not publish. The same workflow attaches the `npm pack` tarballs to the GitHub release, and can be run by hand (Actions → Release packages → Run workflow) to attach them without publishing to npm.

@@ -104,13 +104,21 @@ export default function DeskApp() {
     else if (accountStatus === "disconnected") bindWalletHistory();
   }, [accountStatus, address, bindWalletHistory]);
 
-  // "Kletia has a question about <title>": once per question that opens (the slot renders it).
+  // "Kletia has a question about <title>": once per question that opens (the slot renders it),
+  // and cleared once that question is answered or gone, so a screen reader never finds it stale.
   const askedRef = useRef(new Set<string>());
+  const announcedRef = useRef<{ readonly taskId: string; readonly questionId: string } | null>(null);
   useEffect(() => {
     for (const task of tasks) {
       if (!task.question || askedRef.current.has(task.question.id)) continue;
       askedRef.current.add(task.question.id);
+      announcedRef.current = { taskId: task.id, questionId: task.question.id };
       setAnnouncement(copy.tasks.announcements.question(task.title));
+    }
+    const announced = announcedRef.current;
+    if (announced && tasks.find((task) => task.id === announced.taskId)?.question?.id !== announced.questionId) {
+      announcedRef.current = null;
+      setAnnouncement("");
     }
   }, [tasks]);
 
@@ -125,10 +133,14 @@ export default function DeskApp() {
     const route = routeSubmission({ text, departure: store.departure, enginePin: store.enginePin });
     if (route.engine === "network") {
       store.addTask({ sentence: text, departure: route.network, engine: { kind: "network", network: route.network, why: "tool" }, status: "engine" });
+    } else if (route.engine === "rates") {
+      // Read-only: answered from the venue list, without a wallet; an engine pin is not needed for it.
+      store.addTask({ sentence: text, departure: store.departure, engine: { kind: "rates" } });
     } else {
       store.addTask({ sentence: text, departure: store.departure });
     }
     if (store.view !== "desk") store.setView("desk");
+    announcedRef.current = null;
     setAnnouncement(copy.tasks.announcements.added);
   }, []);
 

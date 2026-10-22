@@ -458,6 +458,12 @@ The element renders:
 - `allow-same-origin` keeps the frame on Kletia's origin, which wallets and
   the API need. The frame is cross-origin to your page, so it cannot reach
   your DOM, cookies or storage.
+- Browsers log a console warning for this pair ("An iframe which has both
+  allow-scripts and allow-same-origin for its sandbox attribute can escape its
+  sandboxing"). The escape it describes needs the frame to be on the page's
+  own origin; on your site `/embed` is Kletia's origin, so the warning is
+  expected and harmless. The Embed Builder's preview frames `/embed` on
+  `kletiaai.xyz` itself, which is why the warning also shows there.
 - `allow-popups` and `allow-popups-to-escape-sandbox` let wallet connectors
   open their own windows. There is no `allow-top-navigation`: the frame can
   never navigate your page.

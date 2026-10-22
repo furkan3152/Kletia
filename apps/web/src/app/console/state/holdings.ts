@@ -11,6 +11,7 @@
  * Amounts stay exact strings; nothing is rounded through a float except the
  * advisory USD totals.
  */
+import { displayDecimal } from "../../site/intent/format.ts";
 import {
   CHAINS,
   NETWORK_KEYS,
@@ -266,9 +267,9 @@ export function mostFunded(snapshot: HoldingsSnapshot | null): NetworkKey | null
   return best;
 }
 
-/** The first `count` holdings of a network as "120.40 USDC" (amounts exactly as the API formats them). */
+/** The first `count` holdings of a network as "120.4 USDC", rounded down for display ("1328.7653 SOL"). */
 export function holdingLabels(entry: NetworkHoldings | null | undefined, count = ROW_HOLDINGS): readonly string[] {
-  return entry ? entry.top.slice(0, count).map((holding) => `${holding.formatted} ${holding.symbol}`) : [];
+  return entry ? entry.top.slice(0, count).map((holding) => `${displayDecimal(holding.formatted)} ${holding.symbol}`) : [];
 }
 
 /** USD for display: "$127.50"; null prints nothing (unpriced). */

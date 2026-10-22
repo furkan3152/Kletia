@@ -69,7 +69,7 @@ examples/                           Runnable integrator examples outside the wor
                                     tooling/check-examples.mjs installs the packed packages into each
 tooling/                            Repository-wide verification gates
 .github/                            CI, issue forms and pull-request policy
-render.yaml                         Canonical public service topology
+render.yaml                         Reference Render topology (hosted services copy it by hand)
 ```
 
 ## Dependency direction

@@ -123,13 +123,17 @@ test("serials, stamps and statuses", () => {
   assert.equal(serialOf("int_7f3ac21e"), "7F3A-C21E");
   assert.equal(serialOf("1b2c3d4e-0000-4000-8000-00000000a2c9"), "0000-A2C9");
   assert.equal(stampFor("review"), "planned");
-  assert.equal(stampFor("executing"), "signed");
+  // Executing is "signed" only once a signature exists.
+  assert.equal(stampFor("executing"), "planned");
+  assert.equal(stampFor("executing", "none"), "planned");
+  assert.equal(stampFor("executing", "signed"), "signed");
   assert.equal(stampFor("completed"), "settled");
   assert.equal(stampFor("paused"), "held");
   assert.equal(stampFor("failed"), "failed");
   assert.equal(taskStatusOf("idle"), null);
   assert.equal(taskStatusOf("executing"), "executing");
   assert.equal(fundSentence("base", "solana-devnet"), "bridge 25 USDC from base to solana devnet");
-  assert.match(clockOf(Date.UTC(2026, 9, 14, 12, 44)), /^\d\d:\d\d$/u);
+  assert.equal(clockOf(Date.UTC(2026, 9, 14, 12, 44)), "12:44 UTC");
+  assert.equal(clockOf("2026-10-14T07:05:00.000Z"), "07:05 UTC");
   assert.equal(clockOf("not a date"), "");
 });

@@ -9,6 +9,8 @@
 import { normalizeMessage, SENTENCE_VERBS, type NetworkKey, type ThreadAmount } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import {
+  BORROW_VERBS,
+  borrowRefusal,
   BRIDGE_WORDS,
   GRAMMAR_VENUE_WORDS,
   LENDING_WORDS,
@@ -25,6 +27,7 @@ import {
 } from "../grammar.js";
 import type { ContractPhrase } from "../contracts/directory.js";
 import { candidates } from "./fuzzy.js";
+import { readOnlyRates, readOnlyRatesRefusal } from "../readOnly.js";
 import { readClause, spellNumbers, stripLabel, symbolTypoCandidates } from "../goal/index.js";
 import {
   bridgeProtocol,
@@ -386,15 +389,59 @@ export interface ParsedSentence {
   readonly corrections: ThreadCorrection[];
 }
 
+/** Nouns that name no asset ("swap some tokens", "stake something"). */
+const VAGUE_NOUNS: ReadonlySet<string> = new Set([
+  "stuff", "something", "anything", "token", "tokens", "coin", "coins", "crypto", "cryptos", "money", "funds", "cash", "assets",
+]);
+/** Words around them that add nothing ("some", "a bit of", "my", "please"). */
+const VAGUE_WORDS: ReadonlySet<string> = new Set([...VAGUE_NOUNS, "some", "few", "bit", "little", "of", "my", "the", "a", "an", "me", "please"]);
+
+/**
+ * A clause that names an action but nothing it acts on ("swap", "swap some
+ * tokens", "stake something"): the action alone, so the policy asks for what
+ * is missing instead of refusing. Anything else in the clause (an unknown
+ * word, a number) keeps it unread.
+ */
+function vagueClause(clause: string, bare: boolean): WorkStep | null {
+  const [verb = "", ...rest] = clause.toLowerCase().replace(/[.!?]+$/u, "").split(/\s+/u);
+  if (!Object.hasOwn(SENTENCE_VERBS, verb)) return null;
+  if (!rest.every((word) => VAGUE_WORDS.has(word))) return null;
+  // Read first only when a vague noun stands where the asset would; a bare verb only when nothing else reads.
+  if (!bare && !rest.some((word) => VAGUE_NOUNS.has(word))) return null;
+  const kind = SENTENCE_VERBS[verb] as Kind;
+  const step: WorkStep = { kind: slot(kind), vague: true };
+  if (verb === "buy" || verb === "get" || verb === "purchase") step.buy = true;
+  if (verb === "sell") step.sell = true;
+  return step;
+}
+
+/** Example sentences sent with a refusal (`hints`), so the reader sees what does work. */
+const REFUSAL_EXAMPLES: readonly string[] = Object.freeze([
+  "swap 1 SOL to USDC",
+  "bridge 25 USDC from base to solana",
+  "send 5 USDC to vitalik.eth on base",
+  "stake 1.5 SOL with marinade",
+  "deposit 100 USDC into aave on base",
+]);
+
 function notUnderstood(clause: string): PlatformError {
   const verb = clause.split(/\s+/u)[0]?.toLowerCase() ?? "";
+  // "borrow" and "repay" are lending actions Kletia does not run yet: said so, in every path.
+  if (BORROW_VERBS.includes(verb)) {
+    const refusal = borrowRefusal(clause, verb);
+    return new PlatformError("INTENT_UNSUPPORTED", refusal.message, 422, refusal.issues, REFUSAL_EXAMPLES);
+  }
+  // "show live Aave rates": a read-only question, answered by GET /v1/venues (details say so).
+  const rates = readOnlyRates(clause);
+  if (rates) return readOnlyRatesRefusal(rates, REFUSAL_EXAMPLES);
   return new PlatformError(
     "INTENT_UNSUPPORTED",
     Object.hasOwn(SENTENCE_VERBS, verb)
-      ? `"${clause.slice(0, 120)}" does not match a supported "${verb}" sentence.`
-      : `"${verb.slice(0, 32)}" is not a supported action. Kletia can swap, buy, bridge, send, stake, deposit and withdraw.`,
+      ? `Kletia could not read "${clause.slice(0, 120)}" as a ${verb} it can plan. Name the token and the amount, as in the examples.`
+      : `Kletia cannot do "${clause.slice(0, 60)}". It can swap, buy, bridge, send, stake, deposit and withdraw tokens.`,
     422,
     [{ path: "text", message: "Could not read this clause." }],
+    REFUSAL_EXAMPLES,
   );
 }
 
@@ -443,7 +490,7 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   clauses.forEach((clause, i) => {
     const index = steps.length + offset;
     const previous = previousExists || steps.length > 0;
-    let parsed = parseContractClause(clause, phrases, index, previous) ?? parseClause(clause, previous);
+    let parsed = parseContractClause(clause, phrases, index, previous) ?? vagueClause(clause, false) ?? parseClause(clause, previous);
     let fixed: ReturnType<typeof correctClause> | undefined;
     if (!parsed) {
       fixed = correctClause(clause, index);
@@ -475,9 +522,14 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
         reading = readClause(fixed.text, options);
         if (reading) corrections.push(...fixed.corrections);
       }
-      if (!reading) throw notUnderstood(clause);
-      corrections.push(...reading.corrections);
-      read = reading.steps;
+      if (!reading) {
+        const vague = vagueClause(clause, true);
+        if (!vague) throw notUnderstood(clause);
+        read = [vague];
+      } else {
+        corrections.push(...reading.corrections);
+        read = reading.steps;
+      }
     }
     read.forEach((step, position) => {
       const at = index + position;

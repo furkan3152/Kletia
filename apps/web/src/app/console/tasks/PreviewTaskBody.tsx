@@ -18,6 +18,7 @@ import { Button } from "../../site/ui/Button";
 import { cx, INK_BORDER, LABEL, SURFACE } from "../../site/ui/styles";
 import { DESK_COPY } from "../content/copy";
 import { useDeskActions } from "../shell/deskContext";
+import { isDemoAccount } from "./demoAccounts";
 import type { WalletNamespace } from "./taskModel";
 
 const copy = DESK_COPY.preview;
@@ -97,7 +98,7 @@ export function PreviewTaskBody({
           </>
         )}
       </div>
-      {preview ? <FareTable preview={preview} intent={intent} /> : null}
+      {preview ? <FareTable preview={preview} intent={intent} isDemoAccount={isDemoAccount} /> : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { KletiaApiError, type ApiKeyRecord } from "@kletia/sdk";
+import { KletiaApiError, SDK_VERSION, type ApiKeyRecord } from "@kletia/sdk";
 import { ArrowRight, ClipboardCopy, KeyRound, Trash2 } from "lucide-react";
 import React, { useId, useRef, useState } from "react";
 
@@ -18,8 +18,9 @@ import { SecretReveal, type Secret } from "../keys/KeyManager";
 import { maskKey, portalKeyKind, useSessionKey } from "../keys/sessionKey";
 import { useNow } from "../portal/useNow";
 import { usePortal } from "../shell/portalContext";
+import { useEmbedManifest } from "../builder/useEmbedManifest";
 import { RunStep } from "./RunStep";
-import { envLine, issueKeyBody, issueLimitMessage, keyNameError, shipFiles, START_SURFACES, type KeyLaneChoice, type StartSurface } from "./startModel";
+import { envLine, issueKeyBody, issueLimitMessage, keyNameError, LANE_CHOICES, shipFiles, START_SURFACES, type KeyLaneChoice, type StartSurface } from "./startModel";
 
 const STATIONS = [
   { id: "start-station-key", n: 1, label: "Key" },
@@ -138,12 +139,7 @@ function KeyStation({ onIssued }: { readonly onIssued: (key: string, lane: KeyLa
       <form onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-4" aria-label="Issue a key">
         <fieldset className="flex min-w-0 flex-col gap-2">
           <legend className={cx(LABEL, "mb-2")}>Lane</legend>
-          {(
-            [
-              { value: "sandbox", title: "Sandbox", detail: "Testnets only: transfers and own contracts on Arbitrum Sepolia and Arc, Solana Devnet." },
-              { value: "live", title: "Live", detail: "Every network. Dry runs move no money; stored intents still need the user's wallet." },
-            ] as const
-          ).map((option) => (
+          {LANE_CHOICES.map((option) => (
             <label key={option.value} className="flex min-h-11 cursor-pointer items-start gap-3 text-sm">
               <input
                 type="radio"
@@ -258,7 +254,18 @@ export function StartHere({ keyLane = null }: { readonly keyLane?: KeyLane }) {
   const webOrigin = typeof window === "undefined" ? "https://kletiaai.xyz" : window.location.origin;
   // A key issued here knows its lane; for a pasted one the Overview reads it from GET /v1/keys.
   const lane = issued && issued.key === key ? issued.lane : keyLane;
-  const files = shipFiles({ surface, apiOrigin: PLATFORM_ORIGIN, webOrigin, embedVersion: EMBED_VERSION, account });
+  // The served manifest names the script version and its integrity; the package version stands in until it answers.
+  const manifestState = useEmbedManifest(webOrigin);
+  const manifest = manifestState.status === "ready" ? manifestState.manifest : null;
+  const files = shipFiles({
+    surface,
+    apiOrigin: PLATFORM_ORIGIN,
+    webOrigin,
+    embedVersion: manifest?.version ?? EMBED_VERSION,
+    embedIntegrity: manifest?.script.integrity ?? null,
+    sdkVersion: SDK_VERSION,
+    account,
+  });
 
   return (
     <section id="start" tabIndex={-1} aria-labelledby="start-heading" className="flex min-w-0 scroll-mt-40 flex-col gap-5 pt-4 outline-none">
@@ -305,6 +312,9 @@ export function StartHere({ keyLane = null }: { readonly keyLane?: KeyLane }) {
           )}
           <p className={cx("flex flex-wrap gap-x-4 gap-y-1 text-sm", TEXT_MUTED)}>
             <span>Next:</span>
+            <Link to="/developers/events" className={LINK}>
+              Watch events (GET /v1/events)
+            </Link>
             <Link to="/developers/embed" className={LINK}>
               Embed builder
             </Link>

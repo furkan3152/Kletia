@@ -11,7 +11,13 @@
  * over storage ports; the HTTP layer installs it (or its own) with
  * `configurePolicyGate`.
  */
-import type { IntentGraph, IntentPolicyStamp, IntentRequest, IntentStep } from "@kletia/core";
+import type { IntentGraph, IntentPolicyStamp, IntentRequest, IntentStep, NetworkKey } from "@kletia/core";
+
+/** One understood action before quoting: where it runs and where it delivers. */
+export interface QuoteLeg {
+  readonly network: NetworkKey;
+  readonly destinationNetwork: NetworkKey;
+}
 import type { ContractPreparedPayload, PreparedPayload } from "../adapters/types.js";
 
 /** What `beforePlan` decided; handed back to `afterPlan` / `afterCreate`. */
@@ -82,6 +88,12 @@ export interface VerificationReconcileInput {
 export interface PolicyGate {
   /** Before planning: lineage status, mode, permissions, accounts pin; returns the narrowed request. */
   beforePlan(input: { ownerKeyId?: string; actorKeyId?: string; request: IntentRequest; dryRun: boolean }): Promise<PlanGuard>;
+  /**
+   * Once the request is understood and before any provider is quoted: the
+   * networks of each action (network rules only; throws policy errors).
+   * Optional: gates without it are checked after planning only.
+   */
+  beforeQuote?(guard: PlanGuard, legs: readonly QuoteLeg[]): Promise<void>;
   /** After planning: full evaluation; returns the stamp (allow | confirm) and an optional ttl; throws policy errors. */
   afterPlan(guard: PlanGuard, graph: IntentGraph): Promise<{ stamp: IntentPolicyStamp | null; ttlMs?: number }>;
   /** After the stored graph was created (approval rows need the intent id persisted). */

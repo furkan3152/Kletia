@@ -15,6 +15,10 @@
 // The same module serves the files in development (vite.config.ts) through
 // `embedDevFile`, straight from packages/embed/dist.
 //
+// The same run then publishes the single-file ESM build of @kletia/sdk under
+// /sdk/kletia-sdk-<version>.js with its own manifest (scripts/emit-sdk-script.mjs),
+// so the web build ships both script deliveries in one step.
+//
 // Usage: node scripts/emit-embed-script.mjs [distDir]
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -112,6 +116,10 @@ if (isMain) {
     const manifest = emitEmbedScript(process.argv[2] ? { distDir: resolve(process.argv[2]) } : {});
     const summary = Object.entries(manifest.files).map(([name, file]) => `${name} ${file.bytes} bytes ${file.integrity.slice(0, 19)}…`);
     console.log(`Embed script ${manifest.version} published under /sdk/embed/${manifest.version}/: ${summary.join(", ")}.`);
+    const { emitSdkScript, SDK_FILE } = await import("./emit-sdk-script.mjs");
+    const sdk = await emitSdkScript(process.argv[2] ? { distDir: resolve(process.argv[2]) } : {});
+    const file = sdk.files[SDK_FILE];
+    console.log(`SDK ${sdk.version} published at ${file.path}: ${file.bytes} bytes ${file.integrity.slice(0, 19)}…`);
   } catch (error) {
     console.error(`emit-embed-script: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);

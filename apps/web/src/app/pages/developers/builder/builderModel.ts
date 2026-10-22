@@ -408,6 +408,32 @@ ${props.map((prop) => `      ${prop}`).join("\n")}
 }`);
 }
 
+/**
+ * Why the frame's sandbox pairs allow-scripts with allow-same-origin, which
+ * browsers flag in the console ("can escape its sandboxing"). That escape is
+ * only possible for a frame of the page's own origin, which is the case in
+ * the portal's preview (it frames this site's /embed) and never on a partner
+ * page, where /embed is another origin.
+ */
+export const SANDBOX_COMMENT =
+  "allow-scripts with allow-same-origin lets the widget keep wallet state and call the API. Browsers may log a warning about the pair; it matters only for a frame of your own origin, and /embed is Kletia's.";
+
+/** The note under the builder's preview about that console warning. */
+export const PREVIEW_SANDBOX_NOTE =
+  "Your browser console may warn that this preview's frame has both allow-scripts and allow-same-origin. Here the frame shows this site's own /embed, so the warning is expected; on your page /embed is another origin and the sandbox keeps it apart from your page.";
+
+/**
+ * What the preview says next to an error event, when there is something to
+ * do about it: a publishable key works only from its project's allowed
+ * origins, and the preview runs on this site's origin.
+ */
+export function previewErrorHint(code: string, webOrigin: string): string | null {
+  if (code === "PUBLISHABLE_ORIGIN_FORBIDDEN") {
+    return `This preview runs on ${webOrigin}, which this key's project does not allow. To preview with the key, add ${webOrigin} to the allowed origins in Project settings (your own site's origin goes there too), or clear the key to preview on the public tier.`;
+  }
+  return null;
+}
+
 /** The iframe output: the raw `/embed` URL (no bridge, so no events, sessions or publishable keys). */
 export function iframeSnippet(state: BuilderState, origins: BuilderOrigins): string {
   if (state.mode !== "text" || state.publishableKey.trim()) {
@@ -421,6 +447,7 @@ export function iframeSnippet(state: BuilderState, origins: BuilderOrigins): str
   const search = query.toString();
   const src = `${origins.web}/embed${search ? `?${search}` : ""}`;
   return guardSecrets(`<!-- A plain frame reports no events; use <kletia-intent> for kletia:* events and auto-resize. -->
+<!-- ${SANDBOX_COMMENT} -->
 <iframe
   src="${escapeAttribute(src)}"
   title="Kletia intent widget"

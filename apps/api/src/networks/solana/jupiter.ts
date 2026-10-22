@@ -14,6 +14,11 @@ export interface JupiterQuoteRequest {
   readonly amount: string;
   readonly slippageBps?: number;
   readonly restrictIntermediateTokens?: boolean;
+  /**
+   * Skip the short-lived quote cache (a quote about to become a signed
+   * transaction is always fresh). The fresh quote still refreshes the cache.
+   */
+  readonly fresh?: boolean;
 }
 
 export interface JupiterRouteLeg {
@@ -98,7 +103,47 @@ export function parseJupiterQuote(body: unknown, request: JupiterQuoteRequest): 
   };
 }
 
+/** How long an identical quote request is answered from memory (planning bursts quote the same pair). */
+const QUOTE_CACHE_TTL_MS = 5_000;
+const QUOTE_CACHE_MAX_ENTRIES = 128;
+let quoteCacheTtlMs = QUOTE_CACHE_TTL_MS;
+const quoteCache = new Map<string, { readonly at: number; readonly quote: Promise<JupiterQuote> }>();
+
+/** Sets the quote cache lifetime (tests; 0 turns it off) and empties the cache. */
+export function configureJupiterQuoteCache(options: { readonly ttlMs?: number } | null): void {
+  quoteCacheTtlMs = options?.ttlMs ?? QUOTE_CACHE_TTL_MS;
+  quoteCache.clear();
+}
+
+/**
+ * Jupiter quote, answered from a small in-memory cache (5 s, 128 entries)
+ * when the same pair, amount and slippage were quoted moments ago; identical
+ * requests in flight share one upstream call. Failures are never cached.
+ * Fewer calls keep keyless deployments under Jupiter's rate limit.
+ */
 export async function quoteJupiterSwap(request: JupiterQuoteRequest): Promise<JupiterQuote> {
+  const key = [request.inputMint, request.outputMint, request.amount, request.slippageBps ?? SOLANA_DEFAULT_SLIPPAGE_BPS, request.restrictIntermediateTokens ?? true].join("|");
+  const now = Date.now();
+  if (quoteCacheTtlMs > 0 && !request.fresh) {
+    const hit = quoteCache.get(key);
+    if (hit && now - hit.at < quoteCacheTtlMs) return hit.quote;
+  }
+  const quote = fetchJupiterQuote(request);
+  if (quoteCacheTtlMs <= 0) return quote;
+  quoteCache.delete(key);
+  quoteCache.set(key, { at: now, quote });
+  while (quoteCache.size > QUOTE_CACHE_MAX_ENTRIES) {
+    const oldest = quoteCache.keys().next().value;
+    if (oldest === undefined) break;
+    quoteCache.delete(oldest);
+  }
+  quote.catch(() => {
+    if (quoteCache.get(key)?.quote === quote) quoteCache.delete(key);
+  });
+  return quote;
+}
+
+async function fetchJupiterQuote(request: JupiterQuoteRequest): Promise<JupiterQuote> {
   if (!isSolanaAddress(request.inputMint) || !isSolanaAddress(request.outputMint)) {
     throw new SolanaProviderError("Swap mints must be Solana addresses.", "SOLANA_MINT_INVALID", 400);
   }

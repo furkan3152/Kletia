@@ -540,11 +540,6 @@ export function policyStore(): PolicyStore {
   return store;
 }
 
-/** Replaces the store (tests); null re-selects by KLETIA_DATABASE_URL on next use. */
-export function configurePolicyStore(custom: PolicyStore | null): void {
-  store = custom;
-}
-
 export function policyStoreKind(): "memory" | "postgres" {
   return policyStore().kind;
 }

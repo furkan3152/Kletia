@@ -164,8 +164,6 @@ export class BaseIntentV2PlanError extends Error {
   }
 }
 
-export type BaseSwapExecutionMode = "legacy_v1" | "intent_v2";
-
 export interface BaseIntentV2UniV2AdapterEvidence {
   readonly kind: "uniswap_v2_compatible";
   readonly reviewStatus: "reviewed";

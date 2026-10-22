@@ -51,5 +51,4 @@ export function sortNetworks<T extends { key: NetworkKey; environment: string }>
   });
 }
 
-export const MAINNET_NETWORKS = NETWORK_KEYS.filter((key) => CHAINS[key].environment === "mainnet");
 export const TESTNET_NETWORKS = NETWORK_KEYS.filter((key) => CHAINS[key].environment === "testnet");

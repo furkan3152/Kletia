@@ -265,24 +265,6 @@
   }
 }
 
-/* Marquee track (Marquee.tsx); duration and shift come from measurements. */
-.kl-mq-track {
-  animation: kl-mq var(--kl-mq-duration, 60s) linear infinite;
-}
-@keyframes kl-mq {
-  to {
-    transform: translate3d(var(--kl-mq-shift, -50%), 0, 0);
-  }
-}
-.kl-mq:focus-within .kl-mq-track {
-  animation-play-state: paused;
-}
-@media (hover: hover) {
-  .kl-mq:hover .kl-mq-track {
-    animation-play-state: paused;
-  }
-}
-
 /* ---- Hover and interaction ---------------------------------------------- */
 @media (prefers-reduced-motion: no-preference) {
   .kl-lift {
@@ -442,7 +424,6 @@
 html[data-kl-hidden]
   :is(
     .kl-loop,
-    .kl-mq-track,
     .kl-ping,
     .kl-caret,
     .kl-attn-ring,
@@ -455,7 +436,6 @@ html[data-kl-hidden]
 [data-kl-paused]
   :is(
     .kl-loop,
-    .kl-mq-track,
     .kl-ping,
     .kl-caret,
     .kl-attn-ring,
@@ -464,7 +444,6 @@ html[data-kl-hidden]
   ),
 :is(
     .kl-loop,
-    .kl-mq-track,
     .kl-ping,
     .kl-caret,
     .kl-attn-ring,
@@ -576,7 +555,6 @@ html[data-kl-vt]::view-transition {
   .kl-route-enter,
   .kl-code-swap,
   .kl-ping-once,
-  .kl-mq-track,
   .kl-loop,
   .kl-toast-timer {
     animation: none !important;

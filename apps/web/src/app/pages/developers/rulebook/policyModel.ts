@@ -142,10 +142,6 @@ export function gridToWindows(grid: HourGrid): PolicyScheduleWindow[] {
     .sort((a, b) => DAY_INDEX[a.days[0]!] - DAY_INDEX[b.days[0]!] || a.from.localeCompare(b.from));
 }
 
-export function gridIsEmpty(grid: HourGrid): boolean {
-  return grid.every((row) => row.every((cell) => !cell));
-}
-
 export function gridIsFull(grid: HourGrid): boolean {
   return grid.every((row) => row.every((cell) => cell));
 }

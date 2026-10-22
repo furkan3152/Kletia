@@ -43,6 +43,5 @@ if (
 }
 
 export const BACKEND_URL = parsedBackendUrl.origin;
-export const IS_LOCAL_BACKEND = localHostname;
 export const BASE_PAYMASTER_ENABLED =
   import.meta.env.VITE_BASE_PAYMASTER_ENABLED === "true";

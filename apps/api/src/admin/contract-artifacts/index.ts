@@ -31,16 +31,10 @@ export interface DeployableArtifact extends ContractArtifact {
 
 const ARTIFACTS = (exported as unknown as { readonly schemaVersion: string; readonly artifacts: Readonly<Record<string, ContractArtifact>> }).artifacts;
 
-export const ARTIFACT_SCHEMA_VERSION = (exported as { schemaVersion: string }).schemaVersion;
-
 export function getArtifact(artifactId: string): ContractArtifact | null {
   return Object.prototype.hasOwnProperty.call(ARTIFACTS, artifactId) ? (ARTIFACTS[artifactId] ?? null) : null;
 }
 
 export function isDeployable(artifact: ContractArtifact | null): artifact is DeployableArtifact {
   return Boolean(artifact?.deployable && artifact.bytecode && artifact.deployedBytecode && artifact.maskedRuntimeHash);
-}
-
-export function artifactIds(): string[] {
-  return Object.keys(ARTIFACTS);
 }

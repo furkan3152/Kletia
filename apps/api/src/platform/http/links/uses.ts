@@ -14,12 +14,12 @@
  *   priced root input as volume); a sweeper every 10 minutes releases
  *   reservations whose intent ended or vanished.
  */
-import { parseAccountId, type IntentGraph } from "@kletia/core";
+import type { IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { getIntent, notionalUsdMicros, policyPrice, subscribeIntentEvents, MAX_INTENT_TTL_MS } from "../../index.js";
 import { accountHash, effectiveLinkStatus, linkClock, linkStatusError } from "./service.js";
 import { countLink } from "./stats.js";
-import { linkStore, type LinkRecord } from "./store.js";
+import { linkStore } from "./store.js";
 
 export interface LinkPrepareHold {
   readonly linkId: string;
@@ -154,14 +154,4 @@ export async function sweepLinkUses(now = linkClock(), limit = 200): Promise<num
     if (await linkStore().release(use.linkId, use.intentId, now)) released += 1;
   }
   return released;
-}
-
-/** The visitor's source account of a link intent (blinks: the Solana account). */
-export function visitorAccount(intent: IntentGraph, vm: "evm" | "svm"): string | null {
-  return intent.request.accounts.find((account) => parseAccountId(account)?.chain.vm === vm) ?? null;
-}
-
-/** For tests and the watcher: a link's live reservation count. */
-export function usedOf(record: LinkRecord): number {
-  return record.used;
 }

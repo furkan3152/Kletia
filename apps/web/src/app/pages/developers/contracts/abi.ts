@@ -14,7 +14,6 @@ import {
   type AbiParameter,
   type ArgBinding,
   type ContractAbiItem,
-  type EventWhereBinding,
 } from "@kletia/core";
 
 export interface ParsedAbi {
@@ -186,10 +185,6 @@ export function findFunction(items: readonly ContractAbiItem[], signature: strin
   return functionItems(items).find((item) => abiItemSignature(item) === signature) ?? null;
 }
 
-export function findEvent(items: readonly ContractAbiItem[], signature: string): AbiEventItem | null {
-  return eventItems(items).find((item) => abiItemSignature(item) === signature || item.name === signature) ?? null;
-}
-
 /* ----------------------------------------------------------------- bindings */
 
 export type TypeFamily = "uint" | "int" | "address" | "bool" | "bytesN" | "bytes" | "string" | "complex";
@@ -331,9 +326,3 @@ export const WHERE_SOURCES: readonly SourceOption[] = [
   { value: "$self", label: "This contract" },
 ];
 
-/** `where` value as stored in the draft: a source, `literal:<value>`, or "" (not checked). */
-export function buildWhere(value: string): EventWhereBinding | null {
-  if (!value) return null;
-  if (value.startsWith("literal:")) return { literal: value.slice("literal:".length) };
-  return value as EventWhereBinding;
-}

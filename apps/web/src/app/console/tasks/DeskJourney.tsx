@@ -10,5 +10,3 @@ export function DeskJourney({ journey, intent }: JourneySlotProps) {
   if (!journey || journey.intentId !== intent.id) return null;
   return <JourneyPanel journey={journey} phase="review" />;
 }
-
-export default DeskJourney;

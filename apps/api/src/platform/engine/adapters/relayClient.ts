@@ -46,11 +46,6 @@ export function configureRelayApiKey(key: string | null): void {
   relayApiKey = key?.trim() || null;
 }
 
-/** True when deposits can be looked up by hash (`/requests/v3` needs a key). */
-export function relayRequestLookupEnabled(): boolean {
-  return relayApiKey !== null;
-}
-
 function headers(): Record<string, string> {
   return relayApiKey ? { "x-api-key": relayApiKey } : {};
 }

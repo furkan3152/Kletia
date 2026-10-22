@@ -844,21 +844,6 @@ export async function observeSolanaTransaction(
   };
 }
 
-/** Destination-side check for solver fills: the signature landed without error. */
-export async function readSolanaSignatureStatus(
-  network: SolanaNetworkKey,
-  signatureValue: string,
-): Promise<"success" | "failed" | "not_found" | "processed"> {
-  if (!isSolanaSignature(signatureValue)) return "not_found";
-  const statuses = await solanaRpc(network)
-    .getSignatureStatuses([toSignature(signatureValue)], { searchTransactionHistory: true })
-    .send({ abortSignal: rpcAbortSignal() });
-  const status = statuses.value[0];
-  if (!status) return "not_found";
-  if (status.err) return "failed";
-  return status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized" ? "success" : "processed";
-}
-
 /**
  * Destination-side evidence for a solver fill on Solana: the signature landed
  * without error and credited `owner` (SPL `mint`, or lamports plus wrapped SOL

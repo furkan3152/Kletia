@@ -72,8 +72,6 @@ type Bundle = { computeBudgetInstructions: ApiInstruction[]; setupInstructions: 
   cleanupInstruction: ApiInstruction | null; otherInstructions: ApiInstruction[]; tokenLedgerInstruction: null; addressLookupTableAddresses: string[] };
 
 const ADAPTER: Readonly<Record<SolanaDex, ProtocolAdapter>> = { raydium: raydiumAdapter, orca: orcaAdapter, meteora: meteoraAdapter };
-/** Default route-plan variant per venue (Raydium CLMM, Whirlpool, Meteora DLMM). */
-const DEFAULT_KIND: Readonly<Record<SolanaDex, number>> = { raydium: 26, orca: 17, meteora: 38 };
 const LABEL_OF_KIND: Readonly<Record<number, string>> = { 17: "Whirlpool", 47: "Whirlpool", 26: "Raydium CLMM", 40: "Raydium CLMM", 46: "Raydium CP",
   105: "Raydium", 38: "Meteora DLMM", 108: "Meteora DAMM v2" };
 const POOL_OF_KIND: Readonly<Record<number, string>> = { 17: ORCA_POOL, 47: ORCA_POOL, 26: POOL, 40: POOL, 46: POOL, 105: AMM_POOL, 38: DLMM_POOL, 108: DAMM_POOL };

@@ -306,5 +306,3 @@ export function FareTable({ preview, intent, previous, changes, className }: Far
     </section>
   );
 }
-
-export default FareTable;

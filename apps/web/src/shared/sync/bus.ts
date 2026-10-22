@@ -74,10 +74,6 @@ export function emitWalletDisconnected(account: AccountId): void {
   kletiaBus.emit("wallet.disconnected", { account });
 }
 
-export function emitNetworkSelected(network: NetworkKey): void {
-  kletiaBus.emit("network.selected", { network });
-}
-
 /** Ask every balance view bound to `account` on `network` to re-read. */
 export function emitPortfolioInvalidated(
   account: AccountId,

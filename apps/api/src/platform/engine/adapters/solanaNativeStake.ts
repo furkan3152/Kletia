@@ -24,7 +24,7 @@
  *   stake account received.
  */
 import { randomBytes } from "node:crypto";
-import { formatAmount, fromBaseUnits, isSolanaAddress, venueContracts, type AssetAmount, type IntentStep } from "@kletia/core";
+import { formatAmount, fromBaseUnits, isSolanaAddress, venueContracts, type AssetAmount } from "@kletia/core";
 import { address as toAddress, createAddressWithSeed, createNoopSigner, getAddressEncoder, type Instruction } from "@solana/kit";
 import { getCreateAccountWithSeedInstruction } from "@solana-program/system";
 import { isSolanaNetworkKey, solanaRpc, type SolanaNetworkKey } from "../../../networks/solana/index.js";
@@ -335,10 +335,3 @@ export const solanaNativeStakeAdapter: ProtocolAdapter | null = {
     return result.status === "confirmed" ? { ...result, actualOutput: step.input } : result;
   },
 };
-
-/** The stake account a planned native staking step creates (journey position, tests). */
-export async function plannedStakeAccount(step: Pick<IntentStep, "quoteRef" | "network" | "account">): Promise<string | null> {
-  const quote = decodeNativeStakeQuote(decodeStepRef(step.quoteRef)?.quote);
-  if (!quote || !isSolanaNetworkKey(step.network)) return null;
-  return nativeStakeAddress(step.network, step.account.slice(step.account.lastIndexOf(":") + 1), quote.seed);
-}

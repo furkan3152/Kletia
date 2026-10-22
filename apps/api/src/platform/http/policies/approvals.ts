@@ -277,10 +277,6 @@ export function approvalStore(): ApprovalStore {
   return store;
 }
 
-export function configureApprovalStore(custom: ApprovalStore | null): void {
-  store = custom;
-}
-
 /* ================================================================== views */
 
 function centsText(cents: bigint): string {

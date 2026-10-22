@@ -167,17 +167,6 @@ export function solanaActionReview(input: SolanaReviewInput): ContractReview {
   };
 }
 
-/** A review for a snapshot the planner has not simulated yet (replaced by the adapter). */
-export function pendingReview(snapshot: ContractCallSnapshot, at: string): ContractReview {
-  return {
-    kind: snapshot.vm === "evm" ? "evm-call" : "solana-action",
-    integrator: snapshot.integrator,
-    notices: [CONTRACT_REVIEW_NOTICE],
-    approvals: [],
-    simulation: { status: "unavailable", at, assetChanges: [], warnings: ["Not simulated yet."] },
-  };
-}
-
 /* ------------------------------------------------------------------ test */
 
 /**

@@ -1,6 +1,7 @@
 /**
- * Pure helpers behind `Monogram`: protocol initials and category colours.
- * Kletia renders its own monograms instead of third-party logos. Node-safe.
+ * Pure monogram helpers: protocol initials and category colours (Kletia
+ * renders its own monograms instead of third-party logos). Node-safe; checked
+ * by `scripts/verifyMotionPrimitives.ts`.
  */
 
 export interface MonogramLetters {

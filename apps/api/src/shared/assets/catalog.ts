@@ -3,7 +3,6 @@ import { BASE_TOKEN_REGISTRY } from "../../networks/base/protocols.js";
 import {
   ARC_CONTRACTS,
   ARC_NATIVE_USDC_ADDRESS,
-  NETWORKS,
   type NetworkId,
 } from "../config/networks.js";
 import { ARC_OFFICIAL_ADDRESSES } from "../../networks/arc/officialExtensions.js";
@@ -316,15 +315,6 @@ export function findCatalogAssetsByReference(
   );
 }
 
-export function canonicalizeKnownAssetReference(
-  network: NetworkId,
-  reference: unknown,
-): string | undefined {
-  if (typeof reference !== "string" || !reference.trim()) return undefined;
-  const matches = findCatalogAssetsByReference(network, reference);
-  return matches.length === 1 ? matches[0].symbol : undefined;
-}
-
 export function assetAliasesForSymbol(
   network: NetworkId,
   symbol: string,
@@ -393,8 +383,4 @@ export function closestCatalogAssets(
         left.asset.symbol.localeCompare(right.asset.symbol),
     )
     .slice(0, 4);
-}
-
-export function catalogChainId(network: NetworkId): number {
-  return NETWORKS[network].chainId;
 }

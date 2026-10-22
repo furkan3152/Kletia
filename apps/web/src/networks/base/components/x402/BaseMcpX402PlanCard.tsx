@@ -8,7 +8,7 @@ import {
   ShieldAlert,
   WalletCards,
 } from "lucide-react";
-import { getAccount } from "@wagmi/core";
+import { getAccount } from "wagmi/actions";
 import {
   useAccount,
   useChainId,

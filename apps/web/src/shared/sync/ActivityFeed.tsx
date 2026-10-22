@@ -169,5 +169,3 @@ export function ActivityFeed({
     </section>
   );
 }
-
-export default ActivityFeed;

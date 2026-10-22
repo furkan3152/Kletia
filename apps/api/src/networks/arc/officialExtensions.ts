@@ -31,7 +31,6 @@ export const ARC_OFFICIAL_ADDRESSES = Object.freeze({
 } satisfies Record<string, Address>);
 
 export const ARC_OFFICIAL_CHAIN_ID = 5_042_002;
-export const ARC_CCTP_DOMAIN = 26;
 export const ARC_USDC_DECIMALS = 6;
 export const ARC_ATOMIC_PAYOUT_MAX_RECIPIENTS = 25;
 

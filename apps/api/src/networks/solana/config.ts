@@ -1,4 +1,4 @@
-import { CHAINS, type NetworkKey } from "@kletia/core";
+import type { NetworkKey } from "@kletia/core";
 
 export type SolanaNetworkKey = Extract<NetworkKey, "solana" | "solana-devnet">;
 
@@ -55,7 +55,3 @@ export const SOLANA_PROGRAMS = Object.freeze({
   associatedToken: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
   computeBudget: "ComputeBudget111111111111111111111111111111",
 });
-
-export function solanaChain(network: SolanaNetworkKey) {
-  return CHAINS[network];
-}

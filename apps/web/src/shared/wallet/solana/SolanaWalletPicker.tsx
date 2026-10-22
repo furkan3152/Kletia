@@ -272,5 +272,3 @@ export function SolanaWalletPicker() {
     document.body,
   );
 }
-
-export default SolanaWalletPicker;

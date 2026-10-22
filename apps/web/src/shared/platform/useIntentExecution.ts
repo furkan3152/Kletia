@@ -321,10 +321,6 @@ function isIntentGraph(value: unknown): value is IntentGraph {
   );
 }
 
-export function isTerminalIntent(intent: IntentGraph | null | undefined): boolean {
-  return Boolean(intent && TERMINAL_INTENT.has(intent.status));
-}
-
 function terminalStatus(intent: IntentGraph): IntentExecutionStatus | null {
   if (intent.status === "completed") return "completed";
   if (intent.status === "cancelled") return "cancelled";

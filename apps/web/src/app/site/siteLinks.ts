@@ -5,10 +5,7 @@ export const LICENSE_URL = `${GITHUB_URL}/blob/main/LICENSE`;
 export const CONTRIBUTING_URL = `${GITHUB_URL}/blob/main/CONTRIBUTING.md`;
 export const API_DOC_URL = `${GITHUB_URL}/blob/main/docs/platform/api-v1.md`;
 export const CONTRACTS_DOC_URL = `${GITHUB_URL}/blob/main/docs/platform/contracts.md`;
-export const SOLANA_DOC_URL = `${GITHUB_URL}/blob/main/docs/networks/solana.md`;
 export const BASE_MCP_DOC_URL = `${GITHUB_URL}/blob/main/docs/base-mcp/README.md`;
-export const CORE_PACKAGE_URL = `${GITHUB_URL}/tree/main/packages/core`;
-export const SDK_PACKAGE_URL = `${GITHUB_URL}/tree/main/packages/sdk`;
 
 export interface NavItem {
   readonly label: string;

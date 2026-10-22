@@ -311,11 +311,6 @@ export function sessionStore(): SessionStore {
   return store;
 }
 
-/** Replaces the store (tests); `null` re-selects by KLETIA_DATABASE_URL on next use. */
-export function configureSessionStore(custom: SessionStore | null): void {
-  store = custom;
-}
-
 /* ================================================================ helpers */
 
 function iso(time: number): string {

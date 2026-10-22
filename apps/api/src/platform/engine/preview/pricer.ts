@@ -101,10 +101,6 @@ export function configurePreviewPricer(next: PreviewPricer | null): void {
   pricer = next ?? defaultPreviewPricer;
 }
 
-export function previewPricer(): PreviewPricer {
-  return pricer;
-}
-
 /**
  * The price of `asset` with its source and time, through the installed
  * pricer (`quote` when it has one; else its `price`, labelled by rule:

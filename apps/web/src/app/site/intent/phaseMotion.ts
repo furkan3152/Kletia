@@ -51,15 +51,6 @@ export function popOut(element: Element | null | undefined): void {
   });
 }
 
-/** Send button: the icon nudges up-right 3px and returns. */
-export function nudgeUpRight(element: Element | null | undefined): void {
-  playOnce(
-    element,
-    [{ transform: "translate(0, 0)" }, { transform: "translate(3px, -3px)" }, { transform: "translate(0, 0)" }],
-    { duration: 180, easing: EASE.out },
-  );
-}
-
 /**
  * Bounds a looping attention animation: true while `active` and for at most
  * `limitMs` after it became active, so nothing pulses for longer than about

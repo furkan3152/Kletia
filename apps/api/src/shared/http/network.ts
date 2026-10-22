@@ -181,19 +181,3 @@ export const requireArcNetwork = requireNetwork(
   "ARC_ONLY_ROUTE",
   "This service is only available on Arc Testnet.",
 );
-
-export const requireArbitrumNetwork = requireNetwork(
-  "arbitrum",
-  "ARBITRUM_ONLY_ROUTE",
-  "This service is only available on Arbitrum One.",
-);
-
-export function readOptionalNetwork(req: Request): NetworkId | null {
-  if (
-    requestNetworkInputs(req).length === 0 &&
-    requestChainIdInputs(req).length === 0
-  ) {
-    return null;
-  }
-  return resolveStrictRequestNetwork(req).id;
-}

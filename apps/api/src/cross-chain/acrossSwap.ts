@@ -19,9 +19,6 @@ const MAX_RESPONSE_BYTES = 256 * 1_024;
 const MAX_API_QUOTE_LIFETIME_MS = 2 * 60 * 60 * 1_000;
 const CLIENT_QUOTE_TTL_MS = 2 * 60 * 1_000;
 
-export const BASE_ACROSS_SPOKE_POOL = getAddress(
-  "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
-);
 export const ARBITRUM_NATIVE_ETH = zeroAddress;
 
 function controlled(code: string, message: string, statusCode = 400): Error {

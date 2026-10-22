@@ -302,10 +302,6 @@ export function spendLedger(): SpendLedger {
   return ledger;
 }
 
-export function configureSpendLedger(custom: SpendLedger | null): void {
-  ledger = custom;
-}
-
 export function spendLedgerKind(): "memory" | "postgres" | "custom" {
   const current = spendLedger();
   return current instanceof PostgresSpendLedger ? "postgres" : current instanceof MemorySpendLedger ? "memory" : "custom";

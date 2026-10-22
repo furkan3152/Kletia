@@ -11,7 +11,6 @@ import type { ParsedIntent } from "../ai/parser.js";
 import {
   AAVE_V3_BASE,
   BASE_ERC4626_VAULTS,
-  BASE_STAKING_CONTRACTS,
   COMPOUND_V3_BASE,
   MOONWELL_BASE,
   normalizeBaseProtocolId,
@@ -29,7 +28,6 @@ import {
   type BasenameResolutionEvidence,
 } from "../../networks/base/intent/basenameResolver.js";
 import {
-  ASSET_CATALOG,
   ASSET_CATALOG_REVISION,
   UnsafeAssetReferenceError,
   closestCatalogAssets,
@@ -44,9 +42,6 @@ import {
 
 export type AssetField =
   "tokenIn" | "tokenOut" | "collateralToken" | "borrowToken";
-
-export type EntityResolutionDecision =
-  "eligible" | "clarification_required" | "blocked";
 
 export interface ResolvedAssetEvidence {
   readonly role: AssetField;
@@ -421,13 +416,6 @@ function assetFieldPolicy(
     "ENTITY_POLICY_ACTION_UNSUPPORTED",
     `${NETWORKS[network].displayName} ${action} operation is not covered by the centralized asset policy.`,
   );
-}
-
-function fieldRequirements(
-  network: NetworkId,
-  action: string,
-): readonly AssetField[] {
-  return assetFieldPolicy(network, action)?.required || [];
 }
 
 function trustScore(
@@ -1676,13 +1664,3 @@ export async function resolveIntentEntities(
     },
   };
 }
-
-export const assetResolverInternals = {
-  verifyBaseErc20,
-  assertActionCompatibility,
-  fieldRequirements,
-  resolveProtocol,
-
-  baseStakingManifest: BASE_STAKING_CONTRACTS,
-  catalog: ASSET_CATALOG,
-};

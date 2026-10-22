@@ -146,5 +146,3 @@ export function WalletProviders({ children }: { children: React.ReactNode }) {
     </ProvidedChildren.Provider>
   );
 }
-
-export default WalletProviders;

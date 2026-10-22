@@ -1081,9 +1081,4 @@ router.get("/session/:sessionId", async (req, res) => {
   }
 });
 
-export function clearBaseX402BuyerSessionsForTests(): void {
-  sessions.clear();
-  preparingRequestIds.clear();
-}
-
 export default router;

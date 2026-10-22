@@ -68,10 +68,6 @@ This index separates current product truth from deployment procedure, network-sp
 - [Self-hosting](deployment/self-hosting.md) — Docker Compose, the GHCR images (provenance and SBOM) and a public deployment checklist.
 - [Real-data MVP test](runbooks/mvp-live-test.md) — evidence ladder and user-signed smoke procedure.
 
-## Historical material
-
-- [Competitive landscape](architecture/competitive-landscape.html)
-
 ## Source-of-truth order
 
 When two records differ, use this order:

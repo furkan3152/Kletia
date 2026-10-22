@@ -14,10 +14,6 @@ import { yearnFamily } from "./yearn.js";
 
 export const VAULT_FAMILIES: readonly VaultFamily[] = Object.freeze([morphoFamily, sparkSavingsFamily, fluidFamily, yearnFamily] as unknown as VaultFamily[]);
 
-export function isVaultVenue(venue: Pick<YieldVenue, "kind">): venue is VaultVenue {
-  return VAULT_FAMILIES.some((family) => family.kind === venue.kind);
-}
-
 /** The family that executes `venue` (kind and protocol must both match), or null. */
 export function vaultFamilyFor(venue: Pick<YieldVenue, "kind" | "protocol">): VaultFamily | null {
   return VAULT_FAMILIES.find((family) => family.kind === venue.kind && family.protocol === venue.protocol) ?? null;

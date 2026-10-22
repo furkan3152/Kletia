@@ -587,7 +587,6 @@ export function searchRoutes(input: SearchSpec): Route[] {
 
 /* ------------------------------------------------------------- candidates */
 
-const sourceSymbol = (route: Route) => route.source.node.symbol.toUpperCase();
 const bridgePath = (route: Route) => route.hops.filter((hop) => hop.edge.kind === "bridge").map((hop) => `${hop.edge.network}>${hop.edge.destinationNetwork}`).join(",");
 const providerOf = (route: Route) => route.hops.find((hop) => hop.provider)?.provider?.id ?? "";
 

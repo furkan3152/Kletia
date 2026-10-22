@@ -7,9 +7,6 @@ import {
   KletiaApiError,
   type ApiKeyRecord,
   type HealthReport,
-  type IntentGraph,
-  type IntentPreview,
-  type IntentRequest,
   type KletiaClient,
   type NetworkCapabilities,
   type QuoteRequest,
@@ -18,7 +15,7 @@ import {
 import type { IntentTurnRequest, IntentTurnResponse, Journey, ProtocolDescriptor } from "@kletia/core";
 
 import type { PortfolioReads } from "../../app/console/state/holdings";
-import { PLATFORM_ORIGIN, sdkSignal, type PlatformError } from "./kletiaClient";
+import { sdkSignal, type PlatformError } from "./kletiaClient";
 
 export type { ApiKeyRecord, HealthReport, NetworkCapabilities, QuoteRequest, QuoteResponse };
 
@@ -44,65 +41,6 @@ export async function fetchProtocols(
     signal: sdkSignal(signal),
   });
   return Array.isArray(body?.protocols) ? body.protocols : [];
-}
-
-/** Minimal OpenAPI 3.1 shape the endpoint reference needs. */
-export interface OpenApiOperation {
-  readonly summary?: string;
-  readonly description?: string;
-  readonly operationId?: string;
-  readonly tags?: readonly string[];
-  readonly security?: readonly Record<string, readonly string[]>[];
-}
-
-export interface OpenApiDocument {
-  readonly openapi?: string;
-  readonly info?: { readonly title?: string; readonly version?: string };
-  readonly paths?: Readonly<Record<string, Readonly<Record<string, OpenApiOperation | unknown>>>>;
-}
-
-export function fetchOpenApi(client: KletiaClient, signal?: AbortSignal): Promise<OpenApiDocument> {
-  return client.request<OpenApiDocument>("GET", "/openapi.json", undefined, {
-    signal: sdkSignal(signal),
-  });
-}
-
-/** Plans an intent without persisting it (`POST /v1/intents?dryRun=true`). */
-export async function planIntentDryRun(
-  client: KletiaClient,
-  signal: AbortSignal | undefined,
-  request: IntentRequest,
-): Promise<IntentGraph> {
-  const body = await client.request<{ intent: IntentGraph }>("POST", "/intents", request, {
-    signal: sdkSignal(signal),
-    query: { dryRun: "true" },
-  });
-  return body.intent;
-}
-
-/** A dry-run plan with its plan-stage fare (`POST /v1/intents?dryRun=true&preview=true`). */
-export interface PlannedPreview {
-  readonly intent: IntentGraph;
-  /** The asset-change preview; null when the API could not compute one. */
-  readonly preview: IntentPreview | null;
-}
-
-/**
- * Plans without persisting and returns the fare too
- * (`POST /v1/intents?dryRun=true&preview=true`): the desk's no-wallet preview
- * shows the same fare table as the review. Nothing is stored and nothing can
- * be signed from a dry run.
- */
-export async function planIntentDryRunWithPreview(
-  client: KletiaClient,
-  signal: AbortSignal | undefined,
-  request: IntentRequest,
-): Promise<PlannedPreview> {
-  const body = await client.request<{ intent: IntentGraph; preview?: IntentPreview | null }>("POST", "/intents", request, {
-    signal: sdkSignal(signal),
-    query: { dryRun: "true", preview: "true" },
-  });
-  return { intent: body.intent, preview: body.preview ?? null };
 }
 
 export type { PortfolioReads };
@@ -150,83 +88,7 @@ export function requestQuote(
   return client.request<QuoteResponse>("POST", "/quotes", request, { signal: sdkSignal(signal) });
 }
 
-export async function createDeveloperKey(
-  client: KletiaClient,
-  signal: AbortSignal | undefined,
-  name: string,
-): Promise<ApiKeyRecord> {
-  const body = await client.request<{ key: ApiKeyRecord }>("POST", "/keys", { name }, {
-    signal: sdkSignal(signal),
-  });
-  return body.key;
-}
-
-/** A raw HTTP exchange, used by the API explorer to show exactly what the API returned. */
-export interface RawExchange {
-  readonly method: "GET" | "POST";
-  readonly url: string;
-  readonly status: number;
-  readonly statusText: string;
-  readonly ok: boolean;
-  readonly requestId: string | null;
-  readonly contentType: string | null;
-  readonly latencyMs: number;
-  /** Parsed JSON when the body is JSON, otherwise the raw text (truncated). */
-  readonly body: unknown;
-  /** The response body exactly as received (truncated past 200,000 characters). */
-  readonly text?: string;
-}
-
 const RAW_BODY_LIMIT = 200_000;
-
-/**
- * Sends one request to `/v1{path}` with plain fetch so the explorer can show
- * the real status line and request id. Network failures reject.
- */
-export async function rawPlatformRequest(
-  method: "GET" | "POST",
-  path: string,
-  body: unknown,
-  signal: AbortSignal,
-): Promise<RawExchange> {
-  const url = `${PLATFORM_ORIGIN}/v1${path}`;
-  const startedAt = performance.now();
-  const timeout = AbortSignal.timeout(20_000);
-  const combined =
-    typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : signal;
-  const response = await fetch(url, {
-    method,
-    headers: {
-      accept: "application/json",
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: combined,
-  });
-  const text = await response.text();
-  let parsed: unknown = text.length > RAW_BODY_LIMIT ? `${text.slice(0, RAW_BODY_LIMIT)}…` : text;
-  if (text) {
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      // Keep the raw text.
-    }
-  } else {
-    parsed = null;
-  }
-  return {
-    method,
-    url,
-    status: response.status,
-    statusText: response.statusText,
-    ok: response.ok,
-    requestId: response.headers.get("x-request-id"),
-    contentType: response.headers.get("content-type"),
-    latencyMs: Math.round(performance.now() - startedAt),
-    body: parsed,
-    text: text.length > RAW_BODY_LIMIT ? `${text.slice(0, RAW_BODY_LIMIT)}…` : text,
-  };
-}
 
 /* ------------------------------------------------------------ clarify turns */
 

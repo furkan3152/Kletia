@@ -158,8 +158,8 @@ Docker Compose (PostgreSQL, API and site) and the GHCR images are described in
   listing the project keeps its badge until the next check.
 - The network guides in `docs/networks/` describe the round-3 venues. The
   round-6 venues are covered by `GET /v1/protocols`, the README and the
-  CHANGELOG, but not yet by per-network pages. `docs/networks/evm-lending-additions.md`
-  is still to be written.
+  CHANGELOG, but not yet by per-network pages. The EVM lending additions have
+  evidence (`docs/networks/evidence/evm-lending-additions.json`) but no guide page yet.
 - Fill attribution is a documented trust assumption. Jupiter prices can be
   stale for thin tokens (`POLICY_PRICE_UNAVAILABLE`, fail closed). Solana v1
   transactions are refused in Solana Actions, the deBridge check and the SDK

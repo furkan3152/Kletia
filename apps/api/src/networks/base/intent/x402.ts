@@ -880,11 +880,6 @@ async function fetchDiscovery(endpoint: URL): Promise<BazaarSearchPayload> {
   }
 }
 
-export function clearBaseX402DiscoveryCacheForTests(): void {
-  discoveryCache.clear();
-  discoveryRequests.clear();
-}
-
 export function validateBaseX402Resource(
   rawResource: unknown,
   maxPaymentAtomic: bigint,

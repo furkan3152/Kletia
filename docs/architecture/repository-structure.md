@@ -15,36 +15,48 @@ packages/
   cli/                              @kletia/cli: the kletia command line
 apps/
   api/
-    src/index.ts                    Entry point (Vercel and Node); imports environment first
+    src/index.ts                    Entry point (Render, Docker, Node; Vercel optional); imports
+                                    environment first
     src/http/app.ts                 Express composition: helmet, CORS (/api strict, /v1 open),
                                     limiters, route mounts, /v1 mount point
     src/http/server.ts              Startup attestation (degraded mode), shutdown
-    src/http/routes/                Health and capabilities, console intent, on-ramp
+    src/http/routes/                Health and capabilities, legacy-engine intent (/api/intent),
+                                    on-ramp
     src/platform/engine/            Chain-agnostic grammar, planner, bridge auction, name
                                     resolvers, adapters (Jupiter, Relay, LI.FI, deBridge DLN,
                                     Aave V3, Compound V3, Morpho, Moonwell, Jupiter Lend, Kamino,
                                     transfers), verification, store, events, poller
-    src/platform/http/              Platform API v1: keys, rate limits, idempotency, intents, SSE,
-                                    webhooks and delivery logs, usage, venues, errors, badge,
-                                    MCP server (mcp/), OpenAPI
+    src/platform/http/              Platform API v1: keys, projects, rate limits, idempotency,
+                                    intents, journey, clarify, links, receipts, SSE, webhooks and
+                                    delivery logs, usage, venues, errors, badge, MCP server (mcp/),
+                                    OpenAPI
+    src/admin/                      Owner admin panel API (/api/admin): wallet sign-in, guard,
+                                    fees, readiness, contract artifacts, Render status, store
     src/networks/base/              Base adapters, assets, routes, security, Intent Router V2
     src/networks/arc/               Arc contracts, App Kit and intents
     src/networks/arbitrum/          Arbitrum One adapters and readiness
     src/networks/arbitrum-sepolia/  Testnet Aave/Circle endpoint
     src/networks/solana/            Solana RPC, Jupiter, transfers, verification, Kamino
-    src/cross-chain/                Console staged workflow (Base → Arbitrum, Across)
-    src/shared/                     Parser, assets, policy, HTTP, privacy, environment, evidence
+    src/cross-chain/                Legacy-engine staged workflow (Base → Arbitrum, Across)
+    src/shared/                     Legacy-engine parser (ai/), assets, config, policy, HTTP,
+                                    privacy, protocols, security, observability
     src/integrations/               Webacy and Allora boundaries
     src/release/                    Readiness and capability reporting
     src/scripts/                    Operator and verification commands
   web/
     src/main.tsx                    Entry: egress guard first, then the router
     src/app/router.tsx              History router; every route is a lazy chunk
-    src/app/routes/                 Route table, Link, ConsoleRoute (wallet providers + console)
+    src/app/routes/                 Route table, Link, ConsoleRoute (wallet providers + desk)
     src/app/site/                   Site shell, design primitives, IntentGraphView
-    src/app/pages/                  Home, Developers, Networks, Studio, 404
-    src/app/App.tsx                 Intent console (EVM chat workspaces + Solana workspace)
-    src/networks/                   Network-owned UI (Base, Arc, Arbitrum, Solana)
+    src/app/console/                The desk at /app: composer, tasks, holdings, activity, desk
+                                    tools; legacy/ hosts the network-engine fallback for intents
+                                    /v1 does not support yet
+    src/app/pages/                  Home, Developers portal, Networks, Protocols, Studio, Embed,
+                                    receipts (/r), intent links (/go), Approve, Changelog, Admin,
+                                    404
+    src/networks/                   Network-owned UI and desk tools (Base, Arc, Arbitrum, Solana)
+    src/cross-chain/                Workflow timeline for the legacy-engine staged workflow
+    src/integrations/               Webacy and Allora desk tools
     src/shared/wallet/              Chain-agnostic wallet layer (wagmi + Wallet Standard)
     src/shared/sync/                Cross-feature event bus and activity store
     src/shared/platform/            Platform API client and hooks
@@ -69,7 +81,7 @@ flowchart TD
     Core --> Platform[api: platform engine + /v1]
     Core --> Networks[api: networks/*]
     Networks --> Platform
-    Networks --> Console[api: console engines]
+    Networks --> Console[api: legacy engines /api/intent]
     Core --> Web[web app]
     SDK --> Web
     Networks -. forbidden .-> Networks2[another network module]
@@ -107,7 +119,7 @@ The engine is the single cross-network intent engine. New venues are added as ad
 The following paths are externally or cryptographically significant:
 
 - `contracts/*/deployments/**`;
-- `apps/api/src/index.ts` (Vercel entry) and the Render build commands;
+- `apps/api/src/index.ts` (service entry, also the optional Vercel entry) and the Render build commands;
 - public assets referenced by the web app and documentation (`apps/web/public/kletia-logo.png` is hash-pinned).
 
 Before moving one of these files, update every code, deployment, documentation and CI reference in the same change, then run:

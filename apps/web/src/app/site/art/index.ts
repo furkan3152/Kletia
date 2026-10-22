@@ -13,7 +13,7 @@
  *   Icon, LineBullet, Stamp, PaperDefs            ./Icon, ./LineBullet, ./Stamp, ./PaperDefs
  *   RouteMap / MapCard, RouteMapCard              ./RouteMap, ./MapCard
  *   Ticket, TicketStub, BlankTicket               ./Ticket
- *   ReceiptTicket / LinkTicket / TicketShell      ./ReceiptTicket, ./LinkTicket, ./TicketShell
+ *   LinkTicket / TicketShell                      ./LinkTicket, ./TicketShell
  *   DepartureBoard                                ./DepartureBoard
  *   PlatformNumber, LineRule, TrackDivider,
  *   Perforation, CropMarks, HalftoneEdge          ./Ornaments
@@ -32,7 +32,6 @@ export type { LinkBound, LinkPublisher, LinkTicketProps } from "./LinkTicket";
 export type { MapCardProps, RouteMapCardProps } from "./MapCard";
 export type { CropMarksProps, LineRuleProps, PlatformNumberProps, TrackDividerProps } from "./Ornaments";
 export type { PlatformSignProps, Service } from "./PlatformSign";
-export type { EvidenceRow, EvidenceStatus, ReceiptTicketProps } from "./ReceiptTicket";
 export type { RouteMapProps } from "./RouteMap";
 export type { StampProps } from "./Stamp";
 export type { BlankTicketProps, TicketLeg, TicketProps, TicketStubProps } from "./Ticket";

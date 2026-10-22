@@ -37,8 +37,6 @@ export const STAKE_TOLERANCE_BPS = 5n;
 export const STAKE_NETWORK_FEE_SOL = 0.00002;
 /** Seconds until a deposit's output is in the wallet. */
 export const STAKE_ESTIMATED_SECONDS = 15;
-/** How long a plan-time preview transaction stays simulatable (unix seconds added to now). */
-export const STAKE_PREVIEW_TTL_SECONDS = 90;
 
 export const STAKE_SYSVARS = Object.freeze({
   rent: "SysvarRent111111111111111111111111111111111",
@@ -267,4 +265,3 @@ export async function verifyLiquidStake(
   if (result.status === "confirmed" && observed.actual) return { ...result, actualOutput: observed.actual };
   return result;
 }
-

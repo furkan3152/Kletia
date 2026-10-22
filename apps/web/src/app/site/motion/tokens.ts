@@ -38,9 +38,6 @@ export const EASE = {
   linear: "linear",
 } as const;
 
-/** Travel distances in px. */
-export const DISTANCE = { xs: 2, sm: 4, md: 8, lg: 16, xl: 24 } as const;
-
 /** Stagger step per item; lists stop adding delay after `maxItems`. */
 export const STAGGER = { step: 60, maxItems: 8 } as const;
 

@@ -81,11 +81,3 @@ export function withLocalPhases(
   };
 }
 
-/** Wallet signatures still ahead (steps a wallet has not signed yet). */
-export function remainingSignatures(intent: IntentGraph): number {
-  return intent.steps.filter(
-    (step) =>
-      step.mode === "wallet" &&
-      (step.status === "pending" || step.status === "ready" || step.status === "awaiting_signature"),
-  ).length;
-}

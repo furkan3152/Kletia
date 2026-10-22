@@ -404,6 +404,11 @@ services:
         sync: false
       - key: VITE_POLYGON_RPC_URL
         sync: false
+      # Optional Solana wallet RPCs; unset uses the public Solana endpoints.
+      - key: VITE_SOLANA_RPC_URL
+        sync: false
+      - key: VITE_SOLANA_DEVNET_RPC_URL
+        sync: false
       - key: VITE_ARBITRUM_MVP_ENABLED
         value: "true"
       - key: VITE_ARC_VAULT_EXECUTION_MODE

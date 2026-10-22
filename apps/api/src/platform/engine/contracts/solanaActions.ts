@@ -44,11 +44,8 @@ import {
   getAddressEncoder,
   getBase64Encoder,
   getCompiledTransactionMessageDecoder,
-  getCompiledTransactionMessageEncoder,
   getProgramDerivedAddress,
   getTransactionDecoder,
-  getTransactionEncoder,
-  type Blockhash,
 } from "@solana/kit";
 import {
   CHAINS,
@@ -913,9 +910,6 @@ export function withBlockhash(base64: string, blockhash: string): string {
   }
   return Buffer.from(next).toString("base64");
 }
-
-/** Compile-time anchor: the message codecs used above stay in sync with kit. */
-export type ActionMessageCodecs = [typeof getCompiledTransactionMessageEncoder, typeof getTransactionEncoder, Blockhash];
 
 /** Static account keys of a wire transaction (simulation balance arrays index them first). */
 export function staticKeysOf(base64: string): string[] {

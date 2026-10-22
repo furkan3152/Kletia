@@ -19,8 +19,6 @@ import {
  * intent started there can be resumed from Studio after a reload.
  */
 export const STUDIO_INTENT_SESSION_KEY = "kletia-studio-intent";
-/** Console Solana "Ask" tab (resumed inside the tab). */
-export const SOLANA_ASK_INTENT_SESSION_KEY = "kletia-solana-ask-intent";
 
 /** Older records are ignored: intents expire long before this. */
 const MAX_SESSION_AGE_MS = 24 * 60 * 60 * 1000;

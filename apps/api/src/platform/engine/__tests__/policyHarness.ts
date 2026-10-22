@@ -125,7 +125,6 @@ export const PROJECT_ID = "prj_00000000000000000000aaaa";
 export const ROOT_KEY = "key_000000000000000000000001";
 export const AGENT_KEY = "key_000000000000000000000002";
 export const AGENT_B_KEY = "key_000000000000000000000003";
-export const CHILD_KEY = "key_000000000000000000000004";
 
 interface KeyEntry {
   parent: string | null;

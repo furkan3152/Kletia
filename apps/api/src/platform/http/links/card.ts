@@ -9,7 +9,7 @@
  * `void` variant. No live counters: cards are cached per revision (memory
  * LRU of 500 PNGs, ETag `"lk_…-r<rev>-<variant>-<state>"`).
  */
-import { CHAINS, type NetworkKey } from "@kletia/core";
+import type { NetworkKey } from "@kletia/core";
 import { Canvas, drawText, fitPitch, textWidth, wrapText } from "./dotMatrix.js";
 import { effectiveLinkStatus } from "./service.js";
 import type { LinkRecord } from "./store.js";
@@ -201,9 +201,4 @@ export function linkCard(record: LinkRecord, variant: CardVariant, now: number, 
 /** Host printed on cards (the web origin without the scheme). */
 export function cardHost(origin: string): string {
   return origin.replace(/^https?:\/\//u, "");
-}
-
-/** Every network has a line bullet (tests). */
-export function cardLines(): readonly NetworkKey[] {
-  return (Object.keys(CHAINS) as NetworkKey[]).filter((network) => LINES[network] !== undefined);
 }

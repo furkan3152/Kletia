@@ -4,6 +4,26 @@ All notable changes are recorded in this file. The format follows [Keep a Change
 
 ## [Unreleased]
 
+Round 8: a wallet-gated admin panel for operators, and fixes found on the
+live site. Nothing here signs or holds funds; the admin wallet signs every
+on-chain action in the browser.
+
+### Added
+
+- Admin panel at `/admin` (noindex, its own lazy chunk): sign in with an allowlisted EVM wallet (EIP-4361, EOA or ERC-1271) or Solana wallet (ed25519); allowlists `KLETIA_ADMIN_ADDRESSES` and `KLETIA_ADMIN_SOLANA_ADDRESSES`; off when unset, invalid or without a database in production ([admin](docs/deployment/admin.md)).
+- Deployment registry for every Kletia contract on every EVM network it applies to: deploys built from committed artifacts (`npm run export:contract-artifacts`, checked in `verify`), signed by the admin wallet, verified on-chain by the API (code, arguments, owner), exported as JSON for pinning. Solana has no Kletia programs.
+- Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.
+
+### Fixed
+
+- The hosted site build had been failing since Round 6 (the web workspace did not depend on `@kletia/embed`), so an old site stayed live; the desk now runs the current engine.
+- A lending venue over 99% borrowed or at its cap no longer wins the rate pick.
+- Desk stamps: a task waiting on a question has no stamp, a refused task reads "Not planned"; redacted amounts in reloaded titles show as •••.
+- Text fields focus with the ink border and a deeper offset shadow instead of a blue ring; network counts come from the registry everywhere; the status board marks a network delayed above 3 s.
+- `/admin` has its own shell page on static hosts without rewrites.
+
+## Round 7
+
 Round 7: an intent engine that solves goals from what you hold, and ten more
 executable protocols. The registry now lists 49 protocols, 38 of them
 executable through the API. Nothing here signs or holds funds, and none of it

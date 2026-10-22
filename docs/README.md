@@ -72,7 +72,7 @@ This index separates current product truth from deployment procedure, network-sp
 
 - [Competitive landscape](architecture/competitive-landscape.html)
 
-Files under [`attachments/`](../attachments/GASOK_Team_Archial.md) are path- and hash-stable submission artifacts. Do not edit or relocate them to update current documentation.
+Files under [`attachments/`](../attachments/pitch_deck.html) are path- and hash-stable submission artifacts. Do not edit or relocate them to update current documentation.
 
 ## Source-of-truth order
 

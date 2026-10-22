@@ -11,7 +11,7 @@
  * default; `configureGoalSteps(false)` turns them off (the clause is then
  * refused: the reader never plans a guess).
  */
-import { GOAL_LIMITS, normalizeMessage, type Goal, type ThreadCorrection } from "@kletia/core";
+import { GOAL_LIMITS, normalizeMessage, SENTENCE_VERBS, type Goal, type ThreadCorrection } from "@kletia/core";
 import { splitClauses } from "../grammar.js";
 import { spellNumbers } from "./amounts.js";
 import type { Slot, WorkStep } from "../clarify/types.js";
@@ -25,6 +25,28 @@ export { lex, normalizeClause, symbolTypoCandidates, type Token } from "./lexer.
 export { readFrame, type GoalNotes, type ReadGoal } from "./frames.js";
 export { lowerGoal } from "./lower.js";
 export { splitGoalClauses } from "./clauses.js";
+
+/** "rent: send 500 USDC ...": one to three words, then a colon and a space (never "solana:...", "eip155:..."). */
+const LABEL = /^(?<label>[a-z][a-z'-]{0,23}(?:\s+[a-z][a-z'-]{0,23}){0,2})\s*:\s+(?<rest>\S.*)$/iu;
+
+/**
+ * A leading label ("rent:", "diversify:") is a note, never part of the
+ * sentence: it is dropped when none of its words names an asset, network,
+ * venue, amount, recipient or connector. A label that is a verb ("rebalance:
+ * half my USDC ...") is kept when the rest has no verb of its own (the Goal
+ * reader reads the colon as a pause).
+ */
+export function stripLabel(text: string): { text: string; label?: string } {
+  const match = LABEL.exec(text);
+  if (!match?.groups) return { text };
+  const label = match.groups.label as string;
+  const rest = (match.groups.rest as string).trim();
+  const words = lex(normalizeClause(label));
+  if (words.length === 0 || words.some((token) => token.t !== "NOISE" && token.t !== "ASSET?" && token.t !== "VERB")) return { text };
+  const restVerb = lex(normalizeClause(rest))[0]?.t === "VERB" || Object.hasOwn(SENTENCE_VERBS, (rest.split(/\s+/u)[0] ?? "").toLowerCase());
+  if (words.some((token) => token.t === "VERB") && !restVerb) return { text };
+  return { text: rest, label };
+}
 
 let goalStepsEnabled = true;
 
@@ -142,7 +164,7 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
 export function readGoals(message: string, previousExists = false): (ReadGoal | null)[] {
   const out: (ReadGoal | null)[] = [];
   let index = 0;
-  for (const clause of splitClauses(normalizeMessage(spellNumbers(message, 2)))) {
+  for (const clause of splitClauses(stripLabel(normalizeMessage(spellNumbers(message, 2))).text)) {
     let verbWord: string | undefined;
     for (const piece of splitGoalClauses(clause, GOAL_LIMITS.maxGoals) ?? []) {
       let text = normalizeClause(piece.text);

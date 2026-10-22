@@ -211,6 +211,23 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
     return false;
   };
 
+  /**
+   * "fund my arbitrum wallet", "send 5 USDC to my base account": the person's
+   * own account on that network is where the money should arrive.
+   */
+  const placeOwnWallet = (network: NetworkKey, span: Span): boolean => {
+    if (holderSaid || (want.network && want.network !== network)) return false;
+    if (conn !== undefined && conn !== "to" && conn !== "onto" && conn !== "into" && conn !== "for") return false;
+    if (verb && verb.kind !== "deliver" && verb.kind !== "relocate" && verb.kind !== "acquire") return false;
+    if (verb?.buy || pending) return false;
+    want.network = network;
+    holder = { t: "self" };
+    holderSaid = true;
+    possessive = false;
+    spans.push(span);
+    return true;
+  };
+
   const placeNetwork = (index: number, network: NetworkKey, span: Span): boolean => {
     spans.push(span);
     const next = tokens[index + 1];
@@ -305,7 +322,17 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
         conn = undefined;
         continue;
       }
+      case "WALLET":
+        // Read with the network word before it (placeOwnWallet).
+        if (tokens[index - 1]?.t !== "NETWORK" && tokens[index - 1]?.t !== "ASSET") return null;
+        conn = undefined;
+        continue;
       case "ASSET": {
+        if (token.network && tokens[index + 1]?.t === "WALLET") {
+          if (!placeOwnWallet(token.network, token.span)) return null;
+          conn = undefined;
+          continue;
+        }
         if (networkReading(index, token)) {
           if (!placeNetwork(index, token.network as NetworkKey, token.span)) return null;
           conn = undefined;
@@ -338,6 +365,11 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
         continue;
       }
       case "NETWORK":
+        if (tokens[index + 1]?.t === "WALLET") {
+          if (!placeOwnWallet(token.network, token.span)) return null;
+          conn = undefined;
+          continue;
+        }
         if (pending) {
           // "25 base"? An amount must be followed by its asset or a connector.
           if (!bindAmount(object, pending)) return null;
@@ -440,7 +472,7 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
   }
   // "move everything to base": all of every asset, a sweep only the solver can plan.
   const sweep = !spend.asset && !spend.venue && spend.amount?.t === "max" && !ctx.previousExists && (verb?.kind === "relocate" || verb?.kind === "deliver");
-  const kind = sweep ? "consolidate" : goalKind(verb, spend, want, holderSaid, holder);
+  const kind = sweep ? "consolidate" : goalKind(verb, spend, want, holderSaid, holder, { work, ...(verbToken ? { verbWord: verbToken.raw.toLowerCase() } : {}) });
   if (!kind) return null;
   if (verb?.whole && !spend.amount) spend.amount = { t: "max" };
   if (!spend.asset && !want.asset && !spend.venue && !want.venue && !holderSaid && !spend.previous && kind !== "consolidate") return null;
@@ -449,7 +481,8 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
   const at: Place | undefined = want.network || want.custody ? { ...(want.network ? { network: want.network } : {}), custody: want.custody ?? { kind: "wallet" } } : undefined;
   const goal: Goal = {
     kind,
-    ...(verb?.op ? { op: verb.op } : kind === "deliver" && holderSaid && holder.t !== "self" ? { op: "transfer" as const } : {}),
+    // "put X into USDC" read as a conversion keeps no deposit op.
+    ...(verb?.op && !(kind === "convert" && verb.op !== "swap") ? { op: verb.op } : kind === "deliver" && holderSaid && holder.t !== "self" ? { op: "transfer" as const } : {}),
     spend: { ...(spend.asset ? { asset: spend.asset } : {}), ...(spend.amount ? { amount: spend.amount } : {}), ...(from ? { from } : {}) },
     want: { ...(want.asset ? { asset: want.asset } : {}), ...(want.amount ? { amount: want.amount } : {}), ...(at ? { at } : {}) },
     holder,
@@ -479,7 +512,10 @@ export function readFrame(input: readonly Token[], ctx: FrameContext): ReadGoal 
 }
 
 /** F6: the kind from the verb, adjusted by what the clause names; or from the clause's shape when no verb was said. */
-function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSaid: boolean, holder: Holder): GoalKind | null {
+/** Earn verbs that also say "turn into" ("put 30% of my SOL into USDC", "invest 100 USDC into SOL"). */
+const INTO_VERBS: ReadonlySet<string> = new Set(["put", "place", "invest"]);
+
+function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSaid: boolean, holder: Holder, said: { readonly work: boolean; readonly verbWord?: string }): GoalKind | null {
   const moves = spend.network !== undefined && want.network !== undefined && spend.network !== want.network;
   const sameAsset = !want.asset || !spend.asset || sameSel(spend.asset, want.asset);
   // Money that sits in a venue position now leaves it first ("move my aave USDC to morpho").
@@ -497,6 +533,8 @@ function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSa
         return "relocate";
       case "acquire":
         if (want.custody?.kind === "venue") return "earn";
+        // "fund my polygon wallet with 5 USDC": bring that asset to the person's own account there.
+        if (holderSaid && holder.t === "self" && want.network && spend.asset && !want.asset && !verb.buy) return "relocate";
         if (spend.asset && want.asset && !sameSel(spend.asset, want.asset)) return "convert";
         if (verb.buy) return "convert";
         if (moves && sameAsset) return "relocate";
@@ -504,6 +542,14 @@ function goalKind(verb: VerbEntry | undefined, spend: Side, want: Side, holderSa
       case "convert":
         if (want.custody?.kind === "venue") return "earn";
         return "convert";
+      case "earn":
+        // A token that is not a venue or a staking token as the destination: "put 30% of my SOL into
+        // USDC" converts; any other earn verb with one is not read (an earn never drops the wanted token).
+        if (want.asset && !want.venue && !want.custody) {
+          const into = !said.work && said.verbWord !== undefined && INTO_VERBS.has(said.verbWord);
+          return into && spend.asset && !sameSel(spend.asset, want.asset) ? "convert" : null;
+        }
+        return "earn";
       case "exit":
         // "withdraw 50 USDC": the verb alone says exit; the venue is asked.
         return spend.venue || verb.op === "withdraw" ? "exit" : null;

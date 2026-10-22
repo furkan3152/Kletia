@@ -123,6 +123,27 @@ export class TurnFacts implements FactsView {
   }
 
   /**
+   * The positions held at `protocol` on `network`, from the same reads as
+   * `position`; undefined until read, or when any of its venues there could
+   * not be read (a failed read is never "no position").
+   */
+  positionsAt(network: NetworkKey, protocol: string): readonly { readonly symbol: string; readonly amount: string }[] | undefined {
+    const key = `${network}|${protocol}`;
+    const source = this.snapshot?.positionNetworks.includes(network) ? this.snapshot : this.positionSnapshots.get(key);
+    if (!source) {
+      if (!protocol || !getProtocol(protocol as ProtocolId)) return undefined;
+      this.misses += 1;
+      if (!this.frozen) this.wantedPositions.set(key, { network, protocol: protocol as ProtocolId });
+      return undefined;
+    }
+    const rows = source.positions.filter((entry) => entry.network === network && entry.protocol === protocol);
+    if (rows.length === 0 || rows.some((entry) => entry.status !== "known" || entry.units === undefined || entry.formatted === undefined)) return undefined;
+    return rows
+      .filter((entry) => BigInt(entry.units as string) > 0n)
+      .map((entry) => ({ symbol: entry.symbol, amount: entry.formatted as string }));
+  }
+
+  /**
    * The solver's snapshot for `goals`, or undefined until it is read. A
    * frozen turn (option previews) reuses the last snapshot read for
    * other goals rather than reading again.
@@ -223,7 +244,8 @@ export class TurnFacts implements FactsView {
         kind: "exit", spend: { from: { network: need.network, custody: { kind: "position", protocol: need.protocol } } }, want: {}, holder: { t: "self" }, constraints: {}, confidence: "exact",
       };
       const deadlineMs = Math.max(1, FACTS_DEADLINE_MS - (Date.now() - this.started));
-      this.positionSnapshots.set(key, await readSnapshot(this.accounts, [goal], { deadlineMs, ...(clock !== null ? { now: clock } : {}) }));
+      // Positions only: no balance reads beyond the turn's own budget (the snapshot would read the gas asset).
+      this.positionSnapshots.set(key, await readSnapshot(this.accounts, [goal], { deadlineMs, balances: 0, ...(clock !== null ? { now: clock } : {}) }));
     }));
     // Needs past the cap stay unknown: recorded as read so the policy stops asking for them.
     for (const [key, need] of wanted) {

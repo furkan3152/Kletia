@@ -8,6 +8,7 @@
  * a CORS preflight that only the admin origins pass). Error bodies are
  * `AdminErrorBody`; `gateFor` maps the codes that decide what the panel shows.
  */
+import { routePayloadSha256 } from "../model/confirm.ts";
 import type {
   AdminActionVerifyRequest,
   AdminArtifact,
@@ -161,6 +162,23 @@ export function verifyBody(message: string, signature: string): Record<string, u
   return { message, signature };
 }
 
+/**
+ * Signs route-bound step-up confirmations with the wallet that holds the
+ * session (set by the panel once a session and its wallet are known).
+ */
+export interface AdminConfirmer {
+  readonly walletKind: AdminWalletKind;
+  readonly address: string;
+  readonly chainId?: number | null;
+  readonly sign: (message: string) => Promise<string>;
+}
+
+/** Route-bound step-up actions (the API's list, minus the two with their own payloads). */
+export type AdminRouteAction =
+  | "deployment.record" | "deployment.reverify" | "action.verify"
+  | "safe.propose" | "safe.sign" | "safe.executed" | "safe.cancel"
+  | "fees.rescan" | "render.deploy";
+
 export interface AdminClientOptions {
   /** API origin, e.g. https://api.kletiaai.xyz (no trailing slash needed). */
   readonly baseUrl: string;
@@ -223,10 +241,36 @@ export function createAdminClient({ baseUrl, fetch: fetchImpl, timeoutMs = DEFAU
     }
   }
 
+  let confirmer: AdminConfirmer | null = null;
+
+  /**
+   * A state-changing call: first a `confirm` nonce bound to the action, the
+   * network (when the body names one) and the hash of method + path + body,
+   * signed by the session's wallet; then the call with `confirmation`.
+   */
+  async function confirmed<T>(method: Method, path: string, action: AdminRouteAction, body: Readonly<Record<string, unknown>> = {}): Promise<T> {
+    if (!confirmer) throw new AdminApiError("ADMIN_CONFIRMATION_REQUIRED", "Connect the wallet that holds this session to confirm the change.", 403);
+    const network = typeof body.network === "string" ? (body.network as AdminEvmNetwork) : undefined;
+    const nonce = await request<AdminNonceResponse>("POST", "/auth/nonce", confirmNonceBody({
+      walletKind: confirmer.walletKind,
+      address: confirmer.address,
+      chainId: confirmer.chainId ?? null,
+      action,
+      ...(network ? { network } : {}),
+      payloadSha256: routePayloadSha256(method, path, body),
+    }));
+    const signature = await confirmer.sign(nonce.message);
+    return request<T>(method, path, { ...body, confirmation: { message: nonce.message, signature } });
+  }
+
   const enc = encodeURIComponent;
 
   return {
     request,
+    /** Sets (or clears) the wallet that signs step-up confirmations for every write. */
+    setConfirmer: (next: AdminConfirmer | null) => {
+      confirmer = next;
+    },
     /* auth */
     session: () => request<{ session: AdminSessionView }>("GET", "/auth/session").then((body) => body.session),
     nonce: (input: AdminNonceRequest) => request<AdminNonceResponse>("POST", "/auth/nonce", nonceBody(input)),
@@ -249,8 +293,8 @@ export function createAdminClient({ baseUrl, fetch: fetchImpl, timeoutMs = DEFAU
       return request<{ records: AdminDeploymentRecord[]; pinned: AdminPinnedDeployment[] }>("GET", `/deployments${suffix}`);
     },
     recordDeployment: (input: AdminRecordRequest & { import?: boolean }) =>
-      request<{ record: AdminDeploymentRecord }>("POST", "/deployments", input).then((body) => body.record),
-    reverify: (id: string) => request<{ record: AdminDeploymentRecord }>("POST", `/deployments/${enc(id)}/reverify`).then((body) => body.record),
+      confirmed<{ record: AdminDeploymentRecord }>("POST", "/deployments", "deployment.record", { ...input }).then((body) => body.record),
+    reverify: (id: string) => confirmed<{ record: AdminDeploymentRecord }>("POST", `/deployments/${enc(id)}/reverify`, "deployment.reverify").then((body) => body.record),
     setRecordStatus: (id: string, input: { status: "archived" | "superseded"; notes?: string; confirmation: AdminConfirmation }) =>
       request<{ record: AdminDeploymentRecord }>("PATCH", `/deployments/${enc(id)}`, input).then((body) => body.record),
     exportDeployments: () => request<AdminExport>("GET", "/deployments/export"),
@@ -261,7 +305,7 @@ export function createAdminClient({ baseUrl, fetch: fetchImpl, timeoutMs = DEFAU
     ) => request<{ profile: AdminNetworkProfile }>("PUT", `/network-profiles/${enc(network)}`, input).then((body) => body.profile),
     contractState: (recordKey: string) => request<AdminContractState>("GET", `/contracts/${enc(recordKey)}/state`),
     verifyAction: (input: AdminActionVerifyRequest) =>
-      request<{ decoded: { fn: string; args: Record<string, string> } | null; block: string; auditId: string }>("POST", "/actions/verify", input),
+      confirmed<{ decoded: { fn: string; args: Record<string, string> } | null; block: string; auditId: string }>("POST", "/actions/verify", "action.verify", { ...input }),
     safeProposals: (filter: { network?: AdminEvmNetwork; status?: string } = {}) => {
       const query = new URLSearchParams();
       if (filter.network) query.set("network", filter.network);
@@ -271,17 +315,17 @@ export function createAdminClient({ baseUrl, fetch: fetchImpl, timeoutMs = DEFAU
       return request<{ proposals: AdminSafeProposal[] }>("GET", `/safe-proposals${suffix}`).then((body) => body.proposals);
     },
     proposeSafe: (input: { network: AdminEvmNetwork; safe: string; to: string; value: string; data: string; description: string; actionId?: string | null }) =>
-      request<{ proposal: AdminSafeProposal }>("POST", "/safe-proposals", input).then((body) => body.proposal),
+      confirmed<{ proposal: AdminSafeProposal }>("POST", "/safe-proposals", "safe.propose", { ...input }).then((body) => body.proposal),
     addSafeSignature: (id: string, signature: string) =>
-      request<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/signatures`, { signature }).then((body) => body.proposal),
+      confirmed<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/signatures`, "safe.sign", { signature }).then((body) => body.proposal),
     markSafeExecuted: (id: string, txHash: string) =>
-      request<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/executed`, { txHash }).then((body) => body.proposal),
-    cancelSafe: (id: string) => request<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/cancel`).then((body) => body.proposal),
+      confirmed<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/executed`, "safe.executed", { txHash }).then((body) => body.proposal),
+    cancelSafe: (id: string) => confirmed<{ proposal: AdminSafeProposal }>("POST", `/safe-proposals/${enc(id)}/cancel`, "safe.cancel").then((body) => body.proposal),
     fees: () => request<AdminFeesView>("GET", "/fees"),
-    rescanFees: (key: string) => request<{ scannedThroughBlock: string }>("POST", "/fees/rescan", { key }),
+    rescanFees: (key: string) => confirmed<{ scannedThroughBlock: string }>("POST", "/fees/rescan", "fees.rescan", { key }),
     services: () => request<AdminServicesView>("GET", "/services"),
     redeploy: (service: AdminRenderServiceKey, clearCache: boolean) =>
-      request<{ deploy: AdminRenderDeploy }>("POST", `/services/${enc(service)}/deploy`, { clearCache }).then((body) => body.deploy),
+      confirmed<{ deploy: AdminRenderDeploy }>("POST", `/services/${enc(service)}/deploy`, "render.deploy", { clearCache }).then((body) => body.deploy),
     env: () => request<AdminEnvView>("GET", "/env"),
     audit: (input: { limit?: number; before?: string | null } = {}) => {
       const query = new URLSearchParams();

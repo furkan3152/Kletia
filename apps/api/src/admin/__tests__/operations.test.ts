@@ -34,8 +34,10 @@ import {
   signInSolana,
   solanaWallet,
   startHarness,
+  testConfig,
   type Harness,
   type MockClient,
+  type SessionSigner,
 } from "./helpers.js";
 
 let open: Harness[] = [];
@@ -79,6 +81,13 @@ function arbitrumClient(h: Harness): MockClient {
   return client;
 }
 
+/**
+ * OWNER is the constructor owner of the staged factory. "verified" needs an
+ * admin-controlled owner, so tests that expect "verified" allowlist OWNER as a
+ * second admin wallet (it never signs in); tests of "foreign" leave it out.
+ */
+const adminsWithOwner = (address: string) => `${address},${OWNER}`;
+
 const recordBody = (extra: Record<string, unknown> = {}) => ({
   targetId: "arbitrum:launch-factory-v2", txHash: TX, constructorArgs: { initialOwner: OWNER, initialTreasury: TREASURY }, ...extra,
 });
@@ -120,10 +129,10 @@ describe("catalog and artifacts", () => {
 describe("deployment verification", () => {
   it("records a verified deploy, audits it and is idempotent per tx", async () => {
     const account = evmWallet();
-    const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
+    const h = await harness({ KLETIA_ADMIN_ADDRESSES: adminsWithOwner(account.address) });
     const { cookie } = await signInEvm(h, account);
     stageFactoryDeploy(arbitrumClient(h), account.address);
-    const reply = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+    const reply = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() });
     assert.equal(reply.status, 201, JSON.stringify(reply.body));
     const record = reply.body.record;
     assert.equal(record.status, "verified", JSON.stringify(record.checks));
@@ -132,8 +141,8 @@ describe("deployment verification", () => {
     assert.equal(record.wired, false);
     assert.match(record.id, /^dep_[0-9a-f]{24}$/u);
     const ids = record.checks.map((check: { id: string }) => check.id).sort();
-    assert.deepEqual(ids, ["chain", "confirmations", "constructor_args", "creation", "deployer", "init_code", "owner", "role_reads", "runtime_code", "tx_success"]);
-    const again = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+    assert.deepEqual(ids, ["admin_control", "chain", "confirmations", "constructor_args", "creation", "deployer", "init_code", "owner", "role_reads", "runtime_code", "tx_success"]);
+    const again = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() });
     assert.equal(again.status, 200);
     assert.equal(again.body.record.id, record.id);
     assert.ok((await h.store.listAudit(10, null)).some((row) => row.action === "deployment.record" && row.outcome === "ok"));
@@ -153,19 +162,19 @@ describe("deployment verification", () => {
     const client = arbitrumClient(h);
     stageFactoryDeploy(client, account.address);
     client.getChainId = async () => 1;
-    assert.equal((await call(h, "POST", "/deployments", { cookie, body: recordBody() })).body.error.code, "ADMIN_RPC_UNAVAILABLE");
+    assert.equal((await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() })).body.error.code, "ADMIN_RPC_UNAVAILABLE");
     client.getChainId = async () => 42161;
     client.getTransactionReceipt = async ({ hash }: { hash: Hex }) => { throw receiptNotFound(hash); };
-    const pending = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+    const pending = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() });
     assert.equal(pending.status, 409);
     assert.equal(pending.body.error.code, "ADMIN_TX_PENDING");
     stageFactoryDeploy(client, account.address, { status: "reverted" });
-    assert.equal((await call(h, "POST", "/deployments", { cookie, body: recordBody() })).status, 422);
+    assert.equal((await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() })).status, 422);
     stageFactoryDeploy(client, account.address, { to: DEPLOYED });
-    assert.equal((await call(h, "POST", "/deployments", { cookie, body: recordBody() })).status, 422);
+    assert.equal((await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() })).status, 422);
     client.getBlockNumber = async () => 990n;
     stageFactoryDeploy(client, account.address);
-    assert.equal((await call(h, "POST", "/deployments", { cookie, body: recordBody() })).body.error.code, "ADMIN_TX_PENDING", "needs confirmations");
+    assert.equal((await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() })).body.error.code, "ADMIN_TX_PENDING", "needs confirmations");
     assert.equal((await h.store.listDeployments({})).length, 0);
   });
 
@@ -183,7 +192,7 @@ describe("deployment verification", () => {
       const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
       const { cookie } = await signInEvm(h, account);
       stage(arbitrumClient(h), account.address);
-      const reply = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+      const reply = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() });
       assert.equal(reply.status, 201);
       assert.equal(reply.body.record.status, "verification_failed");
       const failed = reply.body.record.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id);
@@ -191,16 +200,29 @@ describe("deployment verification", () => {
     });
   }
 
-  it("accepts an imported deploy from another deployer", async () => {
+  // An import needs an admin-controlled owner; one owned by a stranger
+  // (OWNER) is recorded as "foreign", never "verified".
+  it("accepts an imported deploy from another deployer only when an admin controls it", async () => {
     const account = evmWallet();
     const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
     const { cookie } = await signInEvm(h, account);
     stageFactoryDeploy(arbitrumClient(h), OWNER);
-    const reply = await call(h, "POST", "/deployments", { cookie, body: recordBody({ import: true }) });
-    assert.equal(reply.body.record.status, "verified");
+    const foreign = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody({ import: true }) });
+    assert.equal(foreign.status, 201, JSON.stringify(foreign.body));
+    assert.equal(foreign.body.record.status, "foreign");
+    assert.deepEqual(foreign.body.record.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id), ["admin_control"]);
+
+    const admin = evmWallet();
+    const h2 = await harness({ KLETIA_ADMIN_ADDRESSES: adminsWithOwner(admin.address) });
+    const signed = await signInEvm(h2, admin);
+    stageFactoryDeploy(arbitrumClient(h2), TREASURY);
+    const own = await call(h2, "POST", "/deployments", { cookie: signed.cookie, confirm: { signer: admin, action: "deployment.record" }, body: recordBody({ import: true }) });
+    assert.equal(own.body.record.status, "verified", JSON.stringify(own.body.record.checks));
   });
 
-  it("does not relax the session-address (creator/owner) rule for imports", async () => {
+  // The creator is the token's owner, so a stranger as KLET creator is
+  // judged by admin_control (not constructor_args) and the record is "foreign".
+  it("records an import whose creator/owner is a stranger as foreign", async () => {
     const account = evmWallet();
     const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
     const { cookie } = await signInEvm(h, account);
@@ -215,31 +237,32 @@ describe("deployment verification", () => {
       client.getTransactionReceipt = async () => ({ status: "success", blockNumber: 990n, contractAddress: DEPLOYED, logs: [] });
       client.getTransaction = async () => ({ from: OWNER, to: null, input: `${token.bytecode}${encoded.slice(2)}` });
       client.getCode = async ({ address }: { address: string }) => (address.toLowerCase() === DEPLOYED.toLowerCase() ? token.deployedBytecode : "0x");
+      client.reads.set("owner", () => creator);
       return args;
     };
     // A stranger's KLET token (Ownable(creator) with creator = the stranger) must not become "verified".
-    const stranger = await call(h, "POST", "/deployments", { cookie, body: { targetId: "arc:arc-klet-token", txHash: TX, constructorArgs: stage(OWNER), import: true } });
+    const stranger = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: { targetId: "arc:arc-klet-token", txHash: TX, constructorArgs: stage(OWNER), import: true } });
     assert.equal(stranger.status, 201, JSON.stringify(stranger.body));
-    assert.equal(stranger.body.record.status, "verification_failed");
+    assert.equal(stranger.body.record.status, "foreign");
     const failed = stranger.body.record.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id);
-    assert.deepEqual(failed, ["constructor_args"]);
+    assert.deepEqual(failed, ["admin_control"]);
     // Imported from another deployer with the admin as creator: verified.
     const otherTx = `0x${"cd".repeat(32)}` as Hex;
     client.getCode = async () => "0x";
     const admin = stage(account.address);
     client.getTransactionReceipt = async () => ({ status: "success", blockNumber: 990n, contractAddress: OWNER, logs: [] });
     client.getCode = async ({ address }: { address: string }) => (address.toLowerCase() === OWNER.toLowerCase() ? token.deployedBytecode : "0x");
-    const own = await call(h, "POST", "/deployments", { cookie, body: { targetId: "arc:arc-klet-token", txHash: otherTx, constructorArgs: admin, import: true } });
+    const own = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: { targetId: "arc:arc-klet-token", txHash: otherTx, constructorArgs: admin, import: true } });
     assert.equal(own.body.record.status, "verified", JSON.stringify(own.body.record.checks));
   });
 
   it("accepts a Solana session's deploy sent by an allowlisted EVM wallet", async () => {
     const wallet = solanaWallet();
     const evm = evmWallet();
-    const h = await harness({ KLETIA_ADMIN_SOLANA_ADDRESSES: wallet.address, KLETIA_ADMIN_ADDRESSES: evm.address });
+    const h = await harness({ KLETIA_ADMIN_SOLANA_ADDRESSES: wallet.address, KLETIA_ADMIN_ADDRESSES: adminsWithOwner(evm.address) });
     const { cookie } = await signInSolana(h, wallet);
     stageFactoryDeploy(arbitrumClient(h), evm.address);
-    const reply = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+    const reply = await call(h, "POST", "/deployments", { cookie, confirm: { signer: wallet, action: "deployment.record" }, body: recordBody() });
     assert.equal(reply.body.record.status, "verified");
     assert.equal(reply.body.record.createdBy, wallet.address);
   });
@@ -248,14 +271,14 @@ describe("deployment verification", () => {
     const account = evmWallet();
     const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
     const { cookie } = await signInEvm(h, account);
-    const quarantined = await call(h, "POST", "/deployments", { cookie, body: { targetId: "base:uniswap-v3-adapter", txHash: TX, constructorArgs: {} } });
+    const quarantined = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: { targetId: "base:uniswap-v3-adapter", txHash: TX, constructorArgs: {} } });
     assert.equal(quarantined.status, 422);
     assert.equal(quarantined.body.error.code, "ADMIN_TARGET_NOT_DEPLOYABLE");
     const client = arbitrumClient(h);
     stageFactoryDeploy(client, account.address);
-    assert.equal((await call(h, "POST", "/deployments", { cookie, body: recordBody() })).status, 201);
+    assert.equal((await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() })).status, 201);
     const otherTx = `0x${"cd".repeat(32)}`;
-    const conflict = await call(h, "POST", "/deployments", { cookie, body: recordBody({ txHash: otherTx }) });
+    const conflict = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody({ txHash: otherTx }) });
     assert.equal(conflict.status, 409);
     assert.equal(conflict.body.error.code, "ADMIN_RECORD_CONFLICT");
     assert.equal(await targetSatisfied(h.store, "arbitrum:uniswap-v2-adapter:uniswap"), false);
@@ -267,7 +290,7 @@ describe("deployment verification", () => {
     const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
     const { cookie } = await signInEvm(h, account);
     stageFactoryDeploy(arbitrumClient(h), account.address);
-    const { body } = await call(h, "POST", "/deployments", { cookie, body: recordBody() });
+    const { body } = await call(h, "POST", "/deployments", { cookie, confirm: { signer: account, action: "deployment.record" }, body: recordBody() });
     const id = body.record.id;
     assert.equal((await call(h, "PATCH", `/deployments/${id}`, { cookie, body: { status: "archived", confirmation: { message: "x", signature: "0x" } } })).status, 403);
     const { payloadSha256 } = await import("../auth/messages.js");
@@ -275,6 +298,79 @@ describe("deployment verification", () => {
     const ok = await call(h, "PATCH", `/deployments/${id}`, { cookie, body: { status: "archived", confirmation: { message: nonce.body.message, signature: await account.signMessage({ message: nonce.body.message }) } } });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.record.status, "archived");
+  });
+});
+
+describe("admin control (verified vs foreign)", () => {
+  const record = (h: Harness, cookie: string, signer: SessionSigner, extra: Record<string, unknown> = {}) =>
+    call(h, "POST", "/deployments", { cookie, confirm: { signer, action: "deployment.record" }, body: recordBody(extra) });
+  const failedIds = (reply: { body: { record: { checks: { id: string; ok: boolean }[] } } }) =>
+    reply.body.record.checks.filter((check) => !check.ok).map((check) => check.id);
+
+  it("records a stranger-owned fresh deploy as foreign: shown, never exported, never a dependency", async () => {
+    const account = evmWallet();
+    const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
+    const { cookie } = await signInEvm(h, account);
+    stageFactoryDeploy(arbitrumClient(h), account.address);
+    const reply = await record(h, cookie, account);
+    assert.equal(reply.status, 201, JSON.stringify(reply.body));
+    assert.equal(reply.body.record.status, "foreign");
+    assert.deepEqual(failedIds(reply), ["admin_control"]);
+    assert.match(reply.body.record.checks.find((check: { id: string }) => check.id === "admin_control").detail, /not an allowlisted admin wallet/u);
+    const listed = await call(h, "GET", "/deployments?status=foreign", { cookie });
+    assert.equal(listed.body.records.length, 1);
+    const overview = await call(h, "GET", "/overview", { cookie });
+    assert.ok(overview.body.networks.find((entry: { network: string }) => entry.network === "arbitrum").warnings.some((line: string) => /foreign/u.test(line)));
+    const exported = await call(h, "GET", "/deployments/export", { cookie });
+    assert.deepEqual(exported.body.networks, {}, "foreign records are never exported for pinning");
+    assert.equal(await targetSatisfied(h.store, "arbitrum:launch-factory-v2"), false, "a foreign record never satisfies a dependency");
+    assert.equal((await h.store.listAudit(20, null)).find((row) => row.action === "deployment.record")?.target.status, "foreign");
+  });
+
+  it("verifies an owner that is the network profile's configured owner", async () => {
+    const account = evmWallet();
+    const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
+    const { cookie } = await signInEvm(h, account);
+    await h.store.putProfile({ network: "arbitrum", owner: OWNER, guardian: null, treasury: null, eoaOwnerAcknowledged: true, updatedBy: account.address, updatedAt: h.now.toISOString() });
+    stageFactoryDeploy(arbitrumClient(h), account.address);
+    const reply = await record(h, cookie, account);
+    assert.equal(reply.body.record.status, "verified", JSON.stringify(reply.body.record.checks));
+    assert.equal(await targetSatisfied(h.store, "arbitrum:launch-factory-v2"), true);
+  });
+
+  for (const [name, safeOwners, expected] of [
+    ["verifies a Safe owner whose getOwners() include an admin wallet", "admin", "verified"],
+    ["records a Safe owner without an admin among getOwners() as foreign", "stranger", "foreign"],
+  ] as const) {
+    it(name, async () => {
+      const account = evmWallet();
+      const h = await harness({ KLETIA_ADMIN_ADDRESSES: account.address });
+      const { cookie } = await signInEvm(h, account);
+      const client = arbitrumClient(h);
+      stageFactoryDeploy(client, account.address);
+      const deployed = client.getCode;
+      client.getCode = async (input: { address: string }) => (input.address.toLowerCase() === OWNER.toLowerCase() ? "0x6000" : deployed(input));
+      client.reads.set(`${OWNER.toLowerCase()}:getThreshold`, () => 1n);
+      client.reads.set(`${OWNER.toLowerCase()}:getOwners`, () => [safeOwners === "admin" ? account.address : TREASURY]);
+      const reply = await record(h, cookie, account);
+      assert.equal(reply.body.record.status, expected, JSON.stringify(reply.body.record.checks));
+      assert.equal(reply.body.record.ownerKind, "safe");
+    });
+  }
+
+  it("reverify moves a record to foreign when admin control is lost", async () => {
+    const account = evmWallet();
+    const h = await harness({ KLETIA_ADMIN_ADDRESSES: adminsWithOwner(account.address) });
+    const { cookie } = await signInEvm(h, account);
+    stageFactoryDeploy(arbitrumClient(h), account.address);
+    const reply = await record(h, cookie, account);
+    assert.equal(reply.body.record.status, "verified");
+    h.config = testConfig({ KLETIA_ADMIN_ADDRESSES: account.address });
+    const path = `/deployments/${reply.body.record.id}/reverify`;
+    const again = await call(h, "POST", path, { cookie, confirm: { signer: account, action: "deployment.reverify" } });
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.equal(again.body.record.status, "foreign");
+    assert.equal(await targetSatisfied(h.store, "arbitrum:launch-factory-v2"), false);
   });
 });
 
@@ -314,13 +410,13 @@ describe("contract state and actions", () => {
     const input = encodeFunctionData({ abi: gatewayAbi, functionName: "withdraw", args: [admin.address] });
     base.getTransactionReceipt = async () => ({ status: "success", blockNumber: 999n, logs: [] });
     base.getTransaction = async () => ({ from: admin.address, to: gateway, input });
-    const ok = await call(h, "POST", "/actions/verify", { cookie, body: { network: "base", txHash: TX, contract: gateway, actionId: "gateway.withdraw" } });
+    const ok = await call(h, "POST", "/actions/verify", { cookie, confirm: { signer: wallet, action: "action.verify" }, body: { network: "base", txHash: TX, contract: gateway, actionId: "gateway.withdraw" } });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     assert.equal(ok.body.decoded.fn, "withdraw");
     assert.equal(ok.body.decoded.args.to, admin.address);
     assert.match(ok.body.auditId, /^aud_/u);
     base.getTransaction = async () => ({ from: OWNER, to: gateway, input });
-    const stranger = await call(h, "POST", "/actions/verify", { cookie, body: { network: "base", txHash: TX, contract: gateway, actionId: null } });
+    const stranger = await call(h, "POST", "/actions/verify", { cookie, confirm: { signer: wallet, action: "action.verify" }, body: { network: "base", txHash: TX, contract: gateway, actionId: null } });
     assert.equal(stranger.status, 403);
     assert.equal(stranger.body.error.code, "ADMIN_EVM_WALLET_REQUIRED");
   });
@@ -348,7 +444,7 @@ describe("Safe proposals", () => {
       return args[2] === feeData ? SAFE_TX_HASH : keccak256(`${args[2] as Hex}${nonce.toString(16).padStart(2, "0")}` as Hex);
     });
     const data = encodeFunctionData({ abi: ROUTER.abi, functionName: "setFeeBps", args: [5] });
-    const created = await call(h, "POST", "/safe-proposals", { cookie, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data, description: "Lower the fee to 5 bps", actionId: "router.setFeeBps" } });
+    const created = await call(h, "POST", "/safe-proposals", { cookie, confirm: { signer: first, action: "safe.propose" }, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data, description: "Lower the fee to 5 bps", actionId: "router.setFeeBps" } });
     return { h, cookie, base, first, second, created, setNonce: (value: bigint) => { nonce = value; } };
   }
 
@@ -360,22 +456,22 @@ describe("Safe proposals", () => {
     assert.equal(proposal.nonce, "3");
     assert.deepEqual(proposal.decoded, { fn: "setFeeBps", args: { newFeeBps: "5" } });
     const stranger = evmWallet();
-    const refused = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, body: { signature: await stranger.sign({ hash: SAFE_TX_HASH }) } });
+    const refused = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, confirm: { signer: first, action: "safe.sign" }, body: { signature: await stranger.sign({ hash: SAFE_TX_HASH }) } });
     assert.equal(refused.status, 403);
     assert.equal(refused.body.error.code, "ADMIN_SAFE_SIGNER_INVALID");
-    const one = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, body: { signature: await first.sign({ hash: SAFE_TX_HASH }) } });
+    const one = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, confirm: { signer: first, action: "safe.sign" }, body: { signature: await first.sign({ hash: SAFE_TX_HASH }) } });
     assert.equal(one.body.proposal.status, "collecting");
-    const duplicate = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, body: { signature: await first.sign({ hash: SAFE_TX_HASH }) } });
+    const duplicate = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, confirm: { signer: first, action: "safe.sign" }, body: { signature: await first.sign({ hash: SAFE_TX_HASH }) } });
     assert.equal(duplicate.status, 409);
-    const two = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, body: { signature: await second.sign({ hash: SAFE_TX_HASH }) } });
+    const two = await call(h, "POST", `/safe-proposals/${proposal.id}/signatures`, { cookie, confirm: { signer: first, action: "safe.sign" }, body: { signature: await second.sign({ hash: SAFE_TX_HASH }) } });
     assert.equal(two.body.proposal.status, "ready");
-    const busy = await call(h, "POST", "/safe-proposals", { cookie, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: "0x", description: "x" } });
+    const busy = await call(h, "POST", "/safe-proposals", { cookie, confirm: { signer: first, action: "safe.propose" }, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: "0x", description: "x" } });
     assert.equal(busy.status, 409);
     assert.equal(busy.body.error.code, "ADMIN_SAFE_NONCE_BUSY");
   });
 
   it("requires an ExecutionSuccess log for this safeTxHash and marks stale nonces", async () => {
-    const { h, cookie, base, created, setNonce } = await setup();
+    const { h, cookie, base, first, created, setNonce } = await setup();
     const id = created.body.proposal.id;
     const successLog = (hash: Hex) => ({
       address: SAFE,
@@ -383,14 +479,14 @@ describe("Safe proposals", () => {
       data: encodeParams([{ type: "bytes32" }, { type: "uint256" }], [hash, 0n]),
     });
     base.getTransactionReceipt = async () => ({ status: "success", blockNumber: 999n, logs: [successLog(`0x${"11".repeat(32)}`)] });
-    const wrong = await call(h, "POST", `/safe-proposals/${id}/executed`, { cookie, body: { txHash: TX } });
+    const wrong = await call(h, "POST", `/safe-proposals/${id}/executed`, { cookie, confirm: { signer: first, action: "safe.executed" }, body: { txHash: TX } });
     assert.equal(wrong.status, 422);
     base.getTransactionReceipt = async () => ({ status: "success", blockNumber: 999n, logs: [successLog(SAFE_TX_HASH)] });
-    const done = await call(h, "POST", `/safe-proposals/${id}/executed`, { cookie, body: { txHash: TX } });
+    const done = await call(h, "POST", `/safe-proposals/${id}/executed`, { cookie, confirm: { signer: first, action: "safe.executed" }, body: { txHash: TX } });
     assert.equal(done.body.proposal.status, "executed");
 
     setNonce(3n);
-    const next = await call(h, "POST", "/safe-proposals", { cookie, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: encodeFunctionData({ abi: ROUTER.abi, functionName: "pause" }), description: "Pause", actionId: "router.pause" } });
+    const next = await call(h, "POST", "/safe-proposals", { cookie, confirm: { signer: first, action: "safe.propose" }, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: encodeFunctionData({ abi: ROUTER.abi, functionName: "pause" }), description: "Pause", actionId: "router.pause" } });
     assert.equal(next.status, 201, JSON.stringify(next.body));
     setNonce(4n);
     const list = await call(h, "GET", "/safe-proposals", { cookie });
@@ -398,11 +494,11 @@ describe("Safe proposals", () => {
   });
 
   it("refuses arbitrary calls and renounceOwnership", async () => {
-    const { h, cookie } = await setup();
+    const { h, cookie, first } = await setup();
     const renounce = encodeFunctionData({ abi: ROUTER.abi, functionName: "renounceOwnership" });
-    const refused = await call(h, "POST", "/safe-proposals", { cookie, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: renounce, description: "x" } });
+    const refused = await call(h, "POST", "/safe-proposals", { cookie, confirm: { signer: first, action: "safe.propose" }, body: { network: "base", safe: SAFE, to: ROUTER_ADDRESS, value: "0", data: renounce, description: "x" } });
     assert.equal(refused.status, 400);
-    const arbitrary = await call(h, "POST", "/safe-proposals", { cookie, body: { network: "base", safe: SAFE, to: OWNER, value: "0", data: "0xdeadbeef", description: "x" } });
+    const arbitrary = await call(h, "POST", "/safe-proposals", { cookie, confirm: { signer: first, action: "safe.propose" }, body: { network: "base", safe: SAFE, to: OWNER, value: "0", data: "0xdeadbeef", description: "x" } });
     assert.equal(arbitrary.status, 400);
   });
 });
@@ -432,7 +528,7 @@ describe("fees", () => {
     assert.equal(view.body.totals.pushedUsd, 2);
     const saved = await h.store.getFeeScan(router.scanKey);
     assert.equal(saved?.totals["0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"], "2000000");
-    const rescan = await call(h, "POST", "/fees/rescan", { cookie, body: { key: router.scanKey } });
+    const rescan = await call(h, "POST", "/fees/rescan", { cookie, confirm: { signer: account, action: "fees.rescan" }, body: { key: router.scanKey } });
     assert.equal(rescan.status, 202);
     assert.equal(rescan.body.scannedThroughBlock, (start - 1n + 10_000n * BigInt(2 * FEE_SCAN_MAX_CHUNKS)).toString());
     assert.equal((await h.store.getFeeScan(router.scanKey))?.totals["0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"], "2000000", "totals carried over");
@@ -456,7 +552,7 @@ describe("services and environment", () => {
     const { cookie } = await signInEvm(h, account);
     const off = await call(h, "GET", "/services", { cookie });
     assert.deepEqual(off.body, { configured: false, services: [], runningCommit: null });
-    assert.equal((await call(h, "POST", "/services/api/deploy", { cookie, body: {} })).body.error.code, "ADMIN_RENDER_NOT_CONFIGURED");
+    assert.equal((await call(h, "POST", "/services/api/deploy", { cookie, confirm: { signer: account, action: "render.deploy" }, body: {} })).body.error.code, "ADMIN_RENDER_NOT_CONFIGURED");
     assert.equal(h.fetchCalls.length, 0);
 
     h.env = { RENDER_API_KEY: "rnd_sentinel_key_value" };
@@ -469,7 +565,7 @@ describe("services and environment", () => {
     assert.equal(on.body.services[0].name, "Kletia");
     assert.equal(on.body.services[0].suspended, false);
     assert.equal(on.body.services[0].deploys[0].commit.id, "abc");
-    const deploy = await call(h, "POST", "/services/site/deploy", { cookie, body: { clearCache: true } });
+    const deploy = await call(h, "POST", "/services/site/deploy", { cookie, confirm: { signer: account, action: "render.deploy" }, body: { clearCache: true } });
     assert.equal(deploy.status, 202);
     const allowed = new Set([
       "GET https://api.render.com/v1/services/srv-d7ccgk1kh4rs73cir6c0", "GET https://api.render.com/v1/services/srv-d7ccgk1kh4rs73cir6c0/deploys?limit=5",
@@ -482,11 +578,11 @@ describe("services and environment", () => {
     assert.equal((posted?.init?.headers as Record<string, string>).Authorization, "Bearer rnd_sentinel_key_value");
 
     h.fetchImpl = async () => new Response("upstream echo rnd_sentinel_key_value", { status: 401 });
-    const failed = await call(h, "POST", "/services/api/deploy", { cookie, body: {} });
+    const failed = await call(h, "POST", "/services/api/deploy", { cookie, confirm: { signer: account, action: "render.deploy" }, body: {} });
     assert.equal(failed.status, 502);
     assert.equal(failed.body.error.details.upstreamStatus, 401);
     assert.doesNotMatch(JSON.stringify(failed.body), /sentinel/u);
-    const limited = await call(h, "POST", "/services/api/deploy", { cookie, body: {} });
+    const limited = await call(h, "POST", "/services/api/deploy", { cookie, confirm: { signer: account, action: "render.deploy" }, body: {} });
     assert.equal(limited.status, 429, "3 deploys per 10 minutes");
   });
 
@@ -501,7 +597,7 @@ describe("services and environment", () => {
     }
     assert.equal(h.fetchCalls.length, 0);
     h.fetchImpl = async () => Response.json({ id: "dep-9", status: "created", trigger: "api", createdAt: "t" }, { status: 201 });
-    const deploy = await call(h, "POST", "/services/api/deploy", { cookie, body: {} });
+    const deploy = await call(h, "POST", "/services/api/deploy", { cookie, confirm: { signer: account, action: "render.deploy" }, body: {} });
     assert.equal(deploy.status, 202, JSON.stringify(deploy.body));
   });
 

@@ -20,12 +20,14 @@ import { errorText } from "../api/errors";
 import { AdminError } from "../components/AdminError";
 import { EmptyState, Panel, SectionHeader } from "../components/SectionHeader";
 import { CONFIRM_ACTIONS } from "../model/confirm";
-import { ADMIN_EVM_NETWORKS, deploymentMatrix, networkName } from "../model/plan";
+import { ADMIN_EVM_NETWORKS, deploymentMatrix, FOREIGN_TEXT, networkName } from "../model/plan";
 import type { AdminDeploymentRecord, AdminPinnedDeployment, AdminRecordStatus } from "../model/types";
+import { StepUpNote } from "../components/StepUpNote";
 
 const STATUS_TONES: Readonly<Record<AdminRecordStatus, StatusTone>> = {
   pending: "info",
   verified: "success",
+  foreign: "danger",
   verification_failed: "danger",
   superseded: "neutral",
   archived: "neutral",
@@ -34,6 +36,7 @@ const STATUS_TONES: Readonly<Record<AdminRecordStatus, StatusTone>> = {
 const STATUS_LABELS: Readonly<Record<AdminRecordStatus, string>> = {
   pending: "Pending",
   verified: "Verified",
+  foreign: "Foreign owner",
   verification_failed: "Failed checks",
   superseded: "Superseded",
   archived: "Archived",
@@ -238,7 +241,9 @@ function RecordSheet({ record, onClose }: { readonly record: AdminDeploymentReco
             </div>
             {shown.status === "verified" ? <Stamp state="settled" detail="VERIFIED" className="h-20 w-auto shrink-0" labelled /> : null}
             {shown.status === "verification_failed" ? <Stamp state="failed" detail="CHECKS FAILED" className="h-20 w-auto shrink-0" labelled /> : null}
+            {shown.status === "foreign" ? <Stamp state="failed" detail="FOREIGN" className="h-20 w-auto shrink-0" labelled /> : null}
           </div>
+          {shown.status === "foreign" ? <p className="border-[3px] border-[#B91C1C] bg-danger-bg p-3 text-sm font-bold text-danger">{FOREIGN_TEXT}</p> : null}
           <dl className="grid gap-3 text-sm">
             <div>
               <dt className={cx(LABEL, TEXT_MUTED)}>Address</dt>
@@ -291,6 +296,7 @@ function RecordSheet({ record, onClose }: { readonly record: AdminDeploymentReco
               ))}
             </dl>
           </div>
+          <StepUpNote />
           <Button variant="secondary" onClick={() => void reverify()} loading={busy === "reverify"} disabled={busy !== null}>
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Reverify against the latest block

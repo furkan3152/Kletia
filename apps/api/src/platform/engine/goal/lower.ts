@@ -278,6 +278,13 @@ function lowerAcquire(read: ReadGoal): WorkStep[] | null {
   if (goal.spend.asset || goal.spend.amount || goal.want.amount || goal.spend.from || goal.want.at || goal.holder.t !== "self") return null;
   const symbol = symbolOf(goal.want.asset);
   if (!symbol) return null;
+  // "I want JitoSOL": a liquid staking token is staked for at its provider (the strict "stake with jito" reading),
+  // its input derived; the amount stays open.
+  const provider = providerFromWord(symbol);
+  if (provider && provider.symbol.toUpperCase() === symbol.toUpperCase()) {
+    const stake: WorkStep = { kind: slot("stake"), from: slot(provider.input, "derived"), provider: slot(provider.id) };
+    return [stake];
+  }
   const step: WorkStep = { kind: slot("swap"), to: slot(symbol), buy: true };
   typoFlag(step, read);
   return [step];

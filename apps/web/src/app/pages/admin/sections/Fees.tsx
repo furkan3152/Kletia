@@ -24,6 +24,7 @@ import { EmptyState, SectionHeader } from "../components/SectionHeader";
 import { claimState, FEE_KIND_LABELS, feeTotals, formatTokenAmount, formatUsd, isTestnetRow, scanText } from "../model/fees";
 import { ADMIN_EVM_NETWORKS, networkName } from "../model/plan";
 import type { AdminFeeRow } from "../model/types";
+import { StepUpNote } from "../components/StepUpNote";
 
 /** ABIs of the claim functions the API names. */
 const CLAIM_ABIS: Readonly<Record<string, Abi>> = {
@@ -190,6 +191,7 @@ function FeeRowCard({ row }: { readonly row: AdminFeeRow }) {
           {error}
         </p>
       ) : null}
+      {row.scanKey ? <StepUpNote /> : null}
       <div className="flex flex-wrap items-center gap-2">
         {row.claim ? (
           <Button variant="accent" size="sm" onClick={() => void doClaim()} loading={busy === "claim"} disabled={!claim.available || !signerAddress || busy !== null}>

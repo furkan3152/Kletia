@@ -7,6 +7,7 @@ import { CHIP_LABELS, type PlanChip } from "../model/plan";
 const CHIP_TONES: Readonly<Record<PlanChip, StatusTone>> = {
   pinned: "success",
   verified: "success",
+  foreign: "danger",
   failed: "danger",
   ready: "info",
   waiting: "warning",

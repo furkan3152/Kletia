@@ -139,6 +139,16 @@ test("the checklist follows the catalog order and gates on dependencies", () => 
   assert.equal(failed.rows[0].deploy, "deploy");
 });
 
+test("a foreign record is shown as foreign and never satisfies a dependency", () => {
+  const router = { targetId: "arbitrum:intent-router-v2", contractId: "intent-router-v2", instance: undefined, id: "dep_f", status: "foreign" };
+  const plan = planFor("arbitrum", CATALOG, [record(router)]);
+  assert.equal(plan.rows[1].chip, "foreign");
+  assert.match(plan.rows[1].detail, /never exported or used as a dependency/u);
+  assert.equal(plan.rows[1].deploy, "deploy");
+  assert.equal(plan.rows[2].chip, "waiting", "the launch factory still waits for an admin-controlled router");
+  assert.equal(dependencyAddress("arbitrum", "intent-router-v2", undefined, [record(router)], CATALOG.pinned), null);
+});
+
 test("pinned, quarantined, legacy, not-applicable and the testnet badge", () => {
   const base = planFor("base", CATALOG, []);
   assert.deepEqual(base.rows.map((row) => row.chip), ["pinned", "quarantined", "legacy"]);

@@ -15,6 +15,7 @@ import {
   type AdminDeploymentRecord,
   type AdminEvmNetwork,
   type AdminNetworkConstant,
+  type AdminNetworkProfile,
   type AdminPinnedDeployment,
 } from "@kletia/core";
 import type { AdminStore } from "./store/types.js";
@@ -43,6 +44,21 @@ export function pinnedFor(network: AdminEvmNetwork, contractId: AdminContractId,
 export function pinnedByAddress(network: AdminEvmNetwork, address: string): AdminPinnedDeployment | null {
   const lower = address.toLowerCase();
   return ADMIN_PINNED_DEPLOYMENTS.find((entry) => entry.network === network && entry.address.toLowerCase() === lower) ?? null;
+}
+
+/** A network's profile before an admin saves one: the catalog's default roles. */
+export function profileDefaults(network: AdminEvmNetwork): AdminNetworkProfile {
+  const roles = ADMIN_NETWORK_CONSTANTS[network].defaultRoles ?? {};
+  return {
+    network, owner: roles.owner ?? null, guardian: roles.guardian ?? null, treasury: roles.treasury ?? null,
+    eoaOwnerAcknowledged: false, updatedBy: null, updatedAt: null,
+  };
+}
+
+/** The owner configured for a network: the saved profile's, else the default role. */
+export async function profileOwner(store: AdminStore, network: AdminEvmNetwork): Promise<string | null> {
+  const saved = (await store.listProfiles()).find((profile) => profile.network === network);
+  return (saved ?? profileDefaults(network)).owner;
 }
 
 export function networkConstant(network: AdminEvmNetwork, key: AdminNetworkConstant): string | null {
@@ -87,12 +103,16 @@ export interface KnownContract {
   readonly recordKey: string;
 }
 
-/** A pinned or recorded Kletia contract at `address` on `network`, or null (arbitrary addresses are never accepted). */
+/**
+ * A pinned or recorded Kletia contract at `address` on `network`, or null
+ * (arbitrary addresses are never accepted; archived and foreign records are
+ * not targets for actions or Safe proposals).
+ */
 export async function findKnownContract(store: AdminStore, network: AdminEvmNetwork, address: string): Promise<KnownContract | null> {
   const pinned = pinnedByAddress(network, address);
   if (pinned) return { network, address: pinned.address, contractId: pinned.contractId, pinned, record: null, recordKey: `pinned:${network}:${pinned.address}` };
   const record = await store.findDeploymentByAddress(chainIdOf(network), address);
-  if (record && record.status !== "archived") return { network, address: record.address, contractId: record.contractId, pinned: null, record, recordKey: record.id };
+  if (record && record.status !== "archived" && record.status !== "foreign") return { network, address: record.address, contractId: record.contractId, pinned: null, record, recordKey: record.id };
   return null;
 }
 

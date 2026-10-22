@@ -3540,6 +3540,243 @@
     "R"
    ],
    "tags": []
+  },
+  {
+   "id": "AMO046",
+   "family": "amount",
+   "say": "swap half of my USDC to ETH on base",
+   "wallet": "full",
+   "accept": [
+    "P:^swap@base 60\\.2 USDC->ETH"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "AMO047",
+   "family": "amount",
+   "say": "bridge all my ETH from arbitrum to base",
+   "wallet": "full",
+   "accept": [
+    "P:^bridge@arbitrum->base 0\\.0095 ETH"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "AMO048",
+   "family": "amount",
+   "say": "send a quarter of my SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+   "wallet": "full",
+   "accept": [
+    "P:^transfer@solana 0\\.625 SOL to 9WzD"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "AMO049",
+   "family": "amount",
+   "say": "swap my SOL to USDC",
+   "wallet": "full",
+   "accept": [
+    "A:amount:AMOUNT_MISSING"
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "Clarify corpus B02: a swap of \"my SOL\" with no number asks how much (only stake, deposit and withdraw read a possessive as all of it)."
+  },
+  {
+   "id": "AMO050",
+   "family": "amount",
+   "say": "withdraw all from aave on base",
+   "wallet": "full",
+   "accept": [
+    "P:^withdraw@base max USDC \\[aave-v3"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "AMO051",
+   "family": "amount",
+   "say": "withdraw half from aave on base",
+   "wallet": "evm_base",
+   "accept": [
+    "A:from:INPUT_ASSET_MISSING"
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "No position at the venue: the token is asked, never guessed."
+  },
+  {
+   "id": "WAL016",
+   "family": "wallet",
+   "say": "deposit my USDC into aave",
+   "wallet": "evm_base",
+   "accept": [
+    "P:^deposit@base 120\\.4 USDC \\[aave-v3"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "WAL017",
+   "family": "wallet",
+   "say": "deposit my USDC into aave",
+   "wallet": "two_usdc",
+   "accept": [
+    "A:amount:AMOUNT_MISSING"
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "USDC on two networks: a possessive never picks the scope by itself."
+  },
+  {
+   "id": "WAL018",
+   "family": "wallet",
+   "say": "stake my SOL with jito",
+   "wallet": "sol_only",
+   "accept": [
+    "P:^stake@solana 2\\.4\\d* SOL->JitoSOL"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA056",
+   "family": "goal",
+   "say": "rent: send 50 USDC to 0x1111111111111111111111111111111111111111 on base",
+   "wallet": "full",
+   "accept": [
+    "P:^transfer@base 50 USDC to 0x1111111111111111111111111111111111111111$"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA057",
+   "family": "goal",
+   "say": "groceries: pay 20 USDC to vitalik.eth on base",
+   "wallet": "full",
+   "accept": [
+    "P:^transfer@base 20 USDC to vitalik\\.eth$"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA058",
+   "family": "goal",
+   "say": "bob: send 5 USDC",
+   "wallet": "full",
+   "accept": [
+    "A:recipient"
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "A label is a note, never the recipient."
+  },
+  {
+   "id": "GOA059",
+   "family": "goal",
+   "say": "on base: swap 1 ETH to USDC",
+   "wallet": "full",
+   "accept": [
+    "R",
+    "P:^swap@base 1 ETH->USDC"
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "A label that names a network is not a label: never dropped."
+  },
+  {
+   "id": "GOA060",
+   "family": "goal",
+   "say": "fund my arbitrum wallet with 20 USDC",
+   "wallet": "full",
+   "accept": [
+    "P:^bridge@base->arbitrum 20 USDC"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA061",
+   "family": "goal",
+   "say": "fund my sol wallet with 5 USDC",
+   "wallet": "full",
+   "accept": [
+    "P:^bridge@\\w+->solana 5 USDC"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA062",
+   "family": "goal",
+   "say": "fund my arbitrum wallet",
+   "wallet": "full",
+   "accept": [
+    "A:(to|from|amount)"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA063",
+   "family": "goal",
+   "say": "put 30% of my SOL into USDC",
+   "wallet": "full",
+   "accept": [
+    "P:^swap@solana 0\\.75 SOL->USDC$"
+   ],
+   "tags": [
+    "round8"
+   ]
+  },
+  {
+   "id": "GOA064",
+   "family": "goal",
+   "say": "put my SOL to work into USDC",
+   "wallet": "full",
+   "accept": [
+    "R",
+    "A:."
+   ],
+   "tags": [
+    "round8"
+   ],
+   "why": "An earn never drops the wanted token."
+  },
+  {
+   "id": "GOA065",
+   "family": "goal",
+   "say": "I want mSOL",
+   "wallet": "full",
+   "accept": [
+    "P:(swap|stake)@solana [\\d.]+ SOL->mSOL",
+    "A:amount"
+   ],
+   "tags": [
+    "round8"
+   ]
   }
  ]
 }

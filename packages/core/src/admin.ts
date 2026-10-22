@@ -633,11 +633,17 @@ export interface AdminNonceResponse { readonly message: string; readonly nonce: 
  */
 export interface AdminVerifyRequest { readonly message: string; readonly signature: string }
 
-export type AdminRecordStatus = "pending" | "verified" | "verification_failed" | "superseded" | "archived";
+/**
+ * `foreign`: every check passed except `admin_control` (the effective owner
+ * or admin is not an allowlisted admin wallet, the network profile's owner or
+ * a Safe with an allowlisted owner). Never exported for pinning and never a
+ * dependency.
+ */
+export type AdminRecordStatus = "pending" | "verified" | "foreign" | "verification_failed" | "superseded" | "archived";
 
 export interface AdminVerificationCheck {
   readonly id: "chain" | "tx_success" | "creation" | "deployer" | "init_code" | "constructor_args"
-    | "runtime_code" | "owner" | "role_reads" | "confirmations";
+    | "runtime_code" | "owner" | "role_reads" | "confirmations" | "admin_control";
   readonly ok: boolean; readonly detail: string;
 }
 
@@ -676,6 +682,32 @@ export interface AdminNetworkProfile {
 }
 
 export interface AdminConfirmation { readonly message: string; readonly signature: string }
+
+/**
+ * Step-up actions: every state-changing admin route except logout needs a
+ * fresh confirmation signed by the session's wallet (single-use nonce, 5 min).
+ * `network-profile.update` and `deployment.status` hash their own payloads
+ * (unchanged); every other action hashes `adminRoutePayload`.
+ */
+export const ADMIN_CONFIRM_ACTIONS = [
+  "network-profile.update", "deployment.status",
+  "deployment.record", "deployment.reverify", "action.verify",
+  "safe.propose", "safe.sign", "safe.executed", "safe.cancel",
+  "fees.rescan", "render.deploy",
+] as const;
+export type AdminConfirmAction = (typeof ADMIN_CONFIRM_ACTIONS)[number];
+
+/**
+ * What a route-bound confirmation hashes (canonical JSON, SHA-256): the
+ * method, the path under /api/admin exactly as sent (e.g.
+ * "/safe-proposals/sfp_…/cancel") and the JSON body without `confirmation`.
+ * The confirmation's Network line is the body's `network` field, when set.
+ */
+export function adminRoutePayload(method: string, path: string, body: Readonly<Record<string, unknown>>): { readonly route: string; readonly body: Readonly<Record<string, unknown>> } {
+  const rest: Record<string, unknown> = { ...body };
+  delete rest.confirmation;
+  return { route: `${method.toUpperCase()} ${path}`, body: rest };
+}
 
 export interface AdminContractState {
   readonly recordKey: string;          // "pinned:<network>:<address>" or record id

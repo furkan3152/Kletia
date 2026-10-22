@@ -32,6 +32,7 @@ import { networkName } from "../model/plan";
 import { decodeCall, nameFor, OTHER_FUNCTION_NOTE, parseInput, transferOwnerProblems, writeFunctions, type WriteFunction } from "../model/preview";
 import { actorFor, cannotActReason, sameAddress, type ActorMode } from "../model/session";
 import type { AdminContractSpec, AdminContractState, AdminEvmNetwork } from "../model/types";
+import { StepUpNote } from "../components/StepUpNote";
 
 interface ContractOption {
   readonly key: string;
@@ -367,6 +368,7 @@ function FunctionRow({ fn, option, spec, state, actor, abi }: { readonly fn: Wri
               {error}
             </p>
           ) : null}
+          <StepUpNote />
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant={fn.danger.level === "dangerous" ? "ink" : "primary"}

@@ -51,6 +51,8 @@ export interface WorkStep {
   buy?: boolean;
   /** Transient (this turn only): the sentence was "sell X" (received in a dollar stablecoin unless named). */
   sell?: boolean;
+  /** Transient (this turn only): "stake my SOL", "earn yield on my USDC": all of the holding when one network holds it. */
+  possessive?: boolean;
   /** Pins of a goal step that are not part of its Goal (an amount answer, "all networks"); stored on its placeholder step. */
   goalPins?: { amount?: ThreadAmount; scope?: "all" };
   /**
@@ -171,6 +173,12 @@ export interface FactsView {
   resolveName(name: string, network: NetworkKey): string | null;
   /** Supplied amount of a lending position; undefined when unknown (v1: positions are not read). */
   position(network: NetworkKey, protocol: string, symbol: string): string | undefined;
+  /**
+   * Every position held at one protocol on one network (positive amounts,
+   * decimal), or undefined unless each of its venues there was read (unknown
+   * is never "none").
+   */
+  positionsAt?(network: NetworkKey, protocol: string): readonly { readonly symbol: string; readonly amount: string }[] | undefined;
   /** The solver's snapshot for these goals, or undefined until read (goal steps; absent: goal steps cannot be solved). */
   goalSnapshot?(goals: readonly Goal[]): Snapshot | undefined;
   /** A token's USD price (D11), or undefined when unpriced or not read yet. */

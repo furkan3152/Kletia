@@ -3,8 +3,9 @@
  *
  * Security contract: admin enabled by an allowlist (EVM and/or Solana),
  * exact admin origins, mandatory X-Kletia-Admin header, SameSite=Strict
- * SameSite=Strict HttpOnly session cookie, single-use nonces, step-up
- * confirmations for writes that change defaults, an audit row for every
+ * HttpOnly session cookie, single-use nonces, a step-up confirmation signed
+ * by the session's wallet for every state-changing route except logout (a
+ * stolen cookie alone can only read), an audit row for every mutation and
  * login attempt, JSON bodies only, no-store responses. The API reads chains
  * and calls Render; it never holds a key, signs or sends.
  */
@@ -22,9 +23,9 @@ import express, { type Request, type RequestHandler, type Response, type Router 
 import { getAddress, isAddress, type Address } from "viem";
 import { z } from "zod";
 import { randomHex } from "../../platform/http/secrets.js";
-import { audit, issueNonce, sessionView, verifyConfirmation, verifyLogin } from "../auth/service.js";
-import { payloadSha256 } from "../auth/messages.js";
-import { isAdminNetwork, resolveRecordKey } from "../catalog.js";
+import { audit, issueNonce, sessionView, verifyConfirmation, verifyLogin, type ConfirmAction } from "../auth/service.js";
+import { payloadSha256, routePayloadSha256 } from "../auth/messages.js";
+import { isAdminNetwork, profileDefaults, resolveRecordKey } from "../catalog.js";
 import { getArtifact } from "../contract-artifacts/index.js";
 import { defaultAdminDeps, type AdminDeps, type AdminSessionContext } from "../deps.js";
 import { envView } from "../envReadiness.js";
@@ -112,13 +113,8 @@ const baseHeaders: RequestHandler = (req, res, next) => {
   next();
 };
 
-function profileDefaults(network: AdminEvmNetwork): AdminNetworkProfile {
-  const roles = ADMIN_NETWORK_CONSTANTS[network].defaultRoles ?? {};
-  return {
-    network, owner: roles.owner ?? null, guardian: roles.guardian ?? null, treasury: roles.treasury ?? null,
-    eoaOwnerAcknowledged: false, updatedBy: null, updatedAt: null,
-  };
-}
+/** Marks a route handler as the step-up gate (checked by the route-coverage test). */
+export const STEP_UP_ACTION = Symbol("kletia.admin.stepUpAction");
 
 export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
   const deps: AdminDeps = { ...defaultAdminDeps(), ...overrides };
@@ -147,6 +143,29 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
       }
       throw error;
     }
+  };
+
+  /**
+   * Route-bound step-up for a state-changing route: the body's `confirmation`
+   * must be a fresh (5 min, single use) confirm nonce for `action`, signed by
+   * the session's own wallet over the hash of the method, path and the rest
+   * of the body. The handler then sees the body without `confirmation`.
+   */
+  const stepUp = (action: ConfirmAction): RequestHandler => {
+    const handler: RequestHandler = (req, res, next) => {
+      const run = async () => {
+        const session = sessionOf(req);
+        const raw: unknown = req.body ?? {};
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw invalidRequest("The request body must be a JSON object.");
+        const { confirmation: signed, ...rest } = raw as Record<string, unknown>;
+        const network = typeof rest.network === "string" && isAdminNetwork(rest.network) ? rest.network : null;
+        const expected = { action, network, payloadSha256: routePayloadSha256(req.method, req.path, rest) };
+        await confirmOrAudit(req, res, session, action, expected, signed, { route: `${req.method} ${req.path}`.slice(0, 200) });
+        req.body = rest;
+      };
+      run().then(() => next(), next);
+    };
+    return Object.assign(handler, { [STEP_UP_ACTION]: action });
   };
 
   let lastPrune = 0;
@@ -218,8 +237,10 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     const networks = ADMIN_EVM_NETWORKS.map((network) => {
       const verified = records.filter((record) => record.network === network && record.status === "verified").length;
       const failed = records.filter((record) => record.network === network && record.status === "verification_failed").length;
+      const foreign = records.filter((record) => record.network === network && record.status === "foreign").length;
       const warnings: string[] = [];
       if (failed > 0) warnings.push(`${failed} deployment record(s) failed verification.`);
+      if (foreign > 0) warnings.push(`${foreign} deployment record(s) are foreign: not controlled by an admin wallet, never exported or used as a dependency.`);
       if (verified > 0 && network !== "base") warnings.push("New deployments are prepared only until the lead pins them in a release.");
       return {
         network,
@@ -249,7 +270,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     const networkFilter = typeof req.query.network === "string" ? req.query.network : undefined;
     const statusFilter = typeof req.query.status === "string" ? req.query.status : undefined;
     if (networkFilter !== undefined && !isAdminNetwork(networkFilter)) throw invalidRequest("network must be an EVM network key.");
-    const statuses = ["pending", "verified", "verification_failed", "superseded", "archived"] as const;
+    const statuses = ["pending", "verified", "foreign", "verification_failed", "superseded", "archived"] as const;
     if (statusFilter !== undefined && !(statuses as readonly string[]).includes(statusFilter)) throw invalidRequest("status is not valid.");
     const records = await deps.store().listDeployments({
       ...(networkFilter ? { network: networkFilter as AdminEvmNetwork } : {}),
@@ -267,7 +288,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json(payload);
   }));
 
-  router.post("/deployments", handle(async (req, res) => {
+  router.post("/deployments", stepUp("deployment.record"), handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(recordBody, req.body);
     try {
@@ -287,7 +308,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     }
   }));
 
-  router.post("/deployments/:id/reverify", handle(async (req, res) => {
+  router.post("/deployments/:id/reverify", stepUp("deployment.reverify"), handle(async (req, res) => {
     const session = sessionOf(req);
     const record = await deps.store().getDeployment(String(req.params.id));
     if (!record) throw new AdminHttpError(404, "ADMIN_NOT_FOUND", "No such deployment record.");
@@ -350,7 +371,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json(await contractState(deps, sessionOf(req), known));
   }));
 
-  router.post("/actions/verify", handle(async (req, res) => {
+  router.post("/actions/verify", stepUp("action.verify"), handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(actionBody, req.body);
     const verified = await verifyAction(deps, session, { ...body, contract: getAddress(body.contract) });
@@ -373,7 +394,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json({ proposals: proposals.filter((proposal) => !statusFilter || proposal.status === statusFilter) });
   }));
 
-  router.post("/safe-proposals", handle(async (req, res) => {
+  router.post("/safe-proposals", stepUp("safe.propose"), handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(proposalBody, req.body);
     const proposal = await createProposal(deps, session, body);
@@ -387,7 +408,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     return proposal;
   };
 
-  router.post("/safe-proposals/:id/signatures", handle(async (req, res) => {
+  router.post("/safe-proposals/:id/signatures", stepUp("safe.sign"), handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(signatureBody, req.body);
     const proposal = await addSignature(deps, await loadProposal(String(req.params.id)), body.signature);
@@ -396,7 +417,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json({ proposal });
   }));
 
-  router.post("/safe-proposals/:id/executed", handle(async (req, res) => {
+  router.post("/safe-proposals/:id/executed", stepUp("safe.executed"), handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(executedBody, req.body);
     const proposal = await markExecuted(deps, await loadProposal(String(req.params.id)), body.txHash);
@@ -404,7 +425,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json({ proposal });
   }));
 
-  router.post("/safe-proposals/:id/cancel", handle(async (req, res) => {
+  router.post("/safe-proposals/:id/cancel", stepUp("safe.cancel"), handle(async (req, res) => {
     const session = sessionOf(req);
     const proposal = await cancelProposal(deps, await loadProposal(String(req.params.id)));
     await audit(deps, req, res, { address: session.actor, action: "safe.cancel", outcome: "ok", target: { id: proposal.id } });
@@ -417,7 +438,7 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
     res.json(await feesView(deps, sessionOf(req)));
   }));
 
-  router.post("/fees/rescan", limits.rescan, handle(async (req, res) => {
+  router.post("/fees/rescan", stepUp("fees.rescan"), limits.rescan, handle(async (req, res) => {
     const session = sessionOf(req);
     const body = parse(rescanBody, req.body);
     const scannedThroughBlock = await rescan(deps, body.key);
@@ -432,9 +453,10 @@ export function createAdminRouter(overrides: Partial<AdminDeps> = {}): Router {
   }));
 
   // The service is checked before the limiters: an unknown name must not spend the global redeploy budget.
+  // The step-up runs before the redeploy limiter: a stolen cookie must not spend it either.
   const knownService: RequestHandler = (req, _res, next) =>
     (req.params.service === "api" || req.params.service === "site" ? next() : next(new AdminHttpError(404, "ADMIN_NOT_FOUND", "service must be api or site.")));
-  router.post("/services/:service/deploy", knownService, limits.write, limits.renderDeploy, handle(async (req, res) => {
+  router.post("/services/:service/deploy", knownService, limits.write, stepUp("render.deploy"), limits.renderDeploy, handle(async (req, res) => {
     const session = sessionOf(req);
     const service = String(req.params.service) as "api" | "site";
     const body = parse(deployBody, req.body);

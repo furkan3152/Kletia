@@ -54,11 +54,16 @@ export function txUrl(network: AdminEvmNetwork, hash: string): string {
   return explorerTxUrl(network, hash);
 }
 
-export type PlanChip = "pinned" | "verified" | "failed" | "ready" | "waiting" | "not-applicable" | "quarantined" | "legacy";
+/** Why a record is "foreign" (one line, shared by the plan and the record sheet). */
+export const FOREIGN_TEXT =
+  "Foreign: its owner is not an admin wallet, the network profile's owner or a Safe with an admin owner. It is never exported or used as a dependency.";
+
+export type PlanChip = "pinned" | "verified" | "foreign" | "failed" | "ready" | "waiting" | "not-applicable" | "quarantined" | "legacy";
 
 export const CHIP_LABELS: Readonly<Record<PlanChip, string>> = {
   pinned: "Pinned",
   verified: "Verified (new)",
+  foreign: "Foreign owner",
   failed: "Verification failed",
   ready: "Ready",
   waiting: "Waiting",
@@ -93,7 +98,7 @@ function newest<T extends { createdAt: string }>(items: readonly T[]): T | null 
   return [...items].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0] ?? null;
 }
 
-/** A target is satisfied when it has a verified record or a pinned (non-legacy) address. */
+/** A target is satisfied when it has a verified record or a pinned (non-legacy) address (a foreign record never is). */
 export function targetSatisfied(
   targetId: string,
   catalog: Pick<AdminCatalog, "targets" | "pinned">,
@@ -119,8 +124,9 @@ export function planFor(network: AdminPanelNetwork, catalog: AdminCatalog, recor
     const own = records.filter((record) => record.targetId === target.id && record.status !== "archived");
     const verified = newest(own.filter((record) => record.status === "verified"));
     const failed = newest(own.filter((record) => record.status === "verification_failed"));
+    const foreign = newest(own.filter((record) => record.status === "foreign"));
     const pinned = catalog.pinned.find((pin) => sameTarget(target, pin)) ?? null;
-    const base = { target, spec, title, record: verified ?? failed, pinned, waitingFor: [] as string[] };
+    const base = { target, spec, title, record: verified ?? failed ?? foreign, pinned, waitingFor: [] as string[] };
     if (target.status === "not-applicable") return { ...base, chip: "not-applicable", detail: target.reason, deploy: null };
     if (target.status === "quarantined") return { ...base, chip: "quarantined", detail: target.reason, deploy: null };
     if (target.status === "legacy") {
@@ -137,6 +143,9 @@ export function planFor(network: AdminPanelNetwork, catalog: AdminCatalog, recor
         return dependency ? targetTitle(dependency, catalog.contracts[dependency.contractId] ?? null) : id;
       });
       return { ...base, chip: "waiting", waitingFor, detail: `Waiting for ${names.join(", ")}.`, deploy: null };
+    }
+    if (foreign && (!failed || foreign.createdAt >= failed.createdAt)) {
+      return { ...base, record: foreign, chip: "foreign", detail: FOREIGN_TEXT, deploy: "deploy" };
     }
     if (failed) return { ...base, chip: "failed", detail: "The last recorded deployment failed verification. Read its checks, then deploy again or reverify.", deploy: "deploy" };
     return { ...base, chip: "ready", detail: target.reason || "Ready to deploy with the admin wallet.", deploy: "deploy" };
@@ -155,6 +164,7 @@ export function matrixCell(chip: PlanChip): MatrixCell {
       return "V";
     case "ready":
     case "waiting":
+    case "foreign":
     case "failed":
       return "D";
     case "quarantined":

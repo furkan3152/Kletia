@@ -61,6 +61,8 @@ function show(token: Token): string {
       return "pos";
     case "PREFER":
       return `*${token.prefer}`;
+    case "WALLET":
+      return "wallet";
     case "NOISE":
       return `x${token.raw}`;
   }
@@ -124,6 +126,9 @@ const TABLE: readonly (readonly [string, string])[] = [
   ["send 0.1 SOL to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM","!deliver #exact:0.1 $SOL/solana :to >9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"],
   ["send 5 USDC to jesse.base.eth","!deliver #exact:5 $USDC :to >jesse.base.eth"],
   ["send 5 USDC to my other wallet","!deliver #exact:5 $USDC :to >>selfOther"],
+  ["fund my arbitrum wallet with 20 USDC","!acquire my @arbitrum wallet :with #exact:20 $USDC"],
+  ["fund my sol account","!acquire my $sol/solana wallet"],
+  ["fund the arbitrum wallet","!acquire the @arbitrum xwallet"],
   ["send 5 USDC to myself on solana","!deliver #exact:5 $USDC :to >>self :on @solana"],
   ["send 5 USDC to my friend","!deliver #exact:5 $USDC :to >>nickname"],
   ["send 5 USDC to mom","!deliver #exact:5 $USDC :to >>nickname"],

@@ -14,6 +14,13 @@
 </p>
 
 <p align="center">
+  <a href="https://kletiaai.xyz"><strong>Live app</strong></a> ·
+  <a href="https://kletiaai.xyz/developers">Developer portal</a> ·
+  <a href="https://kletiaai.xyz/studio">Try a route in Studio</a> ·
+  <a href="docs/platform/quickstart.md">Quickstart</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/furkan3152/Kletia/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/furkan3152/Kletia/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-2864dc.svg"></a>
   <img alt="Node.js 22" src="https://img.shields.io/badge/Node.js-22-3c873a.svg">
@@ -363,3 +370,7 @@ Start with the [documentation index](docs/README.md) or the [quickstart](docs/pl
 ## Contributing and license
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Kletia is available under the [MIT License](LICENSE); third-party dependencies retain their own licenses.
+
+---
+
+Built by Furkan Akdoğan ([@furkan3152](https://github.com/furkan3152)).

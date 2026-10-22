@@ -19,7 +19,7 @@
  * - Errors are `ActionError { message }` with the status of the API code.
  */
 import { getBase58Encoder } from "@solana/kit";
-import { CHAINS, LINK_LIMITS, parseAccountId, timingSafeEqualString, type IntentGraph, type IntentStep, type NetworkKey, type StepExecutionPayload } from "@kletia/core";
+import { CHAINS, timingSafeEqualString, type IntentGraph, type IntentStep, type NetworkKey, type StepExecutionPayload } from "@kletia/core";
 import { PlatformError, toPlatformError } from "../../errors.js";
 import { getIntent, prepareStep, submitStep } from "../../index.js";
 import { HttpError, invalidRequest, isRecord } from "../context.js";
@@ -316,12 +316,4 @@ export async function blinkChain(id: string): Promise<string> {
   } catch {
     return CHAINS.solana.id;
   }
-}
-
-/** Steps of a blink flow stay within the spec's chaining budget (tests). */
-export const BLINK_MAX_STEPS = LINK_LIMITS.blinkMaxSteps;
-
-/** The Solana account of an intent's request (tests). */
-export function blinkAccountOf(intent: IntentGraph): string | null {
-  return intent.request.accounts.find((entry) => parseAccountId(entry)?.chain.vm === "svm") ?? null;
 }

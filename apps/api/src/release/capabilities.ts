@@ -67,6 +67,10 @@ export function readFeatureCapabilities(): {
   readonly features: readonly FeatureCapability[];
   readonly publicDefaults: readonly string[];
 } {
+  // Unset modes are reported as "legacy_v1" (feature shown as disabled) so this report never claims a
+  // live Base swap or launch path that was not explicitly configured. The web defaults the swap mode to
+  // "intent_v2"; render.yaml pins production to intent_v2 (swap) and launch_v2 (launch), so the report
+  // differs only when the env is unset. Reporting only; nothing here changes execution.
   const baseSwapMode = process.env.BASE_SWAP_EXECUTION_MODE?.trim() || "legacy_v1";
   const launchMode = process.env.BASE_TOKEN_DEPLOYMENT_MODE?.trim() || "legacy_v1";
   const webacy = has("WEBACY_API_KEY");

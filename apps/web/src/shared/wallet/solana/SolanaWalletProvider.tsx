@@ -187,5 +187,3 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
     </SolanaWalletContext.Provider>
   );
 }
-
-export default SolanaWalletProvider;

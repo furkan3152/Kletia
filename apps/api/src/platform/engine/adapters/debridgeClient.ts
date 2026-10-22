@@ -188,10 +188,6 @@ export async function fetchDlnOrderStatus(orderId: string): Promise<DlnOrderStat
   return { orderId, state, fulfillTx };
 }
 
-export function isDlnNativeAddress(value: string): boolean {
-  return value === DLN_NATIVE_SOLANA || (isEvmAddress(value) && value.toLowerCase() === DLN_NATIVE_EVM);
-}
-
 export function dlnTokenAddress(native: boolean, address: string | null, svm: boolean): string {
   if (native || address === null) return svm ? DLN_NATIVE_SOLANA : DLN_NATIVE_EVM;
   if (!(svm ? isSolanaAddress(address) : isEvmAddress(address))) throw new PlatformError("ASSET_INVALID", "The asset address is invalid.", 500);

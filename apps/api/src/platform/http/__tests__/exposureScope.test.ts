@@ -23,7 +23,6 @@ import { MemoryIntentStore, PostgresIntentStore } from "../../engine/store.js";
 
 const PUB_KEY = "key_00000000000000000000pub1";
 const SMALL_SWAP = { text: "swap 0.01 SOL to USDC", accounts: ACCOUNTS };
-const SWAP = { text: "swap 1 SOL to USDC", accounts: ACCOUNTS };
 
 /** The HTTP chain source returns the owner record with its kind; this one marks PUB_KEY publishable. */
 class KindChains extends FakeChains {

@@ -112,7 +112,3 @@ export function isDecimalText(value: string, decimals = 18): boolean {
   return new RegExp(`^(?:0|[1-9]\\d{0,29})(?:\\.\\d{1,${decimals}})?$`, "u").test(value);
 }
 
-/** Plural helper: (1, "use") → "1 use", (3, "use") → "3 uses". */
-export function countText(count: number, noun: string, plural = `${noun}s`): string {
-  return `${count.toLocaleString("en-US")} ${count === 1 ? noun : plural}`;
-}

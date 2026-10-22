@@ -1,6 +1,11 @@
-# Vercel deployment
+# Vercel deployment (optional alternative)
 
-Kletia is deployed as two projects from the same repository. Never import a
+Production runs on Render: `render.yaml` is the canonical topology for
+`kletiaai.xyz` and `api.kletiaai.xyz` (see the [Render runbook](render.md)).
+Vercel is a supported alternative for previews or a separate deployment; the
+`vercel.json` manifests in `apps/web` and `apps/api` exist for that purpose.
+
+On Vercel, Kletia runs as two projects from the same repository. Never import a
 contract deployment `.env` into either project and never expose a server key
 through a `VITE_` variable.
 
@@ -12,7 +17,7 @@ through a `VITE_` variable.
 - Build Command: `npm run build`
 - Output Directory: `dist`
 - Node.js: `22.x`
-- Production domain: `kletiaai.xyz`
+- Domain: your own (production `kletiaai.xyz` is served by Render)
 
 Import this text in the frontend project's Environment Variables screen. Apply
 it to Production and use separate preview URLs for Preview deployments.
@@ -63,7 +68,7 @@ It also routes the public pages the API helps to serve:
 - Build/Output overrides: leave empty; Vercel detects `src/index.ts`
 - Node.js: `22.x`
 - Function region: Frankfurt (`fra1`, pinned in `vercel.json`)
-- Production domain: `api.kletiaai.xyz`
+- Domain: your own (production `api.kletiaai.xyz` is served by Render)
 
 Start with `apps/api/.env.example`, then import the following production
 overrides. Values marked `PASTE` are server secrets from the existing local
@@ -131,9 +136,12 @@ scale yet.
 
 ## Domain order
 
+The production domains point at Render. For a Vercel deployment, use your own
+domains (below, `api.example.com` and `example.com`):
+
 1. Deploy the backend and verify `/health`.
-2. Attach `api.kletiaai.xyz` to the backend and update DNS as Vercel displays.
-3. Deploy the frontend with `VITE_BACKEND_URL=https://api.kletiaai.xyz`.
-4. Attach `kletiaai.xyz` and `www.kletiaai.xyz` to the frontend.
+2. Attach the API domain to the backend and update DNS as Vercel displays.
+3. Deploy the frontend with `VITE_BACKEND_URL` set to the API domain.
+4. Attach the site domain (and its `www` alias) to the frontend.
 5. Redeploy both projects after importing environment variables; Vercel does
    not apply changed variables to an already-built deployment.

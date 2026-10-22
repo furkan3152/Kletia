@@ -3,7 +3,7 @@
  * Pure; only `@kletia/core` imports, so node tests load it directly. The
  * definition is always checked with `validateLinkDefinition` before it is sent.
  */
-import { CHAINS, LINK_ID_PATTERN, type LinkStatus, type LinkView, type NetworkKey } from "@kletia/core";
+import { CHAINS, LINK_ID_PATTERN, type LinkView, type NetworkKey } from "@kletia/core";
 
 export type LinkTemplateId = "get-paid" | "deposit" | "bridge-stake";
 
@@ -195,25 +195,6 @@ export function draftBounds(draft: LinkDraft): { label: string; value: string }[
 }
 
 /* ------------------------------------------------------------------ views */
-
-export interface LinkStatusView {
-  readonly label: string;
-  readonly tone: "green" | "yellow" | "red" | "neutral";
-}
-
-const STATUS: Readonly<Record<LinkStatus, LinkStatusView>> = {
-  pending: { label: "Pending", tone: "yellow" },
-  active: { label: "Active", tone: "green" },
-  paused: { label: "Paused", tone: "yellow" },
-  suspended: { label: "Suspended", tone: "red" },
-  exhausted: { label: "Used up", tone: "neutral" },
-  expired: { label: "Expired", tone: "neutral" },
-  deleted: { label: "Withdrawn", tone: "neutral" },
-};
-
-export function linkStatus(status: LinkStatus): LinkStatusView {
-  return STATUS[status] ?? { label: status, tone: "neutral" };
-}
 
 const REASONS: Readonly<Record<string, string>> = {
   publisher: "Paused by you (the publisher).",

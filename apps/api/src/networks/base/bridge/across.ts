@@ -140,29 +140,6 @@ const DEPOSIT_V3_ABI = [
   },
 ] as const;
 
-interface AcrossQuoteToken {
-  readonly address: string;
-  readonly decimals: number;
-  readonly chainId: number;
-}
-
-interface AcrossQuote {
-  readonly spokePoolAddress: string;
-  readonly timestamp: string | number;
-  readonly fillDeadline: string | number;
-  readonly exclusivityDeadline: string | number;
-  readonly exclusiveRelayer: string;
-  readonly outputAmount: string;
-  readonly isAmountTooLow: boolean;
-  readonly totalRelayFee: { readonly total: string };
-  readonly limits: {
-    readonly minDeposit: string;
-    readonly maxDeposit: string;
-  };
-  readonly inputToken: AcrossQuoteToken;
-  readonly outputToken: AcrossQuoteToken;
-}
-
 function asRecord(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`Across returned invalid ${field} data.`);

@@ -7,7 +7,7 @@ import { Badge, type BadgeTone } from "../../../site/ui/Badge";
 import { CodeBlock } from "../../../site/ui/CodeBlock";
 import { CopyButton } from "../../../site/ui/CopyButton";
 import { JsonView } from "../../../site/ui/JsonView";
-import { cx, FOCUS_RING, INK_BORDER_THIN, LABEL, TEXT_MUTED } from "../../../site/ui/styles";
+import { cx, FOCUS_RING, INK_BORDER_THIN, TEXT_MUTED } from "../../../site/ui/styles";
 import { nextTabIndex } from "../../../site/ui/tabKeys";
 import { errorEnvelope, parseRateLimit, type ExplorerExchange, type StreamFrame } from "./http";
 
@@ -302,6 +302,3 @@ export function ResponseViewer({ result, origin, onRetry }: ResponseViewerProps)
   return <ExchangeView key={result.exchange.seq} exchange={result.exchange} />;
 }
 
-export function ResponseLabel() {
-  return <p className={cx(LABEL, TEXT_MUTED)}>Response</p>;
-}

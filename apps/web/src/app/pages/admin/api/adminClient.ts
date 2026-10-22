@@ -188,11 +188,6 @@ export interface AdminClientOptions {
 
 type Method = "GET" | "POST" | "PUT" | "PATCH";
 
-export interface AdminFileDownload {
-  readonly filename: string;
-  readonly body: AdminExport;
-}
-
 export function createAdminClient({ baseUrl, fetch: fetchImpl, timeoutMs = DEFAULT_TIMEOUT_MS }: AdminClientOptions) {
   const origin = baseUrl.replace(/\/+$/u, "");
   const doFetch = fetchImpl ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));

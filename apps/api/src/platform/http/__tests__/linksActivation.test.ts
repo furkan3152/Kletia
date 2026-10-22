@@ -1,7 +1,7 @@
 /** Regression: pausing and resuming a pending link never shortens its activation delay, and a rotated-out secret cannot create or change links. */
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import type { IntentGraph, LinkOwnerView } from "@kletia/core";
+import type { LinkOwnerView } from "@kletia/core";
 import { configurePlatform, configurePolicyPricing } from "../../index.js";
 import { installMarket, standardPrices } from "../../engine/__tests__/policyHarness.js";
 import { fund, FRIEND, installPreviewChain, resetPreviewEngine, USDC, USER, type PreviewChain } from "../../engine/__tests__/previewHarness.js";
@@ -70,7 +70,7 @@ describe("link activation delay", () => {
     const early = await call(server, "POST", `/links/${link.id}/intents`, { body: { source: { network: "base", asset: "USDC" }, amount: "100", accounts: [`eip155:8453:${USER}`] } });
     assert.equal(early.status, 409);
 
-    const paused = await call<{ link: LinkOwnerView }>(server, "PATCH", `/links/${link.id}`, { key, body: { status: "paused" } });
+    await call<{ link: LinkOwnerView }>(server, "PATCH", `/links/${link.id}`, { key, body: { status: "paused" } });
     const resumed = await call<{ link: LinkOwnerView }>(server, "PATCH", `/links/${link.id}`, { key, body: { status: "active" } });
     assert.equal(resumed.body.link.status, "pending", "resuming a paused pending link returns it to pending");
     assert.equal(resumed.body.link.activatesAt, link.activatesAt, "the original activation time is kept");

@@ -285,13 +285,3 @@ export class TurnFacts implements FactsView {
     }));
   }
 }
-
-/** Runs `step` over the facts until it asks for nothing new (at most `rounds` reads). */
-export async function withFacts<T>(facts: TurnFacts, step: () => T, rounds = 6): Promise<T> {
-  let result = step();
-  for (let round = 0; round < rounds && facts.pending; round += 1) {
-    await facts.read();
-    result = step();
-  }
-  return result;
-}

@@ -194,7 +194,3 @@ export function isNewestFirst(releases: readonly Pick<ChangelogRelease, "date">[
   return dates.every((date, index) => index === 0 || dates[index - 1]! >= date);
 }
 
-/** Plain text of inline content (for counts and search). */
-export function inlineText(inline: readonly Inline[]): string {
-  return inline.map((part) => part.text).join("");
-}

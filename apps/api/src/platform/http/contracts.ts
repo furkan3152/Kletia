@@ -774,11 +774,6 @@ export function contractStore(): ContractStore {
   return store;
 }
 
-/** Replaces the store (tests); `null` re-selects by KLETIA_DATABASE_URL on next use. */
-export function configureContractStore(custom: ContractStore | null): void {
-  store = custom;
-}
-
 export function contractStoreKind(): "memory" | "postgres" {
   return contractStore().kind;
 }
@@ -1091,7 +1086,6 @@ async function pinSolana(definition: SolanaActionDefinition): Promise<Pinned> {
 function pin(definition: ContractDefinition): Promise<Pinned> {
   return definition.vm === "evm" ? pinEvm(definition) : pinSolana(definition);
 }
-
 
 /* ================================================================== views */
 

@@ -458,18 +458,3 @@ export const KLETIA_TOKEN_FACTORY_ABI = [
     type: "function",
   },
 ] as const;
-
-export const ZORA_ERC721_DROP_ABI = [
-  {
-    inputs: [
-      { internalType: "address", name: "recipient", type: "address" },
-      { internalType: "uint256", name: "quantity", type: "uint256" },
-      { internalType: "string", name: "comment", type: "string" },
-      { internalType: "address", name: "mintReferral", type: "address" },
-    ],
-    name: "mintWithRewards",
-    outputs: [],
-    stateMutability: "payable",
-    type: "function",
-  },
-] as const;

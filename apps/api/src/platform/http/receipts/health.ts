@@ -26,11 +26,6 @@ export async function receiptHealth(now = Date.now()): Promise<ReceiptHealth> {
   return value;
 }
 
-/** Forgets the cached block (tests). */
-export function resetReceiptHealth(): void {
-  cached = null;
-}
-
 async function readReceiptHealth(now: number): Promise<ReceiptHealth> {
   const signer = receiptSignerStatus();
   let kind: ReceiptHealth["store"] = "unavailable";

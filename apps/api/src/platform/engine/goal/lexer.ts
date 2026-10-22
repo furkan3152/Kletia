@@ -76,8 +76,6 @@ export type Token =
   | { readonly t: "WALLET"; readonly span: Span }
   | { readonly t: "NOISE"; readonly raw: string; readonly span: Span };
 
-export type TokenKind = Token["t"];
-
 /* -------------------------------------------------------- normaliser */
 
 const byLength = (list: readonly string[]) => [...list].sort((a, b) => b.length - a.length);

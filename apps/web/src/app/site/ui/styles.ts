@@ -8,22 +8,18 @@
 /** Decorative rules and object outlines: the art's 3 px ink (no contrast minimum). */
 export const INK_BORDER = "border-[3px] border-[#1A1A1A] dark:border-[#4B5563]";
 export const INK_BORDER_THIN = "border-2 border-[#1A1A1A] dark:border-[#4B5563]";
-/** The name the elevation rule uses for INK_BORDER (portal design 5.4): one shadowed object per region. */
-export const DECOR_BORDER = INK_BORDER;
 /**
  * Borders of inputs, selects, buttons, tabs and toggles: at least 3:1 against
  * the page and panels in both themes (WCAG 1.4.11; the decorative dark ink is
  * only 2.2-2.5:1).
  */
 export const CONTROL_BORDER = "border-[3px] border-control";
-export const CONTROL_BORDER_THIN = "border-2 border-control";
 export const HARD_SHADOW = "shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]";
 export const HARD_SHADOW_SM = "shadow-[3px_3px_0_#1A1A1A] dark:shadow-[3px_3px_0_#475569]";
 export const HARD_SHADOW_LG = "shadow-[8px_8px_0_#1A1A1A] dark:shadow-[8px_8px_0_#475569]";
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-focus";
 export const SURFACE = "bg-surface";
-export const SURFACE_MUTED = "bg-surface-2";
 export const TEXT = "text-fg";
 export const TEXT_MUTED = "text-muted";
 /** Field labels, table headers, pills and group labels: 12 px, 0.08em, uppercase (the type floor). */
@@ -39,8 +35,6 @@ export const LIFT = "kl-lift";
 /** Cursor spotlight overlay; pair with `useSpotlight` for the cursor position. */
 export const SPOTLIGHT = "kl-spotlight";
 export const SHADOW_HARD = "shadow-hard";
-export const SHADOW_HARD_SM = "shadow-hard-sm";
-export const SHADOW_HARD_LG = "shadow-hard-lg";
 
 export type ButtonVariant = "primary" | "accent" | "secondary" | "ink" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg";

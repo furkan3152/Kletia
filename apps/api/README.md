@@ -2,6 +2,8 @@
 
 The intent API behind the Kletia app. It turns natural language into structured execution plans and serves Base Mainnet, Arc Testnet, capability-gated Arbitrum One, Arbitrum Sepolia and Solana through one HTTP boundary. Each network keeps its own chain identity, assets, protocol targets, transaction builders and runtime validation. Every transaction is built deterministically and signed in the user's own wallet.
 
+There are two intent paths. The public Platform API (`/v1`) is deterministic: its grammar and planner never call a language model. The older network engines behind `/api/intent` and `/api/workflows` stay as the desk's fallback for sentences `/v1` does not support yet, and only that path can use the optional OpenRouter parser (`src/shared/ai/parser.ts`).
+
 ## Layout
 
 - `src/index.ts`, `src/http/`: entry point, Express composition (helmet, CORS, `/v1` mount, `/api` limiters) and server lifecycle (startup attestation, degraded mode, shutdown).

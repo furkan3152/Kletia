@@ -26,5 +26,3 @@ export function WalletSyncBridge() {
   usePublishedAccount(solana?.accountId ?? null, solana?.walletName ?? "Solana wallet");
   return null;
 }
-
-export default WalletSyncBridge;

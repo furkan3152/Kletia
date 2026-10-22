@@ -493,4 +493,3 @@ export function resetPreviewEngine(): MemoryIntentStore {
 }
 
 export const ACCOUNT_BASE = `eip155:8453:${USER}`;
-export const ACCOUNT_ARBITRUM = `eip155:42161:${USER}`;

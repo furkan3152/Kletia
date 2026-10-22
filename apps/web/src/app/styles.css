@@ -285,7 +285,7 @@ html.kletia-embed.kletia-embed-transparent body {
   }
 }
 
-/* Typing caret (Typewriter, terminal logs). */
+/* Typing caret (terminal logs). */
 .kl-caret {
   animation: kl-blink 1s steps(1) infinite;
 }

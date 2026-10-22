@@ -5,7 +5,7 @@ import {
   usePublicClient,
   useWriteContract,
 } from "wagmi";
-import { getAccount } from "@wagmi/core";
+import { getAccount } from "wagmi/actions";
 import { useState } from "react";
 import { getAddress, type Abi, type Address } from "viem";
 import {

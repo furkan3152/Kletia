@@ -14,24 +14,11 @@ export type ProtocolEntry = ProtocolDescriptor & { readonly executable?: boolean
 
 export const CAPABILITIES: readonly ProtocolCapability[] = ["execute", "quote", "discover"];
 
-export const CAPABILITY_LABEL: Readonly<Record<ProtocolCapability, string>> = {
-  execute: "Execute",
-  quote: "Quote",
-  discover: "Discover",
-};
-
 /** Tooltip text: what each capability means (also used in the legend). */
 export const CAPABILITY_HELP: Readonly<Record<ProtocolCapability, string>> = {
   execute: "Kletia builds wallet-ready, unsigned transactions for this venue.",
   quote: "Kletia returns live quotes and routes; execution happens elsewhere.",
   discover: "Read-only market, yield or name data. Nothing is executed.",
-};
-
-/** Top stripe colour by strongest capability. */
-export const CAPABILITY_STRIPE: Readonly<Record<ProtocolCapability, string>> = {
-  execute: "#0052FF",
-  quote: "#FFD60A",
-  discover: "#94A3B8",
 };
 
 export function capabilitiesOf(protocol: { readonly capabilities?: readonly string[] }): ProtocolCapability[] {
@@ -106,13 +93,6 @@ export function capabilityCounts(protocols: readonly ProtocolEntry[]): Capabilit
 
 export function protocolsOnNetwork(protocols: readonly ProtocolEntry[], key: string): ProtocolEntry[] {
   return protocols.filter((protocol) => networksOf(protocol).includes(key));
-}
-
-/** Union of intent kinds across networks (deduplicated). */
-export function intentKinds(networks: readonly { readonly actions?: readonly string[] }[]): string[] {
-  const kinds = new Set<string>();
-  for (const network of networks) for (const action of actionsOf(network)) kinds.add(action);
-  return [...kinds];
 }
 
 /** A View Transition name safe for any id: `proto-` + `[a-z0-9-]`. */

@@ -8,7 +8,7 @@ import {
   useSendCalls,
   useSendTransaction,
 } from "wagmi";
-import { getAccount, waitForCallsStatus } from "@wagmi/core";
+import { getAccount, waitForCallsStatus } from "wagmi/actions";
 import {
   decodeAbiParameters,
   encodeFunctionData,

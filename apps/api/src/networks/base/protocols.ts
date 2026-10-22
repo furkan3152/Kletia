@@ -1,7 +1,6 @@
 import { getAddress, type Address } from "viem";
 
 export type BaseRiskTier = "core" | "established" | "elevated";
-export type BaseProtocolDomain = "swap" | "lending" | "staking";
 export type BaseExecutionMode = "direct" | "kletia_fee_router";
 export type BaseCallerSemantics =
   "explicit_recipient" | "on_behalf_of" | "msg_sender_owns_position";

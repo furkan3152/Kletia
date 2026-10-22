@@ -58,7 +58,6 @@ import {
   type ProjectLogoType,
   type ProjectLogoView,
   type ProjectProfile,
-  type ProjectSettingsInput,
   type ProjectView,
   type SessionView,
 } from "@kletia/core";
@@ -312,12 +311,6 @@ let store: ProjectStore | null = null;
 export function projectStore(): ProjectStore {
   store ??= platformDatabaseUrl() ? new PostgresProjectStore() : new MemoryProjectStore();
   return store;
-}
-
-/** Replaces the store (tests); null re-selects by KLETIA_DATABASE_URL on next use. */
-export function configureProjectStore(custom: ProjectStore | null): void {
-  store = custom;
-  settingsCache.clear();
 }
 
 /* ============================================================ test seams */

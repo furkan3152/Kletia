@@ -52,8 +52,6 @@ const DIRECT_SAFE_EVIDENCE_KEYS = new Set([
   "maxSymbolBytes",
 ]);
 
-export type BaseTokenDeploymentMode = "legacy_v1" | "launch_v2";
-
 export interface BaseLaunchFactoryV2DeploymentEvidence {
   readonly schemaVersion:
     | "kletia_launch_factory_v2_deployment_v1"

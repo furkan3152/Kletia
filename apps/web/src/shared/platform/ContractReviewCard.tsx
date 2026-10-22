@@ -256,5 +256,3 @@ export function ContractReviewCard({ review, title, planned, acknowledged = fals
     </section>
   );
 }
-
-export default ContractReviewCard;

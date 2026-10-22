@@ -8,7 +8,6 @@
 import { createHash } from "node:crypto";
 import {
   address,
-  getAddressDecoder,
   getAddressEncoder,
   getBase58Decoder,
   getProgramDerivedAddress,
@@ -21,7 +20,6 @@ export const ATTACKER = "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1";
 export const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const WSOL = "So11111111111111111111111111111111111111112";
 export const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const SYSTEM = "11111111111111111111111111111111";
 export const ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 export const COMPUTE_BUDGET = "ComputeBudget111111111111111111111111111111";
@@ -52,7 +50,6 @@ export const JL_REWARDS = "5xSPBiD3TibamAnwHDhZABdB4z4F9dcj5PnbteroBTTd";
 export const JL_PRICE = 1_063_454_277_416n;
 
 const encoder = getAddressEncoder();
-const decoder = getAddressDecoder();
 const base58 = getBase58Decoder();
 
 export interface AccountFixture {
@@ -370,10 +367,6 @@ export function reserveAccountData(options: {
   put(data, 2592, u64(options.collateralSupply));
   put(data, 2600, key(options.collateralVault ?? KAMINO_USDC_COLLATERAL_VAULT));
   return data;
-}
-
-export function decodeKey(bytes: Uint8Array): string {
-  return String(decoder.decode(bytes));
 }
 
 export async function vanillaObligationOf(owner: string): Promise<string> {

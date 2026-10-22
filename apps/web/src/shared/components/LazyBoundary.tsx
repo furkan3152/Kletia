@@ -50,5 +50,3 @@ export class LazyBoundary extends React.Component<LazyBoundaryProps, LazyBoundar
     return this.state.failed ? this.props.fallback(reloadPage) : this.props.children;
   }
 }
-
-export default LazyBoundary;

@@ -279,10 +279,6 @@ export function idempotencyStore(): IdempotencyStore {
   return store;
 }
 
-export function idempotencyStoreKind(): "memory" | "postgres" {
-  return idempotencyStore().kind;
-}
-
 /** Hourly pruning of expired entries (long-running hosts). Returns a stop function. */
 export function startIdempotencyPruner(intervalMs = 60 * 60_000): () => void {
   const timer = setInterval(() => {

@@ -353,4 +353,3 @@ function deepFreeze<T>(value: T): T {
 
 export const DESK_COPY = deepFreeze(COPY);
 
-export type DeskCopy = typeof DESK_COPY;

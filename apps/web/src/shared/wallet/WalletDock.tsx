@@ -155,5 +155,3 @@ export function WalletDock({ evmWorkspace = true, className = "" }: WalletDockPr
     </div>
   );
 }
-
-export default WalletDock;

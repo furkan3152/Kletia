@@ -50,5 +50,3 @@ export function QuestionSlot({ question, onAnswer, onDismiss }: QuestionSlotProp
     </div>
   );
 }
-
-export default QuestionSlot;

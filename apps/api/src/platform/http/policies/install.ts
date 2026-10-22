@@ -48,12 +48,6 @@ export function ruleBookGate(): RuleBookGate | null {
   return installed;
 }
 
-/** Removes the installed gate (tests). */
-export function uninstallPolicyGate(): void {
-  if (installed) configurePolicyGate(null);
-  installed = null;
-}
-
 const PROMOTE_INTERVAL_MS = 30_000;
 const PRUNE_INTERVAL_MS = 60 * 60_000;
 const APPROVAL_RETENTION_MS = 30 * 86_400_000;

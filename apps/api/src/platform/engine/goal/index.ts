@@ -55,10 +55,6 @@ export function configureGoalSteps(enabled: boolean | null): void {
   goalStepsEnabled = enabled ?? true;
 }
 
-export function goalStepsOn(): boolean {
-  return goalStepsEnabled;
-}
-
 export interface ReadClauseOptions {
   /** A step comes before this clause (earlier clause or thread). */
   readonly previousExists: boolean;

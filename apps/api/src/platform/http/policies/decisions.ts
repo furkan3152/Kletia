@@ -276,7 +276,3 @@ export function decisionStore(): DecisionStore {
   store ??= platformDatabaseUrl() ? new PostgresDecisionStore() : new MemoryDecisionStore();
   return store;
 }
-
-export function configureDecisionStore(custom: DecisionStore | null): void {
-  store = custom;
-}

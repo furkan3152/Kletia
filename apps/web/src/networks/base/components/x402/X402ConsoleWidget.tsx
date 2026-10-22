@@ -22,7 +22,7 @@ import {
   useReadContract,
   useWalletClient,
 } from "wagmi";
-import { getAccount } from "@wagmi/core";
+import { getAccount } from "wagmi/actions";
 import { useSecureWriteContract } from "../../../../shared/hooks/useSecureTransaction";
 import {
   decodeEventLog,

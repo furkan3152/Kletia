@@ -174,9 +174,6 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   "~": ["00000", "00000", "01000", "10101", "00010", "00000", "00000"],
 };
 
-/** Every character the face can draw (tests: the face covers core's alphabet). */
-export const FACE_CHARACTERS = Object.freeze(Object.keys(GLYPHS));
-
 /** Width in logical pixels of `text` at dot pitch `pitch`. */
 export function textWidth(text: string, pitch: number): number {
   const length = [...boardText(text)].length;

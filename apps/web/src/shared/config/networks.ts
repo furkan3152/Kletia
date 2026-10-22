@@ -40,7 +40,6 @@ export interface NetworkDefinition {
   readonly isTestnet: boolean;
   readonly beta?: boolean;
   readonly enabled: boolean;
-  readonly apiPrefix: string;
 }
 
 export const arcTestnet = defineChain({
@@ -116,7 +115,6 @@ export const NETWORKS = {
     color: "#0052FF",
     isTestnet: false,
     enabled: true,
-    apiPrefix: "/api",
   },
   arc: {
     key: "arc",
@@ -152,7 +150,6 @@ export const NETWORKS = {
     color: "#8B5CF6",
     isTestnet: true,
     enabled: true,
-    apiPrefix: "/api/arc",
   },
   arbitrum: {
     key: "arbitrum",
@@ -179,7 +176,6 @@ export const NETWORKS = {
       import.meta.env.VITE_ARBITRUM_MVP_ENABLED === "true" ||
       (import.meta.env.DEV && import.meta.env.VITE_ARBITRUM_MVP_ENABLED !== "false"),
     isTestnet: false,
-    apiPrefix: "/api",
   },
 } as const satisfies Record<NetworkMode, NetworkDefinition>;
 
@@ -287,5 +283,3 @@ export const getNetworkByChainId = (
 export const isNetworkMode = (value: unknown): value is NetworkMode =>
   value === "base" || value === "arc" || value === "arbitrum";
 
-export const getApiPrefix = (mode: NetworkMode): string =>
-  NETWORKS[mode].apiPrefix;

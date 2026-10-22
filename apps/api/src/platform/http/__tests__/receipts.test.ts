@@ -41,7 +41,7 @@ import {
   type IntentEvent,
   type ReceiptEvent,
 } from "../../index.js";
-import { ACCOUNTS, resetEngine, stub } from "../../engine/__tests__/helpers.js";
+import { ACCOUNTS, resetEngine } from "../../engine/__tests__/helpers.js";
 import { assertError, call as rawCall, OPERATOR_KEY, serve, useTestEnvironment, waitFor, withDatabaseTestLock, type CallOptions, type Reply, type TestServer } from "./support.js";
 
 useTestEnvironment();

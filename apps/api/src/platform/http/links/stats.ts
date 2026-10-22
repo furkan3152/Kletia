@@ -6,7 +6,7 @@
  * from the user agent, which is then dropped; nothing per visitor is ever
  * written.
  */
-import { LINK_METRICS, type LinkMetric, type LinkStats, type LinkStatsTotals } from "@kletia/core";
+import type { LinkMetric, LinkStats, LinkStatsTotals } from "@kletia/core";
 import { linkStore, type LinkStatRow } from "./store.js";
 
 export const LINK_STATS_FLUSH_INTERVAL_MS = 30_000;
@@ -145,8 +145,4 @@ export async function linkStatsReport(linkId: string, window: LinkStatsWindow, n
 /** Stats rows older than the retention (watcher). */
 export function statsRetentionCutoff(now = Date.now()): string {
   return new Date(now - STATS_RETENTION_DAYS * 86_400_000).toISOString();
-}
-
-export function isLinkMetric(value: string): value is LinkMetric {
-  return (LINK_METRICS as readonly string[]).includes(value);
 }

@@ -27,5 +27,3 @@ export function AgentsHandoffCard() {
     </div>
   );
 }
-
-export default AgentsHandoffCard;

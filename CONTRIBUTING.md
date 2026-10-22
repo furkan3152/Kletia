@@ -50,8 +50,7 @@ A contribution must not:
 - convert missing provider/RPC data into a mock quote, zero balance, or success;
 - treat a submitted transaction hash as economic completion;
 - retry an uncertain money movement by broadcasting a new transaction;
-- bypass exact account, network, target, spender, amount, deadline, and simulation checks;
-- move or modify path-stable submission attachments.
+- bypass exact account, network, target, spender, amount, deadline, and simulation checks.
 
 If a dependency or capability is unavailable, return a structured fail-closed state with a useful reason.
 

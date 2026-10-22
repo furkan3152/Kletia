@@ -31,9 +31,10 @@ import { StepRow } from "../components/StepRow";
 import { TxPreviewTicket } from "../components/TxPreviewTicket";
 import { buildDeployData, eoaAckPhrase, resolveArgs, validateRoles, type ArgContext } from "../model/args";
 import { CONFIRM_ACTIONS } from "../model/confirm";
-import { ADMIN_PANEL_NETWORKS, isEvmNetwork, networkName, planFor, type PlanRow } from "../model/plan";
+import { ADMIN_PANEL_NETWORKS, FOREIGN_TEXT, isEvmNetwork, networkName, planFor, type PlanRow } from "../model/plan";
 import { nameFor } from "../model/preview";
 import type { AdminDeploymentRecord, AdminEvmNetwork, AdminNetworkProfile, AdminPanelNetwork } from "../model/types";
+import { StepUpNote } from "../components/StepUpNote";
 
 const PENDING_KEY = "kl-admin-pending";
 
@@ -420,6 +421,7 @@ function DeployFlow({ row, profile, testnet, records }: { readonly row: PlanRow;
       void queryClient.invalidateQueries({ queryKey: ["admin", "deployments"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
       if (record.status === "verified") toast.success(`${row.title} verified on ${networkName(network)}`);
+      else if (record.status === "foreign") toast.warning(`${row.title} was recorded as foreign: its owner is not admin-controlled`);
       else toast.warning(`${row.title} was recorded, but some checks failed`);
     } catch (error) {
       setPhase({ step: "error", message: errorText(error), txHash });
@@ -493,6 +495,7 @@ function DeployFlow({ row, profile, testnet, records }: { readonly row: PlanRow;
       ) : null}
       {estimate && "error" in estimate ? <p className="text-sm font-semibold text-warning">Gas estimate failed: {estimate.error} The deploy would likely revert.</p> : null}
       {blocked ? <p className="border-l-[4px] border-[#B45309] bg-warning-bg px-3 py-2 text-sm font-semibold text-warning">{blocked}</p> : null}
+      <StepUpNote />
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="accent" onClick={() => void deploy()} disabled={Boolean(blocked) || phase.step === "sending" || phase.step === "waiting" || phase.step === "recording"} loading={phase.step === "sending"}>
           <Rocket className="h-4 w-4" aria-hidden="true" />
@@ -502,9 +505,9 @@ function DeployFlow({ row, profile, testnet, records }: { readonly row: PlanRow;
       </div>
       {phase.step === "done" ? (
         <div className="flex flex-wrap items-start gap-4 border-[3px] border-control bg-surface-2 p-4">
-          <Stamp state={phase.record.status === "verified" ? "settled" : "failed"} detail={phase.record.status === "verified" ? "VERIFIED" : "CHECKS FAILED"} className="h-20 w-auto" labelled />
+          <Stamp state={phase.record.status === "verified" ? "settled" : "failed"} detail={phase.record.status === "verified" ? "VERIFIED" : phase.record.status === "foreign" ? "FOREIGN" : "CHECKS FAILED"} className="h-20 w-auto" labelled />
           <div className="flex min-w-0 flex-col gap-1 text-sm">
-            <p className="font-bold">{phase.record.status === "verified" ? "Deployed and verified." : "Deployed; some checks failed."}</p>
+            <p className="font-bold">{phase.record.status === "verified" ? "Deployed and verified." : phase.record.status === "foreign" ? FOREIGN_TEXT : "Deployed; some checks failed."}</p>
             <AddressText address={phase.record.address} network={network} full />
             <ul className="mt-1 flex flex-col gap-0.5">
               {phase.record.checks.filter((check) => !check.ok).map((check) => (
@@ -596,6 +599,7 @@ function ImportPanel({ network, rows, profile, testnet, records }: { readonly ne
           <TextField key={input.name} label={input.label} value={literals[input.name] ?? (input.source.kind === "literal" ? input.source.value : "")} onChange={(event) => setLiterals((value) => ({ ...value, [input.name]: event.target.value }))} />
         ))}
         <div className="flex flex-col gap-2 md:col-span-2">
+          <StepUpNote />
           {!resolved.ready ? <p className="text-sm font-semibold text-warning">{resolved.blocked}</p> : null}
           {error ? (
             <p role="alert" className="text-sm font-bold text-danger">
@@ -604,7 +608,7 @@ function ImportPanel({ network, rows, profile, testnet, records }: { readonly ne
           ) : null}
           {result ? (
             <p role="status" className="text-sm font-bold">
-              Recorded: {result.status === "verified" ? "verified" : "checks failed"} at {result.address}.
+              Recorded: {result.status === "verified" ? "verified" : result.status === "foreign" ? "foreign (owner not admin-controlled; never exported or used)" : "checks failed"} at {result.address}.
             </p>
           ) : null}
           <Button type="submit" variant="secondary" className="self-start" loading={busy} disabled={!hashOk || !resolved.ready}>

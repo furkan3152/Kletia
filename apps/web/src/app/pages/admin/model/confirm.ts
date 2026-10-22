@@ -1,11 +1,13 @@
 /**
- * Step-up confirmations (admin design A.7): writes that change future
- * defaults (a network profile, a record's status) carry a signature over a
- * server-built message that binds the SHA-256 of the request body. The panel
- * hashes the body the same way: canonical JSON (object keys sorted at every
- * depth, no whitespace) of the body without `confirmation`. Pure.
+ * Step-up confirmations (admin design A.7): every state-changing admin call
+ * except logout carries a signature, by the wallet that holds the session,
+ * over a server-built message that binds the SHA-256 of the request. The
+ * panel hashes the request the same way: canonical JSON (object keys sorted
+ * at every depth, no whitespace). The network profile and a record's status
+ * hash the body without `confirmation`; every other write hashes
+ * `adminRoutePayload(method, path, body)`. Pure.
  */
-import { sha256Hex } from "@kletia/core";
+import { adminRoutePayload, sha256Hex } from "@kletia/core";
 
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
@@ -22,6 +24,14 @@ export function payloadSha256(body: Readonly<Record<string, unknown>>): string {
   delete rest.confirmation;
   return sha256Hex(canonicalJson(rest));
 }
+
+/** Hex SHA-256 of a route-bound confirmation: method, path under /api/admin as sent, body without `confirmation`. */
+export function routePayloadSha256(method: string, path: string, body: Readonly<Record<string, unknown>>): string {
+  return sha256Hex(canonicalJson(adminRoutePayload(method, path, body)));
+}
+
+/** The one line every write shows before the wallet asks for the confirmation signature. */
+export const STEP_UP_NOTE = "Your wallet will first ask you to sign a confirmation for this change (a message, not a transaction: no gas).";
 
 export const CONFIRM_ACTIONS = {
   profile: "network-profile.update",

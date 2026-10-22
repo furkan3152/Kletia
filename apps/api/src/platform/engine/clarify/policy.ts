@@ -681,6 +681,51 @@ function chooseNetwork(env: Env, index: number, step: WorkStep, prevDest: Networ
   return pick(network, f.known ? "balance" : "default", f.known ? "balance.short" : "default.kletia", networks, f.balances);
 }
 
+/**
+ * F8 / D4 for a strict step: "stake my SOL" is all of it when the sentence
+ * names the network or exactly one network holds the asset (balances read,
+ * none unknown). Holdings on several networks leave the amount open, so
+ * AMOUNT_MISSING asks (a possessive never picks a scope by itself).
+ */
+function wholeHolding(env: Env, step: WorkStep): void {
+  const symbol = step.from?.v;
+  if (!symbol) return;
+  const whole = () => {
+    step.amount = { v: { t: "balance", bps: 10_000 }, by: "user" };
+  };
+  if (step.network && step.network.by === "user") {
+    whole();
+    return;
+  }
+  const current = laneOf(env.ctx.accounts);
+  const networks = NETWORK_ORDER.filter((network) => lane(network) === current && hasAccount(env.ctx.accounts, network) && canonicalOn(network, symbol));
+  const balances = networks.map((network) => env.facts.balance(network, canonicalOn(network, symbol) as string));
+  if (balances.some((balance) => balance === undefined)) return;
+  if (balances.filter((balance) => isPositive(balance)).length === 1) whole();
+}
+
+/**
+ * "withdraw half from aave on base": a withdrawal that names its venue and
+ * network but no token uses the one position held there, shown as a material
+ * chip. Only when every venue of the protocol on that network was read: two
+ * positions, none, or an unread venue leave the token to INPUT_ASSET_MISSING.
+ */
+function onlyPosition(env: Env, index: number, step: WorkStep): { symbol: string; assumption: Assumption } | null {
+  const protocol = step.protocol?.v;
+  const network = step.network && step.network.by !== "assumed" ? step.network.v : undefined;
+  if (!protocol || !network || ambiguousVenue(protocol) || !env.facts.positionsAt) return null;
+  const held = env.facts.positionsAt(network, protocol);
+  if (!held || held.length !== 1) return null;
+  const only = held[0] as { symbol: string; amount: string };
+  const symbol = canonicalOn(network, only.symbol);
+  if (!symbol) return null;
+  const params = { protocol: protocolLabel(protocol), symbol };
+  return {
+    symbol,
+    assumption: assumption(field(index, "from"), `Your ${protocolLabel(protocol)} ${symbol} position · ${tidy(only.amount)}`, { asset: symbol }, "position", reasonText("position.only", params), [], true),
+  };
+}
+
 /* ------------------------------------------------------- contract steps */
 
 /** The contract clause of a step, in the registration's own words. */
@@ -909,6 +954,15 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
         .map((symbol) => ({ id: symbol, label: symbol, value: { asset: symbol } }));
       first = question(field(index, "to"), "choice", "OUTPUT_ASSET_MISSING", `Swap ${amountPhrase(step)} for what?`, "Name the token you want to receive.", options, true);
     }
+    if (!first && kind === "withdraw" && !step.usdFrom && !dependent && (!step.from || (step.from.by === "assumed" && step.from.why?.code === "position.only"))) {
+      const only = onlyPosition(env, index, step);
+      if (only) {
+        step.from = { v: only.symbol, by: "assumed", why: { source: "position", code: "position.only" } };
+        assumptions.push(only.assumption);
+      } else if (step.from?.by === "assumed") {
+        delete step.from;
+      }
+    }
     if (!first && !step.from && !step.usdFrom && !dependent && kind !== "stake") {
       const network = step.network?.v ?? (kind === "swap" ? swapCandidates(env, step, undefined, step.to?.v)[0] : undefined) ?? "base";
       const symbols = symbolsOn(network).filter((symbol) => symbol !== step.to?.v && !(kind !== "transfer" && transferOnly(network, symbol)));
@@ -943,6 +997,7 @@ export function analyze(state: WorkState, ctx: TurnContext, facts: FactsView): A
         break;
       }
     }
+    if (step.possessive && !step.amount) wholeHolding(env, step);
     const choice = chooseNetwork(env, index, step, prevDest, prevOut);
     if (choice.question) {
       ask([choice.question]);

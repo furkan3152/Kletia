@@ -24,6 +24,7 @@ import { EmptyState, SectionHeader } from "../components/SectionHeader";
 import { chainIdOf, networkName } from "../model/plan";
 import { hasSigned, missingSigners, packSignatures, safeAppUrl, signatureProgress, transactionBuilderJson, ZERO_ADDRESS } from "../model/safe";
 import type { AdminSafeProposal } from "../model/types";
+import { StepUpNote } from "../components/StepUpNote";
 
 const STATUS_TONES: Readonly<Record<AdminSafeProposal["status"], StatusTone>> = {
   collecting: "info",
@@ -223,6 +224,7 @@ function ProposalCard({ proposal, compact = false }: { readonly proposal: AdminS
           {error}
         </p>
       ) : null}
+      {!compact ? <StepUpNote /> : null}
       {!compact ? (
         <div className="flex flex-wrap items-center gap-2">
           {proposal.status === "collecting" ? (

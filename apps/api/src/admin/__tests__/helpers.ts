@@ -11,6 +11,8 @@ import { getBase58Decoder } from "@solana/kit";
 import express from "express";
 import { ContractFunctionRevertedError, TransactionReceiptNotFoundError, type PublicClient } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import type { AdminConfirmAction } from "@kletia/core";
+import { routePayloadSha256 } from "../auth/messages.js";
 import { parseAdminConfig, type AdminConfig } from "../config.js";
 import type { AdminDeps } from "../deps.js";
 import { createAdminRouter } from "../http/router.js";
@@ -149,10 +151,44 @@ export interface Reply<T = any> {
   readonly body: T;
 }
 
+/** The wallet that holds a test session: an EVM account or a Solana wallet. */
+export type SessionSigner = PrivateKeyAccount | SolanaWallet;
+
+async function signAs(signer: SessionSigner, message: string): Promise<string> {
+  return "signMessage" in signer ? signer.signMessage({ message }) : signer.sign(message);
+}
+
+/** A route-bound step-up confirmation for `method path body`, signed by `signer` (the session's wallet). */
+export async function confirmationFor(
+  harness: Harness, cookie: string, signer: SessionSigner, action: AdminConfirmAction, method: string, path: string, body: Record<string, unknown> = {},
+): Promise<{ message: string; signature: string }> {
+  const network = typeof body.network === "string" ? body.network : undefined;
+  const nonce = await call(harness, "POST", "/auth/nonce", {
+    cookie,
+    body: {
+      walletKind: "signMessage" in signer ? "evm" : "solana", address: signer.address, purpose: "confirm", action,
+      ...(network ? { network } : {}), payloadSha256: routePayloadSha256(method, path, body),
+    },
+  });
+  if (nonce.status !== 200) throw new Error(`confirm nonce ${nonce.status} ${JSON.stringify(nonce.body)}`);
+  return { message: nonce.body.message, signature: await signAs(signer, nonce.body.message) };
+}
+
 export async function call<T = any>(
   harness: Harness, method: string, path: string,
-  options: { body?: unknown; cookie?: string | null; origin?: string | null; header?: boolean; contentType?: string } = {},
+  options: {
+    body?: unknown; cookie?: string | null; origin?: string | null; header?: boolean; contentType?: string;
+    /** Adds a step-up confirmation for this exact request, signed by `signer`. */
+    confirm?: { readonly signer: SessionSigner; readonly action: AdminConfirmAction };
+  } = {},
 ): Promise<Reply<T>> {
+  if (options.confirm) {
+    if (!options.cookie) throw new Error("confirm needs a session cookie");
+    const body = (options.body ?? {}) as Record<string, unknown>;
+    const confirmation = await confirmationFor(harness, options.cookie, options.confirm.signer, options.confirm.action, method, path, body);
+    const { confirm: _confirm, ...rest } = options;
+    return call<T>(harness, method, path, { ...rest, body: { ...body, confirmation } });
+  }
   const headers: Record<string, string> = {};
   if (options.origin !== null) headers.origin = options.origin ?? ORIGIN;
   if (options.header !== false) headers["x-kletia-admin"] = "1";

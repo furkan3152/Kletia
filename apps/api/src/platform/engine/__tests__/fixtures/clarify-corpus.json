@@ -6397,6 +6397,129 @@
     }
    ],
    "why": "Round 7 protocols (P7): cbETH asset row on Base (A5); the L2 stake alternative."
+  },
+  {
+   "id": "O01",
+   "category": "missing-amount",
+   "title": "'stake my SOL' with SOL on one network is all of it (a swap of 'my SOL' still asks, B02)",
+   "wallet": "sol_only",
+   "turns": [
+    {
+     "say": "stake my SOL",
+     "expect": {
+      "status": "ready",
+      "plan": "stake@solana 2.49 SOL->JitoSOL {jito}",
+      "assumptions": [
+       {
+        "field": "actions[0].amount",
+        "source": "balance"
+       }
+      ]
+     }
+    }
+   ],
+   "why": "Round 8 intent engine leftovers: possessive amounts for moves between the wallet and a venue (stake, deposit, withdraw)."
+  },
+  {
+   "id": "O02",
+   "category": "missing-amount",
+   "title": "'deposit my USDC' with USDC on two networks asks how much (a possessive never picks the scope)",
+   "wallet": "two_usdc",
+   "turns": [
+    {
+     "say": "deposit my USDC into aave",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "amount",
+        "reason": "AMOUNT_MISSING",
+        "options": [
+         "all",
+         "half"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "say": "50",
+     "expect": {
+      "status": "ready",
+      "plan": "deposit@base 50 USDC [aave-v3]"
+     }
+    }
+   ],
+   "why": "Round 8 intent engine leftovers: D4 for the strict reader's possessive."
+  },
+  {
+   "id": "O03",
+   "category": "missing-input",
+   "title": "A withdrawal naming venue and network but no token uses the one position there (material chip)",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "withdraw half from aave on base",
+     "expect": {
+      "status": "ready",
+      "plan": "withdraw@base 51.605 USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].from",
+        "source": "position",
+        "value": {
+         "asset": "USDC"
+        },
+        "material": true
+       }
+      ]
+     }
+    }
+   ],
+   "why": "Round 8 intent engine leftovers: AMO030."
+  },
+  {
+   "id": "O04",
+   "category": "wording",
+   "title": "A leading label is a note, never part of the sentence",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "rent: send 50 USDC to 0x1111111111111111111111111111111111111111 on base",
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 50 USDC to 0x1111111111111111111111111111111111111111",
+      "assumptions": [],
+      "assumptionsExact": true
+     }
+    }
+   ],
+   "why": "Round 8 intent engine leftovers: label prefixes (GOA053)."
+  },
+  {
+   "id": "O05",
+   "category": "wording",
+   "title": "'fund my arbitrum wallet with 20 USDC' brings USDC to the person's own Arbitrum account",
+   "wallet": "full",
+   "turns": [
+    {
+     "say": "fund my arbitrum wallet with 20 USDC",
+     "expect": {
+      "status": "ready",
+      "plan": "bridge@base->arbitrum 20 USDC",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "balance"
+       }
+      ]
+     }
+    }
+   ],
+   "why": "Round 8 intent engine leftovers: 'fund my <network> wallet' (GOA019)."
   }
  ]
 }

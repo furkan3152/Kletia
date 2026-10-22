@@ -6,10 +6,11 @@
  * - Solana: the Sign-In With Solana text form (same fields as EIP-4361:
  *   domain, address, statement, URI, version, chain id, nonce, issued at,
  *   expiration time, request id), signed with the wallet's signMessage.
- * - Confirmation (step-up for writes that change defaults): a plain text
- *   message bound to the action, network, payload hash, address and nonce.
+ * - Confirmation (step-up for every state-changing route except logout): a
+ *   plain text message bound to the action, network, payload hash, address
+ *   and nonce.
  */
-import { ADMIN_SIGN_IN_REQUEST_ID, ADMIN_SIGN_IN_STATEMENT, canonicalJson } from "@kletia/core";
+import { ADMIN_SIGN_IN_REQUEST_ID, ADMIN_SIGN_IN_STATEMENT, adminRoutePayload, canonicalJson } from "@kletia/core";
 import type { Address } from "viem";
 import { createSiweMessage } from "viem/siwe";
 import { sha256Hex } from "../../platform/http/secrets.js";
@@ -90,4 +91,9 @@ export function messageField(message: string, name: string): string | null {
 /** sha256 hex of the canonical JSON of a confirmed payload (the request body without `confirmation`). */
 export function payloadSha256(payload: unknown): string {
   return sha256Hex(canonicalJson(payload));
+}
+
+/** sha256 hex of a route-bound confirmation payload (method, path under /api/admin, body without `confirmation`). */
+export function routePayloadSha256(method: string, path: string, body: Readonly<Record<string, unknown>>): string {
+  return payloadSha256(adminRoutePayload(method, path, body));
 }

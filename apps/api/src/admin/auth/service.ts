@@ -5,8 +5,10 @@
  */
 import { randomBytes } from "node:crypto";
 import {
+  ADMIN_CONFIRM_ACTIONS,
   ADMIN_EVM_NETWORKS,
   CHAINS,
+  type AdminConfirmAction,
   type AdminEvmNetwork,
   type AdminSessionView,
   type AdminWalletKind,
@@ -33,9 +35,9 @@ export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 export const SESSION_IDLE_MS = 30 * 60 * 1000;
 const TOUCH_INTERVAL_MS = 60 * 1000;
 
-/** Actions that require a step-up confirmation signature. */
-export const CONFIRM_ACTIONS = ["network-profile.update", "deployment.status"] as const;
-export type ConfirmAction = (typeof CONFIRM_ACTIONS)[number];
+/** Actions that require a step-up confirmation signature: every state-changing route except logout. */
+export const CONFIRM_ACTIONS = ADMIN_CONFIRM_ACTIONS;
+export type ConfirmAction = AdminConfirmAction;
 
 export function networkForChainId(chainId: number): AdminEvmNetwork | null {
   return ADMIN_EVM_NETWORKS.find((network) => CHAINS[network].evmChainId === chainId) ?? null;

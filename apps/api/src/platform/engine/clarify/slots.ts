@@ -25,7 +25,7 @@ import {
 } from "../grammar.js";
 import type { ContractPhrase } from "../contracts/directory.js";
 import { candidates } from "./fuzzy.js";
-import { readClause, spellNumbers, symbolTypoCandidates } from "../goal/index.js";
+import { readClause, spellNumbers, stripLabel, symbolTypoCandidates } from "../goal/index.js";
 import {
   bridgeProtocol,
   dexProtocol,
@@ -46,7 +46,7 @@ const GUARD = "(?!(?:to|for|into|onto|with|using|from|on|as|via|in|at|my|of)\\b)
 const SYM = (name: string) => `${GUARD}(?<${name}>(?:eip155|solana):\\S+|[A-Za-z0-9$][\\w.\\-]{0,63})`;
 const NET = (name: string) => `(?<${name}>${NETWORK_WORDS})`;
 const ADDR = `(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}|[1-9A-HJ-NP-Za-km-z]{32,44})`;
-const MY = "(?:(?:of\\s+)?my\\s+)?";
+const MY = "(?:(?:of\\s+)?(?<my>my)\\s+)?";
 const ON = `(?:\\s+(?:on|in)\\s+${NET("net")})?`;
 const DEX = `(?:\\s+(?:via|using|through|with)\\s+(?<dex>${SWAP_VENUE_WORDS}))?`;
 /** A swap names its network and venue in either order. */
@@ -208,6 +208,27 @@ function parseContractClause(clause: string, phrases: readonly ContractPhrase[],
   return step;
 }
 
+/** Step kinds where "my X" with no number is all of it (F8 in the strict reader). */
+const POSSESSIVE_WHOLE: ReadonlySet<Kind> = new Set(["stake", "deposit", "withdraw"]);
+
+/**
+ * F8 in the strict reader: "stake my SOL", "earn yield on my USDC", "withdraw
+ * my USDC from aave" mean all of it. Only for moves between the wallet and a
+ * venue (stake, deposit, withdraw), which keep the same asset in the person's
+ * control; a swap, bridge or transfer of "my SOL" still asks how much (clarify
+ * corpus B02): converting or paying out a whole holding is never read from a
+ * possessive alone. A first step only (after a step, "my SOL" might mean the
+ * balance or the step's output) and only when the asset itself is named.
+ * "my USDC from aave" is the whole position; a wallet holding is marked
+ * `possessive` and the policy makes it all of it only when one network holds
+ * the asset (or the sentence names the network), else it asks how much (D4).
+ */
+function possessiveWhole(step: WorkStep, g: Record<string, string | undefined>, previousExists: boolean): void {
+  if (!g.my || !g.a || previousExists || step.amount || !step.kind || !POSSESSIVE_WHOLE.has(step.kind.v)) return;
+  if (step.kind.v === "withdraw") step.amount = slot({ t: "position", bps: 10_000 });
+  else step.possessive = true;
+}
+
 /** One clause as slots, or null when no relaxed shape matches. */
 function parseClause(clause: string, previousExists: boolean): WorkStep | null {
   for (const { shape, regex } of SHAPES) {
@@ -237,6 +258,7 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       case "earn":
         out.kind = slot("deposit");
         if (g.amt) amountSlot(out, parseAmountText(g.amt, previousExists));
+        else possessiveWhole(out, g, previousExists);
         return out;
       case "swap":
         if (!g.amt && !g.a) continue;
@@ -315,6 +337,8 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       if (shape === "withdraw" && amount && (amount.t === "balance" || (amount.t === "previous" && !previousExists))) {
         out.amount = slot({ t: "position", bps: amount.bps });
       }
+    } else {
+      possessiveWhole(out, g, previousExists);
     }
     return out;
   }
@@ -407,13 +431,15 @@ function chainImplicit(step: WorkStep, previous: boolean): void {
 /** A message as slots for every clause (1 to 8); unique keyword typos are corrected (R9, R10). */
 export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0): ParsedSentence {
   // Compound number words ("twenty five") become digits first; single ones are the core normaliser's.
-  const text = normalizeMessage(spellNumbers(raw, 2));
+  const labelled = stripLabel(normalizeMessage(spellNumbers(raw, 2)));
+  const text = labelled.text;
   if (!text) throw new PlatformError("INTENT_UNSUPPORTED", "The message is empty.", 422);
   const extraVerbs = phrases.flatMap((phrase) => phrase.verbs);
   const clauses = splitClauses(text, extraVerbs);
   if (clauses.length === 0 || clauses.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
   const steps: WorkStep[] = [];
-  const corrections: ThreadCorrection[] = [];
+  // The label is kept only as a note (a non-material ".text" correction, never shown as a chip or read as a slot).
+  const corrections: ThreadCorrection[] = labelled.label ? [{ field: `actions[${offset}].text`, from: labelled.label.slice(0, 16), to: "note", material: false }] : [];
   clauses.forEach((clause, i) => {
     const index = steps.length + offset;
     const previous = previousExists || steps.length > 0;

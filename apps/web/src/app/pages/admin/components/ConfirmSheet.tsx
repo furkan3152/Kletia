@@ -6,6 +6,7 @@ import { Button } from "../../../site/ui/Button";
 import { TextField } from "../../../site/ui/Field";
 import { Sheet } from "../../../site/ui/Sheet";
 import { cx, TEXT_MUTED } from "../../../site/ui/styles";
+import { StepUpNote } from "./StepUpNote";
 
 /**
  * A confirmation for a dangerous step (admin design D.5): a red sheet that
@@ -52,6 +53,7 @@ export function ConfirmSheet({
             spellCheck={false}
           />
         ) : null}
+        <StepUpNote />
         <div className="flex flex-wrap gap-2">
           <Button variant="ink" onClick={onConfirm} disabled={!armed} loading={busy}>
             {confirmLabel}

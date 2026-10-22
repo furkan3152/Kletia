@@ -1,6 +1,13 @@
 /**
  * Server-side verification of a browser deploy (design §C.2). The client
  * never marks a record verified: every check reads the chain.
+ *
+ * "verified" means correct AND admin-controlled: the effective owner/admin
+ * (owner() with no pending owner, or the owner/creator constructor argument)
+ * must be an allowlisted admin EVM wallet, the network profile's owner, or a
+ * Safe whose on-chain getOwners() include an allowlisted admin wallet. A
+ * record that passes every other check but not that one is "foreign": never
+ * exported for pinning, never a dependency.
  */
 import type {
   AdminConstructorInput,
@@ -26,6 +33,7 @@ import {
   chainIdOf,
   dependencyCandidates,
   networkConstant,
+  profileOwner,
   specOf,
   targetById,
   targetSatisfied,
@@ -101,7 +109,6 @@ export function normalizeConstructorArgs(inputs: readonly AbiParameter[], raw: R
 /** Catalog rules on args: constants, dependencies, literal bounds, session address. Returns problems (empty when fine). */
 async function argRuleProblems(
   store: AdminStore, network: AdminEvmNetwork, specInputs: readonly AdminConstructorInput[], args: Readonly<Record<string, string>>,
-  session: AdminSessionContext,
 ): Promise<string[]> {
   const problems: string[] = [];
   for (const input of specInputs) {
@@ -134,12 +141,9 @@ async function argRuleProblems(
         break;
       }
       case "session-address": {
-        // Not relaxed by import (design C.1: only the deployer may differ). The
-        // address is an owner/creator role (KletiaToken is Ownable(creator)), so
-        // an import naming a stranger here must not become "verified".
-        if (!session.actors.some((actor) => actor.toLowerCase() === value.toLowerCase())) {
-          problems.push(`${input.name} must be an admin EVM wallet.`);
-        }
+        // An owner/creator role (KletiaToken is Ownable(creator)): checked by
+        // admin_control, so a stranger here makes the record "foreign" (fresh
+        // deploy or import alike), never "verified".
         break;
       }
       case "role": {
@@ -199,6 +203,72 @@ function ownerArgOf(spec: AdminContractSpec, args: Readonly<Record<string, strin
   return input ? (args[input.name] ?? null) : null;
 }
 
+/** Who counts as admin control on one network (see the module comment). */
+export interface AdminControl {
+  /** Lower-cased allowlisted admin EVM wallets. */
+  readonly admins: ReadonlySet<string>;
+  /** The network profile's owner (saved, else the catalog default), or null. */
+  readonly profileOwner: string | null;
+}
+
+export async function adminControlOf(deps: AdminDeps, network: AdminEvmNetwork): Promise<AdminControl> {
+  return { admins: new Set([...deps.config().evmAddresses].map((address) => address.toLowerCase())), profileOwner: await profileOwner(deps.store(), network) };
+}
+
+/** Why `controller` is admin-controlled, or null when it is not. Reads getOwners() of a Safe. */
+async function adminControlReason(client: PublicClient, network: AdminEvmNetwork, controller: string, control: AdminControl): Promise<string | null> {
+  const lower = controller.toLowerCase();
+  if (lower === ZERO_ADDRESS) return null;
+  if (control.admins.has(lower)) return "an allowlisted admin wallet";
+  if (control.profileOwner && control.profileOwner.toLowerCase() === lower) return `the ${network} profile owner`;
+  const kind = await ownerKindOf(client, network, controller);
+  const admin = kind.kind === "safe" ? kind.safe?.owners.find((owner) => control.admins.has(owner.toLowerCase())) : undefined;
+  return admin ? `a Safe with admin owner ${admin}` : null;
+}
+
+/** The admin_control check: the effective owner/admin of the contract is controlled by an admin. */
+async function adminControlCheck(
+  client: PublicClient, network: AdminEvmNetwork, spec: AdminContractSpec, artifact: DeployableArtifact,
+  address: string, args: Readonly<Record<string, string>>, expectedOwner: string | null, control: AdminControl,
+): Promise<AdminVerificationCheck> {
+  const check = (ok: boolean, detail: string): AdminVerificationCheck => ({ id: "admin_control", ok, detail });
+  let controller: string | null;
+  if (spec.ownerSource !== "none") {
+    // The owner check already compares owner() with this address and requires no pending owner.
+    controller = expectedOwner;
+    if (!controller) return check(false, "The owner is unknown.");
+  } else {
+    const creator = spec.constructorInputs.find((input) => input.source.kind === "session-address");
+    if (hasFunction(artifact.abi, "owner")) {
+      const owner = await tryRead(client, network, address, artifact.abi, "owner");
+      if (!owner.ok || typeof owner.value !== "string") return check(false, "owner() is unreadable.");
+      controller = getAddress(owner.value);
+      if (hasFunction(artifact.abi, "pendingOwner")) {
+        const pending = await tryRead(client, network, address, artifact.abi, "pendingOwner");
+        if (!pending.ok || typeof pending.value !== "string" || pending.value.toLowerCase() !== ZERO_ADDRESS) {
+          return check(false, `pendingOwner() is ${pending.ok ? String(pending.value) : "unreadable"}; an ownership transfer is open.`);
+        }
+      }
+    } else if (creator) {
+      controller = args[creator.name] ?? null;
+      if (!controller) return check(false, `${creator.name} is missing.`);
+    } else {
+      return check(true, "No owner or admin role to control.");
+    }
+  }
+  const reason = await adminControlReason(client, network, controller, control);
+  return reason
+    ? check(true, `Owner ${controller} is ${reason}.`)
+    : check(false, `Owner ${controller} is not an allowlisted admin wallet, the ${network} profile owner or a Safe with an admin owner. Recorded as foreign.`);
+}
+
+/** verified when every check passes; foreign when only admin_control fails; else verification_failed. */
+export function statusFromChecks(checks: readonly AdminVerificationCheck[]): "verified" | "foreign" | "verification_failed" {
+  const failed = checks.filter((check) => !check.ok);
+  if (failed.length === 0) return "verified";
+  return failed.every((check) => check.id === "admin_control") ? "foreign" : "verification_failed";
+}
+
 export interface PostDeployResult {
   readonly checks: AdminVerificationCheck[];
   readonly onchainCodehash: string;
@@ -206,10 +276,10 @@ export interface PostDeployResult {
   readonly expectedOwner: string | null;
 }
 
-/** Checks 7-10 (runtime code, owner, role reads, owner kind) at the latest block. Shared with reverify. */
+/** Checks 7-11 (runtime code, owner, role reads, owner kind, admin control) at the latest block. Shared with reverify. */
 export async function postDeployChecks(
   client: PublicClient, network: AdminEvmNetwork, spec: AdminContractSpec, artifact: DeployableArtifact,
-  address: string, args: Readonly<Record<string, string>>, deployer: string,
+  address: string, args: Readonly<Record<string, string>>, deployer: string, control: AdminControl,
 ): Promise<PostDeployResult> {
   const checks = new Checks();
   const code = await rpc(network, () => client.getCode({ address: address as Address }));
@@ -245,6 +315,8 @@ export async function postDeployChecks(
 
   let ownerKind: AdminDeploymentRecord["ownerKind"] = "none";
   if (expectedOwner) ownerKind = (await ownerKindOf(client, network, expectedOwner)).kind;
+  const controlCheck = await adminControlCheck(client, network, spec, artifact, address, args, expectedOwner, control);
+  checks.add(controlCheck.id, controlCheck.ok, controlCheck.detail);
   return { checks: checks.list, onchainCodehash, ownerKind, expectedOwner };
 }
 
@@ -259,7 +331,7 @@ export interface RecordOutcome {
   readonly created: boolean;
 }
 
-/** POST /deployments: verifies the creation transaction and stores the record (verified or verification_failed). */
+/** POST /deployments: verifies the creation transaction and stores the record (verified, foreign or verification_failed). */
 export async function recordDeployment(deps: AdminDeps, session: AdminSessionContext, body: RecordRequestBody): Promise<RecordOutcome> {
   const store = deps.store();
   const target: AdminDeployTarget | null = targetById(body.targetId);
@@ -326,11 +398,11 @@ export async function recordDeployment(deps: AdminDeps, session: AdminSessionCon
   checks.add("init_code", input.startsWith(bytecode), input.startsWith(bytecode) ? "Init code equals the artifact." : "Init code differs from the artifact.");
   const encoded = encodeAbiParameters(constructorInputsOf(artifact), values).toLowerCase();
   const tail = input.startsWith(bytecode) ? `0x${input.slice(bytecode.length)}` : null;
-  const ruleProblems = await argRuleProblems(store, network, spec.constructorInputs, normalized, session);
+  const ruleProblems = await argRuleProblems(store, network, spec.constructorInputs, normalized);
   const argsOk = tail === encoded && ruleProblems.length === 0;
   checks.add("constructor_args", argsOk, tail !== encoded ? "Encoded constructor arguments differ from the request." : ruleProblems.length > 0 ? ruleProblems.join(" ") : "Constructor arguments match.");
 
-  const post = await postDeployChecks(client, network, spec, artifact, address, normalized, deployer);
+  const post = await postDeployChecks(client, network, spec, artifact, address, normalized, deployer, await adminControlOf(deps, network));
   const all = [...checks.list, ...post.checks];
   const now = deps.now().toISOString();
   const record: AdminDeploymentRecord = {
@@ -339,7 +411,7 @@ export async function recordDeployment(deps: AdminDeps, session: AdminSessionCon
     address, txHash, block: receipt.blockNumber.toString(), deployer, constructorArgs: normalized,
     ownerKind: post.ownerKind, expectedOwner: post.expectedOwner, artifactId: spec.artifactId,
     artifactMaskedRuntimeHash: artifact.maskedRuntimeHash, onchainCodehash: post.onchainCodehash, checks: all,
-    status: all.every((check) => check.ok) ? "verified" : "verification_failed", wired: false,
+    status: statusFromChecks(all), wired: false,
     notes: (body.notes ?? "").slice(0, 500), createdBy: session.actor, createdAt: now, updatedAt: now,
   };
   await store.insertDeployment(record);
@@ -350,11 +422,13 @@ export async function recordDeployment(deps: AdminDeps, session: AdminSessionCon
 export async function reverifyDeployment(deps: AdminDeps, record: AdminDeploymentRecord): Promise<AdminDeploymentRecord> {
   const spec = specOf(record.contractId);
   const artifact = deployableArtifactOf(spec);
-  const post = await postDeployChecks(deps.client(record.network), record.network, spec, artifact, record.address, record.constructorArgs, record.deployer);
+  const post = await postDeployChecks(
+    deps.client(record.network), record.network, spec, artifact, record.address, record.constructorArgs, record.deployer, await adminControlOf(deps, record.network),
+  );
   const replaced = new Set(post.checks.map((check) => check.id));
   const checks = [...record.checks.filter((check) => !replaced.has(check.id)), ...post.checks];
-  const verified = checks.every((check) => check.ok);
-  const status = record.status === "archived" || record.status === "superseded" ? record.status : verified ? "verified" : "verification_failed";
+  // A record from before admin_control existed gains the check here (and may become foreign).
+  const status = record.status === "archived" || record.status === "superseded" ? record.status : statusFromChecks(checks);
   return {
     ...record, checks, status, onchainCodehash: post.onchainCodehash, ownerKind: post.ownerKind, expectedOwner: post.expectedOwner,
     updatedAt: deps.now().toISOString(),

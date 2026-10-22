@@ -13,6 +13,8 @@ on-chain action in the browser.
 - Admin panel at `/admin` (noindex, its own lazy chunk): sign in with the owner's EVM wallet (EIP-4361, EOA or ERC-1271) or Solana wallet (ed25519); allowlists `KLETIA_ADMIN_ADDRESSES` and `KLETIA_ADMIN_SOLANA_ADDRESSES`; off when unset, invalid or without a database in production ([admin](docs/deployment/admin.md)).
 - Deployment registry for every Kletia contract on every EVM network it applies to: deploys built from committed artifacts (`npm run export:contract-artifacts`, checked in `verify`), signed by the admin wallet, verified on-chain by the API (code, arguments, owner), exported as JSON for pinning. Solana has no Kletia programs.
 - Owner management (direct or as Safe proposals with chain-derived hashes), fee and revenue view with x402 gateway claims, Render status and redeploy (server-side `RENDER_API_KEY`), env readiness (booleans only) and a persistent audit log.
+- Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
+- Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
 
 ### Fixed
 

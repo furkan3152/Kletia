@@ -197,6 +197,11 @@ function SignedIn({
     () => buildAddressBook({ catalog: catalog.data ?? null, profiles: profiles.data ?? [], sessionAddress: session.address, signer: signer.ready ? signer.address : null }),
     [catalog.data, profiles.data, session.address, signer],
   );
+  // Every write signs a step-up confirmation with the wallet that holds this session (EVM or Solana).
+  useEffect(() => {
+    client.setConfirmer({ walletKind: sessionKind(session), address: session.address, chainId: session.chainId, sign: ops.signWithSessionWallet });
+    return () => client.setConfirmer(null);
+  }, [client, ops.signWithSessionWallet, session]);
   const value = useMemo<AdminContextValue>(
     () => ({ client, session, wallets, signer, catalog: catalog.data ?? null, book, ops, reportGateError, goTo }),
     [book, catalog.data, client, goTo, ops, reportGateError, session, signer, wallets],

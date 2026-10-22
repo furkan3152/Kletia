@@ -72,6 +72,8 @@ export type Token =
   /** "position", "positions": the venue named is where the money sits now. */
   | { readonly t: "POSITION"; readonly span: Span }
   | { readonly t: "PREFER"; readonly prefer: "cheapest" | "fastest" | "safest"; readonly span: Span }
+  /** "wallet", "account" after "my <network>": the person's own account on that network ("fund my arbitrum wallet"). */
+  | { readonly t: "WALLET"; readonly span: Span }
   | { readonly t: "NOISE"; readonly raw: string; readonly span: Span };
 
 export type TokenKind = Token["t"];
@@ -283,6 +285,16 @@ function readWord(cursor: Cursor, index: number): Token | null {
   return { t: "NOISE", raw, span };
 }
 
+const WALLET_WORDS: ReadonlySet<string> = new Set(["wallet", "account", "address"]);
+
+/** "my arbitrum wallet", "my sol account": a wallet word right after "my" and a network word. */
+function ownWallet(before: readonly Token[], raw: string): boolean {
+  if (!WALLET_WORDS.has(raw.toLowerCase())) return false;
+  const place = before[before.length - 1];
+  const networkWord = place?.t === "NETWORK" || (place?.t === "ASSET" && place.network !== undefined);
+  return networkWord && before[before.length - 2]?.t === "POSS";
+}
+
 /** The clause's tokens (fillers dropped). The clause should come from `normalizeClause`. */
 export function lex(text: string): Token[] {
   const words = text.length > 0 ? text.split(" ") : [];
@@ -336,7 +348,7 @@ export function lex(text: string): Token[] {
     }
     if (matched) continue;
     const token = readWord(cursor, index);
-    if (token) tokens.push(token);
+    if (token) tokens.push(token.t === "NOISE" && ownWallet(tokens, token.raw) ? { t: "WALLET", span: token.span } : token);
     index += 1;
   }
   return tokens;

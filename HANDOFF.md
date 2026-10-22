@@ -16,6 +16,10 @@ Pyth, Allora, Webacy), payments (x402) or console-only suites. The site computes
 the same registry (`apps/web/src/app/site/protocolCount.ts`), so they cannot
 drift from the code.
 
+**Round 8 added:** the admin panel at `/admin` (see "Operator tasks" for what
+it needs), and fixes from the live site (the site build had been failing since
+round 6; it now deploys the current desk).
+
 **Round 7 added:**
 
 - **Intent engine v2.** Sentences become typed goals; a solver searches every
@@ -89,8 +93,11 @@ Docker Compose (PostgreSQL, API and site) and the GHCR images are described in
 
 ## Operator tasks (only you can do these)
 
-1. **Database on Render.** Create a Render PostgreSQL instance, or reuse
-   `kletia-stellar-event-archive`. On the API service, set:
+1. **Database.** The admin panel and durable keys need PostgreSQL. Render's
+   free plan allows one free database per workspace and `muavin-db` already
+   uses it, so take a paid Render PostgreSQL (Frankfurt, same region as the
+   API) or a free external one (Neon, Supabase; use its pooled `postgres://`
+   URL with `sslmode=require`). On the API service, set:
    - `KLETIA_DATABASE_URL`: its internal connection string.
    - `KLETIA_PLATFORM_SECRET`: 32 or more random characters, for example
      `openssl rand -hex 32`.

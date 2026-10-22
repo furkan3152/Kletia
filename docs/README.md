@@ -72,8 +72,6 @@ This index separates current product truth from deployment procedure, network-sp
 
 - [Competitive landscape](architecture/competitive-landscape.html)
 
-Files under [`attachments/`](../attachments/pitch_deck.html) are path- and hash-stable submission artifacts. Do not edit or relocate them to update current documentation.
-
 ## Source-of-truth order
 
 When two records differ, use this order:
@@ -82,6 +80,6 @@ When two records differ, use this order:
 2. current deployment manifest;
 3. runtime readiness and capability code;
 4. current architecture and runbooks;
-5. proposals, research reports, and submission attachments.
+5. proposals and research reports.
 
 No single level proves all others: a codehash proves identity, a test proves its checked behavior, and a transaction proves only that exact transaction.

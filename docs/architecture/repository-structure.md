@@ -56,7 +56,6 @@ docs/                               Architecture, platform API, networks, deploy
 examples/                           Runnable integrator examples outside the workspaces (react-vite);
                                     tooling/check-examples.mjs installs the packed packages into each
 tooling/                            Repository-wide verification gates
-attachments/                        Immutable submission artifacts
 .github/                            CI, issue forms and pull-request policy
 render.yaml                         Canonical public service topology
 ```
@@ -108,7 +107,6 @@ The engine is the single cross-network intent engine. New venues are added as ad
 The following paths are externally or cryptographically significant:
 
 - `contracts/*/deployments/**`;
-- `attachments/**`, whose paths and SHA-256 hashes are enforced;
 - `apps/api/src/index.ts` (Vercel entry) and the Render build commands;
 - public assets referenced by the web app and documentation (`apps/web/public/kletia-logo.png` is hash-pinned).
 

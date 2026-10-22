@@ -56,23 +56,11 @@ const requiredFiles = [
   "contracts/base/contracts/v2/core/KletiaIntentRouterV2.sol",
   "contracts/arc/contracts/KletiaArcSwap.sol",
   "render.yaml",
-  "attachments/Kletia_Arc_Submission.pdf",
-  "attachments/Kletia_Programmable_Money_Submission.pdf",
-  "attachments/one_pager.html",
-  "attachments/pitch_deck.html",
 ];
 
 const attachmentHashes = {
   "apps/web/public/kletia-logo.png":
     "92f2fb8f246c003d9af59a8d56beae66ae2791499a8b3f0427089bf46887b2fd",
-  "attachments/Kletia_Arc_Submission.pdf":
-    "df6e24a60d775856f42bf6c7f5994203f6106d604d25dc37fa1deef27398cd34",
-  "attachments/Kletia_Programmable_Money_Submission.pdf":
-    "8a0c168c3d70ffef712ca3bd7ed34b826466cf65d2b8c91587a7d635e9d9ea4f",
-  "attachments/one_pager.html":
-    "7eb6edcc6e96a393bdfa600c64726d98360b8996fd719dd92f24ecb3143f2325",
-  "attachments/pitch_deck.html":
-    "e5dc1712dee95bba501ce28ee43f5d9951706eddd070e253f5736b4538c589f2",
 };
 
 for (const file of requiredFiles) {

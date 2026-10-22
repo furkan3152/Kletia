@@ -5,5 +5,4 @@
 !**/.env.example
 .git
 contracts
-attachments
 docs

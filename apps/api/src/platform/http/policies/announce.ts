@@ -8,17 +8,18 @@
  * to `policy.*`); the webhook dispatcher subscribes to both.
  */
 import { randomBytes } from "node:crypto";
-import { canonicalJson, type KeyEventType, type KletiaEvent, type KletiaEventMap, type PolicyChainLink } from "@kletia/core";
+import { canonicalJson, type AgentEventType, type KeyEventType, type KletiaEvent, type KletiaEventMap, type PolicyChainLink } from "@kletia/core";
 import { buildEvent, platformEvents, publishPolicyEvent, type PolicyDecisionDraft } from "../../index.js";
 import { sha256Hex } from "../secrets.js";
 import { decisionStore } from "./decisions.js";
 import { projectScope, type PolicyVersion } from "./store.js";
 
-export type KeyEvent = { [K in KeyEventType]: KletiaEvent<K> }[KeyEventType];
+/** Key lifecycle and sub-agent events (one bus, routed alike). */
+export type KeyEvent = { [K in KeyEventType | AgentEventType]: KletiaEvent<K> }[KeyEventType | AgentEventType];
 
 const keyListeners = new Set<(event: KeyEvent) => void>();
 
-export function publishKeyEvent<K extends KeyEventType>(type: K, data: KletiaEventMap[K]): KletiaEvent<K> {
+export function publishKeyEvent<K extends KeyEventType | AgentEventType>(type: K, data: KletiaEventMap[K]): KletiaEvent<K> {
   const event = buildEvent(type, data);
   platformEvents.emit(type, data);
   for (const listener of [...keyListeners]) {

@@ -109,6 +109,26 @@ export interface PolicyEventMap {
     /** Every key revoked with it (its subtree), the subject included. */
     readonly cascade: readonly string[];
   };
+  /** A main agent (`keyId`) asked for a sub-agent; a human decides. */
+  "agent.subagent_requested": SubagentEventData;
+  /** The request was approved and the sub-agent's key minted (`childKeyId`). */
+  "agent.subagent_approved": SubagentEventData;
+  "agent.subagent_denied": SubagentEventData;
+  /** A sub-agent was revoked with its subtree (`cascade`). */
+  "agent.subagent_revoked": SubagentEventData;
+}
+
+/** Payload of the sub-agent events: `keyId` is the parent (the requesting agent key). Never a secret or a claim token. */
+export interface SubagentEventData extends PolicyEventBase {
+  /** `sar_…` (absent on a revocation of a key not minted from a request). */
+  readonly requestId?: string;
+  readonly name: string;
+  readonly childKeyId?: string;
+  /** `sha256:` of the requested rule book. */
+  readonly policyHash?: string;
+  /** `wallet` (the owner's signature), `key` (a project key) or null (expiry, cascade). */
+  readonly decidedBy?: { readonly kind: "wallet"; readonly account: string } | { readonly kind: "key"; readonly keyId: string } | null;
+  readonly cascade?: readonly string[];
 }
 
 export interface KletiaEventMap extends PolicyEventMap {
@@ -229,6 +249,16 @@ export type KeyEventType = Extract<KletiaEventType, `key.${string}`>;
 
 /** API key lifecycle event types (agent keys and cascades). */
 export const KEY_EVENT_TYPES: readonly KeyEventType[] = Object.freeze(["key.created", "key.revoked"]);
+
+export type AgentEventType = Extract<KletiaEventType, `agent.${string}`>;
+
+/** Sub-agent request lifecycle event types (routed like key events, by the parent key). */
+export const AGENT_EVENT_TYPES: readonly AgentEventType[] = Object.freeze([
+  "agent.subagent_requested",
+  "agent.subagent_approved",
+  "agent.subagent_denied",
+  "agent.subagent_revoked",
+]);
 
 /** The receipt event (an intent event: routed by the intent's owner, replayed by the SSE buffer). */
 export const RECEIPT_EVENT_TYPE = "intent.receipt_issued" as const satisfies KletiaEventType;

@@ -31,3 +31,4 @@ export * from "./accounts.js";
 export * from "./data.js";
 export * from "./automation.js";
 export * from "./perps.js";
+export * from "./subagents.js";

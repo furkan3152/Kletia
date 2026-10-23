@@ -30,6 +30,7 @@ const ROUTES = [
   ["/developers/contracts/new", "contracts", "new", "noindex,nofollow"],
   [`/developers/contracts/${CONTRACT_ID}`, "contracts", CONTRACT_ID, "noindex,nofollow"],
   ["/developers/rule-book", "rule-book", null, "index,follow"],
+  ["/developers/agent-tree", "agent-tree", null, "index,follow"],
   ["/developers/links", "links", null, "index,follow"],
   ["/developers/links/new", "links", "new", "noindex,nofollow"],
   [`/developers/links/${LINK_ID}`, "links", LINK_ID, "noindex,nofollow"],
@@ -148,6 +149,7 @@ test("the sidebar lists every page once, grouped in order, and each page matches
     "webhooks",
     "contracts",
     "rule-book",
+    "agent-tree",
     "links",
     "receipts",
     "events",
@@ -172,7 +174,7 @@ test("only Your project pages need a key, and the key pages never take agent key
   const byId = Object.fromEntries(PORTAL_PAGES.map((page) => [page.id, page]));
   assert.equal(byId.keys.agentKeys, false);
   assert.equal(byId.project.agentKeys, false);
-  for (const id of ["webhooks", "contracts", "rule-book", "links"]) assert.equal(byId[id].agentKeys, true, id);
+  for (const id of ["webhooks", "contracts", "rule-book", "agent-tree", "links"]) assert.equal(byId[id].agentKeys, true, id);
   assert.deepEqual(
     PORTAL_PAGES.filter((page) => page.wide).map((page) => page.id),
     ["api", "embed", "rule-book"],

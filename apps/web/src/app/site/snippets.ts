@@ -1144,7 +1144,7 @@ export const RECIPES: readonly Recipe[] = [
   },
 ];
 
-/** MCP tools, mirrored from docs/platform/mcp.md. Only create_intent and create_link store anything. */
+/** MCP tools, mirrored from docs/platform/mcp.md. Only create_intent, create_link and the sub-agent tools store or change anything. */
 export const MCP_TOOLS: readonly { name: string; input: string; output: string; writes?: boolean; key?: boolean }[] = [
   { name: "list_networks", input: "environment?", output: "Networks, their actions and protocols, and destination networks" },
   { name: "list_protocols", input: "network?, executableOnly?", output: "Registry protocols and whether Kletia executes them" },
@@ -1169,4 +1169,8 @@ export const MCP_TOOLS: readonly { name: string; input: string; output: string; 
   { name: "get_link", input: "linkId", output: "One link's public summary" },
   { name: "quote_link", input: "linkId, source, amount?, accounts?", output: "What a visitor would send and receive; nothing stored" },
   { name: "create_link", input: "definition", output: "Publishes a link under the key's rule book; returns its page URL", key: true, writes: true },
+  { name: "request_subagent", input: "name, purpose, policy?", output: "Asks for a sub-agent inside the key's rule book; a human approves it; the claim token once", key: true, writes: true },
+  { name: "list_subagents", input: "none", output: "The key's sub-agent requests and sub-agents with caps and use", key: true },
+  { name: "claim_subagent", input: "requestId, claimToken", output: "The approved sub-agent's key, once, within 15 minutes", key: true, writes: true },
+  { name: "revoke_subagent", input: "keyId", output: "Revokes a sub-agent with everything below it", key: true, writes: true },
 ];

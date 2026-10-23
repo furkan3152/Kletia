@@ -54,6 +54,7 @@ import { JOURNEY_PLAN_DEADLINE_MS } from "../../engine/journey/facts.js";
 import { errorDocsLink } from "../errorsRoute.js";
 import { GET_JOURNEY_TOOL, GET_RECEIPT_TOOL, journeySummary, PREVIEW_INTENT_TOOL, previewSummary, receiptLine } from "./featureTools.js";
 import { journeyReadLimiter } from "../journey.js";
+import { AGENT_TOOLS } from "./agentTools.js";
 import { LINK_TOOLS } from "./linkTools.js";
 import { deniedPlan, POLICY_TOOLS, remainingFor, stampSummary } from "./policyTools.js";
 import { HANDOFF_MAX_TEXT, signingLink } from "./handoff.js";
@@ -67,9 +68,10 @@ export interface ToolCaller {
 
 export interface ToolAnnotations {
   readonly title: string;
-  /** False only for `create_intent` and `create_link` (they store, never sign or send). */
+  /** False for the tools that store (`create_intent`, `create_link`, the sub-agent tools); none signs or sends. */
   readonly readOnlyHint: boolean;
-  readonly destructiveHint: false;
+  /** True only for `revoke_subagent` (it revokes keys). */
+  readonly destructiveHint: boolean;
   readonly idempotentHint: boolean;
   readonly openWorldHint: boolean;
 }
@@ -824,6 +826,7 @@ export const KLETIA_TOOLS: readonly KletiaTool[] = Object.freeze([
   GET_RECEIPT_TOOL,
   ...POLICY_TOOLS,
   ...LINK_TOOLS,
+  ...AGENT_TOOLS,
 ] satisfies KletiaTool[]);
 
 function textOf(value: Record<string, unknown>): string {

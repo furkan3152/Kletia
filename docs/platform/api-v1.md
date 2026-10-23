@@ -814,7 +814,7 @@ use one key per environment. `POST /v1/keys` with `"sandbox": true` issues a
   (`409 KEY_NOT_MANAGEABLE`).
 - **Agent keys.** `POST /v1/keys/{id}/children` issues a `kl_agt_…` key under
   a key, with its own rule book (or none: an observer that only plans and
-  dry-runs). Agent keys sit at most 2 levels below a project key (100 active
+  dry-runs). Agent keys sit at most 3 levels below a project key (100 active
   per project), always expire (never after their parent), authenticate only
   while every ancestor is active, cannot issue project keys, write rule books
   or approve, and need permissions for webhooks, contracts, sessions, links
@@ -824,6 +824,11 @@ use one key per environment. `POST /v1/keys` with `"sandbox": true` issues a
   `{ "expiresAt": "…" }` shortens an expiry at once; extending is refused
   while the key's rule book has an amendment delay. See
   [policies.md](policies.md#agent-keys).
+- **Sub-agents.** Agent keys never create children directly: an agent with
+  `permissions.createChildKeys` requests one (`POST /v1/agents/{id}/subagents`)
+  with a rule book inside its own chain, the project's owner wallet or a
+  project key approves it, and the agent claims the key once. See
+  [subagents.md](subagents.md).
 
 ## Webhook tests and delivery logs
 

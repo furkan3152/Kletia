@@ -91,6 +91,7 @@ const PAGE_UI: Readonly<Record<Exclude<PortalPageId, "missing">, PageUi>> = {
   webhooks: { label: "Webhooks", group: "project", needsKey: true, agentKeys: true, load: () => import("../views/WebhooksPage") },
   contracts: { label: "Contracts", group: "project", needsKey: true, agentKeys: true, load: () => import("../views/ContractsPage") },
   "rule-book": { label: "Rule Book", group: "project", needsKey: true, agentKeys: true, wide: true, load: () => import("../views/RuleBookPage") },
+  "agent-tree": { label: "Agents", group: "project", needsKey: true, agentKeys: true, load: () => import("../views/AgentTreePage") },
   links: { label: "Links", group: "project", needsKey: true, agentKeys: true, load: () => import("../views/LinksPage") },
   receipts: { label: "Receipts", group: "verify", load: () => import("../views/ReceiptsPage") },
   events: { label: "Events", group: "reference", load: () => import("../views/EventsPage") },

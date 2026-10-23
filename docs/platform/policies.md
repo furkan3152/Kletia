@@ -50,7 +50,7 @@ Idempotency-Key: 4c1e…
   characters) and the rule book's version 1. Without `policy` or `template`
   the agent is an **observer**: it can plan, quote and dry-run, nothing is
   stored or prepared.
-- Agent keys sit at most **2 levels** below a project key
+- Agent keys sit at most **3 levels** below a project key
   (`409 KEY_DEPTH_EXCEEDED`); a project holds at most **100** active agent
   keys (`409 AGENT_KEY_LIMIT_REACHED`).
 - `expiresInSeconds` is 3,600 to 31,536,000 (default 30 days) and never later
@@ -74,7 +74,7 @@ Idempotency-Key: 4c1e…
 | Endpoint | Project key | Agent key |
 |---|---|---|
 | `POST /v1/keys` (a project key) | yes | never (`403 AGENT_KEY_FORBIDDEN`) |
-| `POST /v1/keys/{id}/children` | yes | `permissions.createChildKeys`, under itself |
+| `POST /v1/keys/{id}/children` | yes | never: with `permissions.createChildKeys` it requests a [sub-agent](subagents.md) a human approves |
 | `PUT` / `DELETE …/policy` | yes | never, its own rule book included |
 | Webhooks (create, delete, test) | yes | `permissions.webhooks` |
 | Custom contract writes | yes | `permissions.registerContracts` |
@@ -316,7 +316,10 @@ held. 30 evaluations per minute per key.
 Rule Book and key events go to the subject key's webhooks:
 `policy.violation`, `policy.approval_requested`, `policy.approval_decided`,
 `policy.amendment_pending`, `policy.amended`, `policy.spend_threshold`,
-`key.created`, `key.revoked`. A webhook created with `"scope": "subtree"`
+`key.created`, `key.revoked`, and the [sub-agent](subagents.md) events
+`agent.subagent_requested`, `agent.subagent_approved`,
+`agent.subagent_denied` and `agent.subagent_revoked` (subject: the parent
+key). A webhook created with `"scope": "subtree"`
 also receives the events (and the intent, receipt and link events) of every
 descendant agent key, and on a project key the project-wide rule book events.
 

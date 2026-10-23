@@ -553,7 +553,7 @@ export function policyPaths(): JsonObject {
         operationId: "createAgentKey",
         tags: ["Keys"],
         summary: "Issue an agent key under a key (kl_agt_…, secret returned once)",
-        description: `Agent keys sit at most ${POLICY_LIMITS.maxAgentDepth} levels below a project key (409 KEY_DEPTH_EXCEEDED), at most ${POLICY_LIMITS.agentKeysPerProject} active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. An agent key needs \`permissions.createChildKeys\` to create children of its own. Honours \`Idempotency-Key\` (the stored response is encrypted at rest).`,
+        description: `Agent keys sit at most ${POLICY_LIMITS.maxAgentDepth} levels below a project key (409 KEY_DEPTH_EXCEEDED), at most ${POLICY_LIMITS.agentKeysPerProject} active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. Project keys only: an agent key with \`permissions.createChildKeys\` requests a sub-agent instead (POST /v1/agents/{id}/subagents), which a human approves. Honours \`Idempotency-Key\` (the stored response is encrypted at rest).`,
         security: KEY_REQUIRED,
         parameters: [keyIdPath, idempotencyKeyParameter],
         requestBody: jsonBody("ChildKeyRequest"),

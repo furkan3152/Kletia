@@ -45,6 +45,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Asset preview](platform/preview.md) — the fare breakdown and `PREVIEW_CHANGED`.
 - [Receipts](platform/receipts.md) — signed, selectively disclosed, independently verifiable receipts.
 - [Policies](platform/policies.md) — the Rule Book, agent keys and approvals.
+- [Sub-agents](platform/subagents.md) — main agents request sub-agents inside their rule book; the owner approves with a wallet signature.
 - [Intent links](platform/links.md) — shareable, bounded intents at `/go/<id>`.
 - [Automations](platform/automations.md) — schedule, price, balance, yield and incoming-transfer rules that plan intents for the owner to sign.
 - [Native orders](platform/orders.md) — limit and DCA orders the protocol fills after one signature: Jupiter on Solana, CoW Protocol on Ethereum, Arbitrum and Base.

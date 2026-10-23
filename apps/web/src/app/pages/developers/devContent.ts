@@ -87,6 +87,12 @@ export const EVENT_FAMILIES: readonly { title: string; types: readonly string[];
     note: "Revoking a key revokes its whole subtree in one event.",
   },
   {
+    title: "Sub-agents",
+    types: ["agent.subagent_requested", "agent.subagent_approved", "agent.subagent_denied", "agent.subagent_revoked"],
+    fields: "projectId, keyId (the parent), requestId, name, policyHash, childKeyId, decidedBy; a revocation lists its cascade",
+    note: "Never a secret or a claim token. The parent's webhooks receive them, and subtree webhooks of its ancestors.",
+  },
+  {
     title: "Custom contracts",
     types: ["contract.registered", "contract.activated", "contract.suspended", "contract.reactivated"],
     fields: "contractId, ownerKeyId, network, target, revision, reason?",

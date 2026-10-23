@@ -102,7 +102,7 @@ export function AgentKeyForm({ apiKey, keys, tree, contracts, selected, onChange
           value={parentId}
           onChange={(event) => setParentId(event.target.value)}
           options={parents.map((key) => ({ value: key.id, label: `${key.name} (${key.kind === "agent" ? `agent, level ${key.depth}` : "project key"})` }))}
-          hint="At most two levels of agent keys below a project key."
+          hint="At most three levels of agent keys below a project key."
         />
         <TextField
           label="Name"

@@ -115,6 +115,7 @@ import { automationHandlers } from "../automation/handlers.js";
 import { startAutomationEvaluator } from "../automation/evaluator.js";
 import { orderHandlers } from "./orders/handlers.js";
 import { perpsHandlers } from "./perps/handlers.js";
+import { agentHandlers } from "./agents/handlers.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
@@ -306,6 +307,18 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "post", path: "/perps/quote", auth: "public", publishable: true },
   { method: "post", path: "/perps/prepare", auth: "public", publishable: true },
   { method: "post", path: "/perps/submit", auth: "public", publishable: true },
+  // Sub-agents (agents/): requests by main agents, owner-wallet or project-key decisions, the one-time claim.
+  { method: "get", path: "/agents/tree", auth: "key" },
+  { method: "get", path: "/agents/pending", auth: "public" },
+  { method: "post", path: "/agents/:id/subagents", auth: "key" },
+  { method: "get", path: "/agents/:id/subagents", auth: "key" },
+  { method: "post", path: "/agents/:id/revoke", auth: "key" },
+  { method: "post", path: "/agents/:id/pause", auth: "key" },
+  { method: "get", path: "/agents/requests/:id", auth: "key" },
+  { method: "post", path: "/agents/requests/:id/challenge", auth: "public" },
+  { method: "post", path: "/agents/requests/:id/approve", auth: "public" },
+  { method: "post", path: "/agents/requests/:id/deny", auth: "public" },
+  { method: "post", path: "/agents/requests/:id/claim", auth: "key" },
   { method: "get", path: "/errors", auth: "public", publishable: true },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public", publishable: true },
@@ -922,6 +935,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...automationHandlers(),
     ...orderHandlers(),
     ...perpsHandlers(),
+    ...agentHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),

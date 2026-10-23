@@ -209,6 +209,10 @@ relay. See [perps.md](perps.md).
 | <a id="error-SECRET_KEY_FROM_BROWSER"></a>`SECRET_KEY_FROM_BROWSER` | 403 | no | Server key sent from a browser | This key is a server key. Call Kletia from your server, through createKletiaProxy, or use a publishable key in browsers. |
 | <a id="error-SESSION_ORIGIN_FORBIDDEN"></a>`SESSION_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for this session | Embed the session only on one of its allowedOrigins, or create a session that lists this origin. |
 | <a id="error-ACCOUNT_ORIGIN_FORBIDDEN"></a>`ACCOUNT_ORIGIN_FORBIDDEN` | 403 | no | Origin not allowed for developer accounts | Developer accounts are used from the Kletia developer portal only. Manage keys from servers with a project key and /v1/keys. |
+| <a id="error-SUBAGENT_APPROVER_NOT_ALLOWED"></a>`SUBAGENT_APPROVER_NOT_ALLOWED` | 403 | no | Not allowed to decide this request | Decide with the wallet that owns the project or with an active project key of the project (current secret). Agent keys never decide. |
+| <a id="error-SUBAGENT_CLAIM_INVALID"></a>`SUBAGENT_CLAIM_INVALID` | 403 | no | Sub-agent claim refused | Claim with the requesting agent's key and the claim token from the request, once, within 15 minutes of the approval. A late claim revokes the key: request again. |
+| <a id="error-SUBAGENT_POLICY_NOT_SUBSET"></a>`SUBAGENT_POLICY_NOT_SUBSET` | 403 | no | Sub-agent wider than its parent | The requested rule book is wider than the parent's chain in the fields listed in error.issues (or asks for a permission sub-agents never get). Narrow those fields and request again. |
+| <a id="error-SUBAGENT_SIGNATURE_INVALID"></a>`SUBAGENT_SIGNATURE_INVALID` | 403 | no | Sub-agent decision signature invalid | Request a new message with POST /v1/agents/requests/{id}/challenge and sign it unchanged with the owner wallet before it expires; each message works once. |
 
 ### Not found
 
@@ -232,6 +236,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-RECEIPT_SHARE_NOT_FOUND"></a>`RECEIPT_SHARE_NOT_FOUND` | 404 | no | Receipt share not found | The share link is unknown or was revoked. Ask the receipt's owner for a new link. |
 | <a id="error-SESSION_NOT_FOUND"></a>`SESSION_NOT_FOUND` | 404 | no | Session not found | Check the session id. Sessions are created by the integrator's backend with POST /v1/sessions. |
 | <a id="error-STEP_NOT_FOUND"></a>`STEP_NOT_FOUND` | 404 | no | Step not found | Use a step id from intent.steps (s1, s2, ...). |
+| <a id="error-SUBAGENT_REQUEST_NOT_FOUND"></a>`SUBAGENT_REQUEST_NOT_FOUND` | 404 | no | Sub-agent request not found | Check the request id (sar_ + 32 hex). A key sees the requests of its own subtree with GET /v1/agents/{id}/subagents. |
 | <a id="error-THREAD_NOT_FOUND"></a>`THREAD_NOT_FOUND` | 404 | no | Unknown thread | The thread expired or belongs to another key. Start a new one. |
 | <a id="error-WEBHOOK_NOT_FOUND"></a>`WEBHOOK_NOT_FOUND` | 404 | no | Webhook not found | List your webhooks with GET /v1/webhooks; each key sees only its own. |
 
@@ -260,7 +265,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-INTENT_IN_FLIGHT"></a>`INTENT_IN_FLIGHT` | 409 | yes | A step is in flight | Wait until it settles or its prepared payload expires (Retry-After), then stop the intent. |
 | <a id="error-INTENT_NOT_CANCELLABLE"></a>`INTENT_NOT_CANCELLABLE` | 409 | no | Intent cannot be cancelled | A step was already submitted; follow it to settlement instead. |
 | <a id="error-KEY_COLLISION"></a>`KEY_COLLISION` | 409 | yes | Key generation collided | Send the request again. |
-| <a id="error-KEY_DEPTH_EXCEEDED"></a>`KEY_DEPTH_EXCEEDED` | 409 | no | Agent key tree too deep | Agent keys sit at most 2 levels below a project key. Create the key under a shallower parent. |
+| <a id="error-KEY_DEPTH_EXCEEDED"></a>`KEY_DEPTH_EXCEEDED` | 409 | no | Agent key tree too deep | Agent keys sit at most 3 levels below a project key. Create the key under a shallower parent. |
 | <a id="error-KEY_LIMIT_REACHED"></a>`KEY_LIMIT_REACHED` | 409 | no | Too many active keys | A project holds at most 5 active keys. Revoke one with DELETE /v1/keys/{id} first. |
 | <a id="error-KEY_NOT_MANAGEABLE"></a>`KEY_NOT_MANAGEABLE` | 409 | no | Operator keys are immutable | Operator keys come from server configuration; change KLETIA_OPERATOR_API_KEYS instead. |
 | <a id="error-LINK_ACCOUNT_LIMIT"></a>`LINK_ACCOUNT_LIMIT` | 409 | no | Account used this link enough | This account reached the link's per-account limit. |
@@ -293,6 +298,9 @@ relay. See [perps.md](perps.md).
 | <a id="error-STEP_NOT_PREPARABLE"></a>`STEP_NOT_PREPARABLE` | 409 | no | Step cannot be prepared | Only ready or awaiting_signature steps can be prepared. |
 | <a id="error-STEP_NOT_READY"></a>`STEP_NOT_READY` | 409 | yes | Step not ready | Wait until the steps it depends on have settled, then prepare it. |
 | <a id="error-STEP_TRANSITION_INVALID"></a>`STEP_TRANSITION_INVALID` | 409 | no | Invalid step transition | Read the intent again; the step already moved on. |
+| <a id="error-SUBAGENT_LIMIT_REACHED"></a>`SUBAGENT_LIMIT_REACHED` | 409 | no | Too many sub-agents | A parent has at most 10 children and open requests together, and at most 5 open requests. Revoke a sub-agent or wait for a decision first. |
+| <a id="error-SUBAGENT_PARENT_INACTIVE"></a>`SUBAGENT_PARENT_INACTIVE` | 409 | no | Parent agent inactive | The requesting agent key or one of its ancestors is revoked or expired, so the request was cancelled. |
+| <a id="error-SUBAGENT_REQUEST_DECIDED"></a>`SUBAGENT_REQUEST_DECIDED` | 409 | no | Sub-agent request already decided | The request was already approved, denied, expired or cancelled; a decision is final. Read it with GET /v1/agents/requests/{id}. |
 | <a id="error-THREAD_CLOSED"></a>`THREAD_CLOSED` | 409 | no | Thread closed | The task was cancelled or reached 50 turns. Start a new thread. |
 | <a id="error-THREAD_CONFLICT"></a>`THREAD_CONFLICT` | 409 | no | Thread changed | Another turn changed this thread. Read it again and resend. |
 | <a id="error-WEBHOOK_EXISTS"></a>`WEBHOOK_EXISTS` | 409 | no | Webhook already registered | A webhook with this URL already exists for this key. |
@@ -310,6 +318,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-RECEIPT_DISCLOSURES_WITHDRAWN"></a>`RECEIPT_DISCLOSURES_WITHDRAWN` | 410 | no | Receipt disclosures withdrawn | The owner withdrew this intent's disclosures, so no share can be created. The signed payloads remain. |
 | <a id="error-RECEIPT_SHARE_EXPIRED"></a>`RECEIPT_SHARE_EXPIRED` | 410 | no | Receipt share expired | The share link expired. Ask the receipt's owner for a new link. |
 | <a id="error-SESSION_EXPIRED"></a>`SESSION_EXPIRED` | 410 | no | Session expired | Sessions live 60-3600 seconds. Ask the integrator's backend for a new session. |
+| <a id="error-SUBAGENT_REQUEST_EXPIRED"></a>`SUBAGENT_REQUEST_EXPIRED` | 410 | no | Sub-agent request expired | Nobody decided the request within 24 hours (or before the parent's expiry). File a new request. |
 
 ### Intent (understood but not executable)
 

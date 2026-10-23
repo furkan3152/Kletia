@@ -77,11 +77,13 @@ export function ruleBookFlows(current: () => TestServer): void {
       assertError(await call(current(), "POST", `/keys/${root.id}/children`, { key: root.key, body: { name: "x", expiresInSeconds: 60 } }), 400, "INVALID_REQUEST");
       assertError(await call(current(), "POST", `/keys/${root.id}/children`, { key: root.key, body: { name: "x", template: "payments-agent" } }), 400, "POLICY_INVALID");
       assertError(await call(current(), "POST", `/keys/${root.id}/children`, { key: root.key, body: { name: "x", policy: { schema: "kletia.policy/v1", mode: "fast" } } }), 400, "POLICY_INVALID");
-      // An agent cannot outlive its parent; depth stops at 2 below the project key.
-      const second = await child(current(), agent.id, root.key, { name: "level-2", expiresInSeconds: 3_600 });
+      // An agent cannot outlive its parent; depth stops at 3 below the project key.
+      const second = await child(current(), agent.id, root.key, { name: "level-2", expiresInSeconds: 5_400 });
       assert.equal(second.depth, 2);
       assertError(await call(current(), "POST", `/keys/${agent.id}/children`, { key: root.key, body: { name: "late", expiresInSeconds: 10_000 } }), 400, "INVALID_REQUEST");
-      assertError(await call(current(), "POST", `/keys/${second.id}/children`, { key: root.key, body: { name: "level-3", expiresInSeconds: 3_600 } }), 409, "KEY_DEPTH_EXCEEDED");
+      const third = await child(current(), second.id, root.key, { name: "level-3", expiresInSeconds: 3_600 });
+      assert.equal(third.depth, 3);
+      assertError(await call(current(), "POST", `/keys/${third.id}/children`, { key: root.key, body: { name: "level-4", expiresInSeconds: 3_600 } }), 409, "KEY_DEPTH_EXCEEDED");
     });
 
     it("replays a child creation sealed under Idempotency-Key", async () => {
@@ -107,11 +109,13 @@ export function ruleBookFlows(current: () => TestServer): void {
       assertError(await putPolicy(current(), "/projects/current/policy", agent.key, { mode: "live" }), 403, "AGENT_KEY_FORBIDDEN");
       assertError(await call(current(), "DELETE", `/keys/${agent.id}`, { key: agent.key }), 403, "AGENT_KEY_FORBIDDEN");
       assertError(await call(current(), "DELETE", `/keys/${root.id}`, { key: agent.key }), 404, "KEY_NOT_FOUND");
-      // The parent grants child keys: the agent may create one under itself, and manage it.
+      // Even with permissions.createChildKeys an agent never mints keys directly (it requests sub-agents),
+      // but it manages the keys a project key created below it.
       const granted = await putPolicy(current(), `/keys/${agent.id}/policy`, root.key, { mode: "live", permissions: { createChildKeys: true } });
       assert.equal(granted.status, 200, JSON.stringify(granted.body));
       assert.equal(granted.body.applied, "now");
-      const grandchild = await child(current(), agent.id, agent.key, { name: "helper", expiresInSeconds: 3_600 });
+      assertError(await call(current(), "POST", `/keys/${agent.id}/children`, { key: agent.key, body: { name: "helper", expiresInSeconds: 3_600 } }), 403, "AGENT_KEY_FORBIDDEN");
+      const grandchild = await child(current(), agent.id, root.key, { name: "helper", expiresInSeconds: 3_600 });
       const rotated = await call<{ key: { key: string } }>(current(), "POST", `/keys/${grandchild.id}/rotate`, { key: agent.key, body: { graceSeconds: 0 } });
       assert.equal(rotated.status, 200, JSON.stringify(rotated.body));
       assert.match(rotated.body.key.key, /^kl_agt_/u, "rotation keeps the agent prefix");

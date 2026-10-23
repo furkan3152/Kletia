@@ -48,7 +48,7 @@ export default function AgentsPage() {
       <div className="grid gap-5 md:grid-cols-3">
         <InfoCard icon="board" title="MCP server">
           Tools at <code className="break-all font-code text-xs">{MCP_URL}</code>: networks, quotes, dry-run plans with their fare, intents,
-          receipts, rule books, contracts and links. Only create_intent and create_link store anything.{" "}
+          receipts, rule books, contracts, links and sub-agents. Only create_intent, create_link and the sub-agent tools store anything.{" "}
           <Link to="/developers/recipes/mcp" className={LINK}>
             Connect a client
           </Link>
@@ -60,7 +60,11 @@ export default function AgentsPage() {
           <Link to="/developers/recipes/mcp-agent" className={LINK}>
             Set one up
           </Link>
-          .
+          . An agent can ask for sub-agents inside its own rule book; you approve them on the{" "}
+          <Link to="/developers/agent-tree" className={LINK}>
+            Agents
+          </Link>{" "}
+          page.
         </InfoCard>
         <InfoCard icon="transfer" title="x402 pay-per-call">
           HTTP 402 payments in USDC on Base for paid resources. Kletia prepares capped, public-HTTPS payment plans; the agent&apos;s wallet

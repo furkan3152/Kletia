@@ -102,6 +102,12 @@
       "description": "A Rule Book approval id (apr_…) from a held intent."
     },
     {
+      "key": "subagentRequestId",
+      "value": "",
+      "type": "string",
+      "description": "A sub-agent request id (sar_…) from POST /v1/agents/{id}/subagents."
+    },
+    {
       "key": "decisionId",
       "value": "",
       "type": "string",
@@ -2248,7 +2254,7 @@
                 }
               ]
             },
-            "description": "Agent keys sit at most 2 levels below a project key (409 KEY_DEPTH_EXCEEDED), at most 100 active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. An agent key needs `permissions.createChildKeys` to create children of its own. Honours `Idempotency-Key` (the stored response is encrypted at rest).\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/keys/{id}/children` · operationId `createAgentKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "Agent keys sit at most 3 levels below a project key (409 KEY_DEPTH_EXCEEDED), at most 100 active per project (409 AGENT_KEY_LIMIT_REACHED), always expire and never outlive their parent. Their rule book (policy or template) is version 1; without one they are observers. Every request of an agent key is checked against its whole chain, and revoking a key revokes its subtree. Project keys only: an agent key with `permissions.createChildKeys` requests a sub-agent instead (POST /v1/agents/{id}/subagents), which a human approves. Honours `Idempotency-Key` (the stored response is encrypted at rest).\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/keys/{id}/children` · operationId `createAgentKey` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -4239,6 +4245,397 @@
       ]
     },
     {
+      "id": "23f2d625-f74d-5447-8a86-4f3c49eed6e5",
+      "name": "Sub-agents",
+      "description": "Main agents request sub-agents inside their own rule book; the project owner (wallet signature) or a project key approves; the requester claims the key once. The agent tree with caps and use, revoke and pause.",
+      "item": [
+        {
+          "id": "a72eb70d-3699-5614-8e98-6458f750f1db",
+          "name": "Requests and sub-agents of a key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/:id/subagents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                ":id",
+                "subagents"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "The key `{id}` must be the caller or in its subtree (project keys: any key of the project).\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/agents/{id}/subagents` · operationId `listSubagents` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "7db03e59-2f07-5faf-aa7a-980e20e3c23b",
+          "name": "Request a sub-agent (a human approves)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"purpose\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/:id/subagents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                ":id",
+                "subagents"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "With the agent key `{id}` itself, whose chain grants `permissions.createChildKeys`. The rule book must be a subset of the parent's whole chain; sub-agents never get webhooks, registerContracts, sessions or links, and every permission not asked for is off. At most 3 levels below a project key (409 KEY_DEPTH_EXCEEDED), 10 children and open requests per parent and 5 open requests (409 SUBAGENT_LIMIT_REACHED). The request stays open 24 h. Emits agent.subagent_requested. Honours `Idempotency-Key` (stored sealed: the answer carries the claim token).\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/agents/{id}/subagents` · operationId `requestSubagent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "92c7b01b-3731-5fd6-8160-f4edfc764f9e",
+          "name": "The agent tree with caps, use and requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/tree",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "tree"
+              ]
+            },
+            "description": "Project keys: every project and agent key of the project; agent keys: themselves and their subtree. Each node shows its mode, the strictest mode of its chain, caps and rolling 24 h / 7 d use (children's spending counts in every ancestor's windows).\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/agents/tree` · operationId `getAgentTree` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "d7506259-c80e-5fdb-8b09-48d381472fbe",
+          "name": "Open requests for a wallet's projects (a count)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/pending?account=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "account",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Public. Answers only how many open sub-agent requests wait in projects the wallet owns, so the desk can tell the connected wallet; names, ids and projects are never shown here.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/agents/pending` · operationId `countPendingSubagentRequests` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "4290dd36-a98b-5b40-b15d-10dca09e328d",
+          "name": "A sub-agent request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/requests/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "requests",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{subagentRequestId}}"
+                }
+              ]
+            },
+            "description": "What is granted, line by line beside the parent's own rule book. Keys of the request's subtree and project keys read it.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/agents/requests/{id}` · operationId `getSubagentRequest` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "c36ee55e-d079-50f1-812e-2a965b328ed6",
+          "name": "The message the owner wallet signs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"approve\",\n  \"walletKind\": \"evm\",\n  \"address\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/requests/:id/challenge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "requests",
+                ":id",
+                "challenge"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{subagentRequestId}}"
+                }
+              ]
+            },
+            "description": "From the Kletia developer portal (first-party Origin, else 403 ACCOUNT_ORIGIN_FORBIDDEN), for the wallet that owns the project only (403 SUBAGENT_APPROVER_NOT_ALLOWED). The message names the domain, the wallet, the decision, the request, project, parent, rule book hash, caps, networks, actions, permissions and the key's expiry, with a single-use nonce valid 10 minutes. A new message replaces the previous one.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/agents/requests/{id}/challenge` · operationId `createSubagentChallenge` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "6ab7ac00-93b7-594d-b87e-df8711ade1c6",
+          "name": "Approve: mint the sub-agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/requests/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "requests",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{subagentRequestId}}"
+                }
+              ]
+            },
+            "description": "With a project key of the project (empty body, current secret) or the owner wallet's `{ message, signature }` from the same origin as the challenge (the nonce is used up first; 403 SUBAGENT_SIGNATURE_INVALID otherwise; 502 RPC_UNAVAILABLE when a smart account cannot be checked). The parent's chain is read again (409 SUBAGENT_PARENT_INACTIVE, 403 SUBAGENT_POLICY_NOT_SUBSET). Mints the key once with a secret nobody sees; the requester claims it within 15 minutes. Emits key.created and agent.subagent_approved.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/agents/requests/{id}/approve` · operationId `approveSubagentRequest` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "06aee658-5e0e-5091-80e2-e8037bfc9c16",
+          "name": "Deny a sub-agent request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/requests/:id/deny",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "requests",
+                ":id",
+                "deny"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{subagentRequestId}}"
+                }
+              ]
+            },
+            "description": "Same deciders and signature rules as approve. A decision is final (409 SUBAGENT_REQUEST_DECIDED). Emits agent.subagent_denied.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/agents/requests/{id}/deny` · operationId `denySubagentRequest` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "f991f101-8a43-5514-bc72-cb07383684f8",
+          "name": "Claim the approved sub-agent's key (once)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Replays the first response for a retry with the same key. Needs an API key; {{$guid}} makes a new key per send, so set a fixed value to test a replay."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"claimToken\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/requests/:id/claim",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                "requests",
+                ":id",
+                "claim"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{subagentRequestId}}"
+                }
+              ]
+            },
+            "description": "With the requesting parent's key and the claim token (compared in constant time). Sets a fresh secret and returns it once. A wrong token, a second claim or a claim after the 15-minute window is 403 SUBAGENT_CLAIM_INVALID; a late claim revokes the unclaimed key. Honours `Idempotency-Key` (stored sealed).\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/agents/requests/{id}/claim` · operationId `claimSubagent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "cc712655-9022-586b-a0b2-a2b760fef724",
+          "name": "Revoke an agent and its subtree",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/:id/revoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                ":id",
+                "revoke"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Project keys: any agent key of the project; agent keys: their descendants only. Everything below stops at once. Emits key.revoked and agent.subagent_revoked.\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/agents/{id}/revoke` · operationId `revokeSubagent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "0cb19402-38bc-5c53-8b6e-71e9e1239cb5",
+          "name": "Pause an agent (and its subtree)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/agents/:id/pause",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "agents",
+                ":id",
+                "pause"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{keyId}}"
+                }
+              ]
+            },
+            "description": "Project keys only. Writes `mode: \"paused\"` into the key's rule book, a tightening that applies at once; every descendant reads its chain fresh and stops too. Resume from the Rule Book (a loosening waits the amendment delay).\n\nRequires an API key (set `apiKey`).\n\n`POST /v1/agents/{id}/pause` · operationId `pauseAgent` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "id": "2d9b6de9-f992-5ca9-8267-a3a81217b198",
       "name": "Links",
       "description": "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards.",
@@ -5263,7 +5660,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -5301,7 +5698,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         },
@@ -5339,7 +5736,7 @@
                 "mcp"
               ]
             },
-            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+            "description": "MCP revision 2026-07-28, plus stateless serving of 2025-era clients that open with `initialize`. Send one JSON-RPC message per request with `Accept: application/json, text/event-stream`; batches are refused and GET answers 405 (no server-initiated stream). Tools: `list_networks`, `list_protocols`, `list_assets`, `get_quote`, `plan_intent`, `get_intent`, `list_intents`, `get_portfolio`, `create_signing_link`, `list_contracts`, `get_contract`, `test_contract_action`, `preview_intent`, `get_journey`, `get_receipt`, `get_policy`, `check_intent`, `create_intent`, `get_approval`, `list_links`, `get_link`, `quote_link`, `create_link`, `request_subagent`, `list_subagents`, `claim_subagent`, `revoke_subagent`. Every tool is read-only except `create_intent` (stores an intent within the key's rule book; agent keys need `permissions.mcpCreateIntents`) and `create_link` (publishes a link; `permissions.links`). No tool prepares, signs or submits a transaction; `create_signing_link` returns a Studio link (text up to 500 characters) for the user to sign with their own wallet. An API key maps to the MCP auth info (`clientId` = key id). Requests with an `Origin` header must come from an HTTPS origin (or localhost in development), else 403 MCP_ORIGIN_FORBIDDEN. Add it to Claude Code with `claude mcp add --transport http kletia https://api.kletiaai.xyz/v1/mcp`.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/mcp` · operationId `mcp` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
           },
           "response": []
         }

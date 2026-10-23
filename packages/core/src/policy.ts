@@ -62,7 +62,7 @@ export const POLICY_LIMITS = Object.freeze({
   defaultConfirmTtlSeconds: 3_600,
   maxAmendmentDelaySeconds: 604_800,
   /** Agent keys below a project key. */
-  maxAgentDepth: 2,
+  maxAgentDepth: 3,
   agentKeysPerProject: 100,
   agentMinTtlSeconds: 3_600,
   agentMaxTtlSeconds: 31_536_000,

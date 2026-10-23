@@ -34,6 +34,7 @@ import { DeskEmptyState } from "./shell/DeskEmptyState";
 import { DeskHeader } from "./shell/DeskHeader";
 import { DeskShell } from "./shell/DeskShell";
 import { DeskViewNav } from "./shell/DeskViewNav";
+import { SubagentNotice } from "./shell/SubagentNotice";
 import {
   departureCaption,
   departureOptions,
@@ -255,6 +256,7 @@ export default function DeskApp() {
         leftRail={<TaskRail onOpenTask={openTask} onNewTask={newTask} />}
         rightRail={
           <>
+            <SubagentNotice evm={accounts.evm?.address ?? null} solana={accounts.solana?.address ?? null} />
             {holdingsPanel(2)}
             <ActivityPeek onOpenAll={() => openView("activity")} />
           </>

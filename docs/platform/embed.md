@@ -345,6 +345,15 @@ The API checks the origin rules again on every request: a forged
 could not do with the public tier and your fixed flows, with their own funds
 and wallet.
 
+### Model-assisted reading in the embed
+
+Off unless the project sets `modelReading: "enabled"` (`PATCH /v1/projects/current`).
+Then a sentence Kletia cannot read on its own shows "Read once": the widget
+mints a single-use consent for that message (`POST /v1/reading-consent` with
+the publishable key, from an allowed origin), and the visitor sees the full
+plan as a confirm before anything is planned. Only the visitor's click on that
+confirm counts; your backend's server key cannot consent or confirm.
+
 ## Events
 
 Every event is a `CustomEvent` dispatched on the element, with

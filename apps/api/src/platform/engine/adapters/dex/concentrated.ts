@@ -16,10 +16,13 @@
  *   `poolByPair(...)`) returns it and the pool's own `factory()` is that
  *   factory; any disagreement refuses the swap (VENUE_UNVERIFIED, fail closed).
  * - Quotes come from the pinned quoter by eth_call. Uniswap V3 and PancakeSwap
- *   try every fee tier and Camelot its single pool; when no direct pool
- *   quotes, two hops through the wrapped native token or USDC. Slipstream
- *   tries every tick spacing of every pinned factory (Aerodrome has three)
- *   and keeps single pools. Classic (solidly) pools are not used.
+ *   try every fee tier, Camelot its single pool and Slipstream every tick
+ *   spacing of every pinned factory (Aerodrome has three). Direct pools and
+ *   two-hop paths are quoted together (RC4): through the wrapped native
+ *   token, USDC, USDT0 / USDT, DAI and cbBTC / WBTC where the registry lists
+ *   them by address (Slipstream: the wrapped native token and USDC), and a
+ *   two-hop path wins only when it beats the best direct pool by 2 bps.
+ *   Classic (solidly) pools are not used.
  * - The best output wins and is held to the Chainlink band (oracleGuard).
  *   The minimum output is the quote less the slippage (at most 3 %) and is
  *   enforced on-chain by `amountOutMinimum` (floor "onchain").
@@ -131,6 +134,7 @@ export const UNISWAP_QUOTER_ABI = parseAbi([
 ]);
 export const SLIPSTREAM_QUOTER_ABI = parseAbi([
   "function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, int24 tickSpacing, uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
+  "function quoteExactInput(bytes path, uint256 amountIn) returns (uint256 amountOut, uint160[] sqrtPriceX96AfterList, uint32[] initializedTicksCrossedList, uint256 gasEstimate)",
 ]);
 /** Algebra Quoter: the pool's current dynamic fee comes back with the output; no gas estimate. */
 export const ALGEBRA_QUOTER_ABI = parseAbi([
@@ -150,6 +154,7 @@ export const SWAP_ROUTER02_ABI = parseAbi([
 /** Slipstream SwapRouter (v3-periphery SwapRouter with tick spacings and the deadline in the params). */
 export const SLIPSTREAM_ROUTER_ABI = parseAbi([
   "function exactInputSingle((address tokenIn, address tokenOut, int24 tickSpacing, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96) params) payable returns (uint256 amountOut)",
+  "function exactInput((bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum) params) payable returns (uint256 amountOut)",
   "function multicall(bytes[] data) payable returns (bytes[] results)",
   "function unwrapWETH9(uint256 amountMinimum, address recipient) payable",
   "function refundETH() payable",
@@ -196,8 +201,23 @@ export interface Hop {
   readonly tier: number;
 }
 
-/** Intermediate token codes of a two-hop route (step ref): the wrapped native token or USDC. */
-type Intermediate = "W" | "U";
+/**
+ * Intermediate token codes of a two-hop route (step ref): the wrapped native
+ * token, USDC, USDT0 / USDT, DAI, cbBTC / WBTC (RC4). Each resolves to the
+ * registry's exact token address on the deployment's network, never by
+ * asset group; a code the network does not list is skipped.
+ */
+export type Intermediate = "W" | "U" | "T" | "D" | "B";
+const INTERMEDIATES: readonly Intermediate[] = Object.freeze(["W", "U", "T", "D", "B"] as const);
+/** Registry symbols an intermediate code may name, first listed wins. */
+const INTERMEDIATE_SYMBOLS: Readonly<Record<Exclude<Intermediate, "W">, readonly string[]>> = Object.freeze({
+  U: ["USDC"],
+  T: ["USDT0", "USDT"],
+  D: ["DAI"],
+  B: ["cbBTC", "WBTC"],
+});
+/** A two-hop route must beat the best direct pool by this much (bps of the direct output) to pay for its extra hop. */
+export const TWO_HOP_MIN_GAIN_BPS = 2n;
 
 export interface DexRoute {
   readonly deployment: DexDeployment;
@@ -229,13 +249,14 @@ export interface RecordedRoute {
 /** Parses a recorded route against the pinned deployments of `protocol` on `network`; null when it names none. */
 export function decodeRoute(protocol: DexProtocol, network: NetworkKey, value: string | undefined): RecordedRoute | null {
   if (!value) return null;
-  const match = /^([a-z0-9-]{1,20}):(\d{1,6})(?::([WU]):(\d{1,6}))?$/u.exec(value);
+  const match = /^([a-z0-9-]{1,20}):(\d{1,6})(?::([WUTDB]):(\d{1,6}))?$/u.exec(value);
   if (!match) return null;
   const deployment = dexDeploymentsFor(network, protocol).find((entry) => slugOf(entry) === match[1]);
   if (!deployment) return null;
   const tiers = [Number(match[2]), ...(match[4] ? [Number(match[4])] : [])];
   if (!tiers.every((tier) => tiersOf(deployment).includes(tier))) return null;
   if (tiers.length === 2 && !multiHop(deployment)) return null;
+  if (match[3] && !intermediateToken(deployment, match[3] as Intermediate)) return null;
   return { deployment, tiers, ...(match[3] ? { intermediate: match[3] as Intermediate } : {}) };
 }
 
@@ -393,13 +414,15 @@ async function quotePath(deployment: DexDeployment, hops: readonly Hop[], amount
     const [amountOut] = decodeFunctionResult({ abi: ALGEBRA_QUOTER_ABI, functionName: "quoteExactInput", data: raw });
     return { amountOut, gasEstimate: 0n };
   }
+  // Slipstream's QuoterV2 takes the same path (tick spacings in place of fee tiers) and answers the same tuple.
+  const abi = deployment.dialect === "slipstream" ? SLIPSTREAM_QUOTER_ABI : UNISWAP_QUOTER_ABI;
   const raw = await call(network, quoter, encodeFunctionData({
-    abi: UNISWAP_QUOTER_ABI,
+    abi,
     functionName: "quoteExactInput",
     args: [encodePath(hops), amountIn],
   }));
   if (!raw || raw === "0x") return null;
-  const [amountOut, , , gasEstimate] = decodeFunctionResult({ abi: UNISWAP_QUOTER_ABI, functionName: "quoteExactInput", data: raw });
+  const [amountOut, , , gasEstimate] = decodeFunctionResult({ abi, functionName: "quoteExactInput", data: raw });
   return { amountOut, gasEstimate };
 }
 
@@ -408,9 +431,19 @@ function tiersOf(deployment: DexDeployment): readonly number[] {
   return (deployment.dialect === "uniswap-v3" ? deployment.feeTiers : deployment.tickSpacings) ?? [];
 }
 
-/** Dialects whose routers take a multi-pool path (Slipstream routes keep single pools). */
+/** Dialects whose routers take a multi-pool path: Uniswap V3 (SwapRouter02), Algebra and Slipstream (RC4). */
 function multiHop(deployment: DexDeployment): boolean {
-  return deployment.dialect === "uniswap-v3" || deployment.dialect === "algebra";
+  return deployment.dialect === "uniswap-v3" || deployment.dialect === "algebra" || deployment.dialect === "slipstream";
+}
+
+/**
+ * Intermediates a deployment's two-hop search tries: every code for the
+ * Uniswap V3 dialect and Algebra; the wrapped native token and USDC for
+ * Slipstream, whose several factories and tick spacings already multiply
+ * the reads (each code costs a pool lookup and a quote per tier and leg).
+ */
+function intermediatesFor(deployment: DexDeployment): readonly Intermediate[] {
+  return deployment.dialect === "slipstream" ? ["W", "U"] : INTERMEDIATES;
 }
 
 /** Best direct pool of one deployment: every tier, pools proven by the factory, quotes from the pinned quoter. */
@@ -434,19 +467,30 @@ function pickBest(routes: readonly (DexRoute | null)[]): DexRoute | null {
   return best;
 }
 
-/** Address of an intermediate code on the deployment's network. */
-function intermediateToken(deployment: DexDeployment, code: Intermediate): Address | null {
+/** Address of an intermediate code on the deployment's network (the registry's exact token address), or null when not listed. */
+export function intermediateToken(deployment: Pick<DexDeployment, "network" | "wrappedNative">, code: Intermediate): Address | null {
   if (code === "W") return getAddress(deployment.wrappedNative);
-  const usdc = findAssetBySymbol(deployment.network, "USDC");
-  return usdc?.address ? getAddress(usdc.address) : null;
+  for (const symbol of INTERMEDIATE_SYMBOLS[code]) {
+    const asset = findAssetBySymbol(deployment.network, symbol);
+    if (asset?.address && asset.transferOnly !== true) return getAddress(asset.address);
+  }
+  return null;
+}
+
+/** The symbol shown for an intermediate code. */
+function intermediateLabel(context: Pick<SwapContext, "network" | "nativeIn" | "nativeOut">, deployment: DexDeployment, code: Intermediate): string {
+  if (code === "W") return context.nativeIn || context.nativeOut ? `W${CHAINS[context.network].nativeAsset.symbol}` : "the wrapped native token";
+  const address = intermediateToken(deployment, code);
+  const listed = address ? INTERMEDIATE_SYMBOLS[code].map((symbol) => findAssetBySymbol(deployment.network, symbol)).find((asset) => asset?.address && sameAddress(asset.address, address)) : null;
+  return listed?.symbol ?? code;
 }
 
 /**
- * Two hops through the wrapped native token or USDC (Uniswap V3 dialect and Algebra): the
- * best tier of each leg, then the exact path quoted as it will execute.
+ * Two hops through each listed intermediate (RC4): the best tier of each
+ * leg, then the exact path quoted as it will execute.
  */
 async function bestTwoHop(deployment: DexDeployment, tokenIn: Address, tokenOut: Address, amountIn: bigint): Promise<DexRoute | null> {
-  const routes = await Promise.all((["W", "U"] as const).map(async (code): Promise<DexRoute | null> => {
+  const routes = await Promise.all(intermediatesFor(deployment).map(async (code): Promise<DexRoute | null> => {
     const middle = intermediateToken(deployment, code);
     if (!middle || sameAddress(middle, tokenIn) || sameAddress(middle, tokenOut)) return null;
     const first = await bestDirect(deployment, tokenIn, middle, amountIn);
@@ -554,13 +598,25 @@ export function swapContext(action: AdapterAction, protocol: DexProtocol, label:
   };
 }
 
-/** Best route across the protocol's pinned deployments (every one verified first; a mismatch refuses the swap). */
+/**
+ * Best route across the protocol's pinned deployments (every one verified
+ * first; a mismatch refuses the swap). Direct pools and two-hop paths are
+ * quoted together and the larger output wins (RC4: a thin direct pool no
+ * longer hides a deeper path, and the Chainlink band then judges the best
+ * path, not the direct pool); a two-hop path must beat the best direct pool
+ * by TWO_HOP_MIN_GAIN_BPS to pay for its extra hop.
+ */
 export async function bestRoute(context: SwapContext, amountIn: bigint): Promise<DexRoute> {
   for (const deployment of context.deployments) await verifyDeployment(deployment);
-  const direct = pickBest(await Promise.all(context.deployments.map((deployment) => bestDirect(deployment, context.tokenIn, context.tokenOut, amountIn))));
-  const route = direct ?? pickBest(await Promise.all(context.deployments
-    .filter(multiHop)
-    .map((deployment) => bestTwoHop(deployment, context.tokenIn, context.tokenOut, amountIn))));
+  const [direct, twoHop] = await Promise.all([
+    Promise.all(context.deployments.map((deployment) => bestDirect(deployment, context.tokenIn, context.tokenOut, amountIn))).then(pickBest),
+    Promise.all(context.deployments
+      .filter(multiHop)
+      .map((deployment) => bestTwoHop(deployment, context.tokenIn, context.tokenOut, amountIn))).then(pickBest),
+  ]);
+  const route = direct && twoHop
+    ? (twoHop.amountOut * 10_000n > direct.amountOut * (10_000n + TWO_HOP_MIN_GAIN_BPS) ? twoHop : direct)
+    : direct ?? twoHop;
   if (!route) {
     throw new PlatformError(
       "ROUTE_UNAVAILABLE",
@@ -628,14 +684,17 @@ export function routerCall(context: SwapContext, route: DexRoute, amountIn: bigi
     return encodeFunctionData({ abi: ALGEBRA_ROUTER_ABI, functionName: "multicall", args: [calls] });
   }
   const hop = hops[0] as Hop;
-  if (hops.length !== 1) throw new PlatformError("PLAN_INVALID", "Slipstream swaps use one pool.", 422);
+  if (hops.length < 1 || hops.length > 2) throw new PlatformError("PLAN_INVALID", "Slipstream swaps use one or two pools.", 422);
   // The Slipstream router keeps native output itself when it is the recipient (then unwraps to the account).
   const recipient = context.nativeOut ? getAddress(deployment.router) : context.account;
-  const calls: Hex[] = [encodeFunctionData({
-    abi: SLIPSTREAM_ROUTER_ABI,
-    functionName: "exactInputSingle",
-    args: [{ tokenIn: hop.tokenIn, tokenOut: hop.tokenOut, tickSpacing: hop.tier, recipient, deadline, amountIn, amountOutMinimum: minimumOut, sqrtPriceLimitX96: 0n }],
-  })];
+  const calls: Hex[] = [hops.length === 1
+    ? encodeFunctionData({
+      abi: SLIPSTREAM_ROUTER_ABI,
+      functionName: "exactInputSingle",
+      args: [{ tokenIn: hop.tokenIn, tokenOut: hop.tokenOut, tickSpacing: hop.tier, recipient, deadline, amountIn, amountOutMinimum: minimumOut, sqrtPriceLimitX96: 0n }],
+    })
+    // Two pools: the path carries each pool's tick spacing as int24 (the same three bytes as a fee tier).
+    : encodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, functionName: "exactInput", args: [{ path: encodePath(hops), recipient, deadline, amountIn, amountOutMinimum: minimumOut }] })];
   if (context.nativeIn) calls.push(encodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, functionName: "refundETH" }));
   if (context.nativeOut) calls.push(encodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, functionName: "unwrapWETH9", args: [minimumOut, context.account] }));
   return encodeFunctionData({ abi: SLIPSTREAM_ROUTER_ABI, functionName: "multicall", args: [calls] });
@@ -644,7 +703,7 @@ export function routerCall(context: SwapContext, route: DexRoute, amountIn: bigi
 function describeRoute(context: SwapContext, route: DexRoute): string {
   const dialect = route.deployment.dialect;
   const tier = (value: number) => (dialect === "uniswap-v3" ? `${(value / 10_000).toString()} %` : dialect === "algebra" ? "dynamic-fee" : `tick spacing ${value}`);
-  const middle = route.intermediate ? ` through ${route.intermediate === "W" ? (context.nativeIn || context.nativeOut ? `W${CHAINS[context.network].nativeAsset.symbol}` : "the wrapped native token") : "USDC"}` : "";
+  const middle = route.intermediate ? ` through ${intermediateLabel(context, route.deployment, route.intermediate)}` : "";
   return `Route: ${context.label} (${route.deployment.id}), ${route.hops.map((hop) => tier(hop.tier)).join(" then ")} pool${route.hops.length > 1 ? "s" : ""}${middle}, ${route.pools.join(", ")}.`;
 }
 

@@ -16,10 +16,14 @@ import {
   getProtocol,
   isEvmAddress,
   isSolanaAddress,
+  lookalikeFamilyOf,
   MAX_INTENT_ACTIONS,
   parseAccountId,
   PROTOCOLS,
   resolveChain,
+  scanClosedClass,
+  screenText,
+  UNSUPPORTED_NETWORKS,
   venueContracts,
   YIELD_VENUES,
   type AccountId,
@@ -31,7 +35,7 @@ import {
 } from "@kletia/core";
 import { PlatformError, unsupported, type PlatformIssue } from "../errors.js";
 import type { ContractPhrase } from "./contracts/directory.js";
-import { readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
+import { hasQuestionMark, questionRefusal, readOnlyRates, readOnlyRatesRefusal } from "./readOnly.js";
 
 export const GRAMMAR_EXAMPLES: readonly string[] = Object.freeze([
   "swap 1 SOL to USDC",
@@ -345,6 +349,35 @@ interface Draft {
   readonly warnings?: readonly string[];
 }
 
+/**
+ * Words that name both a listed token and a network: "op" is OP Mainnet or
+ * the OP token, "sol" Solana or SOL (design A.2 frames, F-1, AQ1).
+ */
+export const ASSET_NETWORK_WORDS: Readonly<Record<string, { readonly network: NetworkKey; readonly symbol: string }>> = Object.freeze({
+  sol: { network: "solana", symbol: "SOL" },
+  op: { network: "optimism", symbol: "OP" },
+  arb: { network: "arbitrum", symbol: "ARB" },
+  matic: { network: "polygon", symbol: "POL" },
+});
+
+/** Verbs that say neither "change the token" nor "change the network": "move 10 USDC to op" can mean either. */
+export const NEUTRAL_MOVE_VERBS: readonly string[] = Object.freeze(["move", "send", "transfer", "ship"]);
+
+/**
+ * INTENT_UNSUPPORTED for a neutral verb whose destination names a token and
+ * a network ("move 10 USDC to op", "send 10 USDC to sol") with no source
+ * network said: both readings are given as examples, never one chosen.
+ * `what` is the amount and token as said ("10 USDC"), when the clause said both.
+ */
+export function assetOrNetworkRefusal(clause: string, verb: string, word: string, what?: string): PlatformError {
+  const entry = ASSET_NETWORK_WORDS[word.toLowerCase()] ?? { network: "optimism" as NetworkKey, symbol: word.toUpperCase() };
+  const spend = what ?? "10 USDC";
+  const bridge = `bridge ${spend} to ${entry.network}`;
+  const swap = `swap ${spend} to ${entry.symbol}`;
+  const message = `"${verb} ... to ${word.slice(0, 16)}" can mean ${CHAINS[entry.network].name} or the ${entry.symbol} token. To move it to ${CHAINS[entry.network].name}, say "${bridge}"; to change it into ${entry.symbol}, say "${swap}".`;
+  return unsupported(clauseMessage(clause, message), [bridge, swap, ...GRAMMAR_EXAMPLES.slice(0, 3)], [{ path: "text", message: "A token or a network: say which." }]);
+}
+
 /** Verbs that start a built-in sentence. */
 export const VERBS: readonly string[] = Object.freeze([
   "swap", "convert", "trade", "exchange", "sell", "buy", "bridge", "move", "send", "transfer", "pay", "port",
@@ -480,7 +513,8 @@ export function normalizeText(text: string): string {
 
 export function splitClauses(text: string, extraVerbs: readonly string[] = []): string[] {
   const verbs = [...VERBS, ...extraVerbs.filter((verb) => /^[a-z]{2,16}$/u.test(verb) && !VERBS.includes(verb))];
-  const verbLookahead = `(?=(?:${verbs.join("|")})\\b)`;
+  // AQ11: ", pay with 100 usdc from base" / ", using ..." is the funding of the clause before, never a new step.
+  const verbLookahead = `(?!pay\\s+(?:with|using)\\b)(?=(?:${verbs.join("|")})\\b)`;
   return text
     .split(/\s*;\s*|\s*,?\s+and\s+then\s+|\s*,\s*then\s+|\s+then\s+/iu)
     .flatMap((part) => part.split(new RegExp(`\\s*,?\\s+and\\s+${verbLookahead}|\\s*,\\s*${verbLookahead}`, "iu")))
@@ -618,6 +652,12 @@ function matchClause(clause: string): Draft {
           explicit: network !== undefined,
         };
       case "bridge": {
+        // "move 10 USDC to op": a token or a network. Read as the network only after "from <network>" or with "as <token>".
+        const said = clause.split(/\s+/u)[0]?.toLowerCase() ?? "";
+        if (NEUTRAL_MOVE_VERBS.includes(said) && !groups.n1 && !groups.b && groups.n2 && Object.hasOwn(ASSET_NETWORK_WORDS, groups.n2.toLowerCase())) {
+          const what = groups.amt && groups.a && /^[\d.,$]+$/u.test(groups.amt) ? `${groups.amt} ${groups.a.toUpperCase()}` : undefined;
+          throw assetOrNetworkRefusal(clause, said, groups.n2, what);
+        }
         const source = networkFromGroup(groups.n1, clause);
         const destination = networkFromGroup(groups.n2, clause);
         return {
@@ -1081,10 +1121,75 @@ function toActionSpec(draft: Draft, network: NetworkKey, index: number, warnings
   };
 }
 
+/**
+ * The strict reader's L0 screen (design A.2): letters outside the Latin
+ * script are refused (a homoglyph such as Cyrillic "С" in "USDС"), and a
+ * network Kletia does not run on, or a lane qualifier it has no lane for
+ * ("arbitrum nova", "base sepolia", "solana testnet"), refuses
+ * NETWORK_UNSUPPORTED naming it instead of a generic refusal.
+ */
+function screenStrict(text: string): string {
+  const screened = screenText(text);
+  if (screened.nonLatin) {
+    throw unsupported("Kletia reads plain Latin letters only: a word in this text has letters from another alphabet that can look like Latin ones.", GRAMMAR_EXAMPLES);
+  }
+  const lower = screened.text.toLowerCase();
+  const hit = scanClosedClass(lower).find((entry) => entry.category === "network" && !/[.\-_]/u.test(lower[entry.start - 1] ?? " ") && !/^[.\-_][a-z0-9]/u.test(lower.slice(entry.end, entry.end + 2)));
+  if (hit) {
+    const name = UNSUPPORTED_NETWORKS[hit.phrase]?.name ?? hit.phrase.split(" ").map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`).join(" ");
+    throw new PlatformError(
+      "NETWORK_UNSUPPORTED",
+      `Kletia does not run on ${name}. It runs on Base, Arbitrum One, Ethereum, OP Mainnet, Polygon PoS and Solana; test networks: Arc Testnet, Arbitrum Sepolia and Solana Devnet.`,
+      422,
+      [{ path: "text", message: "Not a network Kletia runs on." }],
+      undefined,
+      { network: name },
+    );
+  }
+  return screened.text;
+}
+
 /** Compiles intent text into structured actions, or throws INTENT_UNSUPPORTED (MissingSourceError for a bridge without a source). */
+/** True when `symbol` is a token Kletia lists on `network`, by its symbol or a reviewed alias (USDT -> USDT0). */
+function listedOn(network: NetworkKey, symbol: string): boolean {
+  return CHAINS[network].nativeAsset.symbol.toUpperCase() === symbol.trim().toUpperCase() || findAssetBySymbol(network, symbol) !== null;
+}
+
+/** True when `symbol` is exactly the symbol of a token Kletia lists on `network` (no alias). */
+function listedExactly(network: NetworkKey, symbol: string): boolean {
+  const wanted = symbol.trim().toUpperCase();
+  return CHAINS[network].nativeAsset.symbol.toUpperCase() === wanted
+    || ASSETS.some((asset) => asset.network === network && asset.symbol.toUpperCase() === wanted);
+}
+
+/**
+ * Look-alike symbols (design A.10, C.5): a typed symbol of a look-alike family
+ * ("wsol", "bsol") that Kletia does not list on a Solana network, by symbol or
+ * reviewed alias, is never searched for by name on the strict path (a search
+ * could return the sibling or an unrelated token); it is refused so the
+ * person names the token exactly.
+ */
+function refuseLookalike(clause: string, action: IntentActionSpec): void {
+  const sides: [string | undefined, NetworkKey][] = [
+    [action.from, action.network],
+    [action.to, action.toNetwork ?? action.network],
+  ];
+  for (const [symbol, network] of sides) {
+    // EVM symbols resolve only from the registry; Solana symbols Kletia does not list are searched by name.
+    if (!symbol || CHAINS[network].vm !== "svm" || isEvmAddress(symbol) || isSolanaAddress(symbol)) continue;
+    const family = lookalikeFamilyOf(symbol);
+    if (!family || listedOn(network, symbol)) continue;
+    const listed = family.members.filter((member) => listedExactly(network, member));
+    const hint = listed.length > 0 ? ` Kletia lists ${listed.join(", ")} on ${CHAINS[network].name}.` : "";
+    throw clauseError(clause, `"${symbol}" is not a token Kletia lists on ${CHAINS[network].name}, and it is not read as a similar token.${hint} Write the exact symbol.`);
+  }
+}
+
 export function compileIntentText(text: string, context: GrammarContext = {}): GrammarResult {
-  const normalizedText = normalizeText(text);
+  const normalizedText = normalizeText(screenStrict(text));
   if (!normalizedText) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
+  // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): normalizeText strips the mark, so check first.
+  if (hasQuestionMark(text)) throw questionRefusal(normalizedText, GRAMMAR_EXAMPLES);
   const matcher = context.contracts && context.contracts.length > 0 ? cachedMatcher(context.contracts) : null;
   const clauses = splitClauses(normalizedText, matcher ? matcher.phrases.flatMap((phrase) => phrase.verbs) : []);
   if (clauses.length === 0) throw unsupported("The intent text is empty.", GRAMMAR_EXAMPLES);
@@ -1116,6 +1221,7 @@ export function compileIntentText(text: string, context: GrammarContext = {}): G
       action = toActionSpec(draft, network, index, warnings);
       explicitNetwork.push(draft.explicit);
     }
+    refuseLookalike(clause, action);
     actions.push(action);
     previousDestination = action.toNetwork ?? action.network;
   });

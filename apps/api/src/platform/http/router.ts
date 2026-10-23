@@ -37,6 +37,7 @@ import {
 import { apiKeyStore, authenticate, enforceAuthentication, keyKindOf, loadOperatorKeys, parseKeyRequest, requireApiKey, type KeyTier } from "./auth.js";
 import { validateContractTestRequest } from "@kletia/core";
 import { badgeStatus, badgeSvg, BADGE_CACHE_SECONDS, shieldsBadge } from "./badge.js";
+import { mintReadingConsent } from "./reading.js";
 import { clarifyRequested, deleteThread, getThread, handleIntentTurn, listThreads, mutatesThread, screenClarifySecrets } from "./clarify.js";
 import { assetRegistry, networkCapabilities, protocolRegistry, venueFilter } from "./catalog.js";
 import {
@@ -162,6 +163,8 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/data/markets/status", auth: "public", publishable: true },
   { method: "get", path: "/data/export", auth: "public", publishable: true },
   { method: "post", path: "/intents", auth: "public", publishable: true },
+  // Model-assisted reading consent (design A.7.6): browser callers only; server keys are refused in the handler.
+  { method: "post", path: "/reading-consent", auth: "public", publishable: true },
   // ?owner=key_…: a key of the caller's subtree (agent or publishable keys).
   { method: "get", path: "/intents", auth: "key" },
   { method: "get", path: "/intents/:id", auth: "public", publishable: true },
@@ -807,6 +810,11 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
         // A repeated clientReference returns the intent stored by the earlier request.
         if (replayed) res.setHeader("Idempotent-Replayed", "true");
         sendJson(res, replayed ? 200 : 201, body);
+      }),
+    ],
+    "post /reading-consent": [
+      handle(async (req, res) => {
+        sendJson(res, 200, await mintReadingConsent(req));
       }),
     ],
     "get /threads": [

@@ -91,6 +91,8 @@ export function toActionSpecs(actions: readonly ResolvedAction[]): IntentActionS
       ...(action.contract ? { contract: action.contract } : {}),
       ...(action.entry ? { entry: action.entry } : {}),
       ...(Object.keys(params).length > 0 ? { params } : {}),
+      // Seam S10: a payment whose recipient receives exactly the stated amount (the decision layer sets it).
+      ...((action as ResolvedAction & { receiveExact?: true }).receiveExact === true && action.recipient ? { receiveExact: true as const } : {}),
     } as IntentActionSpec;
   });
 }

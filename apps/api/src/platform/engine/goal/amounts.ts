@@ -10,10 +10,14 @@
  * "5 5") is not read.
  */
 import type { AmountSel, ThreadAmount } from "@kletia/core";
-import { NUMBER_SCALES, NUMBER_TENS, NUMBER_UNITS } from "./lexicon.js";
+import { NUMBER_SCALES, NUMBER_TENS, NUMBER_UNITS, PORTION_WORDS } from "./lexicon.js";
 
 const POSITIVE_DECIMAL = /^(?:0|[1-9]\d{0,29})(?:\.\d{1,30})?$/u;
 const ZERO = /^0(?:\.0+)?$/u;
+/** "1.000", "12.500": one dot then exactly three digits, no other separator (two readings). */
+export const DOT_THOUSANDS = /^[1-9]\d{0,2}\.\d{3}$/u;
+/** "1.000.000" (two or more dot groups) or "1.000,50" (dot groups, then a decimal comma): European thousands. */
+const EUROPEAN = /^([1-9]\d{0,2}(?:\.\d{3}){2,}|[1-9]\d{0,2}(?:\.\d{3})+(?=,))(?:,(\d{1,2}))?$/u;
 
 export interface NumberRead {
   /** Canonical decimal string (token units or dollars). */
@@ -54,6 +58,15 @@ export function shiftDecimal(value: string, exp: number): string | null {
  */
 export function readNumber(raw: string): NumberRead | null {
   const text = raw.trim().toLowerCase();
+  // "1.000", "12.500" (design A.2, WP7): a dot then exactly three digits may be a thousands separator. The
+  // value stays as typed (so a lost `raw` still reads "1.000") and `raw` is kept: the decision layer asks.
+  if (DOT_THOUSANDS.test(text)) return { value: text, raw: text };
+  // "1.000.000", "1.000,50": European thousands (two dot groups, or dots then a decimal comma): one reading, a material chip.
+  const european = EUROPEAN.exec(text);
+  if (european) {
+    const value = canonical(`${(european[1] as string).replace(/\./gu, "")}${european[2] ? `.${european[2]}` : ""}`);
+    return value ? { value, raw: text, rewritten: true } : null;
+  }
   if (/^(?:\d+(?:\.\d+)?|\.\d+)$/u.test(text)) {
     const value = canonical(text);
     return value ? { value, ...(value !== text ? { raw: text } : {}) } : null;
@@ -222,4 +235,125 @@ export function toThreadAmount(
     case "allBut":
       return null;
   }
+}
+
+/* ----------------------------------------------------- fractions, words */
+
+/**
+ * "a/b" as an exact decimal string ("1/2" -> "0.5", "3/4" -> "0.75"), or
+ * null when the fraction has no exact decimal ("1/3") or is not 1 <= a < b
+ * <= 10 (design A.2 amounts, red-team A15).
+ */
+export function fractionDecimal(numerator: number, denominator: number): string | null {
+  if (!Number.isInteger(numerator) || !Number.isInteger(denominator) || numerator < 1 || numerator >= denominator || denominator > 10) return null;
+  let rest = denominator;
+  for (const prime of [2, 5]) while (rest % prime === 0) rest /= prime;
+  if (rest !== 1) return null;
+  return shiftDecimal(String((numerator * 10 ** 6) / denominator), -6);
+}
+
+/** "a/b" as basis points of a holding ("1/4" -> 2500, "1/3" -> 3333), or null outside 1 <= a < b <= 10. */
+export function fractionBps(numerator: number, denominator: number): number | null {
+  if (!Number.isInteger(numerator) || !Number.isInteger(denominator) || numerator < 1 || numerator >= denominator || denominator > 10) return null;
+  return Math.round((numerator * 10_000) / denominator);
+}
+
+const WORD_UNITS = Object.entries(NUMBER_UNITS).sort((a, b) => a[1] - b[1]).map(([word]) => word);
+const WORD_TENS: Readonly<Record<number, string>> = Object.fromEntries(Object.entries(NUMBER_TENS).map(([word, value]) => [value, word]));
+const DIGIT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
+function belowThousand(value: number): string {
+  const parts: string[] = [];
+  const hundreds = Math.floor(value / 100);
+  const rest = value % 100;
+  if (hundreds > 0) parts.push(`${WORD_UNITS[hundreds]} hundred`);
+  if (rest > 0 && rest < 20) parts.push(WORD_UNITS[rest] as string);
+  else if (rest >= 20) parts.push(rest % 10 === 0 ? (WORD_TENS[rest] as string) : `${WORD_TENS[rest - (rest % 10)]}-${WORD_UNITS[rest % 10]}`);
+  return parts.join(" ");
+}
+
+/**
+ * A decimal amount in English words, for the "Read as 2,500 USDC (two
+ * thousand five hundred)" confirm of a grouped amount paid to someone else
+ * (design A.2, red-team A5): "2500" -> "two thousand five hundred", "0.5" ->
+ * "zero point five". Null above 999 billion or for a malformed value.
+ */
+export function amountInWords(value: string): string | null {
+  const match = /^(\d{1,12})(?:\.(\d{1,18}))?$/u.exec(value.trim());
+  if (!match) return null;
+  let whole = Number(match[1]);
+  const fraction = match[2];
+  const groups: string[] = [];
+  for (const scale of ["", "thousand", "million", "billion"]) {
+    const group = whole % 1000;
+    if (group > 0) groups.unshift(scale ? `${belowThousand(group)} ${scale}` : belowThousand(group));
+    whole = Math.floor(whole / 1000);
+  }
+  if (whole > 0) return null;
+  const head = groups.length > 0 ? groups.join(" ") : "zero";
+  return fraction ? `${head} point ${[...fraction].map((digit) => DIGIT_WORDS[Number(digit)]).join(" ")}` : head;
+}
+
+/** "1,234", "2,500.50": an amount written with comma thousands groups (shown "Read as" when paid to someone else). */
+export function groupedThousands(raw: string | undefined): boolean {
+  return raw !== undefined && /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(raw.trim());
+}
+
+/* ------------------------------------------------------- commentary */
+
+/**
+ * A side remark about an amount the person stated ("stake 1 SOL worth $150",
+ * "stake 150 sol (half my stack)"): never the amount itself, a check of it
+ * (design A.2 amounts, AMO032, AMT058). The reader keeps the stated amount
+ * and records the remark; the decision layer compares it with prices and
+ * holdings (`commentaryAgrees`).
+ */
+export type AmountCommentary =
+  | { readonly kind: "usd"; readonly usd: string; readonly raw: string }
+  | { readonly kind: "portion"; readonly bps: number; readonly raw: string };
+
+/** Readings of a "Read as" item a commentary marker carries (rule `commentary:usd` / `commentary:portion`). */
+export const COMMENTARY_RULES = Object.freeze({ usd: "commentary:usd", portion: "commentary:portion" } as const);
+
+/**
+ * The commentary a "Read as" item records, or null when the item is no
+ * commentary marker: `from` holds the remark as typed ("worth $150", "half
+ * my stack"), `to` the stated amount.
+ */
+export function commentaryOf(item: { readonly rule: string; readonly from?: string }): { readonly kind: "usd"; readonly usd: string } | { readonly kind: "portion"; readonly bps: number } | null {
+  if (item.rule === COMMENTARY_RULES.usd) {
+    const usd = /\$\s?(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:usd|dollars?|bucks)/u.exec(item.from ?? "");
+    const value = usd ? (usd[1] ?? usd[2]) : undefined;
+    return value ? { kind: "usd", usd: value } : null;
+  }
+  if (item.rule === COMMENTARY_RULES.portion) {
+    const text = (item.from ?? "").toLowerCase();
+    const percent = /(\d{1,3}(?:\.\d{1,2})?)\s*%/u.exec(text);
+    if (percent) return { kind: "portion", bps: Math.round(Number(percent[1]) * 100) };
+    const phrase = Object.keys(PORTION_WORDS).sort((a, b) => b.length - a.length).find((entry) => new RegExp(`^${entry}\\b`, "u").test(text));
+    return phrase ? { kind: "portion", bps: PORTION_WORDS[phrase] as number } : null;
+  }
+  return null;
+}
+
+/**
+ * True when a commentary agrees with the stated amount: a USD remark within
+ * 10 % of `amount x price`; a portion remark within 2 percentage points of
+ * `amount / balance`. Unknown prices or balances never agree (fail closed:
+ * the person is asked).
+ */
+export function commentaryAgrees(
+  commentary: { readonly kind: "usd"; readonly usd: string } | { readonly kind: "portion"; readonly bps: number },
+  facts: { readonly amount: string; readonly price?: number | null; readonly balance?: string | null },
+): boolean {
+  const amount = Number(facts.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  if (commentary.kind === "usd") {
+    const usd = Number(commentary.usd);
+    if (!facts.price || !Number.isFinite(facts.price) || !Number.isFinite(usd) || usd <= 0) return false;
+    return Math.abs(amount * facts.price - usd) <= usd * 0.1;
+  }
+  const balance = Number(facts.balance ?? Number.NaN);
+  if (!Number.isFinite(balance) || balance <= 0) return false;
+  return Math.abs((amount / balance) * 10_000 - commentary.bps) <= 200;
 }

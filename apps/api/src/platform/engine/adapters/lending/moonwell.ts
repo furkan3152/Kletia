@@ -81,6 +81,9 @@ import {
   WRAP_GAS,
   wrapsNative,
   wrapTransaction,
+  bestEffort,
+  indexGrowthApy,
+  tvlUsdOf,
   type LendingContext,
   type LendingMetrics,
   type Simulation,
@@ -515,9 +518,16 @@ export async function moonwellMetrics(venue: CTokenVenue): Promise<LendingMetric
   const underlying = findAssetBySymbol(network, venue.asset);
   if (!underlying?.address) throw new PlatformError("VENUE_INVALID", `${venue.name} has no pinned underlying.`, 500);
   const context = { venue, network, token: getAddress(underlying.address), underlying };
-  const state = await readMarket(context);
+  const client = evmClient(network);
+  const [state, smoothed] = await Promise.all([
+    readMarket(context),
+    // Seam S8: the mToken exchange rate's growth over the last week (the realised supply rate).
+    bestEffort(() => indexGrowthApy(network, (blockNumber) =>
+      client.readContract({ address: getAddress(venue.target), abi: MTOKEN_ABI, functionName: "exchangeRateCurrent", blockNumber })), 8_000),
+  ]);
   const total = supplied(state);
   const utilization = ratio(state.borrows, total);
+  const totalSupplied = underlyingAmount(context, total);
   return {
     venue: venue.id,
     protocol: venue.protocol,
@@ -526,7 +536,10 @@ export async function moonwellMetrics(venue: CTokenVenue): Promise<LendingMetric
     asset: venue.asset,
     supplyApy: apyFromScaledRate(state.supplyRate, 10n ** 18n),
     apySource: "rate",
-    totalSupplied: underlyingAmount(context, total),
+    apyWindowSeconds: smoothed?.window ?? null,
+    smoothedApy: smoothed?.apy ?? null,
+    tvlUsd: await tvlUsdOf(totalSupplied),
+    totalSupplied,
     exitLiquidity: underlyingAmount(context, state.cash),
     utilization,
     observedAt: new Date().toISOString(),

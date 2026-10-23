@@ -147,6 +147,7 @@ export const ERROR_CATALOG = {
   ACCOUNT_SESSION_REQUIRED: { status: 401, category: "authentication", retryable: false, title: "Account session required", remedy: "Sign in with your wallet in the developer portal (POST /v1/accounts/session) and send the token as Kletia-Account-Session from the same origin." },
   ACCOUNT_NONCE_INVALID: { status: 401, category: "authentication", retryable: false, title: "Sign-in message invalid", remedy: "The sign-in message is unknown, used, expired or altered. Request a new one with POST /v1/accounts/nonce and sign it unchanged." },
   ACCOUNT_SIGNATURE_INVALID: { status: 401, category: "authentication", retryable: false, title: "Sign-in signature invalid", remedy: "Sign the exact message with the wallet it names, then request a new message: each one works once." },
+  CONFIRM_AUTHORITY_REQUIRED: { status: 403, category: "permission", retryable: false, title: "Only the person can confirm this reading", remedy: "A model-assisted reading is confirmed from the Kletia desk or with the wallet-bound token its confirm card issues, never by an API or agent answer. Hand the thread to the person, for example in a signing link." },
   KEY_SECRET_ROTATED: { status: 403, category: "permission", retryable: false, title: "Rotated key secret", remedy: "This secret still authenticates during its grace window but cannot manage keys. Use the current secret." },
   MCP_ORIGIN_FORBIDDEN: { status: 403, category: "permission", retryable: false, title: "Origin not allowed for MCP", remedy: "Call /v1/mcp without an Origin header (server-side agents) or from an allowed HTTPS origin." },
   CONTRACT_DENIED: { status: 422, category: "permission", retryable: false, title: "Contract not allowed", remedy: "Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action." },
@@ -245,6 +246,7 @@ export const ERROR_CATALOG = {
   LINK_ACCOUNT_LIMIT: conflict("Account used this link enough", "This account reached the link's per-account limit."),
   LINK_RECIPIENT_CHANGED: conflict("Link recipient changed", "A pinned recipient name now resolves elsewhere, so the link paused itself. The publisher must review and resume it."),
   LINK_CONTRACT_CHANGED: conflict("Link contract changed", "The pinned contract registration has a newer revision, so the link paused itself. The publisher must review and resume it."),
+  LEG_BELOW_PLANNED_MINIMUM: conflict("Leg below its planned minimum", "A fresh quote for this leg delivers less than the minimum it was planned with. Keep the funds where the previous leg left them (stop the intent), or plan the rest again with the new quote."),
   PREVIEW_CHANGED: conflict("Preview changed", "The fresh simulation is materially worse than the preview you acknowledged (error.preview, changes in error.issues). Show it again and prepare with its digest."),
   INTENT_IN_FLIGHT: conflict("A step is in flight", "Wait until it settles or its prepared payload expires (Retry-After), then stop the intent.", true),
   QUESTION_NOT_OPEN: conflict("Question not open", "Read the thread again and answer one of its open questions."),
@@ -277,6 +279,8 @@ export const ERROR_CATALOG = {
 
   /* -------------------------------------------------------------- intent */
   INTENT_UNSUPPORTED: intent("Intent not supported", "Rephrase using one of the examples in error.hints, or send structured actions."),
+  CLARIFY_REQUIRED: intent("Questions needed", "The text needs an answer or a confirmation before it can be planned (error.details.questions). Send it with ?clarify=true and answer there, or rewrite it with the missing details."),
+  PLAN_TOO_LARGE: intent("Plan too large", "The request expands to more wallet signatures or venue auctions than one plan allows (error.details lists the moves). Split it into smaller requests."),
   ACCOUNT_REQUIRED: intent("Account missing", "Add a CAIP-10 account for every network the intent touches."),
   ACCOUNT_AMBIGUOUS: intent("Ambiguous account", "Several accounts of this kind were given; add the one to use on this network."),
   AMOUNT_INVALID: intent("Invalid amount", "Use a positive decimal within the asset's precision, or max on a dependent step."),
@@ -407,6 +411,7 @@ export const ERROR_CATALOG = {
   SOLANA_FOREIGN_SIGNER: upstream("Unexpected signer", "The provider's instructions required another signer and were refused. Retry, or try another route.", 502, { retryable: false }),
   SOLANA_INSTRUCTION_INVALID: upstream("Provider instruction refused", "The provider's instructions failed Kletia's checks. Retry shortly."),
   UPSTREAM_TIMEOUT: upstream("Provider timed out", "Retry shortly.", 504),
+  PLAN_TIMEOUT: upstream("Planning timed out", "Venues did not quote within the planning deadline. Retry shortly, or ask for fewer steps or networks.", 504),
   RPC_TIMEOUT: upstream("Network read timed out", "Retry shortly.", 504),
   VENUE_TIMEOUT: upstream("Venue timed out", "A venue did not quote in time. Retry shortly.", 504),
   ACTION_ENDPOINT_UNAVAILABLE: upstream("Action server unavailable", "The integrator's Solana Action server did not answer in time, failed, or sent too much. Retry shortly."),
@@ -458,19 +463,22 @@ export const ERROR_CODE_FAMILIES: readonly { readonly suffix: string; readonly c
   { suffix: "_REJECTED", code: "PROVIDER_REJECTED" },
 ]);
 
-/** Features whose codes `FEATURE_ERROR_CODES` groups (round 5, round 6, then native orders in round 9). */
+/** Features whose codes `FEATURE_ERROR_CODES` groups (round 5, round 6, intent reading and routes, then native orders in round 9). */
 export type ErrorFeature =
   | "receipts" | "policies" | "links" | "preview"
-  | "protocols" | "departure" | "journey" | "clarify" | "integrator" | "projects" | "orders";
+  | "protocols" | "departure" | "journey" | "clarify" | "integrator" | "projects"
+  | "reading" | "routes" | "orders";
 
 /**
- * Codes added by the round-5 and round-6 designs, by feature. Core lands
- * first, so until the API package of a feature emits its codes the API's
- * catalog drift test lists them as catalogued but not emitted; this table
- * names the feature that owes each code (round 5: receipts R3, policies
- * PF2/PF3a, links L2/L3, preview V2/V3; round 6: named venues and price
- * guards, departure, journey, clarifying questions, integrator phase 1 and
- * projects).
+ * Codes added by the round-5 and round-6 designs and the intent reading and
+ * routes design (2026-10), by feature. Core lands first, so until the API
+ * package of a feature emits its codes the API's catalog drift test lists
+ * them as catalogued but not emitted; this table names the feature that owes
+ * each code (round 5: receipts R3, policies PF2/PF3a, links L2/L3, preview
+ * V2/V3; round 6: named venues and price guards, departure, journey,
+ * clarifying questions, integrator phase 1 and projects; 2026-10: reading
+ * (strict-path questions, who may confirm a model-assisted reading) and
+ * routes (planning deadline, plan-size caps, per-leg floors at prepare)).
  */
 export const FEATURE_ERROR_CODES: Readonly<Record<ErrorFeature, readonly KletiaErrorCode[]>> = Object.freeze({
   receipts: Object.freeze([
@@ -501,6 +509,10 @@ export const FEATURE_ERROR_CODES: Readonly<Record<ErrorFeature, readonly KletiaE
     "THREAD_NOT_FOUND", "THREAD_CONFLICT", "THREAD_CLOSED", "THREAD_REQUIRES_API_KEY",
   ] as const),
   integrator: Object.freeze(["SECRET_KEY_FROM_BROWSER", "SESSION_EXPIRES_BEFORE_ACTIVATION"] as const),
+  // Intent reading (2026-10): the strict path asks for clarify; only the person confirms a model-assisted reading.
+  reading: Object.freeze(["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED"] as const),
+  // Routes (2026-10): the planning deadline, the plan-size caps and the per-leg floor checked at prepare.
+  routes: Object.freeze(["PLAN_TIMEOUT", "PLAN_TOO_LARGE", "LEG_BELOW_PLANNED_MINIMUM"] as const),
   projects: Object.freeze([
     "PUBLISHABLE_KEY_FORBIDDEN", "PUBLISHABLE_ORIGIN_FORBIDDEN", "PROJECT_SETTINGS_INVALID", "PROJECT_CONFLICT", "FLOW_UNKNOWN", "PROJECT_LOGO_INVALID",
   ] as const),

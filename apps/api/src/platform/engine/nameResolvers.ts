@@ -82,6 +82,16 @@ interface CoinTypeChoice {
   readonly warnings: readonly string[];
 }
 
+/** The three things `eth_getCode` can show at an account: nothing, an EIP-7702 delegation, or contract code. */
+export type AccountCodeKind = "none" | "delegated" | "contract";
+
+/** Classifies an `eth_getCode` result; null when it is not a hex string (a malformed answer is never "none"). */
+export function classifyAccountCode(code: unknown): AccountCodeKind | null {
+  if (typeof code !== "string" || !/^0x(?:[0-9a-fA-F]{2})*$|^0x0$/u.test(code)) return null;
+  if (code === "0x" || code === "0x0") return "none";
+  return /^0xef0100[0-9a-f]{40}$/iu.test(code) ? "delegated" : "contract";
+}
+
 /**
  * What lives at `address`: nothing, an EIP-7702 delegation designator
  * (0xef0100 + target: still an externally owned account) or contract code.
@@ -90,6 +100,36 @@ async function accountKind(client: PublicClient, address: Address): Promise<"eoa
   const code = await client.request({ method: "eth_getCode", params: [address, "latest"] });
   if (typeof code !== "string" || code === "0x" || code === "0x0") return "eoa";
   return /^0xef0100[0-9a-f]{40}$/iu.test(code) ? "eoa" : "contract";
+}
+
+/**
+ * Seam S6 (intent design C.1 rule 4, D2): what lives at a raw EVM address on
+ * one network, three ways plus "unknown". An EIP-7702 delegation is
+ * `delegated` (a payment treats it as an externally owned account; a venue
+ * that delivers WETH to any account with code, such as Across, does not).
+ * "unknown" when the network is not EVM, the address is malformed, the read
+ * fails or does not answer within `deadlineMs`: never read as "none".
+ */
+export async function accountCode(
+  network: NetworkKey,
+  address: string,
+  deadlineMs = 3_000,
+  dependencies: EvmNameDependencies = defaultEvmDependencies,
+): Promise<"none" | "delegated" | "contract" | "unknown"> {
+  if (!isEvmNetwork(network) || !/^0x[0-9a-fA-F]{40}$/u.test(address)) return "unknown";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const read = dependencies.client(network).request({ method: "eth_getCode", params: [getAddress(address), "latest"] });
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), Math.max(1, deadlineMs));
+    });
+    const code = await Promise.race([read, timeout]);
+    return classifyAccountCode(code) ?? "unknown";
+  } catch {
+    return "unknown";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export interface EvmNameDependencies {

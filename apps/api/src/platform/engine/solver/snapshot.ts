@@ -20,8 +20,12 @@
  *   which the Rule Book's pricer already holds to the feed heartbeat, so
  *   they are judged by when they were fetched. A missing price is absent,
  *   never guessed.
- * - APY: for earn goals, at most 6 candidate venues of the chosen network,
- *   read in parallel (1.5 s each, cached 60 s). A missing APY is null.
+ * - APY: for earn goals, every candidate venue of the asset on the chosen
+ *   network (WP8: no cut before the ranking; at most SNAPSHOT_LIMITS.apyVenues
+ *   as a safety bound), read in parallel, each bounded by 1.5 s and cached
+ *   60 s. Each reading carries the current rate and, seam S8 (D11), the
+ *   venue's smoothed 7-day rate and its TVL, which `solver/yieldRank.ts`
+ *   ranks on. A missing APY is null.
  *
  * Unknown is never zero: a failed, skipped, late or over-budget read is
  * `unknown` with a reason; preview (demo) accounts are never read. Every
@@ -56,6 +60,8 @@ import { defaultVenueReader } from "../journey/facts.js";
 import { positionVenues, readVenuePositions, type VenuePositionOptions, type VenuePositionsResult } from "../journey/positions.js";
 import { PORTFOLIO_BATCH_LIMITS, readAccountPortfolios, type AccountPortfolios, type PortfolioOptions } from "../portfolio.js";
 import { quoteAsset, type PriceQuoteView } from "../preview/pricer.js";
+import { isEvmLendingVenue, readLendingMetrics } from "../adapters/lending/metrics.js";
+import { listStakingMetrics } from "../adapters/staking/index.js";
 import { capabilityGraph, nodeMatchesAsset, type GraphNode } from "./graph.js";
 import { RISK_ORDER } from "./risk.js";
 
@@ -137,11 +143,37 @@ export interface SnapshotApy {
   readonly status: SnapshotStatus;
   /** Supply APY as a fraction (0.041 = 4.1%); null when the venue does not report one. */
   readonly apy: number | null;
+  /** The venue's realised rate over about 7 days (seam S8, D11); null when unreadable (never ranked as zero). */
+  readonly smoothedApy: number | null;
+  /** Window of `smoothedApy` in seconds; null when none was read. */
+  readonly apyWindowSeconds: number | null;
+  /** USD value supplied to the venue (TVL); null when unreadable. */
+  readonly tvlUsd: number | null;
+  /** Underlying base units that still fit under the venue's supply cap; null = no cap or unknown. */
+  readonly capRemaining: string | null;
   readonly paused: boolean;
   readonly frozen: boolean;
   /** ISO time of the reading. */
   readonly at: string | null;
   readonly reason?: UnknownReason;
+}
+
+/** The smoothed rate and size of a venue (seam S8), read next to its current rate. */
+export interface VenueMetricsReading {
+  readonly smoothedApy: number | null;
+  readonly apyWindowSeconds: number | null;
+  readonly tvlUsd: number | null;
+}
+
+/** The smoothed rate and size of a liquid-staking token (seam S8). */
+export interface StakeMetricsReading {
+  /** Staking protocol id (registry). */
+  readonly provider: string;
+  readonly network: NetworkKey;
+  /** The liquid-staking token's symbol. */
+  readonly lst: string;
+  readonly smoothedApy: number | null;
+  readonly tvlUsd: number | null;
 }
 
 export interface SweepReport {
@@ -166,6 +198,8 @@ export interface Snapshot {
   readonly prices: ReadonlyMap<AssetId, SnapshotPrice>;
   /** Candidate venues of earn goals, by YIELD_VENUES id. */
   readonly apy: ReadonlyMap<string, SnapshotApy>;
+  /** S8 readings of the liquid-staking tokens, per input asset, for earn goals that may stake it (absent: not read). */
+  readonly stakes?: ReadonlyMap<"SOL" | "ETH", readonly StakeMetricsReading[]>;
   readonly sweep: SweepReport;
 }
 
@@ -187,6 +221,10 @@ export interface SnapshotReaders {
   portfolio(account: AccountId, options: PortfolioOptions): Promise<AccountPortfolios>;
   positions(account: AccountId, network: NetworkKey, options: VenuePositionOptions): Promise<VenuePositionsResult>;
   venue(venue: YieldVenue): Promise<JourneyVenueFacts>;
+  /** A venue's smoothed rate and TVL (seam S8). */
+  metrics(venue: YieldVenue): Promise<VenueMetricsReading>;
+  /** Smoothed rates and TVL of the liquid-staking tokens of an input asset (seam S8); [] when none are read. */
+  stakes(input: "SOL" | "ETH"): Promise<readonly StakeMetricsReading[]>;
   price(asset: AssetId): Promise<PriceQuoteView | null>;
 }
 
@@ -195,7 +233,8 @@ export const SNAPSHOT_LIMITS = Object.freeze({
   sweepConcurrency: PORTFOLIO_BATCH_LIMITS.concurrency,
   sweepAccounts: PORTFOLIO_BATCH_LIMITS.maxAccounts,
   positionNetworks: 2,
-  apyVenues: 6,
+  /** Safety bound on the venues read for one asset (Base USDC lists about a dozen). */
+  apyVenues: 24,
   apyReadMs: 1_500,
   apyTtlMs: 60_000,
   priceReads: 24,
@@ -206,23 +245,70 @@ const DEFAULT_READERS: SnapshotReaders = {
   portfolio: (account, options) => readAccountPortfolios([account], options),
   positions: (account, network, options) => readVenuePositions(account, network, options),
   venue: (venue) => defaultVenueReader(venue),
+  metrics: (venue) => defaultMetricsReader(venue),
+  stakes: (input) => defaultStakesReader(input),
   price: (asset) => quoteAsset(asset),
 };
+
+const NO_METRICS: VenueMetricsReading = Object.freeze({ smoothedApy: null, apyWindowSeconds: null, tvlUsd: null });
+
+/** EVM lending venues expose S8 metrics (cached a minute by the adapters); other venues read none (never compared on rate). */
+async function defaultMetricsReader(venue: YieldVenue): Promise<VenueMetricsReading> {
+  if (!isEvmLendingVenue(venue)) return NO_METRICS;
+  const metrics = await readLendingMetrics(venue.id);
+  return { smoothedApy: metrics.smoothedApy, apyWindowSeconds: metrics.apyWindowSeconds ?? null, tvlUsd: metrics.tvlUsd };
+}
+
+/** Ethereum liquid-staking tokens expose S8 metrics; Solana stake pools read none yet (the default provider stays). */
+async function defaultStakesReader(input: "SOL" | "ETH"): Promise<readonly StakeMetricsReading[]> {
+  if (input !== "ETH") return [];
+  // One listing in flight at a time, kept a minute: a read that outlives a turn's bound serves the next turn.
+  const now = Date.now();
+  if (!stakeListing || now - stakeListing.at > SNAPSHOT_LIMITS.apyTtlMs) {
+    const value = listStakingMetrics().then((listing) =>
+      listing.map((entry) => ({ provider: entry.provider, network: entry.network, lst: entry.lst, smoothedApy: entry.smoothedApy, tvlUsd: entry.tvlUsd })));
+    stakeListing = { value, at: now };
+    value.catch(() => {
+      if (stakeListing?.value === value) stakeListing = null;
+    });
+  }
+  return stakeListing.value;
+}
+let stakeListing: { readonly value: Promise<readonly StakeMetricsReading[]>; readonly at: number } | null = null;
 
 let readers: SnapshotReaders = DEFAULT_READERS;
 const priceMemo = new Map<AssetId, SnapshotPrice>();
 const apyMemo = new Map<string, { readonly value: SnapshotApy; readonly readAt: number }>();
+const stakeMemo = new Map<string, { readonly value: readonly StakeMetricsReading[]; readonly readAt: number }>();
 
-/** Replaces some or all reads (tests); null restores the defaults. Clears the snapshot's caches. */
+/**
+ * Replaces some or all reads (tests); null restores the defaults. Clears the
+ * snapshot's caches. Replacing the venue reads without the S8 readers
+ * (`metrics`, `stakes`) leaves those unread (no smoothed rate, no TVL), so a
+ * test world never mixes in live reads.
+ */
 export function configureSnapshotReaders(next: Partial<SnapshotReaders> | null): void {
-  readers = next === null ? DEFAULT_READERS : { ...DEFAULT_READERS, ...next };
+  if (next === null) readers = DEFAULT_READERS;
+  else {
+    const offline: Partial<SnapshotReaders> = next.venue
+      ? { metrics: async () => NO_METRICS, stakes: async () => [] }
+      : {};
+    readers = { ...DEFAULT_READERS, ...offline, ...next };
+  }
   resetSnapshotCaches();
 }
 
-/** Forgets memoised prices and APYs (tests). */
+/** Replaces some reads on top of the current ones (tests: S8 metrics beside an installed fixture wallet). Clears the caches. */
+export function extendSnapshotReaders(next: Partial<SnapshotReaders>): void {
+  readers = { ...readers, ...next };
+  resetSnapshotCaches();
+}
+
+/** Forgets memoised prices, APYs and stake metrics (tests). */
 export function resetSnapshotCaches(): void {
   priceMemo.clear();
   apyMemo.clear();
+  stakeMemo.clear();
 }
 
 /* ---------------------------------------------------------------- helpers */
@@ -542,7 +628,11 @@ async function readPrice(asset: AssetId, now: number, deadlineAt: number): Promi
   }
 }
 
-/** Candidate venues of earn goals (at most 6 per goal): deposit targets of the chosen network, safest tier first. */
+/**
+ * Candidate venues of earn goals: every deposit target of the asset on the
+ * chosen network (WP8: no cut before the ranking), safest tier first, then
+ * registry order; at most SNAPSHOT_LIMITS.apyVenues in all.
+ */
 function apyCandidates(goals: readonly Goal[], holdings: ReadonlyMap<string, SnapshotHolding>): YieldVenue[] {
   const graph = capabilityGraph();
   const out: YieldVenue[] = [];
@@ -573,7 +663,10 @@ function apyCandidates(goals: readonly Goal[], holdings: ReadonlyMap<string, Sna
       venues.push({ venue, tier: RISK_ORDER.indexOf(deposit.risk), order });
     });
     venues.sort((a, b) => a.tier - b.tier || a.order - b.order);
-    for (const { venue } of venues.slice(0, SNAPSHOT_LIMITS.apyVenues)) if (!out.includes(venue)) out.push(venue);
+    for (const { venue } of venues) {
+      if (out.length >= SNAPSHOT_LIMITS.apyVenues) return out;
+      if (!out.includes(venue)) out.push(venue);
+    }
   }
   return out;
 }
@@ -582,17 +675,35 @@ async function readApy(venue: YieldVenue, now: number, deadlineAt: number): Prom
   const memo = apyMemo.get(venue.id);
   if (memo && now - memo.readAt <= SNAPSHOT_LIMITS.apyTtlMs) return memo.value;
   const base = { venue: venue.id, network: venue.network, protocol: venue.protocol };
+  const budget = Math.min(SNAPSHOT_LIMITS.apyReadMs, deadlineAt - Date.now());
+  // S8 metrics are read beside the venue's facts under the same bound; a late or failed metrics read is unknown, never zero.
+  // A metrics read that ran out of time is not memoised: the adapters keep reading and cache it for the next turn.
+  let metricsLate = false;
+  const metricsRead = withDeadline(readers.metrics(venue), budget).catch((error: unknown) => {
+    metricsLate = error instanceof DeadlineError;
+    return NO_METRICS;
+  });
   try {
-    const facts = await withDeadline(readers.venue(venue), Math.min(SNAPSHOT_LIMITS.apyReadMs, deadlineAt - Date.now()));
+    const [facts, metrics] = await Promise.all([withDeadline(readers.venue(venue), budget), metricsRead]);
     // A venue that cannot take a new deposit now (over 99% borrowed, cap full) reads as frozen: no rate wins it the pick.
     const full = (typeof facts.utilization === "number" && facts.utilization >= 0.99) || facts.capRemaining === "0";
     const apy = typeof facts.apy === "number" && Number.isFinite(facts.apy) && !full ? facts.apy : null;
-    const value: SnapshotApy = { ...base, status: "known", apy, paused: facts.paused, frozen: facts.frozen || full, at: facts.at };
-    apyMemo.set(venue.id, { value, readAt: now });
+    const value: SnapshotApy = {
+      ...base, status: "known", apy, ...finiteMetrics(metrics), capRemaining: facts.capRemaining,
+      paused: facts.paused, frozen: facts.frozen || full, at: facts.at,
+    };
+    if (!metricsLate) apyMemo.set(venue.id, { value, readAt: now });
     return value;
   } catch (error) {
-    return { ...base, status: "unknown", apy: null, paused: false, frozen: false, at: null, reason: failureReason(error) };
+    return { ...base, status: "unknown", apy: null, ...NO_METRICS, capRemaining: null, paused: false, frozen: false, at: null, reason: failureReason(error) };
   }
+}
+
+/** Metrics with every non-finite or negative number as unknown (a reader's garbage is never ranked). */
+function finiteMetrics(metrics: VenueMetricsReading): VenueMetricsReading {
+  const rate = (value: number | null) => (typeof value === "number" && Number.isFinite(value) && value >= 0 && value < 10 ? value : null);
+  const positive = (value: number | null) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null);
+  return { smoothedApy: rate(metrics.smoothedApy), apyWindowSeconds: positive(metrics.apyWindowSeconds), tvlUsd: positive(metrics.tvlUsd) };
 }
 
 /* ----------------------------------------------------------------- entry */
@@ -638,9 +749,11 @@ export async function readSnapshot(accounts: readonly AccountId[], goals: readon
     }
   }
   const priceList = [...priced].slice(0, SNAPSHOT_LIMITS.priceReads);
-  const [priceResults, apyResults] = await Promise.all([
+  const stakeInputs = stakeInputsOf(goals);
+  const [priceResults, apyResults, stakeResults] = await Promise.all([
     Promise.all(priceList.map((asset) => readPrice(asset, now, deadlineAt))),
     Promise.all(apyCandidates(goals, collected.holdings).map((venue) => readApy(venue, now, deadlineAt))),
+    Promise.all(stakeInputs.map(async (input) => [input, await readStakeMetrics(input, now, deadlineAt - Date.now())] as const)),
   ]);
   const prices = new Map<AssetId, SnapshotPrice>();
   priceResults.forEach((price) => {
@@ -661,8 +774,23 @@ export async function readSnapshot(accounts: readonly AccountId[], goals: readon
     positionNetworks: Object.freeze(positions.networks),
     prices,
     apy,
+    ...(stakeResults.length > 0 ? { stakes: new Map(stakeResults) } : {}),
     sweep,
   });
+}
+
+/** Input assets of earn goals that may stake (ETH, SOL; their liquid-staking classes). */
+function stakeInputsOf(goals: readonly Goal[]): ("SOL" | "ETH")[] {
+  const inputs = new Set<"SOL" | "ETH">();
+  for (const goal of goals.filter(isEarn)) {
+    for (const selection of [goal.spend.asset, goal.want.asset]) {
+      if (!selection) continue;
+      const words = "symbol" in selection ? [selection.symbol.toUpperCase()] : [selection.class];
+      if (words.some((word) => word === "ETH" || word === "WETH" || word === "eth" || word === "eth-lst")) inputs.add("ETH");
+      if (words.some((word) => word === "SOL" || word === "sol" || word === "sol-lst")) inputs.add("SOL");
+    }
+  }
+  return [...inputs];
 }
 
 /* ---------------------------------------------------------------- lookups */
@@ -706,4 +834,37 @@ export function positionAmount(snapshot: Snapshot, network: NetworkKey, protocol
 export async function readVenueApy(venue: YieldVenue, now = Date.now()): Promise<number | null> {
   const value = await readApy(venue, now, Date.now() + SNAPSHOT_LIMITS.apyReadMs);
   return value.status === "known" && !value.paused && !value.frozen ? value.apy : null;
+}
+
+/**
+ * One venue's full reading outside a snapshot (current rate, S8 smoothed
+ * rate and TVL, pause and capacity), for the policy's venue-less deposit and
+ * `rankYieldVenues`: the same readers, 1.5 s bound and 60 s cache as the
+ * snapshot's earn candidates. Never throws: what failed is `unknown`.
+ */
+export function readVenueReading(venue: YieldVenue, now = Date.now(), deadlineMs: number = SNAPSHOT_LIMITS.apyReadMs): Promise<SnapshotApy> {
+  return readApy(venue, now, Date.now() + Math.max(1, Math.min(SNAPSHOT_LIMITS.apyReadMs, deadlineMs)));
+}
+
+/**
+ * Smoothed rates and TVL of the liquid-staking tokens of `input` (seam S8),
+ * bounded like a venue read and cached 60 s. Never throws: a failed or late
+ * read is [] (every provider then unrated, never zero).
+ */
+export async function readStakeMetrics(input: "SOL" | "ETH", now = Date.now(), deadlineMs: number = SNAPSHOT_LIMITS.apyReadMs): Promise<readonly StakeMetricsReading[]> {
+  const memo = stakeMemo.get(input);
+  if (memo && now - memo.readAt <= SNAPSHOT_LIMITS.apyTtlMs) return memo.value;
+  try {
+    const listing = await withDeadline(readers.stakes(input), Math.max(1, Math.min(SNAPSHOT_LIMITS.apyReadMs, deadlineMs)));
+    const value = Object.freeze(listing.map((entry) => ({ ...entry, ...stakeFinite(entry) })));
+    stakeMemo.set(input, { value, readAt: now });
+    return value;
+  } catch {
+    return [];
+  }
+}
+
+function stakeFinite(entry: StakeMetricsReading): Pick<StakeMetricsReading, "smoothedApy" | "tvlUsd"> {
+  const { smoothedApy, tvlUsd } = finiteMetrics({ smoothedApy: entry.smoothedApy, apyWindowSeconds: null, tvlUsd: entry.tvlUsd });
+  return { smoothedApy, tvlUsd };
 }

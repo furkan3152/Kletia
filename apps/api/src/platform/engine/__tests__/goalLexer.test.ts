@@ -65,6 +65,10 @@ function show(token: Token): string {
       return "wallet";
     case "NOISE":
       return `x${token.raw}`;
+    case "VAGUE":
+      return `~amount:${token.raw}`;
+    case "WEIGHTS":
+      return `%${token.weights.join("/")}`;
   }
 }
 
@@ -276,7 +280,11 @@ describe("goal amounts", () => {
     assert.deepEqual(readNumber("0.5k"), { value: "500", raw: "0.5k", rewritten: true });
     assert.deepEqual(readNumber("1e-2"), { value: "0.01", raw: "1e-2", rewritten: true });
     assert.deepEqual(readNumber("2.5e3"), { value: "2500", raw: "2.5e3", rewritten: true });
-    for (const bad of ["0", "0.0", "1.234.567", "1,23,4", "abc", "1e99", "-1", "", "1..2", "0k"]) assert.equal(readNumber(bad), null, bad);
+    // Design A.2 (WP7): "1.000" keeps its typed form (asked); European "1.234.567" and "1.000,50" read with a chip.
+    assert.deepEqual(readNumber("1.000"), { value: "1.000", raw: "1.000" });
+    assert.deepEqual(readNumber("1.234.567"), { value: "1234567", raw: "1.234.567", rewritten: true });
+    assert.deepEqual(readNumber("1.000,50"), { value: "1000.50", raw: "1.000,50", rewritten: true });
+    for (const bad of ["0", "0.0", "1,23,4", "abc", "1e99", "-1", "", "1..2", "0k", "01.000.000", "1.00.000"]) assert.equal(readNumber(bad), null, bad);
   });
 
   it("shifts decimals exactly", () => {

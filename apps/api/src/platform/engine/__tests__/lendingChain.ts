@@ -9,6 +9,8 @@
  * through to rpcMock's fixtures, so a test can plan, prepare, land the
  * prepared payload with chosen logs and verify it.
  */
+import { configureSnapshotReaders } from "../solver/snapshot.js";
+import { offlineEarnRanking } from "./helpers.js";
 import {
   encodeAbiParameters,
   encodeErrorResult,
@@ -85,6 +87,8 @@ function json(body: unknown): Response {
 
 export function installLendingChain(): LendingChain {
   const rpc = installRpcMock();
+  // The deposit-venue ranking reads no chain here (helpers.offlineEarnRanking).
+  offlineEarnRanking();
   const delegate = globalThis.fetch;
   const contracts = new Map<string, { abi: Abi; handlers: Record<string, Handler> }>();
   const chain: LendingChain = {
@@ -102,6 +106,7 @@ export function installLendingChain(): LendingChain {
     },
     restore() {
       rpc.restore();
+      configureSnapshotReaders(null);
     },
   };
   // viem reads native balances through Multicall3.getEthBalance when multicall batching is on.

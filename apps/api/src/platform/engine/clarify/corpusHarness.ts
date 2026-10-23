@@ -136,6 +136,15 @@ export const CORPUS_APY: Readonly<Record<string, number>> = Object.freeze({
   "base:morpho:steakhouse-prime-usdc": 0.05,
   "base:compound-v3:usdc": 0.038,
 });
+/**
+ * Sizes (TVL, USD) of the offline venues (seam S8). Each venue's fixed rate is
+ * also its 7-day rate: a settled rate the earn ranking compares (design B.3).
+ */
+export const CORPUS_TVL_USD: Readonly<Record<string, number>> = Object.freeze({
+  "base:aave-v3:usdc": 300_000_000,
+  "base:morpho:steakhouse-prime-usdc": 272_000_000,
+  "base:compound-v3:usdc": 60_000_000,
+});
 
 /**
  * Installs a fixture wallet as the solver's snapshot readers (intent engine
@@ -196,6 +205,8 @@ function installSnapshot(wallet: CorpusWallet): void {
       if (apy === undefined) throw new Error("offline");
       return { name: venue.name, apy, utilization: null, exitLiquidity: null, capRemaining: null, paused: false, frozen: false, shareRate: null, at: observedAt };
     },
+    metrics: async (venue) => ({ smoothedApy: CORPUS_APY[venue.id] ?? null, apyWindowSeconds: CORPUS_APY[venue.id] === undefined ? null : 604_800, tvlUsd: CORPUS_TVL_USD[venue.id] ?? null }),
+    stakes: async () => [],
   });
   resetSnapshotCaches();
   configurePriceReader(fixedPriceReader(CORPUS_PRICES, CORPUS_PRICE_AT));

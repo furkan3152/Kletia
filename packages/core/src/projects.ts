@@ -89,6 +89,8 @@ export interface ProjectSettingsInput {
   readonly defaults?: ProjectDefaults;
   /** At most 20 stored session templates. */
   readonly flows?: readonly ProjectFlow[];
+  /** Model-assisted reading for this project's keys (opt-in per request too; default disabled). */
+  readonly modelReading?: "disabled" | "enabled";
 }
 
 export interface ProjectDomain {
@@ -143,7 +145,7 @@ export interface ProjectProfile {
 
 /* ============================================================ validators */
 
-const SETTINGS_KEYS = ["schema", "brand", "allowedOrigins", "defaults", "flows"] as const;
+const SETTINGS_KEYS = ["schema", "brand", "allowedOrigins", "defaults", "flows", "modelReading"] as const;
 const DEFAULTS_KEYS = ["lane", "networks", "sourceNetwork", "actions", "examples", "appearance"] as const;
 /** `ownerKeyId` is what GET returns for a flow; it is accepted and ignored (the API sets it). */
 const FLOW_KEYS = ["id", "label", "actions", "amount", "constraints", "ownerKeyId"] as const;
@@ -346,6 +348,9 @@ export function validateProjectSettings(input: unknown): ValidationResult<Projec
   const allowedOrigins = input.allowedOrigins === undefined ? undefined : validateOrigins(input.allowedOrigins, issues);
   const defaults = input.defaults === undefined ? undefined : validateDefaults(input.defaults, issues);
   const flows = input.flows === undefined ? undefined : validateFlows(input.flows, issues);
+  if (input.modelReading !== undefined && input.modelReading !== "disabled" && input.modelReading !== "enabled") {
+    issues.push({ path: "modelReading", message: "Must be disabled or enabled." });
+  }
   if (issues.length > 0) return { ok: false, issues: issues.slice(0, 50) };
   return {
     ok: true,
@@ -355,6 +360,7 @@ export function validateProjectSettings(input: unknown): ValidationResult<Projec
       ...(allowedOrigins ? { allowedOrigins } : {}),
       ...(defaults && Object.keys(defaults).length > 0 ? { defaults } : {}),
       ...(flows ? { flows } : {}),
+      ...(input.modelReading === "enabled" ? { modelReading: "enabled" as const } : {}),
     },
   };
 }

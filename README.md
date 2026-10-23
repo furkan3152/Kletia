@@ -245,7 +245,7 @@ flowchart LR
 | **Arbitrum Sepolia** (`eip155:421614`) | Testnet | Uniswap V3 test-token swaps (pool quote only, 1 % slippage cap); Aave V3 USDC supply; Circle CCTP V2 (sandbox) to Arc Testnet and Solana Devnet |
 | **Solana Devnet** | Testnet | Transfers, portfolio, native SOL staking and CCTP V2 arrivals |
 
-The registry lists **62 protocols, 45 of them executable through the API**,
+The registry lists **64 protocols, 46 of them executable through the API**,
 plus your own contracts (EVM calls and Solana Actions). The numbers are what
 `GET /v1/protocols` returns: every registry entry that is not an own-contract
 slot, and those whose `executable` flag is set because an active adapter

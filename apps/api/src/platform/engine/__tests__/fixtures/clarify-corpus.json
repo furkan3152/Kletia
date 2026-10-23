@@ -526,15 +526,67 @@
   {
    "id": "A04",
    "category": "complete",
-   "title": "A transfer to a name on a named network",
+   "title": "A transfer to a name on a named network that holds too little: funds elsewhere pay the recipient there, the delivered amount is chosen",
    "wallet": "full",
    "turns": [
     {
      "say": "send 5 USDC to vitalik.eth on optimism",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "options": [
+         "base",
+         "arbitrum",
+         "solana",
+         "keep"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "base"
+     },
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "DELIVERY_AMOUNT",
+        "options": [
+         "send",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "send"
+     },
+     "expect": {
       "status": "ready",
-      "plan": "transfer@optimism 5 USDC to vitalik.eth",
-      "assumptions": [],
+      "plan": "bridge@base->optimism 5 USDC to vitalik.eth",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "material": true
+       }
+      ],
       "assumptionsExact": true
      }
     }
@@ -543,7 +595,8 @@
     "code": "PLANNED",
     "probe": "C04",
     "note": "SELF_TRANSFER with the vitalik account; plans with another account"
-   }
+   },
+   "why": "P2-M1 (WP10, C.1 rule 4, C3): a payment above the balance on its network is asked (AMOUNT_EXCEEDS_BALANCE) with funds elsewhere; a crossing payment with a stated amount asks DELIVERY_AMOUNT until exact delivery ships."
   },
   {
    "id": "A05",
@@ -795,11 +848,33 @@
   {
    "id": "A15",
    "category": "complete",
-   "title": "A dollar amount on Base pays in USDC (chip, DAI as the alternative)",
+   "title": "A polite question bridging a dollar amount from Base: one-click confirm, then USDC (chip)",
    "wallet": "full",
    "turns": [
     {
      "say": "can you bridge $25 from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 25 USDC",
@@ -821,7 +896,8 @@
     "code": "PLANNED",
     "probe": "W02",
     "note": "USDC silently"
-   }
+   },
+   "why": "Lead merge (design A.3): an interrogative/modal opener ('can you ...') is never ready; a polite command is a one-click confirm of the solved plan (INTERPRETATION_CONFIRM). Confirming gives the same plan and the same USDC chip as before."
   },
   {
    "id": "A16",
@@ -1681,15 +1757,40 @@
     {
      "say": "deposit 50 USDC into aave",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "options": [
+         "all",
+         "base",
+         "keep"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "all"
+     },
+     "expect": {
       "status": "ready",
-      "plan": "bridge@solana->base 50 USDC | deposit@base max USDC [aave-v3]",
+      "plan": "bridge@solana->base 12 USDC | deposit@base max USDC [aave-v3]",
       "assumptions": [
        {
         "field": "actions[0].network",
         "source": "context",
-        "value": {
-         "network": "base"
-        },
+        "material": true
+       },
+       {
+        "field": "actions[0].amount",
+        "source": "balance",
         "material": true
        }
       ],
@@ -1703,7 +1804,20 @@
      },
      "expect": {
       "status": "ready",
-      "plan": "bridge@solana->arbitrum 50 USDC | deposit@arbitrum max USDC [aave-v3]"
+      "plan": "bridge@solana->arbitrum 12 USDC | deposit@arbitrum max USDC [aave-v3]",
+      "assumptions": [
+       {
+        "field": "actions[0].network",
+        "source": "context",
+        "material": true
+       },
+       {
+        "field": "actions[0].amount",
+        "source": "balance",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
      }
     }
    ],
@@ -1713,7 +1827,8 @@
    "today": {
     "code": "new",
     "note": "D2 departure"
-   }
+   },
+   "why": "P2-M1 (D2 on the departure, I9): the fixed departure must hold what it sends; Solana holds 12 USDC, so the amount is asked. 'All' bridges what Solana holds; the network chip still changes the bridge target."
   },
   {
    "id": "C12",
@@ -1747,14 +1862,37 @@
   {
    "id": "C13",
    "category": "departure",
-   "title": "A network the user typed beats the departure (the sentence wins, no bridge)",
+   "title": "A venue network the user typed is where the deposit runs; the departure holds too little, so the source is asked (C8, D2)",
    "wallet": "full",
    "turns": [
     {
      "say": "deposit 50 USDC into aave on arbitrum",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "options": [
+         "all",
+         "base",
+         "keep"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "base"
+     },
+     "expect": {
       "status": "ready",
-      "plan": "deposit@arbitrum 50 USDC [aave-v3]",
+      "plan": "bridge@base->arbitrum 50 USDC | deposit@arbitrum max USDC [aave-v3]",
       "assumptions": [],
       "assumptionsExact": true
      }
@@ -1766,7 +1904,8 @@
    "today": {
     "code": "new",
     "note": "D2 departure"
-   }
+   },
+   "why": "P2-M1 (C.4 C8): only a spend-side network overrides a fixed departure; a venue network is where the step runs. The departure holds 12 USDC, so the amount is asked; funds on Base bridge to Arbitrum."
   },
   {
    "id": "C14",
@@ -1863,7 +2002,7 @@
   {
    "id": "C17",
    "category": "departure",
-   "title": "Departure Base, a payment to a Solana address: one bridge leg pays the recipient on Solana (chip)",
+   "title": "Departure Base, a payment to a Solana address: one bridge leg pays the recipient on Solana; the delivered amount is chosen",
    "wallet": "full",
    "request": {
     "sourceNetwork": "base"
@@ -1871,6 +2010,28 @@
    "turns": [
     {
      "say": "send 5 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "DELIVERY_AMOUNT",
+        "options": [
+         "send",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "send"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 5 USDC to 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
@@ -1885,7 +2046,7 @@
      }
     }
    ],
-   "why": "Round 6 build: unified departure rules (departure.ts): a third-party transfer elsewhere is one bridge leg to the recipient with the exact input; planned as structured actions."
+   "why": "P2-M1 (C.1 rule 4, C3, S10): a crossing payment with a stated amount asks DELIVERY_AMOUNT until exact delivery (receiveExact) ships; the answer plans one bridge leg that pays the recipient."
   },
   {
    "id": "C18",
@@ -1932,6 +2093,10 @@
         "field": "actions[0].network",
         "kind": "choice",
         "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
         "recommended": null,
         "allowsText": true
        }
@@ -1942,6 +2107,28 @@
      "answer": {
       "question": "q.actions.0.network",
       "option": "base"
+     },
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "DELIVERY_AMOUNT",
+        "options": [
+         "send",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "send"
      },
      "expect": {
       "status": "ready",
@@ -1957,7 +2144,7 @@
      }
     }
    ],
-   "why": "Round 6 build: the recipient's network is a purpose question (R2); the departure then pays the recipient through one bridge leg (departure.ts)."
+   "why": "Round 6: the recipient's network is a purpose question (R2). P2-M1 (C3): the crossing payment then asks DELIVERY_AMOUNT; the answer bridges from Solana to the recipient."
   },
   {
    "id": "D01",
@@ -2606,24 +2793,36 @@
   {
    "id": "E10",
    "category": "network",
-   "title": "Send to an address when only one network holds the funds: assumed, shown as a material chip",
+   "title": "Send to an address: where the recipient receives is asked, even when one network holds the funds",
    "wallet": "evm_base",
    "turns": [
     {
      "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD",
      "expect": {
-      "status": "ready",
-      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
-      "assumptions": [
+      "status": "needs_input",
+      "questions": [
        {
         "field": "actions[0].network",
-        "source": "balance",
-        "value": {
-         "network": "base"
-        },
-        "material": true
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base"
+        ],
+        "recommended": null,
+        "allowsText": true
        }
-      ],
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [],
       "assumptionsExact": true
      }
     }
@@ -2631,7 +2830,8 @@
    "today": {
     "code": "PLANNED",
     "probe": "N04"
-   }
+   },
+   "why": "P2-M1 (C.1 rule 4, I13, E.1): the receiving network of a payment to a raw address is purpose, never a chip; the answer plans it."
   },
   {
    "id": "E11",
@@ -2670,20 +2870,40 @@
   {
    "id": "E12",
    "category": "network",
-   "title": "Send to an address with an integrator default network: chip",
+   "title": "Send to an address with an integrator default network: the receiving network is still asked",
    "wallet": "preview",
    "turns": [
     {
      "say": "send 5 USDC to 0x1111111111111111111111111111111111111111",
      "expect": {
-      "status": "ready",
-      "plan": "transfer@base 5 USDC to 0x1111111111111111111111111111111111111111",
-      "assumptions": [
+      "status": "needs_input",
+      "questions": [
        {
         "field": "actions[0].network",
-        "source": "default"
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum",
+         "ethereum",
+         "optimism",
+         "polygon"
+        ],
+        "recommended": null,
+        "allowsText": true
        }
-      ],
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "base"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "transfer@base 5 USDC to 0x1111111111111111111111111111111111111111",
+      "assumptions": [],
       "assumptionsExact": true
      }
     }
@@ -2694,7 +2914,8 @@
    "today": {
     "code": "PLANNED",
     "probe": "N04"
-   }
+   },
+   "why": "P2-M1 (C.1 rule 4, I13): a default network is a means; where a third party receives is purpose, so it is asked (never suggested)."
   },
   {
    "id": "E13",
@@ -2769,11 +2990,33 @@
   {
    "id": "E15",
    "category": "network",
-   "title": "Departure fixed by the console: the transfer runs there, no question",
+   "title": "Departure fixed by the console: where vitalik.eth receives is asked; the transfer then runs there",
    "wallet": "two_usdc",
    "turns": [
     {
      "say": "send 5 USDC to vitalik.eth",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].network",
+        "kind": "choice",
+        "reason": "TRANSFER_NETWORK",
+        "options": [
+         "base",
+         "arbitrum"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.network",
+      "option": "arbitrum"
+     },
      "expect": {
       "status": "ready",
       "plan": "transfer@arbitrum 5 USDC to vitalik.eth",
@@ -2787,7 +3030,8 @@
    },
    "today": {
     "code": "new"
-   }
+   },
+   "why": "P2-M1 (C.1 rule 4, I13): a departure says where the money starts, not where a third party receives."
   },
   {
    "id": "E16",
@@ -2840,15 +3084,40 @@
       "option": "WETH"
      },
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].amount",
+        "kind": "choice",
+        "reason": "AMOUNT_EXCEEDS_BALANCE",
+        "options": [
+         "all",
+         "keep"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.amount",
+      "option": "keep"
+     },
+     "expect": {
       "status": "ready",
-      "plan": "transfer@polygon 0.01 WETH to 0x000000000000000000000000000000000000dEaD"
+      "plan": "transfer@polygon 0.01 WETH to 0x000000000000000000000000000000000000dEaD",
+      "assumptions": [],
+      "assumptionsExact": true
      }
     }
    ],
    "today": {
     "code": "TOKEN_UNKNOWN",
     "probe": "X03"
-   }
+   },
+   "why": "P2-M1 (WP10): after the asset is chosen, a payment above the balance on its network is asked; 'keep' plans the amount as said."
   },
   {
    "id": "F02",
@@ -3104,32 +3373,43 @@
   {
    "id": "F10",
    "category": "asset",
-   "title": "Typo 'SOLL' matches nothing: corrected to SOL with a material chip",
+   "title": "Typo 'SOLL' is one letter from SOL: ask 'did you mean SOL?' (a symbol is never corrected on a chip), then plan",
    "wallet": "full",
    "turns": [
     {
      "say": "swap 1.5 SOLL to USDC",
      "expect": {
-      "status": "ready",
-      "plan": "swap@solana 1.5 SOL->USDC",
-      "assumptions": [
+      "status": "needs_input",
+      "questions": [
        {
         "field": "actions[0].from",
-        "source": "correction",
-        "value": {
-         "asset": "SOL"
-        },
-        "material": true
+        "kind": "choice",
+        "reason": "ASSET_LOOKALIKE",
+        "options": [
+         "SOL"
+        ],
+        "recommended": "SOL",
+        "allowsText": true
        }
-      ],
-      "assumptionsExact": true
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.from",
+      "option": "SOL"
+     },
+     "expect": {
+      "status": "ready",
+      "plan": "swap@solana 1.5 SOL->USDC"
      }
     }
    ],
    "today": {
     "code": "TOKEN_UNKNOWN",
     "probe": "T10"
-   }
+   },
+   "why": "Intent design P2-M0 (red-team A10, required change 16): a symbol correction never becomes a chip. An unlisted Solana symbol may be a real unverified token, so one close listed symbol asks ASSET_LOOKALIKE with it suggested, as F09 does on the receive side."
   },
   {
    "id": "F11",
@@ -3205,14 +3485,38 @@
   {
    "id": "F13",
    "category": "asset",
-   "title": "A verified non-canonical Solana token plans as today",
+   "title": "stSOL is a look-alike Kletia does not list: asked with the listed members, never planned as a verified token",
    "wallet": "full",
    "turns": [
     {
      "say": "swap 1 SOL to stSOL",
      "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].to",
+        "kind": "choice",
+        "reason": "ASSET_LOOKALIKE",
+        "options": [
+         "JitoSOL",
+         "JupSOL",
+         "mSOL",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.to",
+      "option": "mSOL"
+     },
+     "expect": {
       "status": "ready",
-      "plan": "swap@solana 1 SOL->stSOL",
+      "plan": "swap@solana 1 SOL->mSOL",
       "assumptions": [],
       "assumptionsExact": true
      }
@@ -3221,7 +3525,8 @@
    "today": {
     "code": "PLANNED",
     "probe": "X12"
-   }
+   },
+   "why": "P2-M1 (A10, A.4.14): a typed member of a look-alike family that Kletia does not list is asked (ASSET_LOOKALIKE) on every path; the swap's own input is not offered."
   },
   {
    "id": "F14",
@@ -3671,11 +3976,33 @@
   {
    "id": "H01",
    "category": "typo",
-   "title": "Verb typo with one close match: corrected, material chip",
+   "title": "Verb typo with one close match: one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "swpa 1 SOL to USDC",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "swap@solana 1 SOL->USDC",
@@ -3693,7 +4020,8 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T01"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H02",
@@ -3720,11 +4048,33 @@
   {
    "id": "H03",
    "category": "typo",
-   "title": "Network typo with one close match: corrected, material chip",
+   "title": "Network typo with one close match: one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "bridge 25 usdc from bsae to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 25 USDC",
@@ -3742,16 +4092,39 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T04"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H04",
    "category": "typo",
-   "title": "Provider typo 'jitto'",
+   "title": "Provider typo 'jitto': one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "stake 1 SOL with jitto",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "stake@solana 1 SOL->JitoSOL {jito}",
@@ -3768,16 +4141,39 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T05"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H05",
    "category": "typo",
-   "title": "Venue typo 'aavee'",
+   "title": "Venue typo 'aavee': one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "deposit 100 USDC into aavee on base",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "deposit@base 100 USDC [aave-v3]",
@@ -3794,16 +4190,39 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T06"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H06",
    "category": "typo",
-   "title": "Network typo 'solan'",
+   "title": "Network typo 'solan': one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "swap 1 sol to usdc on solan",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "swap@solana 1 SOL->USDC",
@@ -3820,7 +4239,8 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T07"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H07",
@@ -3873,11 +4293,33 @@
   {
    "id": "H09",
    "category": "typo",
-   "title": "Long verb typo 'briddge' (distance 1 of 7 letters)",
+   "title": "Long verb typo 'briddge' (distance 1 of 7 letters): one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "briddge 25 USDC from base to solana",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 25 USDC",
@@ -3894,7 +4336,8 @@
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "T11"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H10",
@@ -3960,11 +4403,33 @@
   {
    "id": "H12",
    "category": "typo",
-   "title": "Network typo next to an address",
+   "title": "Network typo next to an address: one-click confirm, then the correction chip",
    "wallet": "full",
    "turns": [
     {
      "say": "send 5 USDC to 0x000000000000000000000000000000000000dEaD on bsae",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[0].kind",
+        "kind": "confirm",
+        "reason": "INTERPRETATION_CONFIRM",
+        "options": [
+         "confirm",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": true
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.0.kind",
+      "option": "confirm"
+     },
      "expect": {
       "status": "ready",
       "plan": "transfer@base 5 USDC to 0x000000000000000000000000000000000000dEaD",
@@ -3980,7 +4445,8 @@
    ],
    "today": {
     "code": "INTENT_UNSUPPORTED"
-   }
+   },
+   "why": "Lead merge (design A.3, E.1; P4-M1 source C): a keyword correction makes the clause source C, so expectations 'ready with a correction chip' become a one-click confirm of the solved plan (INTERPRETATION_CONFIRM, 'Kletia read this as: ...'). Confirming gives the same plan with the correction chip."
   },
   {
    "id": "H13",
@@ -4127,14 +4593,14 @@
   {
    "id": "I02",
    "category": "wording",
-   "title": "'earn yield on 100 USDC': network from the balance, then the venue with the best rate for its risk (a chip), changed to Compound V3",
+   "title": "'earn yield on 100 USDC': network from the balance, then the venue with the best 7-day rate for its risk (a chip), changed to Compound V3",
    "wallet": "full",
    "turns": [
     {
      "say": "earn yield on 100 USDC",
      "expect": {
       "status": "ready",
-      "plan": "deposit@base 100 USDC [aave-v3]",
+      "plan": "deposit@base 100 USDC [morpho:steakhouse-prime-usdc]",
       "assumptions": [
        {
         "field": "actions[0].network",
@@ -4163,7 +4629,7 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "W08"
    },
-   "why": "Round 7 engine-P5 (design 7.4, D6; protocols design 3.6): a venue-less deposit ranks the capability index's venues (tier, then registry order, top 4) with live rates and picks the best risk-adjusted rate among core and curated venues as a material chip (offline rates: Aave V3 4.1%, Compound V3 3.8%); VENUE_MISSING is asked only when no rate can be read. The chip's alternatives replace the old question."
+   "why": "P2-M2 (design B.3, WP8, D11): a venue-less deposit ranks every venue of the asset on the network before any cut, on the smoothed 7-day rate net of the tier's holding penalty, with the 2x deviation check and the tier TVL floor. Offline 7-day rates (corpus harness S8 metrics): Morpho Steakhouse Prime 5.0% (curated, 4.5% after the 0.5-point allowance), Aave V3 4.1%, Compound V3 3.8%: Morpho is the best risk-adjusted rate (the old top-4 cut never reached it). VENUE_MISSING is asked when no venue's 7-day rate can be compared. The chip's alternatives still change the venue."
   },
   {
    "id": "I03",
@@ -4469,27 +4935,46 @@
   {
    "id": "J04",
    "category": "multi-step",
-   "title": "'stake it' after bridging USDC: staking buys JitoSOL with the USDC (material chip)",
+   "title": "'stake it' after bridging USDC: staking needs SOL, so buying JitoSOL with the USDC is asked",
    "wallet": "full",
    "turns": [
     {
      "say": "bridge 25 USDC to solana then stake it",
+     "expect": {
+      "status": "needs_input",
+      "questions": [
+       {
+        "field": "actions[1].from",
+        "kind": "choice",
+        "reason": "STAKE_INPUT_MISMATCH",
+        "options": [
+         "buy",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.1.from",
+      "option": "buy"
+     },
      "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 25 USDC | stake@solana max USDC->JitoSOL {jito}",
       "assumptions": [
        {
         "field": "actions[0].network",
-        "source": "balance"
-       },
-       {
-        "field": "actions[1].from",
-        "source": "context",
+        "source": "balance",
         "material": true
        },
        {
         "field": "actions[1].provider",
-        "source": "default"
+        "source": "default",
+        "material": true
        }
       ],
       "assumptionsExact": true
@@ -4500,7 +4985,8 @@
     "code": "INTENT_UNSUPPORTED",
     "probe": "P05",
     "note": "with defaultNetwork base it silently merged into one bridge to JitoSOL"
-   }
+   },
+   "why": "P2-M1 (STAKE_INPUT_MISMATCH): staking fed another asset is a question, never a silent swap; 'buy' plans JitoSOL with the USDC."
   },
   {
    "id": "J05",
@@ -5012,22 +5498,55 @@
      "say": "bridge 25 USDC from base to solana",
      "expect": {
       "status": "ready",
-      "plan": "bridge@base->solana 25 USDC"
+      "plan": "bridge@base->solana 25 USDC",
+      "assumptions": [],
+      "assumptionsExact": true
      }
     },
     {
      "say": "and then stake it",
      "expect": {
+      "status": "needs_input",
+      "turn": "append",
+      "questions": [
+       {
+        "field": "actions[1].from",
+        "kind": "choice",
+        "reason": "STAKE_INPUT_MISMATCH",
+        "options": [
+         "buy",
+         "cancel"
+        ],
+        "recommended": null,
+        "allowsText": false
+       }
+      ]
+     }
+    },
+    {
+     "answer": {
+      "question": "q.actions.1.from",
+      "option": "buy"
+     },
+     "expect": {
       "status": "ready",
       "plan": "bridge@base->solana 25 USDC | stake@solana max USDC->JitoSOL {jito}",
-      "turn": "append"
+      "assumptions": [
+       {
+        "field": "actions[1].provider",
+        "source": "default",
+        "material": true
+       }
+      ],
+      "assumptionsExact": true
      }
     }
    ],
    "today": {
     "code": "INTENT_UNSUPPORTED",
     "probe": "F04"
-   }
+   },
+   "why": "P2-M1 (STAKE_INPUT_MISMATCH): the appended stake is fed USDC, so buying JitoSOL is asked; the answer plans it."
   },
   {
    "id": "L05",

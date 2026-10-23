@@ -176,3 +176,91 @@ test("goal: invalid goals in a thread are refused at goals[i]", () => {
   assert.deepEqual(paths(validateThread(thread({ goals: "convert" }))), ["goals"]);
   assert.equal(validateThread(thread({ goals: Array.from({ length: 9 }, () => goal()) })).ok, false);
 });
+
+// ------------------------------------------------------------ 2026-10 Goal IR additions (design A.6)
+
+test("goal: the 2026-10 additions validate (keep, filter, want mode, targets, position category, yield)", async () => {
+  const { GOAL_PREFERENCES, WANT_MODES, TARGET_AXES, EXPOSURE_ASSET_CLASSES, ASSET_CLASSES } = await import("../dist/index.js");
+  assert.ok(GOAL_PREFERENCES.includes("yield"));
+  assert.deepEqual([...WANT_MODES], ["add", "atLeast", "exactly"]);
+  assert.deepEqual([...TARGET_AXES], ["network", "asset"]);
+  // Exposure classes are declared but not accepted until the solver reads them.
+  for (const klass of EXPOSURE_ASSET_CLASSES) assert.ok(!ASSET_CLASSES.includes(klass), klass);
+  const keep = goal({
+    constraints: { keep: [{ amount: { t: "exact", value: "50" } }, { asset: { symbol: "ETH" }, amount: { t: "exact", value: "0.05" }, network: "base" }], prefer: "yield" },
+  });
+  assert.equal(validateGoal(keep).ok, true, JSON.stringify(validateGoal(keep)));
+  const dust = goal({ kind: "consolidate", spend: { asset: { class: "any-stable" }, amount: { t: "max" }, filter: { maxUsdEach: "5" } } });
+  assert.equal(validateGoal(dust).ok, true);
+  const ensure = goal({ kind: "acquire", spend: {}, want: { asset: { symbol: "SOL" }, amount: { t: "exact", value: "0.05" }, mode: "atLeast", at: { network: "solana", custody: { kind: "wallet" } } } });
+  assert.equal(validateGoal(ensure).ok, true);
+  const exit = goal({ kind: "exit", spend: { amount: { t: "max" }, from: { custody: { kind: "position", category: "lending" } } }, want: {} });
+  assert.equal(validateGoal(exit).ok, true);
+  const rebalance = goal({
+    kind: "rebalance", spend: {}, want: {},
+    targets: { axis: "asset", scope: { network: "arbitrum", custody: { kind: "wallet" } }, weights: [{ key: "ETH", bps: 5_000 }, { key: "USDC", bps: 5_000 }] },
+  });
+  assert.equal(validateGoal(rebalance).ok, true, JSON.stringify(validateGoal(rebalance)));
+  const evenOut = goal({ kind: "rebalance", spend: { asset: { symbol: "USDC" } }, want: {}, targets: { axis: "network", weights: [{ key: "base", bps: 5_000 }, { key: "arbitrum", bps: 5_000 }] } });
+  assert.equal(validateGoal(evenOut).ok, true);
+  assert.equal(GOAL_LIMITS.maxKeeps, 4);
+  assert.equal(GOAL_LIMITS.maxTargetWeights, 8);
+});
+
+test("goal: the 2026-10 additions refuse bad values with their paths", () => {
+  const cases = [
+    [goal({ constraints: { keep: [] } }), "constraints.keep"],
+    [goal({ constraints: { keep: Array(5).fill({ amount: { t: "exact", value: "1" } }) } }), "constraints.keep"],
+    [goal({ constraints: { keep: [{ asset: { symbol: "ETH" } }] } }), "constraints.keep[0].amount"],
+    [goal({ constraints: { keep: [{ amount: { t: "max" } }] } }), "constraints.keep[0].amount"],
+    [goal({ constraints: { keep: [{ amount: { t: "previous" } }] } }), "constraints.keep[0].amount"],
+    [goal({ constraints: { keep: [{ amount: { t: "exact", value: "1" }, network: "mars" }] } }), "constraints.keep[0].network"],
+    [goal({ constraints: { keep: [{ amount: { t: "exact", value: "1" }, why: "gas" }] } }), "constraints.keep[0].why"],
+    [goal({ spend: { asset: { symbol: "USDC" }, filter: { maxUsdEach: "0" } } }), "spend.filter.maxUsdEach"],
+    [goal({ spend: { asset: { symbol: "USDC" }, filter: { below: "5" } } }), "spend.filter.below"],
+    [goal({ want: { asset: { symbol: "USDC" }, mode: "most" } }), "want.mode"],
+    [goal({ want: { asset: { symbol: "USDC" }, filter: {} } }), "want.filter"],
+    [goal({ spend: { mode: "atLeast" } }), "spend.mode"],
+    [goal({ spend: { from: { custody: { kind: "position", category: "perps" } } } }), "spend.from.custody.category"],
+    [goal({ constraints: { prefer: "riskiest" } }), "constraints.prefer"],
+    // Targets only on a rebalance, weights summing to 10 000 over distinct keys of the axis.
+    [goal({ targets: { axis: "network", weights: [{ key: "base", bps: 10_000 }] } }), "targets"],
+    [goal({ kind: "rebalance", targets: { axis: "chain", weights: [{ key: "base", bps: 10_000 }] } }), "targets.axis"],
+    [goal({ kind: "rebalance", targets: { axis: "network", weights: [{ key: "base", bps: 6_000 }, { key: "arbitrum", bps: 3_000 }] } }), "targets.weights"],
+    [goal({ kind: "rebalance", targets: { axis: "network", weights: [{ key: "mars", bps: 10_000 }] } }), "targets.weights[0].key"],
+    [goal({ kind: "rebalance", targets: { axis: "asset", weights: [{ key: "ETH", bps: 5_000 }, { key: "ETH", bps: 5_000 }] } }), "targets.weights[1].key"],
+    [goal({ kind: "rebalance", targets: { axis: "asset", weights: [{ key: "ETH", bps: 5_000.5 }, { key: "USDC", bps: 4_999.5 }] } }), "targets.weights[0].bps"],
+    [goal({ kind: "rebalance", targets: { axis: "asset", weights: [] } }), "targets.weights"],
+    [goal({ kind: "rebalance", targets: { axis: "asset", weights: [{ key: "ETH", bps: 10_000 }], scope: { network: "mars", custody: { kind: "wallet" } } } }), "targets.scope.network"],
+  ];
+  for (const [input, path] of cases) {
+    const result = validateGoal(input);
+    assert.equal(result.ok, false, `${path}: ${JSON.stringify(input)}`);
+    assert.ok(paths(result).includes(path), `${path} in ${JSON.stringify(paths(result))}`);
+  }
+});
+
+test("goal: \"the rest\" and the exposure classes are declared but refused until something reads them", async () => {
+  const { isRestAmount } = await import("../dist/index.js");
+  assert.equal(isRestAmount({ t: "rest" }), true);
+  assert.equal(isRestAmount({ t: "rest", bps: 1 }), false);
+  assert.equal(isRestAmount({ t: "max" }), false);
+  assert.ok(paths(validateGoal(goal({ spend: { asset: { symbol: "SOL" }, amount: { t: "rest" } } }))).includes("spend.amount.t"));
+  for (const klass of ["eth-lst", "sol-lst", "btc"]) {
+    assert.ok(paths(validateGoal(goal({ want: { asset: { class: klass } } }))).includes("want.asset.class"), klass);
+  }
+});
+
+test("goal: the new reasons of reading and placement are purpose questions with no suggestion", () => {
+  const added = [
+    "AMOUNT_VAGUE", "REFERENCE_AMBIGUOUS", "RECIPIENT_EACH", "SPEND_CONFLICT", "STAKE_INPUT_MISMATCH", "NETWORK_CONTRADICTION",
+    "PAIRING_AMBIGUOUS", "DELIVERY_AMOUNT", "GAS_ON_ARRIVAL", "FEE_HIGH", "PLAN_TOO_LARGE",
+  ];
+  assert.equal(added.length, 11);
+  for (const reason of added) {
+    assert.ok(CLARIFY_REASONS.includes(reason), reason);
+    assert.ok(PURPOSE_REASONS.has(reason), `${reason} is a purpose question`);
+    assert.ok(UNSUGGESTED_REASONS.has(reason), `${reason} carries no suggestion`);
+  }
+  assert.deepEqual(CLARIFY_REASONS.slice(-11), added, "appended at the end (existing order unchanged)");
+});

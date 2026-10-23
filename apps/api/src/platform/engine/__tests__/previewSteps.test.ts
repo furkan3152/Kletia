@@ -10,14 +10,14 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { encodeAbiParameters, pad, toHex, type Hex } from "viem";
 import { CHAINS, type IntentGraph, type IntentStep, type TransactionRequest } from "@kletia/core";
-import { planIntentWithPreviews } from "../planner.js";
+import { configureGasReserveReader, planIntentWithPreviews } from "../planner.js";
 import { configurePlatform } from "../service.js";
 import { buildEvmJobs, type StepTransactions } from "../preview/jobs.js";
 import { previewIntent, previewPreparedStep, rememberPlannedPreviews } from "../preview/index.js";
 import type { SimulatedJob } from "../preview/simulate.js";
 import { evmStepPreview, fundedModel, quotedStepPreview, type StepBuildContext } from "../preview/steps.js";
 import { configureHoldingsReaders } from "../holdings.js";
-import { ACCOUNTS, JUPITER_PROGRAM, SOL_ADDRESS, STUB_ADAPTERS, unsignedSolanaTransaction } from "./helpers.js";
+import { ACCOUNTS, FUNDED_GAS_FACTS, JUPITER_PROGRAM, SOL_ADDRESS, STUB_ADAPTERS, unsignedSolanaTransaction } from "./helpers.js";
 import { ACCOUNT_BASE, FRIEND, fund, installPreviewChain, resetPreviewEngine, USDC, USER, type PreviewChain } from "./previewHarness.js";
 
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -35,7 +35,19 @@ beforeEach(() => {
   resetPreviewEngine();
 });
 
-afterEach(() => chain.restore());
+afterEach(() => {
+  configureGasReserveReader(null);
+  chain.restore();
+});
+
+/**
+ * The account holds SOL for network fees on Solana when the plan is made
+ * (design C.3: a plan whose later Solana step cannot be signed is refused at
+ * plan time with GAS_TOPUP_UNAVAILABLE). Previews still read live holdings.
+ */
+function planWithSolanaGas(): void {
+  configureGasReserveReader(async () => FUNDED_GAS_FACTS);
+}
 
 /** A bridge step planned for the probe account, and its one-block job. */
 async function relayJob() {
@@ -289,6 +301,7 @@ describe("Solana step previews", () => {
 
   it("keeps a Solana step funded by a pending bridge quoted (no Solana override exists)", async () => {
     configurePlatform({ adapters: STUB_ADAPTERS });
+    planWithSolanaGas();
     const { graph } = await planIntentWithPreviews({
       actions: [
         { kind: "bridge", network: "base", toNetwork: "solana", from: "USDC", to: "USDC", amount: "100" },
@@ -313,6 +326,7 @@ describe("Solana step previews", () => {
       solanaTokenAccountExists: async () => false,
     });
     try {
+      planWithSolanaGas();
       const { graph } = await planIntentWithPreviews({
         actions: [
           { kind: "bridge", network: "base", toNetwork: "solana", from: "USDC", to: "USDC", amount: "100" },
@@ -343,6 +357,7 @@ describe("Solana step previews", () => {
 describe("funded steps through core flow.ts", () => {
   it("spends share × credit − gas reserve and shows the reserve as kept for network fees", async () => {
     configurePlatform({ adapters: STUB_ADAPTERS });
+    planWithSolanaGas();
     const { graph } = await planIntentWithPreviews({
       actions: [
         { kind: "bridge", network: "base", toNetwork: "solana", from: "USDC", to: "USDC", amount: "100" },

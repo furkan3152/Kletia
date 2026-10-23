@@ -130,6 +130,20 @@ book's `perps.maxLeverage`, default 20, or the venue's cap),
 `PERPS_SIGNATURE_INVALID` and `PERPS_RELAY_REJECTED` answer the Hyperliquid
 relay. See [perps.md](perps.md).
 
+## Questions, confirmations and route limits
+
+`CLARIFY_REQUIRED` answers a text intent (without `?clarify=true`) that
+needs a question or a confirmation before it can be planned; the questions
+are in `details.questions`, and the same text with `?clarify=true` asks them.
+`CONFIRM_AUTHORITY_REQUIRED` means a model-assisted reading waits for the
+person's own confirmation (from the Kletia desk or with the wallet-bound
+token its confirm card issues); an API key or an agent cannot answer it.
+`PLAN_TIMEOUT` (retry: yes) means venues did not quote within the planning
+deadline; `PLAN_TOO_LARGE` lists the moves in `details`.
+`LEG_BELOW_PLANNED_MINIMUM` is returned by prepare when a later leg's fresh
+quote delivers less than its planned minimum: stop the intent to keep the
+funds where they are, or plan the rest again.
+
 ## Catalog
 
 ### Request
@@ -193,6 +207,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-AGENT_KEY_FORBIDDEN"></a>`AGENT_KEY_FORBIDDEN` | 403 | no | Not allowed for agent keys | Agent keys never manage project keys or rule books, and need the matching permission (webhooks, registerContracts, sessions, createChildKeys, links, automations) for the rest. Use a project key. |
 | <a id="error-APPROVAL_SIGNATURE_INVALID"></a>`APPROVAL_SIGNATURE_INVALID` | 403 | no | Approval signature invalid | Sign the exact typed data (EIP-712 "Kletia Approvals") or message text of this approval with the listed wallet, before it expires. |
 | <a id="error-APPROVER_NOT_ALLOWED"></a>`APPROVER_NOT_ALLOWED` | 403 | no | Not an approver of this intent | Approve with an active project key outside the requester's subtree, or with a wallet the rule book lists. Agent keys never approve, and requireWallet refuses keys. |
+| <a id="error-CONFIRM_AUTHORITY_REQUIRED"></a>`CONFIRM_AUTHORITY_REQUIRED` | 403 | no | Only the person can confirm this reading | A model-assisted reading is confirmed from the Kletia desk or with the wallet-bound token its confirm card issues, never by an API or agent answer. Hand the thread to the person, for example in a signing link. |
 | <a id="error-CONTRACT_DENIED"></a>`CONTRACT_DENIED` | 422 | no | Contract not allowed | Tokens, routers, Permit2, Multicall3, precompiles, system contracts and deny-listed addresses can never be registered or called. Register the contract that performs the action. |
 | <a id="error-KEY_SECRET_ROTATED"></a>`KEY_SECRET_ROTATED` | 403 | no | Rotated key secret | This secret still authenticates during its grace window but cannot manage keys. Use the current secret. |
 | <a id="error-LINK_POLICY_CONFLICT"></a>`LINK_POLICY_CONFLICT` | 422 | no | Link outside the key's rule book | The link reaches networks, assets, recipients, contracts or amounts the publisher key's rule book refuses (rule ids in error.issues). Tighten the link or use another key. |
@@ -268,6 +283,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-KEY_DEPTH_EXCEEDED"></a>`KEY_DEPTH_EXCEEDED` | 409 | no | Agent key tree too deep | Agent keys sit at most 3 levels below a project key. Create the key under a shallower parent. |
 | <a id="error-KEY_LIMIT_REACHED"></a>`KEY_LIMIT_REACHED` | 409 | no | Too many active keys | A project holds at most 5 active keys. Revoke one with DELETE /v1/keys/{id} first. |
 | <a id="error-KEY_NOT_MANAGEABLE"></a>`KEY_NOT_MANAGEABLE` | 409 | no | Operator keys are immutable | Operator keys come from server configuration; change KLETIA_OPERATOR_API_KEYS instead. |
+| <a id="error-LEG_BELOW_PLANNED_MINIMUM"></a>`LEG_BELOW_PLANNED_MINIMUM` | 409 | no | Leg below its planned minimum | A fresh quote for this leg delivers less than the minimum it was planned with. Keep the funds where the previous leg left them (stop the intent), or plan the rest again with the new quote. |
 | <a id="error-LINK_ACCOUNT_LIMIT"></a>`LINK_ACCOUNT_LIMIT` | 409 | no | Account used this link enough | This account reached the link's per-account limit. |
 | <a id="error-LINK_CONTRACT_CHANGED"></a>`LINK_CONTRACT_CHANGED` | 409 | no | Link contract changed | The pinned contract registration has a newer revision, so the link paused itself. The publisher must review and resume it. |
 | <a id="error-LINK_EXHAUSTED"></a>`LINK_EXHAUSTED` | 409 | yes | Link used up | Every use of the link is reserved or consumed. Uses of abandoned intents are released, so retry later. |
@@ -336,6 +352,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-ASSET_NETWORK_MISMATCH"></a>`ASSET_NETWORK_MISMATCH` | 422 | no | Asset on another network | Use an asset that lives on the step's network, or bridge first. |
 | <a id="error-ASSET_REQUIRED"></a>`ASSET_REQUIRED` | 422 | no | Asset required | Name the input and output assets. |
 | <a id="error-CAPITAL_LANE_MIXED"></a>`CAPITAL_LANE_MIXED` | 422 | no | Mainnet and testnet mixed | Keep every network of one intent on mainnet, or every one on testnet. |
+| <a id="error-CLARIFY_REQUIRED"></a>`CLARIFY_REQUIRED` | 422 | no | Questions needed | The text needs an answer or a confirmation before it can be planned (error.details.questions). Send it with ?clarify=true and answer there, or rewrite it with the missing details. |
 | <a id="error-CONTRACT_ACTION_UNKNOWN"></a>`CONTRACT_ACTION_UNKNOWN` | 422 | no | Unknown contract action | Use an entry id listed in the registration's actions. |
 | <a id="error-CONTRACT_AMOUNT_LIMIT"></a>`CONTRACT_AMOUNT_LIMIT` | 422 | no | Amount outside the contract's limits | Use an amount within the action's minAmount and maxAmount and the per-step USD cap (lower while the integrator's domain is unverified). |
 | <a id="error-CONTRACT_ARGUMENT_FORBIDDEN"></a>`CONTRACT_ARGUMENT_FORBIDDEN` | 422 | no | Argument type not allowed | bytes arguments accept only the empty literal 0x; bytes[] and function arguments cannot be registered (no arbitrary calldata). |
@@ -369,6 +386,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-PERPS_RELAY_REJECTED"></a>`PERPS_RELAY_REJECTED` | 422 | no | Venue refused the signed action | The venue refused the order (margin, price band, size or nonce): the message says why. Prepare again after fixing it. |
 | <a id="error-PERPS_VENUE_DISABLED"></a>`PERPS_VENUE_DISABLED` | 422 | no | Perps venue disabled | The venue is listed for reading only (GET /v1/perps/markets says why). Choose another venue. |
 | <a id="error-PLAN_INVALID"></a>`PLAN_INVALID` | 422 / 502 | no | Plan invalid | Simplify the intent; at most 8 steps are planned. |
+| <a id="error-PLAN_TOO_LARGE"></a>`PLAN_TOO_LARGE` | 422 | no | Plan too large | The request expands to more wallet signatures or venue auctions than one plan allows (error.details lists the moves). Split it into smaller requests. |
 | <a id="error-POSITION_UNAVAILABLE"></a>`POSITION_UNAVAILABLE` | 502 | yes | Position not readable | Kletia could not read this venue position right now, or does not list positions for this venue yet. The funds are unaffected; check the venue directly or retry later. |
 | <a id="error-POSITION_EMPTY"></a>`POSITION_EMPTY` | 422 | no | No position to withdraw | There is nothing deposited at this venue for the account. |
 | <a id="error-PRICE_IMPACT_TOO_HIGH"></a>`PRICE_IMPACT_TOO_HIGH` | 422 | no | Price impact too high | Move a smaller amount; routes that cost more than 5% are refused. |
@@ -463,6 +481,7 @@ relay. See [perps.md](perps.md).
 | <a id="error-LINK_DELIVERY_UNQUOTABLE"></a>`LINK_DELIVERY_UNQUOTABLE` | 502 | yes | Delivery could not be sized | No quote delivered at least the fixed amount within three tries. Retry shortly, or start from another network. |
 | <a id="error-ORDER_RELAY_FAILED"></a>`ORDER_RELAY_FAILED` | 502 | no | Order relay failed | The protocol did not accept the signed order (error.message has its reason). Prepare the order again. |
 | <a id="error-PAYLOAD_INVALID"></a>`PAYLOAD_INVALID` | 502 | yes | Prepared payload refused | The prepared transactions failed Kletia's safety checks and were not returned. Retry shortly. |
+| <a id="error-PLAN_TIMEOUT"></a>`PLAN_TIMEOUT` | 504 | yes | Planning timed out | Venues did not quote within the planning deadline. Retry shortly, or ask for fewer steps or networks. |
 | <a id="error-PROVIDER_INVALID_JSON"></a>`PROVIDER_INVALID_JSON` | 502 | yes | Invalid provider response | Retry shortly. |
 | <a id="error-PROVIDER_RATE_LIMITED"></a>`PROVIDER_RATE_LIMITED` | 503 | yes | Provider rate limit | A routing or data provider (for example Jupiter) is limiting requests right now and Kletia's short retries did not get through. Nothing is wrong with the request: wait for Retry-After seconds and send it again. |
 | <a id="error-PROVIDER_REJECTED"></a>`PROVIDER_REJECTED` | 422 / 502 | no | Provider rejected the request | The provider refused this request (422) or failed (502). Also returned as <PROVIDER>_REJECTED, e.g. JUPITER_REJECTED. |

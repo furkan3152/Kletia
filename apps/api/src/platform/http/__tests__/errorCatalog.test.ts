@@ -16,6 +16,7 @@ import { describe, it } from "node:test";
 import ts from "typescript";
 import {
   ERROR_CATALOG,
+  FEATURE_ERROR_CODES,
   errorCatalogRows,
   isKletiaErrorCode,
   resolveErrorCode,
@@ -32,6 +33,8 @@ const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 /** Emission sites: the engine and HTTP layer, plus the Solana modules the engine calls (not their first-party routes). */
 const SCAN_ROOTS = ["platform", "networks/solana"];
 const SKIP_FILES = new Set([path.join("networks", "solana", "routes.ts")]);
+/** The offline intent eval (goal/eval*.ts) is never served: its outcome codes ("CRASH") are not API errors. */
+const SKIP_PATTERN = /^platform[\\/]engine[\\/]goal[\\/]eval[A-Z]\w*\.ts$/u;
 
 interface Emission {
   readonly code: string;
@@ -47,7 +50,7 @@ function sourceFiles(): string[] {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (entry.name !== "__tests__") walk(full);
-      } else if (entry.name.endsWith(".ts") && !SKIP_FILES.has(path.relative(SRC, full))) files.push(full);
+      } else if (entry.name.endsWith(".ts") && !SKIP_FILES.has(path.relative(SRC, full)) && !SKIP_PATTERN.test(path.relative(SRC, full))) files.push(full);
     }
   };
   for (const root of SCAN_ROOTS) walk(path.join(SRC, root));
@@ -102,6 +105,20 @@ function scan(): { emissions: Emission[]; dynamic: string[] } {
 
 const { emissions, dynamic } = scan();
 
+/**
+ * Codes core catalogues before the API emits them (FEATURE_ERROR_CODES
+ * "reading" and "routes", design 2026-10). A code drops out of this set as
+ * soon as the scan sees it emitted, and from then on the status check above
+ * applies to it.
+ */
+const OWED_CODES: ReadonlySet<KletiaErrorCode> = new Set<KletiaErrorCode>([
+  "CLARIFY_REQUIRED", // strict text that needs a question (P3-M3 strict Goal-reader fallback, P2-M1 fee and size questions)
+  "CONFIRM_AUTHORITY_REQUIRED", // a model-assisted reading confirmed by an API or agent caller (P5-M1)
+  "PLAN_TIMEOUT", // the 15 s planning deadline (P3-M1)
+  "PLAN_TOO_LARGE", // the signature and auction caps (P3-M1)
+  "LEG_BELOW_PLANNED_MINIMUM", // a later leg re-quoted below its planned floor at prepare (P3-M2)
+].filter((code) => !emissions.some((emission) => emission.code === code)) as KletiaErrorCode[]);
+
 describe("error catalog drift", () => {
   it("finds the API's error sites", () => {
     assert.ok(emissions.length > 150, `found ${emissions.length} emission sites`);
@@ -135,13 +152,21 @@ describe("error catalog drift", () => {
     assert.deepEqual(wrong, []);
   });
 
-  it("has no catalog entry that nothing emits (except provider families and the generic fallbacks)", () => {
+  it("has no catalog entry that nothing emits (except provider families, the generic fallbacks and codes still owed)", () => {
     const emitted = new Set(emissions.map((emission) => emission.code));
     const families = new Set<KletiaErrorCode>(["PROVIDER_UNAVAILABLE", "PROVIDER_REJECTED", "PLATFORM_ERROR"]);
     const unused = errorCatalogRows()
       .map((row) => row.code)
-      .filter((code) => !emitted.has(code) && !families.has(code));
+      .filter((code) => !emitted.has(code) && !families.has(code) && !OWED_CODES.has(code));
     assert.deepEqual(unused, []);
+  });
+
+  it("owes only codes of the 2026-10 reading and routes features, each still catalogued", () => {
+    const owed = new Set<KletiaErrorCode>([...FEATURE_ERROR_CODES.reading, ...FEATURE_ERROR_CODES.routes]);
+    for (const code of OWED_CODES) {
+      assert.ok(isKletiaErrorCode(code), `${code} is catalogued`);
+      assert.ok(owed.has(code), `${code} belongs to the reading or routes feature`);
+    }
   });
 
   it("only builds dynamic codes from provider names (resolved by family)", () => {

@@ -197,6 +197,10 @@ export function clarifySchemas(): JsonObject {
       ["id", "rev", "status", "expiresAt"],
       { description: "A Kletia-held thread (`remember: true`)." },
     ),
+    ReadingConsentResponse: obj(
+      { token: str({ maxLength: 4096 }), expiresAt: str({ format: "date-time" }), scope: str({ enum: ["once", "session", "confirm"] }) },
+      ["token", "expiresAt", "scope"],
+    ),
     IntentTurnRequest: obj(
       {
         accounts: arrayOf(ref("AccountId"), { minItems: 1, maxItems: 6, description: "Required unless a Kletia-held thread kept them." }),
@@ -215,6 +219,13 @@ export function clarifySchemas(): JsonObject {
         threadId: { ...THREAD_ID, description: "A Kletia-held thread of this API key." },
         remember: bool({ description: "First turn only: Kletia keeps the thread (API key required; 400 THREAD_REQUIRES_API_KEY otherwise)." }),
         expectedRev: int({ minimum: 0, description: "With threadId: refuse with 409 THREAD_CONFLICT when the thread is at another revision." }),
+        modelReading: str({
+          enum: ["off", "on"],
+          description:
+            "Model-assisted reading (opt-in per request, default off): a clause no deterministic rule could read is sent masked (amounts, addresses, names and unknown words replaced by placeholders) to two models of different vendors; a reading both agree on and that passes every deterministic check is only proposed, as a one-click confirm. API keys need the project setting `modelReading: \"enabled\"`; browsers also need `consent`.",
+        }),
+        consent: str({ maxLength: 4096, pattern: "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){1,3}$", description: "A token from POST /v1/reading-consent: `once` for this message, `session` (desk, typed text only) or `confirm` (the person confirmed a model reading on this thread)." }),
+        textOrigin: str({ enum: ["typed", "prefilled"], description: "Default `prefilled`: session consent covers only text the person typed in the desk input." }),
       },
       [],
       {
@@ -312,6 +323,33 @@ const THREAD_ID_PARAMETER: JsonObject = { name: "id", in: "path", required: true
 
 export function clarifyPaths(): JsonObject {
   return {
+    "/v1/reading-consent": {
+      post: {
+        operationId: "createReadingConsent",
+        tags: ["Intents"],
+        summary: "Mint a model-assisted reading consent token",
+        description:
+          "Browser callers only (the Kletia desk, or a publishable key of a project with `modelReading: \"enabled\"` from one of its allowed origins); server keys get 403 CONFIRM_AUTHORITY_REQUIRED, so an agent can never consent or confirm for the person. `once` covers one message (bound to its text and the wallet), `session` 8 hours of typed desk text, `confirm` the person's \"Yes, plan it\" on a model reading of one thread.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: obj(
+                {
+                  scope: str({ enum: ["once", "session", "confirm"] }),
+                  wallet: str({ minLength: 20, maxLength: 128 }),
+                  text: str({ maxLength: 1000, description: "scope once: the message." }),
+                  threadId: str({ maxLength: 64, description: "scope confirm: the thread." }),
+                },
+                ["scope", "wallet"],
+                { additionalProperties: false },
+              ),
+            },
+          },
+        },
+        responses: { "200": ok("ReadingConsentResponse", "Consent token."), ...errors("403") },
+      },
+    },
     "/v1/threads": {
       get: {
         operationId: "listThreads",

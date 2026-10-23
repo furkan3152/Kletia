@@ -163,6 +163,10 @@ export interface CrossChainMock {
   readonly irisMessages: Map<string, unknown>;
   /** TokenMinterV2.burnLimitsPerMessage(USDC) on every EVM network. */
   cctpBurnLimit: bigint;
+  /** MessageTransmitterV2.usedNonces(nonce) on every EVM network (0: not received). */
+  cctpUsedNonce: bigint;
+  /** `eth_getCode` answers by lowercase address (default "0x": no code); the value "error" fails the read. */
+  readonly accountCodes: Map<string, string>;
   /** Every provider URL requested, in order. */
   readonly calls: URL[];
   restore(): void;
@@ -181,6 +185,7 @@ const MULTICALL3_ABI = parseAbi([
 ]);
 const FIX_FEE_SELECTOR = toFunctionSelector("function globalFixedNativeFee()");
 const BURN_LIMIT_SELECTOR = toFunctionSelector("function burnLimitsPerMessage(address)");
+const USED_NONCES_SELECTOR = toFunctionSelector("function usedNonces(bytes32)");
 
 export function installCrossChainMock(): CrossChainMock {
   const rpc = installRpcMock();
@@ -203,12 +208,17 @@ export function installCrossChainMock(): CrossChainMock {
     irisFees: new Map(),
     irisMessages: new Map(),
     cctpBurnLimit: CCTP_BURN_LIMIT,
+    cctpUsedNonce: 0n,
+    accountCodes: new Map(),
     calls: [],
     restore: () => rpc.restore(),
   };
   const directCall = (to: string | undefined, data: Hex): string | null => {
     if (data.startsWith(FIX_FEE_SELECTOR) && to?.toLowerCase() === DLN_SOURCE.toLowerCase()) return word(mock.dlnFixFee);
     if (data.startsWith(BURN_LIMIT_SELECTOR) && to?.toLowerCase() === CCTP_TOKEN_MINTER.toLowerCase()) return word(mock.cctpBurnLimit);
+    if (data.startsWith(USED_NONCES_SELECTOR) && to?.toLowerCase() === CCTP_MESSAGE_TRANSMITTER.toLowerCase()) return word(mock.cctpUsedNonce);
+    // Multicall3.getEthBalance(address): native balances read through the batch.
+    if (data.startsWith("0x4d2301cc") && to?.toLowerCase() === MULTICALL3) return word(mock.balance);
     try {
       const decoded = decodeFunctionData({ abi: erc20Abi, data });
       if (decoded.functionName === "allowance") return word(mock.allowance);
@@ -298,6 +308,11 @@ export function installCrossChainMock(): CrossChainMock {
       if (request.method === "eth_call") {
         const value = evmCall(request.params ?? []);
         if (value !== null) return result(value);
+      }
+      if (request.method === "eth_getCode") {
+        const code = mock.accountCodes.get(String((request.params ?? [])[0]).toLowerCase()) ?? "0x";
+        if (code === "error") return json({ jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "unavailable" } });
+        return result(code);
       }
       // Balances at a given block (fill evidence) come from the chain mock's evmBalances.
       const atBlock = typeof request.params?.[1] === "string" && /^0x[0-9a-f]+$/iu.test(request.params[1]);

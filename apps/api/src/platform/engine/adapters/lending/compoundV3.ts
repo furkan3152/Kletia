@@ -79,6 +79,9 @@ import {
   withTimeout,
   WRAP_GAS,
   wrapTransaction,
+  bestEffort,
+  indexGrowthApy,
+  tvlUsdOf,
   type LendingContext,
   type LendingMetrics,
   LENDING_PREVIEW_TTL_SECONDS,
@@ -97,6 +100,7 @@ export const COMET_ABI = parseAbi([
   "function getSupplyRate(uint256 utilization) view returns (uint64)",
   "function totalSupply() view returns (uint256)",
   "function totalBorrow() view returns (uint256)",
+  "function totalsBasic() view returns (uint64 baseSupplyIndex, uint64 baseBorrowIndex, uint64 trackingSupplyIndex, uint64 trackingBorrowIndex, uint104 totalSupplyBase, uint104 totalBorrowBase, uint40 lastAccrualTime, uint8 pauseFlags)",
   "event Supply(address indexed from,address indexed dst,uint256 amount)",
   "event Withdraw(address indexed src,address indexed to,uint256 amount)",
   "event Transfer(address indexed from,address indexed to,uint256 amount)",
@@ -370,13 +374,17 @@ export async function compoundMetrics(venue: CometVenue): Promise<LendingMetrics
   const context = { venue, network, token: getAddress(underlying.address), underlying };
   const client = evmClient(network);
   const comet = getAddress(venue.target);
-  const [state, apy, supplied, cash, utilization] = await Promise.all([
+  const [state, apy, supplied, cash, utilization, smoothed] = await Promise.all([
     readComet(context),
     supplyApy(context),
     withTimeout(client.readContract({ address: comet, abi: COMET_ABI, functionName: "totalSupply" })),
     withTimeout(client.readContract({ address: context.token, abi: erc20Abi, functionName: "balanceOf", args: [comet] })),
     withTimeout(client.readContract({ address: comet, abi: COMET_ABI, functionName: "getUtilization" })),
+    // Seam S8: the base supply index's growth over the last week (the realised supply rate).
+    bestEffort(() => indexGrowthApy(network, async (blockNumber) =>
+      (await client.readContract({ address: comet, abi: COMET_ABI, functionName: "totalsBasic", blockNumber }))[0]), 8_000),
   ]);
+  const totalSupplied = underlyingAmount(context, supplied);
   return {
     venue: venue.id,
     protocol: venue.protocol,
@@ -385,7 +393,10 @@ export async function compoundMetrics(venue: CometVenue): Promise<LendingMetrics
     asset: venue.asset,
     supplyApy: apy,
     apySource: "rate",
-    totalSupplied: underlyingAmount(context, supplied),
+    apyWindowSeconds: smoothed?.window ?? null,
+    smoothedApy: smoothed?.apy ?? null,
+    tvlUsd: await tvlUsdOf(totalSupplied),
+    totalSupplied,
     exitLiquidity: underlyingAmount(context, cash),
     utilization: ratio(utilization, 10n ** 18n),
     observedAt: new Date().toISOString(),

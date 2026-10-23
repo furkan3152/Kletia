@@ -150,9 +150,13 @@ describe("PancakeSwap V3 planning and calldata", () => {
     assert.equal(step.expectedOutput?.amount, "399000000000000000");
     assert.equal(decodeStepRef(step.quoteRef)?.provider, "v3:2500");
     assert.match((step.warnings ?? []).join(" "), new RegExp(`Route: PancakeSwap V3 \\(ethereum:pancakeswap-v3:v3\\), 0\\.25 % pool, ${pools[2500]}`, "u"));
-    // Each pool was proven by the factory before quoting; no 0.3 % (Uniswap) tier was asked for.
+    // Each pool was proven by the factory before quoting; no 0.3 % (Uniswap) tier was asked for. Two-hop paths are
+    // searched alongside the direct pools (RC4), so only the USDC / WETH lookups are counted here.
     const getPools = chain.calls.filter((entry) => entry.to === PANCAKE.factory.toLowerCase() && entry.functionName === "getPool");
-    assert.deepEqual(getPools.map((entry) => Number(entry.args[2])).sort((a, b) => a - b), [100, 500, 2500, 10000]);
+    const pair = [USDC, WETH].map((address) => address.toLowerCase()).sort().join(":");
+    const direct = getPools.filter((entry) => [String(entry.args[0]), String(entry.args[1])].map((address) => address.toLowerCase()).sort().join(":") === pair);
+    assert.deepEqual(direct.map((entry) => Number(entry.args[2])).sort((a, b) => a - b), [100, 500, 2500, 10000]);
+    assert.ok(getPools.every((entry) => Number(entry.args[2]) !== 3000), "no Uniswap-only tier");
   });
 
   it("ERC-20 in: exact approval of the SmartRouter only, then exactInputSingle(fee 2500) to the account", async () => {

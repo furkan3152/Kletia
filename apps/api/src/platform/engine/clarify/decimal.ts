@@ -53,3 +53,18 @@ export function cmp(a: string, b: string): number {
 export function isPositive(value: string | undefined): boolean {
   return isDecimal(value) && parseDecimal(value) > 0n;
 }
+
+/** `a` + `b` as a decimal string ("10" + "5" -> "15"): arithmetic the person wrote ("10 + 5"). */
+export function add(a: string, b: string): string {
+  return formatDecimal(parseDecimal(a) + parseDecimal(b));
+}
+
+/**
+ * `a` x `b` as a decimal string ("2" x "50" -> "100"), or null when the exact
+ * product needs more than 18 fractional digits (never rounded).
+ */
+export function multiply(a: string, b: string): string | null {
+  const raw = parseDecimal(a) * parseDecimal(b);
+  if (raw % ONE !== 0n) return null;
+  return formatDecimal(raw / ONE);
+}

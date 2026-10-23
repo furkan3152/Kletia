@@ -1,4 +1,7 @@
 import {
+  dataHistoryCsv,
+  dataHoldingsCsv,
+  dataPositionsCsv,
   isContractId,
   isLinkId,
   isSessionId,
@@ -14,6 +17,13 @@ import {
   type ContractTestRequest,
   type ContractTestResult,
   type ContractView,
+  type DataExportDataset,
+  type DataHistory,
+  type DataMarketStatus,
+  type DataPortfolio,
+  type DataPositions,
+  type DataPrices,
+  type DataYields,
   type IntentGraph,
   type IntentPreview,
   type IntentRequest,
@@ -90,6 +100,9 @@ import type {
   IntentWithJourney,
   JourneyOptions,
   PortfolioOptions,
+  DataPricesFilter,
+  DataWalletQuery,
+  DataYieldsFilter,
   PortfoliosResponse,
   ProjectLogoContentType,
   ProjectSettingsPatch,
@@ -477,6 +490,7 @@ export function turnRetryClass(request: IntentTurnRequest, options: { readonly d
 const PUBLISHABLE_ROUTES: readonly { readonly method: string; readonly pattern: RegExp }[] = [
   { method: "GET", pattern: /^\/(?:health|networks|protocols|assets|venues|errors|openapi\.json|status\/badge|publishable\/profile)$/iu },
   { method: "GET", pattern: /^\/portfolio(?:\/[^/]+)?$/iu },
+  { method: "GET", pattern: /^\/data\/(?:portfolio|positions|history|export|markets\/(?:yields|prices|status))$/iu },
   { method: "POST", pattern: /^\/(?:quotes|intents|mcp|policy\/validate)$/iu },
   { method: "GET", pattern: /^\/intents\/[^/]+(?:\/(?:events|journey|preview|receipt|receipts|receipt\/shares))?$/iu },
   { method: "POST", pattern: /^\/intents\/[^/]+\/(?:refresh|cancel|stop|preview|receipt\/shares)$/iu },
@@ -570,6 +584,20 @@ async function fetchPng(fetchImpl: FetchLike, url: string, headers: Record<strin
 function pageOrigin(): string | undefined {
   const origin = (globalThis as { location?: { origin?: unknown } }).location?.origin;
   return typeof origin === "string" && origin !== "null" ? origin : undefined;
+}
+
+/** `evm`, `solana` and `lane` query values of a `data.*` read, checked locally (nothing is sent when they are wrong). */
+function walletQuery(wallets: DataWalletQuery, required: boolean): Record<string, string | undefined> {
+  const list = (value: string | readonly string[] | undefined, name: "evm" | "solana"): string | undefined => {
+    const values = value === undefined ? [] : typeof value === "string" ? [value] : [...value];
+    if (values.length > 2) throw new RangeError(`data reads take at most 2 ${name} addresses.`);
+    if (values.some((address) => typeof address !== "string" || !address.trim() || address.includes(","))) throw new TypeError(`${name} must be addresses.`);
+    return values.length > 0 ? values.map((address) => address.trim()).join(",") : undefined;
+  };
+  const evm = list(wallets.evm, "evm");
+  const solana = list(wallets.solana, "solana");
+  if (required && evm === undefined && solana === undefined) throw new TypeError("Name at least one wallet: evm and/or solana.");
+  return { evm, solana, lane: wallets.lane };
 }
 
 function retriesOption(value: number | undefined, fallback: number): number {
@@ -930,6 +958,54 @@ export class KletiaClient {
       query: { accounts: accounts.join(","), positions: positions ? "true" : undefined },
     });
   }
+
+  /**
+   * Dashboard data (`/v1/data/*`), read-only: a wallet set's holdings,
+   * positions, health and activity across every network, plus venue yields,
+   * prices and network status. Every value carries `source` and `asOf`;
+   * unknown values are null with a `reason`. Publishable keys may call all
+   * of them; `history` needs a key.
+   */
+  readonly data = {
+    /** Holdings, positions, debts, totals, allocation and the value estimates of the wallets. */
+    portfolio: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataPortfolio> => {
+      const body = await this.request<{ portfolio: DataPortfolio }>("GET", "/data/portfolio", undefined, { ...options, query: walletQuery(wallets, true) });
+      return body.portfolio;
+    },
+    /** Positions, debts and lending health of the wallets. */
+    positions: async (wallets: DataWalletQuery, options: RequestOptions = {}): Promise<DataPositions> =>
+      this.request<DataPositions>("GET", "/data/positions", undefined, { ...options, query: walletQuery(wallets, true) }),
+    /** The calling key's intents, receipts and links, newest first; with wallets, only intents planned for them. */
+    history: async (filter: DataWalletQuery & { readonly limit?: number } = {}, options: RequestOptions = {}): Promise<DataHistory> => {
+      const { limit, ...wallets } = filter;
+      return this.request<DataHistory>("GET", "/data/history", undefined, {
+        ...options,
+        query: { ...walletQuery(wallets, false), lane: undefined, limit: limit === undefined ? undefined : String(limit) },
+      });
+    },
+    /** Supply APYs of every venue, best first (unread rates last, null with a reason). */
+    yields: (filter: DataYieldsFilter = {}, options: RequestOptions = {}): Promise<DataYields> =>
+      this.request<DataYields>("GET", "/data/markets/yields", undefined, { ...options, query: { network: filter.network, asset: filter.asset, lane: filter.lane } }),
+    /** USD prices of listed assets with source and reading time. */
+    prices: async (filter: DataPricesFilter = {}, options: RequestOptions = {}): Promise<DataPrices> => {
+      if (filter.symbols && (filter.symbols.length > 20 || filter.symbols.some((symbol) => !symbol || symbol.includes(",")))) throw new RangeError("prices takes 1 to 20 symbols.");
+      return this.request<DataPrices>("GET", "/data/markets/prices", undefined, {
+        ...options,
+        query: { symbols: filter.symbols?.join(","), network: filter.network, lane: filter.lane },
+      });
+    },
+    /** Network status, and route statistics when the deployment records them. */
+    status: (options: RequestOptions = {}): Promise<DataMarketStatus> => this.request<DataMarketStatus>("GET", "/data/markets/status", undefined, options),
+    /**
+     * A dataset as CSV, built here from the JSON read with the same columns
+     * and escaping as `GET /v1/data/export?format=csv`. `history` needs a key.
+     */
+    exportCsv: async (dataset: DataExportDataset, query: DataWalletQuery & { readonly limit?: number } = {}, options: RequestOptions = {}): Promise<string> => {
+      if (dataset === "history") return dataHistoryCsv(await this.data.history(query, options));
+      const portfolio = await this.data.portfolio(query, options);
+      return dataset === "holdings" ? dataHoldingsCsv(portfolio) : dataPositionsCsv(portfolio);
+    },
+  };
 
   /** The error catalog (`GET /v1/errors`), the same table as `ERROR_CATALOG` in `@kletia/core`. */
   errors(options: RequestOptions = {}): Promise<ErrorCatalogResponse> {

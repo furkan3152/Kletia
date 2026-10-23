@@ -48,6 +48,7 @@ import { PREVIEW_ACK_HEADER_SCHEMA, previewPaths, previewSchemas } from "./previ
 import { receiptPaths, receiptSchemas } from "./receipts/openapi.js";
 import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openapi.js";
 import { linkPaths, linkSchemas } from "./links/openapi.js";
+import { DATA_TAG, dataPaths, dataSchemas } from "./dataOpenapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
@@ -1628,6 +1629,7 @@ function schemas(): JsonObject {
     ...receiptSchemas(),
     ...policySchemas(),
     ...linkSchemas(),
+    ...dataSchemas(),
     ...projectSchemas(),
     ...accountSchemas(),
     ...journeySchemas(),
@@ -2031,6 +2033,7 @@ function paths(): JsonObject {
     ...receiptPaths(),
     ...policyPaths(),
     ...linkPaths(),
+    ...dataPaths(),
     ...projectPaths(),
     ...accountPaths(),
     "/v1/webhooks": {
@@ -2394,6 +2397,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Registry", description: "Networks, protocols and assets, derived from the engine's live adapters." },
       { name: "Quotes", description: "Advisory route quotes; nothing is stored." },
       { name: "Portfolio", description: "Balances and venue positions of CAIP-10 accounts, one or up to 12 per request." },
+      DATA_TAG,
       { name: "Intents", description: "Plan, prepare, submit, verify and cancel intents." },
       { name: "Events", description: "Server-Sent Events per intent, and the key's own event stream." },
       { name: "Receipts", description: "Signed, privacy-preserving receipts of finished intents, verifiable offline and re-checkable on-chain; shares, keys and the transparency log." },

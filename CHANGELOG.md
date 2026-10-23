@@ -23,6 +23,7 @@ on-chain action in the browser.
 - `npm run test:coverage` prints line and branch coverage per area (informational, not a gate); numbers in [test coverage](docs/architecture/test-coverage.md).
 
 - More EVM protocols, every pin read back on-chain ([EVM protocols](docs/platform/evm-protocols.md)): Curve USDC / USDT0 on Arbitrum; Compound V3 USDT and USDS (Ethereum) and AERO (Base); ten more Morpho vaults on all five networks; Sky Savings (sUSDS, sDAI) and Ethena sUSDe (deposit only, with the live cooldown shown); Kelp (rsETH, on-chain minimum) and Renzo (ezETH) restaking. The registry now lists 53 protocols.
+- Data API `/v1/data/*` and the desk's Dashboard (`/app/dashboard`): holdings, positions, Aave V3, SparkLend and Compound V3 debt with health warnings, allocation, a labelled 24-hour change and PnL estimate, the key's activity, venue rates with "Move here", prices, network status and CSV export; every value carries `source` and `asOf`, unknown values are null with a reason; SDK `client.data.*` and a Data API portal page ([data](docs/platform/data.md)).
 
 ### Fixed
 

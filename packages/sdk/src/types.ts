@@ -224,6 +224,32 @@ export interface PortfolioResponse {
   readonly positionsUnavailable?: readonly PositionUnavailable[];
 }
 
+/**
+ * The wallets a `data.*` read covers: at most two EVM and two Solana
+ * addresses, read on every network of `lane` (production by default).
+ */
+export interface DataWalletQuery {
+  readonly evm?: string | readonly string[];
+  readonly solana?: string | readonly string[];
+  readonly lane?: "production" | "testnet";
+}
+
+/** Filter of `data.yields`. */
+export interface DataYieldsFilter {
+  readonly network?: NetworkKey;
+  /** Underlying symbol, e.g. "USDC". */
+  readonly asset?: string;
+  readonly lane?: "production" | "testnet";
+}
+
+/** Filter of `data.prices`. */
+export interface DataPricesFilter {
+  /** At most 20 symbols; default ETH, SOL, POL, cbBTC, wstETH, USDC and USDT. */
+  readonly symbols?: readonly string[];
+  readonly network?: NetworkKey;
+  readonly lane?: "production" | "testnet";
+}
+
 /** Options of `portfolio` and `portfolios`. */
 export interface PortfolioOptions {
   /** Also read venue positions (`?positions=true`; more RPC reads). */

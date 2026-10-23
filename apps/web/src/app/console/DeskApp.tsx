@@ -5,12 +5,12 @@
  * network engines (Base, Arbitrum One, Arc) as inline engine tasks loaded
  * only when one is needed.
  *
- * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools) are the
- * same desk: the thread stays mounted under every view, because unmounting a
+ * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools,
+ * /app/dashboard) are the same desk (the Dashboard loads as its own chunk): the thread stays mounted under every view, because unmounting a
  * task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { CHAINS } from "@kletia/core";
@@ -52,6 +52,9 @@ import { TaskThread } from "./tasks/TaskThread";
 import { ToolsView } from "./tools/ToolsView";
 
 const copy = DESK_COPY;
+
+/** The Dashboard view, read-only and loaded only when opened. */
+const DashboardView = lazy(() => import("./dashboard/DashboardView"));
 
 /** Networks whose engine must be mounted: engine tasks and restored workflow threads. */
 function useEngineNetworks(): readonly LegacyNetwork[] {
@@ -264,6 +267,11 @@ export default function DeskApp() {
         {view === "holdings" ? <section className="pb-8">{holdingsPanel(2)}</section> : null}
         {view === "tools" ? <ToolsView toolId={toolId} /> : null}
         {view === "activity" ? <ActivityView /> : null}
+        {view === "dashboard" ? (
+          <Suspense fallback={<p className="text-sm font-bold">{copy.dashboard.loading}</p>}>
+            <DashboardView lane={lane} />
+          </Suspense>
+        ) : null}
         {emptyDesk ? (
           <DeskEmptyState departure={departure} actions={status.actions} health={status.health} healthAt={status.healthAt} onPick={(sentence) => composerRef.current?.fill(sentence)} />
         ) : null}

@@ -1,6 +1,6 @@
 /**
  * What agent keys may do on the API itself (policy design §8.3): webhooks,
- * contract registrations, sessions, child keys and links each need the
+ * contract registrations, sessions, child keys, links and automations each need the
  * matching `permissions.*` of the agent's effective chain (agent default:
  * false); key management of project keys and every rule book write are
  * never allowed. Project keys are unaffected. The chain is read fresh (a
@@ -20,6 +20,7 @@ const PERMISSION_LABELS: Readonly<Record<PolicyPermission, string>> = {
   storeIntents: "store intents",
   mcpCreateIntents: "create intents through MCP",
   links: "publish intent links",
+  automations: "create or resume automations",
 };
 
 export function agentForbidden(message: string): PlatformError {

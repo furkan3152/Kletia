@@ -6,6 +6,7 @@ import type { NetworkKey } from "./chains.js";
 import type { AccountId } from "./caip.js";
 import type { IntentStatus, IntentSummary, StepEvidence, StepStatus } from "./intent.js";
 import type { ReceiptIntentStatus } from "./receipts.js";
+import type { AutomationEventData } from "./automation.js";
 
 /**
  * Payload of the contract registration events (webhooks route them by
@@ -147,6 +148,17 @@ export interface KletiaEventMap extends PolicyEventMap {
   "link.exhausted": LinkEventData;
   "link.expired": LinkEventData;
   "link.deleted": LinkEventData;
+  /** An automation was created (key-owned automations only: wallet owners have their inbox). */
+  "automation.created": AutomationEventData;
+  /** Paused, resumed, its label or limits changed, or it ended (completed, expired). */
+  "automation.updated": AutomationEventData;
+  "automation.deleted": AutomationEventData;
+  /** A run planned an intent: `needs_signature` (the owner signs) or `prepared` (a native order provider took it). */
+  "automation.fired": AutomationEventData;
+  /** A run was skipped by the automation's limits (`reason`). */
+  "automation.skipped": AutomationEventData;
+  /** A run could not plan its intent (`reason`: the error code, e.g. a Rule Book refusal). */
+  "automation.failed": AutomationEventData;
   /** Sent by POST /v1/webhooks/{id}/test to check an endpoint; never emitted for intents. */
   "webhook.test": { readonly webhookId: string };
   "wallet.connected": { readonly account: AccountId; readonly wallet: string };
@@ -187,6 +199,18 @@ export const LINK_EVENT_TYPES: readonly LinkEventType[] = Object.freeze([
   "link.exhausted",
   "link.expired",
   "link.deleted",
+]);
+
+export type AutomationEventType = Extract<KletiaEventType, `automation.${string}`>;
+
+/** Automation event types (routed by `ownerKeyId`, like link events). */
+export const AUTOMATION_EVENT_TYPES: readonly AutomationEventType[] = Object.freeze([
+  "automation.created",
+  "automation.updated",
+  "automation.deleted",
+  "automation.fired",
+  "automation.skipped",
+  "automation.failed",
 ]);
 
 export type PolicyEventType = Extract<KletiaEventType, `policy.${string}`>;

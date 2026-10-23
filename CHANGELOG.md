@@ -16,6 +16,8 @@ on-chain action in the browser.
 - Every admin write (deploy records, reverify, Safe proposals, fee rescans, redeploys, settings) needs a fresh wallet confirmation signed by the session's own wallet (single-use, 5 minutes): a stolen session cookie can only read. "Verified" deployments must be admin-controlled; others are "foreign", never exported or used as dependencies.
 - Intent engine: whole-balance readings for stake, deposit and withdraw ("stake my SOL", "withdraw my USDC from aave"), the single position when a venue and network are named, leading labels ("rent: send 500 USDC to …") kept as notes, and "fund my <network> wallet" goals. Eval: 97.9% correct on the original 338 prompts (was 95.9%), 0 wrong plans.
 
+- Automations (`/v1/automations`, desk view `/app/automations`): schedule, price, balance, yield and incoming-transfer triggers that plan an intent for the owner's signature (or a native order provider), with per-run and total USD caps, cooldown, expiry, network and protocol scope, hysteresis, one run per window, a leader-safe evaluator, the inbox, `automation.*` webhooks and the Rule Book permission `automations`.
+
 ### Fixed
 
 - The hosted site build failed from round 6 onwards (the web workspace did not depend on `@kletia/embed`), so an old site stayed live; the desk now runs the round-7 engine.

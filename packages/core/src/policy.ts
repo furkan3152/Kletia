@@ -76,7 +76,7 @@ export type RecipientMode = "own" | "allowlist" | "any";
 export type RecipientNamesRule = "deny" | "resolve" | "trusted";
 export type ConfirmTrigger = "external-recipient" | "contract-call" | "cross-network";
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type PolicyPermission = "createChildKeys" | "webhooks" | "registerContracts" | "sessions" | "storeIntents" | "mcpCreateIntents" | "links";
+export type PolicyPermission = "createChildKeys" | "webhooks" | "registerContracts" | "sessions" | "storeIntents" | "mcpCreateIntents" | "links" | "automations";
 /** Which defaults fill absent fields: project keys and project rule books (`project`) or agent keys (`agent`). */
 export type PolicyDefaults = "project" | "agent";
 
@@ -94,6 +94,7 @@ export const POLICY_PERMISSIONS: readonly PolicyPermission[] = Object.freeze([
   "storeIntents",
   "mcpCreateIntents",
   "links",
+  "automations",
 ]);
 export const ASSET_CATEGORIES: readonly AssetCategory[] = Object.freeze(["native", "stablecoin", "wrapped", "liquid-staking", "governance", "meme", "btc"]);
 export const ASSET_GROUPS = Object.freeze(["USDC", "USDT", "ETH", "BTC", "EURC", "SOL"] as const);
@@ -706,6 +707,7 @@ export const AGENT_POLICY_DEFAULTS = Object.freeze({
     storeIntents: true,
     mcpCreateIntents: false,
     links: false,
+    automations: false,
   }) as Readonly<Record<PolicyPermission, boolean>>,
   pinNonce: true,
 });

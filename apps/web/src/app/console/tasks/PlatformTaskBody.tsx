@@ -565,7 +565,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
     body = (
       <div className="kl-rise flex flex-col gap-3 border-[3px] border-control bg-surface p-4 shadow-[4px_4px_0_#1A1A1A] dark:shadow-[4px_4px_0_#475569]">
         <p className="font-display text-lg font-bold">{copy.pickUp}</p>
-        <p className="text-sm">{copy.sentenceForgotten}</p>
+        <p className="text-sm">{task.origin === "automation" ? copy.automationRun : copy.sentenceForgotten}</p>
         {signingBlocked ? <p className="text-sm font-bold">{signingBlocked}</p> : null}
         <div className="flex flex-wrap gap-3">
           <Button size="sm" disabled={Boolean(signingBlocked)} onClick={() => void execution.resume(resumable)}>

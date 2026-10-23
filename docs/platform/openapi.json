@@ -100,6 +100,10 @@
       "description": "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards."
     },
     {
+      "name": "Automations",
+      "description": "Rules that watch a schedule, a price, a balance, venue APYs or incoming transfers and plan an intent for the owner to sign (or hand it to a native order provider); runs and the inbox."
+    },
+    {
       "name": "Blinks",
       "description": "Solana Actions for eligible links (actions.json is served by the web origin)."
     },
@@ -7788,6 +7792,683 @@
         }
       }
     },
+    "/v1/automations": {
+      "post": {
+        "operationId": "createAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Create an automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Triggers: schedule, price, balance, apy, event. A wallet's automations use its own address only (403 AUTOMATION_ACCOUNT_FORBIDDEN); agent keys need `permissions.automations`. At most 50 live automations (409 AUTOMATION_LIMIT_REACHED) and 30 creations an hour per owner.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The automation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listAutomations",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "The owner's automations",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/automations/inbox": {
+      "get": {
+        "operationId": "automationInbox",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Runs waiting for the owner's signature",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Runs of the last 7 days whose intent is still planned or part-signed; open each intent's normal sign flow.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationInbox"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/automations/{id}": {
+      "get": {
+        "operationId": "getAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "One automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The automation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Change the label or limits",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. The trigger and action never change: create a new automation. 409 AUTOMATION_CONFLICT when another change landed first.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The automation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Delete an automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Intents already planned stay; nothing was signed for them.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/automations/{id}/pause": {
+      "post": {
+        "operationId": "pauseAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Pause an automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. Always allowed, agent keys included.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The paused automation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/automations/{id}/resume": {
+      "post": {
+        "operationId": "resumeAutomation",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Resume a paused automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it. A completed or expired automation answers 409 AUTOMATION_ENDED.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The active automation.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/v1/automations/{id}/runs": {
+      "get": {
+        "operationId": "listAutomationRuns",
+        "tags": [
+          "Automations"
+        ],
+        "summary": "Runs of an automation",
+        "description": "Owner: the API key, or without one a wallet session (`Kletia-Account-Session`) from the desk; else 401 AUTOMATION_OWNER_REQUIRED. Another owner's automation answers 404 AUTOMATION_NOT_FOUND. Kletia never signs: a run plans an intent the owner signs, unless a native order provider executes it.",
+        "parameters": [
+          {
+            "name": "Kletia-Account-Session",
+            "in": "header",
+            "required": false,
+            "description": "Without an API key: a wallet session from the Kletia desk (first-party Origin). The wallet then owns the automations.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kl_acs_[A-Za-z0-9_-]{43}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^au_[0-9a-f]{24}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationRunList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/webhooks": {
       "post": {
         "operationId": "createWebhook",
@@ -10198,6 +10879,80 @@
         }
       }
     },
+    "automationEvent": {
+      "post": {
+        "operationId": "receiveAutomationEvent",
+        "summary": "Automation event delivery",
+        "description": "Sent to the webhooks of the automation's owning key that subscribe to the type (and to `scope: \"subtree\"` webhooks of its ancestors): automation.created, automation.updated (paused, resumed, label or limits changed, completed, expired), automation.deleted, automation.fired (a run planned an intent: `needs_signature`, or `prepared` by a native order provider), automation.skipped (a limit, `reason`) and automation.failed (`reason`: the error code). Wallet-owned automations send none. Same signing, retries and queueing as intent events.",
+        "parameters": [
+          {
+            "name": "Kletia-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^t=[0-9]+,v1=[0-9a-f]{64}$"
+            }
+          },
+          {
+            "name": "Kletia-Event-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "name": "Kletia-Event-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "automation.created",
+                "automation.updated",
+                "automation.deleted",
+                "automation.fired",
+                "automation.skipped",
+                "automation.failed"
+              ]
+            }
+          },
+          {
+            "name": "Kletia-Webhook-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Kletia-Delivery-Attempt",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-4]$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomationEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Any 2xx acknowledges the delivery."
+          }
+        }
+      }
+    },
     "policyEvent": {
       "post": {
         "operationId": "receivePolicyEvent",
@@ -10476,7 +11231,7 @@
         }
       },
       "NotFound": {
-        "description": "Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND).",
+        "description": "Unknown resource or route (AUTOMATION_NOT_FOUND, INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND).",
         "headers": {
           "X-Request-Id": {
             "$ref": "#/components/headers/X-Request-Id"
@@ -12188,6 +12943,9 @@
             "$ref": "#/components/schemas/LinkEvent"
           },
           {
+            "$ref": "#/components/schemas/AutomationEvent"
+          },
+          {
             "$ref": "#/components/schemas/PolicyEvent"
           },
           {
@@ -12213,6 +12971,12 @@
             "link.exhausted": "#/components/schemas/LinkEvent",
             "link.expired": "#/components/schemas/LinkEvent",
             "link.deleted": "#/components/schemas/LinkEvent",
+            "automation.created": "#/components/schemas/AutomationEvent",
+            "automation.updated": "#/components/schemas/AutomationEvent",
+            "automation.deleted": "#/components/schemas/AutomationEvent",
+            "automation.fired": "#/components/schemas/AutomationEvent",
+            "automation.skipped": "#/components/schemas/AutomationEvent",
+            "automation.failed": "#/components/schemas/AutomationEvent",
             "policy.violation": "#/components/schemas/PolicyEvent",
             "policy.approval_requested": "#/components/schemas/PolicyEvent",
             "policy.approval_decided": "#/components/schemas/PolicyEvent",
@@ -13480,6 +14244,12 @@
                 "link.exhausted",
                 "link.expired",
                 "link.deleted",
+                "automation.created",
+                "automation.updated",
+                "automation.deleted",
+                "automation.fired",
+                "automation.skipped",
+                "automation.failed",
                 "policy.violation",
                 "policy.approval_requested",
                 "policy.approval_decided",
@@ -13548,6 +14318,12 @@
                 "link.exhausted",
                 "link.expired",
                 "link.deleted",
+                "automation.created",
+                "automation.updated",
+                "automation.deleted",
+                "automation.fired",
+                "automation.skipped",
+                "automation.failed",
                 "policy.violation",
                 "policy.approval_requested",
                 "policy.approval_decided",
@@ -13841,6 +14617,12 @@
               "link.exhausted",
               "link.expired",
               "link.deleted",
+              "automation.created",
+              "automation.updated",
+              "automation.deleted",
+              "automation.fired",
+              "automation.skipped",
+              "automation.failed",
               "policy.violation",
               "policy.approval_requested",
               "policy.approval_decided",
@@ -19434,6 +20216,9 @@
               },
               "links": {
                 "type": "boolean"
+              },
+              "automations": {
+                "type": "boolean"
               }
             },
             "description": "API rights of an agent key (ignored on project keys); all false by default."
@@ -23968,6 +24753,825 @@
         "required": [
           "activity"
         ]
+      },
+      "AutomationTrigger": {
+        "description": "Evaluated every minute in UTC. Crossings fire once and re-arm past the hysteresis band; the first observation only arms.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "schedule"
+              },
+              "every": {
+                "type": "object",
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "hour",
+                      "day",
+                      "week",
+                      "month"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 366
+                  }
+                },
+                "required": [
+                  "unit",
+                  "count"
+                ]
+              },
+              "startAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "endAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "maxRuns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "timezone": {
+                "type": "string",
+                "description": "IANA zone, display only: runs never move with daylight saving."
+              }
+            },
+            "required": [
+              "kind",
+              "every",
+              "startAt"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "price"
+              },
+              "asset": {
+                "type": "string"
+              },
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "below"
+                ]
+              },
+              "priceUsd": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+                "description": "USD, decimal string."
+              },
+              "hysteresisBps": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 5000,
+                "description": "Re-arm band after a firing (default 100 bps)."
+              }
+            },
+            "required": [
+              "kind",
+              "asset",
+              "network",
+              "direction",
+              "priceUsd"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "balance"
+              },
+              "account": {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              "asset": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "below"
+                ]
+              },
+              "amount": {
+                "type": "string"
+              },
+              "hysteresisBps": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 5000,
+                "description": "Re-arm band after a firing (default 100 bps)."
+              }
+            },
+            "required": [
+              "kind",
+              "account",
+              "asset",
+              "direction",
+              "amount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "apy"
+              },
+              "asset": {
+                "type": "string"
+              },
+              "networks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NetworkKey"
+                },
+                "minItems": 1
+              },
+              "minDeltaBps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "current": {
+                "type": "string",
+                "description": "Registry venue id of the current position (GET /v1/venues)."
+              }
+            },
+            "required": [
+              "kind",
+              "asset",
+              "networks",
+              "minDeltaBps"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "event"
+              },
+              "account": {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              "asset": {
+                "type": "string"
+              },
+              "minAmount": {
+                "type": "string",
+                "description": "Smallest balance increase that counts as an incoming transfer."
+              }
+            },
+            "required": [
+              "kind",
+              "account",
+              "asset"
+            ]
+          }
+        ]
+      },
+      "AutomationAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "intent"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IntentActionSpec"
+                },
+                "maxItems": 8
+              },
+              "accounts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AccountId"
+                },
+                "minItems": 1,
+                "maxItems": 6
+              },
+              "sourceNetwork": {
+                "type": "string"
+              },
+              "constraints": {
+                "$ref": "#/components/schemas/IntentConstraints"
+              }
+            },
+            "required": [
+              "kind",
+              "accounts"
+            ],
+            "description": "Planned at every run; metadata and clientReference are set by Kletia."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "rebalance"
+              },
+              "accounts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AccountId"
+                },
+                "minItems": 1,
+                "maxItems": 6
+              },
+              "amount": {
+                "type": "string",
+                "description": "Deposit when there is no current venue."
+              }
+            },
+            "required": [
+              "kind",
+              "accounts"
+            ],
+            "description": "apy triggers only: withdraw from the current venue, bridge when needed, deposit at the best."
+          }
+        ]
+      },
+      "AutomationLimits": {
+        "type": "object",
+        "properties": {
+          "maxUsdPerRun": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "USD, decimal string."
+          },
+          "maxUsdTotal": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "USD, decimal string."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Default 180 days, at most 366."
+          },
+          "cooldownSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2592000
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NetworkKey"
+            }
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxSlippageBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000
+          }
+        }
+      },
+      "AutomationCreateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AutomationAction"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AutomationLimits"
+          }
+        },
+        "required": [
+          "trigger",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "AutomationPatchRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AutomationLimits"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Automation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^au_[0-9a-f]{24}$"
+          },
+          "label": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "key",
+                  "wallet"
+                ]
+              },
+              "keyId": {
+                "type": "string"
+              },
+              "projectId": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "walletKind": {
+                "type": "string",
+                "enum": [
+                  "evm",
+                  "solana"
+                ]
+              },
+              "address": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          },
+          "action": {
+            "$ref": "#/components/schemas/AutomationAction"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/AutomationLimits"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "completed",
+              "expired"
+            ]
+          },
+          "statusReason": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "`owner`, `max_runs`, `ended`, `expired`, `key_revoked`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "armed": {
+                "type": "boolean"
+              },
+              "epoch": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lastValue": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "lastSlot": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "venue": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "epoch"
+            ]
+          },
+          "execution": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "signature",
+                  "native"
+                ]
+              },
+              "provider": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spentUsd": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "description": "USD, decimal string."
+          },
+          "lastRunAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextRunAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "owner",
+          "trigger",
+          "action",
+          "limits",
+          "status",
+          "statusReason",
+          "state",
+          "execution",
+          "runs",
+          "spentUsd",
+          "lastRunAt",
+          "nextRunAt",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AutomationResponse": {
+        "type": "object",
+        "properties": {
+          "automation": {
+            "$ref": "#/components/schemas/Automation"
+          }
+        },
+        "required": [
+          "automation"
+        ]
+      },
+      "AutomationList": {
+        "type": "object",
+        "properties": {
+          "automations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Automation"
+            }
+          }
+        },
+        "required": [
+          "automations"
+        ]
+      },
+      "AutomationRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ar_[0-9a-f]{24}$"
+          },
+          "automationId": {
+            "type": "string",
+            "pattern": "^au_[0-9a-f]{24}$"
+          },
+          "window": {
+            "type": "string",
+            "description": "One run per window, ever (a schedule slot, a crossing)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "firing",
+              "prepared",
+              "needs_signature",
+              "skipped",
+              "failed"
+            ]
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Skips: cooldown, over_run_limit, over_total_limit, unpriced, network_not_allowed, protocol_not_allowed. Failures: the error code."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observed": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intentId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notionalUsd": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+                "description": "USD, decimal string."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "reference"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "automationId",
+          "window",
+          "status",
+          "reason",
+          "message",
+          "observed",
+          "intentId",
+          "title",
+          "notionalUsd",
+          "provider",
+          "firedAt",
+          "updatedAt"
+        ]
+      },
+      "AutomationRunList": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutomationRun"
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ]
+      },
+      "AutomationInbox": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/AutomationRun"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "automationLabel": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "intentStatus": {
+                      "type": "string",
+                      "enum": [
+                        "planned",
+                        "executing"
+                      ]
+                    },
+                    "intentExpiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "automationLabel",
+                    "intentStatus",
+                    "intentExpiresAt"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "runs"
+        ]
+      },
+      "AutomationEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "automation.created",
+              "automation.updated",
+              "automation.deleted",
+              "automation.fired",
+              "automation.skipped",
+              "automation.failed"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "automationId": {
+                "type": "string"
+              },
+              "ownerKeyId": {
+                "type": "string"
+              },
+              "runId": {
+                "type": "string"
+              },
+              "intentId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "automationId",
+              "ownerKeyId"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "at",
+          "data"
+        ],
+        "description": "Automation lifecycle and runs, delivered to the owning key's webhooks (and `scope: \"subtree\"` webhooks of its ancestors). Wallet-owned automations have no webhooks."
       },
       "StepFunding": {
         "type": "object",

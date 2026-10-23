@@ -16,6 +16,7 @@ import { splitClauses } from "../grammar.js";
 import { COMMENTARY_RULES, spellNumbers } from "./amounts.js";
 import type { Slot, WorkStep } from "../clarify/types.js";
 import { splitGoalClauses } from "./clauses.js";
+import { abstractRewrite, readAbstract } from "./abstract.js";
 import { readFrame, type ReadGoal } from "./frames.js";
 import { lex, normalizeClause, type Token } from "./lexer.js";
 import { lowerGoal } from "./lower.js";
@@ -28,6 +29,7 @@ export {
 } from "./amounts.js";
 export { lex, normalizeClause, symbolTypoCandidates, type Token } from "./lexer.js";
 export { readFrame, type GoalNotes, type ReadGoal } from "./frames.js";
+export { abstractClause, abstractRewrite, readAbstract } from "./abstract.js";
 export { lowerGoal } from "./lower.js";
 export { splitGoalClauses } from "./clauses.js";
 
@@ -249,6 +251,12 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
     let text = normalizeClause(nonAdjacentAllBut(fundingClause(piece.text)));
     // A piece of fillers only ("please," before the sentence) says nothing.
     if (!text) continue;
+    // P4-M4 (design A.2 vocabulary for abstract goals): an idiom put into the words the frames read, by a named rule.
+    const rewrite = abstractRewrite(text);
+    if (rewrite) {
+      text = rewrite.text;
+      for (const rule of rewrite.rules) rules.add(rule);
+    }
     let tokens = lex(text);
     if (piece.joinedBy === "and" && !VERB_START(tokens) && verbWord && tokens[0]?.t !== "WORK") {
       text = `${verbWord} ${text}`;
@@ -272,7 +280,9 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
     for (const token of tokens) {
       if (token.t === "CONN" && token.digit) corrections.push({ field: `actions[${options.index + steps.length}].text`, from: token.digit, to: token.word, material: true });
     }
-    const strict = options.strict(text, previousExists);
+    // An abstract goal (rebalance, ensure, exposure, exit-all) is read straight into the A.6 IR for the solver.
+    const abstract = readAbstract(text);
+    const strict = abstract ? null : options.strict(text, previousExists);
     if (strict) {
       if (previousExists && EXACT_OF_PREVIOUS.test(text)) ofPrevious.push(strict);
       steps.push(strict);
@@ -282,11 +292,14 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
     const before = steps.length > 0 ? steps[steps.length - 1] : options.previousStep;
     const chainable = !(before && options.paysOther?.(before));
     const worthSaid = WORTH_SAID.test(piece.text);
-    const read: ReadGoal | null = readFrame(tokens, { previousExists, index: goals.length, ...(chainable ? {} : { chainable: false }), ...(worthSaid ? { worthSaid } : {}) });
-    if (!read) return null;
+    const framed: ReadGoal | null = abstract ?? readFrame(tokens, { previousExists, index: goals.length, ...(chainable ? {} : { chainable: false }), ...(worthSaid ? { worthSaid } : {}) });
+    if (!framed) return null;
+    // "safely", "cheaply": the preference the idiom said, kept on the goal (the solver ranks by it).
+    const read: ReadGoal = rewrite?.prefer && !framed.goal.constraints.prefer ? { ...framed, goal: { ...framed.goal, constraints: { ...framed.goal.constraints, prefer: rewrite.prefer } } } : framed;
     for (const rule of read.notes.rules) rules.add(rule);
     goals.push(read.goal);
-    const lowered = lowerGoal(read, { previousExists });
+    // An abstract goal keeps its IR (want.mode, targets, classes): only the solver places it.
+    const lowered = abstract ? null : lowerGoal(read, { previousExists });
     if (lowered) {
       if (read.notes.rewritten) {
         corrections.push({ field: `actions[${options.index + steps.length}].amount`, from: read.notes.rewritten.from, to: read.notes.rewritten.to, material: true });
@@ -306,6 +319,8 @@ export function readClause(clause: string, options: ReadClauseOptions): ClauseRe
     // "the rest" on a goal only the solver can place is not read: the clause is refused, never a guess.
     if (read.notes.rest) return null;
     const step: WorkStep = { goal: read.goal, goalRead: { lowered: false, ...(read.notes.orderOnly ? { orderOnly: true } : {}), ...(read.notes.possessive ? { possessive: true } : {}) } };
+    // An abstract goal is a derived reading of the person's words (design A.3): its solved plan is confirmed once (source C).
+    if (abstract) step.source = "C";
     if (read.notes.amountForm) markAmountForm([step], read.notes.amountForm);
     markDerived([step], read.notes);
     steps.push(step);

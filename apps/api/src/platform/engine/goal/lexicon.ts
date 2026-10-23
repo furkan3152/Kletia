@@ -167,7 +167,8 @@ export type Connector = (typeof CONNECTORS)[number];
 export const WORK_PHRASES: readonly string[] = ["to work", "earn yield", "earn interest", "earn", "yield", "interest", "with yield", "for yield"];
 
 /** Venue phrases that leave the venue to the solver ("into the best yield", "somewhere safe"). */
-export const BEST_VENUE_PHRASES: readonly string[] = ["the best yield", "best yield", "highest yield", "highest apy", "the highest apy", "best apy", "best rate", "safe"];
+export const BEST_VENUE_PHRASES: readonly string[] = ["the best yield", "best yield", "highest yield", "highest apy", "the highest apy", "best apy", "best rate", "safe",
+  "the best provider", "best provider", "the best venue", "best venue", "the safest venue", "safest venue", "the safest provider", "safest provider"];
 
 /** Asset classes ("my stablecoins", "gas"). */
 export const CLASS_WORDS: Readonly<Record<string, AssetClass>> = Object.freeze({

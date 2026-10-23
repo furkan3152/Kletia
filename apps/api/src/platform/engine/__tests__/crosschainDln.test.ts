@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { getBase64Encoder, getCompiledTransactionMessageDecoder, getTransactionDecoder } from "@solana/kit";
-import type { Hex } from "viem";
+import { encodeFunctionData, type Hex } from "viem";
 import { applySlippage, CHAINS, type IntentGraph, type IntentStep, type TransactionRequest } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { debridgeDlnAdapter, resetDlnFixFeeCache } from "../adapters/debridge.js";
+import { debridgeDlnAdapter, DLN_FORWARDER_ABI, resetDlnFixFeeCache } from "../adapters/debridge.js";
+import { KYBER_NATIVE, KYBER_ROUTER_ABI } from "../adapters/aggregator/kyberCalldata.js";
 import type { AdapterAction, SettlementResult, VerificationResult } from "../adapters/types.js";
 import { accountBytes } from "../adapters/lifi.js";
 import {
@@ -33,6 +34,7 @@ import {
   PREPARED_AT,
   seconds,
   USDC_SOL,
+  bridgeFixture,
   type CrossChainMock,
   type DlnOrderOptions,
 } from "./crosschainFixtures.js";
@@ -126,7 +128,7 @@ describe("deBridge DLN EVM orders", () => {
     const action = bridgeAction("base", "arbitrum");
     const other = OTHER_EVM_ADDRESS.toLowerCase() as Hex;
     const cases: [DlnOrderOptions, { to?: string; value?: string }, RegExp][] = [
-      [{}, { to: OTHER_EVM_ADDRESS }, /does not target the pinned DlnSource/u],
+      [{}, { to: OTHER_EVM_ADDRESS }, /targets neither the pinned DlnSource nor the pinned forwarder/u],
       [{}, { value: (DLN_EVM_FIX_FEE * 2n).toString() }, /not exactly the fixed fee/u],
       [{ order: { giveAmount: 25_978_554n } }, {}, /gives another amount/u],
       [{ order: { giveTokenAddress: OTHER_EVM_ADDRESS } }, {}, /gives another token/u],
@@ -473,5 +475,159 @@ describe("deBridge DLN verification and settlement (EVM)", () => {
     mock.dlnOrders.set(orderId, { orderId: { stringValue: orderId }, state: "ClaimedOrderCancel" });
     assert.equal(await poll(), "SETTLEMENT_REFUNDED");
     assert.equal(accountBytes("base", EVM_ADDRESS), EVM_ADDRESS.toLowerCase());
+  });
+});
+
+describe("deBridge source swaps through the pinned forwarder", () => {
+  const FORWARDER = "0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251";
+  const KYBER_ROUTER = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5";
+  const KYBER_EXECUTOR = "0x8F10B468b06c6FD214B65F87778827F7D113f996";
+  const SURPLUS = "0x502ea3d95122b5914850E7A4A4CB9e96cF75A35f";
+  const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  const EXPECTED = 2_480_000n;
+
+  interface ForwarderOptions {
+    readonly router?: string;
+    readonly dstReceiver?: string;
+    readonly swapDst?: string;
+    readonly swapAmount?: bigint;
+    readonly minReturn?: bigint;
+    readonly feeReceivers?: readonly string[];
+    readonly surplus?: string;
+    readonly target?: string;
+    readonly permit?: Hex;
+    readonly amountIn?: bigint;
+    readonly tokenIn?: string;
+    readonly giveAmount?: bigint;
+    readonly order?: DlnOrderOptions;
+  }
+
+  /** ETH on Base -> USDC on Arbitrum: Kyber swaps ETH to USDC into the forwarder, which gives exactly EXPECTED. */
+  function forwarderCall(action: AdapterAction, options: ForwarderOptions = {}): Hex {
+    const amount = BigInt(action.amount);
+    const swap = encodeFunctionData({
+      abi: KYBER_ROUTER_ABI,
+      functionName: "swap",
+      args: [{
+        callTarget: KYBER_EXECUTOR,
+        approveTarget: "0x0000000000000000000000000000000000000000",
+        targetData: "0x1234",
+        desc: {
+          srcToken: KYBER_NATIVE,
+          dstToken: (options.swapDst ?? USDC_BASE) as Hex,
+          srcReceivers: [KYBER_EXECUTOR],
+          srcAmounts: [options.swapAmount ?? amount],
+          feeReceivers: (options.feeReceivers ?? []) as Hex[],
+          feeAmounts: (options.feeReceivers ?? []).map(() => 1n),
+          dstReceiver: (options.dstReceiver ?? FORWARDER) as Hex,
+          amount: options.swapAmount ?? amount,
+          minReturnAmount: options.minReturn ?? EXPECTED - 1n,
+          flags: 512n,
+          permit: "0x",
+        },
+        clientData: "0x",
+      }],
+    });
+    const { data: order } = dlnEvmCall(action, {
+      ...options.order,
+      order: { giveTokenAddress: USDC_BASE, giveAmount: options.giveAmount ?? EXPECTED, ...options.order?.order },
+    });
+    return encodeFunctionData({
+      abi: DLN_FORWARDER_ABI,
+      functionName: "strictlySwapAndCall",
+      args: [
+        (options.tokenIn ?? "0x0000000000000000000000000000000000000000") as Hex,
+        options.amountIn ?? amount,
+        options.permit ?? "0x",
+        (options.router ?? KYBER_ROUTER) as Hex,
+        swap,
+        USDC_BASE,
+        EXPECTED,
+        (options.surplus ?? SURPLUS) as Hex,
+        (options.target ?? DLN_SOURCE) as Hex,
+        order,
+      ],
+    });
+  }
+
+  const ethToUsdc = () => bridgeAction("base", "arbitrum", { symbol: "ETH", out: "USDC", amount: "1000000000000000" });
+
+  function forwarderOrder(action: AdapterAction, options: ForwarderOptions = {}, tx: { to?: string; value?: string } = {}) {
+    const data = forwarderCall(action, options);
+    const orderId = randomEvmHash();
+    const value = (DLN_EVM_FIX_FEE + BigInt(action.amount)).toString();
+    mock.dlnOrder = () => dlnOrderBody(action, { data, to: tx.to ?? FORWARDER, value: tx.value ?? value }, { orderId });
+    return { data, orderId };
+  }
+
+  it("plans a recorded live forwarder order (cbBTC on Base -> USDC on Ethereum, KyberSwap source swap)", async () => {
+    const recorded = bridgeFixture<Record<string, unknown>>("dln-forwarder-base-cbbtc-ethereum-usdc.json");
+    const owner = "0x8ba1f109551bD432803012645Ac136ddd64DBA72";
+    const action: AdapterAction = {
+      ...bridgeAction("base", "ethereum", { symbol: "cbBTC", out: "USDC", amount: "1000000" }),
+      account: account("base", owner),
+      recipient: account("ethereum", owner),
+    };
+    mock.dlnFixFee = BigInt(String(recorded.fixFee));
+    mock.dlnOrder = () => recorded;
+    const planned = await debridgeDlnAdapter.plan(action);
+    assert.equal(planned.protocol, "debridge-dln");
+    assert.equal(planned.preview?.approvalSpender, FORWARDER.toLowerCase(), "the forwarder is the exact-approval spender");
+    const call = planned.preview?.transactions.at(-1);
+    assert.ok(call?.vm === "evm" && call.to === FORWARDER);
+    assert.ok(planned.warnings.some((warning) => /first swaps the cbBTC/u.test(warning) && /goes to deBridge/u.test(warning)), planned.warnings.join(" | "));
+  });
+
+  it("plans a synthetic forwarder order: native value = amount + fixed fee, no approval", async () => {
+    const action = ethToUsdc();
+    forwarderOrder(action);
+    const planned = await debridgeDlnAdapter.plan(action);
+    assert.equal(planned.transactionCount, 1);
+    const call = planned.preview?.transactions.at(-1);
+    assert.ok(call?.vm === "evm");
+    assert.equal(call.to, FORWARDER);
+    assert.equal(call.value, (DLN_EVM_FIX_FEE + 1_000_000_000_000_000n).toString());
+  });
+
+  it("refuses forwarder calls with another router, receiver, token, amount, surplus recipient, target or order", async () => {
+    const action = ethToUsdc();
+    const cases: [ForwarderOptions, { to?: string; value?: string }, RegExp][] = [
+      [{ router: OTHER_EVM_ADDRESS }, {}, /not an allowlisted router/u],
+      [{ dstReceiver: OTHER_EVM_ADDRESS }, {}, /pays another receiver/u],
+      [{ dstReceiver: EVM_ADDRESS }, {}, /pays another receiver/u],
+      [{ swapDst: OTHER_EVM_ADDRESS }, {}, /buys another token/u],
+      [{ swapAmount: 999n }, {}, /sells another amount/u],
+      [{ minReturn: EXPECTED - 10n }, {}, /on-chain minimum is below/u],
+      [{ feeReceivers: [OTHER_EVM_ADDRESS] }, {}, /fees to other receivers/u],
+      [{ surplus: OTHER_EVM_ADDRESS }, {}, /surplus would go to an unpinned account/u],
+      [{ target: OTHER_EVM_ADDRESS }, {}, /other than the pinned DlnSource/u],
+      [{ permit: "0x1234" }, {}, /forwarder call carries a permit/u],
+      [{ amountIn: 5n }, {}, /sells another amount than the step/u],
+      [{ tokenIn: USDC_BASE }, {}, /sells another token/u],
+      [{ giveAmount: EXPECTED + 1n }, {}, /gives another amount/u],
+      [{ order: { order: { receiverDst: OTHER_EVM_ADDRESS.toLowerCase() } } }, {}, /pays another recipient/u],
+      [{}, { value: DLN_EVM_FIX_FEE.toString() }, /not exactly the fixed fee/u],
+    ];
+    for (const [options, tx, reason] of cases) {
+      forwarderOrder(action, options, tx);
+      const error = await errorOf(() => debridgeDlnAdapter.plan(action));
+      assert.match(error, /^PROVIDER_TRANSACTION_INVALID/u, reason.source);
+      assert.match(error, reason);
+    }
+  });
+
+  it("accepts the user as surplus recipient and confirms the order the forwarder created", async () => {
+    const action = ethToUsdc();
+    const { data, orderId } = forwarderOrder(action, { surplus: EVM_ADDRESS });
+    const prepared = await debridgeDlnAdapter.prepare(prepareContext(action));
+    assert.ok(prepared.warnings.some((warning) => /goes to your account/u.test(warning)));
+    const { creation, salt } = dlnEvmCall(action, { order: { giveTokenAddress: USDC_BASE, giveAmount: EXPECTED } });
+    const order = { ...dlnEventOrder(action, creation, salt, 0n), makerSrc: FORWARDER.toLowerCase() };
+    const step = evmBridgeStep(action, "debridge-dln", prepared.transactions, { trackingIds: [orderId] });
+    const verify = (references: string[]) => debridgeDlnAdapter.verify({ step, references, submittedAt: PREPARED_AT, now: PREPARED_AT + 60_000 });
+    assert.equal(prepared.transactions.at(-1)?.vm === "evm" ? (prepared.transactions.at(-1) as { data: string }).data : null, data);
+    assert.equal(code(await verify(landPrepared(mock.rpc, prepared.transactions, [createdOrderLog(order, orderId, 0n)]))), "confirmed");
+    const userAsMaker = { ...order, makerSrc: EVM_ADDRESS.toLowerCase() };
+    assert.equal(code(await verify(landPrepared(mock.rpc, prepared.transactions, [createdOrderLog(userAsMaker, orderId, 0n)]))), "OUTCOME_NOT_PROVEN", "the forwarder is the maker");
   });
 });

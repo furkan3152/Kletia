@@ -66,7 +66,10 @@ import {
 } from "../state/deskModel";
 import { deskIntentSessionKey } from "../state/deskSession";
 import { getDeskStore, type TaskPatch, type TaskRecord } from "../state/deskStore";
+import { ModelReadingCard } from "./ModelReadingCard";
+import { mintReadingConsent, readingAvailable, readingPreference, rememberReadingPreference, walletOfAccount } from "./modelReading";
 import { PlanFailurePanel } from "./PlanFailurePanel";
+import { RoutePanel } from "./RoutePanel";
 import { PlanningSkeleton } from "./PlanningSkeleton";
 import { PreviewTaskBody } from "./PreviewTaskBody";
 import { answerTarget, deskQuestionFrom, responseLabel, turnRequest, type TurnContext, type TurnInput } from "./questionModel";
@@ -159,6 +162,11 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   /** The open question a typed answer (composer Answering chip) is for. */
   const questionRef = useRef<DeskQuestion | null>(null);
   const handledTurnsRef = useRef(task.turns.length);
+  /** Model-assisted reading consent for this task's text: sent only after the person chose it. */
+  const readingRef = useRef<string | null>(null);
+  /** A confirm token, minted when the person clicks "Yes" on a model reading's confirm. */
+  const confirmRef = useRef<string | null>(null);
+  const [readingBusy, setReadingBusy] = useState(false);
   /** The last first turn ran with demo accounts only (no wallet connected). */
   const plannedWithoutWallet = useRef(false);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
@@ -206,7 +214,13 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
   /** One clarify turn with this task's thread. Never throws. */
   const sendTurn = useCallback(
     async (input: TurnInput, plan: PlanOptions, mode: "dry" | "commit"): Promise<TurnOutcome> => {
-      const request = turnRequest(contextFor(plan, mode), threadRef.current, input, task.sentence);
+      const base = turnRequest(contextFor(plan, mode), threadRef.current, input, task.sentence);
+      // A consent the person gave goes with text turns; text typed in the desk input is "typed" (session consent).
+      const consent = input.kind === "answer" ? confirmRef.current : readingRef.current;
+      const request =
+        consent && (input.kind === "answer" || base.text !== undefined)
+          ? { ...base, ...(input.kind === "answer" ? {} : { modelReading: "on" as const }), consent, textOrigin: task.origin ? ("prefilled" as const) : ("typed" as const) }
+          : base;
       try {
         const exchange = await postIntentTurn(
           PLATFORM_ORIGIN,
@@ -223,7 +237,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         return { ok: false, failure: UNREACHABLE };
       }
     },
-    [contextFor, task.sentence],
+    [contextFor, task.origin, task.sentence],
   );
 
   /** What a turn's response does to the task (both dry runs and the commit turn). */
@@ -368,7 +382,14 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         }
         setTurning(true);
         setTurnError(null);
-        const outcome = await sendTurn(input, optionsRef.current, "dry");
+        let outcome = await sendTurn(input, optionsRef.current, "dry");
+        // The person clicked "Yes" on a model reading's confirm: the desk mints the wallet-bound confirm token and sends it once.
+        const wallet = walletOfAccount(contextFor(optionsRef.current, "dry").accounts?.[0]);
+        if (!outcome.ok && outcome.failure.code === "CONFIRM_AUTHORITY_REQUIRED" && input.kind === "answer" && wallet && threadRef.current) {
+          confirmRef.current = await mintReadingConsent(PLATFORM_ORIGIN, { scope: "confirm", wallet, threadId: threadRef.current.id });
+          if (confirmRef.current) outcome = await sendTurn(input, optionsRef.current, "dry");
+          confirmRef.current = null;
+        }
         if (!aliveRef.current) return;
         setTurning(false);
         if (outcome.ok) {
@@ -383,7 +404,29 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         });
       });
     },
-    [apply, dropStoredPlan, enqueue, patch, sendTurn],
+    [apply, contextFor, dropStoredPlan, enqueue, patch, sendTurn],
+  );
+
+  /** "Read once" / "Allow for this session": mint the consent, then plan the task again with model-assisted reading. */
+  const readWithModel = useCallback(
+    (scope: "once" | "session") => {
+      void (async () => {
+        const wallet = walletOfAccount(contextFor(optionsRef.current, "dry").accounts?.[0]);
+        if (!wallet || !task.sentence) return;
+        setReadingBusy(true);
+        const token = await mintReadingConsent(PLATFORM_ORIGIN, scope === "once" ? { scope, wallet, text: task.sentence } : { scope, wallet });
+        if (!aliveRef.current) return;
+        setReadingBusy(false);
+        if (!token) {
+          patch({ turn: { kind: "note", at: Date.now(), text: "Model-assisted reading is not available right now. Rewrite the task in Kletia's words." } });
+          return;
+        }
+        if (scope === "session") rememberReadingPreference("session");
+        readingRef.current = token;
+        run(optionsRef.current);
+      })();
+    },
+    [contextFor, patch, run, task.sentence],
   );
 
   /** "Review and sign": the commit turn stores the plan with the user's accounts. */
@@ -590,7 +633,10 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
       </div>
     );
   } else if (failure) {
+    const offer = readingAvailable(failure) && readingPreference() !== "off";
     body = (
+      <>
+      {offer ? <ModelReadingCard busy={readingBusy} typed={!task.origin} onRead={readWithModel} onRewrite={() => actions.fill(task.sentence)} /> : null}
       <PlanFailurePanel
         failure={failure}
         route={routePlanFailure(failure, { text: task.sentence, departure: options.departure })}
@@ -601,6 +647,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
         connect={anyWallet ? [] : ["eip155", "solana"]}
         onConnect={actions.openWallet}
       />
+      </>
     );
   } else if (execution.intent) {
     body = (
@@ -657,6 +704,7 @@ export function PlatformTaskBody({ task }: { readonly task: TaskRecord }) {
           reviewBlocked={signingBlocked}
           journey={<Journey taskId={task.id} phase="review" intent={dry.intent} preview={dry.preview} journey={dry.journey} holdings={actions.holdings} lane={lane} onFollowUp={(text, departure) => actions.fill(text, departure ? { departure } : {})} />}
         />
+        <RoutePanel intent={dry.intent} assumptions={dry.assumptions} />
       </>
     );
   } else if (task.question) {

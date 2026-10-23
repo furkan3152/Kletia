@@ -1,6 +1,7 @@
 import { protocolDependencies, type IntentConstraints, type IntentStep, type ProtocolId } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { aaveV3Adapter } from "./aaveV3.js";
+import { aggregatorEnabled, kyberswapAdapter } from "./aggregator/kyberswap.js";
 import { acrossAdapter } from "./across.js";
 import { cctpV2Adapter } from "./cctpV2.js";
 import { contractCallAdapter } from "./contractCall.js";
@@ -41,6 +42,7 @@ import { renzoAdapter } from "./staking/renzo.js";
 import { rocketPoolAdapter } from "./staking/rocketPool.js";
 import { staderAdapter } from "./staking/stader.js";
 import type { AdapterRoute, ContractProtocolAdapter, ProtocolAdapter } from "./types.js";
+import { wrapAdapter } from "./wrap.js";
 
 /**
  * Adapters of integrator-registered contracts (call / action steps). Route
@@ -72,6 +74,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     // Solana Pay transfer requests (named only)
     solanaPayAdapter,
     evmTransferAdapter,
+    // 1:1 wrap of the gas asset: serves ETH <-> WETH and POL <-> WPOL alone, never auctioned
+    wrapAdapter,
     uniswapV3Adapter,
     aerodromeAdapter,
     velodromeAdapter,
@@ -79,6 +83,8 @@ export const ADAPTERS: readonly ProtocolAdapter[] = Object.freeze(
     pancakeswapV3Adapter,
     camelotAdapter,
     curveAdapter,
+    // optional EVM aggregator: listed only when the server enables it
+    aggregatorEnabled() ? kyberswapAdapter : null,
     relayAdapter,
     acrossAdapter,
     cctpV2Adapter,

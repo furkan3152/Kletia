@@ -286,6 +286,58 @@ describe("Uniswap V3 planning", () => {
   });
 });
 
+describe("Uniswap V3 path search", () => {
+  const DAI = getAddress(tokenAddress("ethereum", "DAI"));
+  const viaWeth = () => encodePath([{ tokenIn: WSTETH, tokenOut: WETH, tier: 100 }, { tokenIn: WETH, tokenOut: USDC, tier: 500 }]);
+
+  function wstethWorld(directOut: bigint | null): UniswapWorld {
+    const world = mockUniswap();
+    usdcWethPools(world);
+    addPool(world, WSTETH, WETH, 100, { ab: 1_199_000_000_000_000_000n });
+    world.paths.set(viaWeth().toLowerCase(), 2_985_000_000n);
+    if (directOut !== null) addPool(world, WSTETH, USDC, 3000, { ab: directOut });
+    return world;
+  }
+
+  it("quotes direct pools and two-hop paths together and takes the larger output", async () => {
+    // A thin direct pool must not hide the deeper two-hop path.
+    wstethWorld(2_900_000_000n);
+    const step = (await swap("wstETH", "USDC", "1")).steps[0]!;
+    assert.equal(step.expectedOutput?.amount, "2985000000");
+    assert.match(step.warnings?.join(" ") ?? "", /0\.01 % then 0\.05 % pools through the wrapped native token/u);
+  });
+
+  it("keeps the direct pool when a two-hop path gains less than 2 bps (it costs another pool's gas)", async () => {
+    wstethWorld(2_984_500_000n);
+    const step = (await swap("wstETH", "USDC", "1")).steps[0]!;
+    assert.equal(step.expectedOutput?.amount, "2984500000");
+    assert.match(step.warnings?.join(" ") ?? "", /0\.3 % pool/u);
+  });
+
+  it("applies the Chainlink band to the best path, not to a thin direct pool", async () => {
+    // 2,500 USDC for 1 wstETH is far below the oracle: before, the direct pool's refusal refused the whole venue.
+    wstethWorld(2_500_000_000n);
+    const step = (await swap("wstETH", "USDC", "1")).steps[0]!;
+    assert.equal(step.expectedOutput?.amount, "2985000000");
+  });
+
+  it("routes through DAI, USDT0 / USDT and cbBTC / WBTC by exact registry address, and prepares the recorded path", async () => {
+    const world = wstethWorld(null);
+    addPool(world, WSTETH, DAI, 100, { ab: 2_995_000_000_000_000_000_000n });
+    addPool(world, DAI, USDC, 100, { ab: 2_994_000_000n });
+    const path = encodePath([{ tokenIn: WSTETH, tokenOut: DAI, tier: 100 }, { tokenIn: DAI, tokenOut: USDC, tier: 100 }]);
+    world.paths.set(path.toLowerCase(), 2_993_000_000n);
+    const graph = await swap("wstETH", "USDC", "1");
+    const step = graph.steps[0]!;
+    assert.equal(step.expectedOutput?.amount, "2993000000");
+    assert.match(step.warnings?.join(" ") ?? "", /through DAI/u);
+    const transactions = await prepared(graph);
+    const { deadline } = multicall(transactions[1]);
+    const minimum = (2_993_000_000n * 9_950n) / 10_000n;
+    assert.equal(transactions[1]?.data, encodeFunctionDataExact([encodeInner("exactInput", [{ path, recipient: ACCOUNT, amountIn: 10n ** 18n, amountOutMinimum: minimum }])], deadline));
+  });
+});
+
 describe("Uniswap V3 Chainlink band (oracleGuard through policyPrices)", () => {
   it("refuses a quote 5.1 % below the oracle", async () => {
     const world = mockUniswap();

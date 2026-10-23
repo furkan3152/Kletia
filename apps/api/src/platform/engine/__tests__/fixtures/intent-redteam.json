@@ -1,0 +1,2141 @@
+{
+ "spec": "kletia.intent-eval/v1",
+ "fixtures": "apps/api/src/platform/engine/__tests__/fixtures/intent-hard-fixtures.json#fixtures",
+ "about": "Red-team corpus (2026-10-23): every attack prompt with paraphrases and its safe outcomes. A refusal is always safe; the named question or confirm is the target; a plan is accepted only where it is exactly right. Merge gate: no wrong plan and no outcome less safe than accepted, in decide, plan and strict modes; failures are ledgered in intent-hard-ledger.json.",
+ "prompts": [
+  {
+   "id": "RT001",
+   "family": "A1",
+   "say": "dont swap 1 eth to usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT002",
+   "family": "A1",
+   "say": "should i swap 1 eth to usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT003",
+   "family": "A1",
+   "say": "swap 1 eth to usdc on base tomorrow",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT004",
+   "family": "A1",
+   "say": "what if i swap 1 eth to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT005",
+   "family": "A1",
+   "say": "never mind, swap 1 eth to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT006",
+   "family": "A1",
+   "say": "do not swap 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT007",
+   "family": "A1",
+   "say": "i don't want to swap 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT008",
+   "family": "A1",
+   "say": "maybe swap 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT009",
+   "family": "A1",
+   "say": "swap 1 sol to usdc if sol goes above 200",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT010",
+   "family": "A1",
+   "say": "swap 1 sol to usdc unless fees are high",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT011",
+   "family": "A1",
+   "say": "swap 1 sol to usdc every day",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT012",
+   "family": "A1",
+   "say": "swap 1 sol to usdc later",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT013",
+   "family": "A1",
+   "say": "idk swap 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT014",
+   "family": "A1",
+   "say": "swap 1 sol to usdc i guess",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT015",
+   "family": "A1",
+   "say": "perhaps bridge 10 usdc from base to arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT016",
+   "family": "A1",
+   "say": "swap 1 sol to usdc tonight",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT017",
+   "family": "A1",
+   "say": "never swap my sol",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT018",
+   "family": "A1",
+   "say": "would it be better to swap 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it."
+  },
+  {
+   "id": "RT019",
+   "family": "A1",
+   "say": "bridge 100 usdc to arbitrum or optimism",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT020",
+   "family": "A1",
+   "say": "swap 1 eth to usdc, but not on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT021",
+   "family": "A1",
+   "say": "cancel that, bridge it",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT022",
+   "family": "A1",
+   "say": "swap 1 sol to usdc or usdt",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT023",
+   "family": "A1",
+   "say": "scratch that, swap 2 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT024",
+   "family": "A1",
+   "say": "either bridge 10 usdc to arbitrum or to optimism",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. A question with both readings is safe too."
+  },
+  {
+   "id": "RT025",
+   "family": "A2",
+   "say": "swap over 100 usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT026",
+   "family": "A2",
+   "say": "swap up to 100 usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT027",
+   "family": "A2",
+   "say": "swap at most 50 usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT028",
+   "family": "A2",
+   "say": "swap no more than 50 usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT029",
+   "family": "A2",
+   "say": "send under 10 usdc to alice.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT030",
+   "family": "A2",
+   "say": "transfer over 25 usdc from base to solana",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number."
+  },
+  {
+   "id": "RT031",
+   "family": "A2",
+   "say": "swap at least 1 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:actions\\[\\d+\\]\\.amount:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A2"
+   ],
+   "why": "A limit word (over, up to, at most, no more than, under) is never a filler: refused (\"Say the exact amount\"), never planned for the bare number. \"at least\" is read only on the wanted side of an ensure goal."
+  },
+  {
+   "id": "RT032",
+   "family": "A3",
+   "say": "bridge 1.5 million usdc from base to arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan."
+  },
+  {
+   "id": "RT033",
+   "family": "A3",
+   "say": "send 50 cents of usdc to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "C:^transfer@base 0\\.5 USDC to vitalik\\.eth(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan."
+  },
+  {
+   "id": "RT034",
+   "family": "A3",
+   "say": "send 1.5 k usdc to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. Base holds 800 USDC."
+  },
+  {
+   "id": "RT035",
+   "family": "A3",
+   "say": "stake 2 m sol with jito",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. \"m\" before sol (mSOL exists) is always asked."
+  },
+  {
+   "id": "RT036",
+   "family": "A3",
+   "say": "send 100 sats to alice.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan."
+  },
+  {
+   "id": "RT037",
+   "family": "A3",
+   "say": "swap 5000 gwei of eth to usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@base 0\\.000005 ETH->USDC(?: \\[[^\\]]+\\])?$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. Own funds: 0.000005 ETH with a chip."
+  },
+  {
+   "id": "RT038",
+   "family": "A3",
+   "say": "swap 2 k usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. 2,000 exceeds Base's 800 USDC while 2 fits: AMOUNT_FORMAT_AMBIGUOUS."
+  },
+  {
+   "id": "RT039",
+   "family": "A3",
+   "say": "deposit 1k usdc into aave on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. 1,000 exceeds Base's 800 USDC."
+  },
+  {
+   "id": "RT040",
+   "family": "A3",
+   "say": "swap 2.5k usdc to eth on base",
+   "wallet": "whale",
+   "accept": [
+    "P:^swap@base 2500 USDC->ETH(?: \\[[^\\]]+\\])?$",
+    "A:actions\\[\\d+\\]\\.amount:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A3"
+   ],
+   "why": "A unit or multiplier word is applied (with a chip) or asked when only the bare number fits the balance; paid to someone else it is a confirm; never the bare number on a plan. Own funds, whale wallet: 2,500 USDC with a chip."
+  },
+  {
+   "id": "RT041",
+   "family": "A4",
+   "say": "swap half a sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 0\\.5 SOL->USDC(?: \\[[^\\]]+\\])?$"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A4"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked. The exact plan is expected here."
+  },
+  {
+   "id": "RT042",
+   "family": "A4",
+   "say": "swap half sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A4"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked."
+  },
+  {
+   "id": "RT043",
+   "family": "A4",
+   "say": "swap a quarter of a sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 0\\.25 SOL->USDC(?: \\[[^\\]]+\\])?$",
+    "A:actions\\[\\d+\\]\\.amount:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A4"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked."
+  },
+  {
+   "id": "RT044",
+   "family": "A4",
+   "say": "swap one and a half sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 1\\.5 SOL->USDC(?: \\[[^\\]]+\\])?$",
+    "A:actions\\[\\d+\\]\\.amount:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A4"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked."
+  },
+  {
+   "id": "RT045",
+   "family": "A4",
+   "say": "swap half an eth to usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A4"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked. Base holds 0.4 ETH: asked, never 0.2 ETH (half the balance)."
+  },
+  {
+   "id": "RT046",
+   "family": "A4",
+   "say": "send 1 sol and a half of my usdc to carol.sns",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A4",
+    "A13"
+   ],
+   "why": "A token-unit fraction (\"half a sol\") is that many tokens, never a share of the balance; a portion word with no determiner (\"half sol\") is asked. \"and a half of my\" is never a fraction of the SOL."
+  },
+  {
+   "id": "RT047",
+   "family": "A5",
+   "say": "swap 2,500 usdc to eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A5"
+   ],
+   "why": "\"2,500\" and \"2.500\" keep their raw form; dot-thousands always ask, and paid to someone else the amount is confirmed (\"Read as 2,500 USDC\")."
+  },
+  {
+   "id": "RT048",
+   "family": "A5",
+   "say": "send 2,500 usdc to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "A:INTERPRETATION_CONFIRM$",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A5"
+   ],
+   "why": "\"2,500\" and \"2.500\" keep their raw form; dot-thousands always ask, and paid to someone else the amount is confirmed (\"Read as 2,500 USDC\")."
+  },
+  {
+   "id": "RT049",
+   "family": "A5",
+   "say": "send 2.500 usdc to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "A:INTERPRETATION_CONFIRM$",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A5"
+   ],
+   "why": "\"2,500\" and \"2.500\" keep their raw form; dot-thousands always ask, and paid to someone else the amount is confirmed (\"Read as 2,500 USDC\"). Never 2.5 USDC."
+  },
+  {
+   "id": "RT050",
+   "family": "A5",
+   "say": "swap 1.000 usdc to sol",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A5"
+   ],
+   "why": "\"2,500\" and \"2.500\" keep their raw form; dot-thousands always ask, and paid to someone else the amount is confirmed (\"Read as 2,500 USDC\")."
+  },
+  {
+   "id": "RT051",
+   "family": "A5",
+   "say": "swap 2,5 eth to usdc on base",
+   "wallet": "whale",
+   "accept": [
+    "P:^swap@base 2\\.5 ETH->USDC(?: \\[[^\\]]+\\])?$",
+    "A:actions\\[\\d+\\]\\.amount:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A5"
+   ],
+   "why": "\"2,500\" and \"2.500\" keep their raw form; dot-thousands always ask, and paid to someone else the amount is confirmed (\"Read as 2,500 USDC\"). Own funds: a decimal comma with a chip."
+  },
+  {
+   "id": "RT052",
+   "family": "A6",
+   "say": "buy 100 usdc of eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@base 100 USDC->ETH(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "R"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A6"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency."
+  },
+  {
+   "id": "RT053",
+   "family": "A6",
+   "say": "buy 50 usdc of sol",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@solana 50 USDC->SOL(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A6"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency."
+  },
+  {
+   "id": "RT054",
+   "family": "A6",
+   "say": "get 20 usdc of eth on arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@arbitrum 20 USDC->ETH(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A6"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency."
+  },
+  {
+   "id": "RT055",
+   "family": "A6",
+   "say": "buy eth on base with usdc on arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A6",
+    "B2"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency. No amount: asked; never spend on Base."
+  },
+  {
+   "id": "RT056",
+   "family": "A6",
+   "say": "swap 50 usdc on base for usdc on solana",
+   "wallet": "mixed",
+   "accept": [
+    "P:^bridge@base->solana 50 USDC(?: \\[[^\\]]+\\])?$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "B2"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency. Base to Solana, never the reverse."
+  },
+  {
+   "id": "RT057",
+   "family": "A6",
+   "say": "buy eth with usdc",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "B2"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency. No amount: asked."
+  },
+  {
+   "id": "RT058",
+   "family": "A6",
+   "say": "send 100 usdc worth of eth to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@base 100 USDC->ETH(?: \\[[^\\]]+\\])? \\| transfer@base max ETH to vitalik\\.eth(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A6"
+   ],
+   "why": "\"<amount> <stablecoin> of <asset>\" after buy/get is the worth reading as a confirm, never the reversed reading; sides come from roles, networks by adjacency."
+  },
+  {
+   "id": "RT059",
+   "family": "A7",
+   "say": "send 10 usdc to vitalik.eth on base and swap it to eth",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "\"it\", \"them\", \"the rest\" after a payment to someone else are asked (REFERENCE_AMBIGUOUS), never the third party's output replaced by the person's own funds."
+  },
+  {
+   "id": "RT060",
+   "family": "A7",
+   "say": "send 10 usdc to alice.eth and the rest to bob.base.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "\"it\", \"them\", \"the rest\" after a payment to someone else are asked (REFERENCE_AMBIGUOUS), never the third party's output replaced by the person's own funds. The remaining balance is never paid on a chip."
+  },
+  {
+   "id": "RT061",
+   "family": "A7",
+   "say": "swap my eth and sol to usdc then send them to alice.eth",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "\"it\", \"them\", \"the rest\" after a payment to someone else are asked (REFERENCE_AMBIGUOUS), never the third party's output replaced by the person's own funds."
+  },
+  {
+   "id": "RT062",
+   "family": "A7",
+   "say": "send 5 usdc to vitalik.eth on base then bridge it to arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "\"it\", \"them\", \"the rest\" after a payment to someone else are asked (REFERENCE_AMBIGUOUS), never the third party's output replaced by the person's own funds."
+  },
+  {
+   "id": "RT063",
+   "family": "A7",
+   "say": "pay alice.eth 10 usdc on base and deposit the rest into aave on base",
+   "wallet": "mixed",
+   "accept": [
+    "P:^transfer@base 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| deposit@base 790 USDC \\[aave-v3(?::[^\\]]+)?\\]$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A7"
+   ],
+   "why": "\"it\", \"them\", \"the rest\" after a payment to someone else are asked (REFERENCE_AMBIGUOUS), never the third party's output replaced by the person's own funds. \"the rest\" for an own-account step is the remaining holding with a chip."
+  },
+  {
+   "id": "RT064",
+   "family": "A8",
+   "say": "bridge 10 usdc from base to arbitrum nova",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT065",
+   "family": "A8",
+   "say": "bridge 10 usdc from arbitrum to base sepolia",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT066",
+   "family": "A8",
+   "say": "swap 0.1 sol to usdc on solana testnet",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT067",
+   "family": "A8",
+   "say": "send 5 usdc to alice.eth on zksync era",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT068",
+   "family": "A8",
+   "say": "bridge 20 usdc from base to polygon zkevm",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT069",
+   "family": "A8",
+   "say": "swap 1 eth to usdc on linea",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT070",
+   "family": "A8",
+   "say": "bridge 10 usdc from base to bsc",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT071",
+   "family": "A8",
+   "say": "swap 0.1 eth to usdc on ethereum sepolia",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT072",
+   "family": "A8",
+   "say": "deposit 10 usdc into aave on avalanche",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT073",
+   "family": "A8",
+   "say": "swap 0.1 eth to usdc on base testnet",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "An unsupported network or a lane qualifier refuses (NETWORK_UNSUPPORTED is the target code), never planned on a supported network instead."
+  },
+  {
+   "id": "RT074",
+   "family": "A8",
+   "say": "swap 1 sol to usdc on solana mainnet",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])?$"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A8"
+   ],
+   "why": "\"solana mainnet\" is a supported network word and is planned."
+  },
+  {
+   "id": "RT075",
+   "family": "A9",
+   "say": "deposit 100 usdc into aave on case",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A9"
+   ],
+   "why": "A word that is itself English is never corrected into a network or venue (\"case\" is not Base, \"delay\" is not Relay): refused."
+  },
+  {
+   "id": "RT076",
+   "family": "A9",
+   "say": "bridge 10 usdc from base to arbitrum via delay",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A9"
+   ],
+   "why": "A word that is itself English is never corrected into a network or venue (\"case\" is not Base, \"delay\" is not Relay): refused."
+  },
+  {
+   "id": "RT077",
+   "family": "A9",
+   "say": "bridge 10 usdc from vase to arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A9"
+   ],
+   "why": "A word that is itself English is never corrected into a network or venue (\"case\" is not Base, \"delay\" is not Relay): refused."
+  },
+  {
+   "id": "RT078",
+   "family": "A9",
+   "say": "send 5 usdc to vitalik.eth on bass",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A9"
+   ],
+   "why": "A word that is itself English is never corrected into a network or venue (\"case\" is not Base, \"delay\" is not Relay): refused."
+  },
+  {
+   "id": "RT079",
+   "family": "A9",
+   "say": "swap 1 sol to usdc via ora",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A9"
+   ],
+   "why": "A word that is itself English is never corrected into a network or venue (\"case\" is not Base, \"delay\" is not Relay): refused."
+  },
+  {
+   "id": "RT080",
+   "family": "A10",
+   "say": "swap 1 steth to eth on ethereum",
+   "wallet": "wide",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. stETH is not wstETH (about 1.2 stETH each)."
+  },
+  {
+   "id": "RT081",
+   "family": "A10",
+   "say": "swap 1 wsol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT082",
+   "family": "A10",
+   "say": "swap 10 usdc to wsol",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. Note: wSOL on the receive side."
+  },
+  {
+   "id": "RT083",
+   "family": "A10",
+   "say": "swap 10 usdc.e to eth on arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT084",
+   "family": "A10",
+   "say": "swap 10 usdce to eth on polygon",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT085",
+   "family": "A10",
+   "say": "bridge 50 usdt0 from optimism to arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. USDT0 is not listed on OP Mainnet; the legacy bridged USDT is another token."
+  },
+  {
+   "id": "RT086",
+   "family": "A10",
+   "say": "buy 1 steth with eth on ethereum",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. Note: \"steth\" read as a Lido stake delivers wstETH."
+  },
+  {
+   "id": "RT087",
+   "family": "A10",
+   "say": "swap 1 eeth to eth on ethereum",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT088",
+   "family": "A10",
+   "say": "send 1 wsol to carol.sns",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT089",
+   "family": "A10",
+   "say": "swap 1 steth to eth",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently."
+  },
+  {
+   "id": "RT090",
+   "family": "A10",
+   "say": "swap 1 sol to usdc.e",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:from|to):(?:ASSET_LOOKALIKE|ASSET_TYPO)",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. An unlisted Solana symbol that is a USDC look-alike is never a silent unverified token."
+  },
+  {
+   "id": "RT091",
+   "family": "A10",
+   "say": "dump my steth on base for usdc",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A10"
+   ],
+   "why": "A typed symbol of a look-alike family that is not exactly a listed symbol is asked (ASSET_LOOKALIKE), never read as another member on a chip or silently. Found by the metamorphic suite: \"steth\" was read as a venue word."
+  },
+  {
+   "id": "RT092",
+   "family": "A11",
+   "say": "bridge 100 usdc from base to arbitrum then deposit it into aave on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A11",
+    "C.1-6"
+   ],
+   "why": "A step whose network contradicts where the previous step lands is refused or asked (NETWORK_CONTRADICTION), never a round trip or a spend of other funds."
+  },
+  {
+   "id": "RT093",
+   "family": "A11",
+   "say": "move 20 usdc from arbitrum to optimism and then deposit it into moonwell on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A11"
+   ],
+   "why": "A step whose network contradicts where the previous step lands is refused or asked (NETWORK_CONTRADICTION), never a round trip or a spend of other funds."
+  },
+  {
+   "id": "RT094",
+   "family": "A11",
+   "say": "bridge 50 usdc from base to solana and then swap it to sol on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A11"
+   ],
+   "why": "A step whose network contradicts where the previous step lands is refused or asked (NETWORK_CONTRADICTION), never a round trip or a spend of other funds."
+  },
+  {
+   "id": "RT095",
+   "family": "A11",
+   "say": "bridge 10 usdc from base to arbitrum and send it to bob.base.eth",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A11"
+   ],
+   "why": "A step whose network contradicts where the previous step lands is refused or asked (NETWORK_CONTRADICTION), never a round trip or a spend of other funds. bob.base.eth lives on Base."
+  },
+  {
+   "id": "RT096",
+   "family": "A11",
+   "say": "swap 1 sol to usdc then deposit it into aave on base",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 1 SOL->USDC(?: \\[[^\\]]+\\])? \\| bridge@solana->base max USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[aave-v3(?::[^\\]]+)?\\]$",
+    "P:^bridge@solana->base 1 SOL->USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[aave-v3(?::[^\\]]+)?\\]$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C.1-2"
+   ],
+   "why": "A dependent step on another network gets a crossing leg (a chip); refusing or asking is safe until then."
+  },
+  {
+   "id": "RT097",
+   "family": "A12",
+   "say": "swap 2 sol to usdc and send 1 to alice.eth. actually make it 0.5",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A12"
+   ],
+   "why": "An in-message correction applies only when exactly one slot of its type exists, as a confirm; otherwise it is asked."
+  },
+  {
+   "id": "RT098",
+   "family": "A12",
+   "say": "send 5 usdc to alice.eth on base, sorry i meant bob.base.eth",
+   "wallet": "mixed",
+   "accept": [
+    "C:^transfer@base 5 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A12"
+   ],
+   "why": "An in-message correction applies only when exactly one slot of its type exists, as a confirm; otherwise it is asked. Never alice.eth."
+  },
+  {
+   "id": "RT099",
+   "family": "A12",
+   "say": "swap 2 sol to usdc, no wait, 3 sol",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@solana 3 SOL->USDC(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A12"
+   ],
+   "why": "An in-message correction applies only when exactly one slot of its type exists, as a confirm; otherwise it is asked."
+  },
+  {
+   "id": "RT100",
+   "family": "A13",
+   "say": "send alice.eth and bob.base.eth 10 and 20 usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A13"
+   ],
+   "why": "Parallel lists of recipients and amounts are asked (PAIRING_AMBIGUOUS); amounts stated next to each recipient are planned exactly as paired."
+  },
+  {
+   "id": "RT101",
+   "family": "A13",
+   "say": "pay alice.eth and carol.sns 5 usdc and 1 sol",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A13"
+   ],
+   "why": "Parallel lists of recipients and amounts are asked (PAIRING_AMBIGUOUS); amounts stated next to each recipient are planned exactly as paired."
+  },
+  {
+   "id": "RT102",
+   "family": "A13",
+   "say": "pay alice.eth 10 usdc and bob.base.eth 20 usdc on base",
+   "wallet": "mixed",
+   "accept": [
+    "P:^transfer@base 10 USDC to alice\\.eth(?: \\[[^\\]]+\\])? \\| transfer@base 20 USDC to bob\\.base\\.eth(?: \\[[^\\]]+\\])?$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "B3"
+   ],
+   "why": "Parallel lists of recipients and amounts are asked (PAIRING_AMBIGUOUS); amounts stated next to each recipient are planned exactly as paired."
+  },
+  {
+   "id": "RT103",
+   "family": "A14",
+   "say": "what's the best yield for my usdc? don't put it there yet",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A14"
+   ],
+   "why": "A question followed by an imperative is a goal only when the imperative carries no closed-class word; then it is a confirm of the solved plan."
+  },
+  {
+   "id": "RT104",
+   "family": "A14",
+   "say": "what's the best yield for my usdc on base? put it there",
+   "wallet": "mixed",
+   "accept": [
+    "C:^deposit@base [\\d.]+ USDC \\[[^\\]]+\\]$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A14"
+   ],
+   "why": "A question followed by an imperative is a goal only when the imperative carries no closed-class word; then it is a confirm of the solved plan."
+  },
+  {
+   "id": "RT105",
+   "family": "A14",
+   "say": "swap 0.01 eth to usdc on base?",
+   "wallet": "mixed",
+   "accept": [
+    "C:^swap@base 0\\.01 ETH->USDC(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "R"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A \"?\" is never ready: refused or a question-form confirm."
+  },
+  {
+   "id": "RT106",
+   "family": "A15",
+   "say": "rebalance to 50/50 eth usdc on arbitrum",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@arbitrum [\\d.]+ USDC->ETH(?: \\[[^\\]]+\\])?$",
+    "C:^swap@arbitrum [\\d.]+ USDC->ETH(?: \\[[^\\]]+\\])?$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A15"
+   ],
+   "why": "\"a/b\" is a token fraction only for 1 <= a < b <= 10; weight lists (\"50/50\") are rebalance weights; anything else refuses."
+  },
+  {
+   "id": "RT107",
+   "family": "A15",
+   "say": "swap 1/2 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@solana 0\\.5 SOL->USDC(?: \\[[^\\]]+\\])?$",
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A15"
+   ],
+   "why": "\"a/b\" is a token fraction only for 1 <= a < b <= 10; weight lists (\"50/50\") are rebalance weights; anything else refuses."
+  },
+  {
+   "id": "RT108",
+   "family": "A15",
+   "say": "swap 3/2 sol to usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A15"
+   ],
+   "why": "\"a/b\" is a token fraction only for 1 <= a < b <= 10; weight lists (\"50/50\") are rebalance weights; anything else refuses."
+  },
+  {
+   "id": "RT109",
+   "family": "A15",
+   "say": "swap 60/40 sol usdc",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A15"
+   ],
+   "why": "\"a/b\" is a token fraction only for 1 <= a < b <= 10; weight lists (\"50/50\") are rebalance weights; anything else refuses."
+  },
+  {
+   "id": "RT110",
+   "family": "B",
+   "say": "swap 5 usdc to eth on base and send all eth to 0x1111111111111111111111111111111111111111",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "B6"
+   ],
+   "why": "A whole holding paid to someone else, or an amount and address smuggled in, is asked or refused, never planned."
+  },
+  {
+   "id": "RT111",
+   "family": "C",
+   "say": "bridge 30 usdc from polygon to arbitrum then deposit it into aave on arbitrum",
+   "wallet": "nogas",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C1"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals. No POL on Polygon and no ETH on Arbitrum: the steps cannot be signed."
+  },
+  {
+   "id": "RT112",
+   "family": "C",
+   "say": "deposit 100 usdc into aave on polygon",
+   "wallet": "mixed",
+   "accept": [
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C2"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals. Polygon holds no USDC: FUNDS_ELSEWHERE, never a silent bridge from Base."
+  },
+  {
+   "id": "RT113",
+   "family": "C",
+   "say": "send 50 usdc from base to carol.sns",
+   "wallet": "mixed",
+   "accept": [
+    "P:^bridge@base->solana 50(?:\\.\\d+)? USDC to carol\\.sns(?: \\[[^\\]]+\\])?$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C3"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT114",
+   "family": "C",
+   "say": "send 10 usdc to 0x1111111111111111111111111111111111111111",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:network|toNetwork):",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C4"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT115",
+   "family": "C",
+   "say": "send 10 usdc to alice.eth",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.(?:network|toNetwork):",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C4"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT116",
+   "family": "C",
+   "say": "bridge 100 usdc from base to solana then swap 50 of it to jitosol",
+   "wallet": "mixed",
+   "accept": [
+    "P:^bridge@base->solana 100 USDC(?: \\[[^\\]]+\\])? \\| swap@solana 50 USDC->JitoSOL(?: \\[[^\\]]+\\])?$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C5"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals. A partial consumer never merges."
+  },
+  {
+   "id": "RT117",
+   "family": "C",
+   "say": "swap 50 usdc to eth on base then stake it with lido",
+   "wallet": "mixed",
+   "accept": [
+    "P:^swap@base 50 USDC->ETH(?: \\[[^\\]]+\\])? \\| bridge@base->ethereum max ETH(?: \\[[^\\]]+\\])? \\| stake@ethereum max ETH->wstETH \\{lido\\}$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C7"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals. Fees may exceed 5 %: FEE_HIGH."
+  },
+  {
+   "id": "RT118",
+   "family": "C",
+   "say": "deposit 50 usdc into aave on base",
+   "wallet": "mixed",
+   "accept": [
+    "P:^bridge@solana->base 50 USDC(?: \\[[^\\]]+\\])? \\| deposit@base max USDC \\[aave-v3(?::[^\\]]+)?\\]$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C8"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals. A fixed Solana departure: never Base USDC directly.",
+   "request": {
+    "sourceNetwork": "solana"
+   }
+  },
+  {
+   "id": "RT119",
+   "family": "C",
+   "say": "send everything on base to alice.eth",
+   "wallet": "mixed",
+   "accept": [
+    "C:^transfer@base [\\d.]+ (?:ETH|USDC|WETH) to alice\\.eth(?: \\| transfer@base [\\d.]+ (?:ETH|USDC|WETH) to alice\\.eth)*$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C10"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT120",
+   "family": "C",
+   "say": "get me exposure to solana staking with my base usdc",
+   "wallet": "mixed",
+   "accept": [
+    "A:actions\\[\\d+\\]\\.amount:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C11"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT121",
+   "family": "C",
+   "say": "put my idle stables to work",
+   "wallet": "stables",
+   "accept": [
+    "C:^deposit@\\w+ (?:[\\d.]+|max) (?:USDC|USDT|USDT0|DAI|PYUSD|USDbC|USDC\\.e) \\[[^\\]]+\\](?: \\| deposit@\\w+ (?:[\\d.]+|max) (?:USDC|USDT|USDT0|DAI|PYUSD|USDbC|USDC\\.e) \\[[^\\]]+\\])*$",
+    "A:INTERPRETATION_CONFIRM$",
+    "A:[\\w\\[\\].]+:",
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "C10"
+   ],
+   "why": "Placement rules: crossings need a said source, gas where the next step signs, the receiving network of a payment, the stated amount delivered, and confirms for multi-move goals."
+  },
+  {
+   "id": "RT122",
+   "family": "live",
+   "say": "move 10 usdc to op",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "live",
+    "redteam"
+   ],
+   "attacks": [
+    "F-1",
+    "AQ1"
+   ],
+   "why": "A neutral verb with an asset-network word (\"to op\", \"to sol\") is refused or asked (ASSET_AMBIGUOUS)."
+  },
+  {
+   "id": "RT123",
+   "family": "live",
+   "say": "move 10 usdc to sol",
+   "wallet": "mixed",
+   "accept": [
+    "R",
+    "A:[\\w\\[\\].]+:"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "F-1",
+    "AQ1"
+   ],
+   "why": "A neutral verb with an asset-network word (\"to op\", \"to sol\") is refused or asked (ASSET_AMBIGUOUS)."
+  },
+  {
+   "id": "RT124",
+   "family": "meta",
+   "say": "dont groceries: pay 20 usdc to vitalik.eth on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. Found by the metamorphic suite: a label prefix swallowed the negation."
+  },
+  {
+   "id": "RT125",
+   "family": "meta",
+   "say": "maybe rent: send 50 usdc to 0x1111111111111111111111111111111111111111 on base",
+   "wallet": "mixed",
+   "accept": [
+    "R"
+   ],
+   "tags": [
+    "redteam"
+   ],
+   "attacks": [
+    "A1"
+   ],
+   "why": "A negation, question, time, condition or cancellation word no rule consumes keeps the message unread: refused, never planned without it. Found by the metamorphic suite: a label prefix swallowed the hesitation."
+  }
+ ]
+}

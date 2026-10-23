@@ -153,11 +153,20 @@ export function readFeatureCapabilities(): {
       ["ALCHEMY_API_KEY"],
     ),
     feature(
+      "reading.model_assisted",
+      "all",
+      "Model-assisted reading (opt-in per request)",
+      has("OPENROUTER_API_KEY") && process.env.KLETIA_MODEL_READING?.trim().toLowerCase() === "on",
+      "Masked clauses read by two models of different vendors, checked by deterministic rules and confirmed by the person.",
+      ["OPENROUTER_API_KEY", "KLETIA_MODEL_READING", "KLETIA_READING_MODELS", "KLETIA_READING_PROFILES"],
+    ),
+    // Deprecated alias of reading.model_assisted (kept for existing clients).
+    feature(
       "ai.semantic_parsing",
       "all",
-      "AI-assisted intent interpretation (opt-in per request)",
+      "Model-assisted reading (opt-in per request)",
       has("OPENROUTER_API_KEY"),
-      "Model interpretation behind explicit user consent; execution stays deterministic.",
+      "Deprecated id: see reading.model_assisted. Model reading behind explicit consent; execution stays deterministic.",
       ["OPENROUTER_API_KEY"],
     ),
     {

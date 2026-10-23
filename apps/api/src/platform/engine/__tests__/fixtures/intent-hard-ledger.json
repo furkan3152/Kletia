@@ -1,0 +1,2432 @@
+{
+ "spec": "kletia.intent-ledger/v1",
+ "entries": [
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS026",
+   "klass": "asks_needlessly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS054",
+   "klass": "asks_needlessly",
+   "root": "AQ9",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT054",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL027",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI002",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI003",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI021",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI034",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY026",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY029",
+   "klass": "asks_wrong_question",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT032",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS026",
+   "klass": "asks_needlessly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS054",
+   "klass": "asks_needlessly",
+   "root": "AQ9",
+   "clears": "P2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT054",
+   "klass": "refuses_wrongly",
+   "root": "RF6",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON034",
+   "klass": "plans_unplannable",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON086",
+   "klass": "plans_unplannable",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL027",
+   "klass": "refuses_wrongly",
+   "root": "RF4",
+   "clears": "P4"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI002",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI003",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI021",
+   "klass": "plans_unconfirmed",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI034",
+   "klass": "refuses_wrongly",
+   "root": "source-C",
+   "clears": "P4 (confirm mechanics)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY026",
+   "klass": "refuses_wrongly",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY029",
+   "klass": "asks_wrong_question",
+   "root": "I13-network",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT032",
+   "klass": "refuses_wrongly",
+   "root": "C2-funds-elsewhere",
+   "clears": "P2-M1"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS020",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS022",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS026",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS040",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS044",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS045",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS047",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "ABS049",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT031",
+   "klass": "plans_wrongly",
+   "root": "strict/WP7",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT033",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT034",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT036",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT037",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT040",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT042",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT043",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT044",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT046",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT053",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "AMT057",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON002",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON003",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON016",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF10",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON034",
+   "klass": "refuses_wrongly",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON043",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON055",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON056",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON058",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON060",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON061",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON062",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON064",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON086",
+   "klass": "refuses_wrongly",
+   "root": "F-2: named bridge venue cannot route the pair",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "CON095",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP001",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP002",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP003",
+   "klass": "plans_wrongly",
+   "root": "strict/C3-delivery",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP004",
+   "klass": "plans_wrongly",
+   "root": "strict/WP11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP007",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP012",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP014",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP017",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP018",
+   "klass": "plans_wrongly",
+   "root": "strict/C2-funds-elsewhere",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP019",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP023",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP025",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP029",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL010",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL023",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL031",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL034",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL035",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "MUL040",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI014",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI018",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI032",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY001",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY004",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY009",
+   "klass": "plans_wrongly",
+   "root": "strict/WP10-ask",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY015",
+   "klass": "plans_wrongly",
+   "root": "strict/I13-network",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY036",
+   "klass": "plans_wrongly",
+   "root": "strict/WP10-ask",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY037",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "PAY046",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT002",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT003",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT004",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ11",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT006",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT007",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT009",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT010",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT015",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT017",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT019",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT026",
+   "klass": "refuses_wrongly",
+   "root": "strict/RF3",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT030",
+   "klass": "refuses_wrongly",
+   "root": "strict/WP2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "XNT031",
+   "klass": "refuses_wrongly",
+   "root": "strict/AQ1",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT041",
+   "klass": "refuses_wrongly",
+   "root": "strict/A4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT047",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT048",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT049",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT050",
+   "klass": "plans_wrongly",
+   "root": "strict/A5",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT110",
+   "klass": "plans_wrongly",
+   "root": "strict/B6",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT112",
+   "klass": "plans_wrongly",
+   "root": "strict/C2",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT114",
+   "klass": "plans_wrongly",
+   "root": "strict/C4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT115",
+   "klass": "plans_wrongly",
+   "root": "strict/C4",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT118",
+   "klass": "plans_wrongly",
+   "root": "strict/C8",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "AMO032",
+   "klass": "asks_needlessly",
+   "root": "repo: commentary cross-check",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GAP009",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GAP030",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA045",
+   "klass": "refuses_wrongly",
+   "root": "RF5 rebalance",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA046",
+   "klass": "refuses_wrongly",
+   "root": "repo: question-shaped goal",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "AMO032",
+   "klass": "asks_needlessly",
+   "root": "repo: commentary cross-check",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GAP009",
+   "klass": "asks_wrong_question",
+   "root": "AQ12",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GAP030",
+   "klass": "asks_needlessly",
+   "root": "AQ4",
+   "clears": "P2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA045",
+   "klass": "refuses_wrongly",
+   "root": "RF5 rebalance",
+   "clears": "P4"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA046",
+   "klass": "refuses_wrongly",
+   "root": "repo: question-shaped goal",
+   "clears": "P4-M3"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "TYP023",
+   "klass": "plans_unplannable",
+   "root": "F-2: corrected bridge venue cannot route the pair (Across to Solana)",
+   "clears": "P3-M2"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO020",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO025",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO028",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO031",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO032",
+   "klass": "refuses_wrongly",
+   "root": "strict/repo: commentary cross-check",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO039",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO040",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO046",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO047",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "AMO050",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS019",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS021",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS022",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS023",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS025",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS027",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS028",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS029",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS030",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS032",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS033",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS038",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS039",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS040",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "CAS041",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GAP025",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA024",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA033",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA035",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA036",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA037",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA038",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA044",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA048",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA053",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA055",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA056",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA057",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA060",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA061",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "GOA063",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL010",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL014",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "MUL018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "REC004",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "REC012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER001",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER002",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER003",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER004",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER005",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER006",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER007",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER008",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER011",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER012",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER013",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER015",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "TER017",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL007",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL009",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL010",
+   "klass": "plans_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL016",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "strict",
+   "id": "WAL018",
+   "klass": "refuses_wrongly",
+   "root": "strict path",
+   "clears": "P3-M2, P4 (strict path)"
+  }
+ ],
+ "oracleAllow": [
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT022",
+   "flag": "N number: 1",
+   "why": "'1 sol and a half' is read as 1.5 SOL by the token-unit 'and a half' rule; the 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT023",
+   "flag": "N number: 1",
+   "why": "'one and a half sol' is read as 1.5 SOL by the token-unit 'and a half' rule; the digit-as-word 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT030",
+   "flag": "N number: 000",
+   "why": "'1 000' is one amount with a space thousands separator, 1000 USDC; neither part is a separate number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT030",
+   "flag": "N number: 1",
+   "why": "'1 000' is one amount with a space thousands separator, 1000 USDC; neither part is a separate number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT032",
+   "flag": "N number: 10",
+   "why": "Arithmetic the person wrote, '10 usdc + 5 usdc', is the one amount 15 USDC (source C, confirmed with a 'Read as' item).",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT032",
+   "flag": "N number: 5",
+   "why": "Arithmetic the person wrote, '10 usdc + 5 usdc', is the one amount 15 USDC (source C, confirmed with a 'Read as' item).",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI011",
+   "flag": "N number: 2",
+   "why": "Digit-as-word '2' read as 'to' (source C, confirmed); it is a connector, not a number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI035",
+   "flag": "N number: 2",
+   "why": "Digit-as-word '2' read as 'to' (source C, confirmed); it is a connector, not a number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF048",
+   "flag": "N number: 2",
+   "why": "In-message correction 'no wait, 3 sol' replaces the 2 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF049",
+   "flag": "N number: 1",
+   "why": "In-message correction 'actually make it 0.5' replaces the 1 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT022",
+   "flag": "N number: 1",
+   "why": "'1 sol and a half' is read as 1.5 SOL by the token-unit 'and a half' rule; the 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT023",
+   "flag": "N number: 1",
+   "why": "'one and a half sol' is read as 1.5 SOL by the token-unit 'and a half' rule; the digit-as-word 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT030",
+   "flag": "N number: 000",
+   "why": "'1 000' is one amount with a space thousands separator, 1000 USDC; neither part is a separate number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT030",
+   "flag": "N number: 1",
+   "why": "'1 000' is one amount with a space thousands separator, 1000 USDC; neither part is a separate number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT032",
+   "flag": "N number: 10",
+   "why": "Arithmetic the person wrote, '10 usdc + 5 usdc', is the one amount 15 USDC (source C, confirmed with a 'Read as' item).",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT032",
+   "flag": "N number: 5",
+   "why": "Arithmetic the person wrote, '10 usdc + 5 usdc', is the one amount 15 USDC (source C, confirmed with a 'Read as' item).",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI011",
+   "flag": "N number: 2",
+   "why": "Digit-as-word '2' read as 'to' (source C, confirmed); it is a connector, not a number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI035",
+   "flag": "N number: 2",
+   "why": "Digit-as-word '2' read as 'to' (source C, confirmed); it is a connector, not a number.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF048",
+   "flag": "N number: 2",
+   "why": "In-message correction 'no wait, 3 sol' replaces the 2 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF049",
+   "flag": "N number: 1",
+   "why": "In-message correction 'actually make it 0.5' replaces the 1 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT044",
+   "flag": "N number: 1",
+   "why": "'one and a half sol' is read as 1.5 SOL by the token-unit 'and a half' rule; the digit-as-word 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT098",
+   "flag": "I3 recipient: alice.eth",
+   "why": "In-message correction 'sorry i meant bob.base.eth' replaces the only recipient (source C, confirmed); alice.eth is deliberately not paid.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT099",
+   "flag": "N number: 2",
+   "why": "In-message correction 'no wait, 3 sol' replaces the 2 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT104",
+   "flag": "I16 closed class: \"?\"",
+   "why": "Question followed by an imperative: the '?' closes the read-only question and the imperative is a one-click confirm of the solved plan; the question-form rule consumes it, which the conservation oracle does not see.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT044",
+   "flag": "N number: 1",
+   "why": "'one and a half sol' is read as 1.5 SOL by the token-unit 'and a half' rule; the digit-as-word 1 is part of that amount.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT098",
+   "flag": "I3 recipient: alice.eth",
+   "why": "In-message correction 'sorry i meant bob.base.eth' replaces the only recipient (source C, confirmed); alice.eth is deliberately not paid.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT099",
+   "flag": "N number: 2",
+   "why": "In-message correction 'no wait, 3 sol' replaces the 2 (source C, confirmed); the replaced number is consumed by the correction rule.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT104",
+   "flag": "I16 closed class: \"?\"",
+   "why": "Question followed by an imperative: the '?' closes the read-only question and the imperative is a one-click confirm of the solved plan; the question-form rule consumes it, which the conservation oracle does not see.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA005",
+   "flag": "I16 closed class: \"?\"",
+   "why": "Question followed by an imperative: the '?' closes the read-only question and the imperative is a one-click confirm of the solved plan; the question-form rule consumes it, which the conservation oracle does not see.",
+   "clears": "accepted (rule-consumed)"
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA005",
+   "flag": "I16 closed class: \"?\"",
+   "why": "Question followed by an imperative: the '?' closes the read-only question and the imperative is a one-click confirm of the solved plan; the question-form rule consumes it, which the conservation oracle does not see.",
+   "clears": "accepted (rule-consumed)"
+  }
+ ],
+ "metamorphic": []
+}

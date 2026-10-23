@@ -1,7 +1,17 @@
 /**
- * Across adapter: USDC bridges between the EVM production networks through the
- * pinned SpokePools. ETH / WETH routes wait until the destination unwrap
- * behaviour is verified per network; Solana waits for its SVM spoke program.
+ * Across adapter: USDC, ETH and WETH bridges between the EVM production
+ * networks through the pinned SpokePools. Solana waits for its SVM spoke
+ * program.
+ *
+ * ETH and WETH: both sides of the deposit use the SpokePool's WETH (native ETH
+ * is wrapped by the origin SpokePool from the exact `msg.value`). On a
+ * destination whose gas asset is ETH, the SpokePool unwraps WETH to native ETH
+ * for a recipient without code and delivers WETH to a recipient with code; an
+ * EIP-7702 delegated account has code. The output form is therefore chosen from
+ * the recipient's code (`accountCode`, read at plan and again at prepare):
+ * native ETH only to an account without code, WETH only to an account with
+ * code, and a recipient whose code cannot be read is refused. On Polygon (gas
+ * asset POL) WETH is delivered as WETH.
  *
  * Across's API is untrusted and only supplies numbers. Kletia encodes the
  * `SpokePool.deposit(bytes32 …)` call itself (depositor = the step account,
@@ -27,6 +37,7 @@ import { decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, parseAbi,
 import {
   CHAINS,
   explorerTxUrl,
+  findAssetBySymbol,
   formatAmount,
   fromBaseUnits,
   getProtocol,
@@ -38,8 +49,10 @@ import {
   type TransactionRequest,
 } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
-import { assetAmount, assetFromRef, type ResolvedAsset } from "../assets.js";
+import { assetAmount, assetFromRef, resolveAsset, type ResolvedAsset } from "../assets.js";
 import { evmChainId, isEvmNetwork, observeEvmTransaction, readAllowance, type EvmNetworkKey } from "../chains/evm.js";
+import { accountCode } from "../nameResolvers.js";
+import { nativeUsdPrice } from "../prices.js";
 import { decodeStepRef } from "../stepRef.js";
 import {
   ACROSS_INTEGRATOR_DELIMITER,
@@ -52,6 +65,7 @@ import { assertEvmBalance } from "./evmTransfer.js";
 import { accountBytes32, cushionedMinimum } from "./lifi.js";
 import { cappedOutput, destinationCredit, type DestinationCheck } from "./relay.js";
 import type { AdapterAction, AdapterRoute, PlannedStep, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, VerificationResult } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import { evmEvents, fillNotBefore, stepOwner, verifyEvmReceipts } from "./verification.js";
 
 /** Networks Across serves in the registry (each needs a pinned SpokePool). */
@@ -67,8 +81,26 @@ const QUOTE_SIGNING_MARGIN_SECONDS = 600;
 const MIN_FILL_WINDOW_SECONDS = 600;
 /** Clock skew tolerated between Across's quote timestamp and Kletia's clock. */
 const CLOCK_SKEW_SECONDS = 120;
-/** Longest exclusivity window accepted (seconds after the deposit; larger values mean another encoding). */
-const MAX_EXCLUSIVITY_SECONDS = 3_600;
+/**
+ * SpokePool.MAX_EXCLUSIVITY_PERIOD_SECONDS() on every pinned SpokePool (read back 2026-10-23): an
+ * exclusivityParameter above it is an absolute timestamp, at or below it a period added to the deposit time
+ * (Across returns timestamps for Ethereum and Polygon origins).
+ */
+export const ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS = 31_536_000;
+/** Longest exclusivity window accepted (seconds a single relayer may hold the fill). */
+export const MAX_EXCLUSIVITY_SECONDS = 3_600;
+
+/**
+ * Seconds of exclusivity an exclusivityParameter gives a relayer from `now`,
+ * by the SpokePool's own rule: 0 means none; above
+ * MAX_EXCLUSIVITY_PERIOD_SECONDS it is a timestamp (the window is what is
+ * left of it); otherwise it is a period after the deposit.
+ */
+export function exclusivityWindowSeconds(parameter: number, now: number): number {
+  if (!Number.isFinite(parameter) || parameter <= 0) return 0;
+  if (parameter > ACROSS_MAX_EXCLUSIVITY_PERIOD_SECONDS) return Math.max(0, parameter - now);
+  return parameter;
+}
 /** Relay fees above this share of the amount are refused. */
 const MAX_FEE_PERCENT = 10;
 const APPROVE_GAS = "70000";
@@ -103,6 +135,69 @@ function sameEvm(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
+/** True when the gas asset of `network` is ETH (the SpokePool's wrapped native token is then WETH). */
+function ethGasNetwork(network: NetworkKey): boolean {
+  return CHAINS[network].nativeAsset.symbol.toUpperCase() === "ETH";
+}
+
+/** The registry's canonical WETH on `network` (the token Across deposits and fills for ETH), or null. */
+export function acrossWeth(network: NetworkKey): string | null {
+  const weth = findAssetBySymbol(network, "WETH");
+  return weth && weth.address !== null && weth.category === "wrapped" && weth.group === "ETH" ? weth.address : null;
+}
+
+/** Native ETH (on an ETH-gas network) or the registry's canonical WETH: the ETH forms Across serves. */
+export function isAcrossEth(asset: ResolvedAsset): boolean {
+  if (asset.isNative) return ethGasNetwork(asset.network) && asset.decimals === 18;
+  const weth = acrossWeth(asset.network);
+  return asset.canonical && asset.transferOnly !== true && weth !== null && asset.address !== null && sameEvm(asset.address, weth) && asset.decimals === 18;
+}
+
+/** The token address Across quotes and encodes for `asset` (WETH for native ETH). */
+function acrossToken(asset: ResolvedAsset): string {
+  if (!asset.isNative) return asset.address as string;
+  const weth = acrossWeth(asset.network);
+  if (!weth) throw new PlatformError("ROUTE_UNSUPPORTED", `Across has no WETH to wrap ETH on ${CHAINS[asset.network].name}.`, 422);
+  return weth;
+}
+
+/** Bounded read of the recipient's code. */
+const RECIPIENT_CODE_DEADLINE_MS = 2_500;
+
+/**
+ * Checks that the asset the SpokePool will deliver is the step's output asset:
+ * on an ETH-gas destination native ETH goes only to an account
+ * without code and WETH only to an account with code (a contract or an
+ * EIP-7702 delegation). A recipient whose code cannot be read is refused.
+ */
+export async function assertAcrossOutputForm(action: Pick<AdapterAction, "destinationNetwork" | "output" | "recipient">): Promise<void> {
+  const output = action.output;
+  if (!isAcrossEth(output) || !ethGasNetwork(action.destinationNetwork)) return;
+  const destination = CHAINS[action.destinationNetwork].name;
+  const code = await accountCode(action.destinationNetwork, action.recipient.address, RECIPIENT_CODE_DEADLINE_MS);
+  if (code === "unknown") {
+    throw new PlatformError(
+      "ROUTE_UNAVAILABLE",
+      `Across delivers ETH or WETH depending on whether the recipient has code on ${destination}, and that could not be checked. Try again shortly or use another bridge.`,
+      422,
+    );
+  }
+  if (output.isNative && code !== "none") {
+    throw new PlatformError(
+      "ROUTE_UNAVAILABLE",
+      `Across would deliver WETH, not ETH, to ${action.recipient.address} on ${destination} because that account has code (${code === "delegated" ? "an EIP-7702 delegation" : "a contract"}).`,
+      422,
+    );
+  }
+  if (!output.isNative && code === "none") {
+    throw new PlatformError(
+      "ROUTE_UNAVAILABLE",
+      `Across would deliver native ETH, not WETH, to ${action.recipient.address} on ${destination} because that account has no code.`,
+      422,
+    );
+  }
+}
+
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -117,8 +212,17 @@ function title(action: Pick<AdapterAction, "network" | "destinationNetwork" | "i
 interface CheckedQuote {
   readonly quote: AcrossQuote;
   readonly spokePool: string;
-  /** Current allowance of the step account for the SpokePool; null for native input (never served). */
+  /** Current allowance of the step account for the SpokePool (the amount itself for native ETH, which needs none). */
   readonly allowance: bigint;
+  /** USD per whole input token (1 for USDC, the ETH price for ETH and WETH); null when unpriced. */
+  readonly inputUsd: number | null;
+}
+
+/** USD per whole unit of the input: 1 for USDC, the ETH price (read like other gas prices) for ETH and WETH. */
+async function inputUsdPrice(action: AdapterAction): Promise<number | null> {
+  if (isRegistryUsdc(action.input)) return 1;
+  const price = await nativeUsdPrice(ethGasNetwork(action.network) ? action.network : "ethereum").catch(() => null);
+  return price !== null && Number.isFinite(price) && price > 0 ? price : null;
 }
 
 /**
@@ -159,17 +263,19 @@ export function checkAcrossQuote(action: AdapterAction, quote: AcrossQuote, now:
   if (now - quote.timestamp > ACROSS_QUOTE_TIME_BUFFER_SECONDS - QUOTE_SIGNING_MARGIN_SECONDS) reject("the quote timestamp is too old for the SpokePool");
   if (quote.fillDeadline > now + ACROSS_FILL_DEADLINE_BUFFER_SECONDS) reject("the fill deadline is beyond the SpokePool's fill deadline buffer");
   if (quote.fillDeadline < now + MIN_FILL_WINDOW_SECONDS) reject("the fill deadline is too close");
-  if (quote.exclusivityDeadline > MAX_EXCLUSIVITY_SECONDS) reject("the exclusivity window is too long");
+  if (exclusivityWindowSeconds(quote.exclusivityDeadline, now) > MAX_EXCLUSIVITY_SECONDS) reject("the exclusivity window is too long");
   if (quote.exclusivityDeadline > 0 && /^0x0{40}$/u.test(quote.exclusiveRelayer)) reject("an exclusivity window without an exclusive relayer");
 }
 
 async function checkedQuote(action: AdapterAction, stage: "plan" | "prepare"): Promise<CheckedQuote> {
-  if (!acrossAdapter.supports(action)) throw new PlatformError("ROUTE_UNSUPPORTED", "Across serves USDC between the EVM production networks only.", 422);
+  if (!acrossAdapter.supports(action)) throw new PlatformError("ROUTE_UNSUPPORTED", "Across serves USDC, ETH and WETH between the EVM production networks only.", 422);
   if (!isEvmNetwork(action.network) || !isEvmNetwork(action.destinationNetwork)) throw new PlatformError("NETWORK_UNSUPPORTED", "Across routes here are EVM to EVM.", 422);
   if (action.recipient.chain.namespace !== "eip155") throw new PlatformError("RECIPIENT_INVALID", "Across pays an EVM recipient address.", 422);
+  // The delivered form (ETH or WETH) must be the step's output before any quote is asked for.
+  await assertAcrossOutputForm(action);
   const quote = await fetchAcrossQuote({
-    inputToken: action.input.address as string,
-    outputToken: action.output.address as string,
+    inputToken: acrossToken(action.input),
+    outputToken: acrossToken(action.output),
     originChainId: acrossChainId(action.network),
     destinationChainId: acrossChainId(action.destinationNetwork),
     amount: action.amount,
@@ -178,9 +284,12 @@ async function checkedQuote(action: AdapterAction, stage: "plan" | "prepare"): P
   });
   checkAcrossQuote(action, quote);
   const spokePool = acrossSpokePool(action.network) as string;
+  const inputUsd = await inputUsdPrice(action);
+  // Native ETH is wrapped by the SpokePool from msg.value: no allowance is involved.
+  if (action.input.isNative) return { quote, spokePool, allowance: BigInt(action.amount), inputUsd };
   const read = readAllowance(action.network, action.input.address as string, action.account.address, spokePool);
   const allowance = stage === "plan" ? await read.catch(() => 0n) : await read;
-  return { quote, spokePool, allowance };
+  return { quote, spokePool, allowance, inputUsd };
 }
 
 /* ------------------------------------------------------------- calldata */
@@ -193,8 +302,8 @@ export function acrossDepositData(action: AdapterAction, quote: AcrossQuote, int
     args: [
       accountBytes32(action.network, action.account.address),
       accountBytes32(action.destinationNetwork, action.recipient.address),
-      accountBytes32(action.network, action.input.address as string),
-      accountBytes32(action.destinationNetwork, action.output.address as string),
+      accountBytes32(action.network, acrossToken(action.input)),
+      accountBytes32(action.destinationNetwork, acrossToken(action.output)),
       BigInt(action.amount),
       BigInt(quote.outputAmount),
       BigInt(acrossChainId(action.destinationNetwork)),
@@ -226,6 +335,7 @@ type DecodedDeposit = {
   readonly exclusiveRelayer: Hex;
   readonly quoteTimestamp: number;
   readonly fillDeadline: number;
+  readonly exclusivityParameter: number;
   readonly message: Hex;
 };
 
@@ -233,8 +343,8 @@ function decodeDeposit(data: string): DecodedDeposit | null {
   try {
     const decoded = decodeFunctionData({ abi: SPOKE_POOL_ABI, data: withoutIntegratorSuffix(data) });
     if (decoded.functionName !== "deposit") return null;
-    const [depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, , message] = decoded.args;
-    return { depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, message };
+    const [depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, exclusivityParameter, message] = decoded.args;
+    return { depositor, recipient, inputToken, outputToken, inputAmount, outputAmount, destinationChainId, exclusiveRelayer, quoteTimestamp, fillDeadline, exclusivityParameter, message };
   } catch {
     return null;
   }
@@ -247,7 +357,7 @@ function depositTransactions(action: AdapterAction, network: EvmNetworkKey, chec
   const chainId = evmChainId(network);
   const from = getAddress(action.account.address);
   const transactions: TransactionRequest[] = [];
-  if (checked.allowance < amount) {
+  if (!action.input.isNative && checked.allowance < amount) {
     transactions.push({
       vm: "evm",
       network,
@@ -260,14 +370,21 @@ function depositTransactions(action: AdapterAction, network: EvmNetworkKey, chec
       description: `Approve ${formatAmount(fromBaseUnits(action.amount, action.input.decimals))} ${action.input.symbol} for Across`,
     });
   }
+  const data = acrossDepositData(action, checked.quote);
+  // The encoded parameter is held to the SpokePool's own rule too.
+  const encoded = decodeDeposit(data);
+  if (!encoded || exclusivityWindowSeconds(encoded.exclusivityParameter, nowSeconds()) > MAX_EXCLUSIVITY_SECONDS) {
+    reject("the encoded exclusivity window is too long");
+  }
   transactions.push({
     vm: "evm",
     network,
     chainId,
     from,
     to: getAddress(checked.spokePool),
-    data: acrossDepositData(action, checked.quote),
-    value: "0",
+    data,
+    // Native ETH: the SpokePool wraps exactly msg.value == inputAmount (it reverts on any other value).
+    value: action.input.isNative ? amount.toString() : "0",
     description: title(action),
   });
   return transactions;
@@ -290,7 +407,7 @@ function preview(action: AdapterAction, checked: CheckedQuote): PlannedStepPrevi
             asset: { asset: action.input.id, symbol: action.input.symbol, decimals: action.input.decimals },
             amount: fee.toString(),
             formatted: fromBaseUnits(fee, action.input.decimals),
-            usd: Number(fromBaseUnits(fee, action.input.decimals)),
+            ...(checked.inputUsd !== null ? { usd: Math.round(Number(fromBaseUnits(fee, action.input.decimals)) * checked.inputUsd * 1e6) / 1e6 } : {}),
             paid: "deducted" as const,
             certainty: "quoted" as const,
           }],
@@ -309,6 +426,10 @@ function quoteAmounts(action: AdapterAction, quote: AcrossQuote) {
   };
 }
 
+function optionalFees(value: number | undefined): { feesUsd?: number } {
+  return value === undefined ? {} : { feesUsd: value };
+}
+
 function utc(seconds: number): string {
   return `${new Date(seconds * 1000).toISOString().slice(11, 16)} UTC`;
 }
@@ -324,11 +445,19 @@ function warnings(action: AdapterAction, quote: AcrossQuote): string[] {
   if (!sameEvm(action.recipient.address, action.destinationAccount?.address ?? action.account.address)) {
     notes.push(`Across pays ${action.recipient.address} on ${CHAINS[action.destinationNetwork].name}; a refund goes back to the sending account, never to the recipient.`);
   }
+  if (isAcrossEth(action.input)) {
+    notes.push(
+      action.output.isNative
+        ? `Across delivers native ETH because the recipient has no code on ${CHAINS[action.destinationNetwork].name}; an account with code would receive WETH, so this is checked again before signing.`
+        : `Across delivers ${action.output.symbol} as the token itself on ${CHAINS[action.destinationNetwork].name}.`,
+    );
+  }
   return notes;
 }
 
-function feesUsd(action: AdapterAction, quote: AcrossQuote): number {
-  return Number(fromBaseUnits(quote.totalRelayFee, action.input.decimals));
+function feesUsd(action: AdapterAction, checked: CheckedQuote): number | undefined {
+  if (checked.inputUsd === null) return undefined;
+  return Number(fromBaseUnits(checked.quote.totalRelayFee, action.input.decimals)) * checked.inputUsd;
 }
 
 /* -------------------------------------------------------- deposit proof */
@@ -399,7 +528,9 @@ export const acrossAdapter: ProtocolAdapter = {
     if (!isEvmNetwork(route.network) || !isEvmNetwork(route.destinationNetwork)) return false;
     if (!acrossSpokePool(route.network) || !acrossSpokePool(route.destinationNetwork)) return false;
     if (CHAINS[route.network].settlement.acrossChainId === undefined || CHAINS[route.destinationNetwork].settlement.acrossChainId === undefined) return false;
-    return isRegistryUsdc(route.input) && isRegistryUsdc(route.output) && route.input.decimals === route.output.decimals;
+    if (isRegistryUsdc(route.input) && isRegistryUsdc(route.output)) return route.input.decimals === route.output.decimals;
+    // ETH and WETH both ways: the delivered form is checked against the recipient's code at plan and prepare.
+    return isAcrossEth(route.input) && isAcrossEth(route.output);
   },
 
   async plan(action): Promise<PlannedStep> {
@@ -412,8 +543,8 @@ export const acrossAdapter: ProtocolAdapter = {
       title: title(action),
       mode: "wallet",
       ...quoteAmounts(action, checked.quote),
-      feesUsd: feesUsd(action, checked.quote),
-      estimatedSeconds: fill + 15,
+      ...optionalFees(feesUsd(action, checked)),
+      estimatedSeconds: crossNetworkSeconds(action.network, fill),
       settlement: { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: fill },
       warnings: warnings(action, checked.quote),
       ...(checked.quote.id ? { quoteId: checked.quote.id } : {}),
@@ -430,7 +561,7 @@ export const acrossAdapter: ProtocolAdapter = {
     const sized = { ...action, slippageBps };
     if (!isEvmNetwork(action.network)) throw new PlatformError("NETWORK_UNSUPPORTED", "Across deposits here start on an EVM network.", 422);
     const network: EvmNetworkKey = action.network;
-    await assertEvmBalance(network, action.account.address, action.input.address, BigInt(action.amount), action.input.symbol, action.input.decimals);
+    await assertEvmBalance(network, action.account.address, action.input.isNative ? null : action.input.address, BigInt(action.amount), action.input.symbol, action.input.decimals);
     const checked = await checkedQuote(sized, "prepare");
     const transactions = depositTransactions(sized, network, checked);
     return {
@@ -442,7 +573,7 @@ export const acrossAdapter: ProtocolAdapter = {
         description: transaction.description,
       })),
       ...quoteAmounts(sized, checked.quote),
-      feesUsd: feesUsd(sized, checked.quote),
+      ...optionalFees(feesUsd(sized, checked)),
       ...(checked.quote.id ? { quoteId: checked.quote.id } : {}),
       warnings: warnings(sized, checked.quote),
     };
@@ -500,6 +631,24 @@ export const acrossAdapter: ProtocolAdapter = {
     const check = await destinationCredit(destination, status.fillTx, output, recipient.address, fillNotBefore(step)).catch(
       (): DestinationCheck => ({ confirmed: false, credited: null }),
     );
+    if ((!check.confirmed || check.credited === null) && output.isNative && acrossWeth(destination)) {
+      // The recipient gained code after planning: the SpokePool paid WETH instead of ETH. Recorded, never spent on as ETH.
+      const weth = await resolveAsset(destination, "WETH").catch(() => null);
+      const wrapped = weth
+        ? await destinationCredit(destination, status.fillTx, weth, recipient.address, fillNotBefore(step)).catch((): DestinationCheck => ({ confirmed: false, credited: null }))
+        : null;
+      if (wrapped?.confirmed && wrapped.credited !== null && weth) {
+        return {
+          status: "failed",
+          evidence: [],
+          failure: {
+            code: "SETTLEMENT_MISMATCH",
+            message: `The Across fill delivered ${fromBaseUnits(wrapped.credited, weth.decimals)} WETH instead of ETH (the recipient has code on ${CHAINS[destination].name}).`,
+          },
+          credited: assetAmount(weth, wrapped.credited.toString()),
+        };
+      }
+    }
     if (!check.confirmed || check.credited === null) return { status: "settling", evidence: [], ...tracking };
     if (check.credited < deposit.outputAmount) {
       // The fill reached the recipient below the deposit's exact output: recorded (observedCredit), never spent on.

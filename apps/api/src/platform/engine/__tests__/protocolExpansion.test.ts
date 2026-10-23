@@ -183,9 +183,15 @@ describe("same-network swap auction", () => {
     swapScripts["uniswap-v3"] = { minimumBps: 9_900, floor: "onchain", seconds: 15 };
     const graph = await planIntent({ text: "swap 100 USDC to ETH on base", accounts: ACCOUNTS });
     assert.equal(graph.steps[0]?.protocol, "uniswap-v3");
+    // A claimed floor counts half its gap to the expected output (until 50 verified fills) and carries a 3 bps
+    // haircut prior: one more bps of claimed floor does not beat an on-chain floor ...
     swapScripts.aerodrome = { minimumBps: 9_901, floor: "claimed", seconds: 15 };
+    const close = await planIntent({ text: "swap 100 USDC to ETH on base", accounts: ACCOUNTS });
+    assert.equal(close.steps[0]?.protocol, "uniswap-v3", "a slightly higher claimed floor does not win");
+    // ... a clearly better expected value does, after the curated tier's $0.25 risk cost.
+    swapScripts.aerodrome = { minimumBps: 9_980, floor: "claimed", seconds: 15 };
     const better = await planIntent({ text: "swap 100 USDC to ETH on base", accounts: ACCOUNTS });
-    assert.equal(better.steps[0]?.protocol, "aerodrome", "a larger guaranteed output still wins");
+    assert.equal(better.steps[0]?.protocol, "aerodrome", "a clearly larger value still wins");
   });
 
   it("falls back to the venue that quotes when another fails", async () => {

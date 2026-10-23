@@ -48,6 +48,37 @@ export function readOnlyRates(text: string): ReadOnlyRates | null {
   };
 }
 
+/** Question marks in any script ("?", fullwidth "？", small "﹖", inverted "¿", reversed "⸮"). */
+const QUESTION_MARK = /[?¿？﹖⸮]/u;
+
+/**
+ * True when the text holds a question mark anywhere: such a message is a
+ * question and is never planned as typed, even when the words read as an
+ * instruction ("swap 0.01 ETH to USDC on base?"). Checked on the text as typed,
+ * before any normaliser strips punctuation.
+ */
+export function hasQuestionMark(text: string): boolean {
+  return QUESTION_MARK.test(text);
+}
+
+/**
+ * INTENT_UNSUPPORTED for a message with a question mark: the rate read when
+ * it asks for rates, otherwise a request to say it as an instruction. The
+ * words are never planned (a question is not a confirmed instruction).
+ */
+export function questionRefusal(text: string, hints: readonly string[]): PlatformError {
+  const rates = readOnlyRates(text);
+  if (rates) return readOnlyRatesRefusal(rates, hints, [{ path: "text", message: "A question, not an instruction." }]);
+  const said = text.trim().replace(/[?¿？﹖⸮]+/gu, "").replace(/\s+/gu, " ").trim().slice(0, 80);
+  return new PlatformError(
+    "INTENT_UNSUPPORTED",
+    `Kletia reads "${said}" as a question, and it plans only instructions. To plan it, send it as an instruction without the question mark, for example "swap 1 SOL to USDC".`,
+    422,
+    [{ path: "text", message: "A question, not an instruction." }],
+    hints,
+  );
+}
+
 /** INTENT_UNSUPPORTED for a rate question: says where the rates are, with `details` a client can act on. */
 export function readOnlyRatesRefusal(rates: ReadOnlyRates, hints: readonly string[], issues?: readonly PlatformIssue[]): PlatformError {
   const query = new URLSearchParams(rates.query as Record<string, string>).toString();

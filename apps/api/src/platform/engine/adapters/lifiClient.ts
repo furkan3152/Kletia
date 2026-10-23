@@ -169,6 +169,9 @@ export async function fetchLifiQuote(request: LifiQuoteRequest): Promise<LifiQuo
   ) {
     throw invalid("the route does not match the request");
   }
+  // D2: the quoted output asset must be the only asset the route can deliver. A step that swaps on the
+  // destination would hand the receiver the bridged token when it fails, a fallback Kletia never declared.
+  if (destinationSwap(body.includedSteps, request)) throw invalid("the route swaps on the destination, so the delivered asset is not guaranteed");
   if (!isBaseUnitAmount(estimate.toAmount) || !isBaseUnitAmount(estimate.toAmountMin)) throw invalid("amounts");
   const toAmount = estimate.toAmount;
   const toAmountMin = estimate.toAmountMin;
@@ -207,6 +210,30 @@ export async function fetchLifiQuote(request: LifiQuoteRequest): Promise<LifiQuo
       gasLimit: parseQuantity(tx.gasLimit),
     },
   };
+}
+
+/**
+ * True when LI.FI's `includedSteps` run anything but the crossing on the
+ * destination chain (a swap or protocol call there), or a step there ends in
+ * another token than the requested one. Source-chain steps (the fee
+ * forwarder) are checked against the calldata by the adapter.
+ */
+export function destinationSwap(steps: unknown, request: Pick<LifiQuoteRequest, "toChain" | "toToken" | "fromChain">): boolean {
+  if (steps === undefined) return false;
+  if (!Array.isArray(steps)) return true;
+  for (const step of steps) {
+    if (!isRecord(step)) return true;
+    const action = isRecord(step.action) ? step.action : null;
+    if (!action) return true;
+    const onDestination = action.fromChainId === request.toChain && action.toChainId === request.toChain;
+    if (step.type === "cross") {
+      const toToken = isRecord(action.toToken) ? action.toToken.address : null;
+      if (action.toChainId === request.toChain && (typeof toToken !== "string" || !sameAddress(toToken, request.toToken))) return true;
+      continue;
+    }
+    if (onDestination) return true;
+  }
+  return false;
 }
 
 export type LifiTransferStatus = "NOT_FOUND" | "INVALID" | "PENDING" | "DONE" | "FAILED" | "UNKNOWN";

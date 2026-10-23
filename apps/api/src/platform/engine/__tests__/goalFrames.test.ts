@@ -151,12 +151,12 @@ const FRAMES: readonly (readonly [string, readonly (string | null)[]])[] = [
   ["move everything from Solana to Arbitrum and earn yield", ["consolidate spend[max @solana] want[@arbitrum]","earn spend[previous] want[] after:0"]],
   ["move all my USDC from solana to base and put it in aave", ["relocate spend[max USDC @solana] want[@base]","earn/deposit spend[previous] want[@venue:aave-v3:lending] after:0"]],
   ["move my arbitrum USDC to base and earn yield", ["relocate spend[max USDC @arbitrum] want[@base] [mine]","earn spend[previous] want[] after:0"]],
-  ["cash out my SOL", ["convert spend[max SOL] want[] [mine]"]],
+  ["cash out my SOL", ["convert spend[SOL] want[]"]],
   ["sell all my SOL", ["convert/swap spend[max SOL] want[]"]],
-  ["dump my ETH on base for USDC", ["convert spend[max ETH @base] want[USDC @base] [mine]"]],
+  ["dump my ETH on base for USDC", ["convert spend[ETH @base] want[USDC @base]"]],
   ["go all in on SOL", ["convert spend[] want[SOL]"]],
   ["convert all my stablecoins to USDC", ["convert/swap spend[max ~usd-stable] want[USDC]"]],
-  ["get rid of my USDbC", ["convert spend[max USDbC] want[] [mine]"]],
+  ["get rid of my USDbC", ["convert spend[USDbC] want[]"]],
   ["I want JitoSOL", ["acquire spend[] want[JitoSOL]"]],
   ["get me some JitoSOL with half my SOL", ["convert spend[portion:5000 SOL] want[JitoSOL]"]],
   ["I want to hold ETH instead of USDC on base", ["convert spend[USDC @base] want[ETH @base]"]],
@@ -164,7 +164,8 @@ const FRAMES: readonly (readonly [string, readonly (string | null)[]])[] = [
   ["close my aave position on base", ["exit spend[max @base position:aave-v3] want[] [mine]"]],
   ["take everything out of aave", ["exit spend[max @position:aave-v3] want[]"]],
   ["move my aave USDC to morpho", ["exit spend[max USDC @position:aave-v3] want[@venue:morpho:lending] [mine]"]],
-  ["move my aave position into the best yield on base", ["exit spend[max @base position:aave-v3] want[@base venue::any] [mine]"]],
+  // A trailing network belongs to the venue it follows; the position being left keeps its own network.
+  ["move my aave position into the best yield on base", ["exit spend[max @position:aave-v3] want[@base venue::any] [mine]"]],
   ["pay vitalik.eth 5 USDC from whatever network is cheapest", ["deliver/transfer spend[exact:5 USDC] want[] holder:name=vitalik.eth prefer:cheapest"]],
   ["send 20 USDC to toly.sns", ["deliver/transfer spend[exact:20 USDC] want[] holder:name=toly.sns"]],
   ["send 10 USDC to toly.sns from base", ["deliver/transfer spend[exact:10 USDC @base] want[] holder:name=toly.sns"]],
@@ -243,7 +244,8 @@ const RULES: Readonly<Record<string, readonly string[]>> = {
   F5: ["put 100 USDC in aave on base", "lend 100 USDC on aave base", "take 50 USDC out of aave on base", "exit my aave position", "move my aave USDC to morpho", "1 sol jito", "pull everything from kamino"],
   F6: ["1 SOL to USDC", "25 usdc from base to arb", "aave 100 usdc base", "100 usdc -> aave", "0.1 sol > toly.sns", "ship 10 USDC from arbitrum to base", "consolidate to Base"],
   F7: ["send 5 USDC to vitalik.eth and 5 USDC to jesse.base.eth on base", "swap 0.5 SOL to USDC and 0.5 SOL to JitoSOL", "bridge 10 USDC from base to arbitrum and 10 USDC from base to optimism", "swap 1 SOL to USDC and 2 SOL", "first swap 1 SOL to USDC, after that bridge it to arbitrum"],
-  F8: ["put my USDC to work", "earn on my SOL", "stake my SOL", "cash out my SOL", "lend my USDC on arbitrum", "close my aave position on base"],
+  // F8 is limited to same-asset custody moves: "cash out my SOL" asks how much.
+  F8: ["put my USDC to work", "earn on my SOL", "stake my SOL", "lend my USDC on arbitrum", "close my aave position on base"],
   F9: ["swap 1 SOL to USDC and bridge it to base", "swap 1 SOL to USDC. Then bridge the USDC to base.", "swap 10 USDC to ETH on base and bridge the ETH to arbitrum", "swap 1 SOL to USDC and then swap the proceeds to JitoSOL", "swap 1 SOL to USDC, bridge to base, deposit into aave", "withdraw my USDC from aave and send it to vitalik.eth"],
 };
 
@@ -384,7 +386,11 @@ describe("goal lowering into clarify slots", () => {
     const terse = parseSentence("1 slo -> usdc", []).steps[0] as WorkStep;
     assert.deepEqual(terse.assetTypo, { field: "from", raw: "slo", candidates: ["SOL"] });
     assert.equal((parseSentence("swap 1 SOL to USDC", []).steps[0] as WorkStep).assetTypo, undefined);
-    assert.deepEqual(parseSentence("swap 1k USDC to SOL", []).corrections, [{ field: "actions[0].amount", from: "1k", to: "1000", material: true }]);
+    // A multiplier is a unit reading: a "Read as" item on the amount, not a correction.
+    const glued = parseSentence("swap 1k USDC to SOL", []);
+    assert.deepEqual(glued.corrections, []);
+    assert.deepEqual((glued.steps[0] as WorkStep).readAs, [{ slot: "amount", rule: "unit:thousand", from: "1k", to: "1000 USDC" }]);
+    assert.deepEqual((glued.steps[0] as WorkStep).amount?.v, { t: "exact", value: "1000", raw: "1k", rewritten: true, unit: "thousand" });
     assert.deepEqual(parseSentence("swap 1,5 SOL to USDC", []).corrections, [{ field: "actions[0].amount", from: "1,5", to: "1.5", material: true }]);
   });
 

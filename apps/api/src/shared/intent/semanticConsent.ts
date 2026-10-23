@@ -253,3 +253,72 @@ export function verifySemanticConsentToken(
     scope: claims.scope as "single_intent" | "browser_session",
   };
 }
+
+/* ------------------------------------------------- model-assisted reading (purpose model_assisted_reading) */
+
+const READING_TOKEN_VERSION = "mar1";
+const READING_ONCE_TTL_MS = 10 * 60 * 1_000;
+const READING_CONFIRM_TTL_MS = 10 * 60 * 1_000;
+
+/**
+ * - `once`: one message, bound to the wallet and the sha256 of the text ("Read once").
+ * - `session`: 8 hours for the wallet, typed desk text only ("Allow for this session").
+ * - `confirm`: the person clicked "Yes, plan it" on a model reading's confirm card; bound to wallet and thread.
+ */
+export type ReadingConsentScope = "once" | "session" | "confirm";
+
+interface ReadingConsentClaims {
+  readonly v: typeof READING_TOKEN_VERSION;
+  readonly purpose: "model_assisted_reading";
+  readonly scope: ReadingConsentScope;
+  readonly wallet: string;
+  /** once: sha256 of the text; confirm: the thread id; session: a random session id. */
+  readonly bind: string;
+  readonly iat: number;
+  readonly exp: number;
+}
+
+function readingSign(payload: string): string {
+  return createHmac("sha256", signingSecret()).update(`${READING_TOKEN_VERSION}.${payload}`).digest("base64url");
+}
+
+export function textSha256(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+/** Issues a reading consent token (the HTTP layer decides who may ask for one). */
+export function issueReadingConsentToken(input: { scope: ReadingConsentScope; wallet: string; text?: string; threadId?: string }, now = Date.now()): { token: string; expiresAt: number } {
+  const bind = input.scope === "once" ? textSha256(input.text ?? "") : input.scope === "confirm" ? input.threadId ?? "" : randomUUID();
+  if (!bind) throw controlled("INVALID_REQUEST", "The consent needs its text or thread.", 400);
+  const ttl = input.scope === "session" ? SESSION_TOKEN_TTL_MS : input.scope === "confirm" ? READING_CONFIRM_TTL_MS : READING_ONCE_TTL_MS;
+  const claims: ReadingConsentClaims = { v: READING_TOKEN_VERSION, purpose: "model_assisted_reading", scope: input.scope, wallet: input.wallet.trim().toLowerCase(), bind, iat: now, exp: now + ttl };
+  const payload = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
+  return { token: `${READING_TOKEN_VERSION}.${payload}.${readingSign(payload)}`, expiresAt: claims.exp };
+}
+
+/**
+ * Verifies a reading consent token against the wallet and, for `once`, the
+ * text or, for `confirm`, the thread. Null for anything invalid, expired or
+ * bound to something else (callers treat it as no consent).
+ */
+export function verifyReadingConsentToken(token: unknown, binding: { wallet: string; text?: string; threadId?: string }, now = Date.now()): { scope: ReadingConsentScope; bind: string } | null {
+  if (typeof token !== "string" || token.length > 4_096) return null;
+  const [version, payload, signature, extra] = token.split(".");
+  if (version !== READING_TOKEN_VERSION || !payload || !signature || extra !== undefined) return null;
+  const expected = Buffer.from(readingSign(payload));
+  const supplied = Buffer.from(signature);
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return null;
+  let claims: ReadingConsentClaims;
+  try {
+    claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as ReadingConsentClaims;
+  } catch {
+    return null;
+  }
+  if (claims.v !== READING_TOKEN_VERSION || claims.purpose !== "model_assisted_reading") return null;
+  if (!Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp) || claims.exp <= now || claims.iat > now + 30_000) return null;
+  if (claims.wallet !== binding.wallet.trim().toLowerCase()) return null;
+  if (claims.scope === "once" && claims.bind !== textSha256(binding.text ?? "")) return null;
+  if (claims.scope === "confirm" && claims.bind !== binding.threadId) return null;
+  if (claims.scope !== "once" && claims.scope !== "session" && claims.scope !== "confirm") return null;
+  return { scope: claims.scope, bind: claims.bind };
+}

@@ -23,10 +23,12 @@ import {
   type StepEvidence,
   type StepExecutionPayload,
   type StepStatus,
+  type TransactionRequest,
   validateIntentRequest,
   type IntentRequest,
 } from "@kletia/core";
-import { isPlatformError, PlatformError, toPlatformError } from "../errors.js";
+import { isPlatformError, PlatformError, platformErrorDetails, toPlatformError } from "../errors.js";
+import { cctpClaimTransaction } from "./adapters/cctpV2.js";
 import { ADAPTERS, adapterForStep, configureAdapters, isContractAdapter } from "./adapters/registry.js";
 import type { ContractPreparedPayload, PlannedStepPreview, PreparedPayload, ProtocolAdapter, SettlementResult, StepFailure, VerificationResult } from "./adapters/types.js";
 import { firstPreparedAt, isReferenceRejection, landedPayload, REFERENCE_STALE_MS, referenceFormatValid, referenceKey } from "./adapters/verification.js";
@@ -50,7 +52,18 @@ import { emitGraphChanges, platformEvents } from "./events.js";
 import { JOURNEY_PLAN_DEADLINE_MS } from "./journey/facts.js";
 import { journeyFor } from "./journey/index.js";
 import { resolveRecipientName } from "./names.js";
-import { actionForStep, planIntentWithPreviews, stepRecipientName, summarize, withIntentTtl, type PlanInterpretation } from "./planner.js";
+import {
+  actionForStep,
+  contractPhrases,
+  isGrammarRefusal,
+  planIntentWithPreviews,
+  stepRecipientName,
+  summarize,
+  withIntentTtl,
+  type PlanInterpretation,
+} from "./planner.js";
+import { withPlanDeadline } from "./routing/deadline.js";
+import { recordFill, recordOrder } from "./routing/venueStats.js";
 import { payloadExposure, pinNonces, solanaBlockHeight } from "./policy/execution.js";
 import { policyGate, policyGateActive, type ExposureHandle, type QuoteLeg } from "./policy/gate.js";
 import { plannedPreviews, previewEnforced, previewIntent, previewPreparedStep, rememberPlannedPreviews, SIMULATION_RETRY_AFTER_SECONDS, type PreparedPreview } from "./preview/index.js";
@@ -253,6 +266,8 @@ export interface CreateIntentOptions {
    * applied departure), passed to the planner unchanged.
    */
   readonly interpretation?: PlanInterpretation;
+  /** Fee sanity of the planner (PlanOptions.feeSanity); default: on for text requests outside a clarify thread. */
+  readonly feeSanity?: boolean;
   /**
    * Also build the journey on the plan-stage preview, which it implies:
    * `journey.basis.previewDigest` is that preview's digest.
@@ -340,12 +355,23 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
         ...(exposureScope ? { exposureScope } : {}),
       };
       const guard = await gate.beforePlan(planInput);
-      const planned = await planIntentWithPreviews(guard.request, {
+      // One planning budget for the whole request: every stage gets what remains, then PLAN_TIMEOUT.
+      const plan = (planRequest: typeof guard.request, interpretation: PlanInterpretation | undefined) => withPlanDeadline(() => planIntentWithPreviews(planRequest, {
         ...(options.ownerKeyId ? { ownerKeyId: options.ownerKeyId } : {}),
         ...(options.contractAuthorityKeyId ? { contractAuthorityKeyId: options.contractAuthorityKeyId } : {}),
-        ...(options.interpretation ? { interpretation: options.interpretation } : {}),
+        ...(interpretation ? { interpretation } : {}),
+        ...(options.feeSanity !== undefined ? { feeSanity: options.feeSanity } : {}),
         ...(gate.beforeQuote ? { beforeQuote: (legs: readonly QuoteLeg[]) => gate.beforeQuote?.(guard, legs) ?? Promise.resolve() } : {}),
-      });
+      }));
+      let planned: Awaited<ReturnType<typeof plan>>;
+      try {
+        planned = await plan(guard.request, options.interpretation);
+      } catch (error) {
+        // Strict text the grammar cannot read: the deterministic Goal reader may read it, exactly.
+        const reading = options.interpretation?.thread ? null : await strictGoalReading(guard.request, error, options.contractAuthorityKeyId ?? options.ownerKeyId);
+        if (!reading) throw error;
+        planned = await plan(reading.request, { ...(options.interpretation ?? {}), ...reading.interpretation });
+      }
       const previews = planned.previews;
       await options.verifyPlan?.(planned.graph);
       // The planned graph is evaluated in full: deny refuses here; allow and confirm stamp the intent.
@@ -387,6 +413,99 @@ export async function createIntentDetailed(request: unknown, options: CreateInte
   } catch (error) {
     throw toPlatformError(error);
   }
+}
+
+/* ------------------------------------------------ strict Goal-reader fallback */
+
+/** True when the server enables the strict Goal-reader fallback (default off). */
+export function strictGoalReaderEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.KLETIA_STRICT_GOAL_READER?.trim().toLowerCase();
+  return value === "on" || value === "true" || value === "1";
+}
+
+/** Why a ready reading is not exact (source E), or null when it is. */
+function inexactReading(decision: {
+  readonly modelReading?: true;
+  readonly assumptions: readonly { readonly field: string; readonly label: string; readonly source: string }[];
+  readonly state: { readonly steps: readonly { readonly source?: string; readonly modelRead?: true; readonly questionForm?: true; readonly readAs?: readonly unknown[]; readonly goalRead?: { readonly orderOnly?: true } }[] };
+}): string | null {
+  if (decision.modelReading) return "it carries a model-assisted reading";
+  // Corrections, aliases and derived values ("half a sol" read as 0.5 SOL) are chips of source C; only the
+  // reviewed-filler chip ("Ignored: ...", on the step's text) is allowed on the strict path.
+  const corrected = decision.assumptions.find((entry) =>
+    (entry.source === "correction" || entry.source === "alias") && !(entry.field.endsWith(".text") && entry.label.startsWith("Ignored: ")));
+  if (corrected) return `a word was corrected or a value derived for you (${corrected.label.slice(0, 80)})`;
+  for (const step of decision.state.steps) {
+    if (step.modelRead) return "a step was read with model assistance";
+    if (step.questionForm) return "it is phrased as a question";
+    if (step.source !== undefined && step.source !== "E") return step.source === "F" ? "a role was read from word order alone" : "a word was corrected or a value derived";
+    if (step.goalRead?.orderOnly) return "a role was read from word order alone";
+    if ((step.readAs ?? []).length > 0) return "a value was read from units, fractions or arithmetic";
+  }
+  return null;
+}
+
+/**
+ * Strict Goal-reader fallback (behind KLETIA_STRICT_GOAL_READER, default off): strict text the
+ * grammar refused is offered to the deterministic Goal reader and decision
+ * layer with no questions and no model. Only an exact reading (source E: no
+ * correction, no order-only role, no arithmetic or units, no question form, no
+ * confirm) of a ready turn is planned, through its canonical sentence or its
+ * structured actions; anything else is CLARIFY_REQUIRED (422) with the
+ * questions the clarify flow would ask in `details`. Returns null when the
+ * fallback does not apply (switch off, not a grammar refusal, not text).
+ */
+async function strictGoalReading(
+  request: unknown,
+  error: unknown,
+  contractKeyId: string | undefined,
+): Promise<{ readonly request: IntentRequest; readonly interpretation: PlanInterpretation } | null> {
+  if (!strictGoalReaderEnabled() || !isGrammarRefusal(error)) return null;
+  const validated = validateIntentRequest(request);
+  if (!validated.ok) return null;
+  const original = validated.value;
+  if (!original.text || (original.actions && original.actions.length > 0)) return null;
+  // Loaded lazily: the decision layer plans through this module.
+  const { decideTurn, publicQuestion } = await import("./clarify/index.js");
+  const { closestSentence, toActionSpecs } = await import("./clarify/render.js");
+  const decision = await decideTurn(null, { text: original.text }, {
+    accounts: original.accounts,
+    ...(original.defaultNetwork ? { defaultNetwork: original.defaultNetwork } : {}),
+    ...(original.sourceNetwork ? { sourceNetwork: original.sourceNetwork } : {}),
+    contracts: await contractPhrases(contractKeyId),
+    confirmAuthority: "api",
+  }, original.constraints);
+  const hint = "Send the same text with ?clarify=true to answer the questions, or write the request in Kletia's grammar.";
+  if (decision.status !== "ready") {
+    const questions = decision.questions.map((question) => publicQuestion(question, decision.optionSentences));
+    const details = platformErrorDetails({ questions }) ?? platformErrorDetails({ questions: questions.map((question) => ({ id: question.id, field: question.field, reason: question.reason, prompt: question.prompt })) });
+    throw new PlatformError("CLARIFY_REQUIRED", "Kletia needs an answer before it can plan this text.", 422, undefined, [hint], details ?? undefined);
+  }
+  const inexact = inexactReading(decision as never);
+  if (inexact) {
+    throw new PlatformError("CLARIFY_REQUIRED", `Kletia read this text, but ${inexact}, so it must be confirmed first.`, 422, undefined, [hint]);
+  }
+  const actions = decision.actions ?? [];
+  if (actions.length === 0) return null;
+  const sentence = decision.sentence ?? null;
+  const constraints = decision.gasOnArrival
+    ? { ...(original.constraints ?? {}), gasOnArrival: { ...decision.gasOnArrival, ...(original.constraints?.gasOnArrival ?? {}) } }
+    : original.constraints;
+  const { text: _text, actions: _actions, sourceNetwork: _source, ...rest } = original;
+  const planRequest = {
+    ...rest,
+    ...(constraints ? { constraints } : {}),
+    ...(sentence ? { text: sentence } : { text: closestSentence(actions).slice(0, 1_000), actions: toActionSpecs(actions) }),
+  } as IntentRequest;
+  return {
+    request: planRequest,
+    interpretation: {
+      ...(decision.assumptions.length > 0
+        ? { assumptions: decision.assumptions.map((entry) => ({ field: entry.field, label: entry.label, source: entry.source, material: entry.material })) }
+        : {}),
+      ...(decision.departure ? { departure: decision.departure } : {}),
+    },
+  };
 }
 
 export async function createIntent(request: unknown, options: CreateIntentOptions = {}): Promise<IntentGraph> {
@@ -470,6 +589,55 @@ export interface PrepareStepOptions {
   readonly acknowledgedPreview?: string;
   /** Also build the journey on the prepare-stage preview. */
   readonly journey?: boolean;
+  /**
+   * A later leg of a composed route whose fresh quote guarantees less than
+   * its planned minimum is refused (LEG_BELOW_PLANNED_MINIMUM); true accepts
+   * the new quote after the person re-confirmed its numbers.
+   */
+  readonly acceptBelowPlannedMinimum?: boolean;
+}
+
+/** Composite route shapes: their later legs are held to their planned floors. */
+const COMPOSED_SHAPES: ReadonlySet<string> = new Set(["bridge-swap", "swap-bridge", "swap-bridge-swap"]);
+
+/**
+ * True when `step` is a later leg of a composed route (a step after the first
+ * one of an `interpretation.routes` entry with a composite shape).
+ */
+export function isComposedLaterLeg(graph: Pick<IntentGraph, "interpretation">, step: Pick<IntentStep, "id">): boolean {
+  return (graph.interpretation.routes ?? []).some((route) => COMPOSED_SHAPES.has(route.shape) && route.steps.indexOf(step.id) > 0);
+}
+
+/**
+ * A later leg of a composed route whose fresh quote guarantees less than its
+ * planned floor would break the chained "at least" the person was shown.
+ * Refused with two ways forward: stop and keep the carrier where the previous
+ * leg left it, or accept the new quote.
+ */
+function legBelowPlannedMinimum(step: IntentStep, prepared: Pick<PreparedPayload, "input" | "minimumOutput">): PlatformError | null {
+  const ref = decodeStepRef(step.quoteRef);
+  if (!ref?.plannedMinimum || !step.minimumOutput) return null;
+  const planned = BigInt(ref.plannedMinimum);
+  if (BigInt(prepared.minimumOutput.amount) >= planned) return null;
+  const output = step.minimumOutput;
+  const keep = `Keep ${prepared.input.formatted} ${prepared.input.symbol} on ${CHAINS[step.network].name}`;
+  return new PlatformError(
+    "LEG_BELOW_PLANNED_MINIMUM",
+    `Step ${step.id} now guarantees ${prepared.minimumOutput.formatted} ${prepared.minimumOutput.symbol}, below the ${fromBaseUnits(planned, output.decimals)} ${output.symbol} it was planned with. ${keep} (stop the intent), or accept the new quote.`,
+    409,
+    [],
+    [],
+    {
+      step: step.id,
+      plannedMinimum: fromBaseUnits(planned, output.decimals),
+      quotedMinimum: prepared.minimumOutput.formatted,
+      symbol: output.symbol,
+      choices: [
+        { id: "stop", label: keep.slice(0, 48) },
+        { id: "accept", label: "Accept the new quote" },
+      ],
+    },
+  );
 }
 
 function assertExecutable(graph: IntentGraph, now: number): void {
@@ -850,6 +1018,10 @@ async function prepareStepLocked(intentId: string, stepId: string, options: Prep
         }
         warnings.push(`Price moved since planning; the fresh quote guarantees ${prepared.minimumOutput.formatted} ${prepared.minimumOutput.symbol}.`);
       }
+      if (!contractStep && funded && prepared.input && prepared.minimumOutput && !options.acceptBelowPlannedMinimum && isComposedLaterLeg(graph, step)) {
+        const below = legBelowPlannedMinimum(step, prepared as PreparedPayload);
+        if (below) throw below;
+      }
       const quoteBinding = quoteBindingFor(prepared.transactions);
       const preparedAt = new Date(now).toISOString();
       const status = step.status === "failed" || step.status === "pending"
@@ -1094,6 +1266,10 @@ function toIndeterminate(step: IntentStep, now: number, detail: string): IntentS
 }
 
 function applyVerification(step: IntentStep, result: VerificationResult, now: number): IntentStep {
+  return recordVenueOutcome(step, verificationState(step, result, now));
+}
+
+function verificationState(step: IntentStep, result: VerificationResult, now: number): IntentStep {
   if (result.status === "failed" && result.failure.code === "CONTRACT_CHANGED_DURING_EXECUTION") {
     // The contract's code identity differed at the receipt block: manual review, never a plain failure or retry.
     if (step.status === "indeterminate") return step;
@@ -1122,6 +1298,51 @@ function applyVerification(step: IntentStep, result: VerificationResult, now: nu
 }
 
 function applySettlement(step: IntentStep, result: SettlementResult, now: number): IntentStep {
+  return recordVenueOutcome(step, settlementState(step, result, now));
+}
+
+/**
+ * Feeds the venue statistics the route score reads (routing/venueStats.ts):
+ * a verified fill's shortfall against the quoted expected output
+ * (haircuts) and, for solver-filled cross-network legs, whether the order
+ * filled (fill rates). Recorded once, on the transition.
+ */
+function recordVenueOutcome(before: IntentStep, after: IntentStep): IntentStep {
+  if (before.status === after.status) return after;
+  try {
+    const destination = after.settlement?.destinationNetwork ?? after.network;
+    const cross = after.settlement?.kind === "cross-network";
+    const expected = after.expectedOutput;
+    const fill = (received: { readonly amount: string } | undefined) => {
+      if (!received || !expected || !/^\d+$/u.test(received.amount) || !/^\d+$/u.test(expected.amount)) return;
+      recordFill({
+        venue: after.protocol,
+        kind: after.kind,
+        network: after.network,
+        destination,
+        usd: after.input?.usd ?? null,
+        expected: BigInt(expected.amount),
+        actual: BigInt(received.amount),
+      });
+    };
+    if (after.status === "settled") {
+      fill(after.actualOutput);
+      if (cross) recordOrder(after.protocol, after.network, destination, true);
+    } else if (after.status === "failed" && cross) {
+      if (after.failure?.code === "SETTLEMENT_MISMATCH" && after.observedCredit) {
+        fill(after.observedCredit);
+        recordOrder(after.protocol, after.network, destination, true);
+      } else if (after.failure?.code === "SETTLEMENT_REFUNDED" || after.failure?.code === "SETTLEMENT_FAILED") {
+        recordOrder(after.protocol, after.network, destination, false);
+      }
+    }
+  } catch {
+    // Statistics never change a step's outcome.
+  }
+  return after;
+}
+
+function settlementState(step: IntentStep, result: SettlementResult, now: number): IntentStep {
   if (result.status === "settled") {
     return {
       ...step,
@@ -1585,6 +1806,54 @@ export async function stopIntent(id: string): Promise<IntentGraph> {
       });
       return commit(graph, withSteps(graph, steps, now));
     });
+  } catch (error) {
+    throw toPlatformError(error);
+  }
+}
+
+/* ---------------------------------------------------------- settlement claim */
+
+export interface SettlementClaim {
+  readonly intentId: string;
+  readonly stepId: string;
+  /** Unsigned transactions the person signs on the destination network (Kletia never signs or sends). */
+  readonly transactions: readonly TransactionRequest[];
+  /** The attested message the claim completes (the leg's tracking id). */
+  readonly messageHash: string;
+  readonly warnings: readonly string[];
+}
+
+/**
+ * The destination claim of a bridge leg that is still settling: today the
+ * Circle CCTP leg whose message Circle attested but whose forwarded mint has
+ * not happened. Built from the person's own EVM account; the leg keeps settling
+ * and settles on the mint as before (the poller reads the recipient's credit).
+ * Read-only: nothing is stored, signed or sent.
+ */
+export async function prepareSettlementClaim(intentId: string, stepId: string): Promise<SettlementClaim> {
+  try {
+    const graph = await loadIntent(intentId);
+    const step = findStep(graph, stepId);
+    if (step.status !== "settling" && step.status !== "confirmed") {
+      throw new PlatformError("STEP_NOT_READY", "Only a leg that is waiting for its destination mint can be claimed.", 409);
+    }
+    const destination = step.settlement?.destinationNetwork;
+    const own = destination
+      ? graph.request.accounts.map((entry) => parseAccountId(entry)).find((entry) => entry !== null && entry.chain.namespace === CHAINS[destination].namespace)
+      : undefined;
+    if (!destination || !own) {
+      throw new PlatformError("ACCOUNT_REQUIRED", "The claim is sent from your own account on the destination network; add it to the intent's accounts.", 422);
+    }
+    const claim = await cctpClaimTransaction(step, own.address);
+    return {
+      intentId: graph.id,
+      stepId: step.id,
+      transactions: [claim.transaction],
+      messageHash: claim.messageHash,
+      warnings: [
+        `Mints at least ${fromBaseUnits(claim.minimum, step.minimumOutput?.decimals ?? 6)} USDC to the leg's recipient on ${CHAINS[claim.destination].name}; the claim needs ${CHAINS[claim.destination].nativeAsset.symbol} for gas there.`,
+      ],
+    };
   } catch (error) {
     throw toPlatformError(error);
   }

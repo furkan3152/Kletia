@@ -400,7 +400,7 @@ async function clarifyPlan(args: Record<string, unknown>, caller: ToolCaller): P
       assumptions: response.assumptions.map(assumptionView),
       draft: { summary: response.draft.summary, missing: response.draft.missing },
       thread: response.thread,
-      next: "Ask the person each question. Never pick an option of a question whose purpose is true yourself. Then call plan_intent with the same accounts, this thread and answer { question, option } (or { question, text }).",
+      next: "Ask the person each question. Never pick an option of a question whose purpose is true yourself, and never answer a confirm (INTERPRETATION_CONFIRM) for the person: relay it, and when Kletia answers CONFIRM_AUTHORITY_REQUIRED, call create_signing_link with the original text so the person confirms in Kletia. Then call plan_intent with the same accounts, this thread and answer { question, option } (or { question, text }).",
     };
   }
   let journey: Journey | null = null;

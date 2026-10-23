@@ -225,5 +225,9 @@ describe("Morpho vault metrics", () => {
     assert.ok(metrics.supplyApy !== null && metrics.supplyApy > 0.04 && metrics.supplyApy < 0.05, String(metrics.supplyApy));
     assert.equal(metrics.totalSupplied?.amount, "272000000000000");
     assert.equal(metrics.exitLiquidity, null);
+    // The week's share-price growth is the smoothed rate itself (not read twice); TVL at USDC par.
+    assert.equal(metrics.smoothedApy, metrics.supplyApy);
+    assert.equal(metrics.apyWindowSeconds, 604_800);
+    assert.equal(metrics.tvlUsd, 272_000_000);
   });
 });

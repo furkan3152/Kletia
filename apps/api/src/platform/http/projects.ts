@@ -863,3 +863,16 @@ export function installPublishableContractGuard(): void {
   };
   configureContractDirectory(guarded);
 }
+
+/** Model-assisted reading for a project's keys: enabled only by the project setting. */
+export async function projectReadingEnabled(projectId: string): Promise<boolean> {
+  const record = await cachedRecord(projectId);
+  return (record.settings as { modelReading?: unknown }).modelReading === "enabled";
+}
+
+/** Whether a browser origin is one of the project's allowed origins. */
+export async function projectAllowsOrigin(projectId: string, origin: string | undefined): Promise<boolean> {
+  if (!origin) return false;
+  const record = await cachedRecord(projectId);
+  return (record.settings.allowedOrigins ?? []).includes(origin);
+}

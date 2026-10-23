@@ -116,7 +116,11 @@ export type ProtocolId =
   // perpetual futures (/v1/perps)
   | "gmx-v2"
   | "hyperliquid"
-  | "drift-v2";
+  | "drift-v2"
+  // native-token wrapping inside intent engine routes
+  | "wrap"
+  // optional EVM aggregator venue (off unless the operator enables it)
+  | "kyberswap";
 
 /**
  * Intent-engine risk tier of a protocol: `core` venues are
@@ -797,6 +801,32 @@ export const PROTOCOLS: readonly ProtocolDescriptor[] = Object.freeze([
     website: "https://eips.ethereum.org/EIPS/eip-20",
     summary: "Standard ERC-20 transfers.",
     kinds: ["transfer"],
+  },
+  {
+    id: "wrap",
+    name: "Wrapped native token",
+    category: "token-program",
+    networks: [...EVM_PRODUCTION, "arbitrum-sepolia"],
+    capabilities: ["execute"],
+    website: "https://weth.io",
+    summary: "1:1 wrap and unwrap of the network's gas asset (ETH <-> WETH, POL <-> WPOL) on its canonical wrapped-native contract; never auctioned.",
+    // No `kinds` yet: the capability index has no rows for "this one pair only" swaps (an any-asset swap row would
+    // tell the clarify catalog and the coverage gate that it swaps everything). The adapter serves ETH <-> WETH
+    // and POL <-> WPOL by its own predicate, and route search reaches it there.
+    tier: "core",
+  },
+  {
+    id: "kyberswap",
+    name: "KyberSwap",
+    category: "dex-aggregator",
+    networks: [...EVM_PRODUCTION],
+    capabilities: ["execute", "quote"],
+    website: "https://kyberswap.com",
+    summary:
+      "Optional same-network swap aggregator (off unless the server enables it): Kletia decodes every router call and checks the router, recipient, tokens, amount and on-chain minimum before it is offered.",
+    // No `kinds` or `words` while the venue is optional: route search reaches it through the adapter's own predicate
+    // only when the server enables it (KLETIA_EVM_AGGREGATOR=kyberswap), so neither the reader nor the capability index lists it.
+    tier: "curated",
   },
   {
     id: "arc-native",
@@ -1563,6 +1593,15 @@ export type VenueContractRole =
   /** deBridge DLN: order source (call target, spender) and destination contracts. */
   | "dln-source"
   | "dln-destination"
+  /**
+   * deBridge DLN source swaps: the forwarder the API routes non-reserve inputs through (call target and spender),
+   * the swap routers it may call (allowlist) and the address the API names for swap surplus above the order.
+   */
+  | "dln-forwarder"
+  | "dln-swap-router"
+  | "dln-surplus-recipient"
+  /** Aggregator: the pinned router a decoded swap call must target (also the approval spender). */
+  | "aggregator-router"
   /** Solana programs a venue's transactions invoke. */
   | "program"
   | "liquidity-program"
@@ -1591,6 +1630,8 @@ export type VenueContractRole =
   | "locator"
   | "storage"
   | "liquidity-pool"
+  /** The network's canonical wrapped gas asset (WETH, WPOL): the wrap venue's only contract. */
+  | "wrapped-native"
   /** Bridges. */
   | "spoke-pool"
   | "spoke-program"
@@ -1690,6 +1731,11 @@ const WRAPPED_NATIVE: Readonly<Partial<Record<NetworkKey, string>>> = Object.fre
   base: "0x4200000000000000000000000000000000000006",
   "arbitrum-sepolia": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
 });
+
+/** The canonical wrapped gas asset of an EVM network (WETH9, WPOL), or null (Solana, Arc). */
+export function wrappedNativeAddress(network: NetworkKey): string | null {
+  return WRAPPED_NATIVE[network] ?? null;
+}
 
 function uniswapV3(network: NetworkKey, factory: string, router: string, quoter: string): DexDeployment {
   return {
@@ -1941,6 +1987,16 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   ...everyEvm("debridge-dln", "dln-destination", "0xE7351Fd770A37282b91D153Ee690B63579D6dd7f"),
   { protocol: "debridge-dln", network: "solana", role: "dln-source", address: "src5qyZHqTqecJV4aY6Cb6zDZLMDzrDKKezs22MPHr4" },
   { protocol: "debridge-dln", network: "solana", role: "dln-destination", address: "dst5MGcFPoBeREFAA5E3tU5ij8m5uVYwkzkSAbsLbNo" },
+  // deBridge source swaps (deBridge's deployed-contracts page lists the forwarder as
+  // "DeBridgeRouter"; bytecode read back on all five networks 2026-10-23). The swap-router allowlist is KyberSwap's
+  // MetaAggregationRouterV2 only: its calldata is fully decoded (recipient = forwarder). Other routers the API picks
+  // are refused until they are decoded the same way. The surplus recipient is the address every create-tx response
+  // named on 2026-10-23 for swap output above the order's give amount (the order itself is fixed).
+  ...everyEvm("debridge-dln", "dln-forwarder", "0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251"),
+  ...everyEvm("debridge-dln", "dln-swap-router", "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"),
+  ...everyEvm("debridge-dln", "dln-surplus-recipient", "0x502ea3d95122b5914850E7A4A4CB9e96cF75A35f"),
+  // KyberSwap MetaAggregationRouterV2 (same address on the five networks; bytecode read back 2026-10-23)
+  ...everyEvm("kyberswap", "aggregator-router", "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"),
   // Solana lending programs
   { protocol: "jupiter-lend", network: "solana", role: "program", address: JUPITER_LEND_PROGRAM },
   { protocol: "jupiter-lend", network: "solana", role: "liquidity-program", address: JUPITER_LIQUIDITY_PROGRAM },
@@ -1958,6 +2014,8 @@ export const VENUE_CONTRACTS: readonly VenueContract[] = Object.freeze([
   // ---- read back 2026-10-14
   // DEX deployments (Uniswap V3, Aerodrome and Velodrome Slipstream)
   ...dexContracts(DEX_DEPLOYMENTS),
+  // Wrap venue: the canonical wrapped gas asset of each EVM network (the same WETH9 / WPOL the DEX routers report)
+  ...(Object.entries(WRAPPED_NATIVE) as [NetworkKey, string][]).map(([network, address]): VenueContract => ({ protocol: "wrap", network, role: "wrapped-native", address })),
   // SparkLend (Aave V3 fork)
   { protocol: "sparklend", network: "ethereum", role: "addresses-provider", address: "0x02C3eA4e34C0cBd694D2adFa2c690EECbC1793eE" },
   // Fluid (same LendingFactory and Liquidity on every network)

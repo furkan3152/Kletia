@@ -45,6 +45,7 @@ import {
 } from "./explain.js";
 import { sameAsset, type Route, type SearchSource } from "./search.js";
 import type { SnapshotPrice } from "./snapshot.js";
+import type { RankedStakeProvider } from "./yieldRank.js";
 
 /** What a goal's typed words told the reader (transient notes; never stored). */
 export interface GoalReadNotes {
@@ -200,7 +201,7 @@ export function scopeDecision(input: { readonly index: number; readonly symbol: 
     ];
     return {
       kind: "ask",
-      question: question(field(input.index, "network"), "choice", "SCOPE_AMBIGUOUS", `Your ${input.symbol} is on ${ranked.map(networkLabel).join(", ")}. Which should this use?`,
+      question: question(field(input.index, "network"), "choice", "SCOPE_AMBIGUOUS", `Your ${input.symbol} ${/[a-z]s$/u.test(input.symbol) ? "are" : "is"} on ${ranked.map(networkLabel).join(", ")}. Which should this use?`,
         "Each network is moved separately; Kletia does not pick for you.", options, false),
     };
   }
@@ -263,6 +264,8 @@ export interface ChooseInput {
   readonly assetNamed: boolean;
   /** The person named the network to spend from (or answered D2 / D4). */
   readonly sourceNamed: boolean;
+  /** The best staking provider whose 7-day rate was compared, per input asset; undefined: Kletia's default leads. */
+  readonly bestStake?: (input: "SOL" | "ETH") => RankedStakeProvider | undefined;
 }
 
 function routeAssetLabel(route: Route): string {
@@ -413,11 +416,16 @@ function finishChoice(input: ChooseInput, routes: readonly Route[], assumptions:
     }
     pool = [chosen, ...pool.filter((route) => route !== chosen)];
   }
-  // Staking: the provider is a means. Without yield readings Kletia's default provider for the asset leads; shown.
+  // Staking: the provider is a means. The best compared 7-day rate net of the risk allowance leads;
+  // without readings Kletia's default provider for the asset leads; shown.
+  let rated: RankedStakeProvider | undefined;
   if (pool[0]?.category === "staking") {
-    const named = goal.want.asset !== undefined || (goal.want.at?.custody.kind === "venue" && goal.want.at.custody.protocol !== undefined);
-    const input = pool[0].hops.find((hop) => hop.provider)?.provider?.input;
-    const fallback = input ? defaultProvider(input).id : undefined;
+    // A class wanted ("eth staking exposure") names no token: the provider stays Kletia's choice, shown.
+    const named = (goal.want.asset !== undefined && "symbol" in goal.want.asset) || (goal.want.at?.custody.kind === "venue" && goal.want.at.custody.protocol !== undefined);
+    const stakeInput = pool[0].hops.find((hop) => hop.provider)?.provider?.input;
+    const best = stakeInput && !named ? input.bestStake?.(stakeInput) : undefined;
+    rated = best && pool.some((route) => route.category === "staking" && route.hops.some((hop) => hop.provider?.id === best.provider)) ? best : undefined;
+    const fallback = rated?.provider ?? (stakeInput ? defaultProvider(stakeInput).id : undefined);
     const preferred = !named ? pool.find((route) => route.category === "staking" && route.hops.some((hop) => hop.provider?.id === fallback)) : undefined;
     if (preferred && preferred !== pool[0]) pool = [preferred, ...pool.filter((route) => route !== preferred)];
   }
@@ -425,11 +433,12 @@ function finishChoice(input: ChooseInput, routes: readonly Route[], assumptions:
   if (staking) {
     const step = staking.hops.findIndex((hop) => hop.provider);
     const provider = staking.hops[step]?.provider;
-    const named = goal.want.asset !== undefined || goal.want.at?.custody.kind === "venue" && goal.want.at.custody.protocol !== undefined;
+    const named = (goal.want.asset !== undefined && "symbol" in goal.want.asset) || (goal.want.at?.custody.kind === "venue" && goal.want.at.custody.protocol !== undefined);
     if (provider && !named) {
       const others = bestBy(pool.filter((route) => route.category === "staking"), (route) => route.hops.find((hop) => hop.provider)?.provider?.id ?? "").filter((route) => route !== staking);
-      assumptions.push(solverAssumption(field(index + step, "provider"), `${provider.grammarProvider} (${provider.symbol})`, { provider: provider.id }, "SOLVER_VENUE_APY",
-        `Kletia's default liquid staking provider for ${provider.input} (${riskLabel(staking.risk)}).`,
+      const byRate = rated?.provider === provider.id;
+      assumptions.push(solverAssumption(field(index + step, "provider"), `${provider.grammarProvider} (${provider.symbol})${byRate ? ` · ${apyLabel(rated?.apy)} (7-day)` : ""}`, { provider: provider.id }, "SOLVER_VENUE_APY",
+        byRate ? `The best 7-day staking rate for its risk (${riskLabel(staking.risk)}) among the providers Kletia compared; rates are variable.` : `Kletia's default liquid staking provider for ${provider.input} (${riskLabel(staking.risk)}).`,
         others.slice(0, 4).map((route) => {
           const other = route.hops.find((hop) => hop.provider)?.provider;
           return option(other?.id ?? route.id, other ? `${other.grammarProvider} (${other.symbol})` : earnVenueLabel(route), { ...(other ? { provider: other.id } : {}) }, riskLabel(route.risk));
@@ -457,8 +466,10 @@ function finishChoice(input: ChooseInput, routes: readonly Route[], assumptions:
   const saidBoth = goal.spend.from?.network !== undefined && goal.want.at?.network !== undefined;
   for (const { hop, step } of bridges) {
     if (goal.op === "bridge" && saidBoth) continue;
-    assumptions.push(solverAssumption(field(index + step, "toNetwork"), `Bridges ${networkLabel(hop.edge.network)} to ${networkLabel(hop.edge.destinationNetwork)}`, { network: hop.edge.destinationNetwork }, "SOLVER_BRIDGE",
-      `The bridge with the best quote is picked at planning; ${costLabel(chosen.valueInUsd === null ? null : hop.feesUsd + hop.gasUsd, hop.seconds)}.`, [], !saidBoth));
+    // One abstract crossing leg: the planner compares its shapes (one-shot, via a carrier) with live quotes.
+    const converts = hop.to.symbol.toUpperCase() !== hop.from.symbol.toUpperCase();
+    assumptions.push(solverAssumption(field(index + step, "toNetwork"), `Bridges ${networkLabel(hop.edge.network)} to ${networkLabel(hop.edge.destinationNetwork)}${converts ? ` as ${hop.to.symbol}` : ""}`, { network: hop.edge.destinationNetwork }, "SOLVER_BRIDGE",
+      `Route picked by live quotes at planning; ${costLabel(chosen.valueInUsd === null ? null : hop.feesUsd + hop.gasUsd, hop.seconds)}.`, [], !saidBoth));
   }
   return { kind: "route", route: chosen, assumptions };
 }
@@ -477,6 +488,26 @@ export function fundsElsewhereQuestion(input: { readonly index: number; readonly
   const where = input.from ? ` on ${networkLabel(input.from)}` : "";
   return question(field(input.index, "network"), networks.length === 1 ? "confirm" : "choice", "FUNDS_ELSEWHERE", `Your ${input.symbol}${where} cannot do this. Use funds from another network?`,
     "Kletia moves them first; that adds a bridge.", options, false);
+}
+
+/**
+ * The money must cross to a network the person said (or the
+ * recipient implies) from one they did not name: asked which holding pays,
+ * one option per source network that can, never a chip. A choice, not a
+ * one-click confirm, even with one source: where money comes from is purpose.
+ */
+export function crossingSourceQuestion(input: { readonly index: number; readonly symbol: string; readonly to: NetworkKey; readonly routes: readonly Route[] }): Question | null {
+  // One option per holding (asset and network), the holdings of the asset that lands first (exposure-neutral, D3),
+  // then in route order; each option pins the holding its label names, so the answer plans exactly that source.
+  const same = (route: Route) => route.source.node.symbol.toUpperCase() === route.landing.symbol.toUpperCase();
+  const ranked = [...input.routes.filter(same), ...input.routes.filter((route) => !same(route))];
+  const holdings = bestBy(ranked, (route) => `${route.source.node.network}:${route.source.node.symbol.toUpperCase()}`);
+  if (holdings.length === 0) return null;
+  const options = holdings.slice(0, 8).map((route) =>
+    option(`${route.source.node.network}:${route.source.node.symbol}`, `Use ${route.source.node.symbol} on ${networkLabel(route.source.node.network)}`, { source: route.source.node.network, asset: route.source.node.symbol },
+      route.source.amount !== null ? `You hold ${amountLabel(route.source.amount)}; a bridge moves it to ${networkLabel(input.to)}` : `A bridge moves it to ${networkLabel(input.to)}`));
+  return question(field(input.index, "network"), "choice", "FUNDS_ELSEWHERE", `Where should the ${input.symbol} for ${networkLabel(input.to)} come from?`,
+    "Kletia never moves money from a network you did not name without asking.", options, false);
 }
 
 /** D0 without funds anywhere: the refusal, with the closest sentence Kletia can plan. */
@@ -529,6 +560,6 @@ export function confirmQuestion(input: { readonly goal: Goal; readonly notes?: G
   const llm = input.goal.confidence === "llm";
   if (!llm && !input.notes?.orderOnly) return null;
   return question(field(input.index, "kind"), "confirm", "INTERPRETATION_CONFIRM", `${input.summary}. Is that what you meant?`,
-    llm ? "This reading was proposed by a language model; Kletia plans it only when you confirm." : "Kletia read part of this from word order alone.",
+    llm ? "Model-assisted reading. Kletia plans it only when you confirm." : "Kletia read part of this from word order alone.",
     [option("confirm", "Yes, plan it", { target: "confirm" })], true);
 }

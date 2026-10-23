@@ -275,3 +275,102 @@ test("classifyMessage labels a message the way a turn reads it", () => {
     assert.equal(classifyMessage(message, context), expected, `${message} ${JSON.stringify(context)}`);
   }
 });
+
+// ------------------------------------------------------------ 2026-10 thread and turn additions
+
+test("clarify: steps carry fundFrom, provenance, keep, readAs, source and flags; threads carry a confirm digest and the text origin", async () => {
+  const { READING_SOURCES, TEXT_ORIGINS, CONFIRM_AUTHORITIES, AMOUNT_UNITS } = await import("../dist/index.js");
+  assert.deepEqual([...READING_SOURCES], ["E", "F", "C", "M"]);
+  assert.deepEqual([...TEXT_ORIGINS], ["typed", "prefilled"]);
+  assert.deepEqual([...CONFIRM_AUTHORITIES], ["desk", "token", "api"]);
+  assert.ok(AMOUNT_UNITS.includes("million") && AMOUNT_UNITS.includes("cents"));
+  const step = {
+    kind: { v: "deposit", by: "user", prov: { span: [0, 7] } },
+    amount: { v: { t: "exact", value: "1500", raw: "1.5 k", rewritten: true, unit: "thousand" }, by: "user", prov: { span: [8, 13], rule: "unit:thousand" } },
+    from: { v: "USDC", by: "user", prov: { span: [14, 18] } },
+    network: { v: "base", by: "derived", prov: { rule: "home-network" } },
+    protocol: { v: "aave-v3", by: "assumed", why: { source: "default", code: "venue.rate" }, prov: { assumption: "a.actions.0.protocol" } },
+    recipient: { v: "alice.eth", by: "answer", prov: { answer: "q.actions.0.recipient" } },
+    fundFrom: { v: "solana", by: "user", prov: { span: [24, 35] } },
+    keep: [{ amount: { t: "exact", value: "50" }, asset: "USDC", network: "base" }],
+    readAs: [{ slot: "amount", rule: "unit:thousand", from: "1.5 k", to: "1,500 USDC" }],
+    modelRead: true,
+    questionForm: true,
+    source: "C",
+  };
+  const ready = thread({
+    status: "ready",
+    open: [],
+    steps: [step, { kind: { v: "swap", by: "user" }, amount: { v: { t: "previous", bps: 10_000 }, by: "derived", prov: { rule: "previous-output", reading: { source: "llm", confirmed: true } } } }],
+    confirmDigest: `sha256:${"ab".repeat(32)}`,
+    textOrigin: "typed",
+  });
+  const result = validateThread(ready);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(validateThread(JSON.parse(JSON.stringify(ready))).value, ready, "round-trips through JSON");
+  // Old threads (none of the new fields) still validate.
+  assert.equal(validateThread(thread()).ok, true);
+});
+
+test("clarify: bad provenance, keep, readAs, source, digest and origin are refused at their paths", () => {
+  const at = (step, extra = {}) => paths(validateThread(thread({ steps: [step], ...extra })));
+  const kind = (prov, by = "user") => ({ kind: { v: "swap", by, ...(by === "assumed" ? { why: { source: "default", code: "x" } } : {}), prov } });
+  assert.ok(at(kind({ span: [5, 5] })).includes("steps[0].kind.prov.span"), "empty span");
+  assert.ok(at(kind({ span: [0, 1001] })).includes("steps[0].kind.prov.span"), "past the message");
+  assert.ok(at(kind({ span: [1] })).includes("steps[0].kind.prov.span"));
+  assert.ok(at(kind({ span: [0, 3] }, "answer")).includes("steps[0].kind.prov.span"), "an answered slot cites no words");
+  assert.ok(at(kind({ rule: "Previous Output" }, "derived")).includes("steps[0].kind.prov.rule"));
+  assert.ok(at(kind({ rule: "previous-output" }, "assumed")).includes("steps[0].kind.prov.rule"), "assumed slots name a chip, not a rule");
+  assert.ok(at(kind({ assumption: "a.actions.0.kind" }, "user")).includes("steps[0].kind.prov.assumption"));
+  assert.ok(at(kind({ assumption: "actions.0" }, "assumed")).includes("steps[0].kind.prov.assumption"));
+  assert.ok(at(kind({ answer: "q.actions.0.kind" }, "user")).includes("steps[0].kind.prov.answer"));
+  assert.ok(at(kind({ reading: { source: "model", confirmed: true } })).includes("steps[0].kind.prov.reading"));
+  assert.ok(at(kind({ reading: { source: "llm" } })).includes("steps[0].kind.prov.reading"));
+  assert.ok(at(kind({ words: "swap" })).includes("steps[0].kind.prov.words"), "provenance never stores words");
+  assert.ok(at({ fundFrom: { v: "mars", by: "user" } }).includes("steps[0].fundFrom.v"));
+  assert.ok(at({ keep: [] }).includes("steps[0].keep"));
+  assert.ok(at({ keep: [{ amount: { t: "previous", bps: 10_000 } }] }).includes("steps[0].keep"));
+  assert.ok(at({ keep: [{ amount: { t: "exact", value: "1" }, network: "mars" }] }).includes("steps[0].keep"));
+  assert.ok(at({ readAs: [{ slot: "amount", rule: "unit:thousand", from: "a much longer typed form", to: "1,500" }] }).includes("steps[0].readAs"));
+  assert.ok(at({ readAs: [{ slot: "amount", rule: "unit:thousand" }] }).includes("steps[0].readAs"));
+  assert.ok(at({ modelRead: false }).includes("steps[0].modelRead"));
+  assert.ok(at({ questionForm: "yes" }).includes("steps[0].questionForm"));
+  assert.ok(at({ source: "X" }).includes("steps[0].source"), "source X was withdrawn");
+  assert.ok(at({ amount: { v: { t: "exact", value: "1", unit: "dozen" }, by: "user" } }).includes("steps[0].amount.v"));
+  assert.ok(at({ amount: { v: { t: "exact", value: "1", rewritten: false }, by: "user" } }).includes("steps[0].amount.v"));
+  assert.ok(at({ amount: { v: { t: "rest" }, by: "derived" } }).includes("steps[0].amount.v"), "\"the rest\" waits for its consumer");
+  assert.ok(paths(validateThread(thread({ confirmDigest: "abc" }))).includes("confirmDigest"));
+  assert.ok(paths(validateThread(thread({ confirmDigest: `sha256:${"AB".repeat(32)}` }))).includes("confirmDigest"));
+  assert.ok(paths(validateThread(thread({ textOrigin: "agent" }))).includes("textOrigin"));
+});
+
+test("clarify: turn requests take modelReading, consent and textOrigin, validated and passed through", () => {
+  const token = `idc1.${"a".repeat(80)}.${"b".repeat(43)}`;
+  const ok = validateIntentTurnRequest({ text: "swap 1 sol to usdc", accounts: [EVM], modelReading: "on", consent: token, textOrigin: "typed" });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  assert.equal(ok.value.modelReading, "on");
+  assert.equal(ok.value.consent, token);
+  assert.equal(ok.value.textOrigin, "typed");
+  const plain = validateIntentTurnRequest({ text: "swap 1 sol to usdc", accounts: [EVM] });
+  assert.equal("modelReading" in plain.value, false, "absent stays absent (off)");
+  assert.equal("textOrigin" in plain.value, false, "absent stays absent (prefilled)");
+  assert.ok(paths(validateIntentTurnRequest({ text: "x", accounts: [EVM], modelReading: true })).includes("modelReading"));
+  assert.ok(paths(validateIntentTurnRequest({ text: "x", accounts: [EVM], modelReading: "auto" })).includes("modelReading"));
+  assert.ok(paths(validateIntentTurnRequest({ text: "x", accounts: [EVM], consent: "has spaces in it" })).includes("consent"));
+  assert.ok(paths(validateIntentTurnRequest({ text: "x", accounts: [EVM], consent: `a.${"b".repeat(4_100)}` })).includes("consent"));
+  assert.ok(paths(validateIntentTurnRequest({ text: "x", accounts: [EVM], textOrigin: "agent" })).includes("textOrigin"));
+});
+
+test("normalize: normalizeMessage moved to normalize.ts unchanged and is still exported", async () => {
+  const core = await import("../dist/index.js");
+  const moved = await import("../dist/normalize.js");
+  assert.equal(core.normalizeMessage, moved.normalizeMessage, "one function, exported from the package root");
+  for (const [input, output] of [
+    ["please swap two SOL → USDC!", "swap 2 SOL to USDC"],
+    ["can you bridge fifty usdc to base, thanks", "bridge 50 usdc to base"],
+    ["Kletia, send one hundred usdc to alice.eth pls", "send 100 usdc to alice.eth"],
+    ["swap 0.01 eth to usdc on base?", "swap 0.01 eth to usdc on base"],
+  ]) assert.equal(normalizeMessage(input), output, input);
+  assert.match("arbitrum one", new RegExp(`^(?:${moved.NETWORK_WORDS})$`, "iu"));
+  assert.equal(moved.SPELLED_NUMBER_WORDS.three, "3");
+});

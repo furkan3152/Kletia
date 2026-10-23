@@ -4,11 +4,12 @@
  * new production networks.
  */
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { validateIntentGraph, type IntentGraph } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import { evmLendingVenues } from "../adapters/lending/metrics.js";
 import { actionForStep, planIntent } from "../planner.js";
+import { configureSnapshotReaders } from "../solver/snapshot.js";
 import { decodeStepRef } from "../stepRef.js";
 import { ACCOUNTS, EVM_ADDRESS, OTHER_EVM_ADDRESS } from "./helpers.js";
 import { lending, resetVenueEngine } from "./venueStubs.js";
@@ -192,5 +193,58 @@ describe("planner: new production networks", () => {
       accounts: ACCOUNTS,
     });
     assert.equal(error.code, "CAPITAL_LANE_MIXED");
+  });
+});
+
+describe("planner: deposit venue by rate", () => {
+  const RATES: Record<string, { apy: number; smoothed: number; tvl: number }> = {
+    "base:aave-v3:usdc": { apy: 0.031, smoothed: 0.03, tvl: 400_000_000 },
+    "base:compound-v3:usdc": { apy: 0.061, smoothed: 0.06, tvl: 200_000_000 },
+    "base:morpho:steakhouse-prime-usdc": { apy: 0.05, smoothed: 0.049, tvl: 60_000_000 },
+    "base:morpho:spark-usdc": { apy: 0.063, smoothed: 0.062, tvl: 40_000_000 },
+  };
+
+  beforeEach(() => {
+    resetVenueEngine();
+    configureSnapshotReaders({
+      venue: async (venue) => {
+        const rate = RATES[venue.id];
+        if (!rate) throw new Error("offline");
+        return { name: venue.name, apy: rate.apy, utilization: null, exitLiquidity: null, capRemaining: null, paused: false, frozen: false, shareRate: null, at: new Date().toISOString() } as never;
+      },
+      metrics: async (venue) => {
+        const rate = RATES[venue.id];
+        return rate ? { smoothedApy: rate.smoothed, apyWindowSeconds: 604_800, tvlUsd: rate.tvl } : { smoothedApy: null, apyWindowSeconds: null, tvlUsd: null };
+      },
+    });
+  });
+
+  afterEach(() => configureSnapshotReaders(null));
+
+  const deposit = { kind: "deposit", network: "base", from: "USDC", amount: "10" } as const;
+
+  it("deposits where the 7-day rate is best among executable venues, and says why", async () => {
+    const graph = await planIntent({ actions: [deposit], accounts: ACCOUNTS });
+    assert.equal(graph.steps[0]?.venue, "base:compound-v3:usdc", "6% beats Aave's 3% (both core)");
+    const warnings = graph.steps[0]?.warnings ?? [];
+    assert.ok(warnings.some((warning) => /^Chose .+ by rate: 7-day rate 6\.00%/u.test(warning)), warnings.join(" | "));
+  });
+
+  it("ranks a named protocol's vaults the same way, keeps preferred protocols first and never ranks withdraws", async () => {
+    const morpho = await planIntent({ actions: [{ ...deposit, protocol: "morpho" }], accounts: ACCOUNTS });
+    assert.equal(morpho.steps[0]?.venue, "base:morpho:spark-usdc", "6.2% beats 4.9% among Morpho vaults");
+    const preferred = await planIntent({ actions: [deposit], accounts: ACCOUNTS, constraints: { preferProtocols: ["morpho"] } });
+    assert.equal(preferred.steps[0]?.protocol, "morpho", "a preferred protocol wins before the rate");
+    const avoided = await planIntent({ actions: [deposit], accounts: ACCOUNTS, constraints: { avoidProtocols: ["compound-v3"] } });
+    assert.notEqual(avoided.steps[0]?.protocol, "compound-v3", "an avoided protocol is never ranked in");
+    const named = await planIntent({ actions: [{ ...deposit, params: { venue: "base:aave-v3:usdc" } }], accounts: ACCOUNTS });
+    assert.equal(named.steps[0]?.venue, "base:aave-v3:usdc", "a named venue is honoured");
+  });
+
+  it("keeps the registry default when rates cannot be compared", async () => {
+    configureSnapshotReaders({ venue: async () => { throw new Error("offline"); } });
+    const graph = await planIntent({ actions: [deposit], accounts: ACCOUNTS });
+    assert.equal(graph.steps[0]?.venue, "base:aave-v3:usdc");
+    assert.ok(!(graph.steps[0]?.warnings ?? []).some((warning) => /by rate/u.test(warning)));
   });
 });

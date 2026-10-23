@@ -6,9 +6,11 @@
  * are corrected only when exactly one word is close; contract aliases go
  * through the grammar's matchContractPhrase.
  */
-import { normalizeMessage, SENTENCE_VERBS, type NetworkKey, type ThreadAmount } from "@kletia/core";
+import { lookalikeFamilyOf, NEVER_DROP, normalizeMessage, scanClosedClass, screenText, SENTENCE_VERBS, type NetworkKey, type ThreadAmount } from "@kletia/core";
 import { PlatformError } from "../../errors.js";
 import {
+  ASSET_NETWORK_WORDS,
+  assetOrNetworkRefusal,
   BORROW_VERBS,
   borrowRefusal,
   BRIDGE_WORDS,
@@ -24,14 +26,31 @@ import {
   VAULT,
   VERBS,
   NATIVE_STAKE_PROTOCOL,
+  NEUTRAL_MOVE_VERBS,
 } from "../grammar.js";
 import type { ContractPhrase } from "../contracts/directory.js";
-import { candidates } from "./fuzzy.js";
-import { readOnlyRates, readOnlyRatesRefusal } from "../readOnly.js";
-import { readClause, spellNumbers, stripLabel, symbolTypoCandidates } from "../goal/index.js";
+import { candidates, keywordCandidates } from "./fuzzy.js";
+import { isEnglishWord } from "./englishWords.js";
+import { hasQuestionMark, questionRefusal, readOnlyRates, readOnlyRatesRefusal } from "../readOnly.js";
+import { abstractClause, EXACT_OF_PREVIOUS, lex, normalizeClause, readClause, spellNumbers, stripLabel, symbolTypoCandidates, type Token } from "../goal/index.js";
+import { amountInWords, groupedThousands } from "../goal/amounts.js";
+import {
+  clauseRecord,
+  closedClassError,
+  consumable,
+  dropFillers,
+  nonLatinRefusal,
+  openerOf,
+  unconsumed,
+  unsupportedNetwork,
+} from "../goal/closedClass.js";
+import { CLOSED_CLASS_COPY } from "./copy.js";
 import {
   bridgeProtocol,
+  canonicalOn,
   dexProtocol,
+  lane,
+  NETWORK_ORDER,
   isUsdWord,
   knownSymbol,
   lendingProtocol,
@@ -39,8 +58,8 @@ import {
   stakeProvider,
   USD_ORDER,
 } from "./catalog.js";
-import type { Kind, Slot, WorkStep } from "./types.js";
-import type { ThreadCorrection } from "@kletia/core";
+import type { Kind, Slot, UnreadClause, WorkStep } from "./types.js";
+import type { Goal, ThreadCorrection, ThreadKeep } from "@kletia/core";
 
 const AMT =
   "(?<amt>\\d{1,3}(?:\\.\\d{1,2})?%|\\$\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+|all|max|everything|it|them|that|half|a\\s+quarter|quarter)";
@@ -109,6 +128,12 @@ const NETWORK_VOCAB = ["base", "arbitrum", "ethereum", "optimism", "polygon", "s
 /** Single venue and provider words of the grammar ("aave", "kamino", "jito", "uniswap", ...). */
 const VENUE_VOCAB: readonly string[] = [...new Set(GRAMMAR_VENUE_WORDS.flatMap((word) => word.split(/[\s.-]+/u)).filter((word) => /^[a-z]{4,}$/u.test(word)))]
   .filter((word) => !["vault", "vaults", "lend", "earn", "lending", "savings", "pool"].includes(word));
+/**
+ * Every word the keyword corrector may correct into (verbs at the start of a
+ * clause; connectors, networks and venues elsewhere). The drift test pins it
+ * to the list clarify/englishWords.ts was reviewed against.
+ */
+export const KEYWORD_VOCABULARY: readonly string[] = Object.freeze([...VERB_VOCAB, ...CONNECTOR_VOCAB, ...NETWORK_VOCAB, ...VENUE_VOCAB]);
 const FILLER = new Set([
   "my", "the", "of", "all", "half", "max", "everything", "it", "them", "that", "some", "me", "a", "an", "quarter", "instead", "and", "to", "on", "in",
   "at", "as", "for", "via", "vault", "position", "yield", "interest", "lend", "earn", "v3", "out", "savings", "pool",
@@ -232,6 +257,15 @@ function possessiveWhole(step: WorkStep, g: Record<string, string | undefined>, 
   else step.possessive = true;
 }
 
+/** A portion word as the whole amount ("half", "a quarter"): read as a share only with evidence ("of it", "my"). */
+const PORTION_AMOUNT = /^(?:half|a\s+quarter|quarter)$/iu;
+
+/** True when the portion word stands right before the token ("half sol"), with no "my" / "of" between them. */
+function bareOf(clause: string, amount: string, asset: string): boolean {
+  const escape = (text: string) => text.trim().replace(/[.*+?^${}()|[\]\\]/gu, "\\$&").replace(/\s+/gu, "\\s+");
+  return new RegExp(`(?:^|\\s)${escape(amount)}\\s+${escape(asset)}(?:\\s|$)`, "iu").test(clause);
+}
+
 /** One clause as slots, or null when no relaxed shape matches. */
 function parseClause(clause: string, previousExists: boolean): WorkStep | null {
   for (const { shape, regex } of SHAPES) {
@@ -334,8 +368,13 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
       const protocol = dexProtocol(g.dex);
       if (protocol) out.protocol = slot(protocol);
     }
-    if (g.amt) {
-      amountSlot(out, parseAmountText(g.amt, previousExists));
+    if (g.amt && g.a && PORTION_AMOUNT.test(g.amt.trim()) && bareOf(clause, g.amt, g.a)) {
+      // Portion evidence: "swap half sol" says neither "half my SOL" nor "half a SOL";
+      // the amount is asked (with "Half" among the options), never read as a share of the balance.
+    } else if (g.amt) {
+      // "all my SOL", "half of my USDC" is a share of the holding, never of the previous
+      // step's output, even after another step.
+      amountSlot(out, parseAmountText(g.amt, previousExists && !(g.my && g.a)));
       const amount = out.amount?.v;
       if (shape === "withdraw" && amount && (amount.t === "balance" || (amount.t === "previous" && !previousExists))) {
         out.amount = slot({ t: "position", bps: amount.bps });
@@ -348,24 +387,40 @@ function parseClause(clause: string, previousExists: boolean): WorkStep | null {
   return null;
 }
 
-/** "swap 1 SOL too USDC", "fo USDC": slips of "to" and "for" (only tried when the clause does not read as typed). */
-const SHORT_CONNECTOR_SLIPS: Readonly<Record<string, string>> = Object.freeze({ too: "to", fo: "for" });
+/**
+ * "swap 1 SOL too USDC", "fo USDC", "bridge 25 USDC form base": reviewed
+ * spellings of "to", "for" and "from" (only tried when the clause does not
+ * read as typed). A connector spelling is a lexicon entry, not a correction
+ * into a keyword: it names no token, amount, network or venue.
+ */
+const SHORT_CONNECTOR_SLIPS: Readonly<Record<string, string>> = Object.freeze({ too: "to", fo: "for", form: "from" });
 
-function correctClause(clause: string, index: number): { text: string; corrections: ThreadCorrection[]; verbCandidates?: string[] } {
+/** Single closed-class words (never corrected into a keyword, never corrected at all: I12). */
+const CLOSED_WORDS: ReadonlySet<string> = new Set(NEVER_DROP.map((entry) => entry.phrase).filter((phrase) => /^[a-z']+$/u.test(phrase)));
+
+/** At most this many keyword corrections per clause; more and the clause is not read as corrected. */
+const MAX_CORRECTIONS = 2;
+
+function correctClause(clause: string, index: number): { text: string; corrections: ThreadCorrection[]; verbCandidates?: string[]; verbEnglish?: true } {
   const corrections: ThreadCorrection[] = [];
   let verbCandidates: string[] | undefined;
+  let verbEnglish = false;
   const out = clause.split(/\s+/u).map((token, position) => {
     const lower = token.toLowerCase();
-    // Never touched: numbers, addresses, names, CAIP ids, symbols, known words (R8, R14).
+    // Never touched: numbers, addresses, names, CAIP ids, symbols, known words (R8, R14), closed-class words and look-alike symbols.
     if (!/^[a-z]+$/u.test(lower) || FILLER.has(lower) || knownSymbol(lower) || Object.hasOwn(SENTENCE_VERBS, lower) || resolveNetworkName(lower)) return token;
+    if (CLOSED_WORDS.has(lower) || lookalikeFamilyOf(lower)) return token;
     if (CONNECTOR_VOCAB.includes(lower) || VENUE_VOCAB.includes(lower) || NETWORK_VOCAB.includes(lower)) return token;
     if (position === 0) {
       const verbs = candidates(lower, VERB_VOCAB);
-      if (verbs.length === 1) {
+      // An English word ("bend", "sway") is never corrected into a verb; two close verbs are still asked (VERB_AMBIGUOUS), never chosen.
+      const english = isEnglishWord(lower);
+      if (verbs.length === 1 && !english) {
         corrections.push({ field: `actions[${index}].kind`, from: token.slice(0, 16), to: verbs[0] as string, material: true });
         return verbs[0] as string;
       }
       if (verbs.length > 1) verbCandidates = verbs;
+      if (english && verbs.length > 0) verbEnglish = true;
       return token;
     }
     // Short connectors are too short for the edit-distance reader: a fixed list of their usual slips.
@@ -374,14 +429,294 @@ function correctClause(clause: string, index: number): { text: string; correctio
       corrections.push({ field: `actions[${index}].text`, from: token.slice(0, 16), to: connector, material: false });
       return connector;
     }
-    const found = candidates(lower, [...CONNECTOR_VOCAB, ...NETWORK_VOCAB, ...VENUE_VOCAB]);
+    // Never into a keyword from an English word ("on case" is not "on base"): keywordCandidates leaves those alone.
+    const found = keywordCandidates(lower, [...CONNECTOR_VOCAB, ...NETWORK_VOCAB, ...VENUE_VOCAB]);
     if (found.length !== 1) return token;
     const to = found[0] as string;
     const name = NETWORK_VOCAB.includes(to) ? "network" : VENUE_VOCAB.includes(to) ? "protocol" : "text";
     corrections.push({ field: `actions[${index}].${name}`, from: token.slice(0, 16), to, material: name !== "text" });
     return to;
   });
-  return { text: out.join(" "), corrections, ...(verbCandidates ? { verbCandidates } : {}) };
+  return { text: out.join(" "), corrections, ...(verbCandidates ? { verbCandidates } : {}), ...(verbEnglish ? { verbEnglish: true as const } : {}) };
+}
+
+/* ------------------------------------------------ questions (A.2, A14) */
+
+/** "what's the best yield for my usdc", "best yield for 200 usdc on arbitrum": a yield question about one holding. */
+const YIELD_QUESTION = /^(?:(?:what(?:'s|s| is)|which is|where(?:'s| is))\s+)?(?:the\s+)?(?:best|highest|top)\s+(?:yield|apy|rate|interest(?:\s+rate)?)\s+(?:for|on)\s+(?<object>(?:my\s+)?(?:\$?\d[\d,]*(?:\.\d+)?\s+)?[a-z][a-z0-9.]{1,15}(?:\s+(?:on|in)\s+[a-z][a-z -]{1,24})?)$/iu;
+/** The imperatives that act on the answer of a yield question ("put it there", "go"). */
+const ANSWER_IMPERATIVE = /^(?:(?:ok|okay|then|so|and|please|pls|plz)\s+)*(?:go|go for it|do it|put it there|put it in there|deposit it there|put them there|lets go|let's go)(?:\s+(?:please|pls|plz|thanks|thx))?$/iu;
+/** "what is the cheapest way to <command>": a command asked as a question (confirmed, never planned as typed). */
+const WAY_QUESTION = /^(?:(?:what(?:'s|s| is)|which is)\s+)?(?:the\s+)?(?:cheapest|fastest|best|easiest|quickest)\s+way\s+to\s+(?<command>\S.*)$/iu;
+
+interface QuestionForm {
+  /** The instruction Kletia reads instead of the question, from the person's own words. */
+  readonly text: string;
+  /** The rule that turned the question into that instruction. */
+  readonly rule: "question:trailing" | "question:yieldAnswer" | "question:way";
+}
+
+/**
+ * Questions vs commands. Returns the instruction a question stands for (always
+ * confirmed as the solved plan: every step is `questionForm`), or null when the
+ * message is not one of these shapes (the caller refuses a question as before):
+ * - "swap 0.01 eth to usdc on base?", "can you swap 1 sol to usdc?": the
+ *   command before a trailing "?" (an advice or hypothetical opener is refused);
+ * - "what's the best yield for my usdc? put it there", "best yield for 200
+ *   usdc on arbitrum, go": a deposit into the best-ranked venue, only when the
+ *   imperative passes the never-drop check ("... don't put it there yet" is
+ *   refused);
+ * - "what is the cheapest way to send 50 usdc to alice.eth": the command.
+ */
+function questionForm(raw: string): QuestionForm | null {
+  const text = raw.replace(/\s+/gu, " ").trim();
+  const mark = text.search(/[?¿？﹖⸮]/u);
+  const head = (mark >= 0 ? text.slice(0, mark) : text).trim();
+  const tail = mark >= 0 ? text.slice(mark).replace(/^[?¿？﹖⸮!.\s]+/u, "").trim() : "";
+  const label = /^[a-z][a-z' -]{0,23}:\s+/iu.exec(head);
+  const body = label && scanClosedClass(label[0].toLowerCase()).length === 0 ? head.slice(label[0].length) : head;
+  const yieldQuestion = (question: string, imperative: string): QuestionForm | null => {
+    const match = YIELD_QUESTION.exec(question.replace(/[,.!]+$/u, "").trim());
+    if (!match?.groups) return null;
+    const command = imperative.replace(/[.!]+$/u, "").trim();
+    // The imperative must carry no closed-class word ("don't put it there yet" is not an instruction).
+    if (!ANSWER_IMPERATIVE.test(command) || scanClosedClass(command.toLowerCase()).length > 0) return null;
+    return { text: `deposit ${match.groups.object} into the best yield`, rule: "question:yieldAnswer" };
+  };
+  if (tail) {
+    if (/[?¿？﹖⸮]/u.test(tail)) return null;
+    return yieldQuestion(body, tail);
+  }
+  // "best yield for 200 usdc on arbitrum, go": the imperative after a comma.
+  const comma = /^(?<question>.+?),\s*(?<imperative>[^,]+)$/u.exec(body);
+  if (comma?.groups && mark < 0) {
+    const read = yieldQuestion(comma.groups.question as string, comma.groups.imperative as string);
+    if (read) return read;
+  }
+  const way = WAY_QUESTION.exec(body.replace(/[.!]+$/u, "").trim());
+  if (way?.groups) return { text: way.groups.command as string, rule: "question:way" };
+  if (mark < 0) return null;
+  // A trailing "?" on a command: never ready, only a confirm of the solved plan; an advice opener stays a question.
+  if (openerOf(body)?.kind === "question" || readOnlyRates(body)) return null;
+  return { text: body, rule: "question:trailing" };
+}
+
+/* ------------------------------------------------------------- keep */
+
+const KEEP_SYMBOL = "(?!(?:on|in|for|and|then|the)\\b)(?<asset>[a-z][a-z0-9.]{1,15})";
+/** "keep 0.05 eth on base for gas", "keep 50", "keep the rest": a constraint of a step, never a step. */
+const KEEP = new RegExp(
+  `(?:^|\\s*,\\s*(?:and\\s+)?|\\s+and\\s+|\\s+then\\s+)keep\\s+(?:(?<rest>the\\s+rest)|(?<amount>\\$?\\d[\\d,]*(?:\\.\\d+)?|\\.\\d+)(?:\\s+${KEEP_SYMBOL})?(?:\\s+(?:on|in)\\s+(?<network>[a-z][a-z-]*(?:\\s+(?:one|mainnet|pos|sepolia|devnet|testnet))?))?(?:\\s+for\\s+gas)?)(?=\\s*(?:[,;.]|$)|\\s+(?:and|then)\\s+)`,
+  "iu",
+);
+
+interface KeepPhrase {
+  readonly before: string;
+  readonly after: string;
+  readonly rest: boolean;
+  readonly amount?: string;
+  readonly asset?: string;
+  readonly network?: NetworkKey;
+}
+
+function keepRefusal(message: string): PlatformError {
+  return new PlatformError("INTENT_UNSUPPORTED", message, 422, [{ path: "text", message: "What to keep could not be applied." }], REFUSAL_EXAMPLES);
+}
+
+/** The one "keep ..." phrase of a message, split out of it (two or more are refused: which step each limits is a guess). */
+function keepPhrase(text: string): KeepPhrase | null {
+  const match = KEEP.exec(text);
+  if (!match?.groups) return null;
+  const after = text.slice(match.index + match[0].length).replace(/^\s*(?:[,;.]\s*)?(?:and\s+|then\s+)*/iu, "").trim();
+  const before = text.slice(0, match.index).trim().replace(/[,;.]+$/u, "").trim();
+  if (KEEP.test(after) || /(?:^|\s)keep\s/iu.test(before)) throw keepRefusal("Say what to keep once, for one step, for example \"keep 0.05 ETH on base for gas and swap the rest to USDC\".");
+  const g = match.groups;
+  if (g.rest) return { before, after, rest: true };
+  const amount = parseAmountText(g.amount as string, false);
+  if (amount.t !== "exact" || amount.usd) throw keepRefusal("Say how much to keep as a number of tokens, for example \"keep 0.05 ETH\".");
+  if (g.asset && !knownSymbol(g.asset)) return null;
+  const network = g.network ? resolveNetworkName(g.network) : null;
+  if (g.network && !network) return null;
+  return { before, after, rest: false, amount: amount.value, ...(g.asset ? { asset: g.asset.toUpperCase() } : {}), ...(network ? { network } : {}) };
+}
+
+/**
+ * "keep N [token] [on network] [for gas]" limits the step it belongs to, and
+ * "the rest" after it is all of the holding but what is kept:
+ * - "keep 0.05 eth on base for gas and swap the rest to usdc": the swap spends
+ *   all of the ETH on Base but 0.05 (confirmed, the keep is on the step);
+ * - "swap 100 usdc to eth on base and keep 20 usdc": the swap keeps 20 USDC
+ *   back (the policy checks both fit);
+ * - "..., keep 50 and deposit the rest": the rest of a previous output less a
+ *   kept amount is asked, never guessed;
+ * - "... swap 10 of them to eth and keep the rest": nothing to do.
+ */
+function readWithKeep(keep: KeepPhrase, phrases: readonly ContractPhrase[], previousExists: boolean, offset: number, previousStep: WorkStep | undefined): ParsedSentence {
+  const entry = keep.amount ? { amount: { t: "exact" as const, value: keep.amount }, ...(keep.asset ? { asset: keep.asset } : {}), ...(keep.network ? { network: keep.network } : {}) } : undefined;
+  const head = keep.before ? parseSentence(keep.before, phrases, previousExists, offset, previousStep) : null;
+  const last = head?.steps[head.steps.length - 1] ?? previousStep;
+  if (keep.rest) {
+    // "keep the rest": a no-op only after a step with an exact amount.
+    if (keep.after || !head || last?.amount?.v.t !== "exact") throw keepRefusal("Kletia could not tell what \"keep the rest\" keeps. Give each step its amount.");
+    return head;
+  }
+  if (!keep.after) {
+    if (!head || !last || !entry) throw keepRefusal("Say which step keeps the amount back, for example \"swap 100 USDC to ETH on base and keep 20 USDC\".");
+    last.keep = [...(last.keep ?? []), entry].slice(0, 4);
+    return head;
+  }
+  if (!head && !previousExists) {
+    // "keep 0.05 eth on base for gas and swap the rest to usdc": the rest of that holding, the keep on the step.
+    if (!keep.asset || !/(?:^|\s)the\s+rest(?:\s|$)/iu.test(keep.after)) throw keepRefusal("Say which token the rest is, for example \"keep 0.05 ETH on base for gas and swap the rest to USDC\".");
+    const said = keep.after.replace(/(?:^|\s)the\s+rest(?=\s|$)/iu, ` all my ${keep.asset.toLowerCase()}`).trim() + (keep.network && !/\s(?:on|in|from)\s/iu.test(keep.after) ? ` on ${keep.network}` : "");
+    const tail = parseSentence(said, phrases, false, offset, undefined);
+    const step = tail.steps[0];
+    if (!step || tail.steps.length !== 1 || step.from?.v.toUpperCase() !== keep.asset) throw keepRefusal("Kletia could not apply what you keep to that step. Give the amount to use.");
+    step.keep = [entry as ThreadKeep];
+    if (keep.asset === "ETH" || keep.asset === "SOL" || keep.asset === "POL") {
+      // A native token kept "for gas" is the fee reserve itself: until the decision layer counts it as the reserve,
+      // the amount is asked (two reserves would not be the rest the person meant).
+      delete step.amount;
+      return tail;
+    }
+    step.source = "C";
+    step.readAs = [...(step.readAs ?? []), { slot: "amount", rule: "keep:rest", to: `All but ${keep.amount} ${keep.asset}`.slice(0, 40) }].slice(0, 4);
+    return tail;
+  }
+  // "..., keep 50 and deposit the rest into aave": what is left of the previous output is asked.
+  const tail = parseSentence(keep.after, phrases, true, offset + (head?.steps.length ?? 0), last);
+  const first = tail.steps[0];
+  if (first && first.amount?.v.t === "previous" && first.amount.v.bps === 10_000) {
+    delete first.amount;
+    // The token and network are still the previous output's: only how much is asked.
+    const asset = last ? outputOf(last) : undefined;
+    const landing = last ? destinationOf(last) : undefined;
+    if (asset && !first.from && !first.usdFrom && !isUsdWord(asset)) first.from = { v: asset, by: "derived", prov: { rule: "previous-output" } };
+    if (landing && !first.network) first.network = { v: landing, by: "derived", prov: { rule: "previous-output" } };
+  }
+  else if (!head || !last || !entry) throw keepRefusal("Say which step keeps the amount back.");
+  else last.keep = [...(last.keep ?? []), entry].slice(0, 4);
+  return { steps: [...(head?.steps ?? []), ...tail.steps], corrections: [...(head?.corrections ?? []), ...tail.corrections] };
+}
+
+/* ------------------------------------------- in-message corrections */
+
+/** "no wait, 3 sol", "actually make it 0.5", "sorry, I meant arbitrum": a correction at the end of the message. */
+const IN_MESSAGE_CORRECTION = /^(?<message>.+?)(?:\s*[,.;!]\s*|\s+)(?:no\s+wait|wait\s+no|wait|no|actually|sorry|oops)(?:\s*,)?\s+(?:i\s+meant\s+|i\s+mean\s+|make\s+it\s+|change\s+it\s+to\s+|it'?s\s+)?(?<value>[^,;!?]+?)[.!]?$/iu;
+const NUMBER_TOKEN = /^(?:\$?\d[\d,]*(?:\.\d+)?|\.\d+)$/u;
+const SPELLED = /^(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand|half|quarter|third|all|max|everything)$/iu;
+
+function editAmbiguous(what: string): PlatformError {
+  return new PlatformError("INTENT_UNSUPPORTED", `Kletia could not tell which ${what} your correction changes. Send the corrected instruction on its own, for example "swap 3 SOL to USDC".`, 422,
+    [{ path: "text", message: "The correction has more than one possible target." }], REFUSAL_EXAMPLES);
+}
+
+/**
+ * A correction applies only when the message has exactly one slot of its type
+ * (one amount, one network, one recipient); otherwise it is refused
+ * (EDIT_TARGET_AMBIGUOUS in words). The corrected message is source C:
+ * confirmed as the solved plan, with a "Read as" item naming the change.
+ */
+function inMessageCorrection(text: string): { text: string; from: string; to: string; slot: string } | null {
+  const match = IN_MESSAGE_CORRECTION.exec(text.trim());
+  if (!match?.groups) return null;
+  const message = (match.groups.message as string).trim();
+  const value = (match.groups.value as string).trim();
+  const words = message.split(/\s+/u);
+  const clean = (word: string) => word.replace(/[,;.!]+$/u, "");
+  const parts = value.split(/\s+/u);
+  // An amount, optionally with its token: "3 sol", "0.5".
+  if (NUMBER_TOKEN.test(parts[0] ?? "") && parts.length <= 2) {
+    const at = words.flatMap((word, index) => (NUMBER_TOKEN.test(clean(word)) ? [index] : []));
+    if (at.length !== 1 || words.some((word) => SPELLED.test(clean(word)))) throw editAmbiguous("amount");
+    const index = at[0] as number;
+    const symbol = parts[1];
+    if (symbol && clean(words[index + 1] ?? "").toLowerCase() !== symbol.toLowerCase()) throw editAmbiguous("amount");
+    const from = clean(words[index] as string);
+    const next = [...words];
+    next[index] = parts[0] as string;
+    return { text: next.join(" "), from, to: parts[0] as string, slot: "amount" };
+  }
+  // A network: "arbitrum", "on arbitrum".
+  const named = value.replace(/^(?:on|in)\s+/iu, "");
+  const network = /^[a-z][a-z -]*$/iu.test(named) ? resolveNetworkName(named) : null;
+  if (network && !Object.hasOwn(ASSET_NETWORK_WORDS, value.toLowerCase())) {
+    const at = words.flatMap((word, index) => (/^[a-z][a-z-]*$/iu.test(clean(word)) && resolveNetworkName(clean(word)) && !Object.hasOwn(ASSET_NETWORK_WORDS, clean(word).toLowerCase()) ? [index] : []));
+    if (at.length !== 1) throw editAmbiguous("network");
+    const index = at[0] as number;
+    const next = [...words];
+    next[index] = value.replace(/^(?:on|in)\s+/iu, "");
+    return { text: next.join(" "), from: clean(words[index] as string), to: next[index] as string, slot: "network" };
+  }
+  // A recipient: "bob.eth", "to bob.eth".
+  const recipient = value.replace(/^to\s+/iu, "");
+  if (new RegExp(`^${ADDR}$`, "iu").test(recipient)) {
+    const at = words.flatMap((word, index) => (new RegExp(`^${ADDR}$`, "iu").test(clean(word)) ? [index] : []));
+    if (at.length !== 1) throw editAmbiguous("recipient");
+    const index = at[0] as number;
+    const next = [...words];
+    next[index] = recipient;
+    return { text: next.join(" "), from: clean(words[index] as string), to: recipient, slot: "recipient" };
+  }
+  return null;
+}
+
+/* ----------------------------------------------- several recipients */
+
+const RECIPIENT = "(?:[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:eth|sns|sol)|0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})";
+/** "send 10 usdc each to alice.eth and bob.eth [on base]", "send 10 usdc to alice.eth and bob.eth each [on base]". */
+const EACH = new RegExp(
+  `^(?<verb>send|pay|transfer|give|tip)\\s+(?<amount>\\S+\\s+[a-z][a-z0-9.]{0,15})\\s+(?:each\\s+to\\s+(?<a>${RECIPIENT})\\s+and\\s+(?<b>${RECIPIENT})|to\\s+(?<c>${RECIPIENT})\\s+and\\s+(?<d>${RECIPIENT})\\s+(?:each|apiece|a\\s+piece))(?<rest>\\s+(?:on|from)\\s+[a-z][a-z -]{1,24})?$`,
+  "iu",
+);
+/** "send 10 usdc to alice.eth and bob.eth": one amount, two recipients, no "each". */
+const TWO_RECIPIENTS = new RegExp(`(?:^|\\s)to\\s+${RECIPIENT}\\s+and\\s+${RECIPIENT}(?=\\s|$)`, "iu");
+
+/**
+ * "N <token> each to A and B" is one payment of N per recipient (stated);
+ * without "each" it is refused, because N each and N shared are different
+ * payments to other people (RECIPIENT_EACH in words).
+ */
+function eachRecipients(text: string): string | null {
+  const match = EACH.exec(text.trim());
+  if (!match?.groups) {
+    if (TWO_RECIPIENTS.test(text)) {
+      throw new PlatformError("INTENT_UNSUPPORTED", "Kletia does not guess whether each recipient gets that amount or they share it. Say \"send 10 USDC each to alice.eth and bob.eth\", or give each recipient its own amount.", 422,
+        [{ path: "text", message: "One amount for two recipients." }], REFUSAL_EXAMPLES);
+    }
+    return null;
+  }
+  const g = match.groups;
+  const rest = g.rest ?? "";
+  return `${g.verb} ${g.amount} to ${g.a ?? g.c}${rest} and ${g.amount} to ${g.b ?? g.d}${rest}`;
+}
+
+/* --------------------------------------------------------- "the rest" */
+
+/**
+ * "sell 1 sol, then stake the rest": the rest of the holding the step before
+ * spent from, when this step can only take that token (a stake takes its
+ * native token, never the stablecoin the sale produced). Every other "the
+ * rest" after a step keeps its reading of the previous output, except a
+ * payment to someone else, whose amount is asked (I13).
+ */
+function bindRest(step: WorkStep, before: WorkStep | undefined, at: number): void {
+  if (!before) return;
+  if (paysSomeoneElse(step)) {
+    delete step.amount;
+    return;
+  }
+  const spent = before.from?.v.toUpperCase();
+  const native = spent === "SOL" || spent === "ETH";
+  if (step.kind?.v === "stake" && native && before.amount?.v.t === "exact" && before.amount.by === "user" && !paysSomeoneElse(before)) {
+    const input = step.from?.v.toUpperCase() ?? (step.provider ? stakeProvider(step.provider.v)?.input : undefined) ?? spent;
+    if (input !== spent) return;
+    step.from = { v: spent, by: "derived", prov: { rule: "rest" } };
+    step.amount = { v: { t: "balance", bps: 10_000 }, by: "derived", prov: { rule: "rest" } };
+    step.keep = [{ amount: { t: "exact", value: before.amount.v.value }, asset: spent, ...(before.network && before.network.by === "user" ? { network: before.network.v } : {}) }];
+    step.source = "C";
+    step.readAs = [...(step.readAs ?? []), { slot: "amount", rule: "rest", to: `The rest of your ${spent} after step ${at}`.slice(0, 40) }].slice(0, 4);
+  }
 }
 
 export interface ParsedSentence {
@@ -446,6 +781,19 @@ function notUnderstood(clause: string): PlatformError {
 }
 
 /** ASSET_TYPO (D9): an unknown symbol within one edit of listed symbols ("SLO" for SOL), flagged for the policy. */
+/** "send alice.eth and bob.eth 10 and 20 usdc": recipients and amounts in separate lists. */
+const PARALLEL_LISTS = /^(?:send|pay|transfer|give|tip)\s+\S+\s+and\s+\S+\s+\$?[\d.,]+\s+and\s+\$?[\d.,]+(?:\s|$)/iu;
+
+function pairingRefusal(): PlatformError {
+  return new PlatformError("INTENT_UNSUPPORTED", "Kletia does not pair recipients and amounts by their order. Give each recipient its amount, for example \"send 10 USDC to alice.eth and 20 USDC to bob.eth\".", 422,
+    [{ path: "text", message: "Recipients and amounts are in separate lists." }], REFUSAL_EXAMPLES);
+}
+
+/** A name or an address read where a token goes ("send alice.eth ..."): the clause is not read as a payment of that "token". */
+function recipientAsToken(step: WorkStep): boolean {
+  return [step.from?.v, step.to?.v].some((value) => value !== undefined && /^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:eth|sns|sol)|0x[0-9a-f]{40})$/iu.test(value) && !knownSymbol(value));
+}
+
 function flagAssetTypo(step: WorkStep): void {
   if (step.assetTypo) return;
   for (const field of ["from", "to"] as const) {
@@ -462,23 +810,260 @@ function flagAssetTypo(step: WorkStep): void {
 /** Step kinds that spend the previous step's output when their clause names neither an amount nor an asset. */
 const CHAINABLE: ReadonlySet<Kind> = new Set(["swap", "bridge", "transfer", "deposit", "stake"]);
 
+/** A step whose output goes to someone else: a recipient, a nickname, any transfer, or a payment goal. */
+function paysSomeoneElse(step: WorkStep | undefined): boolean {
+  if (!step) return false;
+  if (step.recipient !== undefined || step.nickname === true || step.kind?.v === "transfer") return true;
+  return step.kind === undefined && step.goal !== undefined && step.goal.holder.t !== "self";
+}
+
+/**
+ * A step that spends what the step before it produced: "it", "that", "the
+ * rest", "half of it", "all" after a step, or a goal chained to the one
+ * before (a portion or "all" with no token named counts as chained).
+ */
+function spendsPrevious(step: WorkStep): boolean {
+  if (step.amount?.v.t === "previous") return true;
+  const goal = step.kind === undefined ? step.goal : undefined;
+  if (!goal) return false;
+  if (goal.chain !== undefined || goal.spend.amount?.t === "previous") return true;
+  return !goal.spend.asset && (goal.spend.amount?.t === "portion" || goal.spend.amount?.t === "max") && goal.spend.from?.custody.kind !== "position";
+}
+
+/**
+ * "send 10 USDC to vitalik.eth on base and swap it to ETH": "it" would be the
+ * money paid to someone else, which is no longer in the person's account.
+ * Refused instead of spending other funds.
+ */
+function previousPaidRefusal(at: number): PlatformError {
+  const step = at > 0 ? `Step ${at + 1}` : "This step";
+  const before = at > 0 ? `step ${at}` : "the step before";
+  return new PlatformError(
+    "INTENT_UNSUPPORTED",
+    `${step} spends what ${before} produces, but ${before} pays someone else, so that money is no longer in your account. ` +
+      `Give ${step.toLowerCase()} its own amount and token, for example "send 10 USDC to vitalik.eth on base, then swap 5 USDC to ETH on base".`,
+    422,
+    [{ path: `actions[${at}].amount`, message: "The previous step pays someone else." }],
+    REFUSAL_EXAMPLES,
+  );
+}
+
+/**
+ * "move 10 USDC to op", "send 10 USDC to sol": a neutral verb whose
+ * destination names both a token and a network, with no source network said
+ * ("from base") and no "as <token>": refused with both phrasings instead of
+ * choosing a bridge or a swap.
+ */
+function neutralDestination(clause: string): PlatformError | null {
+  const tokens = lex(normalizeClause(clause));
+  // One verb's span at a time: a source said anywhere in it ("to op from base") keeps the network reading.
+  const starts = tokens.flatMap((token, position) => (token.t === "VERB" ? [position] : []));
+  for (const [order, start] of starts.entries()) {
+    const span = tokens.slice(start, starts[order + 1] ?? tokens.length);
+    const verb = (span[0] as Extract<Token, { t: "VERB" }>).raw.toLowerCase();
+    if (!NEUTRAL_MOVE_VERBS.includes(verb)) continue;
+    const source = span.some((token, position) => {
+      const next = span[position + 1];
+      return token.t === "CONN" && token.word === "from" && (next?.t === "NETWORK" || (next?.t === "ASSET" && next.network !== undefined));
+    });
+    if (source) continue;
+    for (const [position, token] of span.entries()) {
+      if (token.t !== "CONN" || (token.word !== "to" && token.word !== "into" && token.word !== "onto")) continue;
+      const next = span[position + 1];
+      if (next?.t !== "ASSET" || !next.network || !Object.hasOwn(ASSET_NETWORK_WORDS, next.raw.toLowerCase())) continue;
+      const after = span[position + 2];
+      // "to sol as SOL" names the token after the network; "to sol network" names the network.
+      if (after?.t === "CONN" && after.word === "as") continue;
+      if (after?.t === "NOISE" && /^(?:network|chain)$/iu.test(after.raw)) continue;
+      const amount = span.find((entry): entry is Extract<Token, { t: "AMOUNT" }> => entry.t === "AMOUNT" && entry.sel.t === "exact");
+      const asset = span.find((entry, at): entry is Extract<Token, { t: "ASSET" }> => entry.t === "ASSET" && at < position);
+      return assetOrNetworkRefusal(clause, verb, next.raw, amount && asset ? `${amount.raw} ${asset.symbol.toUpperCase()}` : undefined);
+    }
+  }
+  return null;
+}
+
 /**
  * "swap 1 SOL to USDC, bridge to base, deposit into aave": a later clause with
  * no amount and no asset continues with what the step before produced, as if
- * it said "it" (F9). Stake's derived input (SOL) counts as unsaid.
+ * it said "it" (F9). Stake's derived input (SOL) counts as unsaid. Never after
+ * a step that pays someone else: that output is not the person's to spend
+ * (the step then asks for its amount).
  */
-function chainImplicit(step: WorkStep, previous: boolean): void {
+function chainImplicit(step: WorkStep, previous: boolean, before?: WorkStep): void {
   if (!previous || step.amount || step.usdFrom || step.contract || step.goal) return;
+  if (paysSomeoneElse(before)) return;
   if (!step.kind || !CHAINABLE.has(step.kind.v)) return;
   if (step.from && step.from.by === "user") return;
   if (step.kind.v === "stake" && step.from) delete step.from;
   step.amount = slot({ t: "previous", bps: 10_000 }, "derived");
 }
 
-/** A message as slots for every clause (1 to 8); unique keyword typos are corrected (R9, R10). */
-export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0): ParsedSentence {
+/** The token a step leaves in the person's account, when the step says it (never for payments, stakes or deposits). */
+function outputOf(step: WorkStep): string | undefined {
+  if (step.goal && !step.kind) return undefined;
+  switch (step.kind?.v) {
+    case "swap":
+      return step.to?.v;
+    case "bridge":
+      return step.to?.v ?? step.from?.v;
+    case "withdraw":
+      return step.from?.v;
+    default:
+      return undefined;
+  }
+}
+
+/** Where a step's output lands, when the message says it (or the spent token has one home network). */
+function destinationOf(step: WorkStep): NetworkKey | undefined {
+  if (step.kind?.v === "bridge") return step.toNetwork?.v;
+  if (step.network && step.network.by !== "assumed") return step.network.v;
+  const spent = step.from?.v;
+  if (!spent || step.kind?.v !== "swap") return undefined;
+  const homes = NETWORK_ORDER.filter((network) => lane(network) === "mainnet" && canonicalOn(network, spent) !== null);
+  return homes.length === 1 ? homes[0] : undefined;
+}
+
+/**
+ * "send 20 of it to carol.sns" spends exactly 20 of the previous step's output
+ * token, where that output lands. Bound only when the message names both the
+ * token and the network the output lands on; otherwise the step stays without a
+ * token and the policy asks for it.
+ */
+function bindOfPrevious(step: WorkStep, before: WorkStep | undefined, at: number): void {
+  if (!before || step.usdFrom || step.amount?.v.t !== "exact") return;
+  const asset = outputOf(before);
+  const landing = destinationOf(before);
+  if (step.from) {
+    // "send 10 usdc of it" after a step that delivers another token: "it" is not what the step names.
+    if (asset && step.from.v.toUpperCase() !== asset.toUpperCase()) {
+      throw new PlatformError("INTENT_UNSUPPORTED", `Step ${at + 1} spends ${step.from.v.toUpperCase()} "of it", but step ${at} delivers ${asset.toUpperCase()}. Name the token step ${at + 1} spends.`, 422,
+        [{ path: `actions[${at}].from`, message: "Not the previous step's output." }], REFUSAL_EXAMPLES);
+    }
+    if (asset && landing && !step.network) step.network = { v: landing, by: "derived", prov: { rule: "previous-output" } };
+    return;
+  }
+  if (!asset || !landing || isUsdWord(asset)) return;
+  step.from = { v: asset, by: "derived", prov: { rule: "previous-output" } };
+  if (!step.network) step.network = { v: landing, by: "derived", prov: { rule: "previous-output" } };
+}
+
+/** Plural references to earlier outputs ("them", "both", "all of them"). */
+const PLURAL_REFERENCE = /(?:^|\s)(?:them|those|these|both|all\s+of\s+them|each\s+of\s+them|both\s+of\s+them)(?:\s|$)/iu;
+
+/**
+ * "them" / "both" with more than one output still in the person's account (two
+ * swaps, then "send them") cannot be read as one step's output. Kletia refuses
+ * with the outputs listed instead of spending only the last one.
+ */
+function pluralReference(clause: string, steps: readonly WorkStep[], at: number): PlatformError | null {
+  const word = PLURAL_REFERENCE.exec(clause)?.[0].trim().toLowerCase();
+  if (!word) return null;
+  const open = steps.filter((step, index) => !paysSomeoneElse(step) && !(steps[index + 1] && spendsPrevious(steps[index + 1] as WorkStep)));
+  if (open.length < 2 && !/(?:^|\s)both(?:\s|$)/iu.test(clause)) return null;
+  const named = open.map((step) => outputOf(step)?.toUpperCase() ?? "its output").slice(0, 3);
+  return new PlatformError(
+    "INTENT_UNSUPPORTED",
+    `Step ${at + 1} says "${word}", but ${open.length > 1 ? `${open.length} earlier steps each leave tokens (${named.join(", ")})` : "only one earlier step leaves tokens"}. ` +
+      `Kletia does not guess which. Give each step its own amount and token, for example "swap 1 SOL to USDC, then bridge it to arbitrum".`,
+    422,
+    [{ path: `actions[${at}].amount`, message: "Several earlier outputs could be meant." }],
+    REFUSAL_EXAMPLES,
+  );
+}
+
+/**
+ * "$SOL", "$usdc": a cashtag is the token when "$" is followed by a letter and
+ * the rest is a listed symbol; "$50" stays fifty dollars.
+ */
+export function readCashtags(text: string): string {
+  return text.replace(/(^|[\s(,])\$([A-Za-z][A-Za-z0-9.]{0,15})(?=$|[\s,;:!)])/gu, (match, before: string, symbol: string) => (knownSymbol(symbol) ? `${before}${symbol}` : match));
+}
+
+/** The closed-class rules a read step records in its slots and "Read as" items. */
+function stepRules(step: WorkStep): Set<string> {
+  const rules = new Set<string>();
+  for (const key of ["kind", "amount", "from", "to", "network", "toNetwork", "recipient", "protocol", "vault", "provider", "fundFrom"] as const) {
+    const rule = (step[key] as { prov?: { rule?: string } } | undefined)?.prov?.rule;
+    if (rule) rules.add(rule);
+  }
+  for (const item of step.readAs ?? []) rules.add(item.rule);
+  return rules;
+}
+
+/** A keyword correction (verb, network, venue) or a digit read as a word: the clause is source C (one-click confirm). */
+const keywordCorrection = (correction: ThreadCorrection) => correction.material && !correction.field.endsWith(".amount") && correction.to !== "note";
+
+/**
+ * A message as slots for every clause (1 to 8); unique keyword typos are
+ * corrected (R9, R10). `previousStep` is the thread's last step when the
+ * message continues a task (an appended clause): "it" after a step that pays
+ * someone else is refused there too.
+ *
+ * Before any word is dropped or corrected (I12): the text is
+ * screened (Unicode forms, emoji, homoglyph letters), the opener is read
+ * (a question is refused; a polite command is planned only as a confirm),
+ * cashtags are read, and each clause gets its closed-class record. An
+ * unsupported network or lane qualifier refuses NETWORK_UNSUPPORTED; a
+ * never-drop word no rule of this reader consumes refuses the clause with its
+ * family's message; reviewed fillers are dropped and listed ("Ignored").
+ */
+/** Options of `parseSentence`: readings proposed for clauses the reader could not read, by clause index. */
+export interface SentenceOptions {
+  readonly readings?: ReadonlyMap<number, readonly Goal[]>;
+}
+
+/**
+ * The refusal for unread clauses carries them (index, text, closed-class record) on a non-enumerable
+ * property, so the decision layer can offer them to the reading layer; it is never serialised.
+ */
+function unreadRefusal(unread: readonly UnreadClause[]): PlatformError {
+  const error = notUnderstood((unread[0] as UnreadClause).text);
+  Object.defineProperty(error, "unreadClauses", { value: unread, enumerable: false, writable: false, configurable: false });
+  return error;
+}
+
+export function parseSentence(raw: string, phrases: readonly ContractPhrase[], previousExists = false, offset = 0, previousStep?: WorkStep, sentence: SentenceOptions = {}): ParsedSentence {
+  // A question is never planned as typed ("swap 0.01 ETH to USDC on base?"): it is read only as the instruction it
+  // stands for, and every step is confirmed as the solved plan (questionForm); anything else is refused.
+  const asked = questionForm(raw);
+  if (asked) {
+    const read = parseSentence(asked.text, phrases, previousExists, offset, previousStep, sentence);
+    // A goal only the solver can place ("exit my aave position?") does not carry the confirm through its expansion
+    // yet: refused as a question, never ready (fail closed).
+    if (read.steps.some((step) => step.kind === undefined)) throw questionRefusal(normalizeMessage(raw), REFUSAL_EXAMPLES);
+    for (const step of read.steps) step.questionForm = true;
+    return read;
+  }
+  if (hasQuestionMark(raw)) throw questionRefusal(normalizeMessage(raw), REFUSAL_EXAMPLES);
+  if (PARALLEL_LISTS.test(raw.trim())) throw pairingRefusal();
+  const each = eachRecipients(raw);
+  if (each) {
+    const read = parseSentence(each, phrases, previousExists, offset, previousStep, sentence);
+    for (const step of read.steps) if (step.amount) step.amount = { ...step.amount, prov: { ...step.amount.prov, rule: "deliverEach" } };
+    return read;
+  }
+  const keep = keepPhrase(raw);
+  if (keep) return readWithKeep(keep, phrases, previousExists, offset, previousStep);
+  const edit = inMessageCorrection(raw);
+  if (edit) {
+    const read = parseSentence(edit.text, phrases, previousExists, offset, previousStep, sentence);
+    const target = read.steps.find((step) => (edit.slot === "amount" ? step.amount : edit.slot === "network" ? step.network ?? step.toNetwork : step.recipient)) ?? read.steps[0];
+    for (const step of read.steps) step.source = "C";
+    if (target) target.readAs = [...(target.readAs ?? []), { slot: edit.slot, rule: "correction:inMessage", from: edit.from.slice(0, 16), to: `${edit.to} (you corrected ${edit.from})`.slice(0, 40) }].slice(0, 4);
+    return { steps: read.steps, corrections: [...read.corrections, { field: `actions[${offset + Math.max(0, read.steps.indexOf(target as WorkStep))}].${edit.slot}`, from: edit.from.slice(0, 16), to: edit.to.slice(0, 64), material: true }] };
+  }
+  const screened = screenText(raw);
+  if (screened.nonLatin) throw nonLatinRefusal();
+  // "should i swap ...", "what if i ...": a question, never a plan; "can you swap ...": a command asked politely (confirmed).
+  const opener = openerOf(screened.text);
+  if (opener?.kind === "question") {
+    const rates = readOnlyRates(screened.text);
+    if (rates) throw readOnlyRatesRefusal(rates, REFUSAL_EXAMPLES);
+    throw new PlatformError("INTENT_UNSUPPORTED", CLOSED_CLASS_COPY.question, 422, [{ path: "text", message: "A question, not an instruction." }], REFUSAL_EXAMPLES);
+  }
   // Compound number words ("twenty five") become digits first; single ones are the core normaliser's.
-  const labelled = stripLabel(normalizeMessage(spellNumbers(raw, 2)));
+  const labelled = stripLabel(normalizeMessage(spellNumbers(readCashtags(screened.text), 2)));
   const text = labelled.text;
   if (!text) throw new PlatformError("INTENT_UNSUPPORTED", "The message is empty.", 422);
   const extraVerbs = phrases.flatMap((phrase) => phrase.verbs);
@@ -487,21 +1072,46 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
   const steps: WorkStep[] = [];
   // The label is kept only as a note (a non-material ".text" correction, never shown as a chip or read as a slot).
   const corrections: ThreadCorrection[] = labelled.label ? [{ field: `actions[${offset}].text`, from: labelled.label.slice(0, 16), to: "note", material: false }] : [];
-  clauses.forEach((clause, i) => {
+  let emoji = screened.emoji > 0;
+  const unreadClauses: UnreadClause[] = [];
+  clauses.forEach((original, clauseIndex) => {
     const index = steps.length + offset;
     const previous = previousExists || steps.length > 0;
-    let parsed = parseContractClause(clause, phrases, index, previous) ?? vagueClause(clause, false) ?? parseClause(clause, previous);
+    // The closed-class record comes first, before any word is dropped or corrected.
+    const record = clauseRecord(original, steps.length === 0 ? opener : null);
+    const network = unsupportedNetwork(record, `actions[${index}].network`);
+    if (network) throw network;
+    const lower = original.toLowerCase();
+    const blocked = record.hits.find((hit) => !consumable(lower, hit));
+    if (blocked) throw closedClassError(blocked);
+    const fillers = dropFillers(original);
+    const clause = fillers.text;
+    // A clause of fillers only ("please,") says nothing.
+    if (!clause || /^[,.!\s]*$/u.test(clause)) return;
+    const correctionsBefore = corrections.length;
+    const ambiguous = neutralDestination(clause);
+    if (ambiguous) throw ambiguous;
+    const plural = steps.length > 0 ? pluralReference(clause, steps, index) : null;
+    if (plural) throw plural;
+    // L1 (the relaxed sentence shapes) consumes no closed-class word: a clause that holds one is read by the Goal reader only.
+    // An abstract goal or idiom ("prepare 100 usdc on optimism", "fund alice.eth with ...") is read whole by the Goal reader.
+    const shapes = record.hits.length === 0 && !abstractClause(normalizeClause(clause));
+    // "stake something": the vague noun is read before the filler pass drops it.
+    let parsed = shapes ? parseContractClause(clause, phrases, index, previous) ?? vagueClause(clause, false) ?? vagueClause(original, false) ?? parseClause(clause, previous) : null;
     let fixed: ReturnType<typeof correctClause> | undefined;
-    if (!parsed) {
+    if (!parsed && shapes) {
       fixed = correctClause(clause, index);
+      // More than two keyword corrections in one clause is a guess, not a reading.
+      if (fixed.corrections.filter((entry) => entry.material).length > MAX_CORRECTIONS) fixed = { text: clause, corrections: [] };
       parsed = parseClause(fixed.text, previous);
       if (parsed) corrections.push(...fixed.corrections);
       if (!parsed && fixed.verbCandidates) {
-        // R9: only verbs that make the rest of the clause read are candidates; one left is a correction.
+        // R9: only verbs that make the rest of the clause read are candidates; one left is a correction,
+        // except from an English word ("bend 5 USDC to vitalik.eth" is not corrected to send: it is refused).
         const rest = fixed.text.split(/\s+/u).slice(1).join(" ");
         const fitting = fixed.verbCandidates.filter((verb) => parseClause(`${verb} ${rest}`, previous) !== null);
         const kinds = [...new Set(fitting.map((verb) => SENTENCE_VERBS[verb] as Kind))];
-        if (kinds.length === 1) {
+        if (kinds.length === 1 && !fixed.verbEnglish) {
           parsed = parseClause(`${fitting[0]} ${rest}`, previous);
           corrections.push(...fixed.corrections, { field: `actions[${index}].kind`, from: (clause.split(/\s+/u)[0] ?? "").slice(0, 16), to: fitting[0] as string, material: true });
         } else if (kinds.length > 1) {
@@ -513,9 +1123,20 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
       }
     }
     let read: WorkStep[] = parsed ? [parsed] : [];
+    const applied = new Set<string>();
+    let unsized: readonly WorkStep[] = [];
+    let rest: readonly WorkStep[] = [];
+    let ofPrevious: readonly WorkStep[] = parsed && previous && EXACT_OF_PREVIOUS.test(clause) ? [parsed] : [];
     if (!parsed) {
       // The Goal reader, only when the strict reader (with typo correction) found nothing.
-      const options = { previousExists: previous, index, strict: (piece: string, before: boolean) => parseClause(piece, before) };
+      const prior = steps.length > 0 ? steps[steps.length - 1] : previousStep;
+      const options = {
+        previousExists: previous,
+        index,
+        strict: (piece: string, before: boolean) => (scanClosedClass(piece).length === 0 ? parseClause(piece, before) : null),
+        ...(prior ? { previousStep: prior } : {}),
+        paysOther: paysSomeoneElse,
+      };
       let reading = readClause(clause, options);
       // Keyword typos may help the Goal reader too, but never a corrected verb: "unstake" is not "stake".
       if (!reading && fixed && fixed.text !== clause && !fixed.corrections.some((entry) => entry.field.endsWith(".kind")) && !fixed.verbCandidates) {
@@ -523,25 +1144,69 @@ export function parseSentence(raw: string, phrases: readonly ContractPhrase[], p
         if (reading) corrections.push(...fixed.corrections);
       }
       if (!reading) {
-        const vague = vagueClause(clause, true);
-        if (!vague) throw notUnderstood(clause);
-        read = [vague];
+        // A unit or an approximation the reading could not apply says so ("50 cents of eth", "almost all my sol").
+        const unread = record.hits.find((hit) => hit.category === "unit" || hit.category === "approximation");
+        if (unread) throw closedClassError(unread);
+        const vague = shapes ? vagueClause(clause, true) : null;
+        if (vague) read = [vague];
+        else {
+          // A reading proposed for this clause (model-assisted, source M) stands in for it; it is solved
+          // and confirmed like any goal step. Otherwise the clause is recorded as unread and the message refused.
+          const given = sentence.readings?.get(clauseIndex);
+          if (!given || given.length === 0) {
+            unreadClauses.push({ index: clauseIndex, text: clause, closedClass: record });
+            return;
+          }
+          read = given.map((goal: Goal): WorkStep => ({ goal, goalRead: { lowered: false }, modelRead: true, source: "M" }));
+        }
       } else {
         corrections.push(...reading.corrections);
         read = reading.steps;
+        for (const rule of reading.rules) applied.add(rule);
+        unsized = reading.unsized;
+        ofPrevious = reading.ofPrevious;
+        rest = reading.rest;
       }
     }
+    // I12: every closed-class word of the clause was consumed by a rule this reading applied.
+    for (const step of read) for (const rule of stepRules(step)) applied.add(rule);
+    const left = unconsumed(record, original, applied);
+    if (left) throw closedClassError(left);
+    const corrected = corrections.slice(correctionsBefore).some(keywordCorrection);
+    const ignored = [...fillers.ignored, ...(emoji ? ["emoji"] : [])];
+    emoji = false;
     read.forEach((step, position) => {
       const at = index + position;
-      chainImplicit(step, previous || position > 0);
+      const before = steps.length > 0 ? steps[steps.length - 1] : previousStep;
+      if (!unsized.includes(step)) chainImplicit(step, previous || position > 0, before);
+      // "send 10 usdc to vitalik.eth and swap 5 of it": that output is someone else's.
+      if (paysSomeoneElse(before) && (spendsPrevious(step) || ofPrevious.includes(step))) throw previousPaidRefusal(at);
+      if (ofPrevious.includes(step)) bindOfPrevious(step, before, at);
+      if (rest.includes(step)) bindRest(step, before, at);
+      if (recipientAsToken(step)) throw notUnderstood(clause);
       flagAssetTypo(step);
       const amount = step.amount?.v;
       if (amount?.t === "exact" && amount.raw && /^\$?\d+,\d{1,2}$/u.test(amount.raw)) {
         corrections.push({ field: `actions[${at}].amount`, from: amount.raw.slice(0, 16), to: amount.value, material: true });
       }
+      // "send 2,500 usdc to ...": a grouped amount paid to someone else is always read back in words.
+      if (amount?.t === "exact" && groupedThousands(amount.raw) && paysSomeoneElse(step) && !(step.readAs ?? []).some((item) => item.slot === "amount")) {
+        const words = amountInWords(amount.value);
+        const shown = `${amount.raw}${step.from ? ` ${step.from.v.toUpperCase()}` : ""}`;
+        const to = words && shown.length + words.length + 3 <= 64 ? `${shown} (${words})` : shown;
+        step.readAs = [...(step.readAs ?? []), { slot: "amount", rule: "format:grouped", to }].slice(0, 4);
+      }
+      // What the reader recorded for the decision layer: corrections, the question form, the ignored words.
+      if (corrected) step.source = "C";
+      if (opener?.kind === "polite") step.questionForm = true;
+      if (position === 0 && ignored.length > 0) step.ignored = [...ignored];
+      const rules = stepRules(step);
+      const hits = record.hits.filter((hit) => hit.rules.some((rule) => rules.has(rule)));
+      if (hits.length > 0 || record.lookalikes.length > 0 || (record.opener && position === 0)) step.closedClass = { ...record, hits };
       steps.push(step);
     });
   });
+  if (unreadClauses.length > 0) throw unreadRefusal(unreadClauses);
   if (steps.length === 0) throw notUnderstood(text);
   if (steps.length > 8) throw new PlatformError("INTENT_UNSUPPORTED", "Say what should happen in one to eight steps.", 422);
   return { steps, corrections };

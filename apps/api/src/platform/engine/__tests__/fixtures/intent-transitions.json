@@ -1,0 +1,1677 @@
+{
+ "spec": "kletia.intent-transitions/v1",
+ "transitions": [
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON055",
+   "from": "asked",
+   "to": "ready",
+   "why": "The only Morpho position across the networks Kletia reads is withdrawn in full (exactly the corpus plan); it was asked only because positions on other networks were not read."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON055",
+   "from": "asked",
+   "to": "ready",
+   "why": "The only Morpho position across the networks Kletia reads is withdrawn in full (exactly the corpus plan); it was asked only because positions on other networks were not read."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "The deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the corpus accept, which an earlier version refused."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "The deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the corpus accept, which an earlier version refused."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP030",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment spends the swap output and bob.base.eth receives on Base, so one bridge leg pays the recipient there; the plan equals the corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP030",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment spends the swap output and bob.base.eth receives on Base, so one bridge leg pays the recipient there; the plan equals the corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "The deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the red-team accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "The deposit spends the swap output, so a crossing leg carries it from Solana to Base (a material chip); the plan equals the red-team accept."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "CAS001",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "AMO032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading ('1 SOL worth $150' cross-checks the amount against its stated value) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "decide",
+   "id": "GOA005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "CAS001",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "AMO032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading ('1 SOL worth $150' cross-checks the amount against its stated value) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "repo",
+   "mode": "plan",
+   "id": "GOA005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON002",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON016",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON028",
+   "from": "confirm",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON058",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON064",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "CON073",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT002",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT003",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT004",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT006",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT007",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT010",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT013",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT017",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT018",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT019",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT026",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "XNT031",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL010",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL014",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading ('the same' copies the first payment's amount) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL023",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL031",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL035",
+   "from": "refused",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "MUL040",
+   "from": "refused",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS044",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY041",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY042",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "PAY046",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT022",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('1 sol and a half' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT023",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT025",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT030",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (arithmetic the person wrote, 10 + 5) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT033",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT036",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT040",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT045",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT048",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (a payment to someone else with a token-unit fraction, 1/2 SOL) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT057",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "AMT058",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (commentary '(half my stack)' cross-checked against the balance) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE016",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "QUE017",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF048",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "REF049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI010",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI011",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI013",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI014",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI016",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI018",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (keyword corrections brigde, 4rm, bsae) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI025",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI027",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'lol' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI028",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'rn' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI031",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI032",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'thx in advance' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI035",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'gm' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "NOI038",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP010",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP015",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP019",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "DEP023",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON002",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON016",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON028",
+   "from": "confirm",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON058",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON064",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "CON073",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT002",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT003",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT004",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT006",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT007",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT009",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT010",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT013",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT017",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT018",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT019",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT026",
+   "from": "refused",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "XNT031",
+   "from": "asked",
+   "to": "ready",
+   "why": "The spend side and the receive side are on named or implied networks, so one cross-network leg delivers the asked asset; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL010",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL014",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading ('the same' copies the first payment's amount) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL023",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL031",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL035",
+   "from": "refused",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "MUL040",
+   "from": "refused",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS044",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY041",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY042",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "PAY046",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT015",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT022",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('1 sol and a half' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT023",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT025",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT030",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT032",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (arithmetic the person wrote, 10 + 5) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT033",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT036",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT040",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT045",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT048",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (a payment to someone else with a token-unit fraction, 1/2 SOL) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT057",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "AMT058",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (commentary '(half my stack)' cross-checked against the balance) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE005",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE006",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE016",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "QUE017",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF048",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "REF049",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI010",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI011",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI013",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI014",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI016",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI018",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (keyword corrections brigde, 4rm, bsae) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI025",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI027",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'lol' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI028",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'rn' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI031",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI032",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'thx in advance' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI035",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (digit-as-word '2' read as 'to') is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (reviewed filler 'gm' (Ignored chip)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "NOI038",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP010",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP015",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP019",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "DEP023",
+   "from": "refused",
+   "to": "ready",
+   "why": "Funds named on another network ('from base', 'using eth on arbitrum') get one crossing leg to the venue's network before the step; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "NOI036",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "hard",
+   "mode": "strict",
+   "id": "DEP011",
+   "from": "refused",
+   "to": "ready",
+   "why": "Strict-path safety net inserts the crossing leg that carries the swap output from Solana to Base before the deposit; the strict-mode shape now shows that leg (lead: evalHarness strictShape) and the end state equals the corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (a payment to someone else with a unit, 50 cents read as 0.5 USDC) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT044",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT098",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction of the only recipient; alice.eth is never paid) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT099",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT102",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT104",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT105",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT106",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT107",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change ('1/2 sol' is 0.5 SOL (token-unit fraction), own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "decide",
+   "id": "RT116",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT033",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (a payment to someone else with a unit, 50 cents read as 0.5 USDC) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT037",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT044",
+   "from": "asked",
+   "to": "ready",
+   "why": "Reader change ('one and a half sol' is 1.5 SOL (token units)): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT098",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction of the only recipient; alice.eth is never paid) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT099",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A derived or corrected reading (an in-message correction with one target) is a one-click confirm of the solved plan with a 'Read as' item; confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT102",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change (e is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT104",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT105",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A question, a polite modal opener or a question followed by an imperative is never ready; it is a one-click confirm of the solved plan, and confirming gives exactly the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT106",
+   "from": "refused",
+   "to": "confirm",
+   "why": "A rebalance moves amounts Kletia computed, so it is a one-click confirm listing every move; confirming gives the corpus plan."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT107",
+   "from": "refused",
+   "to": "ready",
+   "why": "Reader change ('1/2 sol' is 0.5 SOL (token-unit fraction), own account): the sentence is now read exactly and plans the reviewed corpus accept; before, it was refused or asked."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "plan",
+   "id": "RT116",
+   "from": "asked",
+   "to": "ready",
+   "why": "A share of the previous output ('20 of it', '60 of them', 'keep the rest') binds to that output; the plan equals the reviewed corpus accept."
+  },
+  {
+   "corpus": "redteam",
+   "mode": "strict",
+   "id": "RT096",
+   "from": "refused",
+   "to": "ready",
+   "why": "Strict-path safety net inserts the crossing leg that carries the swap output from Solana to Base before the deposit; the strict-mode shape now shows that leg (lead: evalHarness strictShape) and the end state equals the corpus accept."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS009",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"exit all my lending positions\" is read as exit-all (position custody, category lending); the solver asks the scope when a network could not be read, then lists every withdraw in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"go 100% stablecoins on base\" is a rebalance on the asset axis (any-stable 10 000 bps, scope Base); every computed swap is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS022",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"fund alice.eth with 25 usdc on base\" is the payment \"send 25 usdc to alice.eth on base\" (rule abstract:fund); amount, token, network and recipient are copied as typed; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS042",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"wrap 0.1 eth on base\" is the 1:1 wrap step, read as the swap ETH -> WETH on Base (rule abstract:wrap); amount and network as typed."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS047",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment purpose \"rent of\" is consumed by rule abstract:paymentPurpose; the payment is read as typed and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS049",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"make sure alice.eth gets exactly 50 usdc on arbitrum\" is one exact transfer of the stated amount on Arbitrum (rule abstract:exactly); equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS050",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"close everything on base\" is exit-all of the positions on Base; every withdraw is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS051",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"with the best provider\" is a best-venue phrase: the solver ranks the staking provider (default chip); amount half of the SOL as before; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS056",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"even out my usdc between base and arbitrum\" is a network-axis rebalance 50/50; the one computed bridge is listed in a moves confirm and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS057",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"withdraw all my usdc from everywhere\" is exit-all of USDC positions on every network; unread networks are asked (SCOPE_AMBIGUOUS), never treated as empty."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS060",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"on the safest venue\" is a best-venue phrase: the deposit of the USDC on Base goes to the ranked venue (default chip), as \"put my usdc to work on base\" reads; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "decide",
+   "id": "ABS063",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"get my sol ready for a payment of 50 usdc on solana\" is a SOL -> 50 USDC exact-output swap on Solana (rule abstract:ensure); the SOL amount is priced (chip); equals the corpus plan shape."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS009",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"exit all my lending positions\" is read as exit-all (position custody, category lending); the solver asks the scope when a network could not be read, then lists every withdraw in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS019",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"go 100% stablecoins on base\" is a rebalance on the asset axis (any-stable 10 000 bps, scope Base); every computed swap is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS022",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"fund alice.eth with 25 usdc on base\" is the payment \"send 25 usdc to alice.eth on base\" (rule abstract:fund); amount, token, network and recipient are copied as typed; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS042",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"wrap 0.1 eth on base\" is the 1:1 wrap step, read as the swap ETH -> WETH on Base (rule abstract:wrap); amount and network as typed."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS047",
+   "from": "refused",
+   "to": "ready",
+   "why": "The payment purpose \"rent of\" is consumed by rule abstract:paymentPurpose; the payment is read as typed and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS049",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"make sure alice.eth gets exactly 50 usdc on arbitrum\" is one exact transfer of the stated amount on Arbitrum (rule abstract:exactly); equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS050",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"close everything on base\" is exit-all of the positions on Base; every withdraw is listed in a moves confirm."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS051",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"with the best provider\" is a best-venue phrase: the solver ranks the staking provider (default chip); amount half of the SOL as before; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS056",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"even out my usdc between base and arbitrum\" is a network-axis rebalance 50/50; the one computed bridge is listed in a moves confirm and equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS057",
+   "from": "refused",
+   "to": "confirm",
+   "why": "\"withdraw all my usdc from everywhere\" is exit-all of USDC positions on every network; unread networks are asked (SCOPE_AMBIGUOUS), never treated as empty."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS060",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"on the safest venue\" is a best-venue phrase: the deposit of the USDC on Base goes to the ranked venue (default chip), as \"put my usdc to work on base\" reads; equals the corpus plan."
+  },
+  {
+   "corpus": "hard",
+   "mode": "plan",
+   "id": "ABS063",
+   "from": "refused",
+   "to": "ready",
+   "why": "\"get my sol ready for a payment of 50 usdc on solana\" is a SOL -> 50 USDC exact-output swap on Solana (rule abstract:ensure); the SOL amount is priced (chip); equals the corpus plan shape."
+  }
+ ]
+}

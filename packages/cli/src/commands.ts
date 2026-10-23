@@ -104,6 +104,16 @@ function printIntent(print: Printer, intent: IntentGraph): void {
       ["step", "status", "network", "venue", "in", "out"],
     ),
   );
+  // Why this route: Kletia's reason per leg, the quoted vs guaranteed minimum, and a model reading if any.
+  const routes = intent.interpretation?.routes ?? [];
+  if (routes.length > 0) {
+    print.out("");
+    for (const route of routes) {
+      const kind = route.score.minimumKind === "onchain" ? "guaranteed minimum" : "quoted minimum";
+      print.out(`route ${route.shape}${route.carrier ? ` via ${route.carrier}` : ""}: ${route.reason} (${kind} ${usd(route.score.minimumUsd)}${route.score.estimate ? ", estimate" : ""})`);
+    }
+  }
+  if (intent.interpretation?.modelReading) print.out("read with model assistance and confirmed by the person");
   const external = externalRecipients(intent);
   if (external.length > 0) {
     print.out("");

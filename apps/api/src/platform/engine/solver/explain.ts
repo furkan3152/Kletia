@@ -49,6 +49,11 @@ export function protocolName(protocol: ProtocolId | string): string {
 }
 
 /** "4.1% APY" (a fraction in), or "APY unavailable". */
+/** "4.1% APY (7-day)" for a venue the earn ranking compared; "rate not compared" otherwise. */
+export function smoothedApyLabel(entry: { readonly compared: boolean; readonly smoothedApy: number | null }): string {
+  return entry.compared && entry.smoothedApy !== null ? `${apyLabel(entry.smoothedApy)} (7-day)` : "rate not compared";
+}
+
 export function apyLabel(apy: number | null | undefined): string {
   if (apy === null || apy === undefined || !Number.isFinite(apy) || apy < 0) return "APY unavailable";
   const percent = apy * 100;

@@ -75,6 +75,7 @@ import type {
   SettlementResult,
   VerificationResult,
 } from "./types.js";
+import { crossNetworkSeconds } from "./timing.js";
 import {
   effectiveSolDelta,
   fillNotBefore,
@@ -629,7 +630,7 @@ async function receiptGasCost(network: EvmNetworkKey, hash: string): Promise<big
  * the gas the step's receipts in that block paid (the router forwards the
  * native output with an internal call, which emits no log).
  */
-async function proveSameNetworkSwap(step: IntentStep, receipts: readonly LandedEvmReceipt[], observedAt: string): Promise<EvmOutcome> {
+export async function proveSameNetworkSwap(step: IntentStep, receipts: readonly LandedEvmReceipt[], observedAt: string, label = "Relay"): Promise<EvmOutcome> {
   const output = step.minimumOutput ? assetFromRef(step.minimumOutput) : null;
   const floor = lowestPreparedFloor(step);
   if (!output || floor === null || !isEvmNetwork(step.network)) {
@@ -654,7 +655,7 @@ async function proveSameNetworkSwap(step: IntentStep, receipts: readonly LandedE
     return {
       failure: {
         code: "OUTCOME_NOT_PROVEN",
-        message: `The Relay swap credited ${fromBaseUnits(credited < 0n ? 0n : credited, output.decimals)} ${output.symbol} to the account, below the guaranteed ${fromBaseUnits(floor, output.decimals)} ${output.symbol}.`,
+        message: `The ${label} swap credited ${fromBaseUnits(credited < 0n ? 0n : credited, output.decimals)} ${output.symbol} to the account, below the guaranteed ${fromBaseUnits(floor, output.decimals)} ${output.symbol}.`,
       },
     };
   }
@@ -667,7 +668,7 @@ async function proveSameNetworkSwap(step: IntentStep, receipts: readonly LandedE
       reference: last.reference,
       url: explorerTxUrl(network, last.reference),
       observedAt,
-      detail: `Relay swap credited ${fromBaseUnits(credited, output.decimals)} ${output.symbol} to ${account} (guaranteed ${fromBaseUnits(floor, output.decimals)}).`,
+      detail: `${label} swap credited ${fromBaseUnits(credited, output.decimals)} ${output.symbol} to ${account} (guaranteed ${fromBaseUnits(floor, output.decimals)}).`,
     }],
   };
 }
@@ -704,7 +705,7 @@ export const relayAdapter: ProtocolAdapter = {
       mode: "wallet",
       ...amounts(action, result),
       ...(result.feesUsd !== null ? { feesUsd: result.feesUsd } : {}),
-      estimatedSeconds: cross ? Math.max(result.timeEstimateSeconds, 5) + 15 : 15,
+      estimatedSeconds: cross ? crossNetworkSeconds(action.network, Math.max(result.timeEstimateSeconds, 5)) : 15,
       settlement: cross
         ? { kind: "cross-network", destinationNetwork: action.destinationNetwork, expectedSeconds: Math.max(result.timeEstimateSeconds, 5) }
         : { kind: "same-network" },

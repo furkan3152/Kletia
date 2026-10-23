@@ -24,10 +24,21 @@ export const TRAILING_FILLERS: readonly string[] = [
   "for me", "please", "pls", "plz", "thanks", "thank you", "thx", "real quick", "quickly", "now", "right now", "asap", "for me please",
 ];
 
-/** Words that never change what a clause means (dropped as tokens anywhere). */
+/**
+ * Words that never change what a clause means (dropped as tokens anywhere).
+ * "over" is not one: "swap over 100 USDC" sets a limit, so an unread "over"
+ * keeps the clause unread. "over to" and "over from" are connector spellings
+ * (CONNECTOR_VARIANTS).
+ */
 export const FILLER_WORDS: ReadonlySet<string> = new Set([
-  "some", "just", "kindly", "please", "pls", "actually", "real", "quick", "over", "idle", "spare", "worth", "somewhere", "something",
+  "some", "just", "kindly", "please", "pls", "actually", "real", "quick", "idle", "spare", "worth", "somewhere", "something",
 ]);
+
+/** Connector spellings read as the connector they spell ("move 25 USDC from base over to solana"); reviewed lexicon entries, not corrections. */
+export const CONNECTOR_VARIANTS: Readonly<Record<string, string>> = Object.freeze({
+  "over to": "to",
+  "over from": "from",
+});
 
 export type ObjectRole = "spend" | "want";
 
@@ -81,6 +92,11 @@ export const VERB_LEXICON: Readonly<Record<string, VerbEntry>> = Object.freeze({
   pay: { kind: "deliver", op: "transfer", object: "spend" },
   give: { kind: "deliver", op: "transfer", object: "spend" },
   tip: { kind: "deliver", op: "transfer", object: "spend" },
+  // payment verbs: money to someone else, read as a payment
+  gift: { kind: "deliver", op: "transfer", object: "spend" },
+  reimburse: { kind: "deliver", op: "transfer", object: "spend" },
+  "pay back": { kind: "deliver", op: "transfer", object: "spend" },
+  "settle up": { kind: "deliver", op: "transfer", object: "spend" },
   // earn
   stake: { kind: "earn", op: "stake", object: "spend" },
   "liquid stake": { kind: "earn", op: "stake", object: "spend" },
@@ -150,7 +166,8 @@ export type Connector = (typeof CONNECTORS)[number];
 export const WORK_PHRASES: readonly string[] = ["to work", "earn yield", "earn interest", "earn", "yield", "interest", "with yield", "for yield"];
 
 /** Venue phrases that leave the venue to the solver ("into the best yield", "somewhere safe"). */
-export const BEST_VENUE_PHRASES: readonly string[] = ["the best yield", "best yield", "highest yield", "highest apy", "the highest apy", "best apy", "best rate", "safe"];
+export const BEST_VENUE_PHRASES: readonly string[] = ["the best yield", "best yield", "highest yield", "highest apy", "the highest apy", "best apy", "best rate", "safe",
+  "the best provider", "best provider", "the best venue", "best venue", "the safest venue", "safest venue", "the safest provider", "safest provider"];
 
 /** Asset classes ("my stablecoins", "gas"). */
 export const CLASS_WORDS: Readonly<Record<string, AssetClass>> = Object.freeze({
@@ -196,6 +213,19 @@ export const PORTION_WORDS: Readonly<Record<string, number>> = Object.freeze({
   third: 3_333, "a third": 3_333, "one third": 3_333, "two thirds": 6_667, "a tenth": 1_000, "one tenth": 1_000,
 });
 
+/**
+ * Token-unit fractions: a portion word followed by "a"/"an" (or "of a"/"of an")
+ * and a token is an amount of that token, never a share of the balance: "half a
+ * sol" is 0.5 SOL, "a quarter of an eth" is 0.25 ETH. The value is exact; a
+ * fraction with no exact decimal ("a third of a sol") is null and the clause is
+ * not read (asked again in words).
+ */
+export const TOKEN_UNIT_FRACTIONS: Readonly<Record<string, string | null>> = Object.freeze({
+  half: "0.5", "a half": "0.5", "one half": "0.5", quarter: "0.25", "a quarter": "0.25", "one quarter": "0.25", "three quarters": "0.75",
+  "a tenth": "0.1", "one tenth": "0.1",
+  third: null, "a third": null, "one third": null, "two thirds": null,
+});
+
 /** Whole-balance words ("all", "everything I have in"). */
 export const MAX_PHRASES: readonly string[] = [
   "everything i have in", "everything i have", "all i have in", "all i have", "all of", "everything", "all", "max", "the max", "the whole",
@@ -206,3 +236,23 @@ export const ALL_BUT_PHRASES: readonly string[] = ["all but", "everything but", 
 
 /** Dollar unit words after a number ("50 dollars", "50 bucks"). */
 export const USD_UNITS: ReadonlySet<string> = new Set(["dollars", "dollar", "bucks", "buck", "usd"]);
+
+/**
+ * Approximation words before an amount ("around 3", "about 50", "~3",
+ * "close to 2"): the amount is asked, never read as the stated number
+ * (never-drop rule "amountVague:approx").
+ */
+export const APPROXIMATION_BEFORE: readonly string[] = [
+  "close to", "around", "about", "approximately", "approx", "roughly", "circa", "nearly", "almost", "like", "~",
+];
+
+/** Approximation phrases after an amount ("3 sol or so", "50 usdc give or take", "3ish"). */
+export const APPROXIMATION_AFTER: readonly string[] = ["give or take", "more or less", "or so", "ish"];
+
+/**
+ * Vague quantities before a token ("a couple of sol", "a few usdc", "a bit
+ * of eth"): an amount was meant but not said, so it is asked.
+ */
+export const VAGUE_QUANTITIES: readonly string[] = [
+  "a little bit of", "a couple of", "a bunch of", "a handful of", "a bit of", "a couple", "a few", "a little", "a tad of",
+];

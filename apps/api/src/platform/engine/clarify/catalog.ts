@@ -75,14 +75,75 @@ export const TESTNET_BRIDGE_NETWORKS: readonly NetworkKey[] = Object.freeze(NETW
   lane(network) === "testnet" && findAssetBySymbol(network, "USDC") !== null &&
   (capabilityIndex(network, "bridge").length > 0 || (CHAINS[network].vm === "svm" && NETWORK_ORDER.some((other) => lane(other) === "testnet" && capabilityIndex(other, "bridge").some((row) => row.protocol === "cctp-v2"))))));
 
-/** 1:1 renames and identity aliases (R5). `silent`: no chip. */
-export const ALIASES: readonly { network: NetworkKey | "*"; from: string; to: string; silent?: boolean; material?: boolean; note: string }[] = [
+/**
+ * 1:1 renames and identity aliases (R5). `silent`: no chip. `lookalike`: the word names a different token
+ * that Kletia does not spend or deliver (wSOL in a token account is not native SOL), so the listed one is
+ * asked (ASSET_LOOKALIKE, the prompt per side), never read silently.
+ */
+export const ALIASES: readonly {
+  network: NetworkKey | "*";
+  from: string;
+  to: string;
+  silent?: boolean;
+  material?: boolean;
+  lookalike?: { readonly spend: string; readonly receive: string };
+  note: string;
+}[] = [
   { network: "polygon", from: "MATIC", to: "POL", note: "MATIC is now POL, Polygon's native token." },
   { network: "base", from: "BTC", to: "cbBTC", material: true, note: "Bitcoin on Base is cbBTC (Coinbase Wrapped BTC)." },
   { network: "solana", from: "BTC", to: "cbBTC", material: true, note: "Bitcoin on Solana is cbBTC (Coinbase Wrapped BTC)." },
   { network: "*", from: "ETHER", to: "ETH", silent: true, note: "" },
-  { network: "solana", from: "WSOL", to: "SOL", silent: true, note: "" },
+  {
+    network: "solana",
+    from: "WSOL",
+    to: "SOL",
+    lookalike: {
+      spend: "Kletia spends native SOL; wSOL held in a token account is not used. Use SOL?",
+      receive: "Kletia delivers native SOL, not wSOL in a token account. Receive SOL?",
+    },
+    note: "wSOL is SOL wrapped in a token account, a separate balance. Kletia does not unwrap it.",
+  },
 ];
+
+/**
+ * Look-alike families: wrapped, staked and bridged forms of one asset, in their usual spelling (matched
+ * without case, dots or dashes). A typed member that Kletia does not list is never read as a listed member one
+ * letter away (stETH is not wstETH): the person is asked (ASSET_LOOKALIKE) with what the listed token is.
+ */
+export const LOOKALIKE_GROUPS: readonly (readonly string[])[] = [
+  ["ETH", "WETH", "stETH", "wstETH", "eETH", "weETH", "rETH", "mETH", "ETHx", "cbETH", "frxETH", "sfrxETH"],
+  ["SOL", "wSOL", "JitoSOL", "JupSOL", "mSOL", "bSOL", "stSOL"],
+  ["USDC", "USDbC", "USDC.e"],
+  ["USDT", "USDT0"],
+];
+
+/** What the listed member is, for the member it is mistaken for ("typed>listed"). */
+const LOOKALIKE_NOTES: Readonly<Record<string, string>> = {
+  "stETH>wstETH": "wrapped stETH, about 1.2 stETH each",
+  "eETH>weETH": "wrapped eETH, worth more than 1 eETH each",
+  "frxETH>sfrxETH": "staked frxETH, worth more than 1 frxETH each",
+  "USDC.e>USDC": "the native token",
+};
+
+const plainSymbol = (symbol: string) => symbol.toUpperCase().replace(/[.-]/gu, "");
+
+/**
+ * When `typed` and the listed `symbol` are different members of one look-alike family: the typed member in
+ * its usual spelling and, when known, what the listed one is. Null otherwise (a plain typo).
+ */
+export function lookalikeOf(typed: string, symbol: string): { typed: string; note?: string } | null {
+  const a = plainSymbol(typed);
+  const b = plainSymbol(symbol);
+  if (a === b) return null;
+  for (const group of LOOKALIKE_GROUPS) {
+    const member = group.find((entry) => plainSymbol(entry) === a);
+    const listed = group.find((entry) => plainSymbol(entry) === b);
+    if (!member || !listed) continue;
+    const note = LOOKALIKE_NOTES[`${member}>${listed}`];
+    return { typed: member, ...(note ? { note } : {}) };
+  }
+  return null;
+}
 
 /** One symbol, two assets of very different value on one network (R5). */
 export const AMBIGUOUS_SYMBOLS: readonly { network: NetworkKey; symbol: string; options: readonly { symbol: string; recommended?: true; detail: string }[] }[] = [
@@ -198,20 +259,36 @@ export function lendingProtocols(): string[] {
  * as WETH (EVM venues take the wrapped token).
  */
 export function rankedVenueOptions(network: NetworkKey, kind: "deposit" | "withdraw", symbol: string, limit = 4): YieldVenue[] {
+  const seen = new Set<string>();
+  const out: YieldVenue[] = [];
+  for (const venue of venueCandidates(network, kind, symbol)) {
+    if (seen.has(venue.protocol)) continue;
+    seen.add(venue.protocol);
+    out.push(venue);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Every venue a venue-less `kind` of `symbol` on `network` can use, in tier
+ * then registry order, with no cut (the rate ranking sees them all
+ * before any list is shortened for display). A protocol's other venues of the
+ * asset are included only when the grammar can name them by slug (vault
+ * protocols); for the rest only its default venue executes.
+ */
+export function venueCandidates(network: NetworkKey, kind: "deposit" | "withdraw", symbol: string): YieldVenue[] {
   const rank = (tier: ProtocolTier) => TIER_ORDER.indexOf(tier);
   const rows = capabilityIndex(network, kind)
     .filter((row) => row.asset !== null && venueMatches(row.asset, symbol) && row.venueId !== undefined)
     .map((row, index) => ({ row, index }))
     .sort((a, b) => rank(a.row.tier) - rank(b.row.tier) || a.index - b.index);
-  const seen = new Set<string>();
   const out: YieldVenue[] = [];
   for (const { row } of rows) {
-    if (seen.has(row.protocol)) continue;
     const venue = YIELD_VENUES.find((entry) => entry.id === row.venueId);
-    if (!venue) continue;
-    seen.add(row.protocol);
+    if (!venue || out.includes(venue)) continue;
+    if (!VAULT_PROTOCOLS.includes(venue.protocol) && venuesOn(network, kind, venue.protocol, symbol)[0]?.id !== venue.id) continue;
     out.push(venue);
-    if (out.length >= limit) break;
   }
   return out;
 }

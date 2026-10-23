@@ -209,7 +209,13 @@ describe("clarify planning", () => {
   });
 
   it("plans a payment to a recipient elsewhere as structured actions with the closest sentence as the text", async () => {
-    const response = await plan(`send 5 USDC to ${OTHER_SOL_ADDRESS}`, { sourceNetwork: "base" });
+    // A payment that crosses networks asks who bears the bridge fees first (DELIVERY_AMOUNT).
+    const asked = await plan(`send 5 USDC to ${OTHER_SOL_ADDRESS}`, { sourceNetwork: "base" });
+    assert.equal(asked.status, "needs_input");
+    if (asked.status !== "needs_input") return;
+    const delivery = asked.questions[0];
+    assert.equal(delivery?.reason, "DELIVERY_AMOUNT");
+    const response = await plan("", { text: undefined, answer: { question: delivery?.id, option: "send" }, thread: asked.thread, sourceNetwork: "base" });
     assert.equal(response.status, "planned");
     if (response.status !== "planned") return;
     assert.equal(response.intent.interpretation.source, "structured");

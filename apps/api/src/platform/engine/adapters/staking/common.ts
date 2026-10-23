@@ -45,8 +45,10 @@ import { estimateEvmFeeUsd, evmChainId, evmClient } from "../../chains/evm.js";
 import { assertEvmBalance } from "../evmTransfer.js";
 import {
   assertSimulation,
+  bestEffort,
   callGas,
   eventEvidence,
+  indexGrowthApy,
   lessBps,
   lowestFloor,
   observed,
@@ -55,6 +57,7 @@ import {
   sameAddress,
   simulate,
   SIMULATION_UNAVAILABLE,
+  tvlUsdOf,
   withTimeout,
   type Simulation,
 } from "../lending/common.js";
@@ -347,4 +350,52 @@ export async function readStakingPositions(venues: readonly StakingVenue[], owne
     return position;
   }));
   return rows.filter((row): row is VenuePosition => row !== null);
+}
+
+/* -------------------------------------------------------------- metrics */
+
+/**
+ * Rate and size of one liquid-staking token: the smoothed APY is the growth of
+ * the token's own ETH rate (`rateFunction`) over about 7 days, so it is net of
+ * the protocol's fee and cannot be lifted for an hour; `tvlUsd` is the token
+ * supply valued at that rate. Both are null when unreadable (never ranked as
+ * zero). Advisory: no plan or prepare decision depends on them.
+ */
+export interface StakingMetrics {
+  readonly provider: StakingVenue["protocol"];
+  readonly network: typeof STAKING_NETWORK;
+  readonly lst: string;
+  readonly smoothedApy: number | null;
+  readonly apyWindowSeconds: number | null;
+  readonly tvlUsd: number | null;
+  readonly observedAt: string;
+}
+
+export async function readStakingMetrics(venue: StakingVenue): Promise<StakingMetrics> {
+  const token = tokenOf(venue);
+  const rateAbi = parseAbi([`function ${venue.rateFunction}(uint256) view returns (uint256)`]);
+  const rateSource = venue.rateRole ? pinned(venue.protocol, venue.rateRole) : token;
+  const rateAt = (blockNumber?: bigint) => withTimeout(client().readContract({
+    address: rateSource,
+    abi: rateAbi,
+    functionName: venue.rateFunction,
+    args: [10n ** 18n],
+    ...(blockNumber !== undefined ? { blockNumber } : {}),
+  } as never)) as Promise<bigint>;
+  const [smoothed, supply, perToken] = await Promise.all([
+    bestEffort(() => indexGrowthApy(STAKING_NETWORK, (blockNumber) => rateAt(blockNumber)), 8_000),
+    bestEffort(() => withTimeout(client().readContract({ address: token, abi: erc20Abi, functionName: "totalSupply" }))),
+    bestEffort(() => rateAt()),
+  ]);
+  const eth = { asset: nativeAssetId(STAKING_NETWORK), symbol: "ETH", decimals: 18 };
+  const tvlUsd = supply === null || perToken === null ? null : await tvlUsdOf(observed(eth, (supply * perToken) / 10n ** 18n));
+  return {
+    provider: venue.protocol,
+    network: STAKING_NETWORK,
+    lst: venue.symbol,
+    smoothedApy: smoothed?.apy ?? null,
+    apyWindowSeconds: smoothed?.window ?? null,
+    tvlUsd,
+    observedAt: new Date().toISOString(),
+  };
 }

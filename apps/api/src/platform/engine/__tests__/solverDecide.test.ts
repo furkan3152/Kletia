@@ -117,7 +117,13 @@ describe("goal solver: decision table", () => {
 
   it("D3: candidates spending different assets pick the exposure-neutral one (chip), else ask", () => {
     const { goals, reads } = text("get me 0.01 ETH on arbitrum");
-    const neutral = solve("full", goals, { reads });
+    // The funds would come from a network the person did not name, so where is asked first, the
+    // exposure-neutral holding listed first; each option pins the holding its label names.
+    const where = solve("full", goals, { reads });
+    assert.equal(where.questions[0]?.reason, "FUNDS_ELSEWHERE");
+    assert.equal(where.questions[0]?.options[0]?.label, "Use ETH on Base");
+    assert.deepEqual(where.questions[0]?.options[0]?.value, { source: "base", asset: "ETH" });
+    const neutral = solve("full", goals, { reads, pins: [{ source: "base" }] });
     const chip = neutral.assumptions.find((entry) => entry.field === "actions[0].from");
     assert.ok(chip?.material);
     assert.ok((chip?.alternatives.length ?? 0) > 0, "the other assets are one tap away");
@@ -185,17 +191,27 @@ describe("goal solver: decision table", () => {
 
   it("D7: the same asset on several networks: the cheaper source is chosen and shown", () => {
     const { goals, reads } = text("pay vitalik.eth 5 USDC from whatever network is cheapest");
-    const result = solve("full", goals, { reads });
+    // I13 (cheapest-path payment): where vitalik.eth receives is purpose, asked with each network's cost, cheapest first.
+    const asked = solve("full", goals, { reads });
+    assert.equal(asked.questions[0]?.reason, "TRANSFER_NETWORK");
+    assert.equal(asked.questions[0]?.options[0]?.id, "base", "the cheapest receiving network first");
+    assert.match(asked.questions[0]?.options[0]?.detail ?? "", /^From your USDC there · /u);
+    const answered = goals.map((goal) => ({ ...goal, want: { ...goal.want, at: { network: "base" as const, custody: { kind: "wallet" as const } } } }));
+    const result = solve("full", answered, { reads });
     assert.equal(planned("full", result.steps), "transfer@base 5 USDC to vitalik.eth");
     const chip = result.assumptions.find((entry) => entry.field === "actions[0].network");
     assert.equal(chip?.label, "From Base");
     assert.deepEqual(chip?.alternatives.map((option) => option.value.source), ["arbitrum", "solana"], "every other network holding enough USDC");
-    assert.equal(result.steps[0]?.network?.by, "derived", "the policy keeps the solver's network");
+    assert.equal(result.steps[0]?.network?.by, "user", "the receiving network is the answered one");
   });
 
-  it("D8: a bridge the person did not ask for is shown, never asked, and never pinned to a venue", () => {
+  it("D8: a bridge the person did not ask for is shown once its source is answered, and never pinned to a venue", () => {
     const { goals, reads } = text("I need 20 USDC on arbitrum");
-    const result = solve("full", goals, { reads });
+    // The source network was not named, so it is asked (FUNDS_ELSEWHERE), never a chip.
+    const asked = solve("full", goals, { reads });
+    assert.equal(asked.questions[0]?.reason, "FUNDS_ELSEWHERE");
+    assert.equal(asked.questions[0]?.field, "actions[0].network");
+    const result = solve("full", goals, { reads, pins: [{ source: "base", asset: "USDC" }] });
     assert.deepEqual(result.questions, []);
     const chip = result.assumptions.find((entry) => entry.field === "actions[0].toNetwork");
     assert.match(chip?.label ?? "", /^Bridges Base to Arbitrum One$/u);
@@ -242,11 +258,12 @@ describe("goal solver: decision table", () => {
     assert.equal(planned("full", confirmed.steps), "swap@solana 1 SOL->USDC");
   });
 
-  it("D13: a goal from the LLM layer is always confirmed", () => {
+  it("D13: a goal from model-assisted reading is always confirmed, with the neutral disclosure", () => {
     const goal = goalOf({ kind: "convert", spend: { asset: { symbol: "SOL" }, amount: { t: "exact", value: "1" } }, want: { asset: { symbol: "USDC" } }, confidence: "llm" });
     const asked = solve("full", [goal]);
     assert.equal(asked.questions[0]?.reason, "INTERPRETATION_CONFIRM");
-    assert.match(asked.questions[0]?.why ?? "", /language model/u);
+    assert.equal(asked.questions[0]?.why, "Model-assisted reading. Kletia plans it only when you confirm.");
+    assert.doesNotMatch(asked.questions[0]?.why ?? "", /language model|\bAI\b|LLM/u);
   });
 
   it("D14: otherwise ready, material chips first; later goals wait for an earlier question", () => {

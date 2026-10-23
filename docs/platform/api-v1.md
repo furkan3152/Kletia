@@ -728,6 +728,19 @@ last snapshot of the shared queue and the other counters describe the
 answering process. Changing `KLETIA_PLATFORM_SECRET` makes every registered
 webhook secret and every queued body unreadable: re-create the webhooks.
 
+### Model-assisted reading consent
+
+`POST /v1/reading-consent` `{ scope: "once" | "session" | "confirm", wallet, text?, threadId? }`
+returns `{ token, expiresAt, scope }` for browser callers only (the Kletia
+desk, or a publishable key of a project with `modelReading: "enabled"` from an
+allowed origin). Server keys get `403 CONFIRM_AUTHORITY_REQUIRED`. Send the
+token as `consent` on the clarify turn ([clarify.md](clarify.md#model-assisted-reading-opt-in)).
+
+Route explanations: planned intents may carry `interpretation.routes` (per
+leg: shape, carrier, venues, score with `minimumKind` "onchain" (guaranteed
+minimum) or "claimed" (quoted minimum), `reason`, `compared`, `alternatives`)
+and `interpretation.providersContacted` (`{ provider, sawAccount }`).
+
 ## Idempotency
 
 Keyed `POST` requests that create or change state accept an

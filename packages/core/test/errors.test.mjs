@@ -293,3 +293,29 @@ test("an upstream rate limit is retryable with its own docs anchor, never a prov
   assert.equal(isRetryableError("PROVIDER_RATE_LIMITED", 503), true);
   assert.equal(errorDocsUrl("PROVIDER_RATE_LIMITED", "https://kletiaai.xyz"), "https://kletiaai.xyz/developers#error-PROVIDER_RATE_LIMITED");
 });
+
+test("errors: the 2026-10 reading and routes codes are catalogued with their features", async () => {
+  const { FEATURE_ERROR_CODES } = await import("../dist/index.js");
+  const expected = {
+    CLARIFY_REQUIRED: [422, "intent", false],
+    CONFIRM_AUTHORITY_REQUIRED: [403, "permission", false],
+    PLAN_TIMEOUT: [504, "upstream", true],
+    PLAN_TOO_LARGE: [422, "intent", false],
+    LEG_BELOW_PLANNED_MINIMUM: [409, "conflict", false],
+  };
+  assert.deepEqual([...FEATURE_ERROR_CODES.reading].sort(), ["CLARIFY_REQUIRED", "CONFIRM_AUTHORITY_REQUIRED"]);
+  assert.deepEqual([...FEATURE_ERROR_CODES.routes].sort(), ["LEG_BELOW_PLANNED_MINIMUM", "PLAN_TIMEOUT", "PLAN_TOO_LARGE"]);
+  for (const [code, [status, category, retryable]] of Object.entries(expected)) {
+    const entry = ERROR_CATALOG[code];
+    assert.ok(entry, `${code} is catalogued`);
+    assert.equal(entry.status, status, `${code} status`);
+    assert.equal(entry.category, category, `${code} category`);
+    assert.equal(entry.retryable, retryable, `${code} retryable`);
+    assert.equal(Boolean(entry.step), false, `${code} is not a step failure`);
+    assert.equal(resolveErrorCode(code), code);
+    assert.ok(entry.title.length <= 60 && entry.remedy.length <= 240, `${code} copy is short`);
+    // Product copy: neutral wording only.
+    assert.doesNotMatch(`${entry.title} ${entry.remedy}`, /\bAI\b|language model|LLM|assistant/u, code);
+  }
+  assert.equal(new Set(Object.values(FEATURE_ERROR_CODES).flat()).size, Object.values(FEATURE_ERROR_CODES).flat().length, "no code belongs to two features");
+});

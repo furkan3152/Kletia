@@ -27,7 +27,10 @@ const COPY = {
       holdings: "Holdings",
       tools: "Tools",
       activity: "Activity",
+      automations: "Automations",
     },
+    /** The phone view bar has room for eight characters per view. */
+    automationsShort: "Automate",
     tasksButton: (count: number) => `Tasks (${count})`,
     tasksView: (count: number) => `Tasks ${count}`,
     skipToComposer: "Skip to the composer",
@@ -101,6 +104,7 @@ const COPY = {
       portfolio: "Opened your holdings.",
       activity: "Opened your activity.",
       tools: "Opened the tools.",
+      automations: "Opened your automations.",
     },
   },
 
@@ -222,6 +226,7 @@ const COPY = {
     pickedUpFromAsk: "Picked up from the Solana Ask tab",
     questionCleared: "This question was cleared when the page reloaded. Type the task again.",
     sentenceForgotten: "The sentence stays in this tab's memory only; after a reload the title is all that is kept.",
+    automationRun: "An automation planned this. Nothing is signed yet: review it, then sign with your wallet.",
     announcements: {
       added: "Task added",
       question: (title: string) => `Kletia has a question about ${title}`,

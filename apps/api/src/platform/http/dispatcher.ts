@@ -3,7 +3,8 @@
  *
  * Subscribes to the engine's intent event envelopes, its receipt events
  * (`intent.receipt_issued`, routed like intent events), the contract
- * registration events (contracts.ts), the intent link events (links/), and
+ * registration events (contracts.ts), the intent link events (links/), the
+ * automation events (automation/), and
  * the Rule Book and key events (`policy.*`, `key.*`). For intents created
  * with an API key, each event is POSTed (body = the KletiaEvent JSON) to that
  * key's webhooks subscribed to the event type; contract and link events go to
@@ -66,6 +67,7 @@ import { subscribeIntentEvents, subscribePolicyEvents, subscribeReceiptEvents, t
 import { apiKeyStore, isKeyRevoked, keyKindOf, keyLive, loadOperatorKeys } from "./auth.js";
 import { subscribeContractEvents, type ContractEvent } from "./contracts.js";
 import { subscribeLinkEvents, type LinkEvent } from "./links/events.js";
+import { subscribeAutomationEvents, type AutomationEvent } from "../automation/events.js";
 import { subscribeKeyEvents, type KeyEvent } from "./policies/announce.js";
 import { rawProjectId } from "./policies/store.js";
 import { platformDatabaseUrl } from "./db.js";
@@ -106,7 +108,7 @@ export const WEBHOOK_USER_AGENT = "Kletia-Webhooks/1.0 (+https://kletiaai.xyz)";
  * event (routed by `data.ownerKeyId`), or a Rule Book / key event (routed by
  * the subject key, `data.keyId`).
  */
-export type DispatchedEvent = IntentEvent | ReceiptEvent | ContractEvent | LinkEvent | PolicyEvent | KeyEvent;
+export type DispatchedEvent = IntentEvent | ReceiptEvent | ContractEvent | LinkEvent | AutomationEvent | PolicyEvent | KeyEvent;
 
 function isContractEvent(event: DispatchedEvent): event is ContractEvent {
   return event.type.startsWith("contract.");
@@ -114,6 +116,10 @@ function isContractEvent(event: DispatchedEvent): event is ContractEvent {
 
 function isLinkEvent(event: DispatchedEvent): event is LinkEvent {
   return event.type.startsWith("link.");
+}
+
+function isAutomationEvent(event: DispatchedEvent): event is AutomationEvent {
+  return event.type.startsWith("automation.");
 }
 
 function isPolicyOrKeyEvent(event: DispatchedEvent): event is PolicyEvent | KeyEvent {
@@ -189,7 +195,7 @@ export async function liveOwner(keyId: string): Promise<boolean> {
  */
 export async function dispatchTargets(event: DispatchedEvent): Promise<RouteTarget[] | undefined> {
   if (isContractEvent(event)) return [{ ownerKeyId: event.data.ownerKeyId, subtreeOnly: false }];
-  if (isLinkEvent(event)) return withAncestors(event.data.ownerKeyId);
+  if (isLinkEvent(event) || isAutomationEvent(event)) return withAncestors(event.data.ownerKeyId);
   if (isPolicyOrKeyEvent(event)) {
     const subject = event.data.keyId;
     const projectId = rawProjectId(event.data.projectId);
@@ -221,6 +227,7 @@ export function subscribeDispatchedEvents(listener: (event: DispatchedEvent) => 
     subscribeContractEvents(listener),
     subscribeReceiptEvents(listener),
     subscribeLinkEvents(listener),
+    subscribeAutomationEvents(listener),
     subscribePolicyEvents(listener),
     subscribeKeyEvents(listener),
   ];
@@ -374,7 +381,7 @@ export class WebhookDispatcher {
     this.unsubscribe = subscribeIntentEvents(onEvent);
     this.unsubscribeContracts = subscribeContractEvents(onEvent);
     this.unsubscribeReceipts = subscribeReceiptEvents(onEvent);
-    this.unsubscribeFeatures = [subscribeLinkEvents(onEvent), subscribePolicyEvents(onEvent), subscribeKeyEvents(onEvent)];
+    this.unsubscribeFeatures = [subscribeLinkEvents(onEvent), subscribeAutomationEvents(onEvent), subscribePolicyEvents(onEvent), subscribeKeyEvents(onEvent)];
     // Recovers work queued before a restart (or by another replica) right away.
     if (this.durable) void this.pollDurable();
   }

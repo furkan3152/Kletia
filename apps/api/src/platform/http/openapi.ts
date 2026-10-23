@@ -5,6 +5,7 @@
  * handlers in router.ts and the types in @kletia/core.
  */
 import {
+  AUTOMATION_EVENT_TYPES,
   CHAINS,
   CONTRACT_ADDRESS_LABEL_PATTERN,
   CONTRACT_ALIAS_PATTERN,
@@ -50,6 +51,7 @@ import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openap
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
+import { automationPaths, automationSchemas } from "../automation/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1068,7 +1070,7 @@ function schemas(): JsonObject {
       { description: "Contract registration lifecycle, delivered to the webhooks of the registration's own key only." },
     ),
     KletiaEvent: {
-      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ReceiptIssuedEvent"), ref("ContractEvent"), ref("LinkEvent"), ref("PolicyEvent"), ref("KeyEvent")],
+      oneOf: [ref("IntentCreatedEvent"), ref("IntentStatusChangedEvent"), ref("IntentStepUpdatedEvent"), ref("ReceiptIssuedEvent"), ref("ContractEvent"), ref("LinkEvent"), ref("AutomationEvent"), ref("PolicyEvent"), ref("KeyEvent")],
       discriminator: {
         propertyName: "type",
         mapping: {
@@ -1078,6 +1080,7 @@ function schemas(): JsonObject {
           "intent.receipt_issued": "#/components/schemas/ReceiptIssuedEvent",
           ...Object.fromEntries(CONTRACT_EVENT_TYPES.map((type) => [type, "#/components/schemas/ContractEvent"])),
           ...Object.fromEntries(LINK_EVENT_TYPES.map((type) => [type, "#/components/schemas/LinkEvent"])),
+          ...Object.fromEntries(AUTOMATION_EVENT_TYPES.map((type) => [type, "#/components/schemas/AutomationEvent"])),
           ...Object.fromEntries(POLICY_EVENT_TYPES.map((type) => [type, "#/components/schemas/PolicyEvent"])),
           ...Object.fromEntries(KEY_EVENT_TYPES.map((type) => [type, "#/components/schemas/KeyEvent"])),
         },
@@ -1630,6 +1633,7 @@ function schemas(): JsonObject {
     ...linkSchemas(),
     ...projectSchemas(),
     ...accountSchemas(),
+    ...automationSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2033,6 +2037,7 @@ function paths(): JsonObject {
     ...linkPaths(),
     ...projectPaths(),
     ...accountPaths(),
+    ...automationPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2406,6 +2411,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Projects", description: "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile." },
       { name: "Rule Book", description: "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals." },
       { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
+      { name: "Automations", description: "Rules that watch a schedule, a price, a balance, venue APYs or incoming transfers and plan an intent for the owner to sign (or hand it to a native order provider); runs and the inbox." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
       { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
     ],
@@ -2459,6 +2465,23 @@ export function buildOpenApiDocument(): JsonObject {
             { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
           ],
           requestBody: { required: true, content: { "application/json": { schema: ref("LinkEvent") } } },
+          responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
+        },
+      },
+      automationEvent: {
+        post: {
+          operationId: "receiveAutomationEvent",
+          summary: "Automation event delivery",
+          description:
+            "Sent to the webhooks of the automation's owning key that subscribe to the type (and to `scope: \"subtree\"` webhooks of its ancestors): automation.created, automation.updated (paused, resumed, label or limits changed, completed, expired), automation.deleted, automation.fired (a run planned an intent: `needs_signature`, or `prepared` by a native order provider), automation.skipped (a limit, `reason`) and automation.failed (`reason`: the error code). Wallet-owned automations send none. Same signing, retries and queueing as intent events.",
+          parameters: [
+            { name: "Kletia-Signature", in: "header", required: true, schema: str({ pattern: "^t=[0-9]+,v1=[0-9a-f]{64}$" }) },
+            { name: "Kletia-Event-Id", in: "header", required: true, schema: ref("EventId") },
+            { name: "Kletia-Event-Type", in: "header", required: true, schema: str({ enum: [...AUTOMATION_EVENT_TYPES] }) },
+            { name: "Kletia-Webhook-Id", in: "header", required: true, schema: str() },
+            { name: "Kletia-Delivery-Attempt", in: "header", required: true, schema: str({ pattern: "^[1-4]$" }) },
+          ],
+          requestBody: { required: true, content: { "application/json": { schema: ref("AutomationEvent") } } },
           responses: { "200": { description: "Any 2xx acknowledges the delivery." } },
         },
       },
@@ -2523,7 +2546,7 @@ export function buildOpenApiDocument(): JsonObject {
         BadRequest: errorResponse("Invalid input (INVALID_REQUEST, INVALID_JSON, MESSAGE_SECRET_REFUSED, THREAD_INVALID, THREAD_REQUIRES_API_KEY, POLICY_INVALID, LINK_DEFINITION_INVALID, REFERENCES_INVALID, REFERENCE_INVALID, REFERENCE_COUNT_MISMATCH, IDEMPOTENCY_KEY_INVALID, IDEMPOTENCY_KEY_REQUIRES_API_KEY, IDEMPOTENCY_NOT_SUPPORTED, ...)."),
         Unauthorized: errorResponse("Missing or invalid API key (API_KEY_REQUIRED, INVALID_API_KEY, INVALID_AUTHORIZATION)."),
         Forbidden: errorResponse("Not allowed (SECRET_KEY_FROM_BROWSER for a kl_dev_ or kl_agt_ key sent with a foreign Origin, KEY_SECRET_ROTATED, MCP_ORIGIN_FORBIDDEN, SESSION_ORIGIN_FORBIDDEN, POLICY_VIOLATION, POLICY_SPEND_LIMIT, POLICY_SCHEDULE_CLOSED, POLICY_OWNER_REVOKED, POLICY_APPROVAL_REQUIRED, POLICY_APPROVAL_REJECTED, AGENT_KEY_FORBIDDEN, APPROVAL_SIGNATURE_INVALID, APPROVER_NOT_ALLOWED; Rule Book refusals carry error.policy)."),
-        NotFound: errorResponse("Unknown resource or route (INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND)."),
+        NotFound: errorResponse("Unknown resource or route (AUTOMATION_NOT_FOUND, INTENT_NOT_FOUND, STEP_NOT_FOUND, WEBHOOK_NOT_FOUND, KEY_NOT_FOUND, CONTRACT_NOT_FOUND, SESSION_NOT_FOUND, PREVIEW_NOT_FOUND, RECEIPT_NOT_FOUND, RECEIPT_SHARE_NOT_FOUND, RECEIPT_LOG_NOT_FOUND, POLICY_NOT_FOUND, APPROVAL_NOT_FOUND, LINK_NOT_FOUND, THREAD_NOT_FOUND, NOT_FOUND)."),
         Conflict: errorResponse("State conflict (QUESTION_NOT_OPEN, THREAD_CONFLICT, THREAD_CLOSED, STEP_NOT_READY, STEP_NOT_AWAITING_SIGNATURE, QUOTE_MOVED, INTENT_CONFLICT, INTENT_NOT_CANCELLABLE, INTENT_IN_FLIGHT (Retry-After), WEBHOOK_EXISTS, KEY_NOT_MANAGEABLE, KEY_LIMIT_REACHED, IDEMPOTENCY_REQUEST_IN_PROGRESS, CONTRACT_EXISTS, CONTRACT_LIMIT_REACHED, CONTRACT_PENDING, CONTRACT_SUSPENDED, CONTRACT_CHANGED, SESSION_USED, PREVIEW_CHANGED, RECEIPT_NOT_READY, RECEIPT_NOT_APPLICABLE, RECEIPT_SHARE_LIMIT, RECEIPT_ANCHOR_EXISTS, POLICY_CONFLICT, POLICY_AMENDMENT_PENDING, POLICY_APPROVAL_STALE, AGENT_KEY_LIMIT_REACHED, KEY_DEPTH_EXCEEDED, APPROVAL_DECIDED, LINK_LIMIT_REACHED, LINK_PENDING, LINK_PAUSED, LINK_SUSPENDED, LINK_EXHAUSTED, LINK_ACCOUNT_LIMIT, LINK_RECIPIENT_CHANGED, LINK_CONTRACT_CHANGED, ...)."),
         Gone: errorResponse("Expired (INTENT_EXPIRED, DEADLINE_PASSED, SESSION_EXPIRED, RECEIPT_SHARE_EXPIRED, RECEIPT_DISCLOSURES_WITHDRAWN, POLICY_APPROVAL_EXPIRED, LINK_EXPIRED)."),
         PayloadTooLarge: errorResponse("Request body larger than 64 KB."),

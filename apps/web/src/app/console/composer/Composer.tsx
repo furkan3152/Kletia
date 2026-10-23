@@ -175,7 +175,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       case "command":
         setText("");
         setError(null);
-        setNotice(verdict.view === "activity" ? copy.commands.activity : verdict.view === "tools" ? copy.commands.tools : copy.commands.portfolio);
+        setNotice(verdict.view === "holdings" ? copy.commands.portfolio : copy.commands[verdict.view as "activity" | "tools" | "automations"]);
         onCommand(verdict.view);
         return;
       case "sentence":

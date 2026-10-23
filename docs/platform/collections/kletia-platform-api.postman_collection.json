@@ -485,6 +485,297 @@
       ]
     },
     {
+      "id": "7ea60e83-1b56-57b7-b6e8-3004cf448813",
+      "name": "Data",
+      "description": "Read-only dashboard data: a wallet set's holdings, positions, health and activity across every network, plus venue yields, prices and network status.",
+      "item": [
+        {
+          "id": "708fe3dc-867d-556c-8887-fb5125eb475b",
+          "name": "Everything a wallet set holds, across every network of the lane",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/portfolio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "portfolio"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Wallet holdings, venue positions (lending, savings, vaults, Jupiter Lend), liquid-staking tokens, Aave V3, SparkLend and Compound V3 debt with health, totals, allocation by network, asset and protocol, the 24-hour change and a PnL estimate against this API's earlier readings. Each value carries `source` and `asOf`; unknown values are null with a `reason`. Cached 15 s per wallet set. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account of the wallet set.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/portfolio` · operationId `getDataPortfolio` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "fcda49a0-ab50-5bad-936f-39d70ad2faec",
+          "name": "Positions, debts and lending health of a wallet set",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/positions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "positions"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The positions part of the portfolio read (same cache). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit per account.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/positions` · operationId `getDataPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "7135f2e0-acc1-59a3-94d2-a4fa63068648",
+          "name": "Kletia activity of the calling key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Newest entries to return (default 50).",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The key's intents, the receipts issued for them and its intent links, newest first. With `evm` / `solana`, only intents planned for those wallets (links are left out). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.\n\nRequires an API key (set `apiKey`).\n\n`GET /v1/data/history` · operationId `getDataHistory` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "505ce16d-e2be-5f1c-a630-986fbaeb400e",
+          "name": "Supply APYs of every venue Kletia knows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/markets/yields",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "markets",
+                "yields"
+              ],
+              "query": [
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "One network (its lane wins over `lane`).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "disabled": true
+                },
+                {
+                  "key": "asset",
+                  "value": "",
+                  "description": "Underlying symbol, e.g. USDC.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every lending, savings and vault venue of the lane, best APY first; a venue whose rate cannot be read is listed with `apy: null` and the reason. Cached 60 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/markets/yields` · operationId `getDataYields` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "ad349212-05e4-517b-9a4c-92cb0c433adf",
+          "name": "USD prices of listed assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/markets/prices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "markets",
+                "prices"
+              ],
+              "query": [
+                {
+                  "key": "symbols",
+                  "value": "",
+                  "description": "Comma-separated symbols (at most 20); default ETH, SOL, POL, cbBTC, wstETH, USDC and USDT.",
+                  "disabled": true
+                },
+                {
+                  "key": "network",
+                  "value": "base",
+                  "description": "One network (its lane wins over `lane`).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Advisory prices (stablecoins at par, Jupiter, Chainlink) with source and reading time. Cached 30 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/markets/prices` · operationId `getDataPrices` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "cf94f3bc-8f95-579d-b47c-b1d35ac1a6ba",
+          "name": "Network status and route statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/markets/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "markets",
+                "status"
+              ]
+            },
+            "description": "The health probe of every network; route statistics per venue and network pair when the deployment records them (else `routes: null` with the reason). Cached 15 s. Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after): one unit.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/markets/status` · operationId `getDataStatus` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "a32ef1da-4b08-5aa2-ba02-63aab2492d4e",
+          "name": "Export holdings, positions or history as CSV or JSON",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/data/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "data",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "dataset",
+                  "value": "holdings",
+                  "disabled": true
+                },
+                {
+                  "key": "format",
+                  "value": "csv",
+                  "disabled": true
+                },
+                {
+                  "key": "evm",
+                  "value": "0x4f183e308f24c81c05303821AD025812fBFd807D",
+                  "description": "Comma-separated EVM addresses (at most 2). Name evm, solana or both.",
+                  "disabled": true
+                },
+                {
+                  "key": "solana",
+                  "value": "",
+                  "description": "Comma-separated Solana addresses (at most 2).",
+                  "disabled": true
+                },
+                {
+                  "key": "lane",
+                  "value": "production",
+                  "description": "Production networks (default) or test networks; the two never mix.",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Newest entries to return (default 50).",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "`dataset=holdings|positions` takes a wallet set (one unit per account); `dataset=history` needs an API key (one unit). Spends the data budget (240 units a minute per API key, 60 per address without one; 429 RATE_LIMITED after).\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/data/export` · operationId `exportData` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "id": "2912b41f-fc1b-5d82-882b-19fb9128be7b",
       "name": "Intents",
       "description": "Plan, prepare, submit, verify and cancel intents.",

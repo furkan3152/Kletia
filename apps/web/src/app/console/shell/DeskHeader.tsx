@@ -1,7 +1,7 @@
 /**
  * The desk's sticky header (console design 3.2 and 5.1): the Kletia mark and
  * "Console", a site menu (Home, Studio, Developers), the view nav (Desk,
- * Tools, Activity) from 1024 px, a "Tasks (n)"
+ * Tools, Activity, Dashboard) from 1024 px, a "Tasks (n)"
  * popover between 1024 and 1279 px (the left rail shows the list wider than
  * that), both wallets and the site theme toggle.
  */
@@ -98,6 +98,7 @@ export function DeskHeader({ view, onView, taskCount, onOpenTask, onNewTask, the
           {item("desk", copy.views.desk)}
           {item("tools", copy.views.tools)}
           {item("activity", copy.views.activity)}
+          {item("dashboard", copy.views.dashboard)}
         </nav>
         <TasksPopover count={taskCount} onOpenTask={onOpenTask} onNewTask={onNewTask} />
         <div className="ml-auto flex min-w-0 items-center gap-2">

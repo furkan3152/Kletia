@@ -1,0 +1,242 @@
+/*
+ * The desk's Dashboard view. Colours come from the site's semantic tokens
+ * (--kl-*), so light and dark follow the site theme. One series per chart:
+ * the bars wear the accent; identity is always the text label beside it.
+ * Loaded with the view's lazy chunk, never with the entry stylesheet.
+ */
+
+.kdb {
+  min-width: 0;
+}
+
+.kdb-subtitle {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--kl-muted);
+}
+
+.kdb-card {
+  border: 2px solid var(--kl-control);
+  background: var(--kl-surface);
+  padding: 12px;
+}
+
+/* --- KPI row --------------------------------------------------------------- */
+
+.kdb-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .kdb-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.kdb-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border: 2px solid var(--kl-control);
+  background: var(--kl-surface);
+  padding: 10px;
+}
+
+.kdb-kpi dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.kdb-kpi-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--kl-text);
+}
+
+.kdb-kpi[data-tone="up"] .kdb-kpi-value {
+  color: var(--kl-success);
+}
+
+.kdb-kpi[data-tone="down"] .kdb-kpi-value {
+  color: var(--kl-danger);
+}
+
+.kdb-kpi[data-tone="warning"] {
+  border-color: var(--kl-warning);
+  background: var(--kl-warning-bg);
+}
+
+/* --- Allocation bars ------------------------------------------------------- */
+
+.kdb-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 1280px) {
+  .kdb-charts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.kdb-chart {
+  margin: 0;
+  min-width: 0;
+  border: 2px solid var(--kl-control);
+  background: var(--kl-surface);
+  padding: 10px;
+}
+
+.kdb-chart-title {
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.kdb-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kdb-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+}
+
+.kdb-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kdb-bar-track {
+  display: block;
+  width: 100%;
+  height: 8px;
+}
+
+.kdb-bar-fill {
+  fill: var(--kl-accent);
+}
+
+.kdb-bar-value {
+  font-family: var(--font-code, ui-monospace, monospace);
+  white-space: nowrap;
+}
+
+/* --- Tables ---------------------------------------------------------------- */
+
+.kdb-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 2px solid var(--kl-control);
+  background: var(--kl-surface);
+}
+
+.kdb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.kdb-table th,
+.kdb-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--kl-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.kdb-table thead th {
+  font-size: 0.6875rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kl-muted);
+}
+
+.kdb-table tbody th {
+  font-weight: 700;
+}
+
+.kdb-table .kdb-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.kdb-table tr[data-debt] .kdb-num {
+  color: var(--kl-danger);
+}
+
+/* Phones: each row becomes a card, so nothing scrolls sideways at 390 px. */
+@media (max-width: 639.98px) {
+  .kdb-table-wrap {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .kdb-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .kdb-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 8px;
+    margin-bottom: 8px;
+    border: 2px solid var(--kl-control);
+    background: var(--kl-surface);
+    padding: 8px;
+  }
+
+  .kdb-table th,
+  .kdb-table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .kdb-table tbody th {
+    grid-column: 1 / -1;
+  }
+}
+
+/* --- Health ---------------------------------------------------------------- */
+
+.kdb-health {
+  border-left: 4px solid var(--kl-line);
+  padding-left: 8px;
+}
+
+.kdb-health[data-status="warning"] {
+  border-left-color: var(--kl-warning);
+}
+
+.kdb-health[data-status="critical"] {
+  border-left-color: var(--kl-danger);
+}
+
+.kdb-status {
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

@@ -154,6 +154,7 @@ test("the sidebar lists every page once, grouped in order, and each page matches
     "errors",
     "venues",
     "agents",
+    "data",
   ]);
   const groupOrder = PORTAL_GROUPS.map((group) => group.id);
   let last = 0;

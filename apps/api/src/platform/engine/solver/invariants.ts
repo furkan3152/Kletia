@@ -194,7 +194,7 @@ const plainSymbol = (value: string) => value.toUpperCase().replace(/[\s.-]/gu, "
 
 /**
  * Look-alikes over the text itself: typed words that name a member of a
- * look-alike family Kletia does not list (stETH, eETH, frxETH, bSOL, stSOL,
+ * look-alike family Kletia does not list (stETH, eETH, frxETH, stSOL,
  * USDC.e), in their usual spelling. Each must be asked (ASSET_LOOKALIKE) or
  * refused, never read as another member by any path (a provider word, a
  * typo, a model reading).

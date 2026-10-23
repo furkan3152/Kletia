@@ -100,7 +100,7 @@ describe("liquid-staking metrics", () => {
   it("lists every provider, with nulls for one whose reads fail", async () => {
     mockLido(1_200_000_000_000_000_000n, 1_199_450_000_000_000_000n, 10n ** 18n);
     const listing = await listStakingMetrics();
-    assert.deepEqual(listing.map((entry) => entry.provider), ["lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether"]);
+    assert.deepEqual(listing.map((entry) => entry.provider), ["lido", "rocket-pool", "etherfi", "stader", "mantle-lsp", "frax-ether", "kelp", "renzo"]);
     assert.ok(listing[0]?.smoothedApy !== null);
     assert.ok(listing.slice(1).every((entry) => entry.smoothedApy === null && entry.tvlUsd === null), "unmocked providers are unknown, not zero");
   });

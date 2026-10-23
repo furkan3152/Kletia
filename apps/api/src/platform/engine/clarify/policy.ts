@@ -429,7 +429,7 @@ function checkAsset(env: Env, index: number, name: "from" | "to", network: Netwo
     );
   }
   const listed = symbolsOn(network).filter((symbol) => !transferOnly(network, symbol));
-  // A10 on every path: a typed member of a look-alike family that Kletia does not list (stETH, eETH, bSOL, USDC.e) is
+  // On every path: a typed member of a look-alike family that Kletia does not list (stETH, eETH, stSOL, USDC.e) is
   // asked with the listed members, never read as one of them and never passed on as an unverified token.
   const lookalike = lookalikeQuestionFor(env, index, name, network, raw, side, exclude);
   if (lookalike) return lookalike;

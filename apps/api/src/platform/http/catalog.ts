@@ -73,10 +73,12 @@ export interface NetworkCapabilities extends ChainDescriptor {
  * Where a protocol executes: `platform` (planned and executed by Platform
  * API v1 and its clients), `console` (only through the Kletia console's
  * network engines and tools), `service` (a separate Kletia service, such as
- * x402 payments). From the registry's `execution` field.
+ * service, such as x402 payments), `orders` (native protocol orders built by
+ * /v1/orders and filled by the protocol's keepers or solvers). From the
+ * registry's `execution` field.
  */
-export type ProtocolSurface = "platform" | "console" | "service";
-export const PROTOCOL_SURFACES: readonly ProtocolSurface[] = Object.freeze(["platform", "console", "service"]);
+export type ProtocolSurface = "platform" | "console" | "service" | "orders";
+export const PROTOCOL_SURFACES: readonly ProtocolSurface[] = Object.freeze(["platform", "console", "service", "orders"]);
 
 export interface ProtocolView extends ProtocolDescriptor {
   /** True when the engine has an execution adapter for this protocol id. */

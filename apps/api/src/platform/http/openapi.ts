@@ -53,6 +53,7 @@ import { DATA_TAG, dataPaths, dataSchemas } from "./dataOpenapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { automationPaths, automationSchemas } from "../automation/openapi.js";
+import { orderPaths, orderSchemas } from "./orders/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1636,6 +1637,7 @@ function schemas(): JsonObject {
     ...projectSchemas(),
     ...accountSchemas(),
     ...automationSchemas(),
+    ...orderSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2041,6 +2043,7 @@ function paths(): JsonObject {
     ...projectPaths(),
     ...accountPaths(),
     ...automationPaths(),
+    ...orderPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2414,6 +2417,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Sessions", description: "Short-lived templates your backend creates so the embed can run your fixed actions for a visitor's wallet (with a publishable key: from a stored flow)." },
       { name: "Projects", description: "Project settings (brand, allowed origins, defaults, stored flows), the domain proof, publishable keys for browsers, the logo and the publishable profile." },
       { name: "Rule Book", description: "Rule books of keys and of the project (tighten now, loosen later), the simulator, the hash-chained decision log, spend windows and approvals." },
+      { name: "Orders", description: "Native protocol orders that execute without the user online after one signature: Jupiter limit and DCA orders on Solana, CoW Protocol limit and TWAP orders on Ethereum, Arbitrum and Base. Kletia builds what the wallet signs and relays only the owner's checked signature." },
       { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
       { name: "Automations", description: "Rules that watch a schedule, a price, a balance, venue APYs or incoming transfers and plan an intent for the owner to sign (or hand it to a native order provider); runs and the inbox." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },

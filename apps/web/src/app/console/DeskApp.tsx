@@ -6,7 +6,7 @@
  * only when one is needed.
  *
  * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools,
- * /app/dashboard, /app/automations) are the same desk (the Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
+ * /app/dashboard, /app/automations, /app/orders) are the same desk (the Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
  * task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
@@ -24,6 +24,7 @@ import { DeparturePicker } from "./composer/DeparturePicker";
 import { DESK_COPY } from "./content/copy";
 import { enterDeskMode, leaveDeskMode } from "./deskMode";
 import { HoldingsPanel } from "./holdings/HoldingsPanel";
+import { OrdersView } from "./orders/OrdersView";
 import { useDeskAccounts } from "./hooks/useDeskAccounts";
 import { useDeskUrlState } from "./hooks/useDeskUrlState";
 import { useHoldings } from "./hooks/useHoldings";
@@ -279,6 +280,7 @@ export default function DeskApp() {
             <AutomationsView />
           </Suspense>
         ) : null}
+        {view === "orders" ? <OrdersView /> : null}
         {emptyDesk ? (
           <DeskEmptyState departure={departure} actions={status.actions} health={status.health} healthAt={status.healthAt} onPick={(sentence) => composerRef.current?.fill(sentence)} />
         ) : null}

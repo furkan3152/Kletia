@@ -371,6 +371,7 @@ funds where they are, or plan the rest again.
 | <a id="error-GAS_TOPUP_UNAVAILABLE"></a>`GAS_TOPUP_UNAVAILABLE` | 422 | no | No venue can deliver gas there | No venue can deliver gas on that network for this route (Relay serves EVM destinations when the output is not the gas asset). Remove constraints.gasOnArrival for it, or bring gas yourself. |
 | <a id="error-IDEMPOTENCY_KEY_REUSED"></a>`IDEMPOTENCY_KEY_REUSED` | 422 | no | Idempotency-Key reused | This key was used for a different request. Use a new key for a new request. |
 | <a id="error-INSUFFICIENT_BALANCE"></a>`INSUFFICIENT_BALANCE` | 422 | no | Insufficient balance | Fund the account or lower the amount. |
+| <a id="error-INTENT_HANDOFF"></a>`INTENT_HANDOFF` | 422 | no | Runs on another surface | The text is a perps trade, native order or automation: error.details.handoff has its typed input (or details.questions to answer first). Open that surface, or send the text with ?clarify=true. |
 | <a id="error-INTENT_UNSUPPORTED"></a>`INTENT_UNSUPPORTED` | 422 | no | Intent not supported | Rephrase using one of the examples in error.hints, or send structured actions. |
 | <a id="error-JUPITER_SIMULATION_FAILED"></a>`JUPITER_SIMULATION_FAILED` | 422 | no | Swap simulation failed | The swap would fail on-chain. Check the balance or try a smaller amount. |
 | <a id="error-LINK_ACCOUNTS_REQUIRED"></a>`LINK_ACCOUNTS_REQUIRED` | 422 | no | Accounts missing for this link | Send one account per virtual machine the route signs on (error.issues names them). |

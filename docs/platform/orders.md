@@ -131,6 +131,16 @@ Jupiter lists the first page of open and of past orders; CoW the newest 20
 per network. Unlisted Solana tokens show their mint and the decimals Jupiter
 reports; unlisted ERC-20 decimals are read on-chain.
 
+## From a sentence
+
+The sentence reader hands order sentences to this surface (status
+`handoff`, [clarify](clarify.md#hand-offs)): "sell 1 WETH at 4000 on base",
+"limit buy 1000 JUP at 0.8" (priced in USDC unless a token is named), "buy
+SOL with 500 USDC over 10 days", "sell 100 USDC for SOL every day for 5 days"
+(500 USDC in 5 parts) and "cancel order <id>". The input is
+`planNativeOrder`'s; a pair on several networks asks the network, and the
+desk opens the Orders form prefilled.
+
 ## For other packages
 
 `apps/api/src/platform/orders/index.ts` is the stable module path:

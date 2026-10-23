@@ -676,8 +676,8 @@
      "d": "bridge@arbitrum->base 30 USDC | swap@base 10 USDC->ETH"
     },
     "ABS001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS002": {
      "o": "asked",
@@ -688,8 +688,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS004": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS005": {
      "o": "asked",
@@ -704,12 +704,12 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "ABS008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS010": {
      "o": "refused",
@@ -737,7 +737,7 @@
     },
     "ABS016": {
      "o": "asked",
-     "d": "actions[0].toNetwork:DESTINATION_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS017": {
      "o": "asked",
@@ -748,8 +748,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.3995 ETH->USDC | swap@base 0.2 WETH->USDC"
     },
     "ABS020": {
      "o": "ready",
@@ -760,16 +760,16 @@
      "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS022": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 25 USDC to alice.eth"
     },
     "ABS023": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS024": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:NETWORK_AMBIGUOUS"
     },
     "ABS025": {
      "o": "ready",
@@ -784,16 +784,16 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "ABS028": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].kind:EARN_KIND"
     },
     "ABS029": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS031": {
      "o": "asked",
@@ -808,24 +808,24 @@
      "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS034": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS035": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS037": {
      "o": "asked",
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS039": {
      "o": "refused",
@@ -836,16 +836,16 @@
      "d": "swap@solana 12000 BONK->USDC"
     },
     "ABS041": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 0.1 ETH->WETH"
     },
     "ABS043": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS044": {
      "o": "ready",
@@ -856,28 +856,28 @@
      "d": "stake@solana 1.9998 SOL->JitoSOL {jito}"
     },
     "ABS046": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS047": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 500 USDC to 0x1111111111111111111111111111111111111111"
     },
     "ABS048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].toNetwork:DESTINATION_MISSING"
     },
     "ABS049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@arbitrum 50 USDC to alice.eth"
     },
     "ABS050": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "withdraw@base max USDC [aave-v3] | withdraw@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS051": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 3 SOL->JitoSOL {jito}"
     },
     "ABS052": {
      "o": "asked",
@@ -896,24 +896,24 @@
      "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
     },
     "ABS056": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@base->arbitrum 25 USDC"
     },
     "ABS057": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS058": {
      "o": "asked",
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS059": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:NETWORK_AMBIGUOUS"
     },
     "ABS060": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@base 800 USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS061": {
      "o": "refused",
@@ -924,8 +924,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS063": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.335063 SOL->USDC"
     },
     "ABS064": {
      "o": "ready",
@@ -1500,8 +1500,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF003": {
      "o": "refused",
@@ -1524,8 +1524,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
     },
     "REF009": {
      "o": "refused",
@@ -2766,8 +2766,8 @@
      "d": "bridge@arbitrum->base 30 USDC | swap@base 10 USDC->ETH"
     },
     "ABS001": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS002": {
      "o": "asked",
@@ -2778,8 +2778,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS004": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS005": {
      "o": "asked",
@@ -2794,12 +2794,12 @@
      "d": "actions[0].network:TRANSFER_NETWORK"
     },
     "ABS008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS010": {
      "o": "refused",
@@ -2827,7 +2827,7 @@
     },
     "ABS016": {
      "o": "asked",
-     "d": "actions[0].toNetwork:DESTINATION_MISSING"
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS017": {
      "o": "asked",
@@ -2838,8 +2838,8 @@
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS019": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "swap@base 0.3995 ETH->USDC | swap@base 0.2 WETH->USDC"
     },
     "ABS020": {
      "o": "ready",
@@ -2850,16 +2850,16 @@
      "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS022": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 25 USDC to alice.eth"
     },
     "ABS023": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS024": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:NETWORK_AMBIGUOUS"
     },
     "ABS025": {
      "o": "ready",
@@ -2874,16 +2874,16 @@
      "d": "actions[0].amount:AMOUNT_EXCEEDS_BALANCE"
     },
     "ABS028": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].kind:EARN_KIND"
     },
     "ABS029": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS030": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS031": {
      "o": "asked",
@@ -2898,24 +2898,24 @@
      "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS034": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS035": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS036": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:FUNDS_ELSEWHERE"
     },
     "ABS037": {
      "o": "asked",
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS038": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS039": {
      "o": "refused",
@@ -2926,16 +2926,16 @@
      "d": "swap@solana 12000 BONK->USDC"
     },
     "ABS041": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "ABS042": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@base 0.1 ETH->WETH"
     },
     "ABS043": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].protocol:VENUE_MISSING"
     },
     "ABS044": {
      "o": "ready",
@@ -2946,28 +2946,28 @@
      "d": "stake@solana 1.9998 SOL->JitoSOL {jito}"
     },
     "ABS046": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS047": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@base 500 USDC to 0x1111111111111111111111111111111111111111"
     },
     "ABS048": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].toNetwork:DESTINATION_MISSING"
     },
     "ABS049": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "transfer@arbitrum 50 USDC to alice.eth"
     },
     "ABS050": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "withdraw@base max USDC [aave-v3] | withdraw@base max USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS051": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "stake@solana 3 SOL->JitoSOL {jito}"
     },
     "ABS052": {
      "o": "asked",
@@ -2986,24 +2986,24 @@
      "d": "bridge@arbitrum->base 250 USDC | bridge@solana->base 90 USDC"
     },
     "ABS056": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "bridge@base->arbitrum 25 USDC"
     },
     "ABS057": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "confirm",
+     "d": "actions[0].network:SCOPE_AMBIGUOUS"
     },
     "ABS058": {
      "o": "asked",
      "d": "actions[0].from:INPUT_ASSET_MISSING"
     },
     "ABS059": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].network:NETWORK_AMBIGUOUS"
     },
     "ABS060": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "deposit@base 800 USDC [morpho:steakhouse-prime-usdc]"
     },
     "ABS061": {
      "o": "refused",
@@ -3014,8 +3014,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "ABS063": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "swap@solana 0.335063 SOL->USDC"
     },
     "ABS064": {
      "o": "ready",
@@ -3590,8 +3590,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF002": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF003": {
      "o": "refused",
@@ -3614,8 +3614,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
     },
     "REF009": {
      "o": "refused",
@@ -5189,7 +5189,7 @@
     },
     "PAY020": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "PAY021": {
      "o": "refused",
@@ -5681,7 +5681,7 @@
     },
     "REF002": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "INTENT_HANDOFF"
     },
     "REF003": {
      "o": "refused",
@@ -5704,8 +5704,8 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
     },
     "REF009": {
      "o": "refused",
@@ -5857,7 +5857,7 @@
     },
     "REF046": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "REF047": {
      "o": "refused",
@@ -6308,16 +6308,16 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 200 on solana [jupiter-trigger]"
     },
     "RT010": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 1 SOL to USDC on solana"
     },
     "RT012": {
      "o": "refused",
@@ -6752,8 +6752,8 @@
      "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "RT120": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT121": {
      "o": "asked",
@@ -6772,6 +6772,46 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT125": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH01": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH02": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH03": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH04": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH05": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "RTH06": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "RTH07": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "RTH08": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "RTH09": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH10": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     }
@@ -6810,16 +6850,16 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 200 on solana [jupiter-trigger]"
     },
     "RT010": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 1 SOL to USDC on solana"
     },
     "RT012": {
      "o": "refused",
@@ -7254,8 +7294,8 @@
      "d": "transfer@base 800 USDC to alice.eth | transfer@base 0.2 WETH to alice.eth | transfer@base 0.3995 ETH to alice.eth"
     },
     "RT120": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
     },
     "RT121": {
      "o": "asked",
@@ -7274,6 +7314,46 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT125": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH01": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH02": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH03": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH04": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH05": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "RTH06": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "RTH07": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "RTH08": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "RTH09": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH10": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     }
@@ -7312,16 +7392,16 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT009": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 200 on solana [jupiter-trigger]"
     },
     "RT010": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     },
     "RT011": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 1 SOL to USDC on solana"
     },
     "RT012": {
      "o": "refused",
@@ -7597,7 +7677,7 @@
     },
     "RT080": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "RT081": {
      "o": "refused",
@@ -7609,15 +7689,15 @@
     },
     "RT083": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "RT084": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "RT085": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "RT086": {
      "o": "refused",
@@ -7625,7 +7705,7 @@
     },
     "RT087": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "RT088": {
      "o": "refused",
@@ -7776,6 +7856,46 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "RT125": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH01": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH02": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH03": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH04": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH05": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "RTH06": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "RTH07": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "RTH08": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "RTH09": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "RTH10": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
     }
@@ -9060,12 +9180,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF007": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF009": {
      "o": "refused",
@@ -9210,6 +9330,314 @@
     "GOA065": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
+    },
+    "PRP001": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP002": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "PRP003": {
+     "o": "ready",
+     "d": "perps:open short BTC $500 50 USDC 10x @hyperliquid"
+    },
+    "PRP004": {
+     "o": "ready",
+     "d": "perps:close long ETH"
+    },
+    "PRP005": {
+     "o": "ready",
+     "d": "perps:decrease short SOL $100"
+    },
+    "PRP006": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP007": {
+     "o": "ready",
+     "d": "perps:open long BTC 200 USDC 3x @gmx-v2"
+    },
+    "PRP008": {
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
+    },
+    "PRP009": {
+     "o": "asked",
+     "d": "handoff.leverage:LEVERAGE_MISSING"
+    },
+    "PRP010": {
+     "o": "asked",
+     "d": "handoff.side:SIDE_MISSING"
+    },
+    "PRP011": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "PRP012": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP013": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP017": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP019": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP020": {
+     "o": "ready",
+     "d": "perps:open short SOL 25 USDC 4x @hyperliquid"
+    },
+    "ORD001": {
+     "o": "ready",
+     "d": "order:limit sell 1 WETH for USDC at 4000 on base [cow-protocol]"
+    },
+    "ORD002": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x10 on solana [jupiter-recurring]"
+    },
+    "ORD003": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD004": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x5 on solana [jupiter-recurring]"
+    },
+    "ORD005": {
+     "o": "ready",
+     "d": "order:cancel jupiter-trigger:solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    },
+    "ORD006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD007": {
+     "o": "ready",
+     "d": "order:dca sell 1000 USDC for SOL every week x4 on solana [jupiter-recurring]"
+    },
+    "ORD008": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for ETH every day x10 on base [cow-protocol]"
+    },
+    "ORD009": {
+     "o": "asked",
+     "d": "handoff.network:NETWORK_AMBIGUOUS"
+    },
+    "ORD010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "ORD011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD012": {
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 150 on solana [jupiter-trigger]"
+    },
+    "ORD013": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD014": {
+     "o": "refused",
+     "d": "ORDER_UNSUPPORTED"
+    },
+    "ORD015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD017": {
+     "o": "ready",
+     "d": "order:limit sell 1 ETH for USDC at 4000 on arbitrum [cow-protocol]"
+    },
+    "AUT001": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT002": {
+     "o": "ready",
+     "d": "automation:price SOL@solana below 120 => sell half of my SOL for USDC on solana"
+    },
+    "AUT003": {
+     "o": "ready",
+     "d": "automation:every 1 month fri max - => send 100 USDC to vitalik.eth on base"
+    },
+    "AUT004": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "AUT005": {
+     "o": "asked",
+     "d": "handoff.amount:AMOUNT_MISSING"
+    },
+    "AUT006": {
+     "o": "ready",
+     "d": "automation:apy USDC base,arbitrum,ethereum,optimism,polygon => rebalance 100"
+    },
+    "AUT007": {
+     "o": "confirm",
+     "d": "automation:incoming USDC@base => deposit all my USDC into aave on base"
+    },
+    "AUT008": {
+     "o": "confirm",
+     "d": "automation:incoming USDC@base => deposit all my USDC into aave on base"
+    },
+    "AUT009": {
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 10 USDC to SOL on solana"
+    },
+    "AUT010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "AUT011": {
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
+    },
+    "AUT012": {
+     "o": "asked",
+     "d": "handoff.network:NETWORK_AMBIGUOUS"
+    },
+    "AUT013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT015": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT016": {
+     "o": "ready",
+     "d": "automation:balance USDC@base above 100 => deposit 50 USDC into aave on base"
+    },
+    "AUT017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT018": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "VEN001": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDS [sky]"
+    },
+    "VEN002": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 DAI [sky:sdai]"
+    },
+    "VEN003": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN004": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDe [ethena]"
+    },
+    "VEN005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN006": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [save]"
+    },
+    "VEN007": {
+     "o": "ready",
+     "d": "withdraw@solana 10 USDC [save]"
+    },
+    "VEN008": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino:jlp-usdc]"
+    },
+    "VEN009": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino]"
+    },
+    "VEN010": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN011": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->hSOL {sanctum-hsol}"
+    },
+    "VEN012": {
+     "o": "ready",
+     "d": "stake@solana 2 SOL->bonkSOL {sanctum-bonksol}"
+    },
+    "VEN013": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {dexes:phoenix}"
+    },
+    "VEN014": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {avoid:raydium,orca}"
+    },
+    "VEN015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN016": {
+     "o": "ready",
+     "d": "transfer@solana 5 USDC to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1 [solana-pay]"
+    },
+    "VEN017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN018": {
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
+    },
+    "VEN019": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino:jlp-usdc]"
+    },
+    "VEN020": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "plan": {
@@ -10490,12 +10918,12 @@
      "d": "INTENT_UNSUPPORTED"
     },
     "REF007": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF008": {
-     "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
     },
     "REF009": {
      "o": "refused",
@@ -10640,6 +11068,314 @@
     "GOA065": {
      "o": "asked",
      "d": "actions[0].amount:AMOUNT_MISSING"
+    },
+    "PRP001": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP002": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "PRP003": {
+     "o": "ready",
+     "d": "perps:open short BTC $500 50 USDC 10x @hyperliquid"
+    },
+    "PRP004": {
+     "o": "ready",
+     "d": "perps:close long ETH"
+    },
+    "PRP005": {
+     "o": "ready",
+     "d": "perps:decrease short SOL $100"
+    },
+    "PRP006": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP007": {
+     "o": "ready",
+     "d": "perps:open long BTC 200 USDC 3x @gmx-v2"
+    },
+    "PRP008": {
+     "o": "asked",
+     "d": "handoff.collateral:AMOUNT_MISSING"
+    },
+    "PRP009": {
+     "o": "asked",
+     "d": "handoff.leverage:LEVERAGE_MISSING"
+    },
+    "PRP010": {
+     "o": "asked",
+     "d": "handoff.side:SIDE_MISSING"
+    },
+    "PRP011": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "PRP012": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP013": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP017": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP019": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP020": {
+     "o": "ready",
+     "d": "perps:open short SOL 25 USDC 4x @hyperliquid"
+    },
+    "ORD001": {
+     "o": "ready",
+     "d": "order:limit sell 1 WETH for USDC at 4000 on base [cow-protocol]"
+    },
+    "ORD002": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x10 on solana [jupiter-recurring]"
+    },
+    "ORD003": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD004": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x5 on solana [jupiter-recurring]"
+    },
+    "ORD005": {
+     "o": "ready",
+     "d": "order:cancel jupiter-trigger:solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    },
+    "ORD006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD007": {
+     "o": "ready",
+     "d": "order:dca sell 1000 USDC for SOL every week x4 on solana [jupiter-recurring]"
+    },
+    "ORD008": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for ETH every day x10 on base [cow-protocol]"
+    },
+    "ORD009": {
+     "o": "asked",
+     "d": "handoff.network:NETWORK_AMBIGUOUS"
+    },
+    "ORD010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "ORD011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD012": {
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 150 on solana [jupiter-trigger]"
+    },
+    "ORD013": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD014": {
+     "o": "refused",
+     "d": "ORDER_UNSUPPORTED"
+    },
+    "ORD015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD017": {
+     "o": "ready",
+     "d": "order:limit sell 1 ETH for USDC at 4000 on arbitrum [cow-protocol]"
+    },
+    "AUT001": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT002": {
+     "o": "ready",
+     "d": "automation:price SOL@solana below 120 => sell half of my SOL for USDC on solana"
+    },
+    "AUT003": {
+     "o": "ready",
+     "d": "automation:every 1 month fri max - => send 100 USDC to vitalik.eth on base"
+    },
+    "AUT004": {
+     "o": "asked",
+     "d": "handoff.action:TRANSFER_NETWORK"
+    },
+    "AUT005": {
+     "o": "asked",
+     "d": "handoff.amount:AMOUNT_MISSING"
+    },
+    "AUT006": {
+     "o": "ready",
+     "d": "automation:apy USDC base,arbitrum,ethereum,optimism,polygon => rebalance 100"
+    },
+    "AUT007": {
+     "o": "confirm",
+     "d": "automation:incoming USDC@base => deposit all my USDC into aave on base"
+    },
+    "AUT008": {
+     "o": "confirm",
+     "d": "automation:incoming USDC@base => deposit all my USDC into aave on base"
+    },
+    "AUT009": {
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 10 USDC to SOL on solana"
+    },
+    "AUT010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "AUT011": {
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
+    },
+    "AUT012": {
+     "o": "asked",
+     "d": "handoff.network:NETWORK_AMBIGUOUS"
+    },
+    "AUT013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT015": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT016": {
+     "o": "ready",
+     "d": "automation:balance USDC@base above 100 => deposit 50 USDC into aave on base"
+    },
+    "AUT017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT018": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "VEN001": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDS [sky]"
+    },
+    "VEN002": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 DAI [sky:sdai]"
+    },
+    "VEN003": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN004": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDe [ethena]"
+    },
+    "VEN005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN006": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [save]"
+    },
+    "VEN007": {
+     "o": "ready",
+     "d": "withdraw@solana 10 USDC [save]"
+    },
+    "VEN008": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino:jlp-usdc]"
+    },
+    "VEN009": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino]"
+    },
+    "VEN010": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN011": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->hSOL {sanctum-hsol}"
+    },
+    "VEN012": {
+     "o": "ready",
+     "d": "stake@solana 2 SOL->bonkSOL {sanctum-bonksol}"
+    },
+    "VEN013": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {dexes:phoenix}"
+    },
+    "VEN014": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {avoid:raydium,orca}"
+    },
+    "VEN015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN016": {
+     "o": "ready",
+     "d": "transfer@solana 5 USDC to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1 [solana-pay]"
+    },
+    "VEN017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN018": {
+     "o": "asked",
+     "d": "actions[0].amount:AMOUNT_MISSING"
+    },
+    "VEN019": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino:jlp-usdc]"
+    },
+    "VEN020": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN022": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
     }
    },
    "strict": {
@@ -11785,7 +12521,7 @@
     },
     "REC003": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "TOKEN_UNKNOWN"
     },
     "REC004": {
      "o": "ready",
@@ -11921,11 +12657,11 @@
     },
     "REF007": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "INTENT_HANDOFF"
     },
     "REF008": {
      "o": "refused",
-     "d": "INTENT_UNSUPPORTED"
+     "d": "INTENT_HANDOFF"
     },
     "REF009": {
      "o": "refused",
@@ -12070,6 +12806,314 @@
     "GOA065": {
      "o": "refused",
      "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP001": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP002": {
+     "o": "refused",
+     "d": "PERPS_VENUE_DISABLED"
+    },
+    "PRP003": {
+     "o": "ready",
+     "d": "perps:open short BTC $500 50 USDC 10x @hyperliquid"
+    },
+    "PRP004": {
+     "o": "ready",
+     "d": "perps:close long ETH"
+    },
+    "PRP005": {
+     "o": "ready",
+     "d": "perps:decrease short SOL $100"
+    },
+    "PRP006": {
+     "o": "ready",
+     "d": "perps:open long ETH 100 USDC 5x"
+    },
+    "PRP007": {
+     "o": "ready",
+     "d": "perps:open long BTC 200 USDC 3x @gmx-v2"
+    },
+    "PRP008": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRP009": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRP010": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRP011": {
+     "o": "refused",
+     "d": "PERPS_LEVERAGE_TOO_HIGH"
+    },
+    "PRP012": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP013": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "PRP014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP017": {
+     "o": "refused",
+     "d": "PERPS_MARKET_UNSUPPORTED"
+    },
+    "PRP018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP019": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "PRP020": {
+     "o": "ready",
+     "d": "perps:open short SOL 25 USDC 4x @hyperliquid"
+    },
+    "ORD001": {
+     "o": "ready",
+     "d": "order:limit sell 1 WETH for USDC at 4000 on base [cow-protocol]"
+    },
+    "ORD002": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x10 on solana [jupiter-recurring]"
+    },
+    "ORD003": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD004": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for SOL every day x5 on solana [jupiter-recurring]"
+    },
+    "ORD005": {
+     "o": "ready",
+     "d": "order:cancel jupiter-trigger:solana:9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+    },
+    "ORD006": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD007": {
+     "o": "ready",
+     "d": "order:dca sell 1000 USDC for SOL every week x4 on solana [jupiter-recurring]"
+    },
+    "ORD008": {
+     "o": "ready",
+     "d": "order:dca sell 500 USDC for ETH every day x10 on base [cow-protocol]"
+    },
+    "ORD009": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "ORD010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "ORD011": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD012": {
+     "o": "ready",
+     "d": "order:limit sell 1 SOL for USDC at 150 on solana [jupiter-trigger]"
+    },
+    "ORD013": {
+     "o": "ready",
+     "d": "order:limit buy 1000 JUP with USDC at 0.8 on solana [jupiter-trigger]"
+    },
+    "ORD014": {
+     "o": "refused",
+     "d": "ORDER_UNSUPPORTED"
+    },
+    "ORD015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD016": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "ORD017": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT001": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT002": {
+     "o": "ready",
+     "d": "automation:price SOL@solana below 120 => sell half of my SOL for USDC on solana"
+    },
+    "AUT003": {
+     "o": "ready",
+     "d": "automation:every 1 month fri max - => send 100 USDC to vitalik.eth on base"
+    },
+    "AUT004": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT005": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT006": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT007": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT008": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT009": {
+     "o": "ready",
+     "d": "automation:every 1 day fri max - => swap 10 USDC to SOL on solana"
+    },
+    "AUT010": {
+     "o": "ready",
+     "d": "order:limit sell 2 SOL for USDC at 200 on solana [jupiter-trigger]"
+    },
+    "AUT011": {
+     "o": "ready",
+     "d": "automation:price SOL@solana above 200 => swap 1 SOL to USDC on solana"
+    },
+    "AUT012": {
+     "o": "refused",
+     "d": "INTENT_HANDOFF"
+    },
+    "AUT013": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT014": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT015": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "AUT016": {
+     "o": "ready",
+     "d": "automation:balance USDC@base above 100 => deposit 50 USDC into aave on base"
+    },
+    "AUT017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "AUT018": {
+     "o": "ready",
+     "d": "automation:every 1 week mon max - => swap 50 USDC to ETH on base"
+    },
+    "VEN001": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDS [sky]"
+    },
+    "VEN002": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 DAI [sky:sdai]"
+    },
+    "VEN003": {
+     "o": "refused",
+     "d": "VENUE_ASSET_MISMATCH"
+    },
+    "VEN004": {
+     "o": "ready",
+     "d": "deposit@ethereum 100 USDe [ethena]"
+    },
+    "VEN005": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN006": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [save]"
+    },
+    "VEN007": {
+     "o": "ready",
+     "d": "withdraw@solana 10 USDC [save]"
+    },
+    "VEN008": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino:jlp-usdc]"
+    },
+    "VEN009": {
+     "o": "ready",
+     "d": "deposit@solana 10 USDC [kamino]"
+    },
+    "VEN010": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN011": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->hSOL {sanctum-hsol}"
+    },
+    "VEN012": {
+     "o": "ready",
+     "d": "stake@solana 2 SOL->bonkSOL {sanctum-bonksol}"
+    },
+    "VEN013": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {dexes:phoenix}"
+    },
+    "VEN014": {
+     "o": "ready",
+     "d": "swap@solana 1 SOL->USDC [jupiter] {avoid:raydium,orca}"
+    },
+    "VEN015": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN016": {
+     "o": "ready",
+     "d": "transfer@solana 5 USDC to 5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1 [solana-pay]"
+    },
+    "VEN017": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN018": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN019": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN020": {
+     "o": "ready",
+     "d": "stake@solana 1 SOL->bSOL {blazestake}"
+    },
+    "VEN021": {
+     "o": "refused",
+     "d": "INTENT_UNSUPPORTED"
+    },
+    "VEN022": {
+     "o": "refused",
+     "d": "VENUE_UNKNOWN"
     }
    }
   }

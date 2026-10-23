@@ -7,7 +7,7 @@
  * comes from the protocol through /v1/orders.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CHAINS } from "@kletia/core";
+import { CHAINS, type IntentHandoff } from "@kletia/core";
 
 import { getKletiaClient, describePlatformError, toPlatformError } from "../../../shared/platform/kletiaClient";
 import { useWallets } from "../../../shared/wallet/useWallets";
@@ -35,6 +35,9 @@ import {
   type OrderStepView,
 } from "./ordersModel";
 import { useOrderRunner } from "./useOrderRunner";
+import { orderPrefill } from "../handoff/handoffModel";
+import { HandoffNote } from "../handoff/HandoffNote";
+import { useHandoff } from "../handoff/useHandoff";
 
 const copy = DESK_COPY.orders;
 const FIELD = VIEW_FIELD;
@@ -149,6 +152,13 @@ export function OrdersView() {
   const run = useOrderRunner();
 
   const [form, setForm] = useState<OrderFormState>(EMPTY_ORDER_FORM);
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
+  useHandoff("orders", useCallback((handoff: IntentHandoff) => {
+    if (handoff.surface !== "orders") return;
+    const prefill = orderPrefill(handoff.input, EMPTY_ORDER_FORM, Date.now());
+    if ("form" in prefill) setForm(prefill.form);
+    setHandoffNote("form" in prefill ? `${handoff.summary}: check the form, then quote and sign.` : `${handoff.summary}. ${prefill.problem}`);
+  }, []));
   const [quote, setQuote] = useState<OrderQuoteView | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -233,6 +243,7 @@ export function OrdersView() {
   return (
     <section aria-labelledby="desk-orders-heading" className="flex flex-col gap-6 pb-8">
       <ViewHeader id="desk-orders-heading" title={copy.title} intro={copy.intro} />
+      <HandoffNote text={handoffNote} />
 
       <form className={cx(VIEW_PANEL, "gap-4")} onSubmit={(event) => event.preventDefault()} aria-labelledby="desk-orders-create">
         <h3 id="desk-orders-create" className={PANEL_TITLE}>

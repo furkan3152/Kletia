@@ -704,7 +704,7 @@
             "name": "clarify",
             "in": "query",
             "required": false,
-            "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+            "description": "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, handoff 200, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
             "schema": {
               "type": "string",
               "enum": [
@@ -14853,9 +14853,10 @@
                   "properties": {
                     "field": {
                       "type": "string",
-                      "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+                      "pattern": "^(?:actions\\[[0-7]\\]|handoff)\\.[a-zA-Z]{1,24}$",
                       "examples": [
-                        "actions[0].amount"
+                        "actions[0].amount",
+                        "handoff.leverage"
                       ]
                     },
                     "label": {
@@ -32874,9 +32875,10 @@
           },
           "field": {
             "type": "string",
-            "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+            "pattern": "^(?:actions\\[[0-7]\\]|handoff)\\.[a-zA-Z]{1,24}$",
             "examples": [
-              "actions[0].amount"
+              "actions[0].amount",
+              "handoff.leverage"
             ],
             "description": "The slot this question fills (or `edit` for an ambiguous follow-up)."
           },
@@ -32931,12 +32933,17 @@
               "DELIVERY_AMOUNT",
               "GAS_ON_ARRIVAL",
               "FEE_HIGH",
-              "PLAN_TOO_LARGE"
+              "PLAN_TOO_LARGE",
+              "LEVERAGE_MISSING",
+              "SIDE_MISSING",
+              "PRICE_MISSING",
+              "PERIOD_MISSING",
+              "DIRECTION_MISSING"
             ]
           },
           "purpose": {
             "type": "boolean",
-            "description": "True when only the person can answer (AMOUNT_MISSING, AMOUNT_BALANCE_UNKNOWN, DESTINATION_MISSING, OUTPUT_ASSET_MISSING, INPUT_ASSET_MISSING, RECIPIENT_MISSING, SOURCE_MISSING, TRANSFER_NETWORK, COUNTERPART_MISSING, NETWORK_HANDOFF, FUNDS_ELSEWHERE, AMOUNT_FORMAT_AMBIGUOUS, ASSET_AMBIGUOUS, ASSET_LOOKALIKE, ASSET_NOT_ON_NETWORK, RECIPIENT_UNRESOLVED, RECIPIENT_NAME_MOVED, RECIPIENT_NETWORK_MISMATCH, RECIPIENT_CHECKSUM, VERB_AMBIGUOUS, EDIT_TARGET_AMBIGUOUS, AMOUNT_EXCEEDS_BALANCE, SCOPE_AMBIGUOUS, EARN_KIND, ASSET_TYPO, INTERPRETATION_CONFIRM, AMOUNT_VAGUE, REFERENCE_AMBIGUOUS, RECIPIENT_EACH, SPEND_CONFLICT, STAKE_INPUT_MISMATCH, NETWORK_CONTRADICTION, PAIRING_AMBIGUOUS, DELIVERY_AMOUNT, GAS_ON_ARRIVAL, FEE_HIGH, PLAN_TOO_LARGE): agents relay these and never pick an option themselves."
+            "description": "True when only the person can answer (AMOUNT_MISSING, AMOUNT_BALANCE_UNKNOWN, DESTINATION_MISSING, OUTPUT_ASSET_MISSING, INPUT_ASSET_MISSING, RECIPIENT_MISSING, SOURCE_MISSING, TRANSFER_NETWORK, COUNTERPART_MISSING, NETWORK_HANDOFF, FUNDS_ELSEWHERE, AMOUNT_FORMAT_AMBIGUOUS, ASSET_AMBIGUOUS, ASSET_LOOKALIKE, ASSET_NOT_ON_NETWORK, RECIPIENT_UNRESOLVED, RECIPIENT_NAME_MOVED, RECIPIENT_NETWORK_MISMATCH, RECIPIENT_CHECKSUM, VERB_AMBIGUOUS, EDIT_TARGET_AMBIGUOUS, AMOUNT_EXCEEDS_BALANCE, SCOPE_AMBIGUOUS, EARN_KIND, ASSET_TYPO, INTERPRETATION_CONFIRM, AMOUNT_VAGUE, REFERENCE_AMBIGUOUS, RECIPIENT_EACH, SPEND_CONFLICT, STAKE_INPUT_MISMATCH, NETWORK_CONTRADICTION, PAIRING_AMBIGUOUS, DELIVERY_AMOUNT, GAS_ON_ARRIVAL, FEE_HIGH, PLAN_TOO_LARGE, LEVERAGE_MISSING, SIDE_MISSING, PRICE_MISSING, PERIOD_MISSING, DIRECTION_MISSING): agents relay these and never pick an option themselves."
           },
           "prompt": {
             "type": "string",
@@ -32995,9 +33002,10 @@
           },
           "field": {
             "type": "string",
-            "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+            "pattern": "^(?:actions\\[[0-7]\\]|handoff)\\.[a-zA-Z]{1,24}$",
             "examples": [
-              "actions[0].amount"
+              "actions[0].amount",
+              "handoff.leverage"
             ]
           },
           "label": {
@@ -33809,9 +33817,10 @@
               "properties": {
                 "field": {
                   "type": "string",
-                  "pattern": "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$",
+                  "pattern": "^(?:actions\\[[0-7]\\]|handoff)\\.[a-zA-Z]{1,24}$",
                   "examples": [
-                    "actions[0].amount"
+                    "actions[0].amount",
+                    "handoff.leverage"
                   ]
                 },
                 "from": {
@@ -33882,6 +33891,47 @@
             },
             "maxItems": 8,
             "description": "The goals of the thread's goal steps (steps with no kind), in order: Kletia solves them again each turn from the current balances, prices and rates."
+          },
+          "handoff": {
+            "type": "object",
+            "properties": {
+              "surface": {
+                "type": "string",
+                "enum": [
+                  "perps",
+                  "orders",
+                  "automations"
+                ]
+              },
+              "input": {
+                "type": "object"
+              },
+              "inner": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "answers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "maxItems": 4
+                  }
+                },
+                "required": [
+                  "text",
+                  "answers"
+                ]
+              }
+            },
+            "required": [
+              "surface",
+              "input"
+            ],
+            "description": "A hand-off this thread is building (perps, native orders, automations); its steps are then empty. Kletia checks it again every turn."
           }
         },
         "required": [
@@ -34240,6 +34290,274 @@
           "thread"
         ]
       },
+      "PerpsHandoffInput": {
+        "type": "object",
+        "properties": {
+          "market": {
+            "type": "string",
+            "examples": [
+              "ETH"
+            ]
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "open",
+              "decrease",
+              "close"
+            ]
+          },
+          "sizeUsd": {
+            "type": "string",
+            "description": "Position size (open) or size taken off (decrease), USD."
+          },
+          "collateral": {
+            "type": "string",
+            "description": "USDC put up as collateral (open)."
+          },
+          "leverage": {
+            "type": "number",
+            "minimum": 1
+          },
+          "venue": {
+            "type": "string",
+            "enum": [
+              "gmx-v2",
+              "hyperliquid",
+              "drift-v2"
+            ],
+            "description": "Absent: the scorer picks the cheapest eligible venue at quote time."
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkKey"
+          }
+        },
+        "required": [
+          "market",
+          "side",
+          "action"
+        ],
+        "description": "The perps trade as the sentence gave it: POST /v1/perps/quote takes it once the account is added."
+      },
+      "OrdersHandoffInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "create"
+              },
+              "order": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "limit",
+                      "dca"
+                    ]
+                  },
+                  "sell": {
+                    "type": "string"
+                  },
+                  "buy": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "amountIn": {
+                    "type": "string",
+                    "enum": [
+                      "sell",
+                      "buy"
+                    ]
+                  },
+                  "price": {
+                    "type": "string"
+                  },
+                  "period": {
+                    "type": "string",
+                    "enum": [
+                      "minute",
+                      "hour",
+                      "day",
+                      "week",
+                      "month"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 2
+                  },
+                  "network": {
+                    "$ref": "#/components/schemas/NetworkKey"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "sell",
+                  "buy",
+                  "amount"
+                ]
+              },
+              "protocol": {
+                "type": "string",
+                "enum": [
+                  "jupiter-trigger",
+                  "jupiter-recurring",
+                  "cow-protocol"
+                ]
+              },
+              "network": {
+                "$ref": "#/components/schemas/NetworkKey"
+              }
+            },
+            "required": [
+              "action",
+              "order",
+              "protocol",
+              "network"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "cancel"
+              },
+              "orderId": {
+                "type": "string",
+                "description": "`<protocol>:<network>:<native id>`."
+              }
+            },
+            "required": [
+              "action",
+              "orderId"
+            ]
+          }
+        ],
+        "description": "A native order (POST /v1/orders/quote once the owner is added) or a cancellation (POST /v1/orders/{id}/cancel)."
+      },
+      "AutomationsHandoffInput": {
+        "type": "object",
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/AutomationCreateRequest"
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "description": "A validated draft for POST /v1/automations; each run waits for the owner's signature."
+      },
+      "IntentHandoff": {
+        "type": "object",
+        "properties": {
+          "surface": {
+            "type": "string",
+            "enum": [
+              "perps",
+              "orders",
+              "automations"
+            ]
+          },
+          "input": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PerpsHandoffInput"
+              },
+              {
+                "$ref": "#/components/schemas/OrdersHandoffInput"
+              },
+              {
+                "$ref": "#/components/schemas/AutomationsHandoffInput"
+              }
+            ],
+            "description": "The surface's own typed input, checked with its own rules."
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "native",
+              "signature"
+            ],
+            "description": "`native`: the protocol runs it after one signature; `signature`: the person signs on the surface (perps) or at each run (automations)."
+          }
+        },
+        "required": [
+          "surface",
+          "input",
+          "summary",
+          "execution"
+        ],
+        "description": "Round 9: the sentence runs on another surface. Nothing was planned, stored or executed: open the surface prefilled and let the person confirm and sign there."
+      },
+      "IntentTurnHandoff": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "handoff"
+          },
+          "turn": {
+            "type": "string",
+            "enum": [
+              "message",
+              "answer",
+              "edit",
+              "append",
+              "replace",
+              "control",
+              "none"
+            ]
+          },
+          "handoff": {
+            "$ref": "#/components/schemas/IntentHandoff"
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClarifyAssumption"
+            },
+            "description": "Every default the hand-off uses, as chips."
+          },
+          "thread": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClarifyThread"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "turn",
+          "handoff",
+          "assumptions",
+          "thread"
+        ]
+      },
       "IntentTurnCancelled": {
         "type": "object",
         "properties": {
@@ -34277,6 +34595,9 @@
             "$ref": "#/components/schemas/IntentTurnPlanned"
           },
           {
+            "$ref": "#/components/schemas/IntentTurnHandoff"
+          },
+          {
             "$ref": "#/components/schemas/IntentTurnCancelled"
           }
         ],
@@ -34285,6 +34606,7 @@
           "mapping": {
             "needs_input": "#/components/schemas/IntentTurnNeedsInput",
             "planned": "#/components/schemas/IntentTurnPlanned",
+            "handoff": "#/components/schemas/IntentTurnHandoff",
             "cancelled": "#/components/schemas/IntentTurnCancelled"
           }
         }

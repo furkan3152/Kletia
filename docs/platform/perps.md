@@ -132,8 +132,13 @@ v2.156.0 IDL and are tested, ready for when a verified program can be pinned.
 
 ## Reader entry point
 
-`planPerpsIntent(input, policy?)` in `apps/api/src/platform/perps/service.ts`
-takes the slots a sentence names and returns the scored, guarded request:
+The sentence reader hands perps sentences to this surface (status
+`handoff`, [clarify](clarify.md#hand-offs)): it fills `planPerpsIntent`'s
+input, asks a missing side, collateral or leverage, refuses Drift with its
+disabled reason and any leverage above the caller's rule-book cap, and the
+desk opens the Perps ticket prefilled. `planPerpsIntent(input, policy?)` in
+`apps/api/src/platform/perps/service.ts` takes those slots and returns the
+scored, guarded request:
 
 | Sentence | Call |
 | --- | --- |

@@ -14,6 +14,8 @@ import {
   CLARIFY_REASONS,
   GOAL_LIMITS,
   GOAL_SPEC,
+  HANDOFF_LIMITS,
+  HANDOFF_SURFACES,
   CLARIFY_STEP_KINDS,
   PURPOSE_REASONS,
   THREAD_ID_PATTERN,
@@ -30,7 +32,7 @@ const THREAD_ID: JsonObject = str({ pattern: THREAD_ID_PATTERN.source, descripti
 const QUESTION_ID: JsonObject = str({ pattern: "^q\\.[\\w.[\\]-]{1,94}$", examples: ["q.actions.0.amount"] });
 const ASSUMPTION_ID: JsonObject = str({ pattern: "^a\\.[\\w.[\\]-]{1,94}$", examples: ["a.actions.0.network"] });
 const OPTION_ID: JsonObject = str({ pattern: "^[\\w.:[\\]-]{1,128}$", examples: ["all", "base"] });
-const FIELD: JsonObject = str({ pattern: "^actions\\[[0-7]\\]\\.[a-zA-Z]{1,24}$", examples: ["actions[0].amount"] });
+const FIELD: JsonObject = str({ pattern: "^(?:actions\\[[0-7]\\]|handoff)\\.[a-zA-Z]{1,24}$", examples: ["actions[0].amount", "handoff.leverage"] });
 
 /** `?clarify=true` on createIntent. */
 export const CLARIFY_QUERY_PARAMETER: JsonObject = {
@@ -38,7 +40,7 @@ export const CLARIFY_QUERY_PARAMETER: JsonObject = {
   in: "query",
   required: false,
   description:
-    "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
+    "Ask instead of refusing: the body is an `IntentTurnRequest` and the response an `IntentTurnResponse` (needs_input 200, planned 201 when stored or 200 on a dry run or a replay, handoff 200, cancelled 200). Without it the endpoint is the strict planner, unchanged. See docs/platform/clarify.md.",
   schema: BOOLEAN_QUERY,
 };
 
@@ -181,6 +183,11 @@ export function clarifySchemas(): JsonObject {
           { type: "object", description: `A \`${GOAL_SPEC}\` Goal (what is spent, what is wanted and where, for whom), never the user's words.` },
           { maxItems: GOAL_LIMITS.maxGoals, description: "The goals of the thread's goal steps (steps with no kind), in order: Kletia solves them again each turn from the current balances, prices and rates." },
         ),
+        handoff: obj(
+          { surface: str({ enum: [...HANDOFF_SURFACES] }), input: { type: "object" }, inner: obj({ text: str({ maxLength: HANDOFF_LIMITS.innerText }), answers: arrayOf({ type: "object" }, { maxItems: HANDOFF_LIMITS.innerAnswers }) }, ["text", "answers"]) },
+          ["surface", "input"],
+          { description: "A hand-off this thread is building (perps, native orders, automations); its steps are then empty. Kletia checks it again every turn." },
+        ),
       },
       ["spec", "id", "rev", "status", "policy", "steps", "open", "corrections", "turns", "undo"],
       {
@@ -259,17 +266,74 @@ export function clarifySchemas(): JsonObject {
       },
       ["status", "turn", "intent", "assumptions", "sentence", "thread"],
     ),
+    PerpsHandoffInput: obj(
+      {
+        market: str({ examples: ["ETH"] }),
+        side: str({ enum: ["long", "short"] }),
+        action: str({ enum: ["open", "decrease", "close"] }),
+        sizeUsd: str({ description: "Position size (open) or size taken off (decrease), USD." }),
+        collateral: str({ description: "USDC put up as collateral (open)." }),
+        leverage: { type: "number", minimum: 1 },
+        venue: str({ enum: ["gmx-v2", "hyperliquid", "drift-v2"], description: "Absent: the scorer picks the cheapest eligible venue at quote time." }),
+        network: ref("NetworkKey"),
+      },
+      ["market", "side", "action"],
+      { description: "The perps trade as the sentence gave it: POST /v1/perps/quote takes it once the account is added." },
+    ),
+    OrdersHandoffInput: {
+      oneOf: [
+        obj(
+          {
+            action: str({ const: "create" }),
+            order: obj(
+              {
+                kind: str({ enum: ["limit", "dca"] }), sell: str(), buy: str(), amount: str(), amountIn: str({ enum: ["sell", "buy"] }), price: str(),
+                period: str({ enum: ["minute", "hour", "day", "week", "month"] }), count: int({ minimum: 2 }), network: ref("NetworkKey"), expiresAt: str({ format: "date-time" }),
+              },
+              ["kind", "sell", "buy", "amount"],
+            ),
+            protocol: str({ enum: ["jupiter-trigger", "jupiter-recurring", "cow-protocol"] }),
+            network: ref("NetworkKey"),
+          },
+          ["action", "order", "protocol", "network"],
+        ),
+        obj({ action: str({ const: "cancel" }), orderId: str({ description: "`<protocol>:<network>:<native id>`." }) }, ["action", "orderId"]),
+      ],
+      description: "A native order (POST /v1/orders/quote once the owner is added) or a cancellation (POST /v1/orders/{id}/cancel).",
+    },
+    AutomationsHandoffInput: obj({ draft: ref("AutomationCreateRequest") }, ["draft"], { description: "A validated draft for POST /v1/automations; each run waits for the owner's signature." }),
+    IntentHandoff: obj(
+      {
+        surface: str({ enum: [...HANDOFF_SURFACES] }),
+        input: { oneOf: [ref("PerpsHandoffInput"), ref("OrdersHandoffInput"), ref("AutomationsHandoffInput")], description: "The surface's own typed input, checked with its own rules." },
+        summary: str({ maxLength: 160 }),
+        execution: str({ enum: ["native", "signature"], description: "`native`: the protocol runs it after one signature; `signature`: the person signs on the surface (perps) or at each run (automations)." }),
+      },
+      ["surface", "input", "summary", "execution"],
+      { description: "Round 9: the sentence runs on another surface. Nothing was planned, stored or executed: open the surface prefilled and let the person confirm and sign there." },
+    ),
+    IntentTurnHandoff: obj(
+      {
+        status: str({ const: "handoff" }),
+        turn: str({ enum: [...TURN_KINDS] }),
+        handoff: ref("IntentHandoff"),
+        assumptions: arrayOf(ref("ClarifyAssumption"), { description: "Every default the hand-off uses, as chips." }),
+        thread: { oneOf: [ref("ClarifyThread"), ref("ThreadRef")] },
+      },
+      ["status", "turn", "handoff", "assumptions", "thread"],
+    ),
     IntentTurnCancelled: obj(
       { status: str({ const: "cancelled" }), turn: str({ const: "control" }), thread: { oneOf: [ref("ClarifyThread"), ref("ThreadRef")] } },
       ["status", "turn", "thread"],
     ),
     IntentTurnResponse: {
-      oneOf: [ref("IntentTurnNeedsInput"), ref("IntentTurnPlanned"), ref("IntentTurnCancelled")],
+      oneOf: [ref("IntentTurnNeedsInput"), ref("IntentTurnPlanned"), ref("IntentTurnHandoff"), ref("IntentTurnCancelled")],
       discriminator: {
         propertyName: "status",
         mapping: {
           needs_input: "#/components/schemas/IntentTurnNeedsInput",
           planned: "#/components/schemas/IntentTurnPlanned",
+          handoff: "#/components/schemas/IntentTurnHandoff",
           cancelled: "#/components/schemas/IntentTurnCancelled",
         },
       },

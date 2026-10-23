@@ -323,3 +323,27 @@ describe("POST /v1/intents?clarify=true with a Kletia-held thread", () => {
     assertError(await turn({ threadId: ref.id, text: "1" }, "dryRun=true", { key }), 404, "THREAD_NOT_FOUND");
   });
 });
+
+describe("hand-offs over HTTP (round 9)", () => {
+  it("returns a perps trade as status handoff on a clarify turn, and as INTENT_HANDOFF on the strict path", async () => {
+    const reply = await turn({ text: "long ETH 5x with 100 USDC", accounts: ACCOUNTS }, "dryRun=true", { key });
+    assert.equal(reply.status, 200);
+    const body = reply.body as unknown as { status: string; handoff: { surface: string; input: Record<string, unknown>; execution: string }; thread: ClarifyThread };
+    assert.equal(body.status, "handoff");
+    assert.equal(body.handoff.surface, "perps");
+    assert.deepEqual(body.handoff.input, { market: "ETH", side: "long", action: "open", collateral: "100", leverage: 5 });
+    assert.equal(body.handoff.execution, "signature");
+    assert.deepEqual(body.thread.steps, [], "nothing is planned");
+    const strict = await call<ErrorEnvelope>(server, "POST", "/intents", { body: { text: "long ETH 5x with 100 USDC", accounts: ACCOUNTS }, key });
+    const error = assertError(strict, 422, "INTENT_HANDOFF");
+    assert.equal((error.error.details as { handoff?: { surface?: string } } | undefined)?.handoff?.surface, "perps");
+  });
+
+  it("asks a missing leverage on the thread and takes the answer", async () => {
+    const first = await turn({ text: "long ETH with 100 USDC", accounts: ACCOUNTS }, "dryRun=true", { key });
+    assert.equal(first.body.status, "needs_input");
+    assert.equal(first.body.questions?.[0]?.reason, "LEVERAGE_MISSING");
+    const second = await turn({ thread: first.body.thread, accounts: ACCOUNTS, answer: { question: "q.handoff.leverage", option: "3" } }, "dryRun=true", { key });
+    assert.equal((second.body as unknown as { status: string }).status, "handoff", JSON.stringify(second.body));
+  });
+});

@@ -218,7 +218,7 @@ describe("grammar: lending venues, bridge venues, new networks and names", () =>
     ["withdraw it from aave on base", /exact amount or "all"/u],
     ["withdraw all from aave on base", /which asset to withdraw/u],
     ["deposit 100 USDC on base", /does not match/u],
-    ["deposit 100 USDC into aave spark-usdc on base", /Only Morpho, Spark Savings and Yearn vaults are named/u],
+    ["deposit 100 USDC into aave spark-usdc on base", /Only Morpho, Spark Savings, Yearn, Kamino and Sky venues are named/u],
     ["deposit 100 USDC into venus on base", /does not match/u],
     ["bridge 25 USDC from base to solana via wormhole", /does not match/u],
     ["withdraw $5 ETH from aave on base", /USD stablecoin/u],

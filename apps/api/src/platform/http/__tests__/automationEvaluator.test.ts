@@ -28,7 +28,7 @@ const START = Date.parse("2026-11-02T09:00:00Z");
 const HOUR = 3_600_000;
 
 let store: import("../../automation/store.js").AutomationStore;
-let planned: { request: IntentRequest; dryRun: boolean; owner?: string }[];
+let planned: { request: IntentRequest; dryRun: boolean; owner?: string; exact: boolean }[];
 let price: number | null;
 let notional: bigint | null;
 let rates: VenueRate[];
@@ -56,7 +56,7 @@ function deps(): Deps {
       notionalUsdMicros: async () => notional,
     },
     planner: async (request, options) => {
-      planned.push({ request, dryRun: options.dryRun === true, ...(options.ownerKeyId ? { owner: options.ownerKeyId } : {}) });
+      planned.push({ request, dryRun: options.dryRun === true, ...(options.ownerKeyId ? { owner: options.ownerKeyId } : {}), exact: options.exactReading === true });
       if (plannerError) throw plannerError;
       return { intent: graph(request) };
     },
@@ -104,6 +104,8 @@ describe("automation evaluator", () => {
     assert.equal(first.fired, true);
     assert.equal(first.run?.status, "needs_signature");
     assert.deepEqual(planned.map((call) => call.dryRun), [true, false]);
+    // The run reads its sentence exactly as approved ("sell half of my SOL on solana"), whatever the server's strict switch says.
+    assert.deepEqual(planned.map((call) => call.exact), [true, true]);
     assert.equal(planned[1]?.owner, OWNER.kind === "key" ? OWNER.keyId : undefined, "the owner key's rule book applies");
     assert.equal(planned[1]?.request.clientReference, `automation:${first.run?.id}`);
     assert.deepEqual(planned[1]?.request.metadata, { automationId: record.id, automationRunId: first.run?.id });

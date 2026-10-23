@@ -59,7 +59,9 @@ export type OutcomeClass = (typeof OUTCOME_CLASSES)[number];
 export function outcomeOf(result: EvalResult): OutcomeClass {
   if (result.confirmed) return "confirm";
   switch (result.status) {
+    // A hand-off prefills a surface the person signs on (round 9): as consequential as a plan.
     case "ready":
+    case "handoff":
       return "ready";
     case "needs_input": {
       const first = result.questions[0] ?? "";

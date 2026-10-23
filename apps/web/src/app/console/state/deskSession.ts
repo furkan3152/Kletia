@@ -87,9 +87,10 @@ export const TASK_STATUSES: readonly TaskStatus[] = Object.freeze([
   "cancelled",
   "unsupported",
   "engine",
+  "handoff",
 ]);
 
-const FINISHED: ReadonlySet<TaskStatus> = new Set<TaskStatus>(["completed", "failed", "cancelled", "unsupported"]);
+const FINISHED: ReadonlySet<TaskStatus> = new Set<TaskStatus>(["completed", "failed", "cancelled", "unsupported", "handoff"]);
 /** States whose intent can be picked up again after a reload (on demand, never automatically). */
 const RESUMABLE: ReadonlySet<TaskStatus> = new Set<TaskStatus>(["review", "executing", "paused"]);
 

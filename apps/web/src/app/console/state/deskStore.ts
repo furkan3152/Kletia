@@ -17,7 +17,7 @@
  * `createDeskStore` builds a vanilla store (node --test drives it); the app
  * uses the lazily created singleton through `useDeskStore`.
  */
-import type { ClarifyQuestion, ClarifyThread, NetworkKey } from "@kletia/core";
+import type { ClarifyQuestion, ClarifyThread, IntentHandoff, NetworkKey } from "@kletia/core";
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -64,7 +64,9 @@ export type TaskStatus =
   | "failed"
   | "cancelled"
   | "unsupported"
-  | "engine";
+  | "engine"
+  /** Read as a perps trade, native order or automation and opened in that view (round 9); nothing signed here. */
+  | "handoff";
 
 /**
  * What is known about the wallet's signatures for a task's intent (memory
@@ -144,6 +146,8 @@ export interface TaskRecord {
   readonly thread?: ClarifyThread | null;
   /** The signature state of the task's intent while it signs (absent: not known, treated as "unknown"). */
   readonly signature?: SignatureState;
+  /** The hand-off the task was read as (memory only, never persisted). */
+  readonly handoff?: IntentHandoff | null;
 }
 
 export interface NewTask {
@@ -154,7 +158,7 @@ export interface NewTask {
   readonly status?: TaskStatus;
 }
 
-export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane" | "thread" | "signature">> & {
+export type TaskPatch = Partial<Pick<TaskRecord, "title" | "intentId" | "status" | "question" | "ends" | "engine" | "lane" | "thread" | "signature" | "handoff">> & {
   /** Appended to the task's turns. */
   readonly turn?: TaskTurn;
 };
@@ -175,6 +179,8 @@ export interface DeskState {
   readonly editing: string | null;
   readonly view: DeskView;
   readonly toolId: string | null;
+  /** A hand-off waiting for its view to open and take it (prefill), memory only. */
+  readonly pendingHandoff: IntentHandoff | null;
   setDeparture(departure: Departure): void;
   addTask(task: NewTask): TaskRecord;
   /**
@@ -197,6 +203,10 @@ export interface DeskState {
   edit(id: string | null): void;
   setView(view: DeskView): void;
   openTool(toolId: string | null): void;
+  /** Opens the hand-off's view with it waiting to prefill the form there. */
+  openHandoff(handoff: IntentHandoff): void;
+  /** The waiting hand-off for `surface`, once (the view takes it on mount); null when none waits. */
+  takeHandoff(surface: IntentHandoff["surface"]): IntentHandoff | null;
 }
 
 export interface DeskStoreOptions {
@@ -272,6 +282,7 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
     editing: null,
     view: "desk",
     toolId: null,
+    pendingHandoff: null,
 
     setDeparture(departure) {
       const parsed = parseDeparture(departure);
@@ -438,6 +449,17 @@ export function createDeskStore(options: DeskStoreOptions = {}): StoreApi<DeskSt
 
     openTool(toolId) {
       set({ view: "tools", toolId });
+    },
+
+    openHandoff(handoff) {
+      set({ pendingHandoff: handoff, view: handoff.surface, toolId: null });
+    },
+
+    takeHandoff(surface) {
+      const waiting = get().pendingHandoff;
+      if (!waiting || waiting.surface !== surface) return null;
+      set({ pendingHandoff: null });
+      return waiting;
     },
   }));
 

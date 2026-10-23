@@ -48,6 +48,7 @@ This index separates current product truth from deployment procedure, network-sp
 - [Intent links](platform/links.md): shareable, bounded intents at `/go/<id>`.
 - [Automations](platform/automations.md): schedule, price, balance, yield and incoming-transfer rules that plan intents for the owner to sign.
 - [Native orders](platform/orders.md): limit and DCA orders the protocol fills after one signature (Jupiter on Solana, CoW Protocol on Ethereum, Arbitrum and Base).
+- [Perps](platform/perps.md): GMX v2 and Hyperliquid perpetuals (Drift v2 read-only), with markets, quotes with liquidation estimates, unsigned payloads, the Hyperliquid relay and the Rule Book `perps` section.
 - [MCP server](platform/mcp.md): read-only Model Context Protocol tools at `/v1/mcp` for AI agents.
 - [Embed web component](platform/embed.md): `<kletia-intent>` and `mountKletiaIntent()` for any site, the frame bridge protocol and server-side verification.
 - [OpenAPI document](platform/openapi.json) and [API collections](platform/collections/README.md): the machine-readable contract (generated from the API source, drift-checked by `npm run check:openapi`) and a Postman v2.1 collection for Postman, Insomnia, Bruno and Hoppscotch.

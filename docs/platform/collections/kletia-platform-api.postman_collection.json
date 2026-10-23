@@ -5344,6 +5344,166 @@
           "response": []
         }
       ]
+    },
+    {
+      "id": "4f21deb8-ccfa-5e2c-b48e-d648d314389d",
+      "name": "Perps",
+      "description": "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions.",
+      "item": [
+        {
+          "id": "1d2caa31-2ebb-5d4d-a6b6-d3ea4341f17b",
+          "name": "Perps venues and their markets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/perps/markets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "perps",
+                "markets"
+              ]
+            },
+            "description": "Venues (GMX v2, Hyperliquid, Drift v2) and their markets with mark price, funding and open interest, read live and cached 10 s. A venue that cannot be read, or whose price is older than 120 s, lists no markets (`unavailable` says why); prices are never guessed.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/perps/markets` · operationId `listPerpsMarkets` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "79846ed2-e75e-5e02-bfb3-da185cf9def3",
+          "name": "Open perps positions of an account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/perps/positions?account=eip155:42161:0x4f183e308f24c81c05303821AD025812fBFd807D",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "perps",
+                "positions"
+              ],
+              "query": [
+                {
+                  "key": "account",
+                  "value": "eip155:42161:0x4f183e308f24c81c05303821AD025812fBFd807D"
+                }
+              ]
+            },
+            "description": "EVM accounts: GMX v2 (USDC markets) and Hyperliquid; Solana accounts: Drift v2. PnL is price PnL at the mark before closing fees and unsettled funding.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`GET /v1/perps/positions` · operationId `listPerpsPositions` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "f05a60b7-3abf-5c36-aff0-15ab85592d8c",
+          "name": "Quote a perps order (best venue when none is named)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"ETH\",\n  \"side\": \"long\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/perps/quote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "perps",
+                "quote"
+              ]
+            },
+            "description": "Entry and acceptable price, estimated liquidation price, fees and one hour of funding. Without `venue`, every venue is scored by fees, a day of funding and price impact (cheapest eligible first, the others with the reason). Refusals: 422 PERPS_LEVERAGE_TOO_HIGH, PERPS_COLLATERAL_TOO_LOW, PERPS_MARKET_UNSUPPORTED, PERPS_VENUE_DISABLED; 403 PERPS_POLICY_DENIED; 503 PERPS_PRICE_UNAVAILABLE.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/perps/quote` · operationId `quotePerps` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b5f2e2fe-dbf0-5a03-8a21-90f914dae016",
+          "name": "Unsigned steps for a perps order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"ETH\",\n  \"side\": \"long\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/perps/prepare",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "perps",
+                "prepare"
+              ]
+            },
+            "description": "Kletia never signs: the answer is for the user's own wallet. GMX: an exact USDC approval when needed and one ExchangeRouter multicall (sendWnt, sendTokens, createOrder) whose value is the execution fee. Hyperliquid: a Bridge2 USDC deposit when the account lacks margin, then EIP-712 L1 actions (updateLeverage, order, cancel) to sign and send back to POST /v1/perps/submit. Drift v2 is disabled. Valid 60 s. Refusals as for quote, plus 422 PERPS_POSITION_NOT_FOUND and 400 ACCOUNT_INVALID.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/perps/prepare` · operationId `preparePerps` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        },
+        {
+          "id": "b7cc77ff-e33d-57a4-94ef-bf22da81188a",
+          "name": "Relay a Hyperliquid action the account signed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"venue\": \"hyperliquid\",\n  \"account\": \"\",\n  \"action\": {},\n  \"nonce\": 0,\n  \"signature\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/perps/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "perps",
+                "submit"
+              ]
+            },
+            "description": "Rebuilds the action from its fields, checks the nonce is recent and that the signature recovers to the account (400 PERPS_SIGNATURE_INVALID otherwise), then forwards it to Hyperliquid's /exchange. 422 PERPS_RELAY_REJECTED carries the exchange's reason.\n\nWorks without a key (public tier); a key raises the rate limit.\n\n`POST /v1/perps/submit` · operationId `submitPerps` · [Platform API v1](https://github.com/furkan3152/Kletia/blob/main/docs/platform/api-v1.md)"
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }

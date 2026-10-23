@@ -114,6 +114,7 @@ import { accountHandlers } from "./accounts/handlers.js";
 import { automationHandlers } from "../automation/handlers.js";
 import { startAutomationEvaluator } from "../automation/evaluator.js";
 import { orderHandlers } from "./orders/handlers.js";
+import { perpsHandlers } from "./perps/handlers.js";
 import { afterLinkSubmit, beforeLinkPrepare } from "./links/uses.js";
 import { startLinkBackground } from "./links/watcher.js";
 import { platformSecretStatus } from "./secrets.js";
@@ -299,6 +300,12 @@ export const PLATFORM_ROUTES: readonly PlatformRoute[] = Object.freeze([
   { method: "get", path: "/orders", auth: "public", publishable: true },
   { method: "get", path: "/orders/:id", auth: "public", publishable: true },
   { method: "post", path: "/orders/:id/cancel", auth: "public", publishable: true },
+  // Perps: venue markets, positions, quotes, unsigned payloads and the relay of user-signed Hyperliquid actions.
+  { method: "get", path: "/perps/markets", auth: "public", publishable: true },
+  { method: "get", path: "/perps/positions", auth: "public", publishable: true },
+  { method: "post", path: "/perps/quote", auth: "public", publishable: true },
+  { method: "post", path: "/perps/prepare", auth: "public", publishable: true },
+  { method: "post", path: "/perps/submit", auth: "public", publishable: true },
   { method: "get", path: "/errors", auth: "public", publishable: true },
   { method: "post", path: "/mcp", auth: "public" },
   { method: "get", path: "/status/badge", auth: "public", publishable: true },
@@ -914,6 +921,7 @@ function handlers(options: PlatformRouterOptions, tierLimiter: RateLimitRequestH
     ...dataHandlers(),
     ...automationHandlers(),
     ...orderHandlers(),
+    ...perpsHandlers(),
     "post /webhooks": [
       requireApiKey,
       forbidAgent("webhooks"),

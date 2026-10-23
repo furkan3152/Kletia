@@ -54,6 +54,7 @@ import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
 import { automationPaths, automationSchemas } from "../automation/openapi.js";
 import { orderPaths, orderSchemas } from "./orders/openapi.js";
+import { perpsPaths, perpsSchemas } from "./perps/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1638,6 +1639,7 @@ function schemas(): JsonObject {
     ...accountSchemas(),
     ...automationSchemas(),
     ...orderSchemas(),
+    ...perpsSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2044,6 +2046,7 @@ function paths(): JsonObject {
     ...accountPaths(),
     ...automationPaths(),
     ...orderPaths(),
+    ...perpsPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2422,6 +2425,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Automations", description: "Rules that watch a schedule, a price, a balance, venue APYs or incoming transfers and plan an intent for the owner to sign (or hand it to a native order provider); runs and the inbox." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
       { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
+      { name: "Perps", description: "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions." },
     ],
     paths: paths(),
     webhooks: {

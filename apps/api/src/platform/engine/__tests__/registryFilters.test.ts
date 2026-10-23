@@ -77,7 +77,7 @@ describe("adapter registry order", () => {
       "pancakeswap-v3", "raydium", "relay", "renzo", "rocket-pool", "sanctum", "save", "sky", "solana-pay", "solana-stake", "spark-savings", "sparklend",
       "spl-token", "stader", "system-transfer", "uniswap-v3", "velodrome", "yearn-v3",
     ]);
-    assert.equal(PROTOCOLS.length, 61, "round 7 lists seven more ids and round 9 seven more with a live adapter, plus three native-order protocols (surface orders, no adapter)");
+    assert.equal(PROTOCOLS.length, 64, "round 7 lists seven more ids and round 9 seven more with a live adapter, plus three native-order protocols and three perps venues (no adapter)");
   });
 });
 

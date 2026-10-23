@@ -5,6 +5,7 @@
  *   /app/tasks, /app/holdings,
  *   /app/activity, /app/orders    views of the same desk (phones and tablets)
  *   /app/dashboard                the Dashboard view (every width)
+ *   /app/perps                    the Perps view (markets, ticket, positions)
  *   /app/tools, /app/tools/<id>   Tools view, an open tool
  *   /app/automations              Automations view
  *   ?q=<sentence>                 plans it once; removed right after
@@ -25,6 +26,7 @@ export const DESK_VIEW_PATHS: Readonly<Record<Exclude<DeskView, "desk">, string>
   dashboard: "/app/dashboard",
   automations: "/app/automations",
   orders: "/app/orders",
+  perps: "/app/perps",
 });
 
 const TOOL_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;

@@ -5,8 +5,8 @@
  * network engines (Base, Arbitrum One, Arc) as inline engine tasks loaded
  * only when one is needed.
  *
- * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools,
- * /app/dashboard, /app/automations, /app/orders) are the same desk (the Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
+ * Views (/app, /app/tasks, /app/holdings, /app/activity, /app/tools, /app/perps,
+ * /app/orders, /app/dashboard, /app/automations) are the same desk (Perps, Dashboard and Automations load as their own chunks): the thread stays mounted under every view, because unmounting a
  * task's execution would cancel its run. One task signs at a time (the
  * store's signing lock, enforced by the execution hook).
  */
@@ -58,6 +58,8 @@ const AutomationsView = lazy(() => import("./automations/AutomationsView"));
 
 /** The Dashboard view, read-only and loaded only when opened. */
 const DashboardView = lazy(() => import("./dashboard/DashboardView"));
+/** Loaded only when the Perps view opens. */
+const PerpsView = lazy(() => import("./perps/PerpsView"));
 
 /** Networks whose engine must be mounted: engine tasks and restored workflow threads. */
 function useEngineNetworks(): readonly LegacyNetwork[] {
@@ -281,6 +283,11 @@ export default function DeskApp() {
           </Suspense>
         ) : null}
         {view === "orders" ? <OrdersView /> : null}
+        {view === "perps" ? (
+          <Suspense fallback={<p role="status">{copy.perps.loading}</p>}>
+            <PerpsView />
+          </Suspense>
+        ) : null}
         {emptyDesk ? (
           <DeskEmptyState departure={departure} actions={status.actions} health={status.health} healthAt={status.healthAt} onPick={(sentence) => composerRef.current?.fill(sentence)} />
         ) : null}

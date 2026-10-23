@@ -123,10 +123,12 @@ Idempotency-Key: 4c1e…
 | `permissions` | `permissions.*` | API rights of an agent key (ignored on project keys). |
 | `execution.pinNonce` | `execution.pinNonce` | EVM payloads pin the account nonce, so re-preparing a step replaces its exposure instead of adding one. Agent default: on. |
 | `amendments.delaySeconds` | | How long a loosening waits before it applies (0 to 7 days). |
+| `perps.enabled`, `perps.maxLeverage`, `perps.venues` | | `/v1/perps` ([perps](perps.md)): whether the key may prepare and relay perps orders (agent default: off), the leverage cap (1 to 50; default 20) and the venues (`gmx-v2`, `hyperliquid`, `drift-v2`; `protocols.allow` / `deny` apply too). Refusals are `PERPS_POLICY_DENIED` and `PERPS_LEVERAGE_TOO_HIGH`. |
 
-On a project key an absent field restricts nothing. On an **agent key**
+On a project key an absent field restricts nothing (perps keep the 20x
+default cap). On an **agent key**
 absent fields take safe defaults (recipients `own`, no contracts, unlisted
-assets denied, nonce pinning on, permissions off except `storeIntents`), so
+assets denied, nonce pinning on, permissions off except `storeIntents`, perps off), so
 forgetting a section never widens an agent. `GET /v1/keys/{id}/policy`
 returns the stored document and the `effective` chain with defaults filled
 in.

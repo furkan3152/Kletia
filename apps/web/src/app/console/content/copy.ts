@@ -27,6 +27,7 @@ const COPY = {
       holdings: "Holdings",
       tools: "Tools",
       activity: "Activity",
+      perps: "Perps",
     },
     tasksButton: (count: number) => `Tasks (${count})`,
     tasksView: (count: number) => `Tasks ${count}`,
@@ -42,6 +43,10 @@ const COPY = {
     },
     themeToDark: "Use dark theme",
     themeToLight: "Use light theme",
+  },
+
+  perps: {
+    loading: "Opening Perps...",
   },
 
   wallets: {

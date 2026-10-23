@@ -14,6 +14,7 @@ import { parseAccountId, parseAssetId } from "./caip.js";
 import { CONTRACT_ENTRY_ID_PATTERN, CONTRACT_ID_PATTERN, canonicalJson } from "./contracts.js";
 import { sha256Hex } from "./hash.js";
 import type { IntentActionKind } from "./intent.js";
+import { PERPS_LIMITS, PERPS_VENUE_IDS, type PerpsVenueId } from "./perps.js";
 import { getProtocol, type ProtocolId } from "./protocols.js";
 import { INTENT_ACTION_KINDS, type ValidationIssue } from "./validation.js";
 
@@ -146,6 +147,12 @@ export interface PolicyDocument {
   readonly permissions?: { readonly [P in PolicyPermission]?: boolean };
   readonly execution?: { readonly pinNonce?: boolean };
   readonly amendments?: { readonly delaySeconds?: number };
+  /**
+   * Perpetual futures through /v1/perps. Absent on a project key: enabled,
+   * every venue, PERPS_LIMITS.defaultMaxLeverage. Absent on an agent key:
+   * disabled.
+   */
+  readonly perps?: { readonly enabled?: boolean; readonly maxLeverage?: number; readonly venues?: readonly PerpsVenueId[] };
 }
 
 export interface PolicyWarning {
@@ -378,7 +385,7 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
   const issues: ValidationIssue[] = [];
   const warnings: PolicyWarning[] = [];
   if (!isRecord(input)) return { ok: false, value: null, issues: [{ path: "", message: "A policy is a JSON object." }], warnings };
-  knownKeys(input, ["schema", "label", "mode", "networks", "kinds", "protocols", "contracts", "assets", "accounts", "recipients", "limits", "caps", "schedule", "confirm", "permissions", "execution", "amendments"], "", issues);
+  knownKeys(input, ["schema", "label", "mode", "networks", "kinds", "protocols", "contracts", "assets", "accounts", "recipients", "limits", "caps", "schedule", "confirm", "permissions", "execution", "amendments", "perps"], "", issues);
   if (input.schema !== POLICY_SCHEMA) issues.push({ path: "schema", message: `Must be "${POLICY_SCHEMA}".` });
 
   let label: string | undefined;
@@ -597,6 +604,15 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
     ? compact({ delaySeconds: integer(amendmentsIn.delaySeconds, "amendments.delaySeconds", 0, POLICY_LIMITS.maxAmendmentDelaySeconds, issues) })
     : undefined;
 
+  const perpsIn = section(input, "perps", ["enabled", "maxLeverage", "venues"], issues);
+  const perps = perpsIn
+    ? compact({
+        enabled: bool(perpsIn.enabled, "perps.enabled", issues),
+        maxLeverage: integer(perpsIn.maxLeverage, "perps.maxLeverage", 1, PERPS_LIMITS.policyMaxLeverage, issues),
+        venues: stringList(perpsIn.venues, "perps.venues", PERPS_VENUE_IDS.length, enumOf(PERPS_VENUE_IDS), "perps venue ids", issues),
+      })
+    : undefined;
+
   const effectiveRecipientMode = recipients?.mode ?? (options.defaults === "agent" ? "own" : "any");
   if (recipients?.mode === "allowlist" && !(recipients.allow && recipients.allow.length > 0)) {
     issues.push({ path: "recipients.allow", message: "recipients.mode allowlist needs recipients.allow." });
@@ -665,6 +681,7 @@ export function validatePolicy(input: unknown, options: PolicyValidationOptions 
       permissions,
       execution,
       amendments,
+      perps: perps ? { ...perps, ...(perps.venues ? { venues: sortedUnique(perps.venues) } : {}) } : undefined,
     }).filter(([, entry]) => entry !== undefined),
   ) as unknown as PolicyDocument;
   const bytes = new TextEncoder().encode(canonicalJson(value)).length;
@@ -708,6 +725,8 @@ export const AGENT_POLICY_DEFAULTS = Object.freeze({
     links: false,
   }) as Readonly<Record<PolicyPermission, boolean>>,
   pinNonce: true,
+  /** Agents trade perps only when a rule book sets perps.enabled. */
+  perpsEnabled: false,
 });
 
 /** The agent rule book when none is given at creation: the `observer` template. */
@@ -727,6 +746,7 @@ export function effectivePolicyDocument(document: PolicyDocument | null, default
     assets: { ...base.assets, unlisted: base.assets?.unlisted ?? AGENT_POLICY_DEFAULTS.assetsUnlisted },
     permissions: { ...AGENT_POLICY_DEFAULTS.permissions, ...base.permissions },
     execution: { pinNonce: base.execution?.pinNonce ?? AGENT_POLICY_DEFAULTS.pinNonce },
+    perps: { ...base.perps, enabled: base.perps?.enabled ?? AGENT_POLICY_DEFAULTS.perpsEnabled },
   };
 }
 
@@ -887,6 +907,10 @@ export function comparePolicies(active: PolicyDocument | null, next: PolicyDocum
   const pin = (document: PolicyDocument) => document.execution?.pinNonce ?? (agent ? AGENT_POLICY_DEFAULTS.pinNonce : false);
   add("execution.pinNonce", compareRank(pin(a) ? 1 : 0, pin(b) ? 1 : 0));
   add("amendments.delaySeconds", compareRank(a.amendments?.delaySeconds ?? 0, b.amendments?.delaySeconds ?? 0));
+  const perpsOn = (document: PolicyDocument) => document.perps?.enabled ?? (agent ? AGENT_POLICY_DEFAULTS.perpsEnabled : true);
+  add("perps.enabled", compareRank(perpsOn(a) ? 0 : 1, perpsOn(b) ? 0 : 1));
+  add("perps.maxLeverage", compareLimit(intOrNull(a.perps?.maxLeverage), intOrNull(b.perps?.maxLeverage)));
+  add("perps.venues", compareAllowlist(a.perps?.venues ?? null, b.perps?.venues ?? null));
   if (next === null) {
     // Removing a rule book loosens every field it set.
     return { tightened: [], loosened: verdicts.filter(([, verdict]) => verdict !== "equal").map(([path]) => path) };

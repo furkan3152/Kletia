@@ -50,6 +50,7 @@ import { keyPatchOperation, policyPaths, policySchemas } from "./policies/openap
 import { linkPaths, linkSchemas } from "./links/openapi.js";
 import { projectPaths, projectSchemas } from "./projects/openapi.js";
 import { accountPaths, accountSchemas } from "./accounts/openapi.js";
+import { perpsPaths, perpsSchemas } from "./perps/openapi.js";
 import { KLETIA_TOOLS } from "./mcp/tools.js";
 import { SSE_HEARTBEAT_MS, SSE_MAX_DURATION_MS, SSE_RETRY_MS } from "./sse.js";
 import { MAX_WEBHOOKS_PER_KEY, WEBHOOK_EVENT_TYPES, WEBHOOK_SCOPES } from "./webhooks.js";
@@ -1630,6 +1631,7 @@ function schemas(): JsonObject {
     ...linkSchemas(),
     ...projectSchemas(),
     ...accountSchemas(),
+    ...perpsSchemas(),
     ...journeySchemas(),
     ...clarifySchemas(),
 
@@ -2033,6 +2035,7 @@ function paths(): JsonObject {
     ...linkPaths(),
     ...projectPaths(),
     ...accountPaths(),
+    ...perpsPaths(),
     "/v1/webhooks": {
       post: {
         operationId: "createWebhook",
@@ -2408,6 +2411,7 @@ export function buildOpenApiDocument(): JsonObject {
       { name: "Links", description: "Intent links: public pages whose destination the publisher fixes and whose funding the visitor chooses; quotes, intents, counters, share cards." },
       { name: "Blinks", description: "Solana Actions for eligible links (actions.json is served by the web origin)." },
       { name: "MCP", description: "Model Context Protocol server for agents: read-only tools, plus keyed creation of intents and links for a human to sign." },
+      { name: "Perps", description: "Perpetual futures on GMX v2, Hyperliquid and Drift v2: markets, positions, quotes with liquidation estimates, unsigned payloads for the user's wallet, and the relay of user-signed Hyperliquid actions." },
     ],
     paths: paths(),
     webhooks: {

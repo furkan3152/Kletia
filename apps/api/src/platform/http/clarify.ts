@@ -44,6 +44,7 @@ import { journeyFor } from "../index.js";
 import { authOf, booleanQuery, integerQuery, invalidRequest, isRecord, pathParam, queryParam, type AuthContext } from "./context.js";
 import { journeyReadsQuery } from "./journey.js";
 import { rememberIntentOwner } from "./owners.js";
+import { readingAccess, type ReadingAccess } from "./reading.js";
 import {
   decodeThreadCursor,
   encodeThreadCursor,
@@ -231,8 +232,10 @@ export async function runClarifyTurn(request: IntentTurnRequest, options: Clarif
   }
 }
 
-function engineOptions(owner: string | undefined, flags: TurnFlags, thread: ClarifyThread | null) {
+function engineOptions(owner: string | undefined, flags: TurnFlags, thread: ClarifyThread | null, access?: ReadingAccess): ClarifyTurnOptions {
   return {
+    ...(access?.reader ? { reader: access.reader } : {}),
+    ...(access ? { confirmAuthority: access.confirmAuthority, modelReadingAvailable: access.available, modelFamilies: access.families } : {}),
     ...(owner ? { ownerKeyId: owner } : {}),
     ...(flags.dryRun ? { dryRun: true } : {}),
     ...(flags.preview ? { preview: true } : {}),
@@ -262,9 +265,11 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
     assertNoSecret(body.text, "text");
     assertNoSecret(isRecord(body.answer) ? body.answer.text : undefined, "answer.text");
   }
+  // Model-assisted reading: switch, eligibility and consent first (nothing is read or sent without them).
+  const access = await readingAccess(req, body);
   if (!isRecord(body) || (body.threadId === undefined && body.remember !== true)) {
     // Client-held thread (or none yet): the engine validates the request and the blob.
-    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(auth.keyId, flags, null));
+    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(auth.keyId, flags, null, access));
     await send(res, response, flags, auth.keyId, response.thread);
     return;
   }
@@ -277,7 +282,7 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
     // remember: true on a first turn: a new Kletia-held thread (cap checked before planning, and again on insert).
     if (body.thread !== undefined) throw invalidRequest("Only a first turn creates a remembered thread.", [{ path: "remember", message: "Send remember on a first turn only." }]);
     if ((await store.countOpen(owner, nowIso)) >= THREAD_LIMITS.openPerKey) throw openThreadLimitReached();
-    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(owner, flags, null));
+    const response = await runClarifyTurn(body as unknown as IntentTurnRequest, engineOptions(owner, flags, null, access));
     const blob = response.thread as ClarifyThread;
     const stored = response.status === "planned" && !flags.dryRun;
     const record: ThreadRecord = {
@@ -312,7 +317,7 @@ export async function handleIntentTurn(req: Request, res: Response): Promise<voi
   // The stored context fills what this turn left out; expectedRev is the HTTP layer's (checked above).
   const { expectedRev: _expectedRev, ...rest } = body;
   const request = { ...context, ...rest } as unknown as IntentTurnRequest;
-  const response = await runClarifyTurn(request, engineOptions(owner, flags, current.thread));
+  const response = await runClarifyTurn(request, engineOptions(owner, flags, current.thread, access));
   const blob = response.thread as ClarifyThread;
   const stored = response.status === "planned" && !flags.dryRun;
   const next: ThreadRecord = {

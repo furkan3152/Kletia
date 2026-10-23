@@ -40,6 +40,7 @@ settings but never change them (`AGENT_KEY_FORBIDDEN`).
 | `brand.name` | 2-40 characters, the same rules as a registration's `integrator.name`; reserved brand names (Kletia, venues, bridges) only with their own website |
 | `brand.website` | An https origin on the default port (no `:8443`), with no path; its domain file proves the brand (below). The proof counts only for that exact origin, so changing the website starts unverified |
 | `allowedOrigins` | At most 20: https origins (any port), or `http://localhost:<port>` for development |
+| `modelReading` | `"disabled"` (default) or `"enabled"`: the project's keys and its embeds may offer model-assisted reading (opt-in per request too; see [clarify.md](clarify.md#model-assisted-reading-opt-in)) |
 | `defaults.lane` | `production` or `testnet`; every default network must be on it |
 | `defaults.networks` | Network keys the widget offers |
 | `defaults.sourceNetwork` | One of `defaults.networks`, or `auto` |

@@ -208,6 +208,13 @@ the grammar understands, so an agent can correct its own wording.
   rule book bounds what Kletia plans and prepares; it cannot stop a wallet
   that signs transactions built elsewhere.
 
+### Model-assisted reading over MCP
+
+`plan_intent` never confirms a model-assisted reading. A confirm of one,
+answered by an agent, is refused with `CONFIRM_AUTHORITY_REQUIRED`: relay the
+question and send the person a signing link (`create_signing_link`) where they
+confirm it themselves. See [clarify.md](clarify.md#model-assisted-reading-opt-in).
+
 ## Configuration
 
 | Variable | Default | Purpose |

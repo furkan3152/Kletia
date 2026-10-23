@@ -17,7 +17,7 @@
  * Fail closed: a pattern matches the whole clause or not at all; a token or
  * network word it cannot resolve leaves the clause unread (null).
  */
-import type { AssetClass, AssetSel, Goal, GoalPreference, NetworkKey, VenueCategory } from "@kletia/core";
+import type { AssetSel, ExposureAssetClass, Goal, GoalPreference, NetworkKey, VenueCategory } from "@kletia/core";
 import { canonicalOn, lane, NETWORK_ORDER } from "../clarify/catalog.js";
 import { resolveNetworkName } from "../grammar.js";
 import type { ReadGoal } from "./frames.js";
@@ -139,8 +139,11 @@ function frame(goal: Omit<Goal, "holder" | "constraints" | "confidence"> & Parti
   };
 }
 
+/** An exposure class (EXPOSURE_ASSET_CLASSES) as the asset wanted: the solver reads it; core lists it apart until it joins ASSET_CLASSES. */
+const exposure = (cls: ExposureAssetClass): AssetSel => ({ class: cls }) as unknown as AssetSel;
+
 /** Staking exposure words: the liquid staking class of the chain's token. */
-const STAKING_CLASS: Readonly<Record<string, AssetClass>> = Object.freeze({ eth: "eth-lst", ethereum: "eth-lst", ether: "eth-lst", sol: "sol-lst", solana: "sol-lst" });
+const STAKING_CLASS: Readonly<Record<string, ExposureAssetClass>> = Object.freeze({ eth: "eth-lst", ethereum: "eth-lst", ether: "eth-lst", sol: "sol-lst", solana: "sol-lst" });
 
 /** Position categories said before "positions" ("my lending positions"). */
 const POSITION_CATEGORY: Readonly<Record<string, VenueCategory>> = Object.freeze({ lending: "lending", staking: "staking", yield: "any", earning: "any", defi: "any" });
@@ -149,8 +152,10 @@ const POSITION_CATEGORY: Readonly<Record<string, VenueCategory>> = Object.freeze
  * A clause that names an abstract goal, read into the A.6 IR, or null. The
  * patterns (each the whole clause, case-insensitive):
  * - ensure: "make sure i have enough SOL for fees" (atLeast the fee reserve),
- *   "top up my arbitrum gas", "prepare 100 usdc on optimism (for a payment)",
- *   "get my sol ready for a payment of 50 usdc on solana";
+ *   "prepare 100 usdc on optimism (for a payment)" (atLeast that amount),
+ *   "top up my arbitrum gas" (an addition; the amount is asked),
+ *   "get my sol ready for a payment of 50 usdc on solana" (SOL -> 50 USDC);
+ * - earn: "make my sol work (for me)" (the way and the amount are asked);
  * - rebalance: "even out my usdc between base and arbitrum",
  *   "go 100% stablecoins on base";
  * - exposure: "(get (me)) exposure to eth staking (with my base usdc)",
@@ -184,7 +189,7 @@ export function readAbstract(text: string): ReadGoal | null {
     if (!asset || !("symbol" in asset) || !at || canonicalOn(at, asset.symbol) === null) return null;
     return frame({ kind: "relocate", spend: {}, want: { asset, amount: { t: "exact", value: m.groups.amount as string }, at: wallet(at), mode: "atLeast" } }, "ensure");
   }
-  // "get my sol ready for a payment of 50 usdc on solana": the paying holding, the target amount on that network.
+  // "get my sol ready for a payment of 50 usdc on solana": the paying holding converted into the payment amount there.
   if ((m = new RegExp(String.raw`^get my (?<spend>${WORD}) ready for (?:a |the )?payment of (?<amount>\d[\d]*(?:\.\d+)?) (?<asset>${WORD}) on (?<net>[a-z][a-z ]{1,20})$`, "iu").exec(clause))?.groups) {
     const spend = assetOf(m.groups.spend as string);
     const want = assetOf(m.groups.asset as string);
@@ -219,19 +224,19 @@ export function readAbstract(text: string): ReadGoal | null {
 
   // exposure: "get (me) exposure to eth staking (with my base usdc)".
   if ((m = new RegExp(String.raw`^(?:get (?:me )?|i want |want |give me )?exposure to (?<chain>eth|ethereum|ether|sol|solana) staking(?: (?:with|using) my (?:(?<net>[a-z][a-z ]{1,20}?) )?(?<spend>${WORD}))?$`, "iu").exec(clause))?.groups) {
-    const cls = STAKING_CLASS[(m.groups.chain as string).toLowerCase()] as AssetClass;
+    const cls = STAKING_CLASS[(m.groups.chain as string).toLowerCase()] as ExposureAssetClass;
     const spendAsset = m.groups.spend ? assetOf(m.groups.spend) : null;
     if (m.groups.spend && !spendAsset) return null;
     const from = m.groups.net ? network(m.groups.net) : null;
     if (m.groups.net && !from) return null;
     // "my base usdc" here is the holding that pays, not all of it (C11): the amount stays open and is asked.
-    return frame({ kind: "acquire", spend: { ...(spendAsset ? { asset: spendAsset } : {}), ...(from ? { from: wallet(from) } : {}) }, want: { asset: { class: cls } } }, "exposure");
+    return frame({ kind: "acquire", spend: { ...(spendAsset ? { asset: spendAsset } : {}), ...(from ? { from: wallet(from) } : {}) }, want: { asset: exposure(cls) } }, "exposure");
   }
   // "hold btc on base", "get exposure to btc on base": the bitcoin Kletia lists there (class btc).
   if ((m = /^(?:hold|get exposure to|exposure to) (?:btc|bitcoin)(?: on (?<net>[a-z][a-z ]{1,20}))?$/iu.exec(clause))) {
     const at = m.groups?.net ? network(m.groups.net) : null;
     if (m.groups?.net && !at) return null;
-    return frame({ kind: "acquire", spend: {}, want: { asset: { class: "btc" }, ...(at ? { at: wallet(at) } : {}) } }, "exposure");
+    return frame({ kind: "acquire", spend: {}, want: { asset: exposure("btc"), ...(at ? { at: wallet(at) } : {}) } }, "exposure");
   }
 
   // exit-all: "exit all my lending positions (on base)", "close all my positions".

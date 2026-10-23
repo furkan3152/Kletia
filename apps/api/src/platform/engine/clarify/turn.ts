@@ -32,16 +32,8 @@ const ADDRESS = new RegExp(`^(?:0x[0-9a-fA-F]{40}|(?:eip155|solana):\\S+|${NAME}
 
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-/** `parseSentence` with the seam S1 options (`readings` per clause index), which the reader accepts as its sixth argument. */
-type SentenceReader = (
-  raw: string,
-  phrases: TurnContext["contracts"],
-  previousExists?: boolean,
-  offset?: number,
-  previousStep?: WorkStep,
-  options?: { readonly readings?: ReadonlyMap<number, readonly Goal[]> },
-) => ReturnType<typeof parseSentence>;
-const parseWithReadings = parseSentence as SentenceReader;
+/** `parseSentence` with the seam S1 options (`readings` per clause index). */
+const parseWithReadings = parseSentence;
 
 export function emptyState(id: string): WorkState {
   return { id, rev: 0, status: "needs_input", steps: [], open: [], corrections: [], turns: [], undo: [] };

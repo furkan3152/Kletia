@@ -1599,6 +1599,97 @@
         }
       }
     },
+    "/v1/reading-consent": {
+      "post": {
+        "operationId": "createReadingConsent",
+        "tags": [
+          "Intents"
+        ],
+        "summary": "Mint a model-assisted reading consent token",
+        "description": "Browser callers only (the Kletia desk, or a publishable key of a project with `modelReading: \"enabled\"` from one of its allowed origins); server keys get 403 CONFIRM_AUTHORITY_REQUIRED, so an agent can never consent or confirm for the person. `once` covers one message (bound to its text and the wallet), `session` 8 hours of typed desk text, `confirm` the person's \"Yes, plan it\" on a model reading of one thread.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "once",
+                      "session",
+                      "confirm"
+                    ]
+                  },
+                  "wallet": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 128
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "scope once: the message."
+                  },
+                  "threadId": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "scope confirm: the thread."
+                  }
+                },
+                "required": [
+                  "scope",
+                  "wallet"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consent token.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/v1/threads": {
       "get": {
         "operationId": "listThreads",
@@ -23039,6 +23130,13 @@
               ]
             },
             "maxItems": 20
+          },
+          "modelReading": {
+            "type": "string",
+            "enum": [
+              "enabled"
+            ],
+            "description": "Model-assisted reading for this project's keys and embeds (opt-in per request too). Absent: disabled."
           }
         },
         "required": [
@@ -23165,6 +23263,18 @@
                 "type": "null"
               }
             ]
+          },
+          "modelReading": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "disabled",
+              "enabled",
+              null
+            ],
+            "description": "\"enabled\" turns model-assisted reading on for this project's keys and embeds; \"disabled\" or null turns it off."
           }
         }
       },
@@ -26212,6 +26322,32 @@
         ],
         "description": "A Kletia-held thread (`remember: true`)."
       },
+      "ReadingConsentResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "once",
+              "session",
+              "confirm"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "scope"
+        ]
+      },
       "IntentTurnRequest": {
         "type": "object",
         "properties": {
@@ -26336,6 +26472,28 @@
             "type": "integer",
             "minimum": 0,
             "description": "With threadId: refuse with 409 THREAD_CONFLICT when the thread is at another revision."
+          },
+          "modelReading": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on"
+            ],
+            "description": "Model-assisted reading (opt-in per request, default off): a clause no deterministic rule could read is sent masked (amounts, addresses, names and unknown words replaced by placeholders) to two models of different vendors; a reading both agree on and that passes every deterministic check is only proposed, as a one-click confirm. API keys need the project setting `modelReading: \"enabled\"`; browsers also need `consent`."
+          },
+          "consent": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){1,3}$",
+            "description": "A token from POST /v1/reading-consent: `once` for this message, `session` (desk, typed text only) or `confirm` (the person confirmed a model reading on this thread)."
+          },
+          "textOrigin": {
+            "type": "string",
+            "enum": [
+              "typed",
+              "prefilled"
+            ],
+            "description": "Default `prefilled`: session consent covers only text the person typed in the desk input."
           }
         },
         "additionalProperties": false,

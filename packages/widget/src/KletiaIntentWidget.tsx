@@ -205,6 +205,18 @@ function useResolvedTheme(theme: KletiaIntentWidgetProps["theme"]): "light" | "d
   return prefersDark ? "dark" : "light";
 }
 
+/** The wallet address of an account id ("eip155:8453:0x…" -> "0x…"): the one a reading consent binds to. */
+function walletOfAccount(account: string | undefined): string | null {
+  if (!account) return null;
+  const address = account.slice(account.lastIndexOf(":") + 1);
+  return address.length >= 20 ? address : null;
+}
+
+/** A refusal the API marked as readable with model assistance (the project enabled it). */
+function readingOffered(error: unknown): boolean {
+  return error instanceof KletiaApiError && error.code === "INTENT_UNSUPPORTED" && error.details?.modelReading === "available";
+}
+
 function describeError(error: unknown): string {
   if (error instanceof KletiaExecutionError && error.references) {
     const count = error.references.length;
@@ -598,7 +610,7 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
    * arrives after a newer turn, a reset or a new sentence is ignored; a
    * refusal keeps the card and the thread as they were.
    */
-  const runTurn = async (input: Pick<IntentTurnRequest, "text" | "answer" | "assumption">, pendingKey: string, fresh: boolean) => {
+  const runTurn = async (input: Pick<IntentTurnRequest, "text" | "answer" | "assumption" | "modelReading" | "consent">, pendingKey: string, fresh: boolean) => {
     if (accounts.length === 0) return;
     const thread = fresh ? null : turn?.thread ?? null;
     if (!fresh && !thread) return;
@@ -615,7 +627,16 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
     }
     try {
       const memory = thread ? ("spec" in thread ? { thread } : { threadId: thread.id }) : {};
-      const response = await client.intents.turn({ ...context(), ...memory, ...input }, { journey: true, ...(wantPreview ? { preview: true } : {}) });
+      let response: Awaited<ReturnType<typeof client.intents.turn>>;
+      try {
+        response = await client.intents.turn({ ...context(), ...memory, ...input }, { journey: true, ...(wantPreview ? { preview: true } : {}) });
+      } catch (refused) {
+        // The person clicked an option of a model reading's confirm: mint the wallet-bound confirm token and send it once.
+        const wallet = walletOfAccount(accounts[0]);
+        if (!(refused instanceof KletiaApiError && refused.code === "CONFIRM_AUTHORITY_REQUIRED" && input.answer && thread && wallet)) throw refused;
+        const consent = await client.intents.readingConsent({ scope: "confirm", wallet, threadId: thread.id });
+        response = await client.intents.turn({ ...context(), ...memory, ...input, consent: consent.token }, { journey: true, ...(wantPreview ? { preview: true } : {}) });
+      }
       if (mine !== turnEpoch.current) return;
       if (response.status === "needs_input") {
         clearPlan();
@@ -650,6 +671,18 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
   const plan = async () => {
     if (!text.trim() || accounts.length === 0) return;
     await runTurn({ text: text.trim() }, "message", true);
+  };
+
+  /** "Read once" on an eligible refusal (the project enabled model-assisted reading): consent for this message only. */
+  const readOnce = async () => {
+    const wallet = walletOfAccount(accounts[0]);
+    if (!text.trim() || !wallet) return;
+    try {
+      const consent = await client.intents.readingConsent({ scope: "once", wallet, text: text.trim() });
+      await runTurn({ text: text.trim(), modelReading: "on", consent: consent.token }, "message", true);
+    } catch (caught) {
+      setError(caught);
+    }
   };
 
   const openQuestions = turn?.status === "needs_input" ? turn.questions : [];
@@ -1149,7 +1182,17 @@ export function KletiaIntentWidget(props: KletiaIntentWidgetProps) {
         {policyError ? (
           <PolicyNotice outcome={policyError} />
         ) : error ? (
-          <div className="kw-error">{describeError(error)}</div>
+          <div className="kw-error">
+            {describeError(error)}
+            {readingOffered(error) ? (
+              <p>
+                Kletia can ask two independent models to propose a reading; only Kletia's own words are sent (amounts, addresses and names become placeholders), and you see the full plan first.{" "}
+                <button type="button" onClick={() => void readOnce()} disabled={phase !== "idle"}>
+                  Read once
+                </button>
+              </p>
+            ) : null}
+          </div>
         ) : null}
         {hold && !finished ? <PolicyNotice outcome={hold} {...(signers ? { onCheckAgain: () => void execute(), busy } : {})} /> : null}
         {stopped && !busy && !finished ? (

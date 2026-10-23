@@ -358,10 +358,16 @@ export async function decideTurn(thread: ClarifyThread | null, input: TurnInput,
     sentence: render(departed.actions),
     ...(departed.departure ? { departure: departed.departure } : {}),
     ...(analysis.gasOnArrival ? { gasOnArrival: analysis.gasOnArrival } : {}),
-    ...(analysis.modelReading ? { modelReading: true as const } : {}),
+    // A model reading the person just confirmed (its goal leaves "llm" on the confirm) still marks the plan.
+    ...(analysis.modelReading || confirmedModelReading(previous) ? { modelReading: true as const } : {}),
     optionSentences: new Map(),
     state: outcome.state,
   };
+}
+
+/** The previous state held a model-assisted reading still waiting for the person's confirm. */
+function confirmedModelReading(previous: WorkState | null): boolean {
+  return (previous?.steps ?? []).some((step) => isGoalStep(step) && step.goal.confidence === "llm");
 }
 
 /** A non-serialised list of the clauses the reader could not read (seam S1), when the refusal carries one. */
@@ -513,6 +519,10 @@ export interface ClarifyTurnOptions {
   readonly reader?: TurnContext["reader"];
   /** Who answers this turn (the HTTP layer knows): the first-party desk, a wallet-bound token, or a plain API caller. */
   readonly confirmAuthority?: TurnContext["confirmAuthority"];
+  /** The caller could opt in to model-assisted reading: an unread-clause refusal says `details.modelReading: "available"`. */
+  readonly modelReadingAvailable?: boolean;
+  /** Families of an agreed model reading (interpretation.modelReading.families). */
+  readonly modelFamilies?: number;
 }
 
 function turnInput(request: IntentTurnRequest): TurnInput {
@@ -557,7 +567,16 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
     ...(options.confirmAuthority ? { confirmAuthority: options.confirmAuthority } : {}),
     ...(turn.textOrigin ? { textOrigin: turn.textOrigin } : {}),
   };
-  const decision = await decideTurn(supplied, input, ctx, turn.constraints);
+  let decision: TurnDecision;
+  try {
+    decision = await decideTurn(supplied, input, ctx, turn.constraints);
+  } catch (error) {
+    // A refusal of clauses no rule could read tells an eligible caller that model-assisted reading is available.
+    if (options.modelReadingAvailable && !options.reader && unreadClausesOf(error) && error instanceof PlatformError) {
+      throw new PlatformError(error.code, error.message, error.status, error.issues, error.hints, { ...(error.details ?? {}), modelReading: "available" });
+    }
+    throw error;
+  }
   if (decision.status === "cancelled") return { status: "cancelled", turn: "control", thread: decision.thread };
   if (decision.status === "needs_input") {
     return {
@@ -596,6 +615,8 @@ export async function clarifyTurn(request: IntentTurnRequest, options: ClarifyTu
         : {}),
       thread: { id: decision.thread.id, rev: decision.thread.rev },
       ...(decision.departure ? { departure: decision.departure } : {}),
+      // No vendor or model names, no cache flag (design D.1): only that a masked clause was read and confirmed.
+      ...(decision.modelReading ? { modelReading: { used: true, sent: "masked_clause", families: options.modelFamilies ?? 2, agreed: true, confirmed: true } as const } : {}),
     },
   });
   return {

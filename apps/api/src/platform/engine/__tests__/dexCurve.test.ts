@@ -170,7 +170,9 @@ describe("Curve adapter wiring", () => {
     assert.equal(curve.supports(await route("ethereum", "USDC", "WETH")), false, "WETH is not a 3pool coin");
     assert.equal(curve.supports(await route("ethereum", "USDC", "ETH")), false, "native legs are out of scope");
     assert.equal(curve.supports(await route("ethereum", "USDC", "USDC")), false);
-    assert.equal(curve.supports(await route("arbitrum", "USDC", "USDT")), false, "no pinned pool on Arbitrum");
+    assert.equal(curve.supports(await route("arbitrum", "USDC", "USDT")), true, "the USDC/USDT0 pool (USDT resolves to USDT0)");
+    assert.equal(curve.supports(await route("arbitrum", "USDC", "WETH")), false, "WETH is not a coin of the Arbitrum pool");
+    assert.equal(curve.supports(await route("base", "USDC", "DAI")), false, "no pinned pool on Base");
     assert.equal(curve.supports({ ...(await route("ethereum", "USDC", "USDT")), kind: "bridge", destinationNetwork: "arbitrum" }), false);
   });
 
@@ -181,6 +183,21 @@ describe("Curve adapter wiring", () => {
     assert.deepEqual(decodeCurveRoute("ethereum", "3pool:1:2"), { pool: THREEPOOL, i: 1, j: 2 });
     for (const bad of ["3pool:1:1", "3pool:1:3", "tricrypto:0:1", "3pool:1", "v3:500", undefined]) assert.equal(decodeCurveRoute("ethereum", bad), null, String(bad));
     assert.equal(decodeCurveRoute("arbitrum", "3pool:1:2"), null);
+  });
+
+  it("routes Arbitrum USDC and USDT0 through the pinned stable-ng pool with exact exchange calldata", () => {
+    const pool = curvePoolsFor("arbitrum")[0]!;
+    assert.equal(getAddress(pool.pool), "0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F");
+    const [route] = curveRoutesFor("arbitrum", tokenAddress("arbitrum", "USDC"), tokenAddress("arbitrum", "USDT0"));
+    assert.ok(route);
+    assert.equal(encodeCurveRoute(route), "usdc-usdt0:0:1");
+    assert.deepEqual(decodeCurveRoute("arbitrum", "usdc-usdt0:1:0"), { pool, i: 1, j: 0 });
+    assert.equal(decodeCurveRoute("arbitrum", "usdc-usdt0:0:2"), null, "a two-coin pool has no coin 2");
+    assert.equal(decodeCurveRoute("ethereum", "usdc-usdt0:0:1"), null, "never across networks");
+    const decoded = decodeFunctionData({ abi: CURVE_PLAIN_POOL_ABI, data: exchangeCall(route, 100_000_000n, 99_500_000n) });
+    assert.equal(decoded.functionName, "exchange");
+    assert.deepEqual(decoded.args, [0n, 1n, 100_000_000n, 99_500_000n]);
+    assert.ok(VENUE_CONTRACTS.some((row) => row.protocol === "curve" && row.network === "arbitrum" && row.role === "curve-pool" && row.address === pool.pool));
   });
 });
 

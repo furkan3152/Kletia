@@ -243,8 +243,8 @@ describe("LST positions", () => {
     const wsteth = mockLido();
     const reth = mockRocket();
     mockEtherfi();
-    // ETHx, mETH and sfrxETH hold nothing here; stakingEvmMore.test.ts values them.
-    for (const [address, symbol] of [["0xA35b1B31Ce002FBF2058D22F30f95D405200A15b", "ETHx"], ["0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa", "mETH"], ["0xac3E018457B222d93114458476f3E3416Abbe38F", "sfrxETH"]] as const) {
+    // The other tokens (ETHx, mETH, sfrxETH, rsETH, ezETH) hold nothing here; stakingEvmMore.test.ts and stakingRestaking.test.ts value them.
+    for (const [address, symbol] of [["0xA35b1B31Ce002FBF2058D22F30f95D405200A15b", "ETHx"], ["0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa", "mETH"], ["0xac3E018457B222d93114458476f3E3416Abbe38F", "sfrxETH"], ["0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7", "rsETH"], ["0xbf5495Efe5DB9ce00f80364C8B423567e58d2110", "ezETH"]] as const) {
       lstToken(address, symbol, [], {});
     }
     setBalance(wsteth, ACCOUNT, 4n * ONE);

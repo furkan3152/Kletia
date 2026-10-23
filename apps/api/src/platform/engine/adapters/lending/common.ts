@@ -46,6 +46,7 @@ import {
   type NetworkKey,
   type ProtocolId,
   type ReceiptToken,
+  type SavingsVaultVenue,
   type SparkVaultVenue,
   type StepEvidence,
   type YearnVaultVenue,
@@ -72,7 +73,7 @@ export const UNWRAP_GAS = 60_000n;
 
 const READ_TIMEOUT_MS = 10_000;
 
-export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue | SparkVaultVenue | FluidFTokenVenue | YearnVaultVenue;
+export type EvmLendingVenue = AaveReserveVenue | CometVenue | Erc4626Venue | CTokenVenue | SparkVaultVenue | FluidFTokenVenue | YearnVaultVenue | SavingsVaultVenue;
 export type EvmLendingKind = EvmLendingVenue["kind"];
 export type VenueOfKind<K extends EvmLendingKind> = Extract<EvmLendingVenue, { kind: K }>;
 export type LendingKind = "deposit" | "withdraw";

@@ -34,6 +34,7 @@ import {
   type IntentStep,
   type ParsedAccountId,
   type ProtocolId,
+  type SavingsVaultVenue,
   type SparkVaultVenue,
   type VenueCapacity,
   type VenuePosition,
@@ -146,7 +147,7 @@ const BLOCK_SECONDS: Readonly<Record<EvmNetworkKey, number>> = {
 
 /* ------------------------------------------------------------- families */
 
-export type VaultVenue = Erc4626Venue | SparkVaultVenue | FluidFTokenVenue | YearnVaultVenue;
+export type VaultVenue = Erc4626Venue | SparkVaultVenue | FluidFTokenVenue | YearnVaultVenue | SavingsVaultVenue;
 export type VaultContext<V extends VaultVenue = VaultVenue> = LendingContext<V>;
 /** What the read paths (provenance, metrics, positions) know about a vault. */
 export interface VaultRef<V extends VaultVenue = VaultVenue> {
@@ -215,6 +216,8 @@ export interface VaultFamily<V extends VaultVenue = VaultVenue> {
   /** Where withdrawn underlying comes from; null when the vault pays out through a third contract it chooses (PSM pockets). */
   assetSource(venue: V): string | null;
   apy(ref: VaultRef<V>): Promise<VaultApy | null>;
+  /** Extra warnings every deposit plan carries (Ethena: the live exit cooldown). */
+  depositWarnings?(ref: VaultRef<V>): Promise<string[]>;
 }
 
 /* ---------------------------------------------------------- shared reads */
@@ -446,10 +449,11 @@ async function depositQuote<V extends VaultVenue>(family: VaultFamily<V>, action
   if (stage === "prepare") {
     await assertEvmBalance(network, owner, context.native ? null : token, amount, action.input.symbol, action.input.decimals);
   }
-  const [state, shares, apy] = await Promise.all([
+  const [state, shares, apy, notes] = await Promise.all([
     family.verify(context),
     vaultRead(context, "previewDeposit", amount),
     stage === "plan" ? bestEffort(() => family.apy(context)) : Promise.resolve(null),
+    family.depositWarnings ? family.depositWarnings(context) : Promise.resolve([]),
   ]);
   await family.assertDeposit(context, state, amount);
   if (shares <= 0n) throw new PlatformError("AMOUNT_TOO_SMALL", `${formatUnits(amount, context.underlying.decimals, context.underlying.symbol)} buys no shares of ${venue.name}.`, 422);
@@ -462,7 +466,7 @@ async function depositQuote<V extends VaultVenue>(family: VaultFamily<V>, action
   const approvals = await exactApprovals(context, vault, amount, allowance);
   transactions.push(...approvals);
   const data = await family.encodeDeposit(context, amount, minimum);
-  const warnings: string[] = [];
+  const warnings: string[] = [...notes];
   let gas: bigint | string = DEPOSIT_GAS;
   if (stage === "prepare" && transactions.length === 0) {
     const request = { from: owner, to: venue.target, data };

@@ -147,6 +147,9 @@ export const CHAINLINK_FEEDS = Object.freeze({
   methEthEthereum: chainlink("ethereum", "0x5b563107C8666d2142C216114228443B94152362", "mETH / ETH", 86_400),
   usdsUsdEthereum: chainlink("ethereum", "0xfF30586cD0F29eD462364C7e81375FC0C71219b1", "USDS / USD", 82_800),
   opUsdOptimism: chainlink("optimism", "0x0D276FC14719f9292D5C1eA2198673d1f4269246", "OP / USD", 1_200),
+  // description(), decimals() and latestRoundData() read live 2026-10-23: USDe / USD has 8 decimals, ezETH / ETH 18.
+  usdeUsdEthereum: chainlink("ethereum", "0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961", "USDe / USD", 86_400),
+  ezethEthEthereum: chainlink("ethereum", "0x636A000262F6aA9e1F094ABF0aD8f645C44f641C", "ezETH / ETH", 86_400),
 });
 
 const sequencer = (network: EvmNetworkKey, address: `0x${string}`): SequencerFeed =>
@@ -177,6 +180,8 @@ export const DERIVED_FEEDS = Object.freeze({
   cbethUsd: derived("derived:cbETH", [CHAINLINK_FEEDS.cbethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
   ethxUsd: derived("derived:ETHx", [CHAINLINK_FEEDS.ethxEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
   methUsd: derived("derived:mETH", [CHAINLINK_FEEDS.methEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
+  // ezETH = ezETH / ETH x ETH / USD.
+  ezethUsd: derived("derived:ezETH", [CHAINLINK_FEEDS.ezethEthEthereum, CHAINLINK_FEEDS.ethUsdEthereum]),
 });
 
 const pyth = (description: string, feedId: string, account: string): PythFeed => Object.freeze({ kind: "pyth", feedId, account, description });
@@ -249,6 +254,9 @@ const BY_SYMBOL: Readonly<Record<string, readonly PriceSource[]>> = {
   METH: [DERIVED_FEEDS.methUsd],
   USDS: [F.usdsUsdEthereum],
   OP: [F.opUsdOptimism],
+  // rsETH has no verified Chainlink feed: see UNPRICED_SYMBOLS.
+  USDE: [F.usdeUsdEthereum],
+  EZETH: [DERIVED_FEEDS.ezethUsd],
 };
 
 /** CAIP-19 text with EVM token addresses lower-cased (registry lookups are case-insensitive). */
@@ -271,9 +279,10 @@ function sourcesForListed(symbol: string, network: string, group: string | undef
  * swap guard or USD rule can use them; staking that mints them still works,
  * its USD value reads as unknown). sfrxETH: Chainlink lists no sfrxETH or
  * frxETH feed, and the oracle's on-chain rate reader covers wstETH only.
+ * rsETH: no rsETH feed was confirmed on-chain, so none is pinned.
  */
 export const UNPRICED_SYMBOLS: Readonly<Partial<Record<EvmNetworkKey, readonly string[]>>> = Object.freeze({
-  ethereum: Object.freeze(["sfrxETH"]),
+  ethereum: Object.freeze(["sfrxETH", "rsETH"]),
 });
 
 const LISTED: ReadonlyMap<string, AssetDescriptor> = new Map(ASSETS.map((asset) => [normalizeAssetKey(asset.id), asset]));
